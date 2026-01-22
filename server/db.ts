@@ -1,11 +1,16 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { 
+  InsertUser, users, 
+  serverConfigs, InsertServerConfig, ServerConfig,
+  serverCredentials, InsertServerCredential, ServerCredential,
+  activityLogs, InsertActivityLog,
+  calderaStats, InsertCalderaStats, CalderaStats
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -18,6 +23,7 @@ export async function getDb() {
   return _db;
 }
 
+// User operations
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
@@ -30,9 +36,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
+    const values: InsertUser = { openId: user.openId };
     const updateSet: Record<string, unknown> = {};
 
     const textFields = ["name", "email", "loginMethod"] as const;
@@ -68,9 +72,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -79,14 +81,108 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
+  if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(users).orderBy(desc(users.createdAt));
+}
+
+export async function updateUserRole(userId: number, role: "user" | "admin" | "viewer") {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+// Server config operations
+export async function createServerConfig(config: InsertServerConfig) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(serverConfigs).values(config);
+  return result[0].insertId;
+}
+
+export async function getServerConfigs() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(serverConfigs).orderBy(desc(serverConfigs.createdAt));
+}
+
+export async function getServerConfigById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(serverConfigs).where(eq(serverConfigs.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateServerStatus(id: number, status: "online" | "offline" | "unknown") {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(serverConfigs).set({ status, lastHealthCheck: new Date() }).where(eq(serverConfigs.id, id));
+}
+
+// Credential operations
+export async function createCredential(credential: InsertServerCredential) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(serverCredentials).values(credential);
+}
+
+export async function getCredentialsByServerId(serverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(serverCredentials).where(eq(serverCredentials.serverId, serverId));
+}
+
+export async function updateCredential(id: number, updates: Partial<InsertServerCredential>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(serverCredentials).set(updates).where(eq(serverCredentials.id, id));
+}
+
+// Activity log operations
+export async function logActivity(log: InsertActivityLog) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(activityLogs).values(log);
+}
+
+export async function getActivityLogs(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(limit);
+}
+
+export async function getActivityLogsByServer(serverId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(activityLogs).where(eq(activityLogs.serverId, serverId)).orderBy(desc(activityLogs.createdAt)).limit(limit);
+}
+
+// Caldera stats operations
+export async function upsertCalderaStats(stats: InsertCalderaStats) {
+  const db = await getDb();
+  if (!db) return;
+  
+  const existing = await db.select().from(calderaStats).where(eq(calderaStats.serverId, stats.serverId)).limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(calderaStats).set({
+      ...stats,
+      lastUpdated: new Date()
+    }).where(eq(calderaStats.serverId, stats.serverId));
+  } else {
+    await db.insert(calderaStats).values(stats);
+  }
+}
+
+export async function getCalderaStatsByServerId(serverId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(calderaStats).where(eq(calderaStats.serverId, serverId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
