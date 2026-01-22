@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -128,7 +127,6 @@ function getStatusText(lastSeen: string): string {
 }
 
 export default function Agents() {
-  const { user, loading: authLoading } = useAuth();
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   
   const { data: agents, isLoading, refetch } = trpc.calderaProxy.getAgents.useQuery(undefined, {
@@ -170,7 +168,7 @@ export default function Agents() {
     toast.success(`${label} copied to clipboard`);
   };
 
-  if (authLoading || isLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="flex">
@@ -256,7 +254,7 @@ export default function Agents() {
           <div className="absolute bottom-0 w-64 p-6 border-t border-border">
             <div className="text-sm text-muted-foreground">
               <p>Signed in as</p>
-              <p className="font-medium text-foreground">{user?.name || user?.email || 'Admin'}</p>
+              <p className="font-medium text-foreground">Admin</p>
             </div>
           </div>
         </div>

@@ -94,3 +94,20 @@
 - [x] Add agent actions (kill, trust, untrust)
 - [x] Add Agents link to navigation on all pages
 - [x] Deploy to DigitalOcean
+
+## Button Testing and Error Fixes
+- [ ] Test Home page buttons (Dashboard, Caldera UI)
+- [ ] Test Dashboard page buttons and quick actions
+- [ ] Test Credentials page copy buttons and links
+- [ ] Test Adversaries page search and filters
+- [ ] Test Agents page actions and deployment scripts
+- [ ] Test Campaigns page create and manage buttons
+- [ ] Test Team page member management
+- [ ] Fix all identified errors
+
+## Authentication Fix (403 Error)
+- [x] Fix 403 error on Get Started button - remove Manus OAuth dependency
+- [x] Fix remaining TypeScript errors related to user references
+- [x] Make dashboard work standalone without authentication
+- [x] Test all dashboard pages are accessible
+- [x] Redeploy to DigitalOcean server

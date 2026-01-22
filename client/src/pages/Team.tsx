@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
@@ -35,20 +34,8 @@ const ROLE_INFO = {
 };
 
 export default function Team() {
-  const { user, logout, isAuthenticated, loading: authLoading } = useAuth();
   const [, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate('/');
-    }
-  }, [authLoading, isAuthenticated, navigate]);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -64,15 +51,7 @@ export default function Team() {
     toast.info('Role management requires admin privileges');
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = true; // Admin access for standalone deployment
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -102,17 +81,14 @@ export default function Team() {
           <div className="p-4 border-t border-border">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-primary/20 flex items-center justify-center">
-                <span className="font-display text-primary">{user?.name?.[0] || 'U'}</span>
+                <span className="font-display text-primary">A</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-muted-foreground uppercase">{user?.role || 'viewer'}</p>
+                <p className="text-sm font-medium truncate">Admin</p>
+                <p className="text-xs text-muted-foreground uppercase">ADMIN</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="w-full font-display tracking-wider" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              LOGOUT
-            </Button>
+            <Link href="/"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>
           </div>
         </div>
       </aside>

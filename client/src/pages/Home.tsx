@@ -1,6 +1,4 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 import { 
   Key, 
@@ -18,8 +16,6 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const { user, loading, isAuthenticated } = useAuth();
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
@@ -30,22 +26,12 @@ export default function Home() {
             <span className="font-display text-2xl tracking-wider">ACE OF CLOUD</span>
           </div>
           <div className="flex items-center gap-4">
-            {loading ? (
-              <div className="w-24 h-10 bg-muted animate-pulse" />
-            ) : isAuthenticated ? (
-              <Link href="/dashboard">
-                <Button variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background">
-                  DASHBOARD
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            ) : (
-              <a href={getLoginUrl()}>
-                <Button variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background">
-                  LOGIN
-                </Button>
-              </a>
-            )}
+            <Link href="/dashboard">
+              <Button variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background">
+                DASHBOARD
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </nav>
@@ -73,21 +59,12 @@ export default function Home() {
             </p>
 
             <div className="flex flex-wrap gap-4">
-              {isAuthenticated ? (
-                <Link href="/dashboard">
-                  <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg">
-                    ENTER DASHBOARD
-                    <Zap className="w-5 h-5 ml-2" />
-                  </Button>
-                </Link>
-              ) : (
-                <a href={getLoginUrl()}>
-                  <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg">
-                    GET STARTED
-                    <ChevronRight className="w-5 h-5 ml-2" />
-                  </Button>
-                </a>
-              )}
+              <Link href="/dashboard">
+                <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg">
+                  GET STARTED
+                  <ChevronRight className="w-5 h-5 ml-2" />
+                </Button>
+              </Link>
               <a href="https://137.184.7.224" target="_blank" rel="noopener noreferrer">
                 <Button size="lg" variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background px-8 py-6 text-lg">
                   CALDERA SERVER
