@@ -51,13 +51,38 @@ export default function Dashboard() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // Simulated stats (would come from API in production)
-  const stats = {
-    totalAdversaries: 188,
-    totalAbilities: 2258,
+  // Live stats from DigitalOcean Caldera API
+  const [stats, setStats] = useState({
+    totalAdversaries: 0,
+    totalAbilities: 0,
     activeOperations: 0,
     totalAgents: 0,
-  };
+  });
+
+  // Fetch live stats from Caldera API
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [adversaries, abilities, operations, agents] = await Promise.all([
+          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/adversaries`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
+          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/abilities`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
+          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/operations`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
+          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/agents`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
+        ]);
+        setStats({
+          totalAdversaries: Array.isArray(adversaries) ? adversaries.length : 0,
+          totalAbilities: Array.isArray(abilities) ? abilities.length : 0,
+          activeOperations: Array.isArray(operations) ? operations.filter((o: any) => o.state === 'running').length : 0,
+          totalAgents: Array.isArray(agents) ? agents.length : 0,
+        });
+      } catch (error) {
+        console.error('Failed to fetch Caldera stats:', error);
+      }
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Check server health on mount
   useEffect(() => {

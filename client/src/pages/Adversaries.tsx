@@ -16,28 +16,24 @@ import {
   ChevronRight,
   Zap,
   Globe,
-  Filter
+  Filter,
+  RefreshCw
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
-// Sample adversary data - in production this would come from the API
-const ADVERSARIES = [
-  { id: 'apt29-vcd-enhanced', name: 'APT29_VCD_Cloud_Compromise_Enhanced', description: 'Enhanced APT29 emulation for VMware Cloud Director', abilities: 46, featured: true, tags: ['APT29', 'Cloud', 'VCD'] },
-  { id: 'apt29-vcd', name: 'APT29_VCD_Cloud_Compromise', description: 'APT29 emulation in VMware Cloud Director environment', abilities: 11, featured: true, tags: ['APT29', 'Cloud'] },
-  { id: 'apt29', name: 'APT29 (Cozy Bear)', description: 'Russian state-sponsored threat group', abilities: 89, tags: ['Russia', 'APT'] },
-  { id: 'apt28', name: 'APT28 (Fancy Bear)', description: 'Russian military intelligence threat group', abilities: 76, tags: ['Russia', 'APT'] },
-  { id: 'apt41', name: 'APT41 (Double Dragon)', description: 'Chinese state-sponsored threat group', abilities: 65, tags: ['China', 'APT'] },
-  { id: 'lazarus', name: 'Lazarus Group', description: 'North Korean state-sponsored threat group', abilities: 72, tags: ['DPRK', 'APT'] },
-  { id: 'fin7', name: 'FIN7 (Carbanak)', description: 'Financially motivated cybercrime group', abilities: 58, tags: ['Cybercrime', 'Financial'] },
-  { id: 'wizard-spider', name: 'Wizard Spider', description: 'Russian cybercrime group behind TrickBot and Ryuk', abilities: 45, tags: ['Russia', 'Ransomware'] },
-  { id: 'sandworm', name: 'Sandworm Team', description: 'Russian military intelligence unit targeting Ukraine', abilities: 52, tags: ['Russia', 'ICS'] },
-  { id: 'turla', name: 'Turla (Snake)', description: 'Russian FSB-attributed threat group', abilities: 61, tags: ['Russia', 'APT'] },
-  { id: 'muddywater', name: 'MuddyWater', description: 'Iranian state-sponsored threat group', abilities: 38, tags: ['Iran', 'APT'] },
-  { id: 'apt33', name: 'APT33 (Elfin)', description: 'Iranian state-sponsored threat group', abilities: 42, tags: ['Iran', 'APT'] },
-  { id: 'kimsuky', name: 'Kimsuky', description: 'North Korean threat group targeting South Korea', abilities: 35, tags: ['DPRK', 'APT'] },
-  { id: 'volt-typhoon', name: 'Volt Typhoon', description: 'Chinese state-sponsored group targeting US infrastructure', abilities: 28, tags: ['China', 'APT'] },
-  { id: 'scattered-spider', name: 'Scattered Spider', description: 'Financially motivated threat group using social engineering', abilities: 22, tags: ['Cybercrime', 'Social Engineering'] },
-];
+// DigitalOcean Caldera Server config
+const CALDERA_API = {
+  url: 'http://137.184.7.224:8888',
+  apiKey: 'ADMIN123',
+};
+
+interface Adversary {
+  adversary_id: string;
+  name: string;
+  description: string;
+  atomic_ordering: string[];
+  tags?: string[];
+}
 
 export default function Adversaries() {
   const { user, logout, isAuthenticated, loading: authLoading } = useAuth();
@@ -45,6 +41,8 @@ export default function Adversaries() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [adversaries, setAdversaries] = useState<Adversary[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -52,36 +50,81 @@ export default function Adversaries() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
+  // Fetch adversaries from DigitalOcean Caldera API
+  useEffect(() => {
+    const fetchAdversaries = async () => {
+      try {
+        const response = await fetch(`${CALDERA_API.url}/api/v2/adversaries`, {
+          headers: { 'KEY': CALDERA_API.apiKey },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setAdversaries(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch adversaries:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAdversaries();
+  }, []);
+
   const handleLogout = async () => {
     await logout();
     navigate('/');
   };
 
-  // Get unique tags
+  // Derive tags from adversary names
   const allTags = useMemo(() => {
     const tags = new Set<string>();
-    ADVERSARIES.forEach(a => a.tags.forEach(t => tags.add(t)));
+    adversaries.forEach(a => {
+      if (a.name.includes('APT')) tags.add('APT');
+      if (a.name.includes('FIN')) tags.add('Financial');
+      if (a.name.includes('VCD') || a.name.includes('Cloud')) tags.add('Cloud');
+      if (a.name.toLowerCase().includes('russia') || a.name.includes('Turla') || a.name.includes('Sandworm')) tags.add('Russia');
+      if (a.name.toLowerCase().includes('china') || a.name.includes('Volt')) tags.add('China');
+      if (a.name.toLowerCase().includes('iran') || a.name.includes('MuddyWater')) tags.add('Iran');
+      if (a.name.toLowerCase().includes('dprk') || a.name.includes('Lazarus') || a.name.includes('Kimsuky')) tags.add('DPRK');
+    });
     return Array.from(tags).sort();
-  }, []);
+  }, [adversaries]);
 
   // Filter adversaries
   const filteredAdversaries = useMemo(() => {
-    return ADVERSARIES.filter(a => {
+    return adversaries.filter(a => {
       const matchesSearch = searchQuery === '' || 
         a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTag = !selectedTag || a.tags.includes(selectedTag);
-      return matchesSearch && matchesTag;
+        (a.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (!selectedTag) return matchesSearch;
+      
+      // Tag matching logic
+      const name = a.name.toLowerCase();
+      if (selectedTag === 'APT' && name.includes('apt')) return matchesSearch;
+      if (selectedTag === 'Financial' && name.includes('fin')) return matchesSearch;
+      if (selectedTag === 'Cloud' && (name.includes('vcd') || name.includes('cloud'))) return matchesSearch;
+      if (selectedTag === 'Russia' && (name.includes('turla') || name.includes('sandworm') || name.includes('apt28') || name.includes('apt29'))) return matchesSearch;
+      if (selectedTag === 'China' && (name.includes('apt41') || name.includes('volt'))) return matchesSearch;
+      if (selectedTag === 'Iran' && (name.includes('apt33') || name.includes('muddywater'))) return matchesSearch;
+      if (selectedTag === 'DPRK' && (name.includes('lazarus') || name.includes('kimsuky'))) return matchesSearch;
+      
+      return false;
     });
-  }, [searchQuery, selectedTag]);
+  }, [adversaries, searchQuery, selectedTag]);
 
-  const featuredAdversaries = filteredAdversaries.filter(a => a.featured);
-  const otherAdversaries = filteredAdversaries.filter(a => !a.featured);
+  // Featured adversaries (APT29 VCD campaigns)
+  const featuredAdversaries = filteredAdversaries.filter(a => 
+    a.name.includes('APT29') && a.name.includes('VCD')
+  );
+  const otherAdversaries = filteredAdversaries.filter(a => 
+    !(a.name.includes('APT29') && a.name.includes('VCD'))
+  );
 
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent animate-spin" />
+        <RefreshCw className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -102,8 +145,8 @@ export default function Adversaries() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" active />
+            <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
-            <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
           </nav>
 
           <div className="p-4 border-t border-border">
@@ -135,7 +178,9 @@ export default function Adversaries() {
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="px-6 py-4">
             <h1 className="font-display text-3xl md:text-4xl">ADVERSARIES</h1>
-            <p className="text-sm text-muted-foreground">MITRE ATT&CK threat group profiles and campaigns</p>
+            <p className="text-sm text-muted-foreground">
+              {loading ? 'Loading...' : `${adversaries.length} threat group profiles from DigitalOcean Caldera`}
+            </p>
           </div>
           <div className="w-full h-1 bg-primary" />
         </header>
@@ -149,89 +194,85 @@ export default function Adversaries() {
                 placeholder="Search adversaries..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-card border-2 border-border font-mono"
+                className="pl-10 font-mono bg-card border-2 border-border focus:border-primary"
               />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={selectedTag === null ? "default" : "outline"}
+                size="sm"
+                className="font-display tracking-wider"
                 onClick={() => setSelectedTag(null)}
-                className={`px-3 py-2 text-xs font-display tracking-wider border-2 transition-colors ${!selectedTag ? 'bg-primary border-primary' : 'border-border hover:border-primary'}`}
               >
                 ALL
-              </button>
-              {allTags.slice(0, 6).map(tag => (
-                <button
+              </Button>
+              {allTags.map(tag => (
+                <Button
                   key={tag}
-                  onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-                  className={`px-3 py-2 text-xs font-display tracking-wider border-2 transition-colors ${selectedTag === tag ? 'bg-primary border-primary' : 'border-border hover:border-primary'}`}
+                  variant={selectedTag === tag ? "default" : "outline"}
+                  size="sm"
+                  className="font-display tracking-wider"
+                  onClick={() => setSelectedTag(tag)}
                 >
                   {tag.toUpperCase()}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
 
-          {/* Featured Campaigns */}
-          {featuredAdversaries.length > 0 && (
-            <section>
-              <h2 className="font-display text-2xl mb-4 flex items-center gap-2">
-                <Zap className="w-6 h-6 text-primary" />
-                FEATURED CAMPAIGNS
-              </h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                {featuredAdversaries.map(adversary => (
-                  <Link key={adversary.id} href={`/adversaries/${adversary.id}`}>
-                    <div className="bg-card border-2 border-primary p-6 hover:bg-primary/10 transition-colors cursor-pointer h-full">
-                      <div className="flex items-start justify-between mb-4">
-                        <h3 className="font-display text-xl text-primary">{adversary.name}</h3>
-                        <span className="px-2 py-1 bg-primary/20 text-primary text-xs font-display">{adversary.abilities} TTPs</span>
-                      </div>
-                      <p className="text-muted-foreground mb-4">{adversary.description}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {adversary.tags.map(tag => (
-                          <span key={tag} className="px-2 py-1 bg-secondary text-xs">{tag}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <div className="w-full h-0.5 bg-primary" />
-
-          {/* All Adversaries */}
-          <section>
-            <h2 className="font-display text-2xl mb-4 flex items-center gap-2">
-              <Globe className="w-6 h-6 text-primary" />
-              THREAT GROUPS ({filteredAdversaries.length})
-            </h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {otherAdversaries.map(adversary => (
-                <Link key={adversary.id} href={`/adversaries/${adversary.id}`}>
-                  <div className="bg-card border-2 border-border p-6 hover:border-primary transition-colors cursor-pointer h-full">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-display text-lg">{adversary.name}</h3>
-                      <span className="px-2 py-1 bg-secondary text-xs">{adversary.abilities}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">{adversary.description}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {adversary.tags.map(tag => (
-                        <span key={tag} className="px-2 py-0.5 bg-secondary/50 text-xs">{tag}</span>
-                      ))}
-                    </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              {/* Featured Adversaries */}
+              {featuredAdversaries.length > 0 && (
+                <section>
+                  <h2 className="font-display text-2xl mb-4 flex items-center gap-2">
+                    <Zap className="w-6 h-6 text-primary" />
+                    FEATURED CAMPAIGNS
+                  </h2>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {featuredAdversaries.map(adversary => (
+                      <AdversaryCard key={adversary.adversary_id} adversary={adversary} featured />
+                    ))}
                   </div>
-                </Link>
-              ))}
-            </div>
-          </section>
+                </section>
+              )}
 
-          {filteredAdversaries.length === 0 && (
-            <div className="text-center py-12">
-              <Target className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No adversaries found matching your criteria</p>
-            </div>
+              {featuredAdversaries.length > 0 && otherAdversaries.length > 0 && (
+                <div className="w-full h-0.5 bg-primary" />
+              )}
+
+              {/* All Adversaries */}
+              {otherAdversaries.length > 0 && (
+                <section>
+                  <h2 className="font-display text-2xl mb-4 flex items-center gap-2">
+                    <Globe className="w-6 h-6 text-primary" />
+                    ALL THREAT GROUPS ({otherAdversaries.length})
+                  </h2>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {otherAdversaries.slice(0, 50).map(adversary => (
+                      <AdversaryCard key={adversary.adversary_id} adversary={adversary} />
+                    ))}
+                  </div>
+                  {otherAdversaries.length > 50 && (
+                    <p className="text-center text-muted-foreground mt-4">
+                      Showing 50 of {otherAdversaries.length} adversaries. Use search to find specific groups.
+                    </p>
+                  )}
+                </section>
+              )}
+
+              {filteredAdversaries.length === 0 && (
+                <div className="text-center py-20">
+                  <Target className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-xl font-display">NO ADVERSARIES FOUND</p>
+                  <p className="text-muted-foreground">Try adjusting your search or filter</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
@@ -249,6 +290,35 @@ function NavItem({ href, icon, label, active }: { href: string; icon: React.Reac
       <div className={`flex items-center gap-3 px-4 py-3 font-display tracking-wider text-sm transition-colors ${active ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'hover:bg-secondary'}`}>
         {icon}
         {label}
+      </div>
+    </Link>
+  );
+}
+
+function AdversaryCard({ adversary, featured }: { adversary: Adversary; featured?: boolean }) {
+  return (
+    <Link href={`/adversaries/${adversary.adversary_id}`}>
+      <div className={`bg-card border-2 ${featured ? 'border-primary' : 'border-border'} p-4 hover:border-primary transition-colors cursor-pointer group`}>
+        <div className="flex items-start justify-between mb-2">
+          <h3 className={`font-display ${featured ? 'text-lg' : 'text-base'} group-hover:text-primary transition-colors truncate flex-1`}>
+            {adversary.name}
+          </h3>
+          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+        </div>
+        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+          {adversary.description || 'No description available'}
+        </p>
+        <div className="flex items-center gap-4 text-xs">
+          <span className="flex items-center gap-1">
+            <Zap className="w-3 h-3 text-primary" />
+            {adversary.atomic_ordering?.length || 0} abilities
+          </span>
+          {featured && (
+            <span className="bg-primary/20 text-primary px-2 py-0.5 font-display tracking-wider">
+              FEATURED
+            </span>
+          )}
+        </div>
       </div>
     </Link>
   );

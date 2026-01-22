@@ -21,14 +21,14 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
-// Credentials data
+// Credentials data - DigitalOcean Caldera Server
 const CREDENTIALS = {
   adminLogin: {
     username: 'admin',
     password: 'PVYedK$BUAYzyXaAegdEl2Dz',
   },
-  redApiKey: '9e4b030e29ffbca7811be27deedc6377',
-  blueApiKey: 'f1ddfe21c4ee4d7409655d5c8e416ce3',
+  redApiKey: 'ADMIN123',
+  blueApiKey: 'BLUEADMIN123',
   sshCommand: 'ssh -i ~/.ssh/caldera_do_key root@137.184.7.224',
   serverUrl: 'https://137.184.7.224',
   httpUrl: 'http://137.184.7.224:8888',

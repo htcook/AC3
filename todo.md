@@ -41,3 +41,19 @@
 
 ## Credential Updates
 - [x] Update Red Team login password to PVYedK$BUAYzyXaAegdEl2Dz (already set)
+
+## DigitalOcean Deployment
+- [x] Build production bundle of dashboard
+- [x] Transfer files to DigitalOcean server
+- [x] Install Node.js and dependencies on server
+- [x] Configure nginx reverse proxy for dashboard (port 3001)
+- [x] Set up systemd service for dashboard
+- [x] Configure environment variables
+- [x] Verify dashboard is accessible at https://137.184.7.224:3001
+
+## Dashboard Integration Fix
+- [x] Diagnose current dashboard Caldera server configuration
+- [x] Update routers to use DigitalOcean Caldera API (137.184.7.224:8888)
+- [x] Update credentials display to show correct API keys (ADMIN123, BLUEADMIN123)
+- [x] Redeploy dashboard to DigitalOcean
+- [x] Verify live integration with Caldera API (492 adversaries, 2 operations)
