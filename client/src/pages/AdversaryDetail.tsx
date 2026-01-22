@@ -15,7 +15,8 @@ import {
   ExternalLink,
   Zap,
   Code,
-  Terminal
+  Terminal,
+  Cpu
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -146,6 +147,8 @@ export default function AdversaryDetail() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" active />
+            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
+            <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
           </nav>

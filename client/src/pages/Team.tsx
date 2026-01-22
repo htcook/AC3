@@ -16,7 +16,8 @@ import {
   Crown,
   Eye,
   User,
-  Zap
+  Zap,
+  Cpu
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -92,6 +93,7 @@ export default function Team() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
+            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
             <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" active />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />

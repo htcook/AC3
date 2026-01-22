@@ -86,3 +86,11 @@
 - [x] Verify all plugins are working correctly
 - [x] Check server configuration for issues
 - [x] Ensure Manual Command (Manx) plugin is functional (requires agents to show sessions)
+
+## Agents Section
+- [x] Add agent tRPC endpoints to fetch from Caldera API
+- [x] Create Agents page with detailed agent information
+- [x] Display agent status, platform, hostname, last check-in
+- [x] Add agent actions (kill, trust, untrust)
+- [x] Add Agents link to navigation on all pages
+- [x] Deploy to DigitalOcean

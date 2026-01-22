@@ -13,6 +13,7 @@ import Team from "./pages/Team";
 import Activity from "./pages/Activity";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetail from "./pages/CampaignDetail";
+import Agents from "./pages/Agents";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/activity" component={Activity} />
       <Route path="/campaigns" component={Campaigns} />
       <Route path="/campaigns/:id" component={CampaignDetail} />
+      <Route path="/agents" component={Agents} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

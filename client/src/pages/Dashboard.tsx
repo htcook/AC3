@@ -140,6 +140,7 @@ export default function Dashboard() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" active />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
+            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
             <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />

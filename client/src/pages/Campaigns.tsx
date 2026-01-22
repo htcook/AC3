@@ -20,7 +20,8 @@ import {
   Clock,
   Crosshair,
   ChevronRight,
-  Zap
+  Zap,
+  Cpu
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -93,6 +94,7 @@ export default function Campaigns() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
+            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
             <NavItem href="/campaigns" icon={<Crosshair />} label="CAMPAIGNS" active />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />

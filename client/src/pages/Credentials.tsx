@@ -18,7 +18,8 @@ import {
   Terminal,
   Lock,
   ExternalLink,
-  Zap
+  Zap,
+  Cpu
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -88,6 +89,7 @@ export default function Credentials() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" active />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
+            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
             <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />

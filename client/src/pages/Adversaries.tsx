@@ -17,7 +17,8 @@ import {
   Zap,
   Globe,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Cpu
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useMemo } from "react";
@@ -149,6 +150,7 @@ export default function Adversaries() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" active />
+            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
             <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
           </nav>

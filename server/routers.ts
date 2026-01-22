@@ -260,6 +260,61 @@ export const appRouter = router({
       const agents = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/agents');
       return Array.isArray(agents) ? agents : [];
     }),
+
+    // Get single agent by paw (agent ID)
+    getAgent: publicProcedure
+      .input(z.object({ paw: z.string() }))
+      .query(async ({ input }) => {
+        const CALDERA_URL = 'http://137.184.7.224:8888';
+        const API_KEY = 'ADMIN123';
+        return fetchCalderaAPI(CALDERA_URL, API_KEY, `/api/v2/agents/${input.paw}`);
+      }),
+
+    // Kill an agent
+    killAgent: protectedProcedure
+      .input(z.object({ paw: z.string() }))
+      .mutation(async ({ input }) => {
+        const CALDERA_URL = 'http://137.184.7.224:8888';
+        const API_KEY = 'ADMIN123';
+        try {
+          const response = await fetch(`${CALDERA_URL}/api/v2/agents/${input.paw}`, {
+            method: 'DELETE',
+            headers: { 'KEY': API_KEY },
+          });
+          return { success: response.ok };
+        } catch {
+          return { success: false };
+        }
+      }),
+
+    // Update agent trust level
+    updateAgentTrust: protectedProcedure
+      .input(z.object({ paw: z.string(), trusted: z.boolean() }))
+      .mutation(async ({ input }) => {
+        const CALDERA_URL = 'http://137.184.7.224:8888';
+        const API_KEY = 'ADMIN123';
+        try {
+          const response = await fetch(`${CALDERA_URL}/api/v2/agents/${input.paw}`, {
+            method: 'PATCH',
+            headers: { 
+              'KEY': API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ trusted: input.trusted }),
+          });
+          return { success: response.ok };
+        } catch {
+          return { success: false };
+        }
+      }),
+
+    // Get agent deployable commands
+    getDeployCommands: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      const deploy = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/deploy_commands');
+      return deploy || {};
+    }),
   }),
 
   // Caldera API integration (database-backed)
