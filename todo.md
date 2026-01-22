@@ -177,3 +177,34 @@
 - [x] Ensure Caldera server remains accessible on port 8888 for agents
 - [x] Test dashboard access via IP address (https://137.184.7.224)
 - [x] Verify agent callbacks still work to Caldera server (http://137.184.7.224:8888)
+
+
+## Agent Deployment Feature
+- [x] Create agent deployment page with CrowdStrike bypass scripts
+- [x] Add PowerShell, Bash, and Python deployment options
+- [x] Include obfuscation techniques for EDR evasion
+- [x] Add copy-to-clipboard functionality for deployment commands
+- [x] Deploy to DigitalOcean
+
+## Real-Time Operation Monitoring
+- [x] Implement polling for live updates (WebSocket-ready)
+- [x] Create live operation status component
+- [x] Show ability execution progress in real-time
+- [x] Display agent status updates
+- [x] Add operation timeline visualization
+- [x] Add security control effectiveness metrics
+- [x] Add export functionality for results
+- [x] Deploy to DigitalOcean
+
+## Branded Report Generation
+- [x] Generate AceofCloud Red Team Exercise Report
+- [x] Include all operation results from Caldera (success AND failures)
+- [x] Track blocked/failed attempts with timestamps and error details
+- [x] Capture EDR/IDS detection events and block notices
+- [x] Record Firewall/WAF responses with error codes
+- [x] Add security control effectiveness assessment
+- [x] Add MITRE ATT&CK mapping for attempted vs successful techniques
+- [x] Include executive summary and recommendations
+- [x] Create downloadable Markdown/JSON report
+- [x] Attribute report to Harrison Cook as content creator
+- [x] Deploy to DigitalOcean

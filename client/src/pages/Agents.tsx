@@ -272,14 +272,15 @@ export default function Agents() {
                 <RefreshCw className="h-4 w-4" />
                 Refresh
               </Button>
-              <Button 
-                variant="default" 
-                className="gap-2"
-                onClick={() => window.open('https://137.184.7.224', '_blank')}
-              >
-                <ExternalLink className="h-4 w-4" />
-                Deploy New Agent
-              </Button>
+              <Link href="/agents/deploy">
+                <Button 
+                  variant="default" 
+                  className="gap-2"
+                >
+                  <Terminal className="h-4 w-4" />
+                  Deploy New Agent
+                </Button>
+              </Link>
             </div>
           </div>
 

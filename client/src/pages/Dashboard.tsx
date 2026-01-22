@@ -212,6 +212,28 @@ export default function Dashboard() {
                 onClick={() => navigate('/adversaries')}
               />
             </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+              <QuickAction
+                icon={<Cpu />}
+                label="DEPLOY AGENTS"
+                onClick={() => navigate('/agents/deploy')}
+              />
+              <QuickAction
+                icon={<Activity />}
+                label="MONITOR OPERATIONS"
+                onClick={() => navigate('/operations/monitor')}
+              />
+              <QuickAction
+                icon={<FileText />}
+                label="GENERATE REPORT"
+                onClick={() => navigate('/reports/generate')}
+              />
+              <QuickAction
+                icon={<RefreshCw />}
+                label="REFRESH DATA"
+                onClick={() => refetchStats()}
+              />
+            </div>
           </section>
 
           {/* Red Divider */}

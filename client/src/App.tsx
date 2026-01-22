@@ -14,6 +14,9 @@ import Activity from "./pages/Activity";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetail from "./pages/CampaignDetail";
 import Agents from "./pages/Agents";
+import AgentDeploy from "./pages/AgentDeploy";
+import OperationMonitor from "./pages/OperationMonitor";
+import ReportGenerator from "./pages/ReportGenerator";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +84,15 @@ function Router() {
       </Route>
       <Route path="/agents">
         <ProtectedRoute component={Agents} />
+      </Route>
+      <Route path="/agents/deploy">
+        <ProtectedRoute component={AgentDeploy} />
+      </Route>
+      <Route path="/operations/monitor">
+        <ProtectedRoute component={OperationMonitor} />
+      </Route>
+      <Route path="/reports/generate">
+        <ProtectedRoute component={ReportGenerator} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
