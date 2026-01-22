@@ -151,3 +151,14 @@
 - [x] Cobalt Group - already exists with 50 abilities
 - [x] Update dashboard to display all APT campaigns (6 APT groups on dashboard)
 - [x] Fix static file serving issue on DigitalOcean (dist/public folder fixed)
+
+
+## Adversary Profile Pages
+- [x] Analyze current adversary page routing and click behavior
+- [x] Create AdversaryDetail page component with full profile display
+- [x] Add tRPC endpoint for fetching individual adversary with abilities
+- [x] Display adversary metadata (name, description, techniques)
+- [x] Display all abilities with tactics and descriptions
+- [x] Add MITRE ATT&CK technique mapping
+- [x] Test adversary profile loading locally
+- [x] Deploy to DigitalOcean and verify
