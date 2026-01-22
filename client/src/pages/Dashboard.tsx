@@ -220,23 +220,54 @@ export default function Dashboard() {
           {/* Featured Campaigns - Custom Operations */}
           <section>
             <h2 className="font-display text-2xl mb-4">ACTIVE OPERATIONS</h2>
-            <div className="grid md:grid-cols-2 gap-4 mb-8">
+            <div className="grid md:grid-cols-3 gap-4 mb-8">
+              {/* Databank Complete - Merged Operation */}
+              <div className="bg-card border-2 border-emerald-500 p-5 hover:border-emerald-500/80 transition-colors md:col-span-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-500 text-xs font-display tracking-wider border border-emerald-500">COMPLETE</span>
+                  <span className="text-xs text-muted-foreground">59 ABILITIES</span>
+                  <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-display tracking-wider">MERGED</span>
+                </div>
+                <h3 className="font-display text-xl text-emerald-500 mb-2">DATABANK COMPLETE RED TEAM EXERCISE</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Comprehensive adversary profile combining APT29 VCD Cloud Compromise with CrowdStrike Falcon bypass defense evasion. Full attack lifecycle from initial access through exfiltration with EDR evasion.
+                </p>
+                <div className="flex flex-wrap gap-1 mb-4">
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">APT29</span>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">VCD</span>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">CROWDSTRIKE BYPASS</span>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">DEFENSE EVASION</span>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">CLOUD</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link href="/adversaries/Databank_Complete_APT29_VCD_CrowdStrike">
+                    <Button size="sm" className="w-full font-display tracking-wider bg-emerald-500 hover:bg-emerald-500/90 text-black">
+                      VIEW PROFILE
+                    </Button>
+                  </Link>
+                  <a href="http://137.184.7.224:8888/#/operations" target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline" className="w-full font-display tracking-wider border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
+                      OPEN IN CALDERA
+                    </Button>
+                  </a>
+                </div>
+              </div>
+
               {/* APT29 VCD Campaign */}
               <div className="bg-card border-2 border-primary p-5 hover:border-primary/80 transition-colors">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-display tracking-wider border border-primary">ACTIVE</span>
-                  <span className="text-xs text-muted-foreground">46 ABILITIES</span>
+                  <span className="text-xs text-muted-foreground">48 ABILITIES</span>
                 </div>
-                <h3 className="font-display text-xl text-primary mb-2">APT29 VCD CLOUD COMPROMISE</h3>
+                <h3 className="font-display text-lg text-primary mb-2">APT29 VCD ENHANCED</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Enhanced campaign for VMware Cloud Director environments with authentic APT29 TTPs.
+                  VMware Cloud Director campaign with authentic APT29 TTPs.
                 </p>
                 <div className="flex flex-wrap gap-1 mb-4">
                   <span className="px-2 py-0.5 bg-secondary text-xs">CLOUD</span>
                   <span className="px-2 py-0.5 bg-secondary text-xs">VCD</span>
-                  <span className="px-2 py-0.5 bg-secondary text-xs">EXFILTRATION</span>
                 </div>
-                <Link href="/adversaries">
+                <Link href="/adversaries/APT29_VCD_Cloud_Compromise_Enhanced">
                   <Button size="sm" className="w-full font-display tracking-wider bg-primary hover:bg-primary/90">
                     VIEW DETAILS
                   </Button>
@@ -246,23 +277,41 @@ export default function Dashboard() {
               {/* CrowdStrike Falcon Bypass */}
               <div className="bg-card border-2 border-yellow-500 p-5 hover:border-yellow-500/80 transition-colors">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs font-display tracking-wider border border-yellow-500">NEW</span>
+                  <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs font-display tracking-wider border border-yellow-500">EDR</span>
                   <span className="text-xs text-muted-foreground">12 ABILITIES</span>
                 </div>
-                <h3 className="font-display text-xl text-yellow-500 mb-2">CROWDSTRIKE FALCON BYPASS</h3>
+                <h3 className="font-display text-lg text-yellow-500 mb-2">CROWDSTRIKE BYPASS</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Defense evasion operation for testing CrowdStrike Falcon-protected endpoints.
+                  Defense evasion for CrowdStrike Falcon-protected endpoints.
                 </p>
                 <div className="flex flex-wrap gap-1 mb-4">
-                  <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">EDR BYPASS</span>
                   <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">T1562.001</span>
                   <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">STEALTH</span>
                 </div>
-                <a href="http://137.184.7.224:8888/#/operations" target="_blank" rel="noopener noreferrer">
+                <Link href="/adversaries/Databank_CrowdStrike_Bypass">
                   <Button size="sm" className="w-full font-display tracking-wider bg-yellow-500 hover:bg-yellow-500/90 text-black">
-                    VIEW OPERATION
+                    VIEW DETAILS
                   </Button>
-                </a>
+                </Link>
+              </div>
+
+              {/* Operation Status Card */}
+              <div className="bg-card border-2 border-border p-5 md:col-span-2">
+                <h3 className="font-display text-lg mb-3">OPERATION STATUS</h3>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-display text-emerald-500">3</div>
+                    <div className="text-xs text-muted-foreground">OPERATIONS</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-display text-primary">119</div>
+                    <div className="text-xs text-muted-foreground">TOTAL ABILITIES</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-display text-yellow-500">PAUSED</div>
+                    <div className="text-xs text-muted-foreground">AWAITING AGENTS</div>
+                  </div>
+                </div>
               </div>
             </div>
           </section>

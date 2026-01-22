@@ -162,3 +162,18 @@
 - [x] Add MITRE ATT&CK technique mapping
 - [x] Test adversary profile loading locally
 - [x] Deploy to DigitalOcean and verify
+
+
+## Merged Databank Operation (VCD + CrowdStrike Bypass)
+- [x] Query existing APT29 VCD and CrowdStrike Bypass operations
+- [x] Get all abilities from both adversary profiles
+- [x] Create merged adversary profile with defense evasion abilities (59 abilities)
+- [x] Create unified Databank_Complete_Red_Team_Exercise operation
+- [x] Update dashboard to show merged operation
+- [x] Deploy to DigitalOcean and verify
+
+## IP Routing Configuration
+- [x] Configure nginx to route 137.184.7.224 to AceofCloud Dashboard on port 443
+- [x] Ensure Caldera server remains accessible on port 8888 for agents
+- [x] Test dashboard access via IP address (https://137.184.7.224)
+- [x] Verify agent callbacks still work to Caldera server (http://137.184.7.224:8888)
