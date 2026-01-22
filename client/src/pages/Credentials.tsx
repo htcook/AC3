@@ -127,7 +127,7 @@ export default function Credentials() {
                 onCopy={() => copyToClipboard(CREDENTIALS.adminLogin.password, 'Password')}
               />
               <div className="pt-4">
-                <a href={CREDENTIALS.serverUrl} target="_blank" rel="noopener noreferrer">
+                <a href={CREDENTIALS.httpUrl} target="_blank" rel="noopener noreferrer">
                   <Button className="font-display tracking-wider bg-primary hover:bg-primary/90">
                     <ExternalLink className="w-4 h-4 mr-2" />
                     OPEN CALDERA LOGIN

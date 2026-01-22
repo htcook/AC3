@@ -236,3 +236,15 @@
 - [x] Ensure CrowdStrike_Bypass operation has 12 abilities
 - [x] Update Caldera credentials to red/ADMIN123
 - [x] Test operations are accessible in Caldera UI
+
+
+## Open Caldera Button Fix
+- [x] Fix all "Open Caldera" buttons to link to http://137.184.7.224:8888
+- [x] Fix Dashboard quick action Open Caldera button
+- [x] Fix Campaigns page Open Caldera button (already correct)
+- [x] Fix Operation Detail page Open in Caldera button (already correct)
+- [x] Fix Home page Caldera Server button
+- [x] Fix Credentials page Open Caldera Login button
+- [x] Fix AdversaryDetail page Open in Caldera button
+- [x] Fix Dashboard header Caldera UI button
+- [x] Ensure links open in new tab with correct Caldera UI URL

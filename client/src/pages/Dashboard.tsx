@@ -136,7 +136,7 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Server Management Dashboard</p>
             </div>
             <div className="flex items-center gap-4">
-              <a href={DEFAULT_SERVER.httpsUrl} target="_blank" rel="noopener noreferrer">
+              <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" className="font-display tracking-wider border-2">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   CALDERA UI
@@ -194,7 +194,7 @@ export default function Dashboard() {
               <QuickAction
                 icon={<ExternalLink />}
                 label="OPEN CALDERA"
-                onClick={() => window.open(DEFAULT_SERVER.httpsUrl, '_blank')}
+                onClick={() => window.open(DEFAULT_SERVER.httpUrl, '_blank')}
               />
               <QuickAction
                 icon={<Terminal />}

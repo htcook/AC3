@@ -333,7 +333,7 @@ export default function AdversaryDetail() {
                   <Button 
                     variant="default" 
                     className="font-display tracking-wider"
-                    onClick={() => window.open(`https://137.184.7.224/adversaries`, '_blank')}
+                    onClick={() => window.open(`http://137.184.7.224:8888/#/adversaries`, '_blank')}
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     OPEN IN CALDERA
