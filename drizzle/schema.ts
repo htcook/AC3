@@ -88,3 +88,63 @@ export const calderaStats = mysqlTable("caldera_stats", {
 
 export type CalderaStats = typeof calderaStats.$inferSelect;
 export type InsertCalderaStats = typeof calderaStats.$inferInsert;
+
+
+/**
+ * Campaigns for red team exercises
+ */
+export const campaigns = mysqlTable("campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  targetEnvironment: varchar("targetEnvironment", { length: 255 }),
+  adversaryId: varchar("adversaryId", { length: 255 }),
+  adversaryName: varchar("adversaryName", { length: 255 }),
+  status: mysqlEnum("status", ["draft", "ready", "active", "paused", "completed"]).default("draft").notNull(),
+  serverId: int("serverId"),
+  createdBy: int("createdBy"),
+  startDate: timestamp("startDate"),
+  endDate: timestamp("endDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Campaign = typeof campaigns.$inferSelect;
+export type InsertCampaign = typeof campaigns.$inferInsert;
+
+/**
+ * Agents assigned to campaigns
+ */
+export const campaignAgents = mysqlTable("campaign_agents", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  agentName: varchar("agentName", { length: 255 }).notNull(),
+  agentPaw: varchar("agentPaw", { length: 64 }),
+  platform: varchar("platform", { length: 64 }),
+  hostname: varchar("hostname", { length: 255 }),
+  status: mysqlEnum("status", ["pending", "deployed", "active", "inactive"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CampaignAgent = typeof campaignAgents.$inferSelect;
+export type InsertCampaignAgent = typeof campaignAgents.$inferInsert;
+
+/**
+ * Abilities assigned to campaigns with execution order
+ */
+export const campaignAbilities = mysqlTable("campaign_abilities", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  abilityId: varchar("abilityId", { length: 255 }).notNull(),
+  abilityName: varchar("abilityName", { length: 255 }).notNull(),
+  technique: varchar("technique", { length: 32 }),
+  tactic: varchar("tactic", { length: 64 }),
+  description: text("description"),
+  executionOrder: int("executionOrder").default(0),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed", "skipped"]).default("pending").notNull(),
+  executedAt: timestamp("executedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CampaignAbility = typeof campaignAbilities.$inferSelect;
+export type InsertCampaignAbility = typeof campaignAbilities.$inferInsert;

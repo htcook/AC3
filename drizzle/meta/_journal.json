@@ -15,6 +15,13 @@
       "when": 1769097833778,
       "tag": "0001_right_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1769098609084,
+      "tag": "0002_peaceful_reavers",
+      "breakpoints": true
     }
   ]
 }

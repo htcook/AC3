@@ -27,3 +27,17 @@
 - [x] Caldera API connection for live stats
 - [x] Server health check endpoints
 - [x] SSH command generation
+
+## Campaign Building Workflow
+- [x] Campaign management database schema (campaigns, agents, campaign_abilities)
+- [x] Campaign creation form with name, description, target environment
+- [x] Agent management (add/remove agents to campaigns)
+- [x] Adversary selection for campaigns
+- [x] Ability selection and ordering for campaigns
+- [x] Campaign status tracking (draft, active, completed)
+- [x] Pre-built Databank Red Team Exercise campaign with APT29-VCD Enhanced
+- [x] Campaign detail view with execution timeline
+- [ ] Export campaign configuration
+
+## Credential Updates
+- [x] Update Red Team login password to PVYedK$BUAYzyXaAegdEl2Dz (already set)

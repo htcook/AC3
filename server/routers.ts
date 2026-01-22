@@ -287,6 +287,177 @@ export const appRouter = router({
       }),
   }),
 
+  // Campaign management
+  campaign: router({
+    list: protectedProcedure.query(async () => {
+      return db.getCampaigns();
+    }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const campaign = await db.getCampaignById(input.id);
+        if (!campaign) throw new TRPCError({ code: 'NOT_FOUND' });
+        const agents = await db.getCampaignAgents(input.id);
+        const abilities = await db.getCampaignAbilities(input.id);
+        return { ...campaign, agents, abilities };
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        targetEnvironment: z.string().optional(),
+        adversaryId: z.string().optional(),
+        adversaryName: z.string().optional(),
+        serverId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const id = await db.createCampaign({
+          ...input,
+          createdBy: ctx.user.id,
+          status: 'draft',
+        });
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'campaign_created',
+          details: `Created campaign: ${input.name}`,
+        });
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        targetEnvironment: z.string().optional(),
+        adversaryId: z.string().optional(),
+        adversaryName: z.string().optional(),
+        status: z.enum(['draft', 'ready', 'active', 'paused', 'completed']).optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...updates } = input;
+        await db.updateCampaign(id, updates);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'campaign_updated',
+          details: `Updated campaign ID: ${id}`,
+        });
+        return { success: true };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteCampaign(input.id);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'campaign_deleted',
+          details: `Deleted campaign ID: ${input.id}`,
+        });
+        return { success: true };
+      }),
+
+    // Agent management
+    addAgent: protectedProcedure
+      .input(z.object({
+        campaignId: z.number(),
+        agentName: z.string().min(1),
+        agentPaw: z.string().optional(),
+        platform: z.string().optional(),
+        hostname: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.addCampaignAgent(input);
+        return { id };
+      }),
+
+    removeAgent: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteCampaignAgent(input.id);
+        return { success: true };
+      }),
+
+    updateAgentStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['pending', 'deployed', 'active', 'inactive']),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateCampaignAgentStatus(input.id, input.status);
+        return { success: true };
+      }),
+
+    // Ability management
+    addAbility: protectedProcedure
+      .input(z.object({
+        campaignId: z.number(),
+        abilityId: z.string().min(1),
+        abilityName: z.string().min(1),
+        technique: z.string().optional(),
+        tactic: z.string().optional(),
+        description: z.string().optional(),
+        executionOrder: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.addCampaignAbility(input);
+        return { id };
+      }),
+
+    addAbilities: protectedProcedure
+      .input(z.object({
+        campaignId: z.number(),
+        abilities: z.array(z.object({
+          abilityId: z.string().min(1),
+          abilityName: z.string().min(1),
+          technique: z.string().optional(),
+          tactic: z.string().optional(),
+          description: z.string().optional(),
+          executionOrder: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const abilities = input.abilities.map((a, i) => ({
+          ...a,
+          campaignId: input.campaignId,
+          executionOrder: a.executionOrder ?? i,
+        }));
+        await db.addCampaignAbilities(abilities);
+        return { success: true };
+      }),
+
+    removeAbility: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteCampaignAbility(input.id);
+        return { success: true };
+      }),
+
+    updateAbilityStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['pending', 'running', 'completed', 'failed', 'skipped']),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateCampaignAbilityStatus(input.id, input.status);
+        return { success: true };
+      }),
+
+    reorderAbilities: protectedProcedure
+      .input(z.object({
+        campaignId: z.number(),
+        abilityIds: z.array(z.number()),
+      }))
+      .mutation(async ({ input }) => {
+        await db.reorderCampaignAbilities(input.campaignId, input.abilityIds);
+        return { success: true };
+      }),
+  }),
+
   // Activity logs
   activity: router({
     list: protectedProcedure

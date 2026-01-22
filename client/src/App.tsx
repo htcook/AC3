@@ -11,6 +11,8 @@ import Adversaries from "./pages/Adversaries";
 import AdversaryDetail from "./pages/AdversaryDetail";
 import Team from "./pages/Team";
 import Activity from "./pages/Activity";
+import Campaigns from "./pages/Campaigns";
+import CampaignDetail from "./pages/CampaignDetail";
 
 function Router() {
   return (
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/adversaries/:id" component={AdversaryDetail} />
       <Route path="/team" component={Team} />
       <Route path="/activity" component={Activity} />
+      <Route path="/campaigns" component={Campaigns} />
+      <Route path="/campaigns/:id" component={CampaignDetail} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

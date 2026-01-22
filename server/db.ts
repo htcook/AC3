@@ -186,3 +186,119 @@ export async function getCalderaStatsByServerId(serverId: number) {
   const result = await db.select().from(calderaStats).where(eq(calderaStats.serverId, serverId)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
+
+
+import { 
+  campaigns, InsertCampaign, Campaign,
+  campaignAgents, InsertCampaignAgent, CampaignAgent,
+  campaignAbilities, InsertCampaignAbility, CampaignAbility
+} from "../drizzle/schema";
+
+// Campaign operations
+export async function createCampaign(campaign: InsertCampaign) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(campaigns).values(campaign);
+  return result[0].insertId;
+}
+
+export async function getCampaigns() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+}
+
+export async function getCampaignById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(campaigns).where(eq(campaigns.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateCampaign(id: number, updates: Partial<InsertCampaign>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(campaigns).set(updates).where(eq(campaigns.id, id));
+}
+
+export async function deleteCampaign(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  // Delete related agents and abilities first
+  await db.delete(campaignAgents).where(eq(campaignAgents.campaignId, id));
+  await db.delete(campaignAbilities).where(eq(campaignAbilities.campaignId, id));
+  await db.delete(campaigns).where(eq(campaigns.id, id));
+}
+
+// Campaign agent operations
+export async function addCampaignAgent(agent: InsertCampaignAgent) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(campaignAgents).values(agent);
+  return result[0].insertId;
+}
+
+export async function getCampaignAgents(campaignId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(campaignAgents).where(eq(campaignAgents.campaignId, campaignId));
+}
+
+export async function updateCampaignAgentStatus(id: number, status: "pending" | "deployed" | "active" | "inactive") {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(campaignAgents).set({ status }).where(eq(campaignAgents.id, id));
+}
+
+export async function deleteCampaignAgent(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(campaignAgents).where(eq(campaignAgents.id, id));
+}
+
+// Campaign ability operations
+export async function addCampaignAbility(ability: InsertCampaignAbility) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(campaignAbilities).values(ability);
+  return result[0].insertId;
+}
+
+export async function addCampaignAbilities(abilities: InsertCampaignAbility[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (abilities.length === 0) return;
+  await db.insert(campaignAbilities).values(abilities);
+}
+
+export async function getCampaignAbilities(campaignId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(campaignAbilities).where(eq(campaignAbilities.campaignId, campaignId)).orderBy(campaignAbilities.executionOrder);
+}
+
+export async function updateCampaignAbilityStatus(id: number, status: "pending" | "running" | "completed" | "failed" | "skipped") {
+  const db = await getDb();
+  if (!db) return;
+  const updates: Partial<InsertCampaignAbility> = { status };
+  if (status === 'completed' || status === 'failed') {
+    updates.executedAt = new Date();
+  }
+  await db.update(campaignAbilities).set(updates).where(eq(campaignAbilities.id, id));
+}
+
+export async function deleteCampaignAbility(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(campaignAbilities).where(eq(campaignAbilities.id, id));
+}
+
+export async function reorderCampaignAbilities(campaignId: number, abilityIds: number[]) {
+  const db = await getDb();
+  if (!db) return;
+  for (let i = 0; i < abilityIds.length; i++) {
+    await db.update(campaignAbilities)
+      .set({ executionOrder: i })
+      .where(eq(campaignAbilities.id, abilityIds[i]));
+  }
+}
