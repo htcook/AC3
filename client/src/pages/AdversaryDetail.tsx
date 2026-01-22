@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation, useParams } from "wouter";
 import { 
-  Shield, 
+  Cloud, 
   Activity, 
   Key,
   Users,
@@ -134,8 +134,11 @@ export default function AdversaryDetail() {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border">
             <Link href="/" className="flex items-center gap-3">
-              <Shield className="w-8 h-8 text-primary" />
-              <span className="font-display text-xl tracking-wider">CALDERA</span>
+              <Cloud className="w-8 h-8 text-primary" />
+              <div className="flex flex-col">
+                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
+                <span className="text-xs text-muted-foreground">Caldera Command</span>
+              </div>
             </Link>
           </div>
 

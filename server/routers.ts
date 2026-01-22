@@ -171,7 +171,98 @@ export const appRouter = router({
       }),
   }),
 
-  // Caldera API integration
+  // Direct Caldera API proxy (for DigitalOcean server)
+  calderaProxy: router({
+    // Direct stats from DigitalOcean Caldera server
+    getStats: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      
+      const [adversaries, abilities, operations, agents] = await Promise.all([
+        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/adversaries'),
+        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities'),
+        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/operations'),
+        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/agents'),
+      ]);
+
+      return {
+        totalAdversaries: Array.isArray(adversaries) ? adversaries.length : 0,
+        totalAbilities: Array.isArray(abilities) ? abilities.length : 0,
+        activeOperations: Array.isArray(operations) ? operations.filter((o: any) => o.state === 'running').length : 0,
+        totalAgents: Array.isArray(agents) ? agents.length : 0,
+      };
+    }),
+
+    // Get all adversaries from DigitalOcean Caldera
+    getAdversaries: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      const adversaries = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/adversaries');
+      return Array.isArray(adversaries) ? adversaries : [];
+    }),
+
+    // Get single adversary by ID
+    getAdversary: publicProcedure
+      .input(z.object({ adversaryId: z.string() }))
+      .query(async ({ input }) => {
+        const CALDERA_URL = 'http://137.184.7.224:8888';
+        const API_KEY = 'ADMIN123';
+        return fetchCalderaAPI(CALDERA_URL, API_KEY, `/api/v2/adversaries/${input.adversaryId}`);
+      }),
+
+    // Get all abilities from DigitalOcean Caldera
+    getAbilities: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
+      return Array.isArray(abilities) ? abilities : [];
+    }),
+
+    // Get abilities by tactic
+    getAbilitiesByTactic: publicProcedure
+      .input(z.object({ tactic: z.string() }))
+      .query(async ({ input }) => {
+        const CALDERA_URL = 'http://137.184.7.224:8888';
+        const API_KEY = 'ADMIN123';
+        const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
+        if (!Array.isArray(abilities)) return [];
+        return abilities.filter((a: any) => a.tactic === input.tactic);
+      }),
+
+    // Get all tactics (derived from abilities)
+    getTactics: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
+      if (!Array.isArray(abilities)) return [];
+      
+      const tacticCounts: Record<string, number> = {};
+      abilities.forEach((a: any) => {
+        const tactic = a.tactic || 'unknown';
+        tacticCounts[tactic] = (tacticCounts[tactic] || 0) + 1;
+      });
+      
+      return Object.entries(tacticCounts).map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
+    }),
+
+    // Get all operations from DigitalOcean Caldera
+    getOperations: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      const operations = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/operations');
+      return Array.isArray(operations) ? operations : [];
+    }),
+
+    // Get all agents from DigitalOcean Caldera
+    getAgents: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      const agents = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/agents');
+      return Array.isArray(agents) ? agents : [];
+    }),
+  }),
+
+  // Caldera API integration (database-backed)
   caldera: router({
     getStats: protectedProcedure
       .input(z.object({ serverId: z.number() }))

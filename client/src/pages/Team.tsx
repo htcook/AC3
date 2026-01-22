@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { 
-  Shield, 
+  Cloud, 
   Activity, 
   Key,
   Users,
@@ -15,7 +15,8 @@ import {
   UserPlus,
   Crown,
   Eye,
-  User
+  User,
+  Zap
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -79,8 +80,11 @@ export default function Team() {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border">
             <Link href="/" className="flex items-center gap-3">
-              <Shield className="w-8 h-8 text-primary" />
-              <span className="font-display text-xl tracking-wider">CALDERA</span>
+              <Cloud className="w-8 h-8 text-primary" />
+              <div className="flex flex-col">
+                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
+                <span className="text-xs text-muted-foreground">Caldera Command</span>
+              </div>
             </Link>
           </div>
 
@@ -88,6 +92,7 @@ export default function Team() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
+            <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" active />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
           </nav>
@@ -220,7 +225,7 @@ export default function Team() {
 
           {!isAdmin && (
             <div className="bg-card border-2 border-border p-6 text-center">
-              <Shield className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <Cloud className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">Contact an administrator to modify team permissions</p>
             </div>
           )}

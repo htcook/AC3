@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { 
-  Shield, 
+  Cloud, 
   Activity, 
   Key,
   Users,
@@ -17,7 +17,8 @@ import {
   FileText,
   Terminal,
   Lock,
-  ExternalLink
+  ExternalLink,
+  Zap
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -75,8 +76,11 @@ export default function Credentials() {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border">
             <Link href="/" className="flex items-center gap-3">
-              <Shield className="w-8 h-8 text-primary" />
-              <span className="font-display text-xl tracking-wider">CALDERA</span>
+              <Cloud className="w-8 h-8 text-primary" />
+              <div className="flex flex-col">
+                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
+                <span className="text-xs text-muted-foreground">Caldera Command</span>
+              </div>
             </Link>
           </div>
 
@@ -84,6 +88,7 @@ export default function Credentials() {
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" active />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
+            <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
           </nav>

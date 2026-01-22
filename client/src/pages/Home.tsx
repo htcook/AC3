@@ -3,13 +3,18 @@ import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 import { 
-  Shield, 
+  Key, 
   Terminal, 
   Activity, 
   Users, 
   ExternalLink,
   ChevronRight,
-  Zap
+  Zap,
+  Cloud,
+  Mail,
+  Phone,
+  MapPin,
+  Target
 } from "lucide-react";
 
 export default function Home() {
@@ -21,22 +26,22 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-primary" />
-            <span className="font-display text-2xl tracking-wider">CALDERA</span>
+            <Cloud className="w-8 h-8 text-primary" />
+            <span className="font-display text-2xl tracking-wider">ACE OF CLOUD</span>
           </div>
           <div className="flex items-center gap-4">
             {loading ? (
               <div className="w-24 h-10 bg-muted animate-pulse" />
             ) : isAuthenticated ? (
               <Link href="/dashboard">
-                <Button variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-black">
+                <Button variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background">
                   DASHBOARD
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               </Link>
             ) : (
               <a href={getLoginUrl()}>
-                <Button variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-black">
+                <Button variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background">
                   LOGIN
                 </Button>
               </a>
@@ -50,17 +55,21 @@ export default function Home() {
         <div className="container">
           <div className="max-w-4xl">
             <h1 className="text-7xl md:text-9xl font-display leading-none tracking-tight mb-8">
-              COMMAND
+              CALDERA
               <br />
-              <span className="text-primary">CENTER</span>
+              <span className="text-primary">COMMAND</span>
             </h1>
             
-            {/* Red Divider */}
+            {/* Teal Divider */}
             <div className="w-full h-1 bg-primary my-8" />
             
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-12 leading-relaxed">
+            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-6 leading-relaxed">
               Centralized management interface for MITRE Caldera adversary emulation platform. 
               Monitor server health, manage credentials, and orchestrate red team operations.
+            </p>
+            
+            <p className="text-lg text-primary mb-12">
+              Powered by <span className="font-semibold">Ace of Cloud</span> — Cutting-Edge Cybersecurity Solutions
             </p>
 
             <div className="flex flex-wrap gap-4">
@@ -80,7 +89,7 @@ export default function Home() {
                 </a>
               )}
               <a href="https://137.184.7.224" target="_blank" rel="noopener noreferrer">
-                <Button size="lg" variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-black px-8 py-6 text-lg">
+                <Button size="lg" variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background px-8 py-6 text-lg">
                   CALDERA SERVER
                   <ExternalLink className="w-5 h-5 ml-2" />
                 </Button>
@@ -99,7 +108,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Red Divider Full Width */}
+      {/* Teal Divider Full Width */}
       <div className="w-full h-1 bg-primary" />
 
       {/* Features Grid */}
@@ -114,7 +123,7 @@ export default function Home() {
               description="Real-time health checks, uptime tracking, and resource monitoring for your Caldera deployment."
             />
             <FeatureCard
-              icon={<Shield className="w-8 h-8" />}
+              icon={<Key className="w-8 h-8" />}
               title="CREDENTIAL VAULT"
               description="Secure storage and management of admin credentials, API keys, and SSH access details."
             />
@@ -134,39 +143,95 @@ export default function Home() {
               description="One-click access to Caldera UI, SSH commands, and API testing utilities."
             />
             <FeatureCard
-              icon={<Shield className="w-8 h-8" />}
+              icon={<Target className="w-8 h-8" />}
               title="THREAT BROWSER"
-              description="Browse 156+ MITRE ATT&CK threat group profiles and APT29 VCD campaigns."
+              description="Browse 490+ MITRE ATT&CK threat group profiles and APT29 VCD campaigns."
             />
           </div>
         </div>
       </section>
 
-      {/* Red Divider Full Width */}
+      {/* Teal Divider Full Width */}
       <div className="w-full h-1 bg-primary" />
 
       {/* Stats Section */}
       <section className="py-20 bg-card">
         <div className="container">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <StatBlock value="156+" label="THREAT GROUPS" />
-            <StatBlock value="1,940+" label="ABILITIES" />
+            <StatBlock value="492" label="ADVERSARIES" />
+            <StatBlock value="1,940" label="ABILITIES" />
             <StatBlock value="46" label="APT29 TTPS" />
             <StatBlock value="24/7" label="MONITORING" />
           </div>
         </div>
       </section>
 
+      {/* Teal Divider Full Width */}
+      <div className="w-full h-1 bg-primary" />
+
+      {/* About Ace of Cloud */}
+      <section className="py-20">
+        <div className="container">
+          <h2 className="text-5xl md:text-6xl font-display mb-8">ABOUT ACE OF CLOUD</h2>
+          <div className="grid md:grid-cols-2 gap-12">
+            <div>
+              <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                Ace of Cloud provides reliable compliance and data migration services tailored to your needs. 
+                Trust us to secure your digital assets with cutting-edge cybersecurity solutions.
+              </p>
+              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                Our services include FedRAMP Compliance, CMMC Preparation, Security Advisory, 
+                Secure Cloud Architecture, and Incident Response.
+              </p>
+              <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white">
+                  VISIT ACEOFCLOUD.COM
+                  <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
+              </a>
+            </div>
+            <div className="space-y-6">
+              <div className="flex items-start gap-4">
+                <MapPin className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
+                <div>
+                  <h4 className="font-display text-lg mb-1">HERNDON OFFICE</h4>
+                  <p className="text-muted-foreground">13873 Park Center Rd, Suite 374<br />Herndon, Virginia 20171</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <Mail className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
+                <div>
+                  <h4 className="font-display text-lg mb-1">EMAIL</h4>
+                  <a href="mailto:info@aceofcloud.com" className="text-primary hover:underline">info@aceofcloud.com</a>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <Phone className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
+                <div>
+                  <h4 className="font-display text-lg mb-1">PHONE</h4>
+                  <a href="tel:703-488-8889" className="text-primary hover:underline">703-488-8889</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="py-8 border-t border-border">
+      <footer className="py-8 border-t border-border bg-card">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            <span className="font-display tracking-wider">CALDERA DASHBOARD</span>
+            <Cloud className="w-5 h-5 text-primary" />
+            <span className="font-display tracking-wider">ACE OF CLOUD</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            MITRE Caldera Server Management Interface
+            Caldera Command Center — Powered by Ace of Cloud Cybersecurity
           </p>
+          <div className="flex items-center gap-4">
+            <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+              <ExternalLink className="w-5 h-5" />
+            </a>
+          </div>
         </div>
       </footer>
     </div>

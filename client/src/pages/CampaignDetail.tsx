@@ -4,7 +4,7 @@ import { Link, useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { 
-  Shield, 
+  Cloud, 
   Activity, 
   Key,
   Users,
@@ -208,8 +208,11 @@ export default function CampaignDetail() {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border">
             <Link href="/" className="flex items-center gap-3">
-              <Shield className="w-8 h-8 text-primary" />
-              <span className="font-display text-xl tracking-wider">CALDERA</span>
+              <Cloud className="w-8 h-8 text-primary" />
+              <div className="flex flex-col">
+                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
+                <span className="text-xs text-muted-foreground">Caldera Command</span>
+              </div>
             </Link>
           </div>
 

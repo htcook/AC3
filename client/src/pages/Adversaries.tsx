@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { 
-  Shield, 
+  Cloud, 
   Activity, 
   Key,
   Users,
@@ -19,6 +19,7 @@ import {
   Filter,
   RefreshCw
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useMemo } from "react";
 
 // DigitalOcean Caldera Server config
@@ -136,8 +137,11 @@ export default function Adversaries() {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-border">
             <Link href="/" className="flex items-center gap-3">
-              <Shield className="w-8 h-8 text-primary" />
-              <span className="font-display text-xl tracking-wider">CALDERA</span>
+              <Cloud className="w-8 h-8 text-primary" />
+              <div className="flex flex-col">
+                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
+                <span className="text-xs text-muted-foreground">Caldera Command</span>
+              </div>
             </Link>
           </div>
 

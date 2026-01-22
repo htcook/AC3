@@ -57,3 +57,32 @@
 - [x] Update credentials display to show correct API keys (ADMIN123, BLUEADMIN123)
 - [x] Redeploy dashboard to DigitalOcean
 - [x] Verify live integration with Caldera API (492 adversaries, 2 operations)
+
+## Caldera API Loading Fix
+- [x] Diagnose browser CORS issues with Caldera API
+- [x] Add backend proxy routes for Caldera API calls
+- [x] Update Dashboard to use backend proxy for stats
+- [x] Update Adversaries page to use backend proxy
+- [x] Add tactics and abilities loading
+- [x] Redeploy to DigitalOcean and verify
+
+## AceofCloud Branding
+- [x] Gather branding materials from aceofcloud.com
+- [x] Update logo and brand name throughout dashboard
+- [x] Update color scheme to match AceofCloud brand (navy blue #0a1628, teal #14b8a6)
+- [x] Add contact information from website
+- [x] Update footer with AceofCloud details
+
+## Caldera Server Issues
+- [x] Troubleshoot Manual Command tab not loading in Operations page (requires agents)
+- [x] Verify Caldera server plugins are working correctly (EMU enabled)
+
+## Agent Deployment Scripts
+- [x] Generate Windows PowerShell agent deployment script
+- [x] Generate Linux bash agent deployment script
+- [x] Generate macOS agent deployment script
+- [x] Create agent deployment documentation
+## Caldera Server Verification
+- [x] Verify all plugins are working correctly
+- [x] Check server configuration for issues
+- [x] Ensure Manual Command (Manx) plugin is functional (requires agents to show sessions)
