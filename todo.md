@@ -96,14 +96,14 @@
 - [x] Deploy to DigitalOcean
 
 ## Button Testing and Error Fixes
-- [ ] Test Home page buttons (Dashboard, Caldera UI)
-- [ ] Test Dashboard page buttons and quick actions
-- [ ] Test Credentials page copy buttons and links
-- [ ] Test Adversaries page search and filters
-- [ ] Test Agents page actions and deployment scripts
-- [ ] Test Campaigns page create and manage buttons
-- [ ] Test Team page member management
-- [ ] Fix all identified errors
+- [x] Test Home page buttons (Dashboard, Caldera UI)
+- [x] Test Dashboard page buttons and quick actions
+- [x] Test Credentials page copy buttons and links
+- [x] Test Adversaries page search and filters
+- [x] Test Agents page actions and deployment scripts
+- [x] Test Campaigns page create and manage buttons
+- [x] Test Team page member management
+- [x] Fix all identified errors
 
 ## Authentication Fix (403 Error)
 - [x] Fix 403 error on Get Started button - remove Manus OAuth dependency
@@ -111,3 +111,43 @@
 - [x] Make dashboard work standalone without authentication
 - [x] Test all dashboard pages are accessible
 - [x] Redeploy to DigitalOcean server
+
+## Authentication Implementation
+- [x] Create login page with Caldera credentials
+- [x] Add server-side authentication endpoint
+- [x] Implement session management with JWT
+- [x] Protect all dashboard routes
+- [x] Add logout functionality
+- [x] Test login/logout flow
+
+## Comprehensive Button/Link Testing & Caldera Data Fix
+- [x] Test Home page - Dashboard button, Get Started, Caldera Server links
+- [x] Test Dashboard page - all quick actions, sidebar navigation
+- [x] Fix Caldera API data loading (CORS issue) - add server-side proxy
+- [x] Test Credentials page - copy buttons, external links
+- [x] Test Adversaries page - search, filters, adversary cards (493 adversaries)
+- [x] Test Agents page - agent actions, deployment scripts
+- [x] Test Campaigns page - create campaign, manage buttons
+- [x] Test Team page - member management
+- [x] Test Activity page - logs display
+- [x] Redeploy all fixes to DigitalOcean
+
+
+## CrowdStrike Falcon Bypass Campaign
+- [x] Research CrowdStrike Falcon bypass techniques
+- [x] Identify relevant Caldera abilities for EDR evasion
+- [x] Create CrowdStrike bypass adversary profile (Databank_CrowdStrike_Bypass)
+- [x] Create Databank Operation for CrowdStrike testing (Databank_CrowdStrike_Falcon_Bypass_Operation)
+- [x] Add 12 abilities for defense evasion tactics (T1562.001)
+- [x] Update dashboard to display new campaign
+- [x] Deploy to DigitalOcean
+
+## Multiple APT Adversary Profiles
+- [x] Query existing adversaries in Caldera (found 18 matching profiles)
+- [x] APT28 (Fancy Bear) - already exists with 50 abilities
+- [x] APT41 (Double Dragon) - already exists with 50 abilities
+- [x] Lazarus Group - already exists with 50 abilities
+- [x] FIN7 - already exists with 50 abilities
+- [x] Cobalt Group - already exists with 50 abilities
+- [x] Update dashboard to display all APT campaigns (6 APT groups on dashboard)
+- [x] Fix static file serving issue on DigitalOcean (dist/public folder fixed)

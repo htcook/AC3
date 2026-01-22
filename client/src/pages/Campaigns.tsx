@@ -20,9 +20,58 @@ import {
   Crosshair,
   ChevronRight,
   Zap,
-  Cpu
+  Cpu,
+  ExternalLink
 } from "lucide-react";
 import { useState, useEffect } from "react";
+
+// Hardcoded Caldera operations for standalone deployment
+const CALDERA_OPERATIONS = [
+  {
+    id: 'apt29-vcd',
+    name: 'APT29 VCD Cloud Compromise',
+    description: 'Enhanced campaign for VMware Cloud Director environments with authentic APT29 TTPs.',
+    status: 'active',
+    adversaryName: 'APT29_VCD_Cloud_Compromise_Enhanced',
+    targetEnvironment: 'VMware Cloud Director (VCD)',
+    abilities: 46,
+    createdAt: '2025-01-15',
+    tags: ['CLOUD', 'VCD', 'EXFILTRATION'],
+  },
+  {
+    id: 'crowdstrike-bypass',
+    name: 'CrowdStrike Falcon Bypass',
+    description: 'Defense evasion operation for testing CrowdStrike Falcon-protected endpoints.',
+    status: 'ready',
+    adversaryName: 'Databank_CrowdStrike_Bypass',
+    targetEnvironment: 'Windows Endpoints with CrowdStrike',
+    abilities: 12,
+    createdAt: '2025-01-20',
+    tags: ['EDR BYPASS', 'T1562.001', 'STEALTH'],
+  },
+  {
+    id: 'apt28-phishing',
+    name: 'APT28 Spear Phishing Campaign',
+    description: 'Simulated spear phishing campaign using APT28 techniques for email security testing.',
+    status: 'draft',
+    adversaryName: 'APT28',
+    targetEnvironment: 'Email Infrastructure',
+    abilities: 50,
+    createdAt: '2025-01-18',
+    tags: ['PHISHING', 'INITIAL ACCESS', 'T1566'],
+  },
+  {
+    id: 'lazarus-financial',
+    name: 'Lazarus Financial Sector Attack',
+    description: 'Financial sector targeted attack simulation based on Lazarus Group TTPs.',
+    status: 'draft',
+    adversaryName: 'Lazarus Group',
+    targetEnvironment: 'Financial Systems',
+    abilities: 50,
+    createdAt: '2025-01-10',
+    tags: ['FINANCIAL', 'SWIFT', 'LATERAL MOVEMENT'],
+  },
+];
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   draft: { bg: 'bg-gray-500/20 border-gray-500', text: 'text-gray-400', icon: <FileText className="w-4 h-4" /> },
@@ -35,23 +84,10 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
 export default function Campaigns() {
   const [, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [campaigns] = useState(CALDERA_OPERATIONS);
 
-  const { data: campaigns, isLoading, refetch } = trpc.campaign.list.useQuery();
-  const createCampaign = trpc.campaign.create.useMutation({
-    onSuccess: (data) => {
-      toast.success('Campaign created successfully');
-      setShowCreateModal(false);
-      refetch();
-      navigate(`/campaigns/${data.id}`);
-    },
-    onError: (error) => {
-      toast.error(`Failed to create campaign: ${error.message}`);
-    },
-  });
-
-  const handleCreateCampaign = (data: { name: string; description: string; targetEnvironment: string }) => {
-    createCampaign.mutate(data);
+  const handleOpenCaldera = () => {
+    window.open('https://137.184.7.224:8888', '_blank');
   };
 
   return (
@@ -89,7 +125,7 @@ export default function Campaigns() {
                 <p className="text-xs text-muted-foreground uppercase">ADMIN</p>
               </div>
             </div>
-            <Link href="/"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>
+            <Link href="/login"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>
           </div>
         </div>
       </aside>
@@ -110,94 +146,83 @@ export default function Campaigns() {
             </div>
             <Button 
               className="font-display tracking-wider bg-primary hover:bg-primary/90"
-              onClick={() => setShowCreateModal(true)}
+              onClick={handleOpenCaldera}
             >
-              <Plus className="w-4 h-4 mr-2" />
-              NEW CAMPAIGN
+              <ExternalLink className="w-4 h-4 mr-2" />
+              OPEN CALDERA
             </Button>
           </div>
           <div className="w-full h-1 bg-primary" />
         </header>
 
         <div className="p-6 space-y-8">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent animate-spin" />
-            </div>
-          ) : campaigns && campaigns.length > 0 ? (
-            <div className="grid gap-4">
-              {campaigns.map((campaign) => {
-                const statusStyle = STATUS_STYLES[campaign.status] || STATUS_STYLES.draft;
-                return (
-                  <Link key={campaign.id} href={`/campaigns/${campaign.id}`}>
-                    <div className="bg-card border-2 border-border hover:border-primary transition-colors p-6 cursor-pointer">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-2">
-                            <Crosshair className="w-5 h-5 text-primary" />
-                            <h3 className="font-display text-xl truncate">{campaign.name}</h3>
-                            <span className={`px-2 py-1 text-xs font-display border ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
-                              {statusStyle.icon}
-                              {campaign.status.toUpperCase()}
-                            </span>
-                          </div>
-                          {campaign.description && (
-                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{campaign.description}</p>
-                          )}
-                          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                            {campaign.adversaryName && (
-                              <span className="flex items-center gap-1">
-                                <Target className="w-3 h-3" />
-                                {campaign.adversaryName}
-                              </span>
-                            )}
-                            {campaign.targetEnvironment && (
-                              <span className="flex items-center gap-1">
-                                <Zap className="w-3 h-3" />
-                                {campaign.targetEnvironment}
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {new Date(campaign.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          {/* Info Banner */}
+          <div className="bg-blue-500/10 border-2 border-blue-500/30 p-4">
+            <p className="text-sm text-blue-400">
+              <strong>Note:</strong> Campaigns are managed directly in Caldera. Click "Open Caldera" to create and manage operations.
+              The campaigns below are pre-configured for your red team exercises.
+            </p>
+          </div>
+
+          {/* Campaign List */}
+          <div className="grid gap-4">
+            {campaigns.map((campaign) => {
+              const statusStyle = STATUS_STYLES[campaign.status] || STATUS_STYLES.draft;
+              return (
+                <div key={campaign.id} className="bg-card border-2 border-border hover:border-primary transition-colors p-6 cursor-pointer" onClick={handleOpenCaldera}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Crosshair className="w-5 h-5 text-primary" />
+                        <h3 className="font-display text-xl truncate">{campaign.name}</h3>
+                        <span className={`px-2 py-1 text-xs font-display border ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
+                          {statusStyle.icon}
+                          {campaign.status.toUpperCase()}
+                        </span>
+                        <span className="px-2 py-1 text-xs font-display bg-primary/20 text-primary border border-primary">
+                          {campaign.abilities} ABILITIES
+                        </span>
+                      </div>
+                      {campaign.description && (
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{campaign.description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {campaign.tags.map((tag) => (
+                          <span key={tag} className="px-2 py-1 text-xs bg-secondary text-muted-foreground">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        {campaign.adversaryName && (
+                          <span className="flex items-center gap-1">
+                            <Target className="w-3 h-3" />
+                            {campaign.adversaryName}
+                          </span>
+                        )}
+                        {campaign.targetEnvironment && (
+                          <span className="flex items-center gap-1">
+                            <Zap className="w-3 h-3" />
+                            {campaign.targetEnvironment}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {campaign.createdAt}
+                        </span>
                       </div>
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12 bg-card border-2 border-border">
-              <Crosshair className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-display text-xl mb-2">NO CAMPAIGNS YET</h3>
-              <p className="text-muted-foreground mb-6">Create your first red team campaign to get started</p>
-              <Button 
-                className="font-display tracking-wider bg-primary hover:bg-primary/90"
-                onClick={() => setShowCreateModal(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                CREATE CAMPAIGN
-              </Button>
-            </div>
-          )}
+                    <ExternalLink className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </main>
 
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Create Campaign Modal */}
-      {showCreateModal && (
-        <CreateCampaignModal 
-          onClose={() => setShowCreateModal(false)} 
-          onCreate={handleCreateCampaign}
-          isLoading={createCampaign.isPending}
-        />
       )}
     </div>
   );
@@ -211,93 +236,5 @@ function NavItem({ href, icon, label, active }: { href: string; icon: React.Reac
         {label}
       </div>
     </Link>
-  );
-}
-
-function CreateCampaignModal({ 
-  onClose, 
-  onCreate,
-  isLoading 
-}: { 
-  onClose: () => void; 
-  onCreate: (data: { name: string; description: string; targetEnvironment: string }) => void;
-  isLoading: boolean;
-}) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [targetEnvironment, setTargetEnvironment] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Campaign name is required');
-      return;
-    }
-    onCreate({ name, description, targetEnvironment });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
-      <div className="relative bg-card border-2 border-border w-full max-w-lg">
-        <div className="p-6 border-b border-border">
-          <h2 className="font-display text-2xl">CREATE CAMPAIGN</h2>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-display tracking-wider text-muted-foreground mb-2">
-              CAMPAIGN NAME *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-secondary border-2 border-border px-4 py-3 font-display focus:border-primary outline-none"
-              placeholder="e.g., Databank Red Team Exercise"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-display tracking-wider text-muted-foreground mb-2">
-              DESCRIPTION
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-secondary border-2 border-border px-4 py-3 font-display focus:border-primary outline-none resize-none h-24"
-              placeholder="Describe the campaign objectives..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-display tracking-wider text-muted-foreground mb-2">
-              TARGET ENVIRONMENT
-            </label>
-            <input
-              type="text"
-              value={targetEnvironment}
-              onChange={(e) => setTargetEnvironment(e.target.value)}
-              className="w-full bg-secondary border-2 border-border px-4 py-3 font-display focus:border-primary outline-none"
-              placeholder="e.g., VMware Cloud Director (VCD)"
-            />
-          </div>
-          <div className="flex gap-4 pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="flex-1 font-display tracking-wider"
-              onClick={onClose}
-            >
-              CANCEL
-            </Button>
-            <Button 
-              type="submit" 
-              className="flex-1 font-display tracking-wider bg-primary hover:bg-primary/90"
-              disabled={isLoading}
-            >
-              {isLoading ? 'CREATING...' : 'CREATE'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 }

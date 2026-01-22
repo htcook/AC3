@@ -42,55 +42,28 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('checking');
 
-  // Live stats from DigitalOcean Caldera API
-  const [stats, setStats] = useState({
+  // Live stats from DigitalOcean Caldera API via server proxy
+  const { data: stats, refetch: refetchStats } = trpc.calderaProxy.getStats.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
+
+  const calderaStats = stats || {
     totalAdversaries: 0,
     totalAbilities: 0,
     activeOperations: 0,
     totalAgents: 0,
+  };
+
+  // Check server health via server proxy
+  const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, {
+    refetchInterval: 30000,
   });
 
-  // Fetch live stats from Caldera API
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [adversaries, abilities, operations, agents] = await Promise.all([
-          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/adversaries`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
-          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/abilities`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
-          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/operations`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
-          fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/agents`, { headers: { 'KEY': 'ADMIN123' } }).then(r => r.json()).catch(() => []),
-        ]);
-        setStats({
-          totalAdversaries: Array.isArray(adversaries) ? adversaries.length : 0,
-          totalAbilities: Array.isArray(abilities) ? abilities.length : 0,
-          activeOperations: Array.isArray(operations) ? operations.filter((o: any) => o.state === 'running').length : 0,
-          totalAgents: Array.isArray(agents) ? agents.length : 0,
-        });
-      } catch (error) {
-        console.error('Failed to fetch Caldera stats:', error);
-      }
-    };
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Check server health on mount
-  useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const response = await fetch(`${DEFAULT_SERVER.httpUrl}/api/v2/health`, {
-          signal: AbortSignal.timeout(5000),
-        }).catch(() => null);
-        setServerStatus(response?.ok ? 'online' : 'offline');
-      } catch {
-        setServerStatus('offline');
-      }
-    };
-    checkHealth();
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (healthData !== undefined) {
+      setServerStatus(healthData ? 'online' : 'offline');
+    }
+  }, [healthData]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -204,10 +177,10 @@ export default function Dashboard() {
           <section>
             <h2 className="font-display text-2xl mb-4">CALDERA STATISTICS</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard value={stats.totalAdversaries.toString()} label="ADVERSARIES" />
-              <StatCard value={stats.totalAbilities.toString()} label="ABILITIES" />
-              <StatCard value={stats.activeOperations.toString()} label="OPERATIONS" />
-              <StatCard value={stats.totalAgents.toString()} label="AGENTS" />
+              <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" />
+              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" />
+              <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" />
+              <StatCard value={calderaStats.totalAgents.toString()} label="AGENTS" />
             </div>
           </section>
 
@@ -244,31 +217,109 @@ export default function Dashboard() {
           {/* Red Divider */}
           <div className="w-full h-0.5 bg-primary" />
 
-          {/* APT29 Campaign Highlight */}
+          {/* Featured Campaigns - Custom Operations */}
           <section>
-            <h2 className="font-display text-2xl mb-4">FEATURED CAMPAIGN</h2>
-            <div className="bg-card border-2 border-primary p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-display text-3xl text-primary mb-2">APT29 VCD CLOUD COMPROMISE</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Enhanced campaign with 46 abilities tailored for VMware Cloud Director environments.
-                    Covers reconnaissance through exfiltration with authentic APT29 TTPs.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-3 py-1 bg-secondary text-xs font-display tracking-wider">RECONNAISSANCE</span>
-                    <span className="px-3 py-1 bg-secondary text-xs font-display tracking-wider">INITIAL ACCESS</span>
-                    <span className="px-3 py-1 bg-secondary text-xs font-display tracking-wider">PERSISTENCE</span>
-                    <span className="px-3 py-1 bg-secondary text-xs font-display tracking-wider">EXFILTRATION</span>
-                  </div>
+            <h2 className="font-display text-2xl mb-4">ACTIVE OPERATIONS</h2>
+            <div className="grid md:grid-cols-2 gap-4 mb-8">
+              {/* APT29 VCD Campaign */}
+              <div className="bg-card border-2 border-primary p-5 hover:border-primary/80 transition-colors">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-display tracking-wider border border-primary">ACTIVE</span>
+                  <span className="text-xs text-muted-foreground">46 ABILITIES</span>
+                </div>
+                <h3 className="font-display text-xl text-primary mb-2">APT29 VCD CLOUD COMPROMISE</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Enhanced campaign for VMware Cloud Director environments with authentic APT29 TTPs.
+                </p>
+                <div className="flex flex-wrap gap-1 mb-4">
+                  <span className="px-2 py-0.5 bg-secondary text-xs">CLOUD</span>
+                  <span className="px-2 py-0.5 bg-secondary text-xs">VCD</span>
+                  <span className="px-2 py-0.5 bg-secondary text-xs">EXFILTRATION</span>
                 </div>
                 <Link href="/adversaries">
-                  <Button className="font-display tracking-wider bg-primary hover:bg-primary/90">
-                    VIEW CAMPAIGN
-                    <ChevronRight className="w-4 h-4 ml-2" />
+                  <Button size="sm" className="w-full font-display tracking-wider bg-primary hover:bg-primary/90">
+                    VIEW DETAILS
                   </Button>
                 </Link>
               </div>
+
+              {/* CrowdStrike Falcon Bypass */}
+              <div className="bg-card border-2 border-yellow-500 p-5 hover:border-yellow-500/80 transition-colors">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs font-display tracking-wider border border-yellow-500">NEW</span>
+                  <span className="text-xs text-muted-foreground">12 ABILITIES</span>
+                </div>
+                <h3 className="font-display text-xl text-yellow-500 mb-2">CROWDSTRIKE FALCON BYPASS</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Defense evasion operation for testing CrowdStrike Falcon-protected endpoints.
+                </p>
+                <div className="flex flex-wrap gap-1 mb-4">
+                  <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">EDR BYPASS</span>
+                  <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">T1562.001</span>
+                  <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">STEALTH</span>
+                </div>
+                <a href="http://137.184.7.224:8888/#/operations" target="_blank" rel="noopener noreferrer">
+                  <Button size="sm" className="w-full font-display tracking-wider bg-yellow-500 hover:bg-yellow-500/90 text-black">
+                    VIEW OPERATION
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          {/* APT Threat Actor Library */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl">APT THREAT ACTOR LIBRARY</h2>
+              <Link href="/adversaries">
+                <Button variant="outline" size="sm" className="font-display tracking-wider">
+                  VIEW ALL <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* APT29 */}
+              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-blue-500 p-4 text-center transition-colors group">
+                <div className="text-3xl font-display text-blue-500 mb-1">APT29</div>
+                <div className="text-xs text-muted-foreground mb-2">COZY BEAR</div>
+                <div className="text-xs text-blue-500">50 ABILITIES</div>
+                <div className="text-[10px] text-muted-foreground mt-1">Russia • G0016</div>
+              </a>
+              {/* APT28 */}
+              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-red-500 p-4 text-center transition-colors group">
+                <div className="text-3xl font-display text-red-500 mb-1">APT28</div>
+                <div className="text-xs text-muted-foreground mb-2">FANCY BEAR</div>
+                <div className="text-xs text-red-500">50 ABILITIES</div>
+                <div className="text-[10px] text-muted-foreground mt-1">Russia • G0007</div>
+              </a>
+              {/* APT41 */}
+              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-orange-500 p-4 text-center transition-colors group">
+                <div className="text-3xl font-display text-orange-500 mb-1">APT41</div>
+                <div className="text-xs text-muted-foreground mb-2">DOUBLE DRAGON</div>
+                <div className="text-xs text-orange-500">50 ABILITIES</div>
+                <div className="text-[10px] text-muted-foreground mt-1">China • G0096</div>
+              </a>
+              {/* Lazarus */}
+              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-purple-500 p-4 text-center transition-colors group">
+                <div className="text-3xl font-display text-purple-500 mb-1">LAZARUS</div>
+                <div className="text-xs text-muted-foreground mb-2">HIDDEN COBRA</div>
+                <div className="text-xs text-purple-500">50 ABILITIES</div>
+                <div className="text-[10px] text-muted-foreground mt-1">N. Korea • G0032</div>
+              </a>
+              {/* FIN7 */}
+              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-green-500 p-4 text-center transition-colors group">
+                <div className="text-3xl font-display text-green-500 mb-1">FIN7</div>
+                <div className="text-xs text-muted-foreground mb-2">CARBANAK</div>
+                <div className="text-xs text-green-500">50 ABILITIES</div>
+                <div className="text-[10px] text-muted-foreground mt-1">Financial • G0046</div>
+              </a>
+              {/* Cobalt Group */}
+              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-cyan-500 p-4 text-center transition-colors group">
+                <div className="text-3xl font-display text-cyan-500 mb-1">COBALT</div>
+                <div className="text-xs text-muted-foreground mb-2">COBALT GROUP</div>
+                <div className="text-xs text-cyan-500">50 ABILITIES</div>
+                <div className="text-[10px] text-muted-foreground mt-1">Financial • G0080</div>
+              </a>
             </div>
           </section>
         </div>

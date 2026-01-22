@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -14,20 +14,74 @@ import Activity from "./pages/Activity";
 import Campaigns from "./pages/Campaigns";
 import CampaignDetail from "./pages/CampaignDetail";
 import Agents from "./pages/Agents";
+import Login from "./pages/Login";
+import { trpc } from "@/lib/trpc";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { useEffect } from "react";
+
+// Protected route wrapper that requires authentication
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const [, setLocation] = useLocation();
+  const { data: session, isLoading } = trpc.calderaAuth.session.useQuery();
+
+  useEffect(() => {
+    if (!isLoading && !session?.authenticated) {
+      setLocation("/login");
+    }
+  }, [isLoading, session, setLocation]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Skeleton className="w-16 h-16 rounded-full mx-auto" />
+          <Skeleton className="w-48 h-4 mx-auto" />
+          <p className="text-muted-foreground text-sm">Verifying authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session?.authenticated) {
+    return null;
+  }
+
+  return <Component />;
+}
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/credentials" component={Credentials} />
-      <Route path="/adversaries" component={Adversaries} />
-      <Route path="/adversaries/:id" component={AdversaryDetail} />
-      <Route path="/team" component={Team} />
-      <Route path="/activity" component={Activity} />
-      <Route path="/campaigns" component={Campaigns} />
-      <Route path="/campaigns/:id" component={CampaignDetail} />
-      <Route path="/agents" component={Agents} />
+      <Route path="/login" component={Login} />
+      <Route path="/dashboard">
+        <ProtectedRoute component={Dashboard} />
+      </Route>
+      <Route path="/credentials">
+        <ProtectedRoute component={Credentials} />
+      </Route>
+      <Route path="/adversaries">
+        <ProtectedRoute component={Adversaries} />
+      </Route>
+      <Route path="/adversaries/:id">
+        {(params) => <ProtectedRoute component={() => <AdversaryDetail />} />}
+      </Route>
+      <Route path="/team">
+        <ProtectedRoute component={Team} />
+      </Route>
+      <Route path="/activity">
+        <ProtectedRoute component={Activity} />
+      </Route>
+      <Route path="/campaigns">
+        <ProtectedRoute component={Campaigns} />
+      </Route>
+      <Route path="/campaigns/:id">
+        {(params) => <ProtectedRoute component={() => <CampaignDetail />} />}
+      </Route>
+      <Route path="/agents">
+        <ProtectedRoute component={Agents} />
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

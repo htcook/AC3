@@ -5,6 +5,13 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
+import jwt from "jsonwebtoken";
+
+// Caldera session cookie name
+const CALDERA_SESSION_COOKIE = 'caldera_session';
+
+// JWT secret for Caldera sessions (use env var in production)
+const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -19,7 +26,7 @@ async function fetchCalderaAPI(url: string, apiKey: string, endpoint: string) {
   try {
     const response = await fetch(`${url}${endpoint}`, {
       headers: { 'KEY': apiKey },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(30000), // 30 second timeout for large responses
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
@@ -314,6 +321,21 @@ export const appRouter = router({
       const API_KEY = 'ADMIN123';
       const deploy = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/deploy_commands');
       return deploy || {};
+    }),
+
+    // Check Caldera server health
+    checkHealth: publicProcedure.query(async () => {
+      const CALDERA_URL = 'http://137.184.7.224:8888';
+      const API_KEY = 'ADMIN123';
+      try {
+        const response = await fetch(`${CALDERA_URL}/api/v2/health`, {
+          headers: { 'KEY': API_KEY },
+          signal: AbortSignal.timeout(5000),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
     }),
   }),
 
@@ -617,6 +639,134 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getActivityLogsByServer(input.serverId, input.limit || 50);
       }),
+  }),
+
+  // Caldera credential authentication
+  calderaAuth: router({
+    // Login with Caldera credentials
+    login: publicProcedure
+      .input(z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const CALDERA_URL = 'http://137.184.7.224:8888';
+        
+        // Try to authenticate against Caldera API
+        try {
+          // Caldera uses basic auth or API key - we'll validate credentials
+          // by attempting to access a protected endpoint
+          const response = await fetch(`${CALDERA_URL}/api/v2/health`, {
+            headers: {
+              'KEY': input.password, // Caldera uses API key in KEY header
+            },
+            signal: AbortSignal.timeout(5000),
+          });
+
+          // Also check if it's the admin credentials (admin/admin or red/ADMIN123)
+          const isValidAdmin = 
+            (input.username === 'admin' && input.password === 'admin') ||
+            (input.username === 'red' && input.password === 'ADMIN123') ||
+            (input.username === 'blue' && input.password === 'ADMIN123');
+
+          if (response.ok || isValidAdmin) {
+            // Create JWT token for session
+            const token = jwt.sign(
+              { 
+                username: input.username,
+                role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user',
+                loginTime: Date.now(),
+              },
+              CALDERA_JWT_SECRET,
+              { expiresIn: '24h' }
+            );
+
+            // Set session cookie
+            const cookieOptions = getSessionCookieOptions(ctx.req);
+            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, {
+              ...cookieOptions,
+              maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            });
+
+            return { 
+              success: true, 
+              message: 'Login successful',
+              user: { username: input.username, role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user' }
+            };
+          } else {
+            return { success: false, message: 'Invalid credentials' };
+          }
+        } catch (error) {
+          console.error('Caldera auth error:', error);
+          
+          // Fallback: check hardcoded credentials if Caldera is unreachable
+          const isValidAdmin = 
+            (input.username === 'admin' && input.password === 'admin') ||
+            (input.username === 'red' && input.password === 'ADMIN123') ||
+            (input.username === 'blue' && input.password === 'ADMIN123');
+
+          if (isValidAdmin) {
+            const token = jwt.sign(
+              { 
+                username: input.username,
+                role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user',
+                loginTime: Date.now(),
+              },
+              CALDERA_JWT_SECRET,
+              { expiresIn: '24h' }
+            );
+
+            const cookieOptions = getSessionCookieOptions(ctx.req);
+            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, {
+              ...cookieOptions,
+              maxAge: 24 * 60 * 60 * 1000,
+            });
+
+            return { 
+              success: true, 
+              message: 'Login successful (offline mode)',
+              user: { username: input.username, role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user' }
+            };
+          }
+          
+          return { success: false, message: 'Authentication failed' };
+        }
+      }),
+
+    // Check current session
+    session: publicProcedure.query(async ({ ctx }) => {
+      const token = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+      
+      if (!token) {
+        return { authenticated: false, user: null };
+      }
+
+      try {
+        const decoded = jwt.verify(token, CALDERA_JWT_SECRET) as {
+          username: string;
+          role: string;
+          loginTime: number;
+        };
+        
+        return { 
+          authenticated: true, 
+          user: { 
+            username: decoded.username, 
+            role: decoded.role,
+            loginTime: decoded.loginTime,
+          } 
+        };
+      } catch {
+        return { authenticated: false, user: null };
+      }
+    }),
+
+    // Logout
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(CALDERA_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 });
+      return { success: true };
+    }),
   }),
 });
 

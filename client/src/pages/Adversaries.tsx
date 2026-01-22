@@ -22,11 +22,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useMemo } from "react";
 
-// DigitalOcean Caldera Server config
-const CALDERA_API = {
-  url: 'http://137.184.7.224:8888',
-  apiKey: 'ADMIN123',
-};
+// Use tRPC proxy for Caldera API calls
 
 interface Adversary {
   adversary_id: string;
@@ -44,25 +40,17 @@ export default function Adversaries() {
   const [adversaries, setAdversaries] = useState<Adversary[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch adversaries from DigitalOcean Caldera API
+  // Fetch adversaries via tRPC proxy
+  const { data: adversaryData, isLoading: adversaryLoading } = trpc.calderaProxy.getAdversaries.useQuery();
+  
   useEffect(() => {
-    const fetchAdversaries = async () => {
-      try {
-        const response = await fetch(`${CALDERA_API.url}/api/v2/adversaries`, {
-          headers: { 'KEY': CALDERA_API.apiKey },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setAdversaries(Array.isArray(data) ? data : []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch adversaries:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAdversaries();
-  }, []);
+    if (adversaryData) {
+      setAdversaries(Array.isArray(adversaryData) ? adversaryData : []);
+      setLoading(false);
+    } else if (!adversaryLoading) {
+      setLoading(false);
+    }
+  }, [adversaryData, adversaryLoading]);
 
   // Derive tags from adversary names
   const allTags = useMemo(() => {
