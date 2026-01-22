@@ -208,3 +208,31 @@
 - [x] Create downloadable Markdown/JSON report
 - [x] Attribute report to Harrison Cook as content creator
 - [x] Deploy to DigitalOcean
+
+
+## Caldera Backend Operations Fix
+- [x] Query current state of all operations in Caldera
+- [x] Check adversary profiles have all abilities linked
+- [x] Verify Databank_Complete adversary has 59 abilities
+- [x] Verify APT29_VCD_Cloud_Compromise_Enhanced has all abilities
+- [x] Verify Databank_CrowdStrike_Bypass has 12 abilities
+- [x] Fix any missing ability references
+- [x] Test operations in Caldera UI
+
+
+## Operations Detail Page with Abilities
+- [x] Create OperationDetail page showing all abilities directly
+- [x] Display operation metadata (name, state, adversary)
+- [x] Show complete ability chain with MITRE ATT&CK mapping
+- [x] Add ability execution status indicators
+- [x] Include tactic grouping and filtering
+- [x] Add "Run in Caldera" button for each ability
+- [x] Deploy to DigitalOcean
+
+## Caldera Server Campaign Configuration
+- [x] Verify all operations exist with correct adversary links
+- [x] Ensure Databank_Complete operation has 59 abilities
+- [x] Ensure APT29_VCD operation has 48 abilities
+- [x] Ensure CrowdStrike_Bypass operation has 12 abilities
+- [x] Update Caldera credentials to red/ADMIN123
+- [x] Test operations are accessible in Caldera UI

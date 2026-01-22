@@ -17,6 +17,7 @@ import Agents from "./pages/Agents";
 import AgentDeploy from "./pages/AgentDeploy";
 import OperationMonitor from "./pages/OperationMonitor";
 import ReportGenerator from "./pages/ReportGenerator";
+import OperationDetail from "./pages/OperationDetail";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -90,6 +91,9 @@ function Router() {
       </Route>
       <Route path="/operations/monitor">
         <ProtectedRoute component={OperationMonitor} />
+      </Route>
+      <Route path="/operations/:id">
+        {(params) => <ProtectedRoute component={() => <OperationDetail />} />}
       </Route>
       <Route path="/reports/generate">
         <ProtectedRoute component={ReportGenerator} />
