@@ -116,6 +116,7 @@ export default function Campaigns() {
             <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
             <NavItem href="/agents/deploy" icon={<Zap />} label="DEPLOY AGENT" />
             <NavItem href="/campaigns" icon={<Crosshair />} label="CAMPAIGNS" active />
+            <NavItem href="/gophish" icon={<Zap />} label="GOPHISH" />
             <NavItem href="/operations/monitor" icon={<Activity />} label="MONITOR" />
             <NavItem href="/reports/generate" icon={<FileText />} label="REPORTS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />

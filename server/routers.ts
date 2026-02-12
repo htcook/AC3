@@ -21,6 +21,37 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+// GoPhish API helper
+const GOPHISH_URL = 'https://137.184.7.224:3333';
+const GOPHISH_API_KEY = 'a6e1e42de41e2a86d1175ac58f9da6420f98a047474256c3f391390d0d886290';
+
+async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
+  try {
+    const url = `${GOPHISH_URL}${endpoint}`;
+    const options: RequestInit = {
+      method,
+      headers: {
+        'Authorization': GOPHISH_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(15000),
+    };
+    if (data) options.body = JSON.stringify(data);
+    
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`GoPhish API error (${endpoint}):`, response.status, errText);
+      return null;
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  } catch (error) {
+    console.error(`GoPhish API error (${endpoint}):`, error);
+    return null;
+  }
+}
+
 // Caldera API helper
 async function fetchCalderaAPI(url: string, apiKey: string, endpoint: string) {
   try {
@@ -335,6 +366,141 @@ export const appRouter = router({
         return response.ok;
       } catch {
         return false;
+      }
+    }),
+  }),
+
+  // GoPhish API proxy
+  gophishProxy: router({
+    // GoPhish API helper
+    getCampaigns: protectedProcedure.query(async () => {
+      return fetchGophishAPI('/api/campaigns/');
+    }),
+
+    getCampaign: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return fetchGophishAPI(`/api/campaigns/${input.id}`);
+      }),
+
+    getCampaignResults: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return fetchGophishAPI(`/api/campaigns/${input.id}/results`);
+      }),
+
+    getTemplates: protectedProcedure.query(async () => {
+      return fetchGophishAPI('/api/templates/');
+    }),
+
+    createTemplate: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        subject: z.string(),
+        html: z.string(),
+        text: z.string().optional(),
+        attachments: z.array(z.any()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI('/api/templates/', 'POST', input);
+      }),
+
+    getLandingPages: protectedProcedure.query(async () => {
+      return fetchGophishAPI('/api/pages/');
+    }),
+
+    createLandingPage: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        html: z.string(),
+        capture_credentials: z.boolean().optional(),
+        capture_passwords: z.boolean().optional(),
+        redirect_url: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI('/api/pages/', 'POST', input);
+      }),
+
+    getSendingProfiles: protectedProcedure.query(async () => {
+      return fetchGophishAPI('/api/smtp/');
+    }),
+
+    createSendingProfile: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        host: z.string(),
+        from_address: z.string(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+        ignore_cert_errors: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI('/api/smtp/', 'POST', input);
+      }),
+
+    getGroups: protectedProcedure.query(async () => {
+      return fetchGophishAPI('/api/groups/');
+    }),
+
+    createGroup: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        targets: z.array(z.object({
+          first_name: z.string().optional(),
+          last_name: z.string().optional(),
+          email: z.string(),
+          position: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI('/api/groups/', 'POST', input);
+      }),
+
+    launchCampaign: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        template: z.object({ name: z.string() }),
+        page: z.object({ name: z.string() }),
+        smtp: z.object({ name: z.string() }),
+        url: z.string(),
+        groups: z.array(z.object({ name: z.string() })),
+        launch_date: z.string().optional(),
+        send_by_date: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI('/api/campaigns/', 'POST', input);
+      }),
+
+    deleteCampaign: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI(`/api/campaigns/${input.id}`, 'DELETE');
+      }),
+
+    completeCampaign: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI(`/api/campaigns/${input.id}/complete`, 'GET');
+      }),
+
+    // Get GoPhish server status
+    getStatus: publicProcedure.query(async () => {
+      try {
+        const campaigns = await fetchGophishAPI('/api/campaigns/');
+        const templates = await fetchGophishAPI('/api/templates/');
+        const pages = await fetchGophishAPI('/api/pages/');
+        const groups = await fetchGophishAPI('/api/groups/');
+        const smtp = await fetchGophishAPI('/api/smtp/');
+        return {
+          online: true,
+          campaigns: Array.isArray(campaigns) ? campaigns.length : 0,
+          templates: Array.isArray(templates) ? templates.length : 0,
+          landingPages: Array.isArray(pages) ? pages.length : 0,
+          groups: Array.isArray(groups) ? groups.length : 0,
+          sendingProfiles: Array.isArray(smtp) ? smtp.length : 0,
+        };
+      } catch {
+        return { online: false, campaigns: 0, templates: 0, landingPages: 0, groups: 0, sendingProfiles: 0 };
       }
     }),
   }),

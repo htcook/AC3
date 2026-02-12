@@ -248,3 +248,16 @@
 - [x] Fix AdversaryDetail page Open in Caldera button
 - [x] Fix Dashboard header Caldera UI button
 - [x] Ensure links open in new tab with correct Caldera UI URL
+
+## GoPhish Server + Caldera Integration
+
+- [x] Install GoPhish on DigitalOcean server
+- [x] Configure GoPhish admin panel and API
+- [x] Open firewall ports for GoPhish (3333 admin, 8080 phishing)
+- [x] Create Caldera-GoPhish webhook bridge for campaign coordination
+- [x] Add GoPhish management page to AceofCloud Dashboard
+- [x] Add GoPhish proxy endpoints to server routers
+- [x] Display GoPhish campaigns, templates, and results in dashboard
+- [x] Create phishing campaign launcher integrated with Caldera operations
+- [x] Test full integration end-to-end
+- [ ] Update Terraform files with GoPhish droplet configuration

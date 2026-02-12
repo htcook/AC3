@@ -18,6 +18,7 @@ import AgentDeploy from "./pages/AgentDeploy";
 import OperationMonitor from "./pages/OperationMonitor";
 import ReportGenerator from "./pages/ReportGenerator";
 import OperationDetail from "./pages/OperationDetail";
+import GoPhish from "./pages/GoPhish";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -97,6 +98,9 @@ function Router() {
       </Route>
       <Route path="/reports/generate">
         <ProtectedRoute component={ReportGenerator} />
+      </Route>
+      <Route path="/gophish">
+        <ProtectedRoute component={GoPhish} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
