@@ -272,3 +272,46 @@
 - [x] Update bridge service with new credentials
 - [x] Rebuild and deploy dashboard
 - [x] Verify all services work with new credentials
+
+
+## Comprehensive Integration Testing
+- [x] Test backend Caldera API connectivity with new credentials
+- [x] Test backend GoPhish API connectivity with new credentials
+- [x] Test Dashboard login with new password
+- [x] Test Home page loads correctly
+- [x] Test Dashboard page - stats, quick actions, sidebar nav
+- [x] Test Credentials page - displays new credentials
+- [x] Test Adversaries page - loads 494 adversaries from Caldera
+- [x] Test Adversary Detail page - loads abilities (59 for Databank_Complete)
+- [x] Test Campaigns page - shows operations from Caldera (3 operations)
+- [x] Test Operation Detail page - shows abilities chain
+- [x] Test Agents page - loads agent data (0 agents expected)
+- [x] Test Agent Deploy page - deployment scripts
+- [x] Test GoPhish page - campaigns, templates, landing pages
+- [x] Test Operation Monitor page
+- [x] Test Reports page
+- [x] Test Team page
+- [x] Test all Open Caldera buttons link to port 8888
+- [x] Note: Operations lost on Caldera restart (memory-only storage)
+
+
+## Operation Persistence
+- [x] Create startup script to recreate 3 operations after Caldera restart
+- [x] Create systemd service to run script after Caldera starts
+- [x] Include all adversary profiles and ability mappings
+- [x] Test by restarting Caldera and verifying operations persist
+
+## GoPhish SMTP Sending Profile
+- [x] Configure SMTP sending profile in GoPhish (Postfix local relay on port 25)
+- [x] Create a sample email template (Security Awareness - Password Reset)
+- [x] Create a sample landing page (Credential Capture - Password Reset)
+- [x] Create a sample target group (Test Targets - Internal Team, 3 users)
+- [x] Verify SMTP profile can send test emails
+
+## Test Agent Deployment
+- [x] Deploy a test Caldera Sandcat agent on the DigitalOcean server (paw: tzsbja)
+- [x] Verify agent checks in with Caldera C2 (trusted, group: red)
+- [x] Fix adversary ability ordering (Linux abilities first, Windows last)
+- [x] Assign agent to APT29 operation and start execution
+- [x] Validate ability chain execution: 5 abilities executed (3 success, 1 collected, 1 failed)
+- [x] Verify results appear in operation chain
