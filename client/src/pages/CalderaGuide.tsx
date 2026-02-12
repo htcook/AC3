@@ -6,6 +6,8 @@ import {
   AlertTriangle, CheckCircle, Copy, Crosshair, Layers, Network, Eye
 } from "lucide-react";
 import { useState } from "react";
+import FAQ from '@/components/FAQ';
+import { calderaFAQItems } from '@/data/caldera-faq';
 
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
   return (
@@ -95,6 +97,10 @@ export default function CalderaGuide() {
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
               <NavItem href="/guide/gophish" icon={<BookOpen className="w-4 h-4" />} label="GOPHISH GUIDE" />
               <NavItem href="/guide/caldera" icon={<BookOpen className="w-4 h-4" />} label="CALDERA GUIDE" active />
+            </div>
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
+              <NavItem href="/reports/security" icon={<FileText className="w-4 h-4" />} label="SECURITY REPORT" />
             </div>
           </nav>
         </div>
@@ -460,6 +466,15 @@ plugins:
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">ATT&CK mapping:</strong> Use the Compass plugin to generate an ATT&CK Navigator layer showing which techniques were tested and their outcomes.</span></div>
           </div>
         </Section>
+
+        {/* FAQ Section */}
+        <div className="mt-8 mb-8">
+          <FAQ
+            items={calderaFAQItems}
+            title="CALDERA TROUBLESHOOTING FAQ"
+            description="Common issues and solutions for MITRE Caldera agents, abilities, operations, and server configuration."
+          />
+        </div>
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">

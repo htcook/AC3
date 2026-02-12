@@ -21,6 +21,7 @@ import OperationDetail from "./pages/OperationDetail";
 import GoPhish from "./pages/GoPhish";
 import GoPhishGuide from "./pages/GoPhishGuide";
 import CalderaGuide from "./pages/CalderaGuide";
+import SecurityReport from "./pages/SecurityReport";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -109,6 +110,9 @@ function Router() {
       </Route>
       <Route path="/guide/caldera">
         <ProtectedRoute component={CalderaGuide} />
+      </Route>
+      <Route path="/reports/security">
+        <ProtectedRoute component={SecurityReport} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

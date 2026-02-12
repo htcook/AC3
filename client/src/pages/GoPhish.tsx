@@ -89,6 +89,10 @@ export default function GoPhish() {
                 <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
               ))}
             </div>
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
+              <NavItem href="/reports/security" icon={<FileText className="w-4 h-4" />} label="SECURITY REPORT" />
+            </div>
           </nav>
           <div className="p-4 border-t border-border">
             <Link href="/"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>

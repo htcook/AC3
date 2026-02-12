@@ -386,3 +386,34 @@
 - [x] Include reporting and analysis guide
 - [x] Add sidebar navigation for the knowledge base
 - [x] Deploy to DigitalOcean
+
+
+## Searchable FAQ & Troubleshooting
+- [x] Create searchable FAQ page with filtering/search functionality
+- [x] Add Caldera troubleshooting: agent not checking in
+- [x] Add Caldera troubleshooting: abilities failing to execute
+- [x] Add Caldera troubleshooting: operations stuck or not progressing
+- [x] Add Caldera troubleshooting: plugin errors and missing abilities
+- [x] Add GoPhish troubleshooting: emails going to spam
+- [x] Add GoPhish troubleshooting: SMTP connection failures
+- [x] Add GoPhish troubleshooting: landing page not capturing credentials
+- [x] Add GoPhish troubleshooting: campaign not sending emails
+- [x] Add general troubleshooting: server connectivity issues
+- [x] Add general troubleshooting: certificate/SSL errors
+- [x] Add sidebar navigation link for FAQ page
+- [x] Deploy to DigitalOcean
+
+## Customer-Facing Security Assessment Report
+- [x] Create report generation page with branded AceofCloud template
+- [x] Pull live GoPhish campaign results (emails sent, opened, clicked, submitted)
+- [x] Pull live Caldera operation data (abilities executed, success/fail rates)
+- [x] Include executive summary section
+- [x] Include MITRE ATT&CK technique coverage matrix
+- [x] Include phishing campaign effectiveness metrics
+- [x] Include red team operation timeline and results
+- [x] Include security recommendations based on findings
+- [x] Include risk scoring and severity ratings
+- [x] Generate downloadable PDF/Markdown report
+- [x] Attribute report to Harrison Cook / AceofCloud
+- [x] Add sidebar navigation link for report generator
+- [x] Deploy to DigitalOcean

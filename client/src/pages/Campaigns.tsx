@@ -127,6 +127,10 @@ export default function Campaigns() {
               <NavItem href="/guide/gophish" icon={<BookOpen />} label="GOPHISH GUIDE" />
               <NavItem href="/guide/caldera" icon={<BookOpen />} label="CALDERA GUIDE" />
             </div>
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
+              <NavItem href="/reports/security" icon={<FileText />} label="SECURITY REPORT" />
+            </div>
           </nav>
 
           <div className="p-4 border-t border-border">

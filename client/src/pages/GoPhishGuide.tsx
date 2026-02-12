@@ -6,6 +6,8 @@ import {
   Shield, AlertTriangle, CheckCircle, Copy, Search
 } from "lucide-react";
 import { useState } from "react";
+import FAQ from '@/components/FAQ';
+import { gophishFAQItems } from '@/data/gophish-faq';
 
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
   return (
@@ -96,6 +98,10 @@ export default function GoPhishGuide() {
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
               <NavItem href="/guide/gophish" icon={<BookOpen className="w-4 h-4" />} label="GOPHISH GUIDE" active />
               <NavItem href="/guide/caldera" icon={<BookOpen className="w-4 h-4" />} label="CALDERA GUIDE" />
+            </div>
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
+              <NavItem href="/reports/security" icon={<FileText className="w-4 h-4" />} label="SECURITY REPORT" />
             </div>
           </nav>
         </div>
@@ -442,6 +448,15 @@ export default function GoPhishGuide() {
             <strong>Export Options:</strong> GoPhish supports CSV export of campaign results. Use this data to create executive summaries, department-level breakdowns, and trend analysis across multiple campaigns.
           </InfoBox>
         </Section>
+
+        {/* FAQ Section */}
+        <div className="mt-8 mb-8">
+          <FAQ
+            items={gophishFAQItems}
+            title="GOPHISH TROUBLESHOOTING FAQ"
+            description="Common issues and solutions for GoPhish phishing campaigns, email delivery, SMTP configuration, and landing pages."
+          />
+        </div>
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">
