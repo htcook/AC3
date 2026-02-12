@@ -338,3 +338,8 @@
 
 - [x] Research and document email sender domain best practices for phishing simulations
 - [x] Provide deliverability guide for avoiding common email filters
+
+
+## APT29 TTPs Counter Rename
+- [x] Change "APT29 TTPs" label to "Adversary TTP's"
+- [x] Update the count to 348 (unique MITRE ATT&CK techniques across all adversaries)

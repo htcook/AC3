@@ -137,7 +137,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <StatBlock value="492" label="ADVERSARIES" />
             <StatBlock value="1,940" label="ABILITIES" />
-            <StatBlock value="46" label="APT29 TTPS" />
+            <StatBlock value="348" label="ADVERSARY TTP'S" />
             <StatBlock value="24/7" label="MONITORING" />
           </div>
         </div>
