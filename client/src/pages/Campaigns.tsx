@@ -23,7 +23,8 @@ import {
   Cpu,
   ExternalLink,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  BookOpen
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -121,6 +122,11 @@ export default function Campaigns() {
             <NavItem href="/reports/generate" icon={<FileText />} label="REPORTS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
+              <NavItem href="/guide/gophish" icon={<BookOpen />} label="GOPHISH GUIDE" />
+              <NavItem href="/guide/caldera" icon={<BookOpen />} label="CALDERA GUIDE" />
+            </div>
           </nav>
 
           <div className="p-4 border-t border-border">

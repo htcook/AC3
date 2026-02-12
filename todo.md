@@ -343,3 +343,46 @@
 ## APT29 TTPs Counter Rename
 - [x] Change "APT29 TTPs" label to "Adversary TTP's"
 - [x] Update the count to 348 (unique MITRE ATT&CK techniques across all adversaries)
+
+
+## SSL Certificate Fix
+- [ ] Diagnose current SSL configuration (self-signed cert causing browser warnings)
+- [ ] Install proper trusted SSL certificate
+- [ ] Update nginx configuration for new certificate
+- [ ] Fix GoPhish admin panel certificate (port 3333)
+- [ ] Verify no browser security warnings on any service
+
+
+## GoPhish Knowledge Base & Campaign Guide
+- [x] Research GoPhish user guides and admin documentation
+- [x] Research phishing campaign design best practices
+- [x] Research email template creation techniques
+- [x] Research landing page design for credential capture
+- [x] Research target group management and segmentation
+- [x] Research campaign metrics and reporting
+- [x] Create integrated knowledge base page in Ace Strike dashboard
+- [x] Include step-by-step campaign creation workflow
+- [x] Include email template design guide with examples
+- [x] Include landing page design guide
+- [x] Include SMTP/sending profile configuration guide
+- [x] Include campaign analysis and reporting guide
+- [x] Include security awareness testing best practices
+- [x] Add sidebar navigation for the knowledge base
+- [x] Deploy to DigitalOcean
+
+
+## Caldera Knowledge Base & Operations Guide
+- [x] Research Caldera user guides and admin documentation
+- [x] Research adversary emulation planning and execution
+- [x] Research agent deployment and management
+- [x] Research ability and plugin development
+- [x] Research operation planning and execution workflows
+- [x] Research MITRE ATT&CK mapping and coverage
+- [x] Create integrated Caldera knowledge base page in dashboard
+- [x] Include agent deployment guide
+- [x] Include adversary profile creation guide
+- [x] Include operation planning and execution guide
+- [x] Include ability development guide
+- [x] Include reporting and analysis guide
+- [x] Add sidebar navigation for the knowledge base
+- [x] Deploy to DigitalOcean

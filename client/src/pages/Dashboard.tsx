@@ -21,7 +21,8 @@ import {
   Zap,
   Target,
   FileText,
-  Cloud
+  Cloud,
+  BookOpen
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -96,6 +97,11 @@ export default function Dashboard() {
             <NavItem href="/gophish" icon={<Zap />} label="GOPHISH" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
+              <NavItem href="/guide/gophish" icon={<BookOpen />} label="GOPHISH GUIDE" />
+              <NavItem href="/guide/caldera" icon={<BookOpen />} label="CALDERA GUIDE" />
+            </div>
           </nav>
 
           {/* User Info */}

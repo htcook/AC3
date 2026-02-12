@@ -7,7 +7,7 @@ import {
   Zap, Cpu, ExternalLink, Mail, Fish, Send, Globe, UserPlus,
   Plus, RefreshCw, CheckCircle, Clock, AlertTriangle, Play,
   Crosshair, BarChart3, MousePointer, ShieldAlert, Eye, Trash2,
-  Edit, Save, XCircle, ChevronDown, ChevronUp, Copy
+  Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -20,6 +20,11 @@ const NAV_ITEMS = [
   { href: "/gophish", icon: <Fish className="w-4 h-4" />, label: "GOPHISH" },
   { href: "/team", icon: <Users className="w-4 h-4" />, label: "TEAM" },
   { href: "/activity", icon: <FileText className="w-4 h-4" />, label: "ACTIVITY" },
+];
+
+const GUIDE_ITEMS = [
+  { href: "/guide/gophish", icon: <BookOpen className="w-4 h-4" />, label: "GOPHISH GUIDE" },
+  { href: "/guide/caldera", icon: <BookOpen className="w-4 h-4" />, label: "CALDERA GUIDE" },
 ];
 
 export default function GoPhish() {
@@ -78,6 +83,12 @@ export default function GoPhish() {
             {NAV_ITEMS.map(item => (
               <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} active={item.href === '/gophish'} />
             ))}
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
+              {GUIDE_ITEMS.map(item => (
+                <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
+              ))}
+            </div>
           </nav>
           <div className="p-4 border-t border-border">
             <Link href="/"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>
