@@ -81,7 +81,7 @@ export default function GoPhishGuide() {
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-border">
             <Link href="/">
-              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">ACE STRIKE</h1>
+              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">CYBER CAMPAIGN COMMAND</h1>
             </Link>
             <p className="text-xs text-muted-foreground tracking-wider mt-1">KNOWLEDGE BASE</p>
           </div>
@@ -149,7 +149,7 @@ export default function GoPhishGuide() {
             GoPhish is an open-source phishing simulation framework that enables security teams to design, launch, and track phishing campaigns against their organization or clients. It provides a complete toolkit for creating realistic phishing emails, credential capture landing pages, and detailed analytics on user behavior.
           </p>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            In the Ace Strike platform, GoPhish is integrated directly into the dashboard, allowing you to manage all phishing operations alongside your Caldera red team exercises. This creates a unified offensive security workflow where phishing (initial access) feeds directly into adversary emulation (post-exploitation).
+            In the Cyber Campaign Command platform, GoPhish is integrated directly into the dashboard, allowing you to manage all phishing operations alongside your Caldera red team exercises. This creates a unified offensive security workflow where phishing (initial access) feeds directly into adversary emulation (post-exploitation).
           </p>
           <div className="bg-card border border-border rounded-lg p-4">
             <h4 className="font-display tracking-wider text-sm mb-3 text-primary">CAMPAIGN WORKFLOW</h4>
@@ -460,7 +460,7 @@ export default function GoPhishGuide() {
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">
-          <p>Ace Strike GoPhish Campaign Guide — AceofCloud</p>
+          <p>Cyber Campaign Command GoPhish Campaign Guide — AceofCloud</p>
           <p className="mt-1">For the latest GoPhish documentation, visit <a href="https://docs.getgophish.com" target="_blank" className="text-primary underline">docs.getgophish.com</a></p>
         </div>
       </main>

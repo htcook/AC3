@@ -58,7 +58,7 @@ export default function SecurityReport() {
   const [previewMode, setPreviewMode] = useState(false);
   const [config, setConfig] = useState<ReportConfig>({
     customerName: '',
-    engagementName: 'Ace Strike Security Assessment',
+    engagementName: 'Cyber Campaign Command Security Assessment',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     scope: '',
@@ -212,11 +212,11 @@ This report documents the findings from the comprehensive security assessment co
 ${config.scope || '[Define in-scope systems, networks, and applications]'}
 
 ### Methodology
-This assessment utilized the **Ace Strike** integrated red team platform, combining:
+This assessment utilized the **Cyber Campaign Command** integrated red team platform, combining:
 
 1. **GoPhish** — Phishing simulation platform for testing employee security awareness
 2. **MITRE Caldera** — Adversary emulation framework for automated red team operations
-3. **Ace Strike Dashboard** — Unified command and control interface
+3. **Cyber Campaign Command Dashboard** — Unified command and control interface
 
 ### Assessment Tools
 - **Caldera Server:** ${calderaStats?.totalAdversaries || 0} adversary profiles, ${calderaStats?.totalAbilities || 0} abilities
@@ -383,7 +383,7 @@ ${redTeamMetrics.operations.map((op: any) =>
 
 | Component | Details |
 |-----------|---------|
-| Platform | Ace Strike by Ace of Cloud |
+| Platform | Cyber Campaign Command by Ace of Cloud |
 | Caldera Version | 5.3.0 |
 | Total Adversary Profiles | ${calderaStats?.totalAdversaries || 0} |
 | Total Abilities | ${calderaStats?.totalAbilities || 0} |
@@ -407,7 +407,7 @@ ${redTeamMetrics.operations.map((op: any) =>
 This document contains sensitive security assessment findings. Distribution is limited to authorized personnel of ${customerName} and Ace of Cloud assessment team members.
 
 © ${new Date().getFullYear()} Ace of Cloud — Cutting-Edge Cybersecurity Solutions
-*Report generated using the Ace Strike Integrated Red Team Platform*
+*Report generated using the Cyber Campaign Command Integrated Red Team Platform*
 `;
 
     return report;
@@ -433,7 +433,7 @@ This document contains sensitive security assessment findings. Distribution is l
             dateRange: { start: config.startDate, end: config.endDate },
             tester: config.tester,
             generatedAt: new Date().toISOString(),
-            platform: 'Ace Strike by Ace of Cloud',
+            platform: 'Cyber Campaign Command by Ace of Cloud',
           },
           riskAssessment: {
             phishing: phishingRisk,
@@ -486,7 +486,7 @@ This document contains sensitive security assessment findings. Distribution is l
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-border">
             <Link href="/">
-              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">ACE STRIKE</h1>
+              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">CYBER CAMPAIGN COMMAND</h1>
             </Link>
             <p className="text-xs text-muted-foreground tracking-wider mt-1">REPORT GENERATOR</p>
           </div>

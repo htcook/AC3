@@ -422,3 +422,10 @@
 - [x] Add GoPhish admin credentials (admin / ADMIN123) to Credentials page
 - [x] Add GoPhish API key to Credentials page
 - [x] Add GoPhish admin URL to Credentials page
+
+## Rename Ace Strike to Cyber Campaign Command
+- [x] Find and replace all "Ace Strike" references across the codebase
+- [x] Update sidebar branding text
+- [x] Update page headers and titles
+- [x] Update Home page hero
+- [x] Verify no remaining Ace Strike references

@@ -41,9 +41,11 @@ export default function Home() {
         <div className="container">
           <div className="max-w-4xl">
             <h1 className="text-7xl md:text-9xl font-display leading-none tracking-tight mb-8">
-              ACE
+              CYBER
               <br />
-              <span className="text-primary">STRIKE</span>
+              <span className="text-primary">CAMPAIGN</span>
+              <br />
+              <span className="text-primary">COMMAND</span>
             </h1>
             
             {/* Teal Divider */}
@@ -202,7 +204,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE OF CLOUD</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Ace Strike Platform — Powered by Ace of Cloud Cybersecurity
+            Cyber Campaign Command Platform — Powered by Ace of Cloud Cybersecurity
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">

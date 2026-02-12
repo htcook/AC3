@@ -20,7 +20,7 @@ export default function Login() {
     onSuccess: async (data: { success: boolean; message?: string }) => {
       if (data.success) {
         toast.success("Login successful", {
-          description: "Welcome to Ace Strike Platform",
+          description: "Welcome to Cyber Campaign Command Platform",
         });
         // Invalidate the session query to force a refetch
         await utils.calderaAuth.session.invalidate();

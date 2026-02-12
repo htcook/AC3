@@ -57,7 +57,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 5. **Sleep/hibernate**: If the target machine went to sleep or hibernated, the agent will resume when the machine wakes up.
 
-6. **Redeploy**: If the agent is truly dead, you'll need to redeploy. Use the Agent Deploy page in Ace Strike for deployment scripts.
+6. **Redeploy**: If the agent is truly dead, you'll need to redeploy. Use the Agent Deploy page in Cyber Campaign Command for deployment scripts.
 
 7. **Trust level**: Check if the agent's trust level was changed to "untrusted" in Caldera. Untrusted agents are ignored.`,
     category: 'Agents',
@@ -69,7 +69,7 @@ export const calderaFAQItems: FAQItem[] = [
     question: 'How do I deploy an agent that bypasses CrowdStrike Falcon?',
     answer: `Deploying agents past EDR requires careful evasion techniques:
 
-1. **Use the CrowdStrike Bypass scripts**: The Agent Deploy page in Ace Strike includes pre-built bypass scripts for PowerShell, Bash, and Python.
+1. **Use the CrowdStrike Bypass scripts**: The Agent Deploy page in Cyber Campaign Command includes pre-built bypass scripts for PowerShell, Bash, and Python.
 
 2. **AMSI bypass first**: Before downloading the agent, bypass AMSI (Antimalware Scan Interface):
    [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
@@ -112,7 +112,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 6. **Verify in operation**: When viewing an operation, abilities that can't run on the current agent platform will show as "skipped" or "failed".
 
-7. **Filter by platform**: In the Ace Strike dashboard, use the tactic/platform filters to find abilities compatible with your target OS.`,
+7. **Filter by platform**: In the Cyber Campaign Command dashboard, use the tactic/platform filters to find abilities compatible with your target OS.`,
     category: 'Abilities',
     tags: ['executor', 'not found', 'PowerShell', 'bash', 'platform'],
     severity: 'critical',
@@ -135,7 +135,7 @@ export const calderaFAQItems: FAQItem[] = [
 6. **Cleanup abilities**: Some abilities are cleanup commands that don't produce output by design.
 
 7. **Raw command test**: To verify, try running the ability's command manually on the target:
-   - Find the ability's command in the Ace Strike dashboard
+   - Find the ability's command in the Cyber Campaign Command dashboard
    - Execute it directly on the target machine
    - Compare the output`,
     category: 'Abilities',
@@ -223,7 +223,7 @@ export const calderaFAQItems: FAQItem[] = [
    - In Caldera UI: Stop the operation, then start a new one
    - Via API: DELETE /api/v2/operations/{id}, then POST /api/v2/operations
 
-7. **Operation persistence**: If Caldera was restarted, operations may need to be recreated. The Ace Strike platform has a persistence service that handles this automatically.`,
+7. **Operation persistence**: If Caldera was restarted, operations may need to be recreated. The Cyber Campaign Command platform has a persistence service that handles this automatically.`,
     category: 'Operations',
     tags: ['operation', 'not progressing', 'stuck', 'planner'],
     severity: 'critical',
@@ -233,7 +233,7 @@ export const calderaFAQItems: FAQItem[] = [
     question: 'Operations disappear after Caldera server restart',
     answer: `Caldera operations are stored in memory by default and may not survive restarts:
 
-1. **Operation persistence service**: The Ace Strike platform includes a systemd service (caldera-ops-persist.service) that automatically recreates operations on restart.
+1. **Operation persistence service**: The Cyber Campaign Command platform includes a systemd service (caldera-ops-persist.service) that automatically recreates operations on restart.
 
 2. **Check the service**:
    sudo systemctl status caldera-ops-persist
@@ -274,7 +274,7 @@ export const calderaFAQItems: FAQItem[] = [
 5. **API approach**: Use the Caldera API to create a custom operation:
    POST /api/v2/operations with a custom adversary containing only your selected abilities.
 
-6. **Ace Strike dashboard**: Use the Operation Detail page to view all abilities in an adversary profile and identify which ones you want to run.`,
+6. **Cyber Campaign Command dashboard**: Use the Operation Detail page to view all abilities in an adversary profile and identify which ones you want to run.`,
     category: 'Operations',
     tags: ['subset', 'custom', 'specific abilities', 'adversary'],
     severity: 'low',
@@ -329,12 +329,12 @@ export const calderaFAQItems: FAQItem[] = [
    curl -H "KEY: your-api-key" http://137.184.7.224:8888/api/v2/health
 
 3. **Key rotation**: If keys were recently rotated, update all references:
-   - Ace Strike dashboard configuration
+   - Cyber Campaign Command dashboard configuration
    - Bridge service configuration
    - Any scripts or automation tools
 
 4. **Current keys for this deployment**:
-   Check the Credentials page in the Ace Strike dashboard for the current API keys.
+   Check the Credentials page in the Cyber Campaign Command dashboard for the current API keys.
 
 5. **Test connectivity**:
    curl -v -H "KEY: YOUR_KEY" http://137.184.7.224:8888/api/v2/agents
@@ -394,11 +394,11 @@ export const calderaFAQItems: FAQItem[] = [
    - Color-codes by success/failure
    - Exportable as JSON for ATT&CK Navigator
 
-3. **Ace Strike dashboard**: The Operation Detail page shows all abilities grouped by MITRE ATT&CK tactic with technique IDs.
+3. **Cyber Campaign Command dashboard**: The Operation Detail page shows all abilities grouped by MITRE ATT&CK tactic with technique IDs.
 
 4. **ATT&CK Navigator**: Import the Compass output into https://mitre-attack.github.io/attack-navigator/ for a visual heatmap.
 
-5. **Report generation**: The Ace Strike Report Generator includes a MITRE ATT&CK coverage section that maps all attempted techniques.
+5. **Report generation**: The Cyber Campaign Command Report Generator includes a MITRE ATT&CK coverage section that maps all attempted techniques.
 
 6. **Coverage analysis**: Compare your operation's technique coverage against known threat actor TTPs to identify gaps in your testing.`,
     category: 'MITRE ATT&CK',
@@ -410,7 +410,7 @@ export const calderaFAQItems: FAQItem[] = [
   {
     id: 'cal-integration-1',
     question: 'How does the Caldera-GoPhish bridge work?',
-    answer: `The Ace Strike platform includes a bridge service that connects GoPhish and Caldera:
+    answer: `The Cyber Campaign Command platform includes a bridge service that connects GoPhish and Caldera:
 
 1. **How it works**: When a target submits credentials on a GoPhish landing page, the bridge service automatically triggers a Caldera operation against that target.
 
@@ -432,14 +432,14 @@ export const calderaFAQItems: FAQItem[] = [
 5. **Monitoring**: Check bridge logs:
    sudo journalctl -u caldera-gophish-bridge -f
 
-6. **Manual trigger**: You can also manually trigger operations from the Ace Strike dashboard after reviewing captured credentials.`,
+6. **Manual trigger**: You can also manually trigger operations from the Cyber Campaign Command dashboard after reviewing captured credentials.`,
     category: 'Integration',
     tags: ['bridge', 'GoPhish', 'webhook', 'automation'],
     severity: 'medium',
   },
   {
     id: 'cal-integration-2',
-    question: 'SSL certificate warnings when accessing the Ace Strike dashboard',
+    question: 'SSL certificate warnings when accessing the Cyber Campaign Command dashboard',
     answer: `The current deployment uses self-signed SSL certificates:
 
 1. **Why warnings appear**: Self-signed certificates are not trusted by browsers. This is expected behavior and does not affect security of the encrypted connection.

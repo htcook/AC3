@@ -80,7 +80,7 @@ export default function CalderaGuide() {
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-border">
             <Link href="/">
-              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">ACE STRIKE</h1>
+              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">CYBER CAMPAIGN COMMAND</h1>
             </Link>
             <p className="text-xs text-muted-foreground tracking-wider mt-1">KNOWLEDGE BASE</p>
           </div>
@@ -403,7 +403,7 @@ plugins:
         {/* Section 7: API Reference */}
         <Section title="REST API Quick Reference" icon={<Terminal className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Caldera provides a comprehensive REST API for programmatic control. All API requests require the <code className="bg-card px-1 rounded">KEY</code> header with your API key. The Ace Strike dashboard uses this API to display operations, adversaries, and agents.
+            Caldera provides a comprehensive REST API for programmatic control. All API requests require the <code className="bg-card px-1 rounded">KEY</code> header with your API key. The Cyber Campaign Command dashboard uses this API to display operations, adversaries, and agents.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">COMMON API ENDPOINTS</h4>
@@ -478,7 +478,7 @@ plugins:
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">
-          <p>Ace Strike Caldera Operations Guide — AceofCloud</p>
+          <p>Cyber Campaign Command Caldera Operations Guide — AceofCloud</p>
           <p className="mt-1">For the latest Caldera documentation, visit <a href="https://caldera.readthedocs.io" target="_blank" className="text-primary underline">caldera.readthedocs.io</a></p>
         </div>
       </main>
