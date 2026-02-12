@@ -18,7 +18,9 @@ import {
   Lock,
   ExternalLink,
   Zap,
-  Cpu
+  Cpu,
+  Fish,
+  BookOpen
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -33,6 +35,16 @@ const CREDENTIALS = {
   sshCommand: 'ssh -i ~/.ssh/caldera_do_key root@137.184.7.224',
   serverUrl: 'https://137.184.7.224',
   httpUrl: 'http://137.184.7.224:8888',
+};
+
+// GoPhish credentials
+const GOPHISH_CREDENTIALS = {
+  adminLogin: {
+    username: 'admin',
+    password: 'ADMIN123',
+  },
+  apiKey: '186292e5e312962ad1fdfc9ecbc21453e6073daf6554861371bd4da0fa61a5a2',
+  adminUrl: 'https://137.184.7.224:3333',
 };
 
 export default function Credentials() {
@@ -72,6 +84,15 @@ export default function Credentials() {
             <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
+              <NavItem href="/guide/gophish" icon={<BookOpen />} label="GOPHISH GUIDE" />
+              <NavItem href="/guide/caldera" icon={<BookOpen />} label="CALDERA GUIDE" />
+            </div>
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
+              <NavItem href="/reports/security" icon={<FileText />} label="SECURITY REPORT" />
+            </div>
           </nav>
 
           <div className="p-4 border-t border-border">
@@ -100,7 +121,7 @@ export default function Credentials() {
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="px-6 py-4">
             <h1 className="font-display text-3xl md:text-4xl">CREDENTIALS</h1>
-            <p className="text-sm text-muted-foreground">Secure access credentials for Caldera server</p>
+            <p className="text-sm text-muted-foreground">Secure access credentials for Caldera server and GoPhish</p>
           </div>
           <div className="w-full h-1 bg-primary" />
         </header>
@@ -213,6 +234,55 @@ export default function Credentials() {
                 onCopy={() => copyToClipboard(CREDENTIALS.httpUrl, 'HTTP URL')}
                 mono
               />
+            </div>
+          </section>
+
+          <div className="w-full h-0.5 bg-primary" />
+
+          {/* GoPhish Credentials */}
+          <section>
+            <h2 className="font-display text-2xl mb-4 flex items-center gap-2">
+              <Fish className="w-6 h-6 text-emerald-500" />
+              GOPHISH ADMIN
+            </h2>
+            <div className="bg-card border-2 border-emerald-500/30 p-6 space-y-4">
+              <CredentialRow
+                label="ADMIN URL"
+                value={GOPHISH_CREDENTIALS.adminUrl}
+                onCopy={() => copyToClipboard(GOPHISH_CREDENTIALS.adminUrl, 'GoPhish Admin URL')}
+                mono
+              />
+              <CredentialRow
+                label="USERNAME"
+                value={GOPHISH_CREDENTIALS.adminLogin.username}
+                onCopy={() => copyToClipboard(GOPHISH_CREDENTIALS.adminLogin.username, 'GoPhish Username')}
+              />
+              <CredentialRow
+                label="PASSWORD"
+                value={GOPHISH_CREDENTIALS.adminLogin.password}
+                isSecret
+                show={showPasswords['gophishPassword']}
+                onToggle={() => togglePassword('gophishPassword')}
+                onCopy={() => copyToClipboard(GOPHISH_CREDENTIALS.adminLogin.password, 'GoPhish Password')}
+              />
+              <div className="w-full h-px bg-border my-2" />
+              <h3 className="font-display text-lg text-emerald-500">GOPHISH API KEY</h3>
+              <CredentialRow
+                label="API KEY"
+                value={GOPHISH_CREDENTIALS.apiKey}
+                isSecret
+                show={showPasswords['gophishApi']}
+                onToggle={() => togglePassword('gophishApi')}
+                onCopy={() => copyToClipboard(GOPHISH_CREDENTIALS.apiKey, 'GoPhish API Key')}
+              />
+              <div className="pt-4">
+                <a href={GOPHISH_CREDENTIALS.adminUrl} target="_blank" rel="noopener noreferrer">
+                  <Button className="font-display tracking-wider bg-emerald-500 hover:bg-emerald-500/90 text-black">
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    OPEN GOPHISH ADMIN
+                  </Button>
+                </a>
+              </div>
             </div>
           </section>
         </div>

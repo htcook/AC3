@@ -417,3 +417,8 @@
 - [x] Attribute report to Harrison Cook / AceofCloud
 - [x] Add sidebar navigation link for report generator
 - [x] Deploy to DigitalOcean
+
+## GoPhish Credentials on Credentials Page
+- [x] Add GoPhish admin credentials (admin / ADMIN123) to Credentials page
+- [x] Add GoPhish API key to Credentials page
+- [x] Add GoPhish admin URL to Credentials page
