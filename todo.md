@@ -434,3 +434,11 @@
 - [x] Update VITE_APP_TITLE to "Cyber Campaign Command" (user must update manually in Settings > Secrets)
 - [x] Add C3 compact branding element to sidebar logo area across all pages
 - [x] Update Home page description to reference Cyber Campaign Command
+
+## GoPhish Stats on Dashboard
+- [x] Add GoPhish server status/health indicator to Dashboard
+- [x] Add GoPhish campaign summary stats (total campaigns, active, completed)
+- [x] Add GoPhish email metrics (sent, opened, clicked, submitted)
+- [x] Add GoPhish sending profile and landing page counts
+- [x] Add GoPhish recent activity feed
+- [x] Match visual style with existing Caldera stats section

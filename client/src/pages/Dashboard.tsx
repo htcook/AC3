@@ -22,7 +22,16 @@ import {
   Target,
   FileText,
   Cloud,
-  BookOpen
+  BookOpen,
+  Fish,
+  Mail,
+  MousePointerClick,
+  Eye,
+  FileWarning,
+  Send,
+  LayoutTemplate,
+  Globe,
+  UserCheck
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -42,6 +51,7 @@ export default function Dashboard() {
   const [, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [gophishStatus, setGophishStatus] = useState<'online' | 'offline' | 'checking'>('checking');
 
   // Live stats from DigitalOcean Caldera API via server proxy
   const { data: stats, refetch: refetchStats } = trpc.calderaProxy.getStats.useQuery(undefined, {
@@ -60,16 +70,53 @@ export default function Dashboard() {
     refetchInterval: 30000,
   });
 
+  // GoPhish stats
+  const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
+
   useEffect(() => {
     if (healthData !== undefined) {
       setServerStatus(healthData ? 'online' : 'offline');
     }
   }, [healthData]);
 
+  useEffect(() => {
+    if (gophishData !== undefined) {
+      setGophishStatus(gophishData.online ? 'online' : 'offline');
+    }
+  }, [gophishData]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
+
+  const refreshAll = () => {
+    refetchStats();
+    refetchGophish();
+    toast.success('Refreshing all data...');
+  };
+
+  // Compute GoPhish metrics
+  const gophish = gophishData || {
+    online: false,
+    totalCampaigns: 0,
+    activeCampaigns: 0,
+    completedCampaigns: 0,
+    totalTemplates: 0,
+    totalLandingPages: 0,
+    totalGroups: 0,
+    totalSendingProfiles: 0,
+    totalTargets: 0,
+    emailMetrics: { sent: 0, opened: 0, clicked: 0, submitted: 0, reported: 0 },
+    recentEvents: [] as Array<{ time: string; message: string; campaign: string; status: string }>,
+    campaigns: [] as Array<{ id: number; name: string; status: string; created_date: string; completed_date: string; stats: any }>,
+  };
+
+  const openRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.opened / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
+  const clickRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.clicked / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
+  const submitRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.submitted / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -144,9 +191,13 @@ export default function Dashboard() {
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
               <h1 className="font-display text-3xl md:text-4xl">COMMAND CENTER</h1>
-              <p className="text-sm text-muted-foreground">Server Management Dashboard</p>
+              <p className="text-sm text-muted-foreground">Unified server and campaign monitoring dashboard</p>
             </div>
             <div className="flex items-center gap-4">
+              <Button variant="outline" className="font-display tracking-wider border-2" onClick={refreshAll}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                REFRESH ALL
+              </Button>
               <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" className="font-display tracking-wider border-2">
                   <ExternalLink className="w-4 h-4 mr-2" />
@@ -155,50 +206,236 @@ export default function Dashboard() {
               </a>
             </div>
           </div>
-          {/* Red Divider */}
+          {/* Divider */}
           <div className="w-full h-1 bg-primary" />
         </header>
 
         <div className="p-6 space-y-8">
-          {/* Server Status Card */}
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* SERVER STATUS — Both Caldera and GoPhish side by side         */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
           <section>
             <h2 className="font-display text-2xl mb-4">SERVER STATUS</h2>
-            <div className="bg-card border-2 border-border p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Caldera Server */}
+              <div className="bg-card border-2 border-border p-6">
+                <div className="flex items-center gap-4 mb-4">
                   <div className={`w-4 h-4 ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
-                  <div>
-                    <h3 className="font-display text-xl">{DEFAULT_SERVER.name}</h3>
-                    <p className="text-muted-foreground">{DEFAULT_SERVER.ipAddress}</p>
+                  <div className="flex-1">
+                    <h3 className="font-display text-lg">CALDERA SERVER</h3>
+                    <p className="text-xs text-muted-foreground">{DEFAULT_SERVER.ipAddress}:8888</p>
                   </div>
+                  <span className={`px-2 py-1 text-xs font-display tracking-wider ${serverStatus === 'online' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : serverStatus === 'offline' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
+                    {serverStatus.toUpperCase()}
+                  </span>
                 </div>
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap gap-3">
                   <StatusBadge icon={<Server />} label="REGION" value={DEFAULT_SERVER.region} />
                   <StatusBadge icon={<Cpu />} label="SIZE" value={DEFAULT_SERVER.dropletSize} />
-                  <StatusBadge icon={<Clock />} label="STATUS" value={serverStatus.toUpperCase()} />
+                </div>
+              </div>
+
+              {/* GoPhish Server */}
+              <div className="bg-card border-2 border-emerald-500/30 p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`w-4 h-4 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                  <div className="flex-1">
+                    <h3 className="font-display text-lg text-emerald-500">GOPHISH SERVER</h3>
+                    <p className="text-xs text-muted-foreground">{DEFAULT_SERVER.ipAddress}:3333</p>
+                  </div>
+                  <span className={`px-2 py-1 text-xs font-display tracking-wider ${gophishStatus === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : gophishStatus === 'offline' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
+                    {gophishStatus.toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <StatusBadge icon={<Fish />} label="CAMPAIGNS" value={`${gophish.totalCampaigns} total`} />
+                  <StatusBadge icon={<Mail />} label="ACTIVE" value={`${gophish.activeCampaigns} running`} />
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Red Divider */}
+          {/* Divider */}
           <div className="w-full h-0.5 bg-primary" />
 
-          {/* Statistics Grid */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* CALDERA STATISTICS                                            */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
           <section>
             <h2 className="font-display text-2xl mb-4">CALDERA STATISTICS</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" />
-              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" />
-              <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" />
-              <StatCard value={calderaStats.totalAgents.toString()} label="AGENTS" />
+              <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-white" />
+              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-white" />
+              <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-white" />
+              <StatCard value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-white" />
             </div>
           </section>
 
-          {/* Red Divider */}
+          {/* Divider */}
+          <div className="w-full h-0.5 bg-emerald-500/50" />
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* GOPHISH STATISTICS                                            */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl flex items-center gap-2">
+                <Fish className="w-6 h-6 text-emerald-500" />
+                GOPHISH STATISTICS
+              </h2>
+              <a href="https://137.184.7.224:3333" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm" className="font-display tracking-wider border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10">
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  GOPHISH ADMIN
+                </Button>
+              </a>
+            </div>
+
+            {/* Top-level GoPhish counts */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <StatCard value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-500" />
+              <StatCard value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-500" />
+              <StatCard value={gophish.totalLandingPages.toString()} label="LANDING PAGES" color="text-emerald-500" />
+              <StatCard value={gophish.totalSendingProfiles.toString()} label="SMTP PROFILES" color="text-emerald-500" />
+            </div>
+
+            {/* Email Metrics Funnel */}
+            <h3 className="font-display text-lg mb-3 text-muted-foreground">EMAIL METRICS</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+              <MetricCard icon={<Send />} value={gophish.emailMetrics.sent} label="EMAILS SENT" color="text-emerald-500" />
+              <MetricCard icon={<Eye />} value={gophish.emailMetrics.opened} label="OPENED" subtext={`${openRate}% rate`} color="text-blue-400" />
+              <MetricCard icon={<MousePointerClick />} value={gophish.emailMetrics.clicked} label="CLICKED" subtext={`${clickRate}% rate`} color="text-yellow-400" />
+              <MetricCard icon={<UserCheck />} value={gophish.emailMetrics.submitted} label="SUBMITTED" subtext={`${submitRate}% rate`} color="text-red-400" />
+              <MetricCard icon={<FileWarning />} value={gophish.emailMetrics.reported} label="REPORTED" color="text-purple-400" />
+            </div>
+
+            {/* Campaign Breakdown + GoPhish Resources */}
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Campaign Status Breakdown */}
+              <div className="bg-card border-2 border-emerald-500/30 p-5">
+                <h3 className="font-display text-lg mb-4 text-emerald-500">CAMPAIGN STATUS</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Active Campaigns</span>
+                    <span className="font-display text-lg text-emerald-400">{gophish.activeCampaigns}</span>
+                  </div>
+                  <div className="w-full h-px bg-border" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Completed Campaigns</span>
+                    <span className="font-display text-lg text-blue-400">{gophish.completedCampaigns}</span>
+                  </div>
+                  <div className="w-full h-px bg-border" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Total Targets</span>
+                    <span className="font-display text-lg text-yellow-400">{gophish.totalTargets}</span>
+                  </div>
+                  <div className="w-full h-px bg-border" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Target Groups</span>
+                    <span className="font-display text-lg text-purple-400">{gophish.totalGroups}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* GoPhish Resources */}
+              <div className="bg-card border-2 border-emerald-500/30 p-5">
+                <h3 className="font-display text-lg mb-4 text-emerald-500">GOPHISH RESOURCES</h3>
+                <div className="space-y-3">
+                  <ResourceRow icon={<LayoutTemplate />} label="Email Templates" count={gophish.totalTemplates} />
+                  <div className="w-full h-px bg-border" />
+                  <ResourceRow icon={<Globe />} label="Landing Pages" count={gophish.totalLandingPages} />
+                  <div className="w-full h-px bg-border" />
+                  <ResourceRow icon={<Send />} label="Sending Profiles (SMTP)" count={gophish.totalSendingProfiles} />
+                  <div className="w-full h-px bg-border" />
+                  <ResourceRow icon={<Users />} label="Target Groups" count={gophish.totalGroups} />
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Campaign Activity */}
+            {gophish.campaigns.length > 0 && (
+              <div className="mt-4">
+                <h3 className="font-display text-lg mb-3 text-muted-foreground">RECENT CAMPAIGNS</h3>
+                <div className="bg-card border-2 border-border overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/50">
+                        <th className="text-left text-xs font-display tracking-wider text-muted-foreground px-4 py-3">CAMPAIGN</th>
+                        <th className="text-left text-xs font-display tracking-wider text-muted-foreground px-4 py-3">STATUS</th>
+                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">SENT</th>
+                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">OPENED</th>
+                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">CLICKED</th>
+                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">SUBMITTED</th>
+                        <th className="text-left text-xs font-display tracking-wider text-muted-foreground px-4 py-3">CREATED</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gophish.campaigns.slice(0, 5).map((campaign) => (
+                        <tr key={campaign.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <Link href={`/campaigns/${campaign.id}`} className="text-sm font-medium hover:text-emerald-500 transition-colors">
+                              {campaign.name}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 text-[10px] font-display tracking-wider ${
+                              campaign.status === 'In progress' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                              campaign.status === 'Completed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                              'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                            }`}>
+                              {campaign.status?.toUpperCase() || 'UNKNOWN'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center text-sm">{campaign.stats?.sent || 0}</td>
+                          <td className="px-4 py-3 text-center text-sm text-blue-400">{campaign.stats?.opened || 0}</td>
+                          <td className="px-4 py-3 text-center text-sm text-yellow-400">{campaign.stats?.clicked || 0}</td>
+                          <td className="px-4 py-3 text-center text-sm text-red-400">{campaign.stats?.submitted_data || 0}</td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">
+                            {campaign.created_date ? new Date(campaign.created_date).toLocaleDateString() : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {gophish.campaigns.length === 0 && (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <Fish className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No campaigns found. Launch your first campaign from the GoPhish page.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* GoPhish Recent Events */}
+            {gophish.recentEvents.length > 0 && (
+              <div className="mt-4">
+                <h3 className="font-display text-lg mb-3 text-muted-foreground">RECENT ACTIVITY</h3>
+                <div className="bg-card border-2 border-border p-4 space-y-2 max-h-64 overflow-y-auto">
+                  {gophish.recentEvents.map((event, i) => (
+                    <div key={i} className="flex items-start gap-3 py-2 border-b border-border/30 last:border-0">
+                      <div className="w-2 h-2 mt-1.5 bg-emerald-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{event.message || event.status}</p>
+                        <p className="text-xs text-muted-foreground">{event.campaign}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {event.time ? new Date(event.time).toLocaleString() : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Divider */}
           <div className="w-full h-0.5 bg-primary" />
 
-          {/* Quick Actions */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* QUICK ACTIONS                                                 */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
           <section>
             <h2 className="font-display text-2xl mb-4">QUICK ACTIONS</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -206,6 +443,11 @@ export default function Dashboard() {
                 icon={<ExternalLink />}
                 label="OPEN CALDERA"
                 onClick={() => window.open(DEFAULT_SERVER.httpUrl, '_blank')}
+              />
+              <QuickAction
+                icon={<Fish />}
+                label="OPEN GOPHISH"
+                onClick={() => window.open('https://137.184.7.224:3333', '_blank')}
               />
               <QuickAction
                 icon={<Terminal />}
@@ -217,47 +459,43 @@ export default function Dashboard() {
                 label="VIEW CREDENTIALS"
                 onClick={() => navigate('/credentials')}
               />
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
               <QuickAction
                 icon={<Target />}
                 label="BROWSE ADVERSARIES"
                 onClick={() => navigate('/adversaries')}
               />
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
               <QuickAction
                 icon={<Cpu />}
                 label="DEPLOY AGENTS"
                 onClick={() => navigate('/agents/deploy')}
               />
               <QuickAction
-                icon={<Activity />}
-                label="MONITOR OPERATIONS"
-                onClick={() => navigate('/operations/monitor')}
-              />
-              <QuickAction
                 icon={<FileText />}
                 label="GENERATE REPORT"
-                onClick={() => navigate('/reports/generate')}
+                onClick={() => navigate('/reports/security')}
               />
               <QuickAction
                 icon={<RefreshCw />}
                 label="REFRESH DATA"
-                onClick={() => refetchStats()}
+                onClick={refreshAll}
               />
             </div>
           </section>
 
-          {/* Red Divider */}
+          {/* Divider */}
           <div className="w-full h-0.5 bg-primary" />
 
-          {/* Featured Campaigns - Custom Operations */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* ACTIVE OPERATIONS                                             */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
           <section>
             <h2 className="font-display text-2xl mb-4">ACTIVE OPERATIONS</h2>
             <div className="grid md:grid-cols-3 gap-4 mb-8">
               {/* Databank Complete - Merged Operation */}
               <div className="bg-card border-2 border-emerald-500 p-5 hover:border-emerald-500/80 transition-colors md:col-span-2">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-500 text-xs font-display tracking-wider border border-emerald-500">COMPLETE</span>
                   <span className="text-xs text-muted-foreground">59 ABILITIES</span>
                   <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-display tracking-wider">MERGED</span>
                 </div>
@@ -441,11 +679,34 @@ function StatusBadge({ icon, label, value }: { icon: React.ReactNode; label: str
   );
 }
 
-function StatCard({ value, label }: { value: string; label: string }) {
+function StatCard({ value, label, color = "text-white" }: { value: string; label: string; color?: string }) {
   return (
     <div className="bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors">
-      <div className="font-display text-5xl md:text-6xl text-white mb-2">{value}</div>
+      <div className={`font-display text-5xl md:text-6xl mb-2 ${color}`}>{value}</div>
       <div className="text-xs tracking-widest text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function MetricCard({ icon, value, label, subtext, color = "text-white" }: { icon: React.ReactNode; value: number; label: string; subtext?: string; color?: string }) {
+  return (
+    <div className="bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors">
+      <div className={`flex justify-center mb-2 ${color}`}>{icon}</div>
+      <div className={`font-display text-3xl md:text-4xl mb-1 ${color}`}>{value}</div>
+      <div className="text-[10px] tracking-widest text-muted-foreground">{label}</div>
+      {subtext && <div className={`text-xs mt-1 ${color} opacity-70`}>{subtext}</div>}
+    </div>
+  );
+}
+
+function ResourceRow({ icon, label, count }: { icon: React.ReactNode; label: string; count: number }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <span className="text-emerald-500">{icon}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
+      </div>
+      <span className="font-display text-lg text-emerald-400">{count}</span>
     </div>
   );
 }

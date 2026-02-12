@@ -613,6 +613,102 @@ export const appRouter = router({
         return { online: false, campaigns: 0, templates: 0, landingPages: 0, groups: 0, sendingProfiles: 0 };
       }
     }),
+
+    // Aggregated GoPhish stats for dashboard
+    getStats: publicProcedure.query(async () => {
+      try {
+        const [campaigns, templates, pages, groups, smtp] = await Promise.all([
+          fetchGophishAPI('/api/campaigns/'),
+          fetchGophishAPI('/api/templates/'),
+          fetchGophishAPI('/api/pages/'),
+          fetchGophishAPI('/api/groups/'),
+          fetchGophishAPI('/api/smtp/'),
+        ]);
+
+        const campaignList = Array.isArray(campaigns) ? campaigns : [];
+        const activeCampaigns = campaignList.filter((c: any) => c.status === 'In progress');
+        const completedCampaigns = campaignList.filter((c: any) => c.status === 'Completed');
+
+        // Aggregate email metrics across all campaigns
+        let totalSent = 0;
+        let totalOpened = 0;
+        let totalClicked = 0;
+        let totalSubmitted = 0;
+        let totalReported = 0;
+        let totalTargets = 0;
+
+        const recentEvents: Array<{ time: string; message: string; campaign: string; status: string }> = [];
+
+        for (const campaign of campaignList) {
+          if (campaign.stats) {
+            const s = campaign.stats;
+            totalSent += s.sent || 0;
+            totalOpened += s.opened || 0;
+            totalClicked += s.clicked || 0;
+            totalSubmitted += s.submitted_data || 0;
+            totalReported += s.email_reported || 0;
+            totalTargets += s.total || 0;
+          }
+          // Collect recent timeline events
+          if (Array.isArray(campaign.timeline)) {
+            for (const event of campaign.timeline.slice(-5)) {
+              recentEvents.push({
+                time: event.time || '',
+                message: event.message || event.details || '',
+                campaign: campaign.name || '',
+                status: event.message || '',
+              });
+            }
+          }
+        }
+
+        // Sort recent events by time descending, take top 10
+        recentEvents.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+        return {
+          online: true,
+          totalCampaigns: campaignList.length,
+          activeCampaigns: activeCampaigns.length,
+          completedCampaigns: completedCampaigns.length,
+          totalTemplates: Array.isArray(templates) ? templates.length : 0,
+          totalLandingPages: Array.isArray(pages) ? pages.length : 0,
+          totalGroups: Array.isArray(groups) ? groups.length : 0,
+          totalSendingProfiles: Array.isArray(smtp) ? smtp.length : 0,
+          totalTargets,
+          emailMetrics: {
+            sent: totalSent,
+            opened: totalOpened,
+            clicked: totalClicked,
+            submitted: totalSubmitted,
+            reported: totalReported,
+          },
+          recentEvents: recentEvents.slice(0, 10),
+          campaigns: campaignList.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            created_date: c.created_date,
+            completed_date: c.completed_date,
+            stats: c.stats || {},
+          })),
+        };
+      } catch {
+        return {
+          online: false,
+          totalCampaigns: 0,
+          activeCampaigns: 0,
+          completedCampaigns: 0,
+          totalTemplates: 0,
+          totalLandingPages: 0,
+          totalGroups: 0,
+          totalSendingProfiles: 0,
+          totalTargets: 0,
+          emailMetrics: { sent: 0, opened: 0, clicked: 0, submitted: 0, reported: 0 },
+          recentEvents: [],
+          campaigns: [],
+        };
+      }
+    }),
   }),
 
   // Caldera API integration (database-backed)
