@@ -322,7 +322,7 @@ ${results.map(r =>
 
 © ${new Date().getFullYear()} Ace of Cloud - Cutting-Edge Cybersecurity Solutions
 
-*This report was generated using the Ace of Cloud Caldera Command Dashboard.*
+*This report was generated using the Ace of Cloud Ace Strike Platform.*
 `;
 
     return report;

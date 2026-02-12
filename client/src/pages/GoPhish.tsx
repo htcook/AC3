@@ -6,11 +6,11 @@ import {
   Cloud, Activity, Key, Users, LogOut, Menu, X, Target, FileText,
   Zap, Cpu, ExternalLink, Mail, Fish, Send, Globe, UserPlus,
   Plus, RefreshCw, CheckCircle, Clock, AlertTriangle, Play,
-  Crosshair, BarChart3, MousePointer, ShieldAlert, Eye
+  Crosshair, BarChart3, MousePointer, ShieldAlert, Eye, Trash2,
+  Edit, Save, XCircle, ChevronDown, ChevronUp, Copy
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
-// Sidebar navigation items
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <Activity className="w-4 h-4" />, label: "DASHBOARD" },
   { href: "/credentials", icon: <Key className="w-4 h-4" />, label: "CREDENTIALS" },
@@ -27,33 +27,37 @@ export default function GoPhish() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'templates' | 'pages' | 'groups' | 'smtp'>('overview');
 
-  // Fetch GoPhish data
-  const { data: status, refetch: refetchStatus } = trpc.gophishProxy.getStatus.useQuery(undefined, {
-    refetchInterval: 30000,
-  });
-  const { data: campaigns, refetch: refetchCampaigns } = trpc.gophishProxy.getCampaigns.useQuery(undefined, {
-    enabled: activeTab === 'campaigns' || activeTab === 'overview',
-  });
-  const { data: templates } = trpc.gophishProxy.getTemplates.useQuery(undefined, {
-    enabled: activeTab === 'templates' || activeTab === 'overview',
-  });
-  const { data: landingPages } = trpc.gophishProxy.getLandingPages.useQuery(undefined, {
-    enabled: activeTab === 'pages' || activeTab === 'overview',
-  });
-  const { data: groups } = trpc.gophishProxy.getGroups.useQuery(undefined, {
-    enabled: activeTab === 'groups' || activeTab === 'overview',
-  });
-  const { data: sendingProfiles } = trpc.gophishProxy.getSendingProfiles.useQuery(undefined, {
-    enabled: activeTab === 'smtp' || activeTab === 'overview',
-  });
+  const utils = trpc.useUtils();
 
-  // Caldera health check
+  // Fetch GoPhish data
+  const { data: status, refetch: refetchStatus } = trpc.gophishProxy.getStatus.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: campaigns, refetch: refetchCampaigns } = trpc.gophishProxy.getCampaigns.useQuery(undefined, { enabled: activeTab === 'campaigns' || activeTab === 'overview' });
+  const { data: templates, refetch: refetchTemplates } = trpc.gophishProxy.getTemplates.useQuery(undefined, { enabled: activeTab === 'templates' || activeTab === 'overview' || activeTab === 'campaigns' });
+  const { data: landingPages, refetch: refetchPages } = trpc.gophishProxy.getLandingPages.useQuery(undefined, { enabled: activeTab === 'pages' || activeTab === 'overview' || activeTab === 'campaigns' });
+  const { data: groups, refetch: refetchGroups } = trpc.gophishProxy.getGroups.useQuery(undefined, { enabled: activeTab === 'groups' || activeTab === 'overview' || activeTab === 'campaigns' });
+  const { data: sendingProfiles, refetch: refetchSmtp } = trpc.gophishProxy.getSendingProfiles.useQuery(undefined, { enabled: activeTab === 'smtp' || activeTab === 'overview' || activeTab === 'campaigns' });
   const { data: calderaHealth } = trpc.calderaProxy.checkHealth.useQuery();
 
+  // Mutations
+  const createTemplate = trpc.gophishProxy.createTemplate.useMutation({ onSuccess: () => { refetchTemplates(); refetchStatus(); toast.success("Template created"); } });
+  const updateTemplate = trpc.gophishProxy.updateTemplate.useMutation({ onSuccess: () => { refetchTemplates(); toast.success("Template updated"); } });
+  const deleteTemplate = trpc.gophishProxy.deleteTemplate.useMutation({ onSuccess: () => { refetchTemplates(); refetchStatus(); toast.success("Template deleted"); } });
+  const createPage = trpc.gophishProxy.createLandingPage.useMutation({ onSuccess: () => { refetchPages(); refetchStatus(); toast.success("Landing page created"); } });
+  const updatePage = trpc.gophishProxy.updateLandingPage.useMutation({ onSuccess: () => { refetchPages(); toast.success("Landing page updated"); } });
+  const deletePage = trpc.gophishProxy.deleteLandingPage.useMutation({ onSuccess: () => { refetchPages(); refetchStatus(); toast.success("Landing page deleted"); } });
+  const createGroup = trpc.gophishProxy.createGroup.useMutation({ onSuccess: () => { refetchGroups(); refetchStatus(); toast.success("Group created"); } });
+  const updateGroup = trpc.gophishProxy.updateGroup.useMutation({ onSuccess: () => { refetchGroups(); toast.success("Group updated"); } });
+  const deleteGroup = trpc.gophishProxy.deleteGroup.useMutation({ onSuccess: () => { refetchGroups(); refetchStatus(); toast.success("Group deleted"); } });
+  const createSmtp = trpc.gophishProxy.createSendingProfile.useMutation({ onSuccess: () => { refetchSmtp(); refetchStatus(); toast.success("Sending profile created"); } });
+  const updateSmtp = trpc.gophishProxy.updateSendingProfile.useMutation({ onSuccess: () => { refetchSmtp(); toast.success("Sending profile updated"); } });
+  const deleteSmtp = trpc.gophishProxy.deleteSendingProfile.useMutation({ onSuccess: () => { refetchSmtp(); refetchStatus(); toast.success("Sending profile deleted"); } });
+  const launchCampaign = trpc.gophishProxy.launchCampaign.useMutation({ onSuccess: () => { refetchCampaigns(); refetchStatus(); toast.success("Campaign launched!"); } });
+  const deleteCampaign = trpc.gophishProxy.deleteCampaign.useMutation({ onSuccess: () => { refetchCampaigns(); refetchStatus(); toast.success("Campaign deleted"); } });
+  const completeCampaign = trpc.gophishProxy.completeCampaign.useMutation({ onSuccess: () => { refetchCampaigns(); toast.success("Campaign completed"); } });
+
   const handleRefresh = () => {
-    refetchStatus();
-    refetchCampaigns();
-    toast.success("Refreshing GoPhish data...");
+    refetchStatus(); refetchCampaigns(); refetchTemplates(); refetchPages(); refetchGroups(); refetchSmtp();
+    toast.success("Refreshing all GoPhish data...");
   };
 
   return (
@@ -66,7 +70,7 @@ export default function GoPhish() {
               <Cloud className="w-8 h-8 text-primary" />
               <div className="flex flex-col">
                 <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
-                <span className="text-[10px] text-muted-foreground tracking-widest">GOPHISH MANAGER</span>
+                <span className="text-[10px] text-muted-foreground tracking-widest">ACE STRIKE</span>
               </div>
             </Link>
           </div>
@@ -76,19 +80,13 @@ export default function GoPhish() {
             ))}
           </nav>
           <div className="p-4 border-t border-border">
-            <Link href="/">
-              <Button variant="outline" size="sm" className="w-full font-display tracking-wider">
-                <LogOut className="w-4 h-4 mr-2" />EXIT
-              </Button>
-            </Link>
+            <Link href="/"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>
           </div>
         </div>
       </aside>
 
-      {/* Mobile overlay */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      {/* Main content */}
       <main className="flex-1 lg:ml-64">
         {/* Header */}
         <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-sm border-b border-border px-6 py-4">
@@ -149,7 +147,6 @@ export default function GoPhish() {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Status Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <StatusCard label="CAMPAIGNS" value={status?.campaigns ?? 0} icon={<Send className="w-5 h-5" />} color="orange" />
                 <StatusCard label="TEMPLATES" value={status?.templates ?? 0} icon={<Mail className="w-5 h-5" />} color="blue" />
@@ -169,251 +166,98 @@ export default function GoPhish() {
                   <div className="space-y-3">
                     <h3 className="font-display text-sm tracking-wider text-muted-foreground">INTEGRATION BRIDGE</h3>
                     <div className="bg-background/50 border border-border p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Bridge Service</span>
-                        <span className="text-xs font-display tracking-wider text-green-400 bg-green-500/20 px-2 py-0.5">RUNNING</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Auto-trigger on Credential Capture</span>
-                        <span className="text-xs font-display tracking-wider text-green-400 bg-green-500/20 px-2 py-0.5">ENABLED</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Monitoring Interval</span>
-                        <span className="text-xs font-display tracking-wider text-blue-400">30 SECONDS</span>
-                      </div>
+                      <div className="flex items-center justify-between"><span className="text-sm">Bridge Service</span><span className="text-xs font-display tracking-wider text-green-400 bg-green-500/20 px-2 py-0.5">RUNNING</span></div>
+                      <div className="flex items-center justify-between"><span className="text-sm">Auto-trigger on Credential Capture</span><span className="text-xs font-display tracking-wider text-green-400 bg-green-500/20 px-2 py-0.5">ENABLED</span></div>
+                      <div className="flex items-center justify-between"><span className="text-sm">Monitoring Interval</span><span className="text-xs font-display tracking-wider text-blue-400">30 SECONDS</span></div>
                     </div>
                   </div>
                   <div className="space-y-3">
                     <h3 className="font-display text-sm tracking-wider text-muted-foreground">WORKFLOW</h3>
                     <div className="bg-background/50 border border-border p-4 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-orange-500/20 flex items-center justify-center text-orange-500 font-display text-xs">1</div>
-                        <span className="text-sm">GoPhish sends phishing email</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-yellow-500/20 flex items-center justify-center text-yellow-500 font-display text-xs">2</div>
-                        <span className="text-sm">Target clicks link / submits credentials</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-red-500/20 flex items-center justify-center text-red-500 font-display text-xs">3</div>
-                        <span className="text-sm">Bridge detects event &amp; triggers Caldera</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-display text-xs">4</div>
-                        <span className="text-sm">Caldera launches post-exploitation operation</span>
-                      </div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-500/20 flex items-center justify-center text-orange-500 font-display text-xs">1</div><span className="text-sm">GoPhish sends phishing email</span></div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-yellow-500/20 flex items-center justify-center text-yellow-500 font-display text-xs">2</div><span className="text-sm">Target clicks link / submits credentials</span></div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-red-500/20 flex items-center justify-center text-red-500 font-display text-xs">3</div><span className="text-sm">Bridge detects event & triggers Caldera</span></div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-display text-xs">4</div><span className="text-sm">Caldera launches post-exploitation operation</span></div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Server Details */}
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-card border-2 border-border p-6">
-                  <h3 className="font-display text-lg tracking-wider mb-4 flex items-center gap-2">
-                    <Fish className="w-5 h-5 text-orange-500" />
-                    GOPHISH SERVER
-                  </h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Admin URL</span><span className="font-mono text-orange-400">https://137.184.7.224:3333</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Phishing Server</span><span className="font-mono text-orange-400">http://137.184.7.224:8080</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Username</span><span className="font-mono">admin</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Password</span><span className="font-mono">KpA6TLcKnsk!pgjcJM5Z</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Version</span><span className="font-mono">0.12.1</span></div>
-                  </div>
-                </div>
-                <div className="bg-card border-2 border-border p-6">
-                  <h3 className="font-display text-lg tracking-wider mb-4 flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-red-500" />
-                    CALDERA SERVER
-                  </h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">API URL</span><span className="font-mono text-red-400">http://137.184.7.224:8888</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">UI URL</span><span className="font-mono text-red-400">http://137.184.7.224:8888</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Username</span><span className="font-mono">red</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">API Key</span><span className="font-mono text-xs">cb92ab...c5bb9e</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Version</span><span className="font-mono">5.3.0</span></div>
-                  </div>
-                </div>
+              {/* Quick Actions */}
+              <div className="grid md:grid-cols-4 gap-4">
+                <Button className="h-20 font-display tracking-wider bg-blue-600 hover:bg-blue-700" onClick={() => setActiveTab('templates')}>
+                  <div className="text-center"><Mail className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE TEMPLATE</span></div>
+                </Button>
+                <Button className="h-20 font-display tracking-wider bg-green-600 hover:bg-green-700" onClick={() => setActiveTab('pages')}>
+                  <div className="text-center"><Globe className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE LANDING PAGE</span></div>
+                </Button>
+                <Button className="h-20 font-display tracking-wider bg-purple-600 hover:bg-purple-700" onClick={() => setActiveTab('groups')}>
+                  <div className="text-center"><UserPlus className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE TARGET GROUP</span></div>
+                </Button>
+                <Button className="h-20 font-display tracking-wider bg-orange-600 hover:bg-orange-700" onClick={() => setActiveTab('campaigns')}>
+                  <div className="text-center"><Send className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">LAUNCH CAMPAIGN</span></div>
+                </Button>
               </div>
             </div>
           )}
 
           {/* Campaigns Tab */}
           {activeTab === 'campaigns' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-xl tracking-wider">PHISHING CAMPAIGNS</h2>
-                <a href="https://137.184.7.224:3333/campaigns" target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
-                    <Plus className="w-4 h-4 mr-2" />NEW CAMPAIGN IN GOPHISH
-                  </Button>
-                </a>
-              </div>
-              {Array.isArray(campaigns) && campaigns.length > 0 ? (
-                <div className="space-y-3">
-                  {campaigns.map((campaign: any) => (
-                    <CampaignCard key={campaign.id} campaign={campaign} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<Send className="w-12 h-12 text-orange-500/50" />}
-                  title="NO CAMPAIGNS YET"
-                  description="Create your first phishing campaign in GoPhish to see it here. Campaigns will automatically integrate with Caldera operations."
-                  actionLabel="OPEN GOPHISH"
-                  actionHref="https://137.184.7.224:3333/campaigns"
-                />
-              )}
-            </div>
+            <CampaignsPanel
+              campaigns={campaigns}
+              templates={templates}
+              landingPages={landingPages}
+              groups={groups}
+              sendingProfiles={sendingProfiles}
+              onLaunch={(data: any) => launchCampaign.mutate(data)}
+              onDelete={(id: number) => { if (confirm('Delete this campaign?')) deleteCampaign.mutate({ id }); }}
+              onComplete={(id: number) => { if (confirm('Mark this campaign as complete?')) completeCampaign.mutate({ id }); }}
+              isLaunching={launchCampaign.isPending}
+            />
           )}
 
           {/* Templates Tab */}
           {activeTab === 'templates' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-xl tracking-wider">EMAIL TEMPLATES</h2>
-                <a href="https://137.184.7.224:3333/templates" target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" className="font-display tracking-wider bg-blue-500 hover:bg-blue-600 text-white">
-                    <Plus className="w-4 h-4 mr-2" />NEW TEMPLATE IN GOPHISH
-                  </Button>
-                </a>
-              </div>
-              {Array.isArray(templates) && templates.length > 0 ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {templates.map((template: any) => (
-                    <div key={template.id} className="bg-card border-2 border-border hover:border-blue-500 p-4 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Mail className="w-4 h-4 text-blue-500" />
-                        <h3 className="font-display text-sm tracking-wider truncate">{template.name}</h3>
-                      </div>
-                      <p className="text-xs text-muted-foreground mb-2">Subject: {template.subject || 'N/A'}</p>
-                      <p className="text-xs text-muted-foreground">Modified: {new Date(template.modified_date).toLocaleDateString()}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<Mail className="w-12 h-12 text-blue-500/50" />}
-                  title="NO EMAIL TEMPLATES"
-                  description="Create email templates in GoPhish to use in phishing campaigns."
-                  actionLabel="CREATE TEMPLATE"
-                  actionHref="https://137.184.7.224:3333/templates"
-                />
-              )}
-            </div>
+            <TemplatesPanel
+              templates={templates}
+              onCreate={(data: any) => createTemplate.mutate(data)}
+              onUpdate={(data: any) => updateTemplate.mutate(data)}
+              onDelete={(id: number) => { if (confirm('Delete this template?')) deleteTemplate.mutate({ id }); }}
+              isCreating={createTemplate.isPending}
+            />
           )}
 
           {/* Landing Pages Tab */}
           {activeTab === 'pages' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-xl tracking-wider">LANDING PAGES</h2>
-                <a href="https://137.184.7.224:3333/landing_pages" target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" className="font-display tracking-wider bg-green-500 hover:bg-green-600 text-black">
-                    <Plus className="w-4 h-4 mr-2" />NEW PAGE IN GOPHISH
-                  </Button>
-                </a>
-              </div>
-              {Array.isArray(landingPages) && landingPages.length > 0 ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {landingPages.map((page: any) => (
-                    <div key={page.id} className="bg-card border-2 border-border hover:border-green-500 p-4 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Globe className="w-4 h-4 text-green-500" />
-                        <h3 className="font-display text-sm tracking-wider truncate">{page.name}</h3>
-                      </div>
-                      <div className="flex gap-2 mt-2">
-                        {page.capture_credentials && <span className="text-[10px] font-display tracking-wider bg-yellow-500/20 text-yellow-400 px-2 py-0.5">CAPTURES CREDS</span>}
-                        {page.capture_passwords && <span className="text-[10px] font-display tracking-wider bg-red-500/20 text-red-400 px-2 py-0.5">CAPTURES PASSWORDS</span>}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">Modified: {new Date(page.modified_date).toLocaleDateString()}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<Globe className="w-12 h-12 text-green-500/50" />}
-                  title="NO LANDING PAGES"
-                  description="Create landing pages in GoPhish for credential capture and phishing simulations."
-                  actionLabel="CREATE PAGE"
-                  actionHref="https://137.184.7.224:3333/landing_pages"
-                />
-              )}
-            </div>
+            <LandingPagesPanel
+              pages={landingPages}
+              onCreate={(data: any) => createPage.mutate(data)}
+              onUpdate={(data: any) => updatePage.mutate(data)}
+              onDelete={(id: number) => { if (confirm('Delete this landing page?')) deletePage.mutate({ id }); }}
+              isCreating={createPage.isPending}
+            />
           )}
 
           {/* Target Groups Tab */}
           {activeTab === 'groups' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-xl tracking-wider">TARGET GROUPS</h2>
-                <a href="https://137.184.7.224:3333/users" target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" className="font-display tracking-wider bg-purple-500 hover:bg-purple-600 text-white">
-                    <Plus className="w-4 h-4 mr-2" />NEW GROUP IN GOPHISH
-                  </Button>
-                </a>
-              </div>
-              {Array.isArray(groups) && groups.length > 0 ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {groups.map((group: any) => (
-                    <div key={group.id} className="bg-card border-2 border-border hover:border-purple-500 p-4 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <UserPlus className="w-4 h-4 text-purple-500" />
-                        <h3 className="font-display text-sm tracking-wider truncate">{group.name}</h3>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{group.targets?.length || 0} targets</p>
-                      <p className="text-xs text-muted-foreground">Modified: {new Date(group.modified_date).toLocaleDateString()}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<UserPlus className="w-12 h-12 text-purple-500/50" />}
-                  title="NO TARGET GROUPS"
-                  description="Create target groups in GoPhish with email addresses for phishing campaigns."
-                  actionLabel="CREATE GROUP"
-                  actionHref="https://137.184.7.224:3333/users"
-                />
-              )}
-            </div>
+            <GroupsPanel
+              groups={groups}
+              onCreate={(data: any) => createGroup.mutate(data)}
+              onUpdate={(data: any) => updateGroup.mutate(data)}
+              onDelete={(id: number) => { if (confirm('Delete this group?')) deleteGroup.mutate({ id }); }}
+              isCreating={createGroup.isPending}
+            />
           )}
 
           {/* Sending Profiles Tab */}
           {activeTab === 'smtp' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-xl tracking-wider">SENDING PROFILES</h2>
-                <a href="https://137.184.7.224:3333/sending_profiles" target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" className="font-display tracking-wider bg-cyan-500 hover:bg-cyan-600 text-black">
-                    <Plus className="w-4 h-4 mr-2" />NEW PROFILE IN GOPHISH
-                  </Button>
-                </a>
-              </div>
-              {Array.isArray(sendingProfiles) && sendingProfiles.length > 0 ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sendingProfiles.map((profile: any) => (
-                    <div key={profile.id} className="bg-card border-2 border-border hover:border-cyan-500 p-4 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Send className="w-4 h-4 text-cyan-500" />
-                        <h3 className="font-display text-sm tracking-wider truncate">{profile.name}</h3>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Host: {profile.host || 'N/A'}</p>
-                      <p className="text-xs text-muted-foreground">From: {profile.from_address || 'N/A'}</p>
-                      <p className="text-xs text-muted-foreground">Modified: {new Date(profile.modified_date).toLocaleDateString()}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<Send className="w-12 h-12 text-cyan-500/50" />}
-                  title="NO SENDING PROFILES"
-                  description="Configure SMTP sending profiles in GoPhish for email delivery."
-                  actionLabel="CREATE PROFILE"
-                  actionHref="https://137.184.7.224:3333/sending_profiles"
-                />
-              )}
-            </div>
+            <SmtpPanel
+              profiles={sendingProfiles}
+              onCreate={(data: any) => createSmtp.mutate(data)}
+              onUpdate={(data: any) => updateSmtp.mutate(data)}
+              onDelete={(id: number) => { if (confirm('Delete this sending profile?')) deleteSmtp.mutate({ id }); }}
+              isCreating={createSmtp.isPending}
+            />
           )}
         </div>
       </main>
@@ -421,7 +265,480 @@ export default function GoPhish() {
   );
 }
 
-// Status card component
+// ==================== CAMPAIGNS PANEL ====================
+function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingProfiles, onLaunch, onDelete, onComplete, isLaunching }: any) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', template: '', page: '', smtp: '', group: '', url: 'http://137.184.7.224:8080' });
+
+  const handleLaunch = () => {
+    if (!form.name || !form.template || !form.page || !form.smtp || !form.group) {
+      toast.error("All fields are required"); return;
+    }
+    onLaunch({
+      name: form.name,
+      template: { name: form.template },
+      page: { name: form.page },
+      smtp: { name: form.smtp },
+      groups: [{ name: form.group }],
+      url: form.url,
+    });
+    setShowForm(false);
+    setForm({ name: '', template: '', page: '', smtp: '', group: '', url: 'http://137.184.7.224:8080' });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-xl tracking-wider">PHISHING CAMPAIGNS</h2>
+        <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black" onClick={() => setShowForm(!showForm)}>
+          {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />LAUNCH CAMPAIGN</>}
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="bg-card border-2 border-orange-500/50 p-6 space-y-4">
+          <h3 className="font-display text-lg tracking-wider text-orange-500">LAUNCH NEW CAMPAIGN</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">CAMPAIGN NAME *</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Q1 Security Awareness Test" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">PHISHING URL</label>
+              <input type="text" value={form.url} onChange={e => setForm({...form, url: e.target.value})} className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">EMAIL TEMPLATE *</label>
+              <select value={form.template} onChange={e => setForm({...form, template: e.target.value})} className="w-full px-3 py-2 bg-background border border-border rounded text-sm">
+                <option value="">Select template...</option>
+                {Array.isArray(templates) && templates.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">LANDING PAGE *</label>
+              <select value={form.page} onChange={e => setForm({...form, page: e.target.value})} className="w-full px-3 py-2 bg-background border border-border rounded text-sm">
+                <option value="">Select landing page...</option>
+                {Array.isArray(landingPages) && landingPages.map((p: any) => <option key={p.id} value={p.name}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">SENDING PROFILE *</label>
+              <select value={form.smtp} onChange={e => setForm({...form, smtp: e.target.value})} className="w-full px-3 py-2 bg-background border border-border rounded text-sm">
+                <option value="">Select sending profile...</option>
+                {Array.isArray(sendingProfiles) && sendingProfiles.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">TARGET GROUP *</label>
+              <select value={form.group} onChange={e => setForm({...form, group: e.target.value})} className="w-full px-3 py-2 bg-background border border-border rounded text-sm">
+                <option value="">Select target group...</option>
+                {Array.isArray(groups) && groups.map((g: any) => <option key={g.id} value={g.name}>{g.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <Button className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black" onClick={handleLaunch} disabled={isLaunching}>
+            <Play className="w-4 h-4 mr-2" />{isLaunching ? 'LAUNCHING...' : 'LAUNCH CAMPAIGN'}
+          </Button>
+        </div>
+      )}
+
+      {Array.isArray(campaigns) && campaigns.length > 0 ? (
+        <div className="space-y-3">
+          {campaigns.map((campaign: any) => (
+            <CampaignCard key={campaign.id} campaign={campaign} onDelete={onDelete} onComplete={onComplete} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={<Send className="w-12 h-12 text-orange-500/50" />} title="NO CAMPAIGNS YET" description="Launch your first phishing campaign using the button above. Select a template, landing page, sending profile, and target group." />
+      )}
+    </div>
+  );
+}
+
+// ==================== TEMPLATES PANEL ====================
+function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }: any) {
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ name: '', subject: '', html: '', text: '' });
+
+  const handleSave = () => {
+    if (!form.name || !form.subject || !form.html) { toast.error("Name, subject, and HTML are required"); return; }
+    if (editId) {
+      onUpdate({ id: editId, ...form });
+      setEditId(null);
+    } else {
+      onCreate(form);
+    }
+    setShowForm(false);
+    setForm({ name: '', subject: '', html: '', text: '' });
+  };
+
+  const startEdit = (t: any) => {
+    setForm({ name: t.name, subject: t.subject || '', html: t.html || '', text: t.text || '' });
+    setEditId(t.id);
+    setShowForm(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-xl tracking-wider">EMAIL TEMPLATES</h2>
+        <Button size="sm" className="font-display tracking-wider bg-blue-500 hover:bg-blue-600 text-white" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', subject: '', html: '', text: '' }); }}>
+          {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW TEMPLATE</>}
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="bg-card border-2 border-blue-500/50 p-6 space-y-4">
+          <h3 className="font-display text-lg tracking-wider text-blue-500">{editId ? 'EDIT' : 'CREATE'} EMAIL TEMPLATE</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">TEMPLATE NAME *</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Password Reset Notice" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">EMAIL SUBJECT *</label>
+              <input type="text" value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} placeholder="Action Required: Password Reset" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">HTML BODY * <span className="text-muted-foreground/60">(Use {"{{.URL}}"} for phishing link, {"{{.FirstName}}"} for target name)</span></label>
+            <textarea value={form.html} onChange={e => setForm({...form, html: e.target.value})} rows={12} placeholder='<html><body><p>Dear {{.FirstName}},</p><p>Your password is about to expire. Please <a href="{{.URL}}">click here</a> to reset it.</p></body></html>' className="w-full px-3 py-2 bg-background border border-border rounded text-sm font-mono" />
+          </div>
+          <div>
+            <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">PLAIN TEXT (optional)</label>
+            <textarea value={form.text} onChange={e => setForm({...form, text: e.target.value})} rows={4} placeholder="Dear {{.FirstName}}, Your password is about to expire..." className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+          </div>
+          <Button className="font-display tracking-wider bg-blue-500 hover:bg-blue-600 text-white" onClick={handleSave} disabled={isCreating}>
+            <Save className="w-4 h-4 mr-2" />{editId ? 'UPDATE TEMPLATE' : 'CREATE TEMPLATE'}
+          </Button>
+        </div>
+      )}
+
+      {Array.isArray(templates) && templates.length > 0 ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {templates.map((t: any) => (
+            <div key={t.id} className="bg-card border-2 border-border hover:border-blue-500 p-4 transition-colors group">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="w-4 h-4 text-blue-500 shrink-0" />
+                  <h3 className="font-display text-sm tracking-wider truncate">{t.name}</h3>
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(t)}><Edit className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(t.id)}><Trash2 className="w-3 h-3" /></Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mb-1">Subject: {t.subject || 'N/A'}</p>
+              <p className="text-xs text-muted-foreground">Modified: {new Date(t.modified_date).toLocaleDateString()}</p>
+              {t.html && <div className="mt-2 p-2 bg-background/50 border border-border rounded text-[10px] text-muted-foreground max-h-20 overflow-hidden">{t.html.replace(/<[^>]*>/g, '').substring(0, 150)}...</div>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Templates support GoPhish variables like {{.URL}} and {{.FirstName}}." />
+      )}
+    </div>
+  );
+}
+
+// ==================== LANDING PAGES PANEL ====================
+function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: any) {
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ name: '', html: '', capture_credentials: true, capture_passwords: true, redirect_url: '' });
+
+  const handleSave = () => {
+    if (!form.name || !form.html) { toast.error("Name and HTML are required"); return; }
+    if (editId) {
+      onUpdate({ id: editId, ...form });
+      setEditId(null);
+    } else {
+      onCreate(form);
+    }
+    setShowForm(false);
+    setForm({ name: '', html: '', capture_credentials: true, capture_passwords: true, redirect_url: '' });
+  };
+
+  const startEdit = (p: any) => {
+    setForm({ name: p.name, html: p.html || '', capture_credentials: p.capture_credentials ?? true, capture_passwords: p.capture_passwords ?? true, redirect_url: p.redirect_url || '' });
+    setEditId(p.id);
+    setShowForm(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-xl tracking-wider">LANDING PAGES</h2>
+        <Button size="sm" className="font-display tracking-wider bg-green-500 hover:bg-green-600 text-black" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', html: '', capture_credentials: true, capture_passwords: true, redirect_url: '' }); }}>
+          {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW LANDING PAGE</>}
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="bg-card border-2 border-green-500/50 p-6 space-y-4">
+          <h3 className="font-display text-lg tracking-wider text-green-500">{editId ? 'EDIT' : 'CREATE'} LANDING PAGE</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">PAGE NAME *</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Office 365 Login" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">REDIRECT URL (after submit)</label>
+              <input type="text" value={form.redirect_url} onChange={e => setForm({...form, redirect_url: e.target.value})} placeholder="https://office.com" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+          </div>
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={form.capture_credentials} onChange={e => setForm({...form, capture_credentials: e.target.checked})} className="rounded" />
+              <span>Capture Credentials</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={form.capture_passwords} onChange={e => setForm({...form, capture_passwords: e.target.checked})} className="rounded" />
+              <span>Capture Passwords</span>
+            </label>
+          </div>
+          <div>
+            <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">HTML CONTENT *</label>
+            <textarea value={form.html} onChange={e => setForm({...form, html: e.target.value})} rows={12} placeholder='<html><body><form method="POST"><input name="username" placeholder="Email"><input name="password" type="password" placeholder="Password"><button type="submit">Sign In</button></form></body></html>' className="w-full px-3 py-2 bg-background border border-border rounded text-sm font-mono" />
+          </div>
+          <Button className="font-display tracking-wider bg-green-500 hover:bg-green-600 text-black" onClick={handleSave} disabled={isCreating}>
+            <Save className="w-4 h-4 mr-2" />{editId ? 'UPDATE PAGE' : 'CREATE PAGE'}
+          </Button>
+        </div>
+      )}
+
+      {Array.isArray(pages) && pages.length > 0 ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {pages.map((p: any) => (
+            <div key={p.id} className="bg-card border-2 border-border hover:border-green-500 p-4 transition-colors group">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Globe className="w-4 h-4 text-green-500 shrink-0" />
+                  <h3 className="font-display text-sm tracking-wider truncate">{p.name}</h3>
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(p)}><Edit className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(p.id)}><Trash2 className="w-3 h-3" /></Button>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2">
+                {p.capture_credentials && <span className="text-[10px] font-display tracking-wider bg-yellow-500/20 text-yellow-400 px-2 py-0.5">CAPTURES CREDS</span>}
+                {p.capture_passwords && <span className="text-[10px] font-display tracking-wider bg-red-500/20 text-red-400 px-2 py-0.5">CAPTURES PASSWORDS</span>}
+              </div>
+              {p.redirect_url && <p className="text-xs text-muted-foreground mt-2">Redirect: {p.redirect_url}</p>}
+              <p className="text-xs text-muted-foreground mt-1">Modified: {new Date(p.modified_date).toLocaleDateString()}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={<Globe className="w-12 h-12 text-green-500/50" />} title="NO LANDING PAGES" description="Create landing pages with credential capture forms for phishing simulations." />
+      )}
+    </div>
+  );
+}
+
+// ==================== GROUPS PANEL ====================
+function GroupsPanel({ groups, onCreate, onUpdate, onDelete, isCreating }: any) {
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ name: '', targets: [{ first_name: '', last_name: '', email: '', position: '' }] });
+
+  const addTarget = () => setForm({...form, targets: [...form.targets, { first_name: '', last_name: '', email: '', position: '' }]});
+  const removeTarget = (i: number) => setForm({...form, targets: form.targets.filter((_: any, idx: number) => idx !== i)});
+  const updateTarget = (i: number, field: string, value: string) => {
+    const targets = [...form.targets];
+    targets[i] = { ...targets[i], [field]: value };
+    setForm({...form, targets});
+  };
+
+  const handleSave = () => {
+    if (!form.name) { toast.error("Group name is required"); return; }
+    const validTargets = form.targets.filter((t: any) => t.email);
+    if (validTargets.length === 0) { toast.error("At least one target with email is required"); return; }
+    if (editId) {
+      onUpdate({ id: editId, name: form.name, targets: validTargets });
+      setEditId(null);
+    } else {
+      onCreate({ name: form.name, targets: validTargets });
+    }
+    setShowForm(false);
+    setForm({ name: '', targets: [{ first_name: '', last_name: '', email: '', position: '' }] });
+  };
+
+  const startEdit = (g: any) => {
+    setForm({ name: g.name, targets: g.targets?.length > 0 ? g.targets.map((t: any) => ({ first_name: t.first_name || '', last_name: t.last_name || '', email: t.email || '', position: t.position || '' })) : [{ first_name: '', last_name: '', email: '', position: '' }] });
+    setEditId(g.id);
+    setShowForm(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-xl tracking-wider">TARGET GROUPS</h2>
+        <Button size="sm" className="font-display tracking-wider bg-purple-500 hover:bg-purple-600 text-white" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', targets: [{ first_name: '', last_name: '', email: '', position: '' }] }); }}>
+          {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW GROUP</>}
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="bg-card border-2 border-purple-500/50 p-6 space-y-4">
+          <h3 className="font-display text-lg tracking-wider text-purple-500">{editId ? 'EDIT' : 'CREATE'} TARGET GROUP</h3>
+          <div>
+            <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">GROUP NAME *</label>
+            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="IT Department" className="w-full px-3 py-2 bg-background border border-border rounded text-sm max-w-md" />
+          </div>
+          <div>
+            <label className="text-xs font-display tracking-wider text-muted-foreground block mb-2">TARGETS</label>
+            <div className="space-y-2">
+              {form.targets.map((t: any, i: number) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input type="text" value={t.first_name} onChange={e => updateTarget(i, 'first_name', e.target.value)} placeholder="First Name" className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm" />
+                  <input type="text" value={t.last_name} onChange={e => updateTarget(i, 'last_name', e.target.value)} placeholder="Last Name" className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm" />
+                  <input type="email" value={t.email} onChange={e => updateTarget(i, 'email', e.target.value)} placeholder="email@example.com *" className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm" />
+                  <input type="text" value={t.position} onChange={e => updateTarget(i, 'position', e.target.value)} placeholder="Position" className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm" />
+                  {form.targets.length > 1 && <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-red-500" onClick={() => removeTarget(i)}><Trash2 className="w-4 h-4" /></Button>}
+                </div>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" className="mt-2 font-display tracking-wider" onClick={addTarget}>
+              <Plus className="w-4 h-4 mr-2" />ADD TARGET
+            </Button>
+          </div>
+          <Button className="font-display tracking-wider bg-purple-500 hover:bg-purple-600 text-white" onClick={handleSave} disabled={isCreating}>
+            <Save className="w-4 h-4 mr-2" />{editId ? 'UPDATE GROUP' : 'CREATE GROUP'}
+          </Button>
+        </div>
+      )}
+
+      {Array.isArray(groups) && groups.length > 0 ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {groups.map((g: any) => (
+            <div key={g.id} className="bg-card border-2 border-border hover:border-purple-500 p-4 transition-colors group">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <UserPlus className="w-4 h-4 text-purple-500 shrink-0" />
+                  <h3 className="font-display text-sm tracking-wider truncate">{g.name}</h3>
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(g)}><Edit className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(g.id)}><Trash2 className="w-3 h-3" /></Button>
+                </div>
+              </div>
+              <p className="text-sm font-display text-purple-400">{g.targets?.length || 0} targets</p>
+              {g.targets?.slice(0, 3).map((t: any, i: number) => (
+                <p key={i} className="text-xs text-muted-foreground truncate">{t.first_name} {t.last_name} — {t.email}</p>
+              ))}
+              {g.targets?.length > 3 && <p className="text-xs text-muted-foreground">+{g.targets.length - 3} more</p>}
+              <p className="text-xs text-muted-foreground mt-2">Modified: {new Date(g.modified_date).toLocaleDateString()}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={<UserPlus className="w-12 h-12 text-purple-500/50" />} title="NO TARGET GROUPS" description="Create target groups with email addresses for phishing campaigns." />
+      )}
+    </div>
+  );
+}
+
+// ==================== SMTP PANEL ====================
+function SmtpPanel({ profiles, onCreate, onUpdate, onDelete, isCreating }: any) {
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ name: '', host: 'localhost:25', from_address: '', username: '', password: '', ignore_cert_errors: true });
+
+  const handleSave = () => {
+    if (!form.name || !form.host || !form.from_address) { toast.error("Name, host, and from address are required"); return; }
+    if (editId) {
+      onUpdate({ id: editId, ...form });
+      setEditId(null);
+    } else {
+      onCreate(form);
+    }
+    setShowForm(false);
+    setForm({ name: '', host: 'localhost:25', from_address: '', username: '', password: '', ignore_cert_errors: true });
+  };
+
+  const startEdit = (s: any) => {
+    setForm({ name: s.name, host: s.host || '', from_address: s.from_address || '', username: s.username || '', password: '', ignore_cert_errors: s.ignore_cert_errors ?? true });
+    setEditId(s.id);
+    setShowForm(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-xl tracking-wider">SENDING PROFILES</h2>
+        <Button size="sm" className="font-display tracking-wider bg-cyan-500 hover:bg-cyan-600 text-black" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', host: 'localhost:25', from_address: '', username: '', password: '', ignore_cert_errors: true }); }}>
+          {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW PROFILE</>}
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="bg-card border-2 border-cyan-500/50 p-6 space-y-4">
+          <h3 className="font-display text-lg tracking-wider text-cyan-500">{editId ? 'EDIT' : 'CREATE'} SENDING PROFILE</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">PROFILE NAME *</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Internal Relay" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">SMTP HOST:PORT *</label>
+              <input type="text" value={form.host} onChange={e => setForm({...form, host: e.target.value})} placeholder="smtp.example.com:587" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">FROM ADDRESS *</label>
+              <input type="text" value={form.from_address} onChange={e => setForm({...form, from_address: e.target.value})} placeholder="IT Security <security@company.com>" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">USERNAME (optional)</label>
+              <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} placeholder="smtp_user" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground block mb-1">PASSWORD (optional)</label>
+              <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="••••••••" className="w-full px-3 py-2 bg-background border border-border rounded text-sm" />
+            </div>
+            <div className="flex items-center">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form.ignore_cert_errors} onChange={e => setForm({...form, ignore_cert_errors: e.target.checked})} className="rounded" />
+                <span>Ignore Certificate Errors</span>
+              </label>
+            </div>
+          </div>
+          <Button className="font-display tracking-wider bg-cyan-500 hover:bg-cyan-600 text-black" onClick={handleSave} disabled={isCreating}>
+            <Save className="w-4 h-4 mr-2" />{editId ? 'UPDATE PROFILE' : 'CREATE PROFILE'}
+          </Button>
+        </div>
+      )}
+
+      {Array.isArray(profiles) && profiles.length > 0 ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {profiles.map((s: any) => (
+            <div key={s.id} className="bg-card border-2 border-border hover:border-cyan-500 p-4 transition-colors group">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Send className="w-4 h-4 text-cyan-500 shrink-0" />
+                  <h3 className="font-display text-sm tracking-wider truncate">{s.name}</h3>
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(s)}><Edit className="w-3 h-3" /></Button>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(s.id)}><Trash2 className="w-3 h-3" /></Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Host: {s.host || 'N/A'}</p>
+              <p className="text-xs text-muted-foreground">From: {s.from_address || 'N/A'}</p>
+              <p className="text-xs text-muted-foreground">Modified: {new Date(s.modified_date).toLocaleDateString()}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={<Send className="w-12 h-12 text-cyan-500/50" />} title="NO SENDING PROFILES" description="Configure SMTP sending profiles for email delivery. Use localhost:25 for the local Postfix relay or configure an external SMTP server." />
+      )}
+    </div>
+  );
+}
+
+// ==================== HELPER COMPONENTS ====================
 function StatusCard({ label, value, icon, color }: { label: string; value: number | string; icon: React.ReactNode; color: string }) {
   const colorMap: Record<string, string> = {
     orange: 'text-orange-500 bg-orange-500/10 border-orange-500/30',
@@ -431,7 +748,6 @@ function StatusCard({ label, value, icon, color }: { label: string; value: numbe
     cyan: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/30',
     emerald: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30',
     red: 'text-red-500 bg-red-500/10 border-red-500/30',
-    yellow: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30',
   };
   return (
     <div className={`border-2 p-4 ${colorMap[color] || colorMap.orange}`}>
@@ -441,8 +757,7 @@ function StatusCard({ label, value, icon, color }: { label: string; value: numbe
   );
 }
 
-// Campaign card component
-function CampaignCard({ campaign }: { campaign: any }) {
+function CampaignCard({ campaign, onDelete, onComplete }: { campaign: any; onDelete: (id: number) => void; onComplete: (id: number) => void }) {
   const statusColors: Record<string, string> = {
     'In progress': 'bg-green-500/20 text-green-400 border-green-500',
     'Completed': 'bg-blue-500/20 text-blue-400 border-blue-500',
@@ -450,13 +765,7 @@ function CampaignCard({ campaign }: { campaign: any }) {
     'Queued': 'bg-orange-500/20 text-orange-400 border-orange-500',
   };
   const statusStyle = statusColors[campaign.status] || 'bg-gray-500/20 text-gray-400 border-gray-500';
-
   const stats = campaign.stats || {};
-  const totalTargets = stats.total || 0;
-  const sent = stats.sent || 0;
-  const opened = stats.opened || 0;
-  const clicked = stats.clicked || 0;
-  const submitted = stats.submitted_data || 0;
 
   return (
     <div className="bg-card border-2 border-border hover:border-orange-500 p-4 transition-colors">
@@ -465,31 +774,18 @@ function CampaignCard({ campaign }: { campaign: any }) {
           <Send className="w-5 h-5 text-orange-500" />
           <h3 className="font-display text-lg tracking-wider">{campaign.name}</h3>
         </div>
-        <span className={`text-xs font-display tracking-wider px-3 py-1 border ${statusStyle}`}>
-          {campaign.status?.toUpperCase() || 'UNKNOWN'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-display tracking-wider px-3 py-1 border ${statusStyle}`}>{campaign.status?.toUpperCase() || 'UNKNOWN'}</span>
+          {campaign.status !== 'Completed' && <Button variant="ghost" size="sm" className="h-7 text-blue-400" onClick={() => onComplete(campaign.id)}><CheckCircle className="w-4 h-4" /></Button>}
+          <Button variant="ghost" size="sm" className="h-7 text-red-500" onClick={() => onDelete(campaign.id)}><Trash2 className="w-4 h-4" /></Button>
+        </div>
       </div>
       <div className="grid grid-cols-5 gap-4 mb-3">
-        <div className="text-center">
-          <div className="text-lg font-display text-blue-400">{totalTargets}</div>
-          <div className="text-[10px] font-display tracking-wider text-muted-foreground">TARGETS</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-display text-cyan-400">{sent}</div>
-          <div className="text-[10px] font-display tracking-wider text-muted-foreground">SENT</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-display text-yellow-400">{opened}</div>
-          <div className="text-[10px] font-display tracking-wider text-muted-foreground">OPENED</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-display text-orange-400">{clicked}</div>
-          <div className="text-[10px] font-display tracking-wider text-muted-foreground">CLICKED</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-display text-red-400">{submitted}</div>
-          <div className="text-[10px] font-display tracking-wider text-muted-foreground">CREDS</div>
-        </div>
+        <div className="text-center"><div className="text-lg font-display text-blue-400">{stats.total || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">TARGETS</div></div>
+        <div className="text-center"><div className="text-lg font-display text-cyan-400">{stats.sent || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">SENT</div></div>
+        <div className="text-center"><div className="text-lg font-display text-yellow-400">{stats.opened || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">OPENED</div></div>
+        <div className="text-center"><div className="text-lg font-display text-orange-400">{stats.clicked || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">CLICKED</div></div>
+        <div className="text-center"><div className="text-lg font-display text-red-400">{stats.submitted_data || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">CREDS</div></div>
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>Created: {new Date(campaign.created_date).toLocaleString()}</span>
@@ -501,23 +797,16 @@ function CampaignCard({ campaign }: { campaign: any }) {
   );
 }
 
-// Empty state component
-function EmptyState({ icon, title, description, actionLabel, actionHref }: { icon: React.ReactNode; title: string; description: string; actionLabel: string; actionHref: string }) {
+function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
     <div className="bg-card border-2 border-dashed border-border p-12 text-center">
       <div className="flex justify-center mb-4">{icon}</div>
       <h3 className="font-display text-lg tracking-wider mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">{description}</p>
-      <a href={actionHref} target="_blank" rel="noopener noreferrer">
-        <Button className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
-          <ExternalLink className="w-4 h-4 mr-2" />{actionLabel}
-        </Button>
-      </a>
+      <p className="text-sm text-muted-foreground max-w-md mx-auto">{description}</p>
     </div>
   );
 }
 
-// NavItem component
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
   return (
     <Link href={href}>

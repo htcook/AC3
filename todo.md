@@ -315,3 +315,26 @@
 - [x] Assign agent to APT29 operation and start execution
 - [x] Validate ability chain execution: 5 abilities executed (3 success, 1 collected, 1 failed)
 - [x] Verify results appear in operation chain
+
+## Rename Caldera Command
+- [x] Choose a new name: ACE STRIKE (reflects offensive security + Ace of Cloud brand)
+- [x] Update Home page hero title
+- [x] Update all page headers and references (12 files)
+- [x] Update browser tab title
+
+## Full GoPhish Management Panels
+- [x] Add Create Email Template form with HTML editor
+- [x] Add Edit/Delete Email Template functionality
+- [x] Add Create Landing Page form with HTML editor
+- [x] Add Edit/Delete Landing Page functionality
+- [x] Add Create Sending Profile form (SMTP config)
+- [x] Add Edit/Delete Sending Profile functionality
+- [x] Add Create Target Group form with user import
+- [x] Add Edit/Delete Target Group functionality
+- [x] Add Launch Campaign form (select template, landing page, profile, group)
+- [x] Add Campaign results/statistics view
+- [x] Add server-side tRPC endpoints for all GoPhish CRUD operations
+- [x] Ensure GoPhish panels are accessible from dashboard sidebar
+
+- [x] Research and document email sender domain best practices for phishing simulations
+- [x] Provide deliverability guide for avoiding common email filters

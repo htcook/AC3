@@ -41,17 +41,17 @@ export default function Home() {
         <div className="container">
           <div className="max-w-4xl">
             <h1 className="text-7xl md:text-9xl font-display leading-none tracking-tight mb-8">
-              CALDERA
+              ACE
               <br />
-              <span className="text-primary">COMMAND</span>
+              <span className="text-primary">STRIKE</span>
             </h1>
             
             {/* Teal Divider */}
             <div className="w-full h-1 bg-primary my-8" />
             
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-6 leading-relaxed">
-              Centralized management interface for MITRE Caldera adversary emulation platform. 
-              Monitor server health, manage credentials, and orchestrate red team operations.
+              Unified red team operations platform combining MITRE Caldera adversary emulation 
+              with GoPhish phishing campaigns. Orchestrate, monitor, and report on full-spectrum attack simulations.
             </p>
             
             <p className="text-lg text-primary mb-12">
@@ -202,7 +202,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE OF CLOUD</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Caldera Command Center — Powered by Ace of Cloud Cybersecurity
+            Ace Strike Platform — Powered by Ace of Cloud Cybersecurity
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">

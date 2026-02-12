@@ -483,6 +483,116 @@ export const appRouter = router({
         return fetchGophishAPI(`/api/campaigns/${input.id}/complete`, 'GET');
       }),
 
+    // Template CRUD
+    getTemplate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return fetchGophishAPI(`/api/templates/${input.id}`);
+      }),
+
+    updateTemplate: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string(),
+        subject: z.string(),
+        html: z.string(),
+        text: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return fetchGophishAPI(`/api/templates/${id}`, 'PUT', { id, ...data });
+      }),
+
+    deleteTemplate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI(`/api/templates/${input.id}`, 'DELETE');
+      }),
+
+    // Landing Page CRUD
+    getLandingPage: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return fetchGophishAPI(`/api/pages/${input.id}`);
+      }),
+
+    updateLandingPage: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string(),
+        html: z.string(),
+        capture_credentials: z.boolean().optional(),
+        capture_passwords: z.boolean().optional(),
+        redirect_url: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return fetchGophishAPI(`/api/pages/${id}`, 'PUT', { id, ...data });
+      }),
+
+    deleteLandingPage: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI(`/api/pages/${input.id}`, 'DELETE');
+      }),
+
+    // Sending Profile CRUD
+    getSendingProfile: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return fetchGophishAPI(`/api/smtp/${input.id}`);
+      }),
+
+    updateSendingProfile: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string(),
+        host: z.string(),
+        from_address: z.string(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+        ignore_cert_errors: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return fetchGophishAPI(`/api/smtp/${id}`, 'PUT', { id, ...data });
+      }),
+
+    deleteSendingProfile: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI(`/api/smtp/${input.id}`, 'DELETE');
+      }),
+
+    // Group CRUD
+    getGroup: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return fetchGophishAPI(`/api/groups/${input.id}`);
+      }),
+
+    updateGroup: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string(),
+        targets: z.array(z.object({
+          first_name: z.string().optional(),
+          last_name: z.string().optional(),
+          email: z.string(),
+          position: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return fetchGophishAPI(`/api/groups/${id}`, 'PUT', { id, ...data });
+      }),
+
+    deleteGroup: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return fetchGophishAPI(`/api/groups/${input.id}`, 'DELETE');
+      }),
+
     // Get GoPhish server status
     getStatus: publicProcedure.query(async () => {
       try {
