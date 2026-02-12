@@ -429,3 +429,8 @@
 - [x] Update page headers and titles
 - [x] Update Home page hero
 - [x] Verify no remaining Ace Strike references
+
+## Branding Polish - Cyber Campaign Command
+- [x] Update VITE_APP_TITLE to "Cyber Campaign Command" (user must update manually in Settings > Secrets)
+- [x] Add C3 compact branding element to sidebar logo area across all pages
+- [x] Update Home page description to reference Cyber Campaign Command

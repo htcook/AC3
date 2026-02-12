@@ -486,7 +486,7 @@ This document contains sensitive security assessment findings. Distribution is l
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-border">
             <Link href="/">
-              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">CYBER CAMPAIGN COMMAND</h1>
+              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">C3 <span className="text-muted-foreground">—</span> CYBER CAMPAIGN COMMAND</h1>
             </Link>
             <p className="text-xs text-muted-foreground tracking-wider mt-1">REPORT GENERATOR</p>
           </div>

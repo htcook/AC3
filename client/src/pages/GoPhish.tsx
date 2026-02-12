@@ -75,7 +75,7 @@ export default function GoPhish() {
               <Cloud className="w-8 h-8 text-primary" />
               <div className="flex flex-col">
                 <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
-                <span className="text-[10px] text-muted-foreground tracking-widest">CYBER CAMPAIGN COMMAND</span>
+                <span className="text-[10px] text-muted-foreground tracking-widest">C3 — <span className="text-primary/70">CYBER CAMPAIGN COMMAND</span></span>
               </div>
             </Link>
           </div>

@@ -52,8 +52,9 @@ export default function Home() {
             <div className="w-full h-1 bg-primary my-8" />
             
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-6 leading-relaxed">
-              Unified red team operations platform combining MITRE Caldera adversary emulation 
-              with GoPhish phishing campaigns. Orchestrate, monitor, and report on full-spectrum attack simulations.
+              <span className="text-primary font-semibold">C3</span> — Your unified command center for offensive security operations. 
+              Combine MITRE Caldera adversary emulation with GoPhish phishing campaigns to orchestrate, 
+              monitor, and report on full-spectrum attack simulations from a single dashboard.
             </p>
             
             <p className="text-lg text-primary mb-12">
@@ -204,7 +205,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE OF CLOUD</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Cyber Campaign Command Platform — Powered by Ace of Cloud Cybersecurity
+            C3 — Cyber Campaign Command | Powered by Ace of Cloud Cybersecurity
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
