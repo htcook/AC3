@@ -26,10 +26,10 @@ import { useState, useEffect } from "react";
 const CREDENTIALS = {
   adminLogin: {
     username: 'admin',
-    password: 'PVYedK$BUAYzyXaAegdEl2Dz',
+    password: '9TR#qaO7Ev3uIjeVP51D',
   },
-  redApiKey: 'ADMIN123',
-  blueApiKey: 'BLUEADMIN123',
+  redApiKey: 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e',
+  blueApiKey: '16498a3a0320fefc58083406f86d2de08f6f3735c537e72e6ae481ee8dd6cb7d',
   sshCommand: 'ssh -i ~/.ssh/caldera_do_key root@137.184.7.224',
   serverUrl: 'https://137.184.7.224',
   httpUrl: 'http://137.184.7.224:8888',

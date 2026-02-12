@@ -218,7 +218,7 @@ export default function GoPhish() {
                     <div className="flex justify-between"><span className="text-muted-foreground">Admin URL</span><span className="font-mono text-orange-400">https://137.184.7.224:3333</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Phishing Server</span><span className="font-mono text-orange-400">http://137.184.7.224:8080</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Username</span><span className="font-mono">admin</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Password</span><span className="font-mono">ADMIN123</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Password</span><span className="font-mono">KpA6TLcKnsk!pgjcJM5Z</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Version</span><span className="font-mono">0.12.1</span></div>
                   </div>
                 </div>
@@ -231,7 +231,7 @@ export default function GoPhish() {
                     <div className="flex justify-between"><span className="text-muted-foreground">API URL</span><span className="font-mono text-red-400">http://137.184.7.224:8888</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">UI URL</span><span className="font-mono text-red-400">http://137.184.7.224:8888</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Username</span><span className="font-mono">red</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">API Key</span><span className="font-mono">ADMIN123</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">API Key</span><span className="font-mono text-xs">cb92ab...c5bb9e</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Version</span><span className="font-mono">5.3.0</span></div>
                   </div>
                 </div>

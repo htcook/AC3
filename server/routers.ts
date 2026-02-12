@@ -23,7 +23,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 // GoPhish API helper
 const GOPHISH_URL = 'https://137.184.7.224:3333';
-const GOPHISH_API_KEY = 'a6e1e42de41e2a86d1175ac58f9da6420f98a047474256c3f391390d0d886290';
+const GOPHISH_API_KEY = '186292e5e312962ad1fdfc9ecbc21453e6073daf6554861371bd4da0fa61a5a2';
 
 async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
   try {
@@ -214,7 +214,7 @@ export const appRouter = router({
     // Direct stats from DigitalOcean Caldera server
     getStats: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       
       const [adversaries, abilities, operations, agents] = await Promise.all([
         fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/adversaries'),
@@ -234,7 +234,7 @@ export const appRouter = router({
     // Get all adversaries from DigitalOcean Caldera
     getAdversaries: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       const adversaries = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/adversaries');
       return Array.isArray(adversaries) ? adversaries : [];
     }),
@@ -244,14 +244,14 @@ export const appRouter = router({
       .input(z.object({ adversaryId: z.string() }))
       .query(async ({ input }) => {
         const CALDERA_URL = 'http://137.184.7.224:8888';
-        const API_KEY = 'ADMIN123';
+        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
         return fetchCalderaAPI(CALDERA_URL, API_KEY, `/api/v2/adversaries/${input.adversaryId}`);
       }),
 
     // Get all abilities from DigitalOcean Caldera
     getAbilities: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
       return Array.isArray(abilities) ? abilities : [];
     }),
@@ -261,7 +261,7 @@ export const appRouter = router({
       .input(z.object({ tactic: z.string() }))
       .query(async ({ input }) => {
         const CALDERA_URL = 'http://137.184.7.224:8888';
-        const API_KEY = 'ADMIN123';
+        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
         const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
         if (!Array.isArray(abilities)) return [];
         return abilities.filter((a: any) => a.tactic === input.tactic);
@@ -270,7 +270,7 @@ export const appRouter = router({
     // Get all tactics (derived from abilities)
     getTactics: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
       if (!Array.isArray(abilities)) return [];
       
@@ -286,7 +286,7 @@ export const appRouter = router({
     // Get all operations from DigitalOcean Caldera
     getOperations: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       const operations = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/operations');
       return Array.isArray(operations) ? operations : [];
     }),
@@ -294,7 +294,7 @@ export const appRouter = router({
     // Get all agents from DigitalOcean Caldera
     getAgents: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       const agents = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/agents');
       return Array.isArray(agents) ? agents : [];
     }),
@@ -304,7 +304,7 @@ export const appRouter = router({
       .input(z.object({ paw: z.string() }))
       .query(async ({ input }) => {
         const CALDERA_URL = 'http://137.184.7.224:8888';
-        const API_KEY = 'ADMIN123';
+        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
         return fetchCalderaAPI(CALDERA_URL, API_KEY, `/api/v2/agents/${input.paw}`);
       }),
 
@@ -313,7 +313,7 @@ export const appRouter = router({
       .input(z.object({ paw: z.string() }))
       .mutation(async ({ input }) => {
         const CALDERA_URL = 'http://137.184.7.224:8888';
-        const API_KEY = 'ADMIN123';
+        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
         try {
           const response = await fetch(`${CALDERA_URL}/api/v2/agents/${input.paw}`, {
             method: 'DELETE',
@@ -330,7 +330,7 @@ export const appRouter = router({
       .input(z.object({ paw: z.string(), trusted: z.boolean() }))
       .mutation(async ({ input }) => {
         const CALDERA_URL = 'http://137.184.7.224:8888';
-        const API_KEY = 'ADMIN123';
+        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
         try {
           const response = await fetch(`${CALDERA_URL}/api/v2/agents/${input.paw}`, {
             method: 'PATCH',
@@ -349,7 +349,7 @@ export const appRouter = router({
     // Get agent deployable commands
     getDeployCommands: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       const deploy = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/deploy_commands');
       return deploy || {};
     }),
@@ -357,7 +357,7 @@ export const appRouter = router({
     // Check Caldera server health
     checkHealth: publicProcedure.query(async () => {
       const CALDERA_URL = 'http://137.184.7.224:8888';
-      const API_KEY = 'ADMIN123';
+      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       try {
         const response = await fetch(`${CALDERA_URL}/api/v2/health`, {
           headers: { 'KEY': API_KEY },
@@ -829,11 +829,11 @@ export const appRouter = router({
             signal: AbortSignal.timeout(5000),
           });
 
-          // Also check if it's the admin credentials (admin/admin or red/ADMIN123)
+          // Also check if it's the admin credentials
           const isValidAdmin = 
-            (input.username === 'admin' && input.password === 'admin') ||
-            (input.username === 'red' && input.password === 'ADMIN123') ||
-            (input.username === 'blue' && input.password === 'ADMIN123');
+            (input.username === 'red' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
+            (input.username === 'blue' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
+            (input.username === 'admin' && input.password === 'GgL3%8mr@N5%CVhu*JoI');
 
           if (response.ok || isValidAdmin) {
             // Create JWT token for session
@@ -867,9 +867,9 @@ export const appRouter = router({
           
           // Fallback: check hardcoded credentials if Caldera is unreachable
           const isValidAdmin = 
-            (input.username === 'admin' && input.password === 'admin') ||
-            (input.username === 'red' && input.password === 'ADMIN123') ||
-            (input.username === 'blue' && input.password === 'ADMIN123');
+            (input.username === 'red' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
+            (input.username === 'blue' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
+            (input.username === 'admin' && input.password === 'GgL3%8mr@N5%CVhu*JoI');
 
           if (isValidAdmin) {
             const token = jwt.sign(

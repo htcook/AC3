@@ -261,3 +261,14 @@
 - [x] Create phishing campaign launcher integrated with Caldera operations
 - [x] Test full integration end-to-end
 - [ ] Update Terraform files with GoPhish droplet configuration
+
+
+## Admin Credential Rotation
+- [x] Generate new secure credentials for all services
+- [x] Update Caldera server credentials (red API key, blue API key, admin password)
+- [x] Update GoPhish admin password and regenerate API key
+- [x] Update AceofCloud Dashboard login password
+- [x] Update dashboard code with new Caldera/GoPhish credentials
+- [x] Update bridge service with new credentials
+- [x] Rebuild and deploy dashboard
+- [x] Verify all services work with new credentials
