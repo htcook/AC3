@@ -3,7 +3,8 @@ import { Link, useLocation } from "wouter";
 import {
   Activity, Users, Key, ExternalLink, Menu, X, Zap, Target, FileText, Cloud,
   Cpu, BookOpen, ChevronDown, ChevronRight, Terminal, Shield, Server,
-  AlertTriangle, CheckCircle, Copy, Crosshair, Layers, Network, Eye
+  AlertTriangle, CheckCircle, Copy, Crosshair, Layers, Network, Eye,
+  Globe2
 } from "lucide-react";
 import { useState } from "react";
 import FAQ from '@/components/FAQ';
@@ -94,6 +95,12 @@ export default function CalderaGuide() {
             <NavItem href="/team" icon={<Users className="w-4 h-4" />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText className="w-4 h-4" />} label="ACTIVITY" />
             <div className="border-t border-border my-3 pt-3">
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">THREAT INTEL</p>
+              <NavItem href="/apt-library" icon={<Shield className="w-4 h-4" />} label="APT SCENARIOS" />
+              <NavItem href="/compliance" icon={<FileText className="w-4 h-4" />} label="COMPLIANCE" />
+              <NavItem href="/infra-reference" icon={<Globe2 className="w-4 h-4" />} label="INFRASTRUCTURE" />
+            </div>
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
               <NavItem href="/guide/gophish" icon={<BookOpen className="w-4 h-4" />} label="GOPHISH GUIDE" />
               <NavItem href="/guide/caldera" icon={<BookOpen className="w-4 h-4" />} label="CALDERA GUIDE" active />

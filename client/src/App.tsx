@@ -22,6 +22,9 @@ import GoPhish from "./pages/GoPhish";
 import GoPhishGuide from "./pages/GoPhishGuide";
 import CalderaGuide from "./pages/CalderaGuide";
 import SecurityReport from "./pages/SecurityReport";
+import APTLibrary from "./pages/APTLibrary";
+import ComplianceFrameworks from "./pages/ComplianceFrameworks";
+import InfraReference from "./pages/InfraReference";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -113,6 +116,15 @@ function Router() {
       </Route>
       <Route path="/reports/security">
         <ProtectedRoute component={SecurityReport} />
+      </Route>
+      <Route path="/apt-library">
+        <ProtectedRoute component={APTLibrary} />
+      </Route>
+      <Route path="/compliance">
+        <ProtectedRoute component={ComplianceFrameworks} />
+      </Route>
+      <Route path="/infra-reference">
+        <ProtectedRoute component={InfraReference} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

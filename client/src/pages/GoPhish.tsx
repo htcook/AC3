@@ -7,7 +7,8 @@ import {
   Zap, Cpu, ExternalLink, Mail, Fish, Send, Globe, UserPlus,
   Plus, RefreshCw, CheckCircle, Clock, AlertTriangle, Play,
   Crosshair, BarChart3, MousePointer, ShieldAlert, Eye, Trash2,
-  Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen
+  Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen,
+  Shield, Globe2
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -84,6 +85,12 @@ export default function GoPhish() {
               <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} active={item.href === '/gophish'} />
             ))}
             <div className="border-t border-border my-3 pt-3">
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">THREAT INTEL</p>
+              <NavItem href="/apt-library" icon={<Shield className="w-4 h-4" />} label="APT SCENARIOS" />
+              <NavItem href="/compliance" icon={<FileText className="w-4 h-4" />} label="COMPLIANCE" />
+              <NavItem href="/infra-reference" icon={<Globe2 className="w-4 h-4" />} label="INFRASTRUCTURE" />
+            </div>
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
               {GUIDE_ITEMS.map(item => (
                 <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />

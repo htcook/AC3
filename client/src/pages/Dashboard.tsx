@@ -31,7 +31,9 @@ import {
   Send,
   LayoutTemplate,
   Globe,
-  UserCheck
+  UserCheck,
+  Shield,
+  Globe2
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -145,6 +147,12 @@ export default function Dashboard() {
             <NavItem href="/team" icon={<Users />} label="TEAM" />
             <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
             <div className="border-t border-border my-3 pt-3">
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">THREAT INTEL</p>
+              <NavItem href="/apt-library" icon={<Shield className="w-4 h-4" />} label="APT SCENARIOS" />
+              <NavItem href="/compliance" icon={<FileText className="w-4 h-4" />} label="COMPLIANCE" />
+              <NavItem href="/infra-reference" icon={<Globe2 className="w-4 h-4" />} label="INFRASTRUCTURE" />
+            </div>
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
               <NavItem href="/guide/gophish" icon={<BookOpen />} label="GOPHISH GUIDE" />
               <NavItem href="/guide/caldera" icon={<BookOpen />} label="CALDERA GUIDE" />

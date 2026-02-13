@@ -450,3 +450,16 @@
 - [x] Make Campaign Status and GoPhish Resources panels clickable
 - [x] Add hover effects and cursor pointer to indicate clickability
 - [x] Ensure detail pages exist for all linked stats
+
+## Mega Red Team Bundle Integration
+- [x] Create APT Scenario Library page with 4 nation-state scenarios (APT29, APT28, Sandworm, APT41)
+- [x] Add ATT&CK Navigator technique heatmap visualization for each APT group
+- [x] Display Caldera adversary profiles (APT29, Sandworm) with atomic ordering steps
+- [x] Add Compliance Frameworks page with FedRAMP and CMMC 2.0 reference material
+- [x] Integrate Defense Impersonation Matrix as phishing boundary reference
+- [x] Add GoPhish policy review template to template references
+- [x] Enhance Security Report with compliance framework sections
+- [x] Add Infrastructure Reference page showing Terraform engagement architecture
+- [x] Add STIX 2.1 threat intelligence viewer
+- [x] Add sidebar navigation for new pages
+- [x] Wire up routes in App.tsx
