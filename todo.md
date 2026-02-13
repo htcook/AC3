@@ -442,3 +442,11 @@
 - [x] Add GoPhish sending profile and landing page counts
 - [x] Add GoPhish recent activity feed
 - [x] Match visual style with existing Caldera stats section
+
+## Click-Through Stats on Dashboard
+- [x] Make Caldera stat cards (Adversaries, Abilities, Operations, Agents) clickable with navigation
+- [x] Make GoPhish stat cards (Campaigns, Templates, Landing Pages, SMTP Profiles) clickable
+- [x] Make GoPhish email metric cards (Sent, Opened, Clicked, Submitted, Reported) clickable
+- [x] Make Campaign Status and GoPhish Resources panels clickable
+- [x] Add hover effects and cursor pointer to indicate clickability
+- [x] Ensure detail pages exist for all linked stats

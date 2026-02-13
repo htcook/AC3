@@ -219,7 +219,7 @@ export default function Dashboard() {
             <h2 className="font-display text-2xl mb-4">SERVER STATUS</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {/* Caldera Server */}
-              <div className="bg-card border-2 border-border p-6">
+              <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border p-6 cursor-pointer hover:border-primary transition-colors group block">
                 <div className="flex items-center gap-4 mb-4">
                   <div className={`w-4 h-4 ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
                   <div className="flex-1">
@@ -234,10 +234,11 @@ export default function Dashboard() {
                   <StatusBadge icon={<Server />} label="REGION" value={DEFAULT_SERVER.region} />
                   <StatusBadge icon={<Cpu />} label="SIZE" value={DEFAULT_SERVER.dropletSize} />
                 </div>
-              </div>
+                <div className="text-[10px] mt-3 text-muted-foreground tracking-wider opacity-0 group-hover:opacity-100 transition-opacity text-center">OPEN CALDERA UI →</div>
+              </a>
 
               {/* GoPhish Server */}
-              <div className="bg-card border-2 border-emerald-500/30 p-6">
+              <a href="https://137.184.7.224:3333" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-emerald-500/30 p-6 cursor-pointer hover:border-emerald-500 transition-colors group block">
                 <div className="flex items-center gap-4 mb-4">
                   <div className={`w-4 h-4 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
                   <div className="flex-1">
@@ -252,7 +253,8 @@ export default function Dashboard() {
                   <StatusBadge icon={<Fish />} label="CAMPAIGNS" value={`${gophish.totalCampaigns} total`} />
                   <StatusBadge icon={<Mail />} label="ACTIVE" value={`${gophish.activeCampaigns} running`} />
                 </div>
-              </div>
+                <div className="text-[10px] mt-3 text-emerald-500/70 tracking-wider opacity-0 group-hover:opacity-100 transition-opacity text-center">OPEN GOPHISH ADMIN →</div>
+              </a>
             </div>
           </section>
 
@@ -265,10 +267,10 @@ export default function Dashboard() {
           <section>
             <h2 className="font-display text-2xl mb-4">CALDERA STATISTICS</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-white" />
-              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-white" />
-              <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-white" />
-              <StatCard value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-white" />
+              <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-white" href="/adversaries" />
+              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-white" href="http://137.184.7.224:8888/#/abilities" external />
+              <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-white" href="/operations/monitor" />
+              <StatCard value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-white" href="/agents" />
             </div>
           </section>
 
@@ -294,20 +296,20 @@ export default function Dashboard() {
 
             {/* Top-level GoPhish counts */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <StatCard value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-500" />
-              <StatCard value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-500" />
-              <StatCard value={gophish.totalLandingPages.toString()} label="LANDING PAGES" color="text-emerald-500" />
-              <StatCard value={gophish.totalSendingProfiles.toString()} label="SMTP PROFILES" color="text-emerald-500" />
+              <StatCard value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-500" href="/gophish" />
+              <StatCard value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-500" href="https://137.184.7.224:3333/templates" external />
+              <StatCard value={gophish.totalLandingPages.toString()} label="LANDING PAGES" color="text-emerald-500" href="https://137.184.7.224:3333/landing_pages" external />
+              <StatCard value={gophish.totalSendingProfiles.toString()} label="SMTP PROFILES" color="text-emerald-500" href="https://137.184.7.224:3333/sending_profiles" external />
             </div>
 
             {/* Email Metrics Funnel */}
             <h3 className="font-display text-lg mb-3 text-muted-foreground">EMAIL METRICS</h3>
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-              <MetricCard icon={<Send />} value={gophish.emailMetrics.sent} label="EMAILS SENT" color="text-emerald-500" />
-              <MetricCard icon={<Eye />} value={gophish.emailMetrics.opened} label="OPENED" subtext={`${openRate}% rate`} color="text-blue-400" />
-              <MetricCard icon={<MousePointerClick />} value={gophish.emailMetrics.clicked} label="CLICKED" subtext={`${clickRate}% rate`} color="text-yellow-400" />
-              <MetricCard icon={<UserCheck />} value={gophish.emailMetrics.submitted} label="SUBMITTED" subtext={`${submitRate}% rate`} color="text-red-400" />
-              <MetricCard icon={<FileWarning />} value={gophish.emailMetrics.reported} label="REPORTED" color="text-purple-400" />
+              <MetricCard icon={<Send />} value={gophish.emailMetrics.sent} label="EMAILS SENT" color="text-emerald-500" href="/gophish" />
+              <MetricCard icon={<Eye />} value={gophish.emailMetrics.opened} label="OPENED" subtext={`${openRate}% rate`} color="text-blue-400" href="/gophish" />
+              <MetricCard icon={<MousePointerClick />} value={gophish.emailMetrics.clicked} label="CLICKED" subtext={`${clickRate}% rate`} color="text-yellow-400" href="/gophish" />
+              <MetricCard icon={<UserCheck />} value={gophish.emailMetrics.submitted} label="SUBMITTED" subtext={`${submitRate}% rate`} color="text-red-400" href="/gophish" />
+              <MetricCard icon={<FileWarning />} value={gophish.emailMetrics.reported} label="REPORTED" color="text-purple-400" href="/gophish" />
             </div>
 
             {/* Campaign Breakdown + GoPhish Resources */}
@@ -316,25 +318,37 @@ export default function Dashboard() {
               <div className="bg-card border-2 border-emerald-500/30 p-5">
                 <h3 className="font-display text-lg mb-4 text-emerald-500">CAMPAIGN STATUS</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Active Campaigns</span>
-                    <span className="font-display text-lg text-emerald-400">{gophish.activeCampaigns}</span>
-                  </div>
+                  <Link href="/gophish" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+                    <span className="text-sm text-muted-foreground group-hover:text-emerald-400 transition-colors">Active Campaigns</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-lg text-emerald-400">{gophish.activeCampaigns}</span>
+                      <ChevronRight className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </Link>
                   <div className="w-full h-px bg-border" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Completed Campaigns</span>
-                    <span className="font-display text-lg text-blue-400">{gophish.completedCampaigns}</span>
-                  </div>
+                  <Link href="/gophish" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+                    <span className="text-sm text-muted-foreground group-hover:text-blue-400 transition-colors">Completed Campaigns</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-lg text-blue-400">{gophish.completedCampaigns}</span>
+                      <ChevronRight className="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </Link>
                   <div className="w-full h-px bg-border" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Total Targets</span>
-                    <span className="font-display text-lg text-yellow-400">{gophish.totalTargets}</span>
-                  </div>
+                  <a href="https://137.184.7.224:3333/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+                    <span className="text-sm text-muted-foreground group-hover:text-yellow-400 transition-colors">Total Targets</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-lg text-yellow-400">{gophish.totalTargets}</span>
+                      <ExternalLink className="w-3 h-3 text-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </a>
                   <div className="w-full h-px bg-border" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Target Groups</span>
-                    <span className="font-display text-lg text-purple-400">{gophish.totalGroups}</span>
-                  </div>
+                  <a href="https://137.184.7.224:3333/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+                    <span className="text-sm text-muted-foreground group-hover:text-purple-400 transition-colors">Target Groups</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-lg text-purple-400">{gophish.totalGroups}</span>
+                      <ExternalLink className="w-3 h-3 text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </a>
                 </div>
               </div>
 
@@ -342,13 +356,13 @@ export default function Dashboard() {
               <div className="bg-card border-2 border-emerald-500/30 p-5">
                 <h3 className="font-display text-lg mb-4 text-emerald-500">GOPHISH RESOURCES</h3>
                 <div className="space-y-3">
-                  <ResourceRow icon={<LayoutTemplate />} label="Email Templates" count={gophish.totalTemplates} />
+                  <ResourceRow icon={<LayoutTemplate />} label="Email Templates" count={gophish.totalTemplates} href="https://137.184.7.224:3333/templates" external />
                   <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Globe />} label="Landing Pages" count={gophish.totalLandingPages} />
+                  <ResourceRow icon={<Globe />} label="Landing Pages" count={gophish.totalLandingPages} href="https://137.184.7.224:3333/landing_pages" external />
                   <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Send />} label="Sending Profiles (SMTP)" count={gophish.totalSendingProfiles} />
+                  <ResourceRow icon={<Send />} label="Sending Profiles (SMTP)" count={gophish.totalSendingProfiles} href="https://137.184.7.224:3333/sending_profiles" external />
                   <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Users />} label="Target Groups" count={gophish.totalGroups} />
+                  <ResourceRow icon={<Users />} label="Target Groups" count={gophish.totalGroups} href="https://137.184.7.224:3333/users" external />
                 </div>
               </div>
             </div>
@@ -679,34 +693,96 @@ function StatusBadge({ icon, label, value }: { icon: React.ReactNode; label: str
   );
 }
 
-function StatCard({ value, label, color = "text-white" }: { value: string; label: string; color?: string }) {
-  return (
-    <div className="bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors">
+function StatCard({ value, label, color = "text-white", href, external }: { value: string; label: string; color?: string; href?: string; external?: boolean }) {
+  const content = (
+    <>
       <div className={`font-display text-5xl md:text-6xl mb-2 ${color}`}>{value}</div>
       <div className="text-xs tracking-widest text-muted-foreground">{label}</div>
+      {href && <div className={`text-[10px] mt-2 tracking-wider opacity-0 group-hover:opacity-100 transition-opacity ${color}`}>VIEW DETAILS →</div>}
+    </>
+  );
+  if (href && external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="group bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors cursor-pointer block">
+        {content}
+      </a>
+    );
+  }
+  if (href) {
+    return (
+      <Link href={href} className="group bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors cursor-pointer block">
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <div className="bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors">
+      {content}
     </div>
   );
 }
 
-function MetricCard({ icon, value, label, subtext, color = "text-white" }: { icon: React.ReactNode; value: number; label: string; subtext?: string; color?: string }) {
-  return (
-    <div className="bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors">
+function MetricCard({ icon, value, label, subtext, color = "text-white", href, external }: { icon: React.ReactNode; value: number; label: string; subtext?: string; color?: string; href?: string; external?: boolean }) {
+  const content = (
+    <>
       <div className={`flex justify-center mb-2 ${color}`}>{icon}</div>
       <div className={`font-display text-3xl md:text-4xl mb-1 ${color}`}>{value}</div>
       <div className="text-[10px] tracking-widest text-muted-foreground">{label}</div>
       {subtext && <div className={`text-xs mt-1 ${color} opacity-70`}>{subtext}</div>}
+      {href && <div className={`text-[10px] mt-2 tracking-wider opacity-0 group-hover:opacity-100 transition-opacity ${color}`}>DETAILS →</div>}
+    </>
+  );
+  if (href && external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="group bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors cursor-pointer block">
+        {content}
+      </a>
+    );
+  }
+  if (href) {
+    return (
+      <Link href={href} className="group bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors cursor-pointer block">
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <div className="bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors">
+      {content}
     </div>
   );
 }
 
-function ResourceRow({ icon, label, count }: { icon: React.ReactNode; label: string; count: number }) {
-  return (
-    <div className="flex items-center justify-between">
+function ResourceRow({ icon, label, count, href, external }: { icon: React.ReactNode; label: string; count: number; href?: string; external?: boolean }) {
+  const content = (
+    <>
       <div className="flex items-center gap-2">
         <span className="text-emerald-500">{icon}</span>
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground group-hover:text-emerald-400 transition-colors">{label}</span>
       </div>
-      <span className="font-display text-lg text-emerald-400">{count}</span>
+      <div className="flex items-center gap-2">
+        <span className="font-display text-lg text-emerald-400">{count}</span>
+        {href && <ChevronRight className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+      </div>
+    </>
+  );
+  if (href && external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+        {content}
+      </a>
+    );
+  }
+  if (href) {
+    return (
+      <Link href={href} className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between">
+      {content}
     </div>
   );
 }
