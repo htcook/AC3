@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'wouter';
+import AppShell from "@/components/AppShell";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { trpc } from '@/lib/trpc';
@@ -168,7 +169,7 @@ export default function OperationMonitor() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <AppShell activePath="/campaigns">
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container py-4">
@@ -235,7 +236,7 @@ export default function OperationMonitor() {
           </div>
           
           {/* Stats Row */}
-          <div className="grid grid-cols-6 divide-x divide-border">
+          <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-border">
             <div className="p-4 text-center">
               <div className="text-2xl font-bold text-primary">{operation.agents}</div>
               <div className="text-xs text-muted-foreground">AGENTS</div>
@@ -355,7 +356,7 @@ export default function OperationMonitor() {
         {/* Results Timeline */}
         <div className="bg-card border-2 border-border">
           <div className="p-4 border-b border-border bg-secondary/30">
-            <div className="grid grid-cols-12 gap-4 text-xs font-display text-muted-foreground">
+            <div className="hidden sm:grid grid-cols-12 gap-4 text-xs font-display text-muted-foreground">
               <div className="col-span-1">STATUS</div>
               <div className="col-span-3">ABILITY</div>
               <div className="col-span-2">TECHNIQUE</div>
@@ -367,7 +368,7 @@ export default function OperationMonitor() {
 
           <div className="max-h-[500px] overflow-y-auto">
             {filteredResults.length === 0 ? (
-              <div className="p-12 text-center">
+              <div className="p-4 sm:p-8 lg:p-12 text-center">
                 <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="font-display text-lg mb-2">NO RESULTS YET</h3>
                 <p className="text-sm text-muted-foreground mb-4">
@@ -467,7 +468,7 @@ export default function OperationMonitor() {
               <h3 className="font-display">SECURITY CONTROL EFFECTIVENESS</h3>
             </div>
             <div className="p-4">
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div>
                   <h4 className="text-sm font-display text-muted-foreground mb-2">DETECTION RATE</h4>
                   <div className="text-3xl font-bold text-yellow-500">
@@ -504,6 +505,6 @@ export default function OperationMonitor() {
           </div>
         )}
       </main>
-    </div>
+    </AppShell>
   );
 }

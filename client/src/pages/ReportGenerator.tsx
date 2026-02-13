@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
+import AppShell from "@/components/AppShell";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { trpc } from '@/lib/trpc';
@@ -373,7 +374,7 @@ ${results.map(r =>
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <AppShell activePath="/reports/security">
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="container py-4">
@@ -406,7 +407,7 @@ ${results.map(r =>
       </header>
 
       <main className="container py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-4 sm:p-6 lg:p-8">
           {/* Configuration Panel */}
           <div className="space-y-6">
             <div className="bg-card border-2 border-border p-6">
@@ -608,7 +609,7 @@ ${results.map(r =>
                     {/* Executive Summary Preview */}
                     <div>
                       <h2 className="font-display text-lg mb-4">EXECUTIVE SUMMARY</h2>
-                      <div className="grid grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="bg-secondary p-4 text-center">
                           <div className="text-2xl font-bold">{results.length}</div>
                           <div className="text-xs text-muted-foreground">TOTAL</div>
@@ -706,6 +707,6 @@ ${results.map(r =>
           </div>
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }

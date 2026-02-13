@@ -11,16 +11,7 @@ import { useState } from "react";
 import FAQ from '@/components/FAQ';
 import { gophishFAQItems } from '@/data/gophish-faq';
 
-function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
-  return (
-    <Link href={href}>
-      <div className={`flex items-center gap-3 px-4 py-3 font-display tracking-wider text-sm transition-colors ${active ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'hover:bg-secondary'}`}>
-        {icon} {label}
-      </div>
-    </Link>
-  );
-}
-
+import AppShell from "@/components/AppShell";
 function Section({ title, icon, children, defaultOpen = false }: { title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -73,58 +64,12 @@ function InfoBox({ type, children }: { type: 'tip' | 'warning' | 'important'; ch
 
 export default function GoPhishGuide() {
   const [, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="p-4 border-b border-border">
-            <Link href="/">
-              <h1 className="font-display text-xl tracking-widest text-primary cursor-pointer">C3 <span className="text-muted-foreground">—</span> CYBER CAMPAIGN COMMAND</h1>
-            </Link>
-            <p className="text-xs text-muted-foreground tracking-wider mt-1">KNOWLEDGE BASE</p>
-          </div>
-          <nav className="flex-1 p-4 space-y-2">
-            <NavItem href="/dashboard" icon={<Activity className="w-4 h-4" />} label="DASHBOARD" />
-            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
-            <NavItem href="/credentials" icon={<Key className="w-4 h-4" />} label="CREDENTIALS" />
-            <NavItem href="/adversaries" icon={<Target className="w-4 h-4" />} label="ADVERSARIES" />
-            <NavItem href="/agents" icon={<Cpu className="w-4 h-4" />} label="AGENTS" />
-            <NavItem href="/campaigns" icon={<Zap className="w-4 h-4" />} label="CAMPAIGNS" />
-            <NavItem href="/gophish" icon={<Zap className="w-4 h-4" />} label="GOPHISH" />
-            <NavItem href="/team" icon={<Users className="w-4 h-4" />} label="TEAM" />
-            <NavItem href="/activity" icon={<FileText className="w-4 h-4" />} label="ACTIVITY" />
-            <div className="border-t border-border my-3 pt-3">
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">THREAT INTEL</p>
-              <NavItem href="/apt-library" icon={<Shield className="w-4 h-4" />} label="APT SCENARIOS" />
-              <NavItem href="/compliance" icon={<FileText className="w-4 h-4" />} label="COMPLIANCE" />
-              <NavItem href="/infra-reference" icon={<Globe2 className="w-4 h-4" />} label="INFRASTRUCTURE" />
-            </div>
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
-              <NavItem href="/guide/gophish" icon={<BookOpen className="w-4 h-4" />} label="GOPHISH GUIDE" active />
-              <NavItem href="/guide/caldera" icon={<BookOpen className="w-4 h-4" />} label="CALDERA GUIDE" />
-              <NavItem href="/templates" icon={<FileText />} label="TEMPLATE LIBRARY" />
-            </div>
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
-              <NavItem href="/reports/security" icon={<FileText className="w-4 h-4" />} label="SECURITY REPORT" />
-            </div>
-          </nav>
-        </div>
-      </aside>
-
-      {/* Mobile sidebar toggle */}
-      <button className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-card border border-border" onClick={() => setSidebarOpen(!sidebarOpen)}>
-        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-      </button>
-
-      {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-6 lg:p-10 max-w-5xl">
-        {/* Header */}
+    <AppShell activePath="/guide/gophish">
+{/* Sidebar */}
+{/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Mail className="w-8 h-8 text-primary" />
@@ -371,7 +316,7 @@ export default function GoPhishGuide() {
           </div>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">TRACKING METRICS</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
             <div className="bg-card border border-border rounded p-3 text-center">
               <p className="text-2xl font-bold text-blue-400">Sent</p>
               <p className="text-xs text-muted-foreground">Email delivered</p>
@@ -473,10 +418,6 @@ export default function GoPhishGuide() {
           <p>Cyber Campaign Command GoPhish Campaign Guide — AceofCloud</p>
           <p className="mt-1">For the latest GoPhish documentation, visit <a href="https://docs.getgophish.com" target="_blank" className="text-primary underline">docs.getgophish.com</a></p>
         </div>
-      </main>
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-    </div>
+      </AppShell>
   );
 }

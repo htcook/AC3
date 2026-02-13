@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import AppShell from "@/components/AppShell";
 import {
   FEDRAMP_CONTROLS, FEDRAMP_REQUIREMENTS, CMMC_LEVELS, CMMC_REPORT_MAPPING,
   IMPERSONATION_MATRIX, IMPERSONATION_CONTROLS, SUPPORTED_INDUSTRIES, GOPHISH_POLICY_TEMPLATE
@@ -17,7 +18,6 @@ type Tab = "fedramp" | "cmmc" | "impersonation" | "template";
 
 export default function ComplianceFrameworks() {
   const [, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("fedramp");
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
@@ -38,59 +38,11 @@ export default function ComplianceFrameworks() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-border">
-            <Link href="/" className="flex items-center gap-3">
-              <Cloud className="w-8 h-8 text-primary" />
-              <div className="flex flex-col">
-                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
-                <span className="text-xs text-muted-foreground tracking-widest">C3 — <span className="text-primary/70">CYBER CAMPAIGN COMMAND</span></span>
-              </div>
-            </Link>
-          </div>
-          <nav className="flex-1 p-4 space-y-2">
-            <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
-            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
-            <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
-            <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
-            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
-            <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
-            <NavItem href="/gophish" icon={<Fish />} label="GOPHISH" />
-            <NavItem href="/team" icon={<Users />} label="TEAM" />
-            <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">THREAT INTEL</p>
-              <NavItem href="/apt-library" icon={<Shield />} label="APT SCENARIOS" />
-              <NavItem href="/compliance" icon={<FileText />} label="COMPLIANCE" active />
-              <NavItem href="/infra-reference" icon={<Globe2 />} label="INFRASTRUCTURE" />
-            </div>
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
-              <NavItem href="/guide/gophish" icon={<BookOpen />} label="GOPHISH GUIDE" />
-              <NavItem href="/guide/caldera" icon={<BookOpen />} label="CALDERA GUIDE" />
-            </div>
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
-              <NavItem href="/reports/security" icon={<FileText />} label="SECURITY REPORT" />
-            </div>
-          </nav>
-          <div className="p-4 border-t border-border">
-            <Link href="/"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>
-          </div>
-        </div>
-      </aside>
-
-      <button className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-card border border-border" onClick={() => setSidebarOpen(!sidebarOpen)}>
-        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-      </button>
-
-      <main className="flex-1 lg:ml-64">
-        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
+    <AppShell activePath="/compliance">
+{/* Sidebar */}
+<header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="px-6 py-4">
-            <h1 className="font-display text-3xl md:text-4xl">COMPLIANCE FRAMEWORKS</h1>
+            <h1 className="font-display text-3xl md:text-2xl sm:text-3xl lg:text-4xl">COMPLIANCE FRAMEWORKS</h1>
             <p className="text-sm text-muted-foreground">FedRAMP governance, CMMC 2.0 alignment, defense impersonation controls, and approved phishing templates for regulated-sector engagements.</p>
           </div>
           {/* Tab bar */}
@@ -367,22 +319,7 @@ export default function ComplianceFrameworks() {
           )}
 
         </div>
-      </main>
-
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-    </div>
+    </AppShell>
   );
 }
 
-function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
-  return (
-    <Link href={href}>
-      <div className={`flex items-center gap-3 px-4 py-3 font-display tracking-wider text-sm transition-colors ${active ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'hover:bg-secondary'}`}>
-        {icon}
-        {label}
-      </div>
-    </Link>
-  );
-}

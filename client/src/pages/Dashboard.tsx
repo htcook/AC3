@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
+import AppShell from "@/components/AppShell";
 // Default server config for the DigitalOcean deployment
 const DEFAULT_SERVER = {
   id: 1,
@@ -52,7 +53,6 @@ const DEFAULT_SERVER = {
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const [gophishStatus, setGophishStatus] = useState<'online' | 'offline' | 'checking'>('checking');
 
@@ -122,86 +122,13 @@ export default function Dashboard() {
   const submitRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.submitted / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="p-6 border-b border-border">
-            <Link href="/" className="flex items-center gap-3">
-              <Cloud className="w-8 h-8 text-primary" />
-              <div className="flex flex-col">
-                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
-                <span className="text-xs text-muted-foreground tracking-widest">C3 — <span className="text-primary/70">CYBER CAMPAIGN COMMAND</span></span>
-              </div>
-            </Link>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2">
-            <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" active />
-            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
-            <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
-            <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
-            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
-            <NavItem href="/campaigns" icon={<Zap />} label="CAMPAIGNS" />
-            <NavItem href="/gophish" icon={<Zap />} label="GOPHISH" />
-            <NavItem href="/team" icon={<Users />} label="TEAM" />
-            <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
-            <div className="border-t border-border my-3 pt-3">
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">THREAT INTEL</p>
-              <NavItem href="/apt-library" icon={<Shield className="w-4 h-4" />} label="APT SCENARIOS" />
-              <NavItem href="/compliance" icon={<FileText className="w-4 h-4" />} label="COMPLIANCE" />
-              <NavItem href="/infra-reference" icon={<Globe2 className="w-4 h-4" />} label="INFRASTRUCTURE" />
-            </div>
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
-              <NavItem href="/guide/gophish" icon={<BookOpen />} label="GOPHISH GUIDE" />
-              <NavItem href="/guide/caldera" icon={<BookOpen />} label="CALDERA GUIDE" />
-              <NavItem href="/templates" icon={<FileText />} label="TEMPLATE LIBRARY" />
-            </div>
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
-              <NavItem href="/reports/security" icon={<FileText />} label="SECURITY REPORT" />
-            </div>
-          </nav>
-
-          {/* User Info */}
-          <div className="p-4 border-t border-border">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-primary/20 flex items-center justify-center">
-                <span className="font-display text-primary">A</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Admin</p>
-                <p className="text-xs text-muted-foreground uppercase">ADMIN</p>
-              </div>
-            </div>
-            <Link href="/">
-              <Button variant="outline" size="sm" className="w-full font-display tracking-wider">
-                <LogOut className="w-4 h-4 mr-2" />
-                EXIT
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </aside>
-
-      {/* Mobile sidebar toggle */}
-      <button
-        className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-card border border-border"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-      >
-        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-      </button>
-
-      {/* Main Content */}
-      <main className="flex-1 lg:ml-64">
-        {/* Header */}
+    <AppShell activePath="/dashboard">
+{/* Sidebar */}
+{/* Header */}
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
-              <h1 className="font-display text-3xl md:text-4xl">COMMAND CENTER</h1>
+              <h1 className="font-display text-3xl md:text-2xl sm:text-3xl lg:text-4xl">COMMAND CENTER</h1>
               <p className="text-sm text-muted-foreground">Unified server and campaign monitoring dashboard</p>
             </div>
             <div className="flex items-center gap-4">
@@ -277,7 +204,7 @@ export default function Dashboard() {
           {/* ═══════════════════════════════════════════════════════════════ */}
           <section>
             <h2 className="font-display text-2xl mb-4">CALDERA STATISTICS</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-white" href="/adversaries" />
               <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-white" href="https://caldera.aceofcloud.io/#/abilities" external />
               <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-white" href="/operations/monitor" />
@@ -306,7 +233,7 @@ export default function Dashboard() {
             </div>
 
             {/* Top-level GoPhish counts */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-500" href="/gophish" />
               <StatCard value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-500" href="https://gophish.aceofcloud.io/templates" external />
               <StatCard value={gophish.totalLandingPages.toString()} label="LANDING PAGES" color="text-emerald-500" href="https://gophish.aceofcloud.io/landing_pages" external />
@@ -315,7 +242,7 @@ export default function Dashboard() {
 
             {/* Email Metrics Funnel */}
             <h3 className="font-display text-lg mb-3 text-muted-foreground">EMAIL METRICS</h3>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
               <MetricCard icon={<Send />} value={gophish.emailMetrics.sent} label="EMAILS SENT" color="text-emerald-500" href="/gophish" />
               <MetricCard icon={<Eye />} value={gophish.emailMetrics.opened} label="OPENED" subtext={`${openRate}% rate`} color="text-blue-400" href="/gophish" />
               <MetricCard icon={<MousePointerClick />} value={gophish.emailMetrics.clicked} label="CLICKED" subtext={`${clickRate}% rate`} color="text-yellow-400" href="/gophish" />
@@ -424,7 +351,7 @@ export default function Dashboard() {
                     </tbody>
                   </table>
                   {gophish.campaigns.length === 0 && (
-                    <div className="p-8 text-center text-muted-foreground">
+                    <div className="p-4 sm:p-6 lg:p-8 text-center text-muted-foreground">
                       <Fish className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p className="text-sm">No campaigns found. Launch your first campaign from the GoPhish page.</p>
                     </div>
@@ -463,7 +390,7 @@ export default function Dashboard() {
           {/* ═══════════════════════════════════════════════════════════════ */}
           <section>
             <h2 className="font-display text-2xl mb-4">QUICK ACTIONS</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <QuickAction
                 icon={<ExternalLink />}
                 label="OPEN CALDERA"
@@ -485,7 +412,7 @@ export default function Dashboard() {
                 onClick={() => navigate('/credentials')}
               />
             </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
               <QuickAction
                 icon={<Target />}
                 label="BROWSE ADVERSARIES"
@@ -594,7 +521,7 @@ export default function Dashboard() {
               {/* Operation Status Card */}
               <div className="bg-card border-2 border-border p-5 md:col-span-2">
                 <h3 className="font-display text-lg mb-3">OPERATION STATUS</h3>
-                <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
                   <div>
                     <div className="text-2xl font-display text-emerald-500">3</div>
                     <div className="text-xs text-muted-foreground">OPERATIONS</div>
@@ -668,27 +595,7 @@ export default function Dashboard() {
             </div>
           </section>
         </div>
-      </main>
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
-  return (
-    <Link href={href}>
-      <div className={`flex items-center gap-3 px-4 py-3 font-display tracking-wider text-sm transition-colors ${active ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'hover:bg-secondary'}`}>
-        {icon}
-        {label}
-      </div>
-    </Link>
+      </AppShell>
   );
 }
 

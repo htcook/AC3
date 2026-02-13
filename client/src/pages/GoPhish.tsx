@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
+import AppShell from "@/components/AppShell";
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <Activity className="w-4 h-4" />, label: "DASHBOARD" },
   { href: "/engagements", icon: <Briefcase className="w-4 h-4" />, label: "ENGAGEMENTS" },
@@ -33,7 +34,6 @@ const GUIDE_ITEMS = [
 
 export default function GoPhish() {
   const [, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'templates' | 'pages' | 'groups' | 'smtp'>('overview');
   const [selectedEngagementId, setSelectedEngagementId] = useState<number | null>(null);
 
@@ -75,89 +75,45 @@ export default function GoPhish() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-border">
-            <Link href="/" className="flex items-center gap-3">
-              <Cloud className="w-8 h-8 text-primary" />
-              <div className="flex flex-col">
-                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
-                <span className="text-[10px] text-muted-foreground tracking-widest">C3 — <span className="text-primary/70">CYBER CAMPAIGN COMMAND</span></span>
-              </div>
-            </Link>
-          </div>
-          <nav className="flex-1 p-4 space-y-2">
-            {NAV_ITEMS.map(item => (
-              <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} active={item.href === '/gophish'} />
-            ))}
-            <div className="border-t border-border my-3 pt-3">
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">THREAT INTEL</p>
-              <NavItem href="/apt-library" icon={<Shield className="w-4 h-4" />} label="APT SCENARIOS" />
-              <NavItem href="/compliance" icon={<FileText className="w-4 h-4" />} label="COMPLIANCE" />
-              <NavItem href="/infra-reference" icon={<Globe2 className="w-4 h-4" />} label="INFRASTRUCTURE" />
-            </div>
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
-              {GUIDE_ITEMS.map(item => (
-                <NavItem key={item.href} href={item.href} icon={item.icon} label={item.label} />
-              ))}
-            </div>
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>
-              <NavItem href="/reports/security" icon={<FileText className="w-4 h-4" />} label="SECURITY REPORT" />
-            </div>
-          </nav>
-          <div className="p-4 border-t border-border">
-            <Link href="/"><Button variant="outline" size="sm" className="w-full font-display tracking-wider"><LogOut className="w-4 h-4 mr-2" />EXIT</Button></Link>
-          </div>
-        </div>
-      </aside>
-
-      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-
-      <main className="flex-1 lg:ml-64">
-        {/* Header */}
-        <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-sm border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
+    <AppShell activePath="/gophish">
+{/* Sidebar */}
+{/* Header */}
+        <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-sm border-b border-border px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
               <div>
-                <h1 className="font-display text-2xl tracking-wider flex items-center gap-2">
-                  <Fish className="w-6 h-6 text-orange-500" />
+                <h1 className="font-display text-xl sm:text-2xl tracking-wider flex items-center gap-2">
+                  <Fish className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                   GOPHISH MANAGER
                 </h1>
-                <p className="text-sm text-muted-foreground">Phishing Campaign Management & Caldera Integration</p>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Phishing Campaign Management & Caldera Integration</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-display tracking-wider ${status?.online ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-red-500/20 text-red-400 border border-red-500/50'}`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className={`flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-display tracking-wider ${status?.online ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-red-500/20 text-red-400 border border-red-500/50'}`}>
                 <div className={`w-2 h-2 rounded-full ${status?.online ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                GOPHISH {status?.online ? 'ONLINE' : 'OFFLINE'}
+                {status?.online ? 'ONLINE' : 'OFFLINE'}
               </div>
               <Button variant="outline" size="sm" className="font-display tracking-wider" onClick={handleRefresh}>
-                <RefreshCw className="w-4 h-4 mr-2" />REFRESH
+                <RefreshCw className="w-4 h-4" /><span className="ml-1 hidden sm:inline">REFRESH</span>
               </Button>
               <Link href="/campaign-wizard">
                 <Button size="sm" className="font-display tracking-wider bg-red-600 hover:bg-red-700 text-white">
-                  <Rocket className="w-4 h-4 mr-2" />LAUNCH WIZARD
+                  <Rocket className="w-4 h-4" /><span className="ml-1 hidden sm:inline">LAUNCH WIZARD</span>
                 </Button>
               </Link>
               <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
                 <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
-                  <ExternalLink className="w-4 h-4 mr-2" />OPEN GOPHISH UI
+                  <ExternalLink className="w-4 h-4" /><span className="ml-1 hidden sm:inline">OPEN GOPHISH</span>
                 </Button>
               </a>
             </div>
           </div>
         </header>
 
-        <div className="p-6 space-y-6">
+        <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
           {/* Tab Navigation */}
-          <div className="flex gap-2 border-b border-border pb-2 overflow-x-auto">
+          <div className="flex gap-1 sm:gap-2 border-b border-border pb-2 overflow-x-auto scrollbar-none">
             {[
               { id: 'overview', label: 'OVERVIEW', icon: <BarChart3 className="w-4 h-4" /> },
               { id: 'campaigns', label: 'CAMPAIGNS', icon: <Send className="w-4 h-4" /> },
@@ -174,7 +130,7 @@ export default function GoPhish() {
                 onClick={() => setActiveTab(tab.id as any)}
               >
                 {tab.icon}
-                <span className="ml-2">{tab.label}</span>
+                <span className="ml-1 sm:ml-2 text-xs sm:text-sm">{tab.label}</span>
               </Button>
             ))}
           </div>
@@ -219,7 +175,7 @@ export default function GoPhish() {
               </div>
 
               {/* Quick Actions */}
-              <div className="grid md:grid-cols-4 gap-4">
+              <div className="grid md:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Button className="h-20 font-display tracking-wider bg-blue-600 hover:bg-blue-700" onClick={() => setActiveTab('templates')}>
                   <div className="text-center"><Mail className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE TEMPLATE</span></div>
                 </Button>
@@ -323,8 +279,7 @@ export default function GoPhish() {
             />
           )}
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }
 
@@ -914,7 +869,7 @@ function CampaignCard({ campaign, onDelete, onComplete, onClone, campaignLinks }
           <Button variant="ghost" size="sm" className="h-7 text-red-500" onClick={() => onDelete(campaign.id)}><Trash2 className="w-4 h-4" /></Button>
         </div>
       </div>
-      <div className="grid grid-cols-5 gap-4 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-3">
         <div className="text-center"><div className="text-lg font-display text-blue-400">{stats.total || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">TARGETS</div></div>
         <div className="text-center"><div className="text-lg font-display text-cyan-400">{stats.sent || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">SENT</div></div>
         <div className="text-center"><div className="text-lg font-display text-yellow-400">{stats.opened || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">OPENED</div></div>
@@ -948,13 +903,3 @@ function EmptyState({ icon, title, description }: { icon: React.ReactNode; title
   );
 }
 
-function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
-  return (
-    <Link href={href}>
-      <div className={`flex items-center gap-3 px-4 py-3 font-display tracking-wider text-sm transition-colors ${active ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'hover:bg-secondary'}`}>
-        {icon}
-        {label}
-      </div>
-    </Link>
-  );
-}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
+import { Link } from "wouter";
+import AppShell from "@/components/AppShell";
 import { Button } from '@/components/ui/button';
 
 import {
@@ -285,7 +286,7 @@ export default function AgentDeploy() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <AppShell activePath="/agents">
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="container py-4">
@@ -323,7 +324,7 @@ export default function AgentDeploy() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-4 sm:p-6 lg:p-8">
           {/* Left Panel - Platform Selection */}
           <div className="space-y-6">
             <div>
@@ -565,6 +566,6 @@ export default function AgentDeploy() {
           </div>
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }

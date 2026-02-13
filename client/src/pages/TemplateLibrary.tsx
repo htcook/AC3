@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
+import AppShell from "@/components/AppShell";
 import {
   Search, Copy, Eye, Download, ChevronDown, ChevronRight, Filter,
   Monitor, KeyRound, Cloud, DollarSign, Building2, Share2,
@@ -127,56 +128,8 @@ export default function TemplateLibrary() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0a0e1a]">
-      {/* Sidebar */}
-      <aside className="w-64 bg-[#0d1221] border-r border-white/5 flex flex-col">
-        <div className="p-4 border-b border-white/5">
-          <Link href="/dashboard">
-            <span className="text-teal-400 font-bold text-lg tracking-wider cursor-pointer">C3</span>
-            <span className="text-gray-500 text-xs ml-2">CYBER CAMPAIGN COMMAND</span>
-          </Link>
-        </div>
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-3 pb-1">Operations</div>
-          {NAV_ITEMS.map(item => (
-            <Link key={item.href} href={item.href}>
-              <span className={`flex items-center gap-2 px-3 py-2 rounded text-sm cursor-pointer transition-colors ${location === item.href ? "bg-teal-500/10 text-teal-400" : "text-gray-400 hover:text-gray-200 hover:bg-white/5"}`}>
-                {item.icon} {item.label}
-              </span>
-            </Link>
-          ))}
-          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-4 pb-1">Resources</div>
-          <Link href="/templates">
-            <span className={`flex items-center gap-2 px-3 py-2 rounded text-sm cursor-pointer transition-colors ${location === "/templates" ? "bg-teal-500/10 text-teal-400" : "text-gray-400 hover:text-gray-200 hover:bg-white/5"}`}>
-              <FileText className="w-4 h-4" /> Template Library
-            </span>
-          </Link>
-          {GUIDE_ITEMS.map(item => (
-            <Link key={item.href} href={item.href}>
-              <span className={`flex items-center gap-2 px-3 py-2 rounded text-sm cursor-pointer transition-colors ${location === item.href ? "bg-teal-500/10 text-teal-400" : "text-gray-400 hover:text-gray-200 hover:bg-white/5"}`}>
-                {item.icon} {item.label}
-              </span>
-            </Link>
-          ))}
-          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-4 pb-1">Threat Intel</div>
-          {THREAT_ITEMS.map(item => (
-            <Link key={item.href} href={item.href}>
-              <span className={`flex items-center gap-2 px-3 py-2 rounded text-sm cursor-pointer transition-colors ${location === item.href ? "bg-teal-500/10 text-teal-400" : "text-gray-400 hover:text-gray-200 hover:bg-white/5"}`}>
-                {item.icon} {item.label}
-              </span>
-            </Link>
-          ))}
-          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-3 pt-4 pb-1">Reports</div>
-          <Link href="/reports/security">
-            <span className={`flex items-center gap-2 px-3 py-2 rounded text-sm cursor-pointer transition-colors ${location === "/reports/security" ? "bg-teal-500/10 text-teal-400" : "text-gray-400 hover:text-gray-200 hover:bg-white/5"}`}>
-              <FileBarChart className="w-4 h-4" /> Security Report
-            </span>
-          </Link>
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
+    <AppShell activePath="/templates">
+      <div className="overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-[#0d1221] to-[#1a1f35] border-b border-white/5 px-8 py-6">
           <div className="flex items-center justify-between">
@@ -239,7 +192,7 @@ export default function TemplateLibrary() {
         </div>
 
         {/* Category Quick Filters */}
-        <div className="px-8 py-4 border-b border-white/5">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 border-b border-white/5">
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setSelectedCategory("all")}
@@ -260,7 +213,7 @@ export default function TemplateLibrary() {
         </div>
 
         {/* Results */}
-        <div className="px-8 py-6">
+        <div className="px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-400">
               Showing <span className="text-white font-medium">{filteredTemplates.length}</span> templates
@@ -278,7 +231,7 @@ export default function TemplateLibrary() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredTemplates.map(template => {
+              {filteredTemplates.map((template: PhishingTemplate) => {
                 const cat = TEMPLATE_CATEGORIES[template.category];
                 const diff = DIFFICULTY_COLORS[template.difficulty];
                 const isExpanded = expandedTemplate === template.id;
@@ -306,7 +259,7 @@ export default function TemplateLibrary() {
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-1.5 mt-2">
-                            {template.tags.slice(0, 5).map(tag => (
+                            {template.tags.slice(0, 5).map((tag: string) => (
                               <span key={tag} className="flex items-center gap-1 px-2 py-0.5 bg-white/5 text-gray-500 rounded text-[10px]">
                                 <Tag className="w-2.5 h-2.5" />{tag}
                               </span>
@@ -372,7 +325,7 @@ export default function TemplateLibrary() {
         </div>
 
         {/* Usage Guide */}
-        <div className="px-8 pb-8">
+        <div className="px-4 sm:px-6 lg:px-8 pb-8">
           <div className="bg-[#0d1221] border border-white/5 rounded-xl p-6">
             <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-teal-400" />
@@ -403,7 +356,7 @@ export default function TemplateLibrary() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Preview Modal */}
       {previewTemplate && (
@@ -454,6 +407,6 @@ export default function TemplateLibrary() {
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }

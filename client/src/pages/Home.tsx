@@ -84,13 +84,13 @@ export default function Home() {
       {/* Core Platform Capabilities */}
       <section className="py-20">
         <div className="container">
-          <h2 className="text-5xl md:text-6xl font-display mb-4">PLATFORM CAPABILITIES</h2>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl md:text-3xl sm:text-5xl lg:text-6xl font-display mb-4">PLATFORM CAPABILITIES</h2>
           <p className="text-lg text-muted-foreground mb-16 max-w-3xl">
             A full-spectrum offensive security operations platform combining adversary emulation, 
             social engineering, domain intelligence, and automated campaign design.
           </p>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:p-6 lg:p-8">
             <FeatureCard
               icon={<Briefcase className="w-8 h-8" />}
               title="ENGAGEMENT MANAGEMENT"
@@ -160,8 +160,8 @@ export default function Home() {
       {/* Technical Architecture */}
       <section className="py-20 bg-card">
         <div className="container">
-          <h2 className="text-5xl md:text-6xl font-display mb-16">ARCHITECTURE</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl md:text-3xl sm:text-5xl lg:text-6xl font-display mb-16">ARCHITECTURE</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:p-6 lg:p-8">
             <ArchCard
               icon={<Server className="w-6 h-6" />}
               title="CALDERA SERVER"
@@ -191,7 +191,7 @@ export default function Home() {
       {/* Stats Section */}
       <section className="py-20">
         <div className="container">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:p-6 lg:p-8 text-center">
             <StatBlock value="492" label="THREAT GROUPS" />
             <StatBlock value="1,940" label="ABILITIES" />
             <StatBlock value="12" label="TYPOSQUAT ALGORITHMS" />
@@ -205,8 +205,8 @@ export default function Home() {
       {/* Workflow */}
       <section className="py-20 bg-card">
         <div className="container">
-          <h2 className="text-5xl md:text-6xl font-display mb-16">ENGAGEMENT WORKFLOW</h2>
-          <div className="grid md:grid-cols-5 gap-6">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl md:text-3xl sm:text-5xl lg:text-6xl font-display mb-16">ENGAGEMENT WORKFLOW</h2>
+          <div className="grid md:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
             {[
               { step: "01", title: "CREATE", desc: "Set up engagement with client details and target domain" },
               { step: "02", title: "RECON", desc: "Run OSINT scan — DNS, subdomains, typosquats, spoofability" },
@@ -215,7 +215,7 @@ export default function Home() {
               { step: "05", title: "REPORT", desc: "Aggregate results and generate client-ready reports" },
             ].map((item) => (
               <div key={item.step} className="text-center">
-                <div className="text-5xl font-display text-primary mb-4">{item.step}</div>
+                <div className="text-3xl sm:text-4xl lg:text-5xl font-display text-primary mb-4">{item.step}</div>
                 <h3 className="font-display text-xl mb-2">{item.title}</h3>
                 <p className="text-sm text-muted-foreground">{item.desc}</p>
               </div>
@@ -229,8 +229,8 @@ export default function Home() {
       {/* About Ace of Cloud */}
       <section className="py-20">
         <div className="container">
-          <h2 className="text-5xl md:text-6xl font-display mb-8">ABOUT ACE OF CLOUD</h2>
-          <div className="grid md:grid-cols-2 gap-12">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl md:text-3xl sm:text-5xl lg:text-6xl font-display mb-8">ABOUT ACE OF CLOUD</h2>
+          <div className="grid md:grid-cols-2 gap-4 sm:p-8 lg:p-12">
             <div>
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
                 Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance, 
@@ -278,7 +278,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-border bg-card">
+      <footer className="py-4 sm:py-6 lg:py-8 border-t border-border bg-card">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Cloud className="w-5 h-5 text-primary" />
@@ -332,7 +332,7 @@ function ArchCard({ icon, title, items }: { icon: React.ReactNode; title: string
 function StatBlock({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <div className="font-display text-5xl md:text-7xl text-white mb-2">{value}</div>
+      <div className="font-display text-3xl sm:text-4xl lg:text-5xl md:text-7xl text-white mb-2">{value}</div>
       <div className="text-xs tracking-widest text-muted-foreground">{label}</div>
     </div>
   );

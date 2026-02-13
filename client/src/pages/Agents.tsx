@@ -30,6 +30,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { useState } from "react";
+import AppShell from "@/components/AppShell";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -170,19 +171,8 @@ export default function Agents() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="flex">
-          {/* Sidebar skeleton */}
-          <div className="w-64 min-h-screen bg-card border-r border-border p-6">
-            <Skeleton className="h-8 w-32 mb-8" />
-            <div className="space-y-4">
-              {[...Array(6)].map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          </div>
-          {/* Main content skeleton */}
-          <div className="flex-1 p-8">
+      <AppShell activePath="/agents">
+          <div className="p-4 sm:p-6 lg:p-8">
             <Skeleton className="h-12 w-64 mb-8" />
             <div className="grid gap-6">
               {[...Array(3)].map((_, i) => (
@@ -190,8 +180,7 @@ export default function Agents() {
               ))}
             </div>
           </div>
-        </div>
-      </div>
+      </AppShell>
     );
   }
 
@@ -201,84 +190,23 @@ export default function Agents() {
   const staleAgents = agentList.filter(a => getStatusText(a.last_seen) === 'Stale').length;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        {/* Sidebar */}
-        <div className="w-64 min-h-screen bg-card border-r border-border">
-          <div className="p-6">
-            <Link href="/" className="flex items-center gap-2 mb-8">
-              <Cloud className="h-8 w-8 text-primary" />
-              <span className="font-bold text-xl tracking-tight">ACE OF CLOUD</span>
-            </Link>
-            
-            <nav className="space-y-2">
-              <Link href="/dashboard">
-                <Button variant="ghost" className="w-full justify-start gap-2">
-                  <LayoutDashboard className="h-4 w-4" />
-                  Dashboard
-                </Button>
-              </Link>
-              <Link href="/credentials">
-                <Button variant="ghost" className="w-full justify-start gap-2">
-                  <Key className="h-4 w-4" />
-                  Credentials
-                </Button>
-              </Link>
-              <Link href="/adversaries">
-                <Button variant="ghost" className="w-full justify-start gap-2">
-                  <Target className="h-4 w-4" />
-                  Adversaries
-                </Button>
-              </Link>
-              <Link href="/agents">
-                <Button variant="default" className="w-full justify-start gap-2">
-                  <Cpu className="h-4 w-4" />
-                  Agents
-                </Button>
-              </Link>
-              <Link href="/campaigns">
-                <Button variant="ghost" className="w-full justify-start gap-2">
-                  <Activity className="h-4 w-4" />
-                  Campaigns
-                </Button>
-              </Link>
-              <Link href="/team">
-                <Button variant="ghost" className="w-full justify-start gap-2">
-                  <Users className="h-4 w-4" />
-                  Team
-                </Button>
-              </Link>
-            </nav>
-          </div>
-          
-          <div className="absolute bottom-0 w-64 p-6 border-t border-border">
-            <div className="text-sm text-muted-foreground">
-              <p>Signed in as</p>
-              <p className="font-medium text-foreground">Admin</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 p-8">
+    <AppShell activePath="/agents">
+        <div className="p-4 sm:p-6 lg:p-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight mb-2">DEPLOYED AGENTS</h1>
-              <p className="text-muted-foreground">Monitor and manage Caldera agents across your infrastructure</p>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-1 sm:mb-2">DEPLOYED AGENTS</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Monitor and manage Caldera agents</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => refetch()} className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
                 <RefreshCw className="h-4 w-4" />
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Link href="/agents/deploy">
-                <Button 
-                  variant="default" 
-                  className="gap-2"
-                >
+                <Button variant="default" size="sm" className="gap-2">
                   <Terminal className="h-4 w-4" />
-                  Deploy New Agent
+                  Deploy Agent
                 </Button>
               </Link>
             </div>
@@ -288,7 +216,7 @@ export default function Agents() {
           <div className="h-1 bg-red-600 mb-8" />
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <Card className="bg-card/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -338,7 +266,7 @@ export default function Agents() {
           {/* Agents List */}
           {agentList.length === 0 ? (
             <Card className="bg-card/50">
-              <CardContent className="p-12 text-center">
+              <CardContent className="p-4 sm:p-8 lg:p-12 text-center">
                 <Cpu className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-xl font-semibold mb-2">No Agents Deployed</h3>
                 <p className="text-muted-foreground mb-6">
@@ -572,7 +500,6 @@ export default function Agents() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </AppShell>
   );
 }

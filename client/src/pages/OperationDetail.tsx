@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 
+import AppShell from "@/components/AppShell";
 // MITRE ATT&CK Tactic order and colors
 const TACTIC_ORDER = [
   'reconnaissance',
@@ -76,7 +77,6 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
 export default function OperationDetail() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTactic, setSelectedTactic] = useState<string | null>(null);
 
@@ -176,59 +176,9 @@ export default function OperationDetail() {
   const statusStyle = STATUS_STYLES[operation.state] || STATUS_STYLES.paused;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-border">
-            <Link href="/" className="flex items-center gap-3">
-              <Cloud className="w-8 h-8 text-primary" />
-              <div className="flex flex-col">
-                <span className="font-display text-xl tracking-wider">ACE OF CLOUD</span>
-                <span className="text-xs text-muted-foreground tracking-widest">C3 — <span className="text-primary/70">CYBER CAMPAIGN COMMAND</span></span>
-              </div>
-            </Link>
-          </div>
-
-          <nav className="flex-1 p-4 space-y-2">
-            <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
-            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
-            <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
-            <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
-            <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
-            <NavItem href="/campaigns" icon={<Crosshair />} label="CAMPAIGNS" active />
-            <NavItem href="/team" icon={<Users />} label="TEAM" />
-            <NavItem href="/activity" icon={<FileText />} label="ACTIVITY" />
-          </nav>
-
-          <div className="p-4 border-t border-border">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-primary/20 flex items-center justify-center">
-                <span className="font-display text-primary">A</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Admin</p>
-                <p className="text-xs text-muted-foreground uppercase">ADMIN</p>
-              </div>
-            </div>
-            <Link href="/login">
-              <Button variant="outline" size="sm" className="w-full font-display tracking-wider">
-                <LogOut className="w-4 h-4 mr-2" />EXIT
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </aside>
-
-      <button
-        className="fixed top-4 left-4 z-50 lg:hidden p-2 bg-card border border-border"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-      >
-        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-      </button>
-
-      <main className="flex-1 lg:ml-64">
-        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
+    <AppShell activePath="/campaigns">
+{/* Sidebar */}
+<header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="px-6 py-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
               <Link href="/campaigns" className="hover:text-primary">Campaigns</Link>
@@ -238,7 +188,7 @@ export default function OperationDetail() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3">
-                  <h1 className="font-display text-3xl md:text-4xl">{operation.name}</h1>
+                  <h1 className="font-display text-3xl md:text-2xl sm:text-3xl lg:text-4xl">{operation.name}</h1>
                   <span className={`px-3 py-1 text-sm font-display border ${statusStyle.bg} ${statusStyle.text} flex items-center gap-2`}>
                     {statusStyle.icon}
                     {operation.state.toUpperCase()}
@@ -262,7 +212,7 @@ export default function OperationDetail() {
 
         <div className="p-6 space-y-6">
           {/* Operation Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-card border-2 border-border p-4">
               <div className="flex items-center gap-2 text-muted-foreground mb-2">
                 <Target className="w-4 h-4" />
@@ -345,7 +295,7 @@ export default function OperationDetail() {
             </div>
 
             {filteredAbilities.length === 0 ? (
-              <div className="bg-card border-2 border-border p-8 text-center">
+              <div className="bg-card border-2 border-border p-4 sm:p-6 lg:p-8 text-center">
                 <AlertTriangle className="w-8 h-8 text-yellow-500 mx-auto mb-3" />
                 <p className="text-muted-foreground">No abilities match your search criteria.</p>
               </div>
@@ -409,22 +359,7 @@ export default function OperationDetail() {
             )}
           </div>
         </div>
-      </main>
-
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-    </div>
+    </AppShell>
   );
 }
 
-function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
-  return (
-    <Link href={href}>
-      <div className={`flex items-center gap-3 px-4 py-3 font-display tracking-wider text-sm transition-colors ${active ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'hover:bg-secondary'}`}>
-        {icon}
-        {label}
-      </div>
-    </Link>
-  );
-}

@@ -12,17 +12,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
-function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
-  return (
-    <Link href={href}>
-      <div className={`flex items-center gap-3 px-4 py-2.5 text-sm tracking-wider cursor-pointer transition-colors ${active ? 'bg-primary/10 text-primary border-l-2 border-primary' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'}`}>
-        <span className="w-5 h-5">{icon}</span>
-        <span className="font-display">{label}</span>
-      </div>
-    </Link>
-  );
-}
-
+import AppShell from "@/components/AppShell";
 // Spoofability gauge component
 function SpoofGauge({ score }: { score: number }) {
   const color = score >= 60 ? 'text-red-400' : score >= 40 ? 'text-yellow-400' : 'text-green-400';
@@ -75,7 +65,6 @@ export default function OsintRecon() {
   const params = useParams<{ id: string }>();
   const engagementId = parseInt(params.id || '0');
   const [, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [domainInput, setDomainInput] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'typosquats' | 'subdomains' | 'findings'>('overview');
   const [typosquatFilter, setTyposquatFilter] = useState<string>('all');
@@ -192,34 +181,12 @@ export default function OsintRecon() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r-2 border-border transform transition-transform lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center gap-3 px-6 py-5 border-b-2 border-border">
-          <Shield className="w-6 h-6 text-primary" />
-          <span className="font-display text-lg tracking-wider">C3 PLATFORM</span>
-        </div>
-        <nav className="py-4 space-y-1">
-          <NavItem href="/dashboard" icon={<Activity className="w-5 h-5" />} label="DASHBOARD" />
-          <NavItem href="/gophish" icon={<Target className="w-5 h-5" />} label="GOPHISH" />
-          <NavItem href="/engagements" icon={<Briefcase className="w-5 h-5" />} label="ENGAGEMENTS" active />
-          <NavItem href="/campaigns" icon={<Zap className="w-5 h-5" />} label="CAMPAIGNS" />
-          <NavItem href="/campaign-wizard" icon={<Crosshair className="w-5 h-5" />} label="LAUNCH WIZARD" />
-          <NavItem href="/templates" icon={<FileText className="w-5 h-5" />} label="TEMPLATES" />
-          <NavItem href="/compliance" icon={<BookOpen className="w-5 h-5" />} label="COMPLIANCE" />
-          <NavItem href="/infrastructure" icon={<Cloud className="w-5 h-5" />} label="INFRASTRUCTURE" />
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 lg:ml-64">
-        {/* Header */}
+    <AppShell activePath="/engagements">
+{/* Sidebar */}
+{/* Header */}
         <header className="sticky top-0 z-40 bg-card/95 backdrop-blur border-b-2 border-border px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button className="lg:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
               <Link href={`/engagements`}>
                 <Button variant="ghost" size="sm" className="font-display tracking-wider">
                   <ArrowLeft className="w-4 h-4 mr-2" />BACK
@@ -663,10 +630,6 @@ export default function OsintRecon() {
             </div>
           )}
         </div>
-      </main>
-
-      {/* Mobile overlay */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-    </div>
+      </AppShell>
   );
 }

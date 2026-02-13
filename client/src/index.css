@@ -223,3 +223,27 @@
     }
   }
 }
+
+/* Mobile utilities */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ensure touch targets are at least 44px on mobile */
+@media (max-width: 639px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Prevent horizontal overflow on mobile */
+@media (max-width: 639px) {
+  body {
+    overflow-x: hidden;
+  }
+}

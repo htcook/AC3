@@ -96,7 +96,7 @@ export default function Login() {
             <Cloud className="w-10 h-10 text-primary" />
             <span className="font-display text-2xl tracking-wider text-foreground">ACE OF CLOUD</span>
           </div>
-          <h1 className="font-display text-4xl tracking-tight text-foreground mb-2">
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-tight text-foreground mb-2">
             CALDERA <span className="text-primary">COMMAND</span>
           </h1>
           <p className="text-muted-foreground">Unified Access Portal</p>
