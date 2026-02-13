@@ -28,6 +28,8 @@ import InfraReference from "./pages/InfraReference";
 import TemplateLibrary from "./pages/TemplateLibrary";
 import Engagements from "./pages/Engagements";
 import CampaignWizard from "./pages/CampaignWizard";
+import EngagementResults from "./pages/EngagementResults";
+import OsintRecon from "./pages/OsintRecon";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -137,6 +139,12 @@ function Router() {
       </Route>
       <Route path="/campaign-wizard">
         <ProtectedRoute component={CampaignWizard} />
+      </Route>
+      <Route path="/engagements/:id/results">
+        {() => <ProtectedRoute component={EngagementResults} />}
+      </Route>
+      <Route path="/engagements/:id/recon">
+        {() => <ProtectedRoute component={OsintRecon} />}
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

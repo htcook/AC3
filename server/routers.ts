@@ -568,6 +568,70 @@ export const appRouter = router({
         return fetchGophishAPI(`/api/groups/${input.id}`, 'DELETE');
       }),
 
+    // Sync phishing templates to GoPhish
+    syncTemplates: protectedProcedure
+      .input(z.object({
+        templates: z.array(z.object({
+          name: z.string(),
+          subject: z.string(),
+          html: z.string(),
+          text: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const results: Array<{ name: string; success: boolean; id?: number; error?: string }> = [];
+        
+        // Get existing templates to check for duplicates
+        const existing = await fetchGophishAPI('/api/templates/');
+        const existingNames = new Set(
+          Array.isArray(existing) ? existing.map((t: any) => t.name.toLowerCase()) : []
+        );
+        
+        for (const template of input.templates) {
+          if (existingNames.has(template.name.toLowerCase())) {
+            results.push({ name: template.name, success: true, error: 'Already exists (skipped)' });
+            continue;
+          }
+          try {
+            const result = await fetchGophishAPI('/api/templates/', 'POST', template);
+            if (result && result.id) {
+              results.push({ name: template.name, success: true, id: result.id });
+            } else {
+              results.push({ name: template.name, success: false, error: 'API returned no ID' });
+            }
+          } catch (err: any) {
+            results.push({ name: template.name, success: false, error: err.message });
+          }
+        }
+        return results;
+      }),
+
+    // Get detailed campaign results for engagement aggregation
+    getCampaignSummary: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const campaign = await fetchGophishAPI(`/api/campaigns/${input.id}`);
+        if (!campaign) return null;
+        const results = await fetchGophishAPI(`/api/campaigns/${input.id}/results`);
+        return {
+          id: campaign.id,
+          name: campaign.name,
+          status: campaign.status,
+          created_date: campaign.created_date,
+          completed_date: campaign.completed_date,
+          launch_date: campaign.launch_date,
+          send_by_date: campaign.send_by_date,
+          template: campaign.template ? { name: campaign.template.name } : null,
+          page: campaign.page ? { name: campaign.page.name } : null,
+          smtp: campaign.smtp ? { name: campaign.smtp.name, from_address: campaign.smtp.from_address } : null,
+          groups: campaign.groups || [],
+          url: campaign.url,
+          stats: campaign.stats || {},
+          timeline: campaign.timeline || [],
+          results: results?.results || [],
+        };
+      }),
+
     // Get GoPhish server status
     getStatus: publicProcedure.query(async () => {
       try {
@@ -1256,6 +1320,302 @@ export const appRouter = router({
           details: `Deleted engagement ID: ${input.id}`,
         });
         return { success: true };
+      }),
+  }),
+
+  // ==================== OSINT RECON ====================
+  osint: router({
+    // Start a full domain recon scan for an engagement
+    startRecon: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        domain: z.string().min(3),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { runFullRecon } = await import('./osint');
+        const { invokeLLM } = await import('./_core/llm');
+
+        // Create recon record in pending state
+        const reconId = await db.createDomainRecon({
+          engagementId: input.engagementId,
+          domain: input.domain,
+          scanStatus: 'running',
+          scanStartedAt: new Date(),
+        });
+
+        // Run the recon (async but we await it)
+        try {
+          const result = await runFullRecon(input.domain);
+
+          // Generate LLM spoofability analysis
+          let spoofAnalysis = '';
+          try {
+            const llmResponse = await invokeLLM({
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a red team email security analyst. Analyze the DNS/email security configuration and provide a concise tactical assessment for a phishing engagement. Be specific about what attacks are possible.'
+                },
+                {
+                  role: 'user',
+                  content: `Domain: ${input.domain}\nSPF: ${result.dns.spfRecord || 'NONE'}\nDMARC: ${result.dns.dmarcRecord || 'NONE'}\nDKIM Found: ${result.dns.dkimFound}\nMX Records: ${JSON.stringify(result.dns.mxRecords)}\nSpoof Score: ${result.spoofability.score}/100\n\nProvide a 3-4 sentence tactical assessment: Can we spoof this domain directly? What email security gaps exist? What approach do you recommend for a phishing campaign?`
+                }
+              ]
+            });
+            spoofAnalysis = (llmResponse?.choices?.[0]?.message?.content as string) || '';
+          } catch { /* LLM optional */ }
+
+          // Store findings in DB
+          await db.updateDomainRecon(reconId, {
+            mxRecords: result.dns.mxRecords as any,
+            spfRecord: result.dns.spfRecord,
+            dmarcRecord: result.dns.dmarcRecord,
+            nsRecords: result.dns.nsRecords as any,
+            aRecords: result.dns.aRecords as any,
+            subdomains: result.subdomains as any,
+            spoofable: result.spoofability.spoofable,
+            spoofScore: result.spoofability.score,
+            spoofAnalysis,
+            scanStatus: 'completed',
+            scanCompletedAt: new Date(),
+          });
+
+          // Create OSINT findings for notable items
+          const findings: any[] = [];
+
+          // DNS misconfigurations
+          for (const factor of result.spoofability.factors) {
+            if (factor.impact === 'critical' || factor.impact === 'high') {
+              findings.push({
+                engagementId: input.engagementId,
+                reconId,
+                category: 'dns_misconfiguration',
+                severity: factor.impact === 'critical' ? 'critical' : 'high',
+                title: factor.factor,
+                description: factor.detail,
+                source: 'dns_analysis',
+              });
+            }
+          }
+
+          // Subdomains as findings
+          if (result.subdomains.length > 0) {
+            findings.push({
+              engagementId: input.engagementId,
+              reconId,
+              category: 'subdomain',
+              severity: 'info',
+              title: `${result.subdomains.length} subdomains discovered via Certificate Transparency`,
+              description: `Subdomains found: ${result.subdomains.slice(0, 20).join(', ')}${result.subdomains.length > 20 ? '...' : ''}`,
+              rawData: result.subdomains as any,
+              source: 'crt.sh',
+            });
+          }
+
+          if (findings.length > 0) {
+            await db.bulkCreateOsintFindings(findings);
+          }
+
+          // Store typosquat candidates
+          if (result.typosquats.length > 0) {
+            const typosquatRecords = result.typosquats.slice(0, 200).map(t => ({
+              engagementId: input.engagementId,
+              reconId,
+              originalDomain: input.domain,
+              permutedDomain: t.domain,
+              permutationType: t.type,
+            }));
+            await db.bulkCreateTyposquatDomains(typosquatRecords);
+          }
+
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'osint_recon_completed',
+            details: `Domain recon completed for ${input.domain} (engagement ${input.engagementId}). Score: ${result.spoofability.score}/100, ${result.subdomains.length} subdomains, ${result.typosquats.length} typosquats`,
+          });
+
+          return {
+            reconId,
+            spoofScore: result.spoofability.score,
+            spoofable: result.spoofability.spoofable,
+            subdomainCount: result.subdomains.length,
+            typosquatCount: result.typosquats.length,
+          };
+        } catch (err: any) {
+          await db.updateDomainRecon(reconId, {
+            scanStatus: 'failed',
+            scanCompletedAt: new Date(),
+          });
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: err.message });
+        }
+      }),
+
+    // Get recon results for an engagement
+    getRecon: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getDomainReconByEngagement(input.engagementId);
+      }),
+
+    // Get single recon by ID
+    getReconById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getDomainReconById(input.id);
+      }),
+
+    // Get typosquat domains for an engagement
+    getTyposquats: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getTyposquatsByEngagement(input.engagementId);
+      }),
+
+    // Check DNS resolution for a specific typosquat domain
+    checkTyposquat: protectedProcedure
+      .input(z.object({ id: z.number(), domain: z.string() }))
+      .mutation(async ({ input }) => {
+        const { checkDomainRegistration } = await import('./osint');
+        const result = await checkDomainRegistration(input.domain);
+        await db.updateTyposquatDomain(input.id, {
+          isRegistered: result.resolved,
+          dnsResolved: result.resolved,
+          resolvedIp: result.ip,
+          mxRecords: result.mx as any,
+        });
+        return result;
+      }),
+
+    // Batch check typosquat domains (check top N)
+    batchCheckTyposquats: protectedProcedure
+      .input(z.object({ reconId: z.number(), limit: z.number().min(1).max(50).default(20) }))
+      .mutation(async ({ input }) => {
+        const { checkDomainRegistration } = await import('./osint');
+        const domains = await db.getTyposquatsByRecon(input.reconId);
+        const toCheck = domains.slice(0, input.limit);
+        const results: Array<{ id: number; domain: string; resolved: boolean; ip: string | null }> = [];
+
+        for (const d of toCheck) {
+          try {
+            const result = await checkDomainRegistration(d.permutedDomain);
+            await db.updateTyposquatDomain(d.id, {
+              isRegistered: result.resolved,
+              dnsResolved: result.resolved,
+              resolvedIp: result.ip,
+              mxRecords: result.mx as any,
+            });
+            results.push({ id: d.id, domain: d.permutedDomain, resolved: result.resolved, ip: result.ip });
+          } catch {
+            results.push({ id: d.id, domain: d.permutedDomain, resolved: false, ip: null });
+          }
+        }
+        return results;
+      }),
+
+    // Update typosquat domain status (purchased, configured, etc.)
+    updateTyposquatStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['discovered', 'recommended', 'purchased', 'configured', 'in_use', 'transferred', 'released']),
+        registrar: z.string().optional(),
+        annualCost: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...updates } = input;
+        await db.updateTyposquatDomain(id, updates);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'typosquat_status_updated',
+          details: `Updated typosquat domain ID ${id} to status: ${input.status}`,
+        });
+        return { success: true };
+      }),
+
+    // Get OSINT findings for an engagement
+    getFindings: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getOsintFindingsByEngagement(input.engagementId);
+      }),
+
+    // Auto-design campaign from OSINT findings using LLM
+    autoCampaignDesign: protectedProcedure
+      .input(z.object({ engagementId: z.number(), reconId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        const recon = await db.getDomainReconById(input.reconId);
+        const findings = await db.getOsintFindingsByRecon(input.reconId);
+
+        if (!recon) throw new TRPCError({ code: 'NOT_FOUND', message: 'Recon not found' });
+
+        const prompt = `You are a red team campaign designer for an MSP cybersecurity assessment. Based on the following OSINT reconnaissance data, design 3 phishing campaign strategies.
+
+Target Domain: ${recon.domain}
+Spoof Score: ${recon.spoofScore}/100 (${recon.spoofable ? 'SPOOFABLE' : 'NOT EASILY SPOOFABLE'})
+SPF: ${recon.spfRecord || 'NONE'}
+DMARC: ${recon.dmarcRecord || 'NONE'}
+Subdomains Found: ${(recon.subdomains as any[])?.length || 0}
+Key Findings:
+${findings.map(f => `- [${f.severity?.toUpperCase()}] ${f.title}: ${f.description}`).join('\n')}
+
+For each campaign, provide:
+1. Campaign Name
+2. Attack Vector (direct spoof, lookalike domain, or compromised subdomain)
+3. Phishing Pretext (what the email pretends to be)
+4. Recommended Template Type (password reset, IT helpdesk, invoice, etc.)
+5. Target Audience (all employees, IT staff, executives, etc.)
+6. Landing Page Strategy (credential harvest, malware download, etc.)
+7. Recommended Sending Domain (spoof original or use typosquat)
+8. Risk Level (low/medium/high detection risk)
+
+Respond in JSON format as an array of 3 campaign objects.`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: 'system', content: 'You are an expert red team campaign designer. Always respond with valid JSON.' },
+              { role: 'user', content: prompt },
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'campaign_designs',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    campaigns: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          name: { type: 'string' },
+                          attackVector: { type: 'string' },
+                          pretext: { type: 'string' },
+                          templateType: { type: 'string' },
+                          targetAudience: { type: 'string' },
+                          landingPageStrategy: { type: 'string' },
+                          sendingDomain: { type: 'string' },
+                          riskLevel: { type: 'string' },
+                        },
+                        required: ['name', 'attackVector', 'pretext', 'templateType', 'targetAudience', 'landingPageStrategy', 'sendingDomain', 'riskLevel'],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ['campaigns'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const content = (response?.choices?.[0]?.message?.content as string) || '{"campaigns":[]}';
+          return JSON.parse(content);
+        } catch (err: any) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to generate campaign designs: ' + err.message });
+        }
       }),
   }),
 });

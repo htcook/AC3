@@ -640,3 +640,48 @@
 - [x] Add unlink functionality with confirmation
 - [x] Add LAUNCH button on engagement cards to open wizard
 - [x] Write vitest tests for campaign-engagement linking (10 tests passing)
+
+## Per-Engagement Results Dashboard
+- [x] Create EngagementResults page with aggregated campaign stats
+- [x] Show emails sent, opened, clicked, credentials captured per engagement
+- [x] Add campaign breakdown table within engagement view
+- [x] Add visual charts/progress bars for engagement metrics
+- [x] Add route and navigation link for engagement results
+- [x] Add credential harvest details per campaign
+
+## Pre-populate Help Desk Phishing Templates into GoPhish
+- [x] Add backend tRPC procedure to push templates to GoPhish API
+- [x] Create "Sync Templates" button in wizard and template library
+- [x] Push all 9 help desk templates (Zendesk, ServiceNow, Jira, etc.) to GoPhish
+- [x] Show sync status and success/failure feedback
+- [x] Handle duplicate template names gracefully
+
+## Campaign Cloning
+- [x] Add "Clone" button to campaign cards in GoPhish page
+- [x] Pre-populate wizard with cloned campaign configuration
+- [x] Support cloning template, target group, SMTP profile, landing page, and engagement
+- [x] Add clone entry point from campaign results view
+
+## Caldera Open Source Research
+- [x] Research open-source Caldera plugins and extensions
+- [x] Research Caldera customizations and community contributions
+- [x] Research additional threat actors with mappable ATT&CK data
+- [x] Compile findings into a comprehensive research document
+
+## OSINT-Driven Engagement Builder
+- [x] Design OSINT recon data schema (domain intel, subdomains, emails, tech stack, dark web mentions)
+- [x] Build domain reconnaissance backend (DNS, WHOIS, subdomain enum, email harvest)
+- [x] Build typosquat domain generator and availability checker
+- [x] Build dark web / leak site mention scanner
+- [x] Build OSINT Recon tab in engagement detail UI
+- [x] Build typosquat domain management panel (discover, register, track, transfer)
+- [x] Build auto-campaign designer that uses OSINT findings to pre-fill Caldera campaigns
+- [x] Integrate OSINT findings into phishing template customization
+- [x] Add MX record check for target domain (determine spoofability)
+- [x] Add SPF/DKIM/DMARC policy analysis for email spoofing assessment
+- [x] Show spoof-vs-buy recommendation in typosquat panel
+
+## Landing Page Update
+- [x] Audit all current platform capabilities and features
+- [x] Rewrite landing page feature descriptions to match actual built features
+- [x] Update hero section, feature cards, and capability descriptions

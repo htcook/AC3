@@ -6,7 +6,7 @@ import {
   Activity, Key, Target, Cpu, Zap, Users, FileText, Cloud, BookOpen,
   Shield, Globe2, LogOut, Menu, X, Plus, Briefcase, Calendar, MapPin,
   MoreVertical, Pencil, Trash2, ChevronRight, Search, Filter, Rocket,
-  Send, Link2, Unlink, ExternalLink, Fish, Eye
+  Send, Link2, Unlink, ExternalLink, Fish, Eye, BarChart3, Radar
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -494,6 +494,26 @@ export default function Engagements() {
                         <Link2 className="w-3.5 h-3.5 mr-1" />
                         LINK
                       </Button>
+                      <Link href={`/engagements/${engagement.id}/results`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="font-display tracking-wider text-primary hover:text-primary/80"
+                        >
+                          <BarChart3 className="w-3.5 h-3.5 mr-1" />
+                          RESULTS
+                        </Button>
+                      </Link>
+                      <Link href={`/engagements/${engagement.id}/recon`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="font-display tracking-wider text-orange-400 hover:text-orange-300"
+                        >
+                          <Radar className="w-3.5 h-3.5 mr-1" />
+                          RECON
+                        </Button>
+                      </Link>
                       <Button
                         variant="outline"
                         size="sm"

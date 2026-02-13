@@ -1,18 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { 
-  Key, 
-  Terminal, 
-  Activity, 
-  Users, 
-  ExternalLink,
-  ChevronRight,
-  Zap,
-  Cloud,
-  Mail,
-  Phone,
-  MapPin,
-  Target
+  Key, Terminal, Activity, Users, ExternalLink, ChevronRight, Zap, Cloud,
+  Mail, Phone, MapPin, Target, Shield, Radar, Globe, Crosshair, FileText,
+  Briefcase, BarChart3, Sparkles, Network, Lock, Fingerprint, Scan,
+  BookOpen, Server, Cpu, Eye
 } from "lucide-react";
 
 export default function Home() {
@@ -48,23 +40,22 @@ export default function Home() {
               <span className="text-primary">COMMAND</span>
             </h1>
             
-            {/* Teal Divider */}
             <div className="w-full h-1 bg-primary my-8" />
             
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-6 leading-relaxed">
-              <span className="text-primary font-semibold">C3</span> — Your unified command center for offensive security operations. 
-              Combine MITRE Caldera adversary emulation with GoPhish phishing campaigns to orchestrate, 
-              monitor, and report on full-spectrum attack simulations from a single dashboard.
+              <span className="text-primary font-semibold">C3</span> — The unified offensive security platform for MSPs and red teams. 
+              Orchestrate MITRE Caldera adversary emulation, GoPhish phishing campaigns, OSINT reconnaissance, 
+              and AI-powered campaign design from a single command center.
             </p>
             
             <p className="text-lg text-primary mb-12">
-              Powered by <span className="font-semibold">Ace of Cloud</span> — Cutting-Edge Cybersecurity Solutions
+              Built by <span className="font-semibold">Harrison Cook</span> — Powered by <span className="font-semibold">Ace of Cloud</span>
             </p>
 
             <div className="flex flex-wrap gap-4">
               <Link href="/dashboard">
                 <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg">
-                  GET STARTED
+                  ENTER COMMAND CENTER
                   <ChevronRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
@@ -88,65 +79,151 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Teal Divider Full Width */}
       <div className="w-full h-1 bg-primary" />
 
-      {/* Features Grid */}
+      {/* Core Platform Capabilities */}
       <section className="py-20">
         <div className="container">
-          <h2 className="text-5xl md:text-6xl font-display mb-16">CAPABILITIES</h2>
+          <h2 className="text-5xl md:text-6xl font-display mb-4">PLATFORM CAPABILITIES</h2>
+          <p className="text-lg text-muted-foreground mb-16 max-w-3xl">
+            A full-spectrum offensive security operations platform combining adversary emulation, 
+            social engineering, domain intelligence, and automated campaign design.
+          </p>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <FeatureCard
+              icon={<Briefcase className="w-8 h-8" />}
+              title="ENGAGEMENT MANAGEMENT"
+              description="Create and manage client engagements with full lifecycle tracking — from planning through active assessment to completion. Link campaigns, track results, and maintain audit trails per engagement."
+            />
+            <FeatureCard
+              icon={<Radar className="w-8 h-8" />}
+              title="OSINT RECONNAISSANCE"
+              description="Automated domain intelligence gathering: DNS/MX record analysis, SPF/DKIM/DMARC security assessment, subdomain enumeration via Certificate Transparency, and email spoofability scoring."
+            />
+            <FeatureCard
+              icon={<Globe className="w-8 h-8" />}
+              title="TYPOSQUAT DISCOVERY"
+              description="Generate lookalike domains using 12 permutation algorithms (bitsquatting, homoglyph, transposition, etc.). Batch-check availability, track purchase status, and manage domain lifecycle for engagements."
+            />
+            <FeatureCard
+              icon={<Sparkles className="w-8 h-8" />}
+              title="AI CAMPAIGN DESIGNER"
+              description="LLM-powered campaign auto-design that analyzes OSINT findings and generates tailored phishing strategies — including attack vectors, pretexts, templates, and sending domain recommendations."
+            />
+            <FeatureCard
+              icon={<Lock className="w-8 h-8" />}
+              title="SPOOFABILITY ANALYSIS"
+              description="Comprehensive email security assessment with MX record checks, SPF/DKIM/DMARC policy analysis, and a 0-100 spoofability score. Determines whether to spoof directly or purchase a lookalike domain."
+            />
+            <FeatureCard
+              icon={<Crosshair className="w-8 h-8" />}
+              title="CAMPAIGN WIZARD"
+              description="Guided 6-step campaign creation flow: engagement selection, template preview, target group configuration, SMTP profile, landing page, and launch — all without switching to the GoPhish UI."
+            />
+            <FeatureCard
+              icon={<Target className="w-8 h-8" />}
+              title="GOPHISH INTEGRATION"
+              description="Full GoPhish API proxy with campaign management, template library with 9 help desk phishing templates (Zendesk, ServiceNow, Jira, etc.), one-click template sync, and campaign cloning."
+            />
+            <FeatureCard
               icon={<Activity className="w-8 h-8" />}
-              title="SERVER MONITORING"
-              description="Real-time health checks, uptime tracking, and resource monitoring for your Caldera deployment."
+              title="CALDERA EMULATION"
+              description="MITRE Caldera adversary emulation with real-time operation monitoring, agent deployment, ability execution tracking, and integration with 490+ threat group profiles."
+            />
+            <FeatureCard
+              icon={<BarChart3 className="w-8 h-8" />}
+              title="ENGAGEMENT RESULTS"
+              description="Per-engagement results dashboard aggregating campaign stats: emails sent, opened, clicked, and credentials captured — with visual funnel charts and timeline views for client reporting."
+            />
+            <FeatureCard
+              icon={<FileText className="w-8 h-8" />}
+              title="TEMPLATE LIBRARY"
+              description="9 pre-built help desk phishing templates covering Zendesk, ServiceNow, Jira, Freshdesk, ConnectWise, and more. Live preview with desktop/tablet/mobile views and GoPhish variable rendering."
             />
             <FeatureCard
               icon={<Key className="w-8 h-8" />}
               title="CREDENTIAL VAULT"
-              description="Secure storage and management of admin credentials, API keys, and SSH access details."
+              description="Secure storage and management of admin credentials, API keys, SSH access, and server configurations with role-based access control."
             />
             <FeatureCard
-              icon={<Terminal className="w-8 h-8" />}
-              title="API INTEGRATION"
-              description="Live statistics from Caldera API showing adversaries, abilities, and active operations."
-            />
-            <FeatureCard
-              icon={<Users className="w-8 h-8" />}
-              title="TEAM ACCESS"
-              description="Role-based permissions for team members with admin, user, and viewer access levels."
-            />
-            <FeatureCard
-              icon={<Zap className="w-8 h-8" />}
-              title="QUICK ACTIONS"
-              description="One-click access to Caldera UI, SSH commands, and API testing utilities."
-            />
-            <FeatureCard
-              icon={<Target className="w-8 h-8" />}
-              title="THREAT BROWSER"
-              description="Browse 490+ MITRE ATT&CK threat group profiles and APT29 VCD campaigns."
+              icon={<BookOpen className="w-8 h-8" />}
+              title="COMPLIANCE & REPORTING"
+              description="NIST CSF, CMMC, and FedRAMP compliance framework mapping. Security report generation and APT library with 490+ threat group profiles and MITRE ATT&CK technique mapping."
             />
           </div>
         </div>
       </section>
 
-      {/* Teal Divider Full Width */}
+      <div className="w-full h-1 bg-primary" />
+
+      {/* Technical Architecture */}
+      <section className="py-20 bg-card">
+        <div className="container">
+          <h2 className="text-5xl md:text-6xl font-display mb-16">ARCHITECTURE</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <ArchCard
+              icon={<Server className="w-6 h-6" />}
+              title="CALDERA SERVER"
+              items={["Adversary Emulation", "Agent Deployment", "Operation Monitoring", "Ability Execution"]}
+            />
+            <ArchCard
+              icon={<Target className="w-6 h-6" />}
+              title="GOPHISH SERVER"
+              items={["Email Campaigns", "Credential Harvesting", "Landing Pages", "Template Engine"]}
+            />
+            <ArchCard
+              icon={<Radar className="w-6 h-6" />}
+              title="OSINT ENGINE"
+              items={["DNS Analysis", "Subdomain Enum", "Typosquat Gen", "Spoofability Scoring"]}
+            />
+            <ArchCard
+              icon={<Sparkles className="w-6 h-6" />}
+              title="AI LAYER"
+              items={["Campaign Design", "Tactical Assessment", "Spoof Analysis", "Threat Mapping"]}
+            />
+          </div>
+        </div>
+      </section>
+
       <div className="w-full h-1 bg-primary" />
 
       {/* Stats Section */}
-      <section className="py-20 bg-card">
+      <section className="py-20">
         <div className="container">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <StatBlock value="492" label="ADVERSARIES" />
+            <StatBlock value="492" label="THREAT GROUPS" />
             <StatBlock value="1,940" label="ABILITIES" />
-            <StatBlock value="348" label="ADVERSARY TTP'S" />
-            <StatBlock value="24/7" label="MONITORING" />
+            <StatBlock value="12" label="TYPOSQUAT ALGORITHMS" />
+            <StatBlock value="9" label="PHISHING TEMPLATES" />
           </div>
         </div>
       </section>
 
-      {/* Teal Divider Full Width */}
+      <div className="w-full h-1 bg-primary" />
+
+      {/* Workflow */}
+      <section className="py-20 bg-card">
+        <div className="container">
+          <h2 className="text-5xl md:text-6xl font-display mb-16">ENGAGEMENT WORKFLOW</h2>
+          <div className="grid md:grid-cols-5 gap-6">
+            {[
+              { step: "01", title: "CREATE", desc: "Set up engagement with client details and target domain" },
+              { step: "02", title: "RECON", desc: "Run OSINT scan — DNS, subdomains, typosquats, spoofability" },
+              { step: "03", title: "DESIGN", desc: "AI generates campaign strategies from OSINT findings" },
+              { step: "04", title: "LAUNCH", desc: "Deploy phishing campaigns and adversary emulations" },
+              { step: "05", title: "REPORT", desc: "Aggregate results and generate client-ready reports" },
+            ].map((item) => (
+              <div key={item.step} className="text-center">
+                <div className="text-5xl font-display text-primary mb-4">{item.step}</div>
+                <h3 className="font-display text-xl mb-2">{item.title}</h3>
+                <p className="text-sm text-muted-foreground">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <div className="w-full h-1 bg-primary" />
 
       {/* About Ace of Cloud */}
@@ -156,12 +233,15 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-12">
             <div>
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-                Ace of Cloud provides reliable compliance and data migration services tailored to your needs. 
-                Trust us to secure your digital assets with cutting-edge cybersecurity solutions.
+                Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance, 
+                CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response. 
+                The C3 platform represents our commitment to building tools that empower MSPs and red teams 
+                with enterprise-grade offensive security capabilities.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Our services include FedRAMP Compliance, CMMC Preparation, Security Advisory, 
-                Secure Cloud Architecture, and Incident Response.
+                Designed and built by Harrison Cook, C3 integrates open-source tools like MITRE Caldera 
+                and GoPhish with custom OSINT reconnaissance, AI-powered campaign design, and comprehensive 
+                engagement management into a unified command center.
               </p>
               <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white">
@@ -205,7 +285,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE OF CLOUD</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            C3 — Cyber Campaign Command | Powered by Ace of Cloud Cybersecurity
+            C3 — Cyber Campaign Command | Built by Harrison Cook | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
@@ -226,6 +306,25 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode; titl
       </div>
       <h3 className="font-display text-2xl mb-3">{title}</h3>
       <p className="text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function ArchCard({ icon, title, items }: { icon: React.ReactNode; title: string; items: string[] }) {
+  return (
+    <div className="bg-background border-2 border-border p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="text-primary">{icon}</div>
+        <h3 className="font-display text-lg tracking-wider">{title}</h3>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-1.5 h-1.5 bg-primary" />
+            {item}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

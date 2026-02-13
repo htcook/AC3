@@ -376,3 +376,104 @@ export async function unlinkCampaignFromEngagement(id: number) {
   if (!db) return;
   await db.delete(campaignEngagements).where(eq(campaignEngagements.id, id));
 }
+
+// ==================== OSINT DOMAIN RECON ====================
+import { domainRecon, InsertDomainRecon, typosquatDomains, InsertTyposquatDomain, osintFindings, InsertOsintFinding } from "../drizzle/schema";
+
+export async function createDomainRecon(recon: InsertDomainRecon) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(domainRecon).values(recon);
+  return Number(result[0].insertId);
+}
+
+export async function updateDomainRecon(id: number, data: Partial<InsertDomainRecon>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(domainRecon).set(data).where(eq(domainRecon.id, id));
+}
+
+export async function getDomainReconByEngagement(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(domainRecon)
+    .where(eq(domainRecon.engagementId, engagementId))
+    .orderBy(desc(domainRecon.createdAt));
+}
+
+export async function getDomainReconById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(domainRecon).where(eq(domainRecon.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// ==================== TYPOSQUAT DOMAINS ====================
+
+export async function createTyposquatDomain(domain: InsertTyposquatDomain) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(typosquatDomains).values(domain);
+  return Number(result[0].insertId);
+}
+
+export async function bulkCreateTyposquatDomains(domains: InsertTyposquatDomain[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (domains.length === 0) return;
+  await db.insert(typosquatDomains).values(domains);
+}
+
+export async function updateTyposquatDomain(id: number, data: Partial<InsertTyposquatDomain>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(typosquatDomains).set(data).where(eq(typosquatDomains.id, id));
+}
+
+export async function getTyposquatsByRecon(reconId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(typosquatDomains)
+    .where(eq(typosquatDomains.reconId, reconId))
+    .orderBy(desc(typosquatDomains.createdAt));
+}
+
+export async function getTyposquatsByEngagement(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(typosquatDomains)
+    .where(eq(typosquatDomains.engagementId, engagementId))
+    .orderBy(desc(typosquatDomains.createdAt));
+}
+
+// ==================== OSINT FINDINGS ====================
+
+export async function createOsintFinding(finding: InsertOsintFinding) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(osintFindings).values(finding);
+  return Number(result[0].insertId);
+}
+
+export async function bulkCreateOsintFindings(findings: InsertOsintFinding[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (findings.length === 0) return;
+  await db.insert(osintFindings).values(findings);
+}
+
+export async function getOsintFindingsByEngagement(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(osintFindings)
+    .where(eq(osintFindings.engagementId, engagementId))
+    .orderBy(desc(osintFindings.createdAt));
+}
+
+export async function getOsintFindingsByRecon(reconId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(osintFindings)
+    .where(eq(osintFindings.reconId, reconId))
+    .orderBy(desc(osintFindings.createdAt));
+}

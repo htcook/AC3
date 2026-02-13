@@ -8,7 +8,7 @@ import {
   Plus, RefreshCw, CheckCircle, Clock, AlertTriangle, Play,
   Crosshair, BarChart3, MousePointer, ShieldAlert, Eye, Trash2,
   Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen,
-  Shield, Globe2, Briefcase, Rocket, Filter
+  Shield, Globe2, Briefcase, Rocket, Filter, Download
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -331,6 +331,19 @@ export default function GoPhish() {
 // ==================== CAMPAIGNS PANEL ====================
 function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingProfiles, onLaunch, onDelete, onComplete, isLaunching, engagementFilter, campaignLinks }: any) {
   const [, navigate] = useLocation();
+
+  const handleClone = (campaign: any) => {
+    // Build query params from campaign config to pre-fill the wizard
+    const params = new URLSearchParams();
+    params.set('clone', '1');
+    params.set('name', `${campaign.name} (Clone)`);
+    if (campaign.template?.name) params.set('template', campaign.template.name);
+    if (campaign.page?.name) params.set('page', campaign.page.name);
+    if (campaign.smtp?.name) params.set('smtp', campaign.smtp.name);
+    if (campaign.url) params.set('url', campaign.url);
+    if (campaign.groups?.[0]?.name) params.set('group', campaign.groups[0].name);
+    navigate(`/campaign-wizard?${params.toString()}`);
+  };
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', template: '', page: '', smtp: '', group: '', url: 'https://aceofcloud.io' });
 
@@ -431,7 +444,7 @@ function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingPro
       {Array.isArray(filteredCampaigns) && filteredCampaigns.length > 0 ? (
         <div className="space-y-3">
           {filteredCampaigns.map((campaign: any) => (
-            <CampaignCard key={campaign.id} campaign={campaign} onDelete={onDelete} onComplete={onComplete} campaignLinks={campaignLinks} />
+            <CampaignCard key={campaign.id} campaign={campaign} onDelete={onDelete} onComplete={onComplete} onClone={handleClone} campaignLinks={campaignLinks} />
           ))}
         </div>
       ) : (
@@ -446,6 +459,8 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', subject: '', html: '', text: '' });
+  const [syncing, setSyncing] = useState(false);
+  const syncTemplates = trpc.gophishProxy.syncTemplates.useMutation();
 
   const handleSave = () => {
     if (!form.name || !form.subject || !form.html) { toast.error("Name, subject, and HTML are required"); return; }
@@ -469,9 +484,40 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-xl tracking-wider">EMAIL TEMPLATES</h2>
-        <Button size="sm" className="font-display tracking-wider bg-blue-500 hover:bg-blue-600 text-white" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', subject: '', html: '', text: '' }); }}>
-          {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW TEMPLATE</>}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="font-display tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={syncing}
+            onClick={async () => {
+              setSyncing(true);
+              try {
+                // Dynamically import the phishing templates
+                const { PHISHING_TEMPLATES } = await import('@/data/phishing-templates');
+                const toSync = PHISHING_TEMPLATES.map(t => ({
+                  name: `[C3] ${t.name}`,
+                  subject: t.subjectLine,
+                  html: t.htmlContent,
+                  text: t.previewText,
+                }));
+                const results = await syncTemplates.mutateAsync({ templates: toSync });
+                const created = results.filter((r: any) => r.success && !r.error).length;
+                const skipped = results.filter((r: any) => r.error?.includes('Already exists')).length;
+                const failed = results.filter((r: any) => !r.success).length;
+                toast.success(`Synced: ${created} created, ${skipped} already existed${failed > 0 ? `, ${failed} failed` : ''}`);
+              } catch (err: any) {
+                toast.error(err.message || 'Failed to sync templates');
+              } finally {
+                setSyncing(false);
+              }
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />{syncing ? 'SYNCING...' : 'SYNC C3 TEMPLATES'}
+          </Button>
+          <Button size="sm" className="font-display tracking-wider bg-blue-500 hover:bg-blue-600 text-white" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', subject: '', html: '', text: '' }); }}>
+            {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW TEMPLATE</>}
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -843,7 +889,7 @@ function StatusCard({ label, value, icon, color }: { label: string; value: numbe
   );
 }
 
-function CampaignCard({ campaign, onDelete, onComplete, campaignLinks }: { campaign: any; onDelete: (id: number) => void; onComplete: (id: number) => void; campaignLinks?: any[] }) {
+function CampaignCard({ campaign, onDelete, onComplete, onClone, campaignLinks }: { campaign: any; onDelete: (id: number) => void; onComplete: (id: number) => void; onClone?: (campaign: any) => void; campaignLinks?: any[] }) {
   const linkedEngagement = campaignLinks?.find((link: any) => link.gophishCampaignId === campaign.id);
   const statusColors: Record<string, string> = {
     'In progress': 'bg-green-500/20 text-green-400 border-green-500',
@@ -864,6 +910,7 @@ function CampaignCard({ campaign, onDelete, onComplete, campaignLinks }: { campa
         <div className="flex items-center gap-2">
           <span className={`text-xs font-display tracking-wider px-3 py-1 border ${statusStyle}`}>{campaign.status?.toUpperCase() || 'UNKNOWN'}</span>
           {campaign.status !== 'Completed' && <Button variant="ghost" size="sm" className="h-7 text-blue-400" onClick={() => onComplete(campaign.id)}><CheckCircle className="w-4 h-4" /></Button>}
+          {onClone && <Button variant="ghost" size="sm" className="h-7 text-cyan-400" title="Clone campaign" onClick={() => onClone(campaign)}><Copy className="w-4 h-4" /></Button>}
           <Button variant="ghost" size="sm" className="h-7 text-red-500" onClick={() => onDelete(campaign.id)}><Trash2 className="w-4 h-4" /></Button>
         </div>
       </div>

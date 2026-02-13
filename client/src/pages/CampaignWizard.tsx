@@ -9,7 +9,7 @@ import {
   Mail, Send, Globe, UserPlus, Briefcase, Rocket, Eye, Plus, Trash2,
   Upload, Clock, AlertTriangle, Search, LayoutTemplate, MousePointerClick
 } from "lucide-react";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
   return (
@@ -43,6 +43,7 @@ export default function CampaignWizard() {
   const [, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [cloneApplied, setCloneApplied] = useState(false);
 
   // Wizard state
   const [campaignName, setCampaignName] = useState("");
@@ -90,6 +91,45 @@ export default function CampaignWizard() {
     landingPages?.find((p: any) => p.id === selectedPageId), [landingPages, selectedPageId]);
   const selectedEngagement = useMemo(() =>
     engagements?.find((e: any) => e.id === selectedEngagementId), [engagements, selectedEngagementId]);
+
+  // Clone pre-fill from URL params
+  useEffect(() => {
+    if (cloneApplied) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('clone') !== '1') return;
+    if (!templates || !sendingProfiles || !landingPages || !groups) return;
+
+    const name = params.get('name');
+    const templateName = params.get('template');
+    const pageName = params.get('page');
+    const smtpName = params.get('smtp');
+    const groupName = params.get('group');
+    const url = params.get('url');
+
+    if (name) setCampaignName(name);
+    if (url) setPhishingUrl(url);
+
+    if (templateName) {
+      const t = templates.find((t: any) => t.name === templateName);
+      if (t) setSelectedTemplateId(t.id);
+    }
+    if (pageName) {
+      const p = landingPages.find((p: any) => p.name === pageName);
+      if (p) setSelectedPageId(p.id);
+    }
+    if (smtpName) {
+      const s = sendingProfiles.find((s: any) => s.name === smtpName);
+      if (s) setSelectedSmtpId(s.id);
+    }
+    if (groupName) {
+      const g = groups.find((g: any) => g.name === groupName);
+      if (g) setSelectedGroupId(g.id);
+    }
+
+    setCloneApplied(true);
+    setCurrentStep(6); // Jump to review step
+    toast.success('Campaign configuration cloned — review and adjust before launching');
+  }, [cloneApplied, templates, sendingProfiles, landingPages, groups]);
 
   // Validation per step
   const canProceed = useCallback(() => {

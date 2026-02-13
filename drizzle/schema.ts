@@ -203,3 +203,113 @@ export const campaignEngagements = mysqlTable("campaign_engagements", {
 
 export type CampaignEngagement = typeof campaignEngagements.$inferSelect;
 export type InsertCampaignEngagement = typeof campaignEngagements.$inferInsert;
+
+/**
+ * OSINT domain reconnaissance results per engagement
+ */
+export const domainRecon = mysqlTable("domain_recon", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId").notNull(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  // DNS records
+  mxRecords: json("mxRecords"),
+  spfRecord: text("spfRecord"),
+  dmarcRecord: text("dmarcRecord"),
+  dkimSelector: text("dkimSelector"),
+  nsRecords: json("nsRecords"),
+  aRecords: json("aRecords"),
+  // Spoofability assessment
+  spoofable: boolean("spoofable").default(false),
+  spoofScore: int("spoofScore").default(0), // 0-100, higher = easier to spoof
+  spoofAnalysis: text("spoofAnalysis"), // LLM-generated analysis
+  // Subdomains from crt.sh
+  subdomains: json("subdomains"),
+  // WHOIS data
+  whoisData: json("whoisData"),
+  // Tech stack detection
+  techStack: json("techStack"),
+  // Breach/leak data
+  breachData: json("breachData"),
+  // Emails discovered
+  discoveredEmails: json("discoveredEmails"),
+  // Raw scan output
+  scanStatus: mysqlEnum("scanStatus", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
+  scanStartedAt: timestamp("scanStartedAt"),
+  scanCompletedAt: timestamp("scanCompletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DomainRecon = typeof domainRecon.$inferSelect;
+export type InsertDomainRecon = typeof domainRecon.$inferInsert;
+
+/**
+ * Typosquat domain candidates discovered per engagement
+ */
+export const typosquatDomains = mysqlTable("typosquat_domains", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId").notNull(),
+  reconId: int("reconId").notNull(), // links to domainRecon
+  originalDomain: varchar("originalDomain", { length: 255 }).notNull(),
+  permutedDomain: varchar("permutedDomain", { length: 255 }).notNull(),
+  permutationType: varchar("permutationType", { length: 64 }).notNull(), // bitsquatting, homoglyph, insertion, etc.
+  isRegistered: boolean("isRegistered").default(false),
+  dnsResolved: boolean("dnsResolved").default(false),
+  resolvedIp: varchar("resolvedIp", { length: 45 }),
+  // MX/SPF/DMARC for the typosquat domain
+  mxRecords: json("mxRecords"),
+  spoofable: boolean("spoofable").default(false),
+  // Management status
+  status: mysqlEnum("status", [
+    "discovered",
+    "recommended",
+    "purchased",
+    "configured",
+    "in_use",
+    "transferred",
+    "released"
+  ]).default("discovered").notNull(),
+  registrar: varchar("registrar", { length: 255 }),
+  purchaseDate: timestamp("purchaseDate"),
+  expiryDate: timestamp("expiryDate"),
+  annualCost: varchar("annualCost", { length: 32 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TyposquatDomain = typeof typosquatDomains.$inferSelect;
+export type InsertTyposquatDomain = typeof typosquatDomains.$inferInsert;
+
+/**
+ * OSINT findings that feed into campaign auto-design
+ */
+export const osintFindings = mysqlTable("osint_findings", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId").notNull(),
+  reconId: int("reconId"),
+  category: mysqlEnum("category", [
+    "subdomain",
+    "email",
+    "credential_leak",
+    "tech_stack",
+    "social_media",
+    "dark_web",
+    "dns_misconfiguration",
+    "certificate",
+    "open_port",
+    "other"
+  ]).notNull(),
+  severity: mysqlEnum("severity", ["info", "low", "medium", "high", "critical"]).default("info").notNull(),
+  title: varchar("title", { length: 512 }).notNull(),
+  description: text("description"),
+  rawData: json("rawData"),
+  source: varchar("source", { length: 255 }), // crt.sh, dns, whois, etc.
+  // Campaign recommendation
+  campaignRelevance: text("campaignRelevance"), // LLM-generated suggestion
+  usedInCampaign: boolean("usedInCampaign").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OsintFinding = typeof osintFindings.$inferSelect;
+export type InsertOsintFinding = typeof osintFindings.$inferInsert;
