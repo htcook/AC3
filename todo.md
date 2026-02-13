@@ -571,3 +571,13 @@
 - [ ] Fix data fetching from Caldera API
 - [x] Verify counters display correct data - 495 adversaries, 1940 abilities, 1 operation, 1 agent
 - [ ] Deploy fix to DigitalOcean
+
+## GoPhish Integration Testing
+- [x] Test GoPhish API connectivity (getStats endpoint)
+- [x] Test template CRUD (list, create, edit, delete)
+- [x] Test landing page CRUD (list, create, edit, delete)
+- [ ] Test sending profile CRUD (list, create, edit, delete)
+- [x] Test target group CRUD (list, create, edit, delete)
+- [x] Test campaign operations (list, create, launch)
+- [ ] Test GoPhish UI page rendering in browser
+- [ ] Fix any issues discovered
