@@ -337,3 +337,42 @@ export async function deleteEngagement(id: number) {
   if (!db) return;
   await db.delete(engagements).where(eq(engagements.id, id));
 }
+
+// Campaign-Engagement linking operations
+import { campaignEngagements, InsertCampaignEngagement, CampaignEngagement } from "../drizzle/schema";
+
+export async function linkCampaignToEngagement(link: InsertCampaignEngagement) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(campaignEngagements).values(link);
+  return result[0].insertId;
+}
+
+export async function getCampaignsByEngagement(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(campaignEngagements)
+    .where(eq(campaignEngagements.engagementId, engagementId))
+    .orderBy(desc(campaignEngagements.createdAt));
+}
+
+export async function getEngagementByCampaign(gophishCampaignId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(campaignEngagements)
+    .where(eq(campaignEngagements.gophishCampaignId, gophishCampaignId))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAllCampaignEngagementLinks() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(campaignEngagements).orderBy(desc(campaignEngagements.createdAt));
+}
+
+export async function unlinkCampaignFromEngagement(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(campaignEngagements).where(eq(campaignEngagements.id, id));
+}

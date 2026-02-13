@@ -27,6 +27,7 @@ import ComplianceFrameworks from "./pages/ComplianceFrameworks";
 import InfraReference from "./pages/InfraReference";
 import TemplateLibrary from "./pages/TemplateLibrary";
 import Engagements from "./pages/Engagements";
+import CampaignWizard from "./pages/CampaignWizard";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -133,6 +134,9 @@ function Router() {
       </Route>
       <Route path="/templates">
         <ProtectedRoute component={TemplateLibrary} />
+      </Route>
+      <Route path="/campaign-wizard">
+        <ProtectedRoute component={CampaignWizard} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

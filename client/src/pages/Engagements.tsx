@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import {
   Activity, Key, Target, Cpu, Zap, Users, FileText, Cloud, BookOpen,
   Shield, Globe2, LogOut, Menu, X, Plus, Briefcase, Calendar, MapPin,
-  MoreVertical, Pencil, Trash2, ChevronRight, Search, Filter
+  MoreVertical, Pencil, Trash2, ChevronRight, Search, Filter, Rocket,
+  Send, Link2, Unlink, ExternalLink, Fish, Eye
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -62,6 +63,19 @@ export default function Engagements() {
   });
 
   const { data: engagements, refetch } = trpc.engagements.list.useQuery();
+  const { data: allCampaignLinks, refetch: refetchLinks } = trpc.campaignEngagements.listAll.useQuery();
+  const { data: gophishCampaigns } = trpc.gophishProxy.getCampaigns.useQuery();
+  const unlinkMutation = trpc.campaignEngagements.unlink.useMutation({
+    onSuccess: () => { toast.success('Campaign unlinked'); refetchLinks(); },
+    onError: (err) => toast.error(err.message),
+  });
+  const linkMutation = trpc.campaignEngagements.link.useMutation({
+    onSuccess: () => { toast.success('Campaign linked'); refetchLinks(); },
+    onError: (err) => toast.error(err.message),
+  });
+  const [expandedEngagement, setExpandedEngagement] = useState<number | null>(null);
+  const [linkingEngagementId, setLinkingEngagementId] = useState<number | null>(null);
+  const [selectedCampaignToLink, setSelectedCampaignToLink] = useState<number | null>(null);
 
   const createMutation = trpc.engagements.create.useMutation({
     onSuccess: () => {
@@ -442,8 +456,53 @@ export default function Engagements() {
                       {engagement.description && (
                         <p className="text-sm text-muted-foreground mt-2 line-clamp-1">{engagement.description}</p>
                       )}
+                      {/* Linked campaigns count */}
+                      {(() => {
+                        const linkedCount = allCampaignLinks?.filter((l: any) => l.engagementId === engagement.id).length || 0;
+                        return linkedCount > 0 ? (
+                          <button
+                            onClick={() => setExpandedEngagement(expandedEngagement === engagement.id ? null : engagement.id)}
+                            className="flex items-center gap-1.5 mt-2 text-xs text-primary hover:text-primary/80 font-display tracking-wider"
+                          >
+                            <Send className="w-3 h-3" />
+                            {linkedCount} LINKED CAMPAIGN{linkedCount > 1 ? 'S' : ''}
+                            <ChevronRight className={`w-3 h-3 transition-transform ${expandedEngagement === engagement.id ? 'rotate-90' : ''}`} />
+                          </button>
+                        ) : null;
+                      })()}
                     </div>
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Link href={`/campaign-wizard`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="font-display tracking-wider text-red-400 hover:text-red-300"
+                        >
+                          <Rocket className="w-3.5 h-3.5 mr-1" />
+                          LAUNCH
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setLinkingEngagementId(linkingEngagementId === engagement.id ? null : engagement.id);
+                          setSelectedCampaignToLink(null);
+                        }}
+                        className="font-display tracking-wider"
+                      >
+                        <Link2 className="w-3.5 h-3.5 mr-1" />
+                        LINK
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExpandedEngagement(expandedEngagement === engagement.id ? null : engagement.id)}
+                        className="font-display tracking-wider"
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1" />
+                        VIEW
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -467,6 +526,121 @@ export default function Engagements() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Link campaign inline form */}
+                  {linkingEngagementId === engagement.id && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <div className="flex items-center gap-3">
+                        <Link2 className="w-4 h-4 text-primary" />
+                        <span className="text-xs font-display tracking-wider text-muted-foreground">LINK EXISTING CAMPAIGN:</span>
+                        <select
+                          value={selectedCampaignToLink ?? ''}
+                          onChange={(e) => setSelectedCampaignToLink(e.target.value ? Number(e.target.value) : null)}
+                          className="bg-background border border-border px-3 py-1.5 text-xs focus:outline-none focus:border-primary flex-1 max-w-sm"
+                        >
+                          <option value="">Select a GoPhish campaign...</option>
+                          {gophishCampaigns?.map((c: any) => {
+                            const alreadyLinked = allCampaignLinks?.some((l: any) => l.gophishCampaignId === c.id && l.engagementId === engagement.id);
+                            return (
+                              <option key={c.id} value={c.id} disabled={alreadyLinked}>
+                                {c.name} {alreadyLinked ? '(already linked)' : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <Button
+                          size="sm"
+                          disabled={!selectedCampaignToLink || linkMutation.isPending}
+                          onClick={() => {
+                            if (selectedCampaignToLink) {
+                              const campaign = gophishCampaigns?.find((c: any) => c.id === selectedCampaignToLink);
+                              linkMutation.mutate({
+                                engagementId: engagement.id,
+                                gophishCampaignId: selectedCampaignToLink,
+                                gophishCampaignName: campaign?.name,
+                              });
+                              setSelectedCampaignToLink(null);
+                              setLinkingEngagementId(null);
+                            }
+                          }}
+                          className="font-display tracking-wider text-xs"
+                        >
+                          LINK
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setLinkingEngagementId(null)}
+                          className="text-xs"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expanded campaign links */}
+                  {expandedEngagement === engagement.id && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <h4 className="text-xs font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
+                        <Send className="w-3.5 h-3.5" /> LINKED CAMPAIGNS
+                      </h4>
+                      {(() => {
+                        const links = allCampaignLinks?.filter((l: any) => l.engagementId === engagement.id) || [];
+                        if (links.length === 0) {
+                          return (
+                            <p className="text-xs text-muted-foreground py-2">
+                              No campaigns linked yet. Use the LINK button or Launch Wizard to associate campaigns.
+                            </p>
+                          );
+                        }
+                        return (
+                          <div className="space-y-2">
+                            {links.map((link: any) => {
+                              const campaign = gophishCampaigns?.find((c: any) => c.id === link.gophishCampaignId);
+                              return (
+                                <div key={link.id} className="flex items-center justify-between p-2 bg-background/50 border border-border">
+                                  <div className="flex items-center gap-3">
+                                    <Fish className="w-4 h-4 text-orange-500" />
+                                    <div>
+                                      <p className="text-sm font-medium">{link.gophishCampaignName || `Campaign #${link.gophishCampaignId}`}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        GoPhish ID: {link.gophishCampaignId}
+                                        {campaign?.status && ` — ${campaign.status}`}
+                                        {campaign?.stats && ` — ${campaign.stats.total || 0} targets, ${campaign.stats.submitted_data || 0} creds`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={`https://gophish.aceofcloud.io/campaigns/${link.gophishCampaignId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-orange-500 hover:text-orange-400 font-display tracking-wider flex items-center gap-1"
+                                    >
+                                      <ExternalLink className="w-3 h-3" /> GOPHISH
+                                    </a>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (confirm('Unlink this campaign from the engagement?')) {
+                                          unlinkMutation.mutate({ id: link.id });
+                                        }
+                                      }}
+                                      className="h-7 w-7 p-0 text-destructive hover:text-destructive/80"
+                                    >
+                                      <Unlink className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               );
             })}

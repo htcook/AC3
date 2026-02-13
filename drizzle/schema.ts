@@ -187,3 +187,19 @@ export const engagements = mysqlTable("engagements", {
 
 export type Engagement = typeof engagements.$inferSelect;
 export type InsertEngagement = typeof engagements.$inferInsert;
+
+/**
+ * Links GoPhish campaigns to engagements for filtering and isolation
+ */
+export const campaignEngagements = mysqlTable("campaign_engagements", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId").notNull(),
+  gophishCampaignId: int("gophishCampaignId").notNull(),
+  gophishCampaignName: varchar("gophishCampaignName", { length: 255 }),
+  calderaOperationId: varchar("calderaOperationId", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CampaignEngagement = typeof campaignEngagements.$inferSelect;
+export type InsertCampaignEngagement = typeof campaignEngagements.$inferInsert;

@@ -581,3 +581,62 @@
 - [x] Test campaign operations (list, create, launch)
 - [ ] Test GoPhish UI page rendering in browser
 - [ ] Fix any issues discovered
+
+## Campaign Creation Wizard
+- [ ] Multi-step wizard UI (template → target group → sending profile → landing page → review → launch)
+- [ ] Step 1: Select or create email template with preview
+- [ ] Step 2: Select or create target group
+- [ ] Step 3: Select sending profile
+- [ ] Step 4: Select landing page with preview
+- [ ] Step 5: Review all selections and set campaign name/schedule
+- [ ] Step 6: Launch campaign via GoPhish API
+- [ ] Add createCampaign tRPC procedure
+- [ ] Add campaign wizard route and navigation
+
+## Template Preview Panel
+- [ ] Build template preview component with live HTML rendering
+- [ ] Support GoPhish template variables ({{.FirstName}}, {{.Email}}, etc.) with sample data
+- [ ] Preview both email templates and landing pages
+- [ ] Integrate preview into campaign wizard step 1 and step 4
+- [ ] Add standalone template browser/preview page
+
+## Engagement-Campaign Linking
+- [ ] Add engagementId field to campaign tracking (local DB table)
+- [ ] Create campaign_engagements table to link GoPhish campaigns to engagements
+- [ ] Filter campaigns list by active engagement
+- [ ] Filter campaign results/credentials by engagement
+- [ ] Show engagement-specific stats on engagement detail view
+- [ ] Update Campaigns page to show engagement filter
+
+## Campaign Creation Wizard
+- [x] Create multi-step campaign wizard page (/campaign-wizard)
+- [x] Step 1: Engagement selection (optional linking)
+- [x] Step 2: Email template selection with inline preview cards
+- [x] Step 3: Target group selection or new group creation with CSV import
+- [x] Step 4: SMTP sending profile selection
+- [x] Step 5: Landing page selection with preview
+- [x] Step 6: Review summary and launch with scheduling options
+- [x] Add TemplatePreview component with desktop/tablet/mobile view modes
+- [x] Add GoPhish variable substitution preview ({{.FirstName}}, {{.URL}}, etc.)
+- [x] Add Launch Wizard button to GoPhish page header
+- [x] Add Launch Wizard to sidebar navigation
+
+## Template Preview Panel
+- [x] Create TemplatePreview component with responsive preview modes
+- [x] Add variable toggle (raw vs rendered preview)
+- [x] Add sample data bar showing substituted values
+- [x] Create TemplatePreviewCard for compact inline previews
+- [x] Integrate preview into wizard template and landing page steps
+
+## Engagement-Campaign Linking
+- [x] Create campaign_engagements database table
+- [x] Add DB helpers (link, unlink, getByEngagement, getByCampaign, listAll)
+- [x] Add tRPC procedures for campaign-engagement linking
+- [x] Add engagement filter bar on GoPhish campaigns tab
+- [x] Filter campaigns list by selected engagement
+- [x] Show engagement badge on campaign cards
+- [x] Add campaign linking UI on Engagements page (LINK button)
+- [x] Add expandable linked campaigns section per engagement
+- [x] Add unlink functionality with confirmation
+- [x] Add LAUNCH button on engagement cards to open wizard
+- [x] Write vitest tests for campaign-engagement linking (10 tests passing)

@@ -1126,6 +1126,55 @@ export const appRouter = router({
     }),
   }),
 
+  // Campaign-Engagement linking
+  campaignEngagements: router({
+    link: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        gophishCampaignId: z.number(),
+        gophishCampaignName: z.string().optional(),
+        calderaOperationId: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const id = await db.linkCampaignToEngagement(input);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'campaign_linked',
+          details: `Linked GoPhish campaign ${input.gophishCampaignId} to engagement ${input.engagementId}`,
+        });
+        return { id };
+      }),
+
+    unlink: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.unlinkCampaignFromEngagement(input.id);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'campaign_unlinked',
+          details: `Unlinked campaign-engagement link ID: ${input.id}`,
+        });
+        return { success: true };
+      }),
+
+    byEngagement: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getCampaignsByEngagement(input.engagementId);
+      }),
+
+    byCampaign: protectedProcedure
+      .input(z.object({ gophishCampaignId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getEngagementByCampaign(input.gophishCampaignId);
+      }),
+
+    listAll: protectedProcedure.query(async () => {
+      return db.getAllCampaignEngagementLinks();
+    }),
+  }),
+
   // Engagement management
   engagements: router({
     list: protectedProcedure.query(async () => {

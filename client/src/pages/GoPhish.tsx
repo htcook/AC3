@@ -8,7 +8,7 @@ import {
   Plus, RefreshCw, CheckCircle, Clock, AlertTriangle, Play,
   Crosshair, BarChart3, MousePointer, ShieldAlert, Eye, Trash2,
   Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen,
-  Shield, Globe2, Briefcase
+  Shield, Globe2, Briefcase, Rocket, Filter
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/agents", icon: <Cpu className="w-4 h-4" />, label: "AGENTS" },
   { href: "/campaigns", icon: <Crosshair className="w-4 h-4" />, label: "CAMPAIGNS" },
   { href: "/gophish", icon: <Fish className="w-4 h-4" />, label: "GOPHISH" },
+  { href: "/campaign-wizard", icon: <Rocket className="w-4 h-4" />, label: "LAUNCH WIZARD" },
   { href: "/team", icon: <Users className="w-4 h-4" />, label: "TEAM" },
   { href: "/activity", icon: <FileText className="w-4 h-4" />, label: "ACTIVITY" },
 ];
@@ -34,8 +35,13 @@ export default function GoPhish() {
   const [, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'templates' | 'pages' | 'groups' | 'smtp'>('overview');
+  const [selectedEngagementId, setSelectedEngagementId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
+
+  // Fetch engagements for filtering
+  const { data: engagements } = trpc.engagements.list.useQuery();
+  const { data: campaignLinks } = trpc.campaignEngagements.listAll.useQuery();
 
   // Fetch GoPhish data
   const { data: status, refetch: refetchStatus } = trpc.gophishProxy.getStatus.useQuery(undefined, { refetchInterval: 30000 });
@@ -135,6 +141,11 @@ export default function GoPhish() {
               <Button variant="outline" size="sm" className="font-display tracking-wider" onClick={handleRefresh}>
                 <RefreshCw className="w-4 h-4 mr-2" />REFRESH
               </Button>
+              <Link href="/campaign-wizard">
+                <Button size="sm" className="font-display tracking-wider bg-red-600 hover:bg-red-700 text-white">
+                  <Rocket className="w-4 h-4 mr-2" />LAUNCH WIZARD
+                </Button>
+              </Link>
               <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
                 <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
                   <ExternalLink className="w-4 h-4 mr-2" />OPEN GOPHISH UI
@@ -225,6 +236,32 @@ export default function GoPhish() {
             </div>
           )}
 
+          {/* Engagement Filter Bar */}
+          {(activeTab === 'campaigns' || activeTab === 'overview') && engagements && engagements.length > 0 && (
+            <div className="flex items-center gap-3 p-3 bg-card border border-border">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-display tracking-wider text-muted-foreground">FILTER BY ENGAGEMENT:</span>
+              <select
+                value={selectedEngagementId ?? ''}
+                onChange={(e) => setSelectedEngagementId(e.target.value ? Number(e.target.value) : null)}
+                className="bg-background border border-border px-3 py-1.5 text-xs focus:outline-none focus:border-primary"
+              >
+                <option value="">All Campaigns</option>
+                {engagements.map((eng: any) => (
+                  <option key={eng.id} value={eng.id}>{eng.name} ({eng.customerName})</option>
+                ))}
+              </select>
+              {selectedEngagementId && (
+                <button
+                  onClick={() => setSelectedEngagementId(null)}
+                  className="text-xs text-primary hover:text-primary/80 font-display tracking-wider"
+                >
+                  CLEAR FILTER
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Campaigns Tab */}
           {activeTab === 'campaigns' && (
             <CampaignsPanel
@@ -237,6 +274,8 @@ export default function GoPhish() {
               onDelete={(id: number) => { if (confirm('Delete this campaign?')) deleteCampaign.mutate({ id }); }}
               onComplete={(id: number) => { if (confirm('Mark this campaign as complete?')) completeCampaign.mutate({ id }); }}
               isLaunching={launchCampaign.isPending}
+              engagementFilter={selectedEngagementId}
+              campaignLinks={campaignLinks}
             />
           )}
 
@@ -290,9 +329,22 @@ export default function GoPhish() {
 }
 
 // ==================== CAMPAIGNS PANEL ====================
-function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingProfiles, onLaunch, onDelete, onComplete, isLaunching }: any) {
+function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingProfiles, onLaunch, onDelete, onComplete, isLaunching, engagementFilter, campaignLinks }: any) {
+  const [, navigate] = useLocation();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', template: '', page: '', smtp: '', group: '', url: 'https://aceofcloud.io' });
+
+  // Filter campaigns by engagement
+  const filteredCampaigns = useMemo(() => {
+    if (!campaigns || !engagementFilter) return campaigns;
+    if (!campaignLinks) return campaigns;
+    const linkedCampaignIds = new Set(
+      campaignLinks
+        .filter((link: any) => link.engagementId === engagementFilter)
+        .map((link: any) => link.gophishCampaignId)
+    );
+    return campaigns.filter((c: any) => linkedCampaignIds.has(c.id));
+  }, [campaigns, engagementFilter, campaignLinks]);
 
   const handleLaunch = () => {
     if (!form.name || !form.template || !form.page || !form.smtp || !form.group) {
@@ -313,10 +365,20 @@ function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingPro
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-xl tracking-wider">PHISHING CAMPAIGNS</h2>
-        <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black" onClick={() => setShowForm(!showForm)}>
-          {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />LAUNCH CAMPAIGN</>}
-        </Button>
+        <h2 className="font-display text-xl tracking-wider">
+          PHISHING CAMPAIGNS
+          {engagementFilter && <span className="text-sm text-primary ml-2">(Filtered)</span>}
+        </h2>
+        <div className="flex gap-2">
+          <Link href="/campaign-wizard">
+            <Button size="sm" className="font-display tracking-wider bg-red-600 hover:bg-red-700 text-white">
+              <Rocket className="w-4 h-4 mr-2" />LAUNCH WIZARD
+            </Button>
+          </Link>
+          <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black" onClick={() => setShowForm(!showForm)}>
+            {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />QUICK LAUNCH</>}
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -366,14 +428,14 @@ function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingPro
         </div>
       )}
 
-      {Array.isArray(campaigns) && campaigns.length > 0 ? (
+      {Array.isArray(filteredCampaigns) && filteredCampaigns.length > 0 ? (
         <div className="space-y-3">
-          {campaigns.map((campaign: any) => (
-            <CampaignCard key={campaign.id} campaign={campaign} onDelete={onDelete} onComplete={onComplete} />
+          {filteredCampaigns.map((campaign: any) => (
+            <CampaignCard key={campaign.id} campaign={campaign} onDelete={onDelete} onComplete={onComplete} campaignLinks={campaignLinks} />
           ))}
         </div>
       ) : (
-        <EmptyState icon={<Send className="w-12 h-12 text-orange-500/50" />} title="NO CAMPAIGNS YET" description="Launch your first phishing campaign using the button above. Select a template, landing page, sending profile, and target group." />
+        <EmptyState icon={<Send className="w-12 h-12 text-orange-500/50" />} title={engagementFilter ? "NO CAMPAIGNS FOR THIS ENGAGEMENT" : "NO CAMPAIGNS YET"} description={engagementFilter ? "No campaigns are linked to this engagement. Use the Launch Wizard to create a campaign linked to an engagement." : "Launch your first phishing campaign using the Launch Wizard or Quick Launch above."} />
       )}
     </div>
   );
@@ -781,7 +843,8 @@ function StatusCard({ label, value, icon, color }: { label: string; value: numbe
   );
 }
 
-function CampaignCard({ campaign, onDelete, onComplete }: { campaign: any; onDelete: (id: number) => void; onComplete: (id: number) => void }) {
+function CampaignCard({ campaign, onDelete, onComplete, campaignLinks }: { campaign: any; onDelete: (id: number) => void; onComplete: (id: number) => void; campaignLinks?: any[] }) {
+  const linkedEngagement = campaignLinks?.find((link: any) => link.gophishCampaignId === campaign.id);
   const statusColors: Record<string, string> = {
     'In progress': 'bg-green-500/20 text-green-400 border-green-500',
     'Completed': 'bg-blue-500/20 text-blue-400 border-blue-500',
@@ -812,7 +875,14 @@ function CampaignCard({ campaign, onDelete, onComplete }: { campaign: any; onDel
         <div className="text-center"><div className="text-lg font-display text-red-400">{stats.submitted_data || 0}</div><div className="text-[10px] font-display tracking-wider text-muted-foreground">CREDS</div></div>
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Created: {new Date(campaign.created_date).toLocaleString()}</span>
+        <div className="flex items-center gap-3">
+          <span>Created: {new Date(campaign.created_date).toLocaleString()}</span>
+          {linkedEngagement && (
+            <span className="text-primary bg-primary/10 px-2 py-0.5 font-display tracking-wider">
+              <Briefcase className="w-3 h-3 inline mr-1" />{linkedEngagement.gophishCampaignName || 'Linked'}
+            </span>
+          )}
+        </div>
         <a href={`https://gophish.aceofcloud.io/campaigns/${campaign.id}`} target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-400 font-display tracking-wider flex items-center gap-1">
           VIEW IN GOPHISH <ExternalLink className="w-3 h-3" />
         </a>
