@@ -556,3 +556,12 @@
 - [x] Create Microsoft 365 admin center alert phishing template
 - [x] Create matching credential harvest landing pages
 - [x] Import all templates into GoPhish via API
+
+## Unified Authentication (Dashboard + Caldera + GoPhish)
+- [x] Investigate current auth mechanisms for all three services
+- [x] Create server-side auth proxy that authenticates with Caldera API on dashboard login
+- [x] Create server-side auth proxy that authenticates with GoPhish API on dashboard login
+- [x] Store Caldera/GoPhish session tokens server-side per user session
+- [x] Proxy all Caldera/GoPhish API calls through dashboard backend with injected auth
+- [x] Update "Open Caldera" and "Open GoPhish" links to use pre-authenticated sessions
+- [x] Build, deploy, and verify unified login flow

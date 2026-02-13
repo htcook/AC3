@@ -5,28 +5,59 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Cloud, Lock, User, Shield, AlertTriangle } from "lucide-react";
+
+const REDIRECT_MAP: Record<string, { label: string; url: string }> = {
+  caldera: { label: "MITRE Caldera", url: "https://caldera.aceofcloud.io" },
+  gophish: { label: "GoPhish Admin", url: "https://gophish.aceofcloud.io" },
+};
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
+  const params = new URLSearchParams(searchString);
+  const redirectTarget = params.get("redirect") || "";
+  const redirectInfo = REDIRECT_MAP[redirectTarget];
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const utils = trpc.useUtils();
   
+  // Check if already authenticated - if so, redirect immediately
+  const { data: session, isLoading: sessionLoading } = trpc.calderaAuth.session.useQuery();
+  
+  useEffect(() => {
+    if (!sessionLoading && session?.authenticated) {
+      if (redirectTarget && redirectInfo) {
+        // Already logged in, redirect to the target service
+        window.location.href = redirectInfo.url;
+      } else {
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [sessionLoading, session, redirectTarget, redirectInfo]);
+
   const loginMutation = trpc.calderaAuth.login.useMutation({
     onSuccess: async (data: { success: boolean; message?: string }) => {
       if (data.success) {
         toast.success("Login successful", {
-          description: "Welcome to Cyber Campaign Command Platform",
+          description: redirectInfo
+            ? `Authenticating with ${redirectInfo.label}...`
+            : "Welcome to Cyber Campaign Command Platform",
         });
         // Invalidate the session query to force a refetch
         await utils.calderaAuth.session.invalidate();
         // Small delay to ensure cookie is set
         setTimeout(() => {
-          window.location.href = "/dashboard";
+          if (redirectTarget && redirectInfo) {
+            // Redirect to the target service - nginx auth_request will now pass
+            window.location.href = redirectInfo.url;
+          } else {
+            window.location.href = "/dashboard";
+          }
         }, 100);
       } else {
         toast.error("Login failed", {
@@ -68,8 +99,20 @@ export default function Login() {
           <h1 className="font-display text-4xl tracking-tight text-foreground mb-2">
             CALDERA <span className="text-primary">COMMAND</span>
           </h1>
-          <p className="text-muted-foreground">Secure Access Portal</p>
+          <p className="text-muted-foreground">Unified Access Portal</p>
         </div>
+
+        {/* Redirect notice */}
+        {redirectInfo && (
+          <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg text-center">
+            <p className="text-sm text-primary">
+              Sign in to access <span className="font-semibold">{redirectInfo.label}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              One login for Dashboard, Caldera, and GoPhish
+            </p>
+          </div>
+        )}
 
         <Card className="border-border/50 bg-card/80 backdrop-blur">
           <CardHeader className="text-center pb-4">
@@ -78,7 +121,7 @@ export default function Login() {
             </div>
             <CardTitle className="font-display text-xl tracking-wide">AUTHENTICATION REQUIRED</CardTitle>
             <CardDescription>
-              Enter your Caldera administrator credentials to access the Command Center
+              Enter your credentials to access the Command Center and all connected services
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -138,7 +181,14 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+            {/* Unified auth info */}
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+              <p className="text-xs text-muted-foreground text-center">
+                Single sign-on for all services: Dashboard, MITRE Caldera, and GoPhish
+              </p>
+            </div>
+
+            <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">

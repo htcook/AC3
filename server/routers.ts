@@ -1053,10 +1053,13 @@ export const appRouter = router({
               { expiresIn: '24h' }
             );
 
-            // Set session cookie
-            const cookieOptions = getSessionCookieOptions(ctx.req);
+            // Set session cookie with cross-subdomain domain
             ctx.res.cookie(CALDERA_SESSION_COOKIE, token, {
-              ...cookieOptions,
+              domain: '.aceofcloud.io',
+              path: '/',
+              httpOnly: true,
+              secure: true,
+              sameSite: 'lax',
               maxAge: 24 * 60 * 60 * 1000, // 24 hours
             });
 
@@ -1088,9 +1091,12 @@ export const appRouter = router({
               { expiresIn: '24h' }
             );
 
-            const cookieOptions = getSessionCookieOptions(ctx.req);
             ctx.res.cookie(CALDERA_SESSION_COOKIE, token, {
-              ...cookieOptions,
+              domain: '.aceofcloud.io',
+              path: '/',
+              httpOnly: true,
+              secure: true,
+              sameSite: 'lax',
               maxAge: 24 * 60 * 60 * 1000,
             });
 
@@ -1135,8 +1141,14 @@ export const appRouter = router({
 
     // Logout
     logout: publicProcedure.mutation(async ({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(CALDERA_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(CALDERA_SESSION_COOKIE, {
+        domain: '.aceofcloud.io',
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: -1,
+      });
       return { success: true };
     }),
   }),
