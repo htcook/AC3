@@ -238,7 +238,7 @@ export const calderaFAQItems: FAQItem[] = [
 2. **Check the service**:
    sudo systemctl status caldera-ops-persist
    This service recreates the three default operations:
-   - Databank_Complete (59 abilities)
+   - MSP_Target_Complete (59 abilities)
    - APT29_VCD (48 abilities)
    - CrowdStrike_Bypass (12 abilities)
 

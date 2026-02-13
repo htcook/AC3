@@ -1,11 +1,11 @@
 # CrowdStrike Falcon Bypass Agent Deployment
 
 ## Overview
-These deployment scripts are designed for authorized red team testing against CrowdStrike Falcon-protected endpoints within the Databank Rules of Engagement.
+These deployment scripts are designed for authorized red team testing against CrowdStrike Falcon-protected endpoints within the MSP Target Rules of Engagement.
 
 **Caldera Server**: 137.184.7.224:8888
-**Operation**: Databank_CrowdStrike_Falcon_Bypass_Operation
-**Adversary Profile**: Databank_CrowdStrike_Bypass
+**Operation**: MSP_Target_CrowdStrike_Falcon_Bypass_Operation
+**Adversary Profile**: MSP_Target_CrowdStrike_Bypass
 
 ---
 
@@ -161,7 +161,7 @@ chmod +x /tmp/.com.apple.launchd.update
 1. Deploy agent on target endpoint using one of the scripts above
 2. Verify agent check-in at: http://137.184.7.224:8888 → Agents
 3. Start the operation: 
-   - Navigate to Operations → Databank_CrowdStrike_Falcon_Bypass_Operation
+   - Navigate to Operations → MSP_Target_CrowdStrike_Falcon_Bypass_Operation
    - Click "Run" to begin automated execution
 4. Monitor ability execution in the operation timeline
 
@@ -170,6 +170,6 @@ chmod +x /tmp/.com.apple.launchd.update
 ## Important Notes
 
 - **Authorization Required**: Only use within authorized penetration testing scope
-- **Rules of Engagement**: Ensure all testing is within Databank RoE boundaries
+- **Rules of Engagement**: Ensure all testing is within MSP Target RoE boundaries
 - **Detection Risk**: These techniques may still trigger alerts - monitor for detection
 - **Cleanup**: Remove agents and artifacts after testing is complete

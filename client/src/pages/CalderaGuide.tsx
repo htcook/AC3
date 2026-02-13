@@ -267,9 +267,9 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
             <table className="w-full text-sm border border-border">
               <thead><tr className="bg-card"><th className="px-4 py-2 text-left border-b border-border">Profile</th><th className="px-4 py-2 text-left border-b border-border">Abilities</th><th className="px-4 py-2 text-left border-b border-border">Focus</th><th className="px-4 py-2 text-left border-b border-border">Platforms</th></tr></thead>
               <tbody>
-                <tr className="border-b border-border"><td className="px-4 py-2 text-primary">Databank_Complete_APT29_VCD_CrowdStrike</td><td className="px-4 py-2 text-muted-foreground">59</td><td className="px-4 py-2 text-muted-foreground">Full red team exercise: VCD exploitation, CrowdStrike bypass, data exfiltration</td><td className="px-4 py-2 text-muted-foreground">Linux + Windows</td></tr>
+                <tr className="border-b border-border"><td className="px-4 py-2 text-primary">MSP_Target_Complete_APT29_VCD_CrowdStrike</td><td className="px-4 py-2 text-muted-foreground">59</td><td className="px-4 py-2 text-muted-foreground">Full red team exercise: VCD exploitation, CrowdStrike bypass, data exfiltration</td><td className="px-4 py-2 text-muted-foreground">Linux + Windows</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 text-primary">APT29_VCD_Cloud_Compromise_Enhanced</td><td className="px-4 py-2 text-muted-foreground">48</td><td className="px-4 py-2 text-muted-foreground">VMware Cloud Director compromise with APT29 TTPs</td><td className="px-4 py-2 text-muted-foreground">Linux + Windows</td></tr>
-                <tr><td className="px-4 py-2 text-primary">Databank_CrowdStrike_Bypass</td><td className="px-4 py-2 text-muted-foreground">12</td><td className="px-4 py-2 text-muted-foreground">EDR evasion focused on CrowdStrike Falcon</td><td className="px-4 py-2 text-muted-foreground">Windows</td></tr>
+                <tr><td className="px-4 py-2 text-primary">MSP_Target_CrowdStrike_Bypass</td><td className="px-4 py-2 text-muted-foreground">12</td><td className="px-4 py-2 text-muted-foreground">EDR evasion focused on CrowdStrike Falcon</td><td className="px-4 py-2 text-muted-foreground">Windows</td></tr>
               </tbody>
             </table>
           </div>

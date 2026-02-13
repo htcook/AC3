@@ -39,7 +39,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.Reac
 
 // Predefined operation metadata for enhanced display
 const OPERATION_METADATA: Record<string, { description: string; targetEnvironment: string; tags: string[] }> = {
-  'Databank_Complete_Red_Team_Exercise': {
+  'MSP_Target_Complete_Red_Team_Exercise': {
     description: 'Comprehensive red team exercise combining APT29 VCD Cloud Compromise techniques with CrowdStrike Falcon bypass capabilities. Covers full attack lifecycle from reconnaissance to impact.',
     targetEnvironment: 'VMware Cloud Director + Windows Endpoints',
     tags: ['APT29', 'VCD', 'CROWDSTRIKE BYPASS', 'FULL LIFECYCLE'],

@@ -576,7 +576,7 @@ function AddAgentModal({
               value={hostname}
               onChange={(e) => setHostname(e.target.value)}
               className="w-full bg-secondary border-2 border-border px-4 py-3 font-display focus:border-primary outline-none"
-              placeholder="e.g., vcd-admin-01.databank.com"
+              placeholder="e.g., vcd-admin-01.msp-target.com"
             />
           </div>
           <div className="flex gap-4 pt-4">

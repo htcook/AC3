@@ -511,3 +511,13 @@
 - [x] Build and deploy updated dashboard to DigitalOcean
 - [x] Verify all subdomains accessible with valid Let's Encrypt SSL
 - [x] Deploy provision-phish-domain.sh automation script to server
+
+## Rename Databank to MSP Target
+- [x] Remove Databank references from Caldera-related contexts
+- [x] Rename Databank to MSP Target in Dashboard.tsx
+- [x] Rename Databank to MSP Target in Campaigns.tsx
+- [x] Rename Databank to MSP Target in CampaignDetail.tsx
+- [x] Rename Databank to MSP Target in OperationMonitor.tsx
+- [x] Rename Databank to MSP Target in ReportGenerator.tsx
+- [x] Update crowdstrike_bypass_agents.md
+- [x] Build and deploy updated dashboard

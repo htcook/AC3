@@ -516,13 +516,13 @@ export default function Dashboard() {
           <section>
             <h2 className="font-display text-2xl mb-4">ACTIVE OPERATIONS</h2>
             <div className="grid md:grid-cols-3 gap-4 mb-8">
-              {/* Databank Complete - Merged Operation */}
+              {/* MSP Target Complete - Merged Operation */}
               <div className="bg-card border-2 border-emerald-500 p-5 hover:border-emerald-500/80 transition-colors md:col-span-2">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs text-muted-foreground">59 ABILITIES</span>
                   <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-display tracking-wider">MERGED</span>
                 </div>
-                <h3 className="font-display text-xl text-emerald-500 mb-2">DATABANK COMPLETE RED TEAM EXERCISE</h3>
+                <h3 className="font-display text-xl text-emerald-500 mb-2">MSP TARGET COMPLETE RED TEAM EXERCISE</h3>
                 <p className="text-sm text-muted-foreground mb-3">
                   Comprehensive adversary profile combining APT29 VCD Cloud Compromise with CrowdStrike Falcon bypass defense evasion. Full attack lifecycle from initial access through exfiltration with EDR evasion.
                 </p>
@@ -534,7 +534,7 @@ export default function Dashboard() {
                   <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">CLOUD</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Link href="/adversaries/Databank_Complete_APT29_VCD_CrowdStrike">
+                  <Link href="/adversaries/MSP_Target_Complete_APT29_VCD_CrowdStrike">
                     <Button size="sm" className="w-full font-display tracking-wider bg-emerald-500 hover:bg-emerald-500/90 text-black">
                       VIEW PROFILE
                     </Button>
@@ -582,7 +582,7 @@ export default function Dashboard() {
                   <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">T1562.001</span>
                   <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">STEALTH</span>
                 </div>
-                <Link href="/adversaries/Databank_CrowdStrike_Bypass">
+                <Link href="/adversaries/MSP_Target_CrowdStrike_Bypass">
                   <Button size="sm" className="w-full font-display tracking-wider bg-yellow-500 hover:bg-yellow-500/90 text-black">
                     VIEW DETAILS
                   </Button>

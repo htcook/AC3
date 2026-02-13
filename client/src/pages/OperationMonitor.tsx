@@ -59,9 +59,9 @@ interface OperationStatus {
 
 // Simulated real-time data (in production, this would come from WebSocket)
 const MOCK_OPERATION: OperationStatus = {
-  id: 'databank-complete-001',
-  name: 'Databank_Complete_Red_Team_Exercise',
-  adversary_id: 'Databank_Complete_APT29_VCD_CrowdStrike',
+  id: 'msp-target-complete-001',
+  name: 'MSP_Target_Complete_Red_Team_Exercise',
+  adversary_id: 'MSP_Target_Complete_APT29_VCD_CrowdStrike',
   state: 'running',
   start_time: new Date().toISOString(),
   agents: 0,

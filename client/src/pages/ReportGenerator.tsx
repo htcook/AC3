@@ -101,7 +101,7 @@ const SAMPLE_RESULTS: AbilityResult[] = [
 export default function ReportGenerator() {
   const [config, setConfig] = useState<ReportConfig>({
     customerName: '',
-    engagementName: 'Databank Red Team Exercise',
+    engagementName: 'MSP Target Red Team Exercise',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     scope: '',
@@ -293,8 +293,8 @@ ${successCount > 0 ? results.filter(r => r.status === 'success').slice(0, 3).map
 
 ## Appendix A: Operation Details
 
-**Operation ID:** ${operations?.[0]?.id || 'databank-complete-001'}  
-**Adversary Profile:** Databank_Complete_APT29_VCD_CrowdStrike  
+**Operation ID:** ${operations?.[0]?.id || 'msp-target-complete-001'}  
+**Adversary Profile:** MSP_Target_Complete_APT29_VCD_CrowdStrike  
 **Total Abilities:** 59  
 **Caldera Server:** ${CALDERA_SERVER}  
 
