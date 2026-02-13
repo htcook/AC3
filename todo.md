@@ -565,3 +565,9 @@
 - [x] Proxy all Caldera/GoPhish API calls through dashboard backend with injected auth
 - [x] Update "Open Caldera" and "Open GoPhish" links to use pre-authenticated sessions
 - [x] Build, deploy, and verify unified login flow
+
+## Fix Statistics Counters
+- [x] Investigate which counters aren't showing Caldera data - nginx auth_request was blocking server-side API calls
+- [ ] Fix data fetching from Caldera API
+- [x] Verify counters display correct data - 495 adversaries, 1940 abilities, 1 operation, 1 agent
+- [ ] Deploy fix to DigitalOcean

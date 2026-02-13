@@ -22,8 +22,10 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 // GoPhish API helper
-const GOPHISH_URL = 'https://gophish.aceofcloud.io';
+const GOPHISH_URL = 'https://127.0.0.1:3333';
 const GOPHISH_API_KEY = '186292e5e312962ad1fdfc9ecbc21453e6073daf6554861371bd4da0fa61a5a2';
+const CALDERA_BASE_URL = 'http://127.0.0.1:8888';
+const CALDERA_API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
 
 async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
   try {
@@ -213,14 +215,11 @@ export const appRouter = router({
   calderaProxy: router({
     // Direct stats from DigitalOcean Caldera server
     getStats: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-      
       const [adversaries, abilities, operations, agents] = await Promise.all([
-        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/adversaries'),
-        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities'),
-        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/operations'),
-        fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/agents'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents'),
       ]);
 
       return {
@@ -233,9 +232,7 @@ export const appRouter = router({
 
     // Get all adversaries from DigitalOcean Caldera
     getAdversaries: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-      const adversaries = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/adversaries');
+      const adversaries = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries');
       return Array.isArray(adversaries) ? adversaries : [];
     }),
 
@@ -243,16 +240,12 @@ export const appRouter = router({
     getAdversary: publicProcedure
       .input(z.object({ adversaryId: z.string() }))
       .query(async ({ input }) => {
-        const CALDERA_URL = 'https://caldera.aceofcloud.io';
-        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-        return fetchCalderaAPI(CALDERA_URL, API_KEY, `/api/v2/adversaries/${input.adversaryId}`);
+        return fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, `/api/v2/adversaries/${input.adversaryId}`);
       }),
 
     // Get all abilities from DigitalOcean Caldera
     getAbilities: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-      const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
+      const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
       return Array.isArray(abilities) ? abilities : [];
     }),
 
@@ -260,18 +253,14 @@ export const appRouter = router({
     getAbilitiesByTactic: publicProcedure
       .input(z.object({ tactic: z.string() }))
       .query(async ({ input }) => {
-        const CALDERA_URL = 'https://caldera.aceofcloud.io';
-        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-        const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
+        const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
         if (!Array.isArray(abilities)) return [];
         return abilities.filter((a: any) => a.tactic === input.tactic);
       }),
 
     // Get all tactics (derived from abilities)
     getTactics: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-      const abilities = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/abilities');
+      const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
       if (!Array.isArray(abilities)) return [];
       
       const tacticCounts: Record<string, number> = {};
@@ -285,17 +274,13 @@ export const appRouter = router({
 
     // Get all operations from DigitalOcean Caldera
     getOperations: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-      const operations = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/operations');
+      const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
       return Array.isArray(operations) ? operations : [];
     }),
 
     // Get all agents from DigitalOcean Caldera
     getAgents: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-      const agents = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/agents');
+      const agents = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents');
       return Array.isArray(agents) ? agents : [];
     }),
 
@@ -303,21 +288,17 @@ export const appRouter = router({
     getAgent: publicProcedure
       .input(z.object({ paw: z.string() }))
       .query(async ({ input }) => {
-        const CALDERA_URL = 'https://caldera.aceofcloud.io';
-        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-        return fetchCalderaAPI(CALDERA_URL, API_KEY, `/api/v2/agents/${input.paw}`);
+        return fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, `/api/v2/agents/${input.paw}`);
       }),
 
     // Kill an agent
     killAgent: protectedProcedure
       .input(z.object({ paw: z.string() }))
       .mutation(async ({ input }) => {
-        const CALDERA_URL = 'https://caldera.aceofcloud.io';
-        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
         try {
-          const response = await fetch(`${CALDERA_URL}/api/v2/agents/${input.paw}`, {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/agents/${input.paw}`, {
             method: 'DELETE',
-            headers: { 'KEY': API_KEY },
+            headers: { 'KEY': CALDERA_API_KEY },
           });
           return { success: response.ok };
         } catch {
@@ -329,13 +310,11 @@ export const appRouter = router({
     updateAgentTrust: protectedProcedure
       .input(z.object({ paw: z.string(), trusted: z.boolean() }))
       .mutation(async ({ input }) => {
-        const CALDERA_URL = 'https://caldera.aceofcloud.io';
-        const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
         try {
-          const response = await fetch(`${CALDERA_URL}/api/v2/agents/${input.paw}`, {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/agents/${input.paw}`, {
             method: 'PATCH',
             headers: { 
-              'KEY': API_KEY,
+              'KEY': CALDERA_API_KEY,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ trusted: input.trusted }),
@@ -348,19 +327,15 @@ export const appRouter = router({
 
     // Get agent deployable commands
     getDeployCommands: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
-      const deploy = await fetchCalderaAPI(CALDERA_URL, API_KEY, '/api/v2/deploy_commands');
+      const deploy = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/deploy_commands');
       return deploy || {};
     }),
 
     // Check Caldera server health
     checkHealth: publicProcedure.query(async () => {
-      const CALDERA_URL = 'https://caldera.aceofcloud.io';
-      const API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
       try {
-        const response = await fetch(`${CALDERA_URL}/api/v2/health`, {
-          headers: { 'KEY': API_KEY },
+        const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
+          headers: { 'KEY': CALDERA_API_KEY },
           signal: AbortSignal.timeout(5000),
         });
         return response.ok;
@@ -1022,13 +997,11 @@ export const appRouter = router({
         password: z.string().min(1),
       }))
       .mutation(async ({ input, ctx }) => {
-        const CALDERA_URL = 'https://caldera.aceofcloud.io';
-        
         // Try to authenticate against Caldera API
         try {
           // Caldera uses basic auth or API key - we'll validate credentials
           // by attempting to access a protected endpoint
-          const response = await fetch(`${CALDERA_URL}/api/v2/health`, {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
             headers: {
               'KEY': input.password, // Caldera uses API key in KEY header
             },
