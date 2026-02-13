@@ -470,4 +470,44 @@
 - [x] Build Template Library page with search, categories, and copy-to-GoPhish functionality
 - [x] Add template preview with GoPhish variable placeholders
 - [x] Add sidebar navigation link for Template Library
-- [ ] Deploy latest changes to DigitalOcean (pending)
+- [x] Deploy latest changes to DigitalOcean
+
+## Postfix Mail Server & SSL Certificate Setup
+- [x] Check if Postfix/Sendmail is installed and running on DO server
+- [x] Install and configure Postfix for GoPhish email delivery
+- [ ] Configure SPF/DKIM/DMARC DNS records for email deliverability (requires domain DNS access)
+- [x] Generate strong 4096-bit self-signed SSL certificate for GoPhish admin panel (port 3333)
+- [x] Update GoPhish config to use the new SSL certificate
+- [ ] Verify email sending works through GoPhish (blocked: DigitalOcean port 25 outbound blocked)
+- [x] Verify SSL certificate shows AceofCloud LLC details in browser
+
+## External SMTP Relay Setup
+- [x] Create Brevo account and get SMTP credentials
+- [ ] Create SendGrid account and get API key
+- [x] Configure Brevo SMTP sending profile in GoPhish (port 2525 - only open SMTP port on DO)
+- [ ] Configure SendGrid SMTP sending profile in GoPhish
+- [x] Test email delivery through Brevo relay (success via port 2525)
+
+## Nginx Virtual Hosts + Let's Encrypt SSL
+- [x] Configure nginx virtual hosts for dashboard.aceofcloud.io, gophish.aceofcloud.io, caldera.aceofcloud.io
+- [x] Obtain Let's Encrypt SSL certificates for all subdomains
+- [x] Configure GoPhish admin to use Let's Encrypt cert
+- [x] Remove port numbers from URLs (proxy through nginx on 443)
+- [x] Redirect HTTP to HTTPS
+
+## Brevo Domain Verification
+- [x] Verify aceofcloud.io sender domain in Brevo
+
+## PTR Record
+- [x] Set PTR record for 137.184.7.224 to mail.aceofcloud.io via DigitalOcean droplet rename
+
+## Per-Customer Phishing Domain Workflow
+- [x] Create documentation/guide for per-customer domain setup
+- [ ] Add domain management page to C3 dashboard
+
+## Dashboard URL Updates
+- [x] Update all frontend links from IP:port to subdomain URLs
+- [x] Update server-side API URLs to use subdomains
+- [x] Build and deploy updated dashboard to DigitalOcean
+- [x] Verify all subdomains accessible with valid Let's Encrypt SSL
+- [x] Deploy provision-phish-domain.sh automation script to server

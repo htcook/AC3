@@ -89,7 +89,7 @@ export default function Campaigns() {
   }, [operations]);
 
   const handleOpenCaldera = () => {
-    window.open('http://137.184.7.224:8888', '_blank');
+    window.open('https://caldera.aceofcloud.io', '_blank');
   };
 
   const handleRefresh = () => {
@@ -311,7 +311,7 @@ export default function Campaigns() {
           <div className="bg-blue-500/10 border-2 border-blue-500/30 p-4">
             <p className="text-sm text-blue-400">
               <strong>Tip:</strong> Click on any operation to view all abilities with MITRE ATT&CK mapping. 
-              Operations are synced live from the Caldera server at 137.184.7.224:8888.
+              Operations are synced live from the Caldera server at caldera.aceofcloud.io.
             </p>
           </div>
         </div>

@@ -134,7 +134,7 @@ export default function GoPhish() {
               <Button variant="outline" size="sm" className="font-display tracking-wider" onClick={handleRefresh}>
                 <RefreshCw className="w-4 h-4 mr-2" />REFRESH
               </Button>
-              <a href="https://137.184.7.224:3333" target="_blank" rel="noopener noreferrer">
+              <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
                 <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
                   <ExternalLink className="w-4 h-4 mr-2" />OPEN GOPHISH UI
                 </Button>
@@ -291,7 +291,7 @@ export default function GoPhish() {
 // ==================== CAMPAIGNS PANEL ====================
 function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingProfiles, onLaunch, onDelete, onComplete, isLaunching }: any) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', template: '', page: '', smtp: '', group: '', url: 'http://137.184.7.224:8080' });
+  const [form, setForm] = useState({ name: '', template: '', page: '', smtp: '', group: '', url: 'https://aceofcloud.io' });
 
   const handleLaunch = () => {
     if (!form.name || !form.template || !form.page || !form.smtp || !form.group) {
@@ -306,7 +306,7 @@ function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingPro
       url: form.url,
     });
     setShowForm(false);
-    setForm({ name: '', template: '', page: '', smtp: '', group: '', url: 'http://137.184.7.224:8080' });
+    setForm({ name: '', template: '', page: '', smtp: '', group: '', url: 'https://aceofcloud.io' });
   };
 
   return (
@@ -812,7 +812,7 @@ function CampaignCard({ campaign, onDelete, onComplete }: { campaign: any; onDel
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>Created: {new Date(campaign.created_date).toLocaleString()}</span>
-        <a href={`https://137.184.7.224:3333/campaigns/${campaign.id}`} target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-400 font-display tracking-wider flex items-center gap-1">
+        <a href={`https://gophish.aceofcloud.io/campaigns/${campaign.id}`} target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-400 font-display tracking-wider flex items-center gap-1">
           VIEW IN GOPHISH <ExternalLink className="w-3 h-3" />
         </a>
       </div>

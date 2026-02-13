@@ -35,8 +35,8 @@ const CREDENTIALS = {
   redApiKey: 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e',
   blueApiKey: '16498a3a0320fefc58083406f86d2de08f6f3735c537e72e6ae481ee8dd6cb7d',
   sshCommand: 'ssh -i ~/.ssh/caldera_do_key root@137.184.7.224',
-  serverUrl: 'https://137.184.7.224',
-  httpUrl: 'http://137.184.7.224:8888',
+  serverUrl: 'https://dashboard.aceofcloud.io',
+  httpUrl: 'https://caldera.aceofcloud.io',
 };
 
 // GoPhish credentials
@@ -46,7 +46,7 @@ const GOPHISH_CREDENTIALS = {
     password: 'ADMIN123',
   },
   apiKey: '186292e5e312962ad1fdfc9ecbc21453e6073daf6554861371bd4da0fa61a5a2',
-  adminUrl: 'https://137.184.7.224:3333',
+  adminUrl: 'https://gophish.aceofcloud.io',
 };
 
 export default function Credentials() {

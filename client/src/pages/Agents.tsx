@@ -346,7 +346,7 @@ export default function Agents() {
                 </p>
                 <Button 
                   variant="default"
-                  onClick={() => window.open('https://137.184.7.224', '_blank')}
+                  onClick={() => window.open('https://dashboard.aceofcloud.io', '_blank')}
                 >
                   Open Caldera to Deploy Agents
                 </Button>

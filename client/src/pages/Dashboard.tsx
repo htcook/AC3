@@ -42,8 +42,8 @@ const DEFAULT_SERVER = {
   id: 1,
   name: "Caldera Production",
   ipAddress: "137.184.7.224",
-  httpsUrl: "https://137.184.7.224",
-  httpUrl: "http://137.184.7.224:8888",
+  httpsUrl: "https://dashboard.aceofcloud.io",
+  httpUrl: "https://caldera.aceofcloud.io",
   region: "San Francisco (sfo3)",
   dropletSize: "s-2vcpu-4gb",
   status: "online" as const,
@@ -247,7 +247,7 @@ export default function Dashboard() {
               </a>
 
               {/* GoPhish Server */}
-              <a href="https://137.184.7.224:3333" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-emerald-500/30 p-6 cursor-pointer hover:border-emerald-500 transition-colors group block">
+              <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-emerald-500/30 p-6 cursor-pointer hover:border-emerald-500 transition-colors group block">
                 <div className="flex items-center gap-4 mb-4">
                   <div className={`w-4 h-4 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
                   <div className="flex-1">
@@ -277,7 +277,7 @@ export default function Dashboard() {
             <h2 className="font-display text-2xl mb-4">CALDERA STATISTICS</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-white" href="/adversaries" />
-              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-white" href="http://137.184.7.224:8888/#/abilities" external />
+              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-white" href="https://caldera.aceofcloud.io/#/abilities" external />
               <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-white" href="/operations/monitor" />
               <StatCard value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-white" href="/agents" />
             </div>
@@ -295,7 +295,7 @@ export default function Dashboard() {
                 <Fish className="w-6 h-6 text-emerald-500" />
                 GOPHISH STATISTICS
               </h2>
-              <a href="https://137.184.7.224:3333" target="_blank" rel="noopener noreferrer">
+              <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm" className="font-display tracking-wider border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10">
                   <ExternalLink className="w-4 h-4 mr-1" />
                   GOPHISH ADMIN
@@ -306,9 +306,9 @@ export default function Dashboard() {
             {/* Top-level GoPhish counts */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <StatCard value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-500" href="/gophish" />
-              <StatCard value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-500" href="https://137.184.7.224:3333/templates" external />
-              <StatCard value={gophish.totalLandingPages.toString()} label="LANDING PAGES" color="text-emerald-500" href="https://137.184.7.224:3333/landing_pages" external />
-              <StatCard value={gophish.totalSendingProfiles.toString()} label="SMTP PROFILES" color="text-emerald-500" href="https://137.184.7.224:3333/sending_profiles" external />
+              <StatCard value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-500" href="https://gophish.aceofcloud.io/templates" external />
+              <StatCard value={gophish.totalLandingPages.toString()} label="LANDING PAGES" color="text-emerald-500" href="https://gophish.aceofcloud.io/landing_pages" external />
+              <StatCard value={gophish.totalSendingProfiles.toString()} label="SMTP PROFILES" color="text-emerald-500" href="https://gophish.aceofcloud.io/sending_profiles" external />
             </div>
 
             {/* Email Metrics Funnel */}
@@ -343,7 +343,7 @@ export default function Dashboard() {
                     </div>
                   </Link>
                   <div className="w-full h-px bg-border" />
-                  <a href="https://137.184.7.224:3333/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+                  <a href="https://gophish.aceofcloud.io/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
                     <span className="text-sm text-muted-foreground group-hover:text-yellow-400 transition-colors">Total Targets</span>
                     <div className="flex items-center gap-2">
                       <span className="font-display text-lg text-yellow-400">{gophish.totalTargets}</span>
@@ -351,7 +351,7 @@ export default function Dashboard() {
                     </div>
                   </a>
                   <div className="w-full h-px bg-border" />
-                  <a href="https://137.184.7.224:3333/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
+                  <a href="https://gophish.aceofcloud.io/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
                     <span className="text-sm text-muted-foreground group-hover:text-purple-400 transition-colors">Target Groups</span>
                     <div className="flex items-center gap-2">
                       <span className="font-display text-lg text-purple-400">{gophish.totalGroups}</span>
@@ -365,13 +365,13 @@ export default function Dashboard() {
               <div className="bg-card border-2 border-emerald-500/30 p-5">
                 <h3 className="font-display text-lg mb-4 text-emerald-500">GOPHISH RESOURCES</h3>
                 <div className="space-y-3">
-                  <ResourceRow icon={<LayoutTemplate />} label="Email Templates" count={gophish.totalTemplates} href="https://137.184.7.224:3333/templates" external />
+                  <ResourceRow icon={<LayoutTemplate />} label="Email Templates" count={gophish.totalTemplates} href="https://gophish.aceofcloud.io/templates" external />
                   <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Globe />} label="Landing Pages" count={gophish.totalLandingPages} href="https://137.184.7.224:3333/landing_pages" external />
+                  <ResourceRow icon={<Globe />} label="Landing Pages" count={gophish.totalLandingPages} href="https://gophish.aceofcloud.io/landing_pages" external />
                   <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Send />} label="Sending Profiles (SMTP)" count={gophish.totalSendingProfiles} href="https://137.184.7.224:3333/sending_profiles" external />
+                  <ResourceRow icon={<Send />} label="Sending Profiles (SMTP)" count={gophish.totalSendingProfiles} href="https://gophish.aceofcloud.io/sending_profiles" external />
                   <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Users />} label="Target Groups" count={gophish.totalGroups} href="https://137.184.7.224:3333/users" external />
+                  <ResourceRow icon={<Users />} label="Target Groups" count={gophish.totalGroups} href="https://gophish.aceofcloud.io/users" external />
                 </div>
               </div>
             </div>
@@ -470,7 +470,7 @@ export default function Dashboard() {
               <QuickAction
                 icon={<Fish />}
                 label="OPEN GOPHISH"
-                onClick={() => window.open('https://137.184.7.224:3333', '_blank')}
+                onClick={() => window.open('https://gophish.aceofcloud.io', '_blank')}
               />
               <QuickAction
                 icon={<Terminal />}
@@ -539,7 +539,7 @@ export default function Dashboard() {
                       VIEW PROFILE
                     </Button>
                   </Link>
-                  <a href="http://137.184.7.224:8888/#/operations" target="_blank" rel="noopener noreferrer">
+                  <a href="https://caldera.aceofcloud.io/#/operations" target="_blank" rel="noopener noreferrer">
                     <Button size="sm" variant="outline" className="w-full font-display tracking-wider border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
                       OPEN IN CALDERA
                     </Button>
@@ -622,42 +622,42 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {/* APT29 */}
-              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-blue-500 p-4 text-center transition-colors group">
+              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-blue-500 p-4 text-center transition-colors group">
                 <div className="text-3xl font-display text-blue-500 mb-1">APT29</div>
                 <div className="text-xs text-muted-foreground mb-2">COZY BEAR</div>
                 <div className="text-xs text-blue-500">50 ABILITIES</div>
                 <div className="text-[10px] text-muted-foreground mt-1">Russia • G0016</div>
               </a>
               {/* APT28 */}
-              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-red-500 p-4 text-center transition-colors group">
+              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-red-500 p-4 text-center transition-colors group">
                 <div className="text-3xl font-display text-red-500 mb-1">APT28</div>
                 <div className="text-xs text-muted-foreground mb-2">FANCY BEAR</div>
                 <div className="text-xs text-red-500">50 ABILITIES</div>
                 <div className="text-[10px] text-muted-foreground mt-1">Russia • G0007</div>
               </a>
               {/* APT41 */}
-              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-orange-500 p-4 text-center transition-colors group">
+              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-orange-500 p-4 text-center transition-colors group">
                 <div className="text-3xl font-display text-orange-500 mb-1">APT41</div>
                 <div className="text-xs text-muted-foreground mb-2">DOUBLE DRAGON</div>
                 <div className="text-xs text-orange-500">50 ABILITIES</div>
                 <div className="text-[10px] text-muted-foreground mt-1">China • G0096</div>
               </a>
               {/* Lazarus */}
-              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-purple-500 p-4 text-center transition-colors group">
+              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-purple-500 p-4 text-center transition-colors group">
                 <div className="text-3xl font-display text-purple-500 mb-1">LAZARUS</div>
                 <div className="text-xs text-muted-foreground mb-2">HIDDEN COBRA</div>
                 <div className="text-xs text-purple-500">50 ABILITIES</div>
                 <div className="text-[10px] text-muted-foreground mt-1">N. Korea • G0032</div>
               </a>
               {/* FIN7 */}
-              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-green-500 p-4 text-center transition-colors group">
+              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-green-500 p-4 text-center transition-colors group">
                 <div className="text-3xl font-display text-green-500 mb-1">FIN7</div>
                 <div className="text-xs text-muted-foreground mb-2">CARBANAK</div>
                 <div className="text-xs text-green-500">50 ABILITIES</div>
                 <div className="text-[10px] text-muted-foreground mt-1">Financial • G0046</div>
               </a>
               {/* Cobalt Group */}
-              <a href="http://137.184.7.224:8888/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-cyan-500 p-4 text-center transition-colors group">
+              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-cyan-500 p-4 text-center transition-colors group">
                 <div className="text-3xl font-display text-cyan-500 mb-1">COBALT</div>
                 <div className="text-xs text-muted-foreground mb-2">COBALT GROUP</div>
                 <div className="text-xs text-cyan-500">50 ABILITIES</div>

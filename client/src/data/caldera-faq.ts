@@ -8,11 +8,11 @@ export const calderaFAQItems: FAQItem[] = [
     answer: `This is the most common Caldera issue. Work through these checks:
 
 1. **Network connectivity**: Verify the target machine can reach the Caldera server:
-   curl -k http://137.184.7.224:8888/api/v2/health
+   curl -k https://caldera.aceofcloud.io/api/v2/health
    If this fails, there's a network/firewall issue between the agent and server.
 
 2. **Correct callback address**: The agent must be configured with the correct Caldera server IP and port. Check the deployment command:
-   - Server: http://137.184.7.224:8888
+   - Server: https://caldera.aceofcloud.io
    - The agent binary must have been compiled with this address
 
 3. **Firewall rules**: Ensure port 8888 is open on the Caldera server:
@@ -243,7 +243,7 @@ export const calderaFAQItems: FAQItem[] = [
    - CrowdStrike_Bypass (12 abilities)
 
 3. **Manual recreation**: If the service isn't running, you can recreate operations via the Caldera API:
-   curl -X POST http://137.184.7.224:8888/api/v2/operations \\
+   curl -X POST https://caldera.aceofcloud.io/api/v2/operations \\
      -H "KEY: YOUR_API_KEY" \\
      -H "Content-Type: application/json" \\
      -d '{"name":"Operation Name","adversary":{"adversary_id":"ID"}}'
@@ -326,7 +326,7 @@ export const calderaFAQItems: FAQItem[] = [
    Find them in /opt/caldera/conf/local.yml under "api_key_red" and "api_key_blue".
 
 2. **Header format**: The API key must be sent in the "KEY" header (not "Authorization"):
-   curl -H "KEY: your-api-key" http://137.184.7.224:8888/api/v2/health
+   curl -H "KEY: your-api-key" https://caldera.aceofcloud.io/api/v2/health
 
 3. **Key rotation**: If keys were recently rotated, update all references:
    - Cyber Campaign Command dashboard configuration
@@ -337,7 +337,7 @@ export const calderaFAQItems: FAQItem[] = [
    Check the Credentials page in the Cyber Campaign Command dashboard for the current API keys.
 
 5. **Test connectivity**:
-   curl -v -H "KEY: YOUR_KEY" http://137.184.7.224:8888/api/v2/agents
+   curl -v -H "KEY: YOUR_KEY" https://caldera.aceofcloud.io/api/v2/agents
    Look for the response code and any error messages.`,
     category: 'Server',
     tags: ['401', 'unauthorized', 'API key', 'authentication'],
@@ -453,12 +453,12 @@ export const calderaFAQItems: FAQItem[] = [
    sudo certbot --nginx -d strike.spicythreatintel.com
 
 4. **Current access URLs**:
-   - Dashboard: https://137.184.7.224 (SSL warning)
-   - Caldera UI: http://137.184.7.224:8888 (no SSL)
-   - GoPhish Admin: https://137.184.7.224:3333 (SSL warning)
+   - Dashboard: https://dashboard.aceofcloud.io (SSL warning)
+   - Caldera UI: https://caldera.aceofcloud.io (no SSL)
+   - GoPhish Admin: https://gophish.aceofcloud.io (SSL warning)
 
 5. **For API access**: When using curl with self-signed certs, add the -k flag:
-   curl -k https://137.184.7.224/api/...`,
+   curl -k https://dashboard.aceofcloud.io/api/...`,
     category: 'Integration',
     tags: ['SSL', 'certificate', 'warning', 'HTTPS', 'Let\'s Encrypt'],
     severity: 'low',

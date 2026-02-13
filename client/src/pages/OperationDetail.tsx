@@ -140,7 +140,7 @@ export default function OperationDetail() {
   };
 
   const handleOpenInCaldera = () => {
-    window.open(`http://137.184.7.224:8888/operations/${params.id}`, '_blank');
+    window.open(`https://caldera.aceofcloud.io/operations/${params.id}`, '_blank');
   };
 
   if (opsLoading || abilitiesLoading) {

@@ -68,7 +68,7 @@ export default function Home() {
                   <ChevronRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
-              <a href="http://137.184.7.224:8888" target="_blank" rel="noopener noreferrer">
+              <a href="https://caldera.aceofcloud.io" target="_blank" rel="noopener noreferrer">
                 <Button size="lg" variant="outline" className="font-display tracking-wider border-2 border-white hover:bg-white hover:text-background px-8 py-6 text-lg">
                   CALDERA SERVER
                   <ExternalLink className="w-5 h-5 ml-2" />
