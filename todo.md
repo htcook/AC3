@@ -685,3 +685,12 @@
 - [x] Audit all current platform capabilities and features
 - [x] Rewrite landing page feature descriptions to match actual built features
 - [x] Update hero section, feature cards, and capability descriptions
+
+## Seamless GoPhish/Caldera Access After Login
+- [x] Review current auth flow and credential storage
+- [x] Ensure GoPhish API proxy uses stored credentials automatically
+- [x] Ensure Caldera API proxy uses stored credentials automatically
+- [x] Test GoPhish features after dashboard login (templates, campaigns, profiles, landing pages)
+- [x] Test Caldera features after dashboard login (adversaries, operations, abilities)
+- [x] Test engagement builder functionality end-to-end (create engagement, OSINT recon, campaign wizard)
+- [x] Fix any issues found during testing

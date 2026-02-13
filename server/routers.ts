@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { ENV } from "./_core/env";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
@@ -9,6 +10,22 @@ import jwt from "jsonwebtoken";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
+
+// Helper to get cookie options for Caldera session
+function getCalderaCookieOptions(req: any) {
+  const host = req.hostname || req.headers?.host || '';
+  // For aceofcloud.io subdomains, use cross-subdomain cookie
+  // For other environments (manus.space, localhost), omit domain to use current host
+  const isAceOfCloud = host.includes('aceofcloud.io');
+  return {
+    path: '/',
+    httpOnly: true,
+    secure: !host.includes('localhost'),
+    sameSite: 'lax' as const,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    ...(isAceOfCloud ? { domain: '.aceofcloud.io' } : {}),
+  };
+}
 
 // JWT secret for Caldera sessions (use env var in production)
 const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
@@ -21,14 +38,16 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
-// GoPhish API helper
-const GOPHISH_URL = 'https://127.0.0.1:3333';
-const GOPHISH_API_KEY = '186292e5e312962ad1fdfc9ecbc21453e6073daf6554861371bd4da0fa61a5a2';
-const CALDERA_BASE_URL = 'http://127.0.0.1:8888';
-const CALDERA_API_KEY = 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e';
+// GoPhish & Caldera API config from environment
+const GOPHISH_URL = ENV.gophishBaseUrl;
+const GOPHISH_API_KEY = ENV.gophishApiKey;
+const CALDERA_BASE_URL = ENV.calderaBaseUrl;
+const CALDERA_API_KEY = ENV.calderaApiKey;
 
 async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
   try {
+    // GoPhish uses self-signed TLS cert
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     const url = `${GOPHISH_URL}${endpoint}`;
     const options: RequestInit = {
       method,
@@ -1072,11 +1091,12 @@ export const appRouter = router({
             signal: AbortSignal.timeout(5000),
           });
 
-          // Also check if it's the admin credentials
-          const isValidAdmin = 
-            (input.username === 'red' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
-            (input.username === 'blue' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
-            (input.username === 'admin' && input.password === 'GgL3%8mr@N5%CVhu*JoI');
+          // Also check if it's the admin credentials from env
+          const validPassword = ENV.calderaPassword;
+          const isValidAdmin = validPassword && (
+            (input.username === 'red' || input.username === 'blue' || input.username === 'admin') &&
+            input.password === validPassword
+          );
 
           if (response.ok || isValidAdmin) {
             // Create JWT token for session
@@ -1090,15 +1110,8 @@ export const appRouter = router({
               { expiresIn: '24h' }
             );
 
-            // Set session cookie with cross-subdomain domain
-            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, {
-              domain: '.aceofcloud.io',
-              path: '/',
-              httpOnly: true,
-              secure: true,
-              sameSite: 'lax',
-              maxAge: 24 * 60 * 60 * 1000, // 24 hours
-            });
+            // Set session cookie
+            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCalderaCookieOptions(ctx.req));
 
             return { 
               success: true, 
@@ -1111,11 +1124,12 @@ export const appRouter = router({
         } catch (error) {
           console.error('Caldera auth error:', error);
           
-          // Fallback: check hardcoded credentials if Caldera is unreachable
-          const isValidAdmin = 
-            (input.username === 'red' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
-            (input.username === 'blue' && input.password === 'GgL3%8mr@N5%CVhu*JoI') ||
-            (input.username === 'admin' && input.password === 'GgL3%8mr@N5%CVhu*JoI');
+          // Fallback: check credentials from env if Caldera is unreachable
+          const validPassword = ENV.calderaPassword;
+          const isValidAdmin = validPassword && (
+            (input.username === 'red' || input.username === 'blue' || input.username === 'admin') &&
+            input.password === validPassword
+          );
 
           if (isValidAdmin) {
             const token = jwt.sign(
@@ -1128,14 +1142,7 @@ export const appRouter = router({
               { expiresIn: '24h' }
             );
 
-            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, {
-              domain: '.aceofcloud.io',
-              path: '/',
-              httpOnly: true,
-              secure: true,
-              sameSite: 'lax',
-              maxAge: 24 * 60 * 60 * 1000,
-            });
+            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCalderaCookieOptions(ctx.req));
 
             return { 
               success: true, 
@@ -1178,14 +1185,8 @@ export const appRouter = router({
 
     // Logout
     logout: publicProcedure.mutation(async ({ ctx }) => {
-      ctx.res.clearCookie(CALDERA_SESSION_COOKIE, {
-        domain: '.aceofcloud.io',
-        path: '/',
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        maxAge: -1,
-      });
+      const cookieOpts = getCalderaCookieOptions(ctx.req);
+      ctx.res.clearCookie(CALDERA_SESSION_COOKIE, { ...cookieOpts, maxAge: -1 });
       return { success: true };
     }),
   }),

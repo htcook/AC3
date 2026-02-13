@@ -7,4 +7,16 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // Caldera - resolve to remote server if env points to localhost
+  calderaBaseUrl: (process.env.CALDERA_BASE_URL && !process.env.CALDERA_BASE_URL.includes('127.0.0.1') && !process.env.CALDERA_BASE_URL.includes('localhost'))
+    ? process.env.CALDERA_BASE_URL
+    : "http://137.184.7.224:8888",
+  calderaApiKey: process.env.CALDERA_API_KEY ?? "",
+  calderaUsername: process.env.CALDERA_USERNAME ?? "red",
+  calderaPassword: process.env.CALDERA_PASSWORD ?? "",
+  // GoPhish - resolve to remote server if env points to localhost
+  gophishBaseUrl: (process.env.GOPHISH_BASE_URL && !process.env.GOPHISH_BASE_URL.includes('127.0.0.1') && !process.env.GOPHISH_BASE_URL.includes('localhost'))
+    ? process.env.GOPHISH_BASE_URL
+    : "https://137.184.7.224:3333",
+  gophishApiKey: process.env.GOPHISH_API_KEY ?? "",
 };
