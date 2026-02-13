@@ -1140,6 +1140,90 @@ export const appRouter = router({
       return { success: true };
     }),
   }),
+
+  // Engagement management
+  engagements: router({
+    list: protectedProcedure.query(async () => {
+      return db.getEngagements();
+    }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getEngagementById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        customerName: z.string().min(1),
+        description: z.string().optional(),
+        engagementType: z.enum(['red_team', 'phishing', 'pentest', 'purple_team', 'tabletop']).default('red_team'),
+        status: z.enum(['planning', 'active', 'paused', 'completed', 'archived']).default('planning'),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        targetDomain: z.string().optional(),
+        targetIpRange: z.string().optional(),
+        phishingDomain: z.string().optional(),
+        calderaOperationId: z.string().optional(),
+        calderaAdversaryId: z.string().optional(),
+        gophishCampaignId: z.number().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const id = await db.createEngagement({
+          ...input,
+          createdBy: ctx.user.id,
+        });
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagement_created',
+          details: `Created engagement: ${input.name} for ${input.customerName}`,
+        });
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        customerName: z.string().min(1).optional(),
+        description: z.string().optional(),
+        engagementType: z.enum(['red_team', 'phishing', 'pentest', 'purple_team', 'tabletop']).optional(),
+        status: z.enum(['planning', 'active', 'paused', 'completed', 'archived']).optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        targetDomain: z.string().optional(),
+        targetIpRange: z.string().optional(),
+        phishingDomain: z.string().optional(),
+        calderaOperationId: z.string().optional(),
+        calderaAdversaryId: z.string().optional(),
+        gophishCampaignId: z.number().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...updates } = input;
+        await db.updateEngagement(id, updates);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagement_updated',
+          details: `Updated engagement ID: ${id}`,
+        });
+        return { success: true };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteEngagement(input.id);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagement_deleted',
+          details: `Deleted engagement ID: ${input.id}`,
+        });
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

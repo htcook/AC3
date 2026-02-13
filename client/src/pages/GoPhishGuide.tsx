@@ -4,7 +4,8 @@ import {
   Activity, Users, Key, ExternalLink, Menu, X, Zap, Target, FileText, Cloud,
   Cpu, BookOpen, ChevronDown, ChevronRight, Mail, Globe, UserCheck, Send,
   Shield, AlertTriangle, CheckCircle, Copy, Search,
-  Globe2
+  Globe2,
+  Briefcase,
 } from "lucide-react";
 import { useState } from "react";
 import FAQ from '@/components/FAQ';
@@ -88,6 +89,7 @@ export default function GoPhishGuide() {
           </div>
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity className="w-4 h-4" />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key className="w-4 h-4" />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target className="w-4 h-4" />} label="ADVERSARIES" />
             <NavItem href="/agents" icon={<Cpu className="w-4 h-4" />} label="AGENTS" />

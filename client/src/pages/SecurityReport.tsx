@@ -10,7 +10,8 @@ import {
   Mail, MousePointerClick, UserCheck, PieChart, TrendingUp, Lock,
   FileDown, Printer,
   Layers,
-  Globe2
+  Globe2,
+  Briefcase
 } from 'lucide-react';
 
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
@@ -493,6 +494,7 @@ This document contains sensitive security assessment findings. Distribution is l
           </div>
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity className="w-4 h-4" />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key className="w-4 h-4" />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target className="w-4 h-4" />} label="ADVERSARIES" />
             <NavItem href="/agents" icon={<Cpu className="w-4 h-4" />} label="AGENTS" />

@@ -20,7 +20,8 @@ import {
   Shield,
   AlertTriangle,
   Copy,
-  Check
+  Check,
+  Briefcase,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -203,6 +204,7 @@ export default function AdversaryDetail() {
 
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" active />
             <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />

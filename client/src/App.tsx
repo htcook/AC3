@@ -26,6 +26,7 @@ import APTLibrary from "./pages/APTLibrary";
 import ComplianceFrameworks from "./pages/ComplianceFrameworks";
 import InfraReference from "./pages/InfraReference";
 import TemplateLibrary from "./pages/TemplateLibrary";
+import Engagements from "./pages/Engagements";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,6 +70,9 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/dashboard">
         <ProtectedRoute component={Dashboard} />
+      </Route>
+      <Route path="/engagements">
+        <ProtectedRoute component={Engagements} />
       </Route>
       <Route path="/credentials">
         <ProtectedRoute component={Credentials} />

@@ -521,3 +521,38 @@
 - [x] Rename Databank to MSP Target in ReportGenerator.tsx
 - [x] Update crowdstrike_bypass_agents.md
 - [x] Build and deploy updated dashboard
+
+## Update caldera-ops-persist service
+- [x] Update systemd service script to use MSP_Target operation/adversary names
+- [x] Verify service restarts correctly with new names
+
+## Customer/Engagement Selector
+- [x] Create engagements table in database schema
+- [x] Create engagement CRUD procedures (create, list, get, update, delete)
+- [x] Build engagement selector component in dashboard header/sidebar
+- [x] Wire engagement context throughout dashboard pages
+- [ ] Store active engagement in user session/localStorage
+
+## MSP Adversary Profile (AD/RMM/Backup)
+- [x] Design MSP-focused adversary profile with AD, RMM, and backup TTPs
+- [x] Create adversary profile in Caldera via API
+- [x] Create matching operation in Caldera
+- [x] Add MSP profile to dashboard adversaries page
+- [ ] Update CalderaGuide with MSP profile documentation (deferred)
+
+## GoPhish Email Templates
+- [x] Research pre-made GoPhish email template repositories
+- [x] Evaluate and select best templates for MSP/enterprise phishing scenarios
+- [x] Import selected templates into GoPhish instance
+- [ ] Add template management/preview to C3 dashboard
+
+## Help Desk Phishing Email Templates
+- [x] Research real email designs from Zendesk, ServiceNow, Jira, Freshdesk, ConnectWise
+- [x] Create Zendesk ticket notification phishing template
+- [x] Create ServiceNow incident/request phishing template
+- [x] Create Jira/Atlassian notification phishing template
+- [x] Create Freshdesk ticket phishing template
+- [x] Create ConnectWise/Automate MSP alert phishing template
+- [x] Create Microsoft 365 admin center alert phishing template
+- [x] Create matching credential harvest landing pages
+- [x] Import all templates into GoPhish via API

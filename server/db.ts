@@ -302,3 +302,38 @@ export async function reorderCampaignAbilities(campaignId: number, abilityIds: n
       .where(eq(campaignAbilities.id, abilityIds[i]));
   }
 }
+
+// Engagement operations
+import { engagements, InsertEngagement, Engagement } from "../drizzle/schema";
+
+export async function createEngagement(engagement: InsertEngagement) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(engagements).values(engagement);
+  return result[0].insertId;
+}
+
+export async function getEngagements() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(engagements).orderBy(desc(engagements.updatedAt));
+}
+
+export async function getEngagementById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(engagements).where(eq(engagements.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateEngagement(id: number, updates: Partial<InsertEngagement>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(engagements).set(updates).where(eq(engagements.id, id));
+}
+
+export async function deleteEngagement(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(engagements).where(eq(engagements.id, id));
+}

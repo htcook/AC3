@@ -148,3 +148,42 @@ export const campaignAbilities = mysqlTable("campaign_abilities", {
 
 export type CampaignAbility = typeof campaignAbilities.$inferSelect;
 export type InsertCampaignAbility = typeof campaignAbilities.$inferInsert;
+
+/**
+ * Customer engagements / assessments
+ */
+export const engagements = mysqlTable("engagements", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  description: text("description"),
+  engagementType: mysqlEnum("engagementType", [
+    "red_team",
+    "phishing",
+    "pentest",
+    "purple_team",
+    "tabletop"
+  ]).default("red_team").notNull(),
+  status: mysqlEnum("status", [
+    "planning",
+    "active",
+    "paused",
+    "completed",
+    "archived"
+  ]).default("planning").notNull(),
+  startDate: timestamp("startDate"),
+  endDate: timestamp("endDate"),
+  targetDomain: varchar("targetDomain", { length: 255 }),
+  targetIpRange: varchar("targetIpRange", { length: 255 }),
+  phishingDomain: varchar("phishingDomain", { length: 255 }),
+  calderaOperationId: varchar("calderaOperationId", { length: 255 }),
+  calderaAdversaryId: varchar("calderaAdversaryId", { length: 255 }),
+  gophishCampaignId: int("gophishCampaignId"),
+  notes: text("notes"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Engagement = typeof engagements.$inferSelect;
+export type InsertEngagement = typeof engagements.$inferInsert;

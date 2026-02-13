@@ -3,7 +3,8 @@ import { useState } from "react";
 import {
   Cloud, Activity, Key, Target, Cpu, Zap, Users, FileText, BookOpen, Fish,
   Menu, X, LogOut, ChevronRight, Shield, AlertTriangle, Crosshair, Globe2,
-  ArrowRight, ExternalLink, Search, Download, Copy, Check
+  ArrowRight, ExternalLink, Search, Download, Copy, Check,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -66,6 +67,7 @@ export default function APTLibrary() {
           </div>
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
             <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />

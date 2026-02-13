@@ -3,7 +3,8 @@ import { useState } from "react";
 import {
   Cloud, Activity, Key, Target, Cpu, Zap, Users, FileText, BookOpen, Fish,
   Menu, X, LogOut, Shield, Globe2, Server, HardDrive, Mail, Lock,
-  ArrowRight, ArrowDown, Download, Copy, Check, Network, Terminal
+  ArrowRight, ArrowDown, Download, Copy, Check, Network, Terminal,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ app_https_cidrs      = ["0.0.0.0/0", "::/0"]`;
           </div>
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
             <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />

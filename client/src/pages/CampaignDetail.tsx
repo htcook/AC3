@@ -23,7 +23,8 @@ import {
   Server,
   Code,
   ExternalLink,
-  Cpu
+  Cpu,
+  Briefcase,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -206,6 +207,7 @@ export default function CampaignDetail() {
 
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
             <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />

@@ -22,7 +22,8 @@ import {
   Fish,
   BookOpen,
   Shield,
-  Globe2
+  Globe2,
+  Briefcase,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -80,6 +81,7 @@ export default function Credentials() {
 
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" active />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
             <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />

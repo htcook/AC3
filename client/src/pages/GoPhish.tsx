@@ -8,12 +8,13 @@ import {
   Plus, RefreshCw, CheckCircle, Clock, AlertTriangle, Play,
   Crosshair, BarChart3, MousePointer, ShieldAlert, Eye, Trash2,
   Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen,
-  Shield, Globe2
+  Shield, Globe2, Briefcase
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <Activity className="w-4 h-4" />, label: "DASHBOARD" },
+  { href: "/engagements", icon: <Briefcase className="w-4 h-4" />, label: "ENGAGEMENTS" },
   { href: "/credentials", icon: <Key className="w-4 h-4" />, label: "CREDENTIALS" },
   { href: "/adversaries", icon: <Target className="w-4 h-4" />, label: "ADVERSARIES" },
   { href: "/agents", icon: <Cpu className="w-4 h-4" />, label: "AGENTS" },

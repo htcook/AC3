@@ -3,7 +3,8 @@ import { useState } from "react";
 import {
   Cloud, Activity, Key, Target, Cpu, Zap, Users, FileText, BookOpen, Fish,
   Menu, X, LogOut, Shield, Globe2, CheckCircle2, AlertTriangle, XCircle,
-  ChevronDown, ChevronUp, Download, Copy
+  ChevronDown, ChevronUp, Download, Copy,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -52,6 +53,7 @@ export default function ComplianceFrameworks() {
           </div>
           <nav className="flex-1 p-4 space-y-2">
             <NavItem href="/dashboard" icon={<Activity />} label="DASHBOARD" />
+            <NavItem href="/engagements" icon={<Briefcase />} label="ENGAGEMENTS" />
             <NavItem href="/credentials" icon={<Key />} label="CREDENTIALS" />
             <NavItem href="/adversaries" icon={<Target />} label="ADVERSARIES" />
             <NavItem href="/agents" icon={<Cpu />} label="AGENTS" />
