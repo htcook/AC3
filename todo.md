@@ -463,3 +463,11 @@
 - [x] Add STIX 2.1 threat intelligence viewer
 - [x] Add sidebar navigation for new pages
 - [x] Wire up routes in App.tsx
+
+## Help Desk Email Template Library
+- [x] Research real help desk/IT system email templates from GitHub and security resources
+- [x] Create categorized template library (password reset, MFA, ticket notifications, account alerts, etc.)
+- [x] Build Template Library page with search, categories, and copy-to-GoPhish functionality
+- [x] Add template preview with GoPhish variable placeholders
+- [x] Add sidebar navigation link for Template Library
+- [ ] Deploy latest changes to DigitalOcean (pending)

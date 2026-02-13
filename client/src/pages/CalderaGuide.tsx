@@ -104,6 +104,7 @@ export default function CalderaGuide() {
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">GUIDES</p>
               <NavItem href="/guide/gophish" icon={<BookOpen className="w-4 h-4" />} label="GOPHISH GUIDE" />
               <NavItem href="/guide/caldera" icon={<BookOpen className="w-4 h-4" />} label="CALDERA GUIDE" active />
+              <NavItem href="/templates" icon={<FileText />} label="TEMPLATE LIBRARY" />
             </div>
             <div className="border-t border-border my-3 pt-3">
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">REPORTS</p>

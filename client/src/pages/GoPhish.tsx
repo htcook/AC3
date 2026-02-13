@@ -26,6 +26,7 @@ const NAV_ITEMS = [
 const GUIDE_ITEMS = [
   { href: "/guide/gophish", icon: <BookOpen className="w-4 h-4" />, label: "GOPHISH GUIDE" },
   { href: "/guide/caldera", icon: <BookOpen className="w-4 h-4" />, label: "CALDERA GUIDE" },
+  { href: "/templates", icon: <FileText className="w-4 h-4" />, label: "TEMPLATE LIBRARY" },
 ];
 
 export default function GoPhish() {
