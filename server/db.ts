@@ -10,17 +10,44 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _dbLastCheck = 0;
+const DB_RETRY_INTERVAL = 5000; // retry every 5s if connection failed
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
+  if (_db) return _db;
+
+  const now = Date.now();
+  if (!process.env.DATABASE_URL) {
+    return null;
   }
-  return _db;
+
+  // Avoid hammering reconnect on every call
+  if (now - _dbLastCheck < DB_RETRY_INTERVAL) {
+    return null;
+  }
+  _dbLastCheck = now;
+
+  try {
+    _db = drizzle(process.env.DATABASE_URL);
+    // Verify the connection actually works
+    const { sql } = await import('drizzle-orm');
+    await _db.execute(sql`SELECT 1`);
+    console.log('[Database] Connected successfully');
+    return _db;
+  } catch (error) {
+    console.warn('[Database] Failed to connect:', error);
+    _db = null;
+    return null;
+  }
+}
+
+/**
+ * Force-reconnect the database (useful after transient failures).
+ * Clears the cached connection so the next getDb() call retries.
+ */
+export function resetDbConnection() {
+  _db = null;
+  _dbLastCheck = 0;
 }
 
 // User operations
@@ -307,10 +334,27 @@ export async function reorderCampaignAbilities(campaignId: number, abilityIds: n
 import { engagements, InsertEngagement, Engagement } from "../drizzle/schema";
 
 export async function createEngagement(engagement: InsertEngagement) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(engagements).values(engagement);
-  return result[0].insertId;
+  let db = await getDb();
+  if (!db) {
+    // Retry once after resetting connection
+    resetDbConnection();
+    db = await getDb();
+  }
+  if (!db) throw new Error("Database not available — please try again in a few seconds");
+  try {
+    const result = await db.insert(engagements).values(engagement);
+    return result[0].insertId;
+  } catch (err: any) {
+    // On connection-level errors, reset and retry once
+    if (err?.code === 'ECONNRESET' || err?.code === 'PROTOCOL_CONNECTION_LOST' || err?.message?.includes('ECONNREFUSED')) {
+      resetDbConnection();
+      const retryDb = await getDb();
+      if (!retryDb) throw new Error("Database connection lost — please try again");
+      const result = await retryDb.insert(engagements).values(engagement);
+      return result[0].insertId;
+    }
+    throw err;
+  }
 }
 
 export async function getEngagements() {

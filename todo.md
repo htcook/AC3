@@ -1275,3 +1275,4 @@
 - [x] Add onProgress callback to runDomainIntelPipeline for real-time stage updates
 - [x] Frontend polls every 3s with progress bar and stage indicators
 - [x] Write vitest tests for async pipeline pattern (12 tests)
+- [x] Fix: 'Database not available' error when creating an engagement (added retry logic, connection health check, and auto-reconnect)
