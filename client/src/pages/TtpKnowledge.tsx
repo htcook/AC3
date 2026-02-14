@@ -152,7 +152,7 @@ export default function TtpKnowledge() {
                 <Shield className="h-5 w-5 text-green-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.data?.withDetections || 0}</p>
+                <p className="text-2xl font-bold">{(stats.data as any)?.withDetections || stats.data?.enriched || 0}</p>
                 <p className="text-xs text-muted-foreground">With Detections</p>
               </div>
             </div>

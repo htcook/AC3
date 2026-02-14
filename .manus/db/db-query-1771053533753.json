@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, primaryDomain, status, overallRiskScore FROM domain_intel_scans WHERE primaryDomain LIKE '%aceofcloud%' OR primaryDomain LIKE '%Aceofcloud%' OR primaryDomain LIKE '%AceOfCloud%' OR primaryDomain LIKE '%ace%cloud%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, overallRiskScore FROM domain_intel_scans WHERE primaryDomain LIKE '%aceofcloud%' OR primaryDomain LIKE '%Aceofcloud%' OR primaryDomain LIKE '%AceOfCloud%' OR primaryDomain LIKE '%ace%cloud%';",
+  "rows": [
+    {
+      "id": "30069",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "overallRiskScore": "61"
+    },
+    {
+      "id": "30121",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "overallRiskScore": "93"
+    },
+    {
+      "id": "30122",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "overallRiskScore": "89"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\toverallRiskScore\n30069\taceofcloud.com\tcompleted\t61\n30121\taceofcloud.com\tcompleted\t93\n30122\taceofcloud.com\tcompleted\t89\n",
+  "stderr": "",
+  "execution_time_ms": 393
+}

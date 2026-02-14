@@ -546,6 +546,340 @@ export const appRouter = router({
           adversaryError: adversaryResult.error,
         };
       }),
+
+    // ─── Campaign Execution Dashboard Endpoints ───
+    // Get detailed operation with chain analysis
+    getOperationDetail: publicProcedure
+      .input(z.object({ operationId: z.string() }))
+      .query(async ({ input }) => {
+        const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
+        const op = Array.isArray(operations) ? operations.find((o: any) => o.id === input.operationId) : null;
+        if (!op) return null;
+
+        const chain = op.chain || [];
+        const totalSteps = chain.length;
+        const completedSteps = chain.filter((s: any) => s.finish).length;
+        const successSteps = chain.filter((s: any) => s.status === 0 && s.finish).length;
+        const failedSteps = chain.filter((s: any) => s.status !== 0 && s.finish).length;
+
+        // Group by technique
+        const techniqueMap: Record<string, { id: string; name: string; status: string; steps: any[] }> = {};
+        for (const step of chain) {
+          const ab = step.ability || {};
+          const techId = ab.technique_id || 'unknown';
+          if (!techniqueMap[techId]) {
+            techniqueMap[techId] = {
+              id: techId,
+              name: ab.technique_name || ab.name || techId,
+              status: 'pending',
+              steps: [],
+            };
+          }
+          techniqueMap[techId].steps.push({
+            id: step.id,
+            abilityName: ab.name,
+            abilityId: ab.ability_id,
+            status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+            paw: step.paw,
+            executor: step.executor?.name || step.executor,
+            command: step.command,
+            output: step.output,
+            decide: step.decide,
+            finish: step.finish,
+            score: step.score,
+          });
+          // Update technique status
+          const statuses = techniqueMap[techId].steps.map((s: any) => s.status);
+          if (statuses.includes('running')) techniqueMap[techId].status = 'running';
+          else if (statuses.every((s: string) => s === 'success')) techniqueMap[techId].status = 'success';
+          else if (statuses.some((s: string) => s === 'failed')) techniqueMap[techId].status = 'partial';
+          else techniqueMap[techId].status = 'pending';
+        }
+
+        // Timeline events
+        const timeline = chain.map((step: any) => ({
+          time: step.decide || step.finish,
+          finishTime: step.finish,
+          abilityName: step.ability?.name || 'Unknown',
+          techniqueId: step.ability?.technique_id || 'Unknown',
+          status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+          paw: step.paw,
+        })).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        return {
+          id: op.id,
+          name: op.name,
+          state: op.state,
+          start: op.start,
+          adversary: op.adversary,
+          planner: op.planner,
+          group: op.group,
+          jitter: op.jitter,
+          objective: op.objective,
+          // Metrics
+          metrics: {
+            totalSteps,
+            completedSteps,
+            successSteps,
+            failedSteps,
+            pendingSteps: totalSteps - completedSteps,
+            successRate: totalSteps > 0 ? Math.round((successSteps / totalSteps) * 100) : 0,
+            detectionRate: totalSteps > 0 ? Math.round((failedSteps / totalSteps) * 100) : 0,
+            progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+          },
+          techniques: Object.values(techniqueMap),
+          timeline,
+          agentPaws: Array.from(new Set(chain.map((s: any) => s.paw))),
+        };
+      }),
+
+    // Get all operations summary for dashboard
+    getOperationsSummary: publicProcedure.query(async () => {
+      const [operations, agents] = await Promise.all([
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents'),
+      ]);
+      const ops = Array.isArray(operations) ? operations : [];
+      const agentList = Array.isArray(agents) ? agents : [];
+
+      const summary = ops.map((op: any) => {
+        const chain = op.chain || [];
+        const totalSteps = chain.length;
+        const completedSteps = chain.filter((s: any) => s.finish).length;
+        const successSteps = chain.filter((s: any) => s.status === 0 && s.finish).length;
+        const failedSteps = chain.filter((s: any) => s.status !== 0 && s.finish).length;
+        const uniqueTechniques = new Set(chain.map((s: any) => s.ability?.technique_id).filter(Boolean));
+        return {
+          id: op.id,
+          name: op.name,
+          state: op.state,
+          start: op.start,
+          adversaryName: op.adversary?.name || 'Unknown',
+          totalSteps,
+          completedSteps,
+          successSteps,
+          failedSteps,
+          uniqueTechniques: uniqueTechniques.size,
+          progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+          successRate: completedSteps > 0 ? Math.round((successSteps / completedSteps) * 100) : 0,
+          agentPaws: Array.from(new Set(chain.map((s: any) => s.paw).filter(Boolean))),
+        };
+      });
+
+      // Agent summary
+      const agentSummary = agentList.map((a: any) => {
+        const now = Date.now();
+        const lastSeen = new Date(a.last_seen).getTime();
+        const isAlive = (now - lastSeen) < 5 * 60 * 1000; // 5 min threshold
+        return {
+          paw: a.paw,
+          host: a.host,
+          platform: a.platform,
+          username: a.username,
+          privilege: a.privilege,
+          contact: a.contact,
+          lastSeen: a.last_seen,
+          created: a.created,
+          status: isAlive ? 'alive' : 'dead',
+          executors: a.executors || [],
+          hostIpAddrs: a.host_ip_addrs || [],
+          displayName: a.display_name || a.host,
+        };
+      });
+
+      return {
+        operations: summary,
+        agents: agentSummary,
+        totals: {
+          totalOperations: ops.length,
+          runningOperations: ops.filter((o: any) => o.state === 'running').length,
+          pausedOperations: ops.filter((o: any) => o.state === 'paused').length,
+          finishedOperations: ops.filter((o: any) => o.state === 'finished').length,
+          totalAgents: agentList.length,
+          aliveAgents: agentSummary.filter((a: any) => a.status === 'alive').length,
+        },
+      };
+    }),
+
+    // Control operation (pause, resume, stop)
+    controlOperation: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        action: z.enum(['pause', 'resume', 'stop', 'cleanup']),
+      }))
+      .mutation(async ({ input }) => {
+        const stateMap: Record<string, string> = {
+          pause: 'paused',
+          resume: 'running',
+          stop: 'finished',
+          cleanup: 'cleanup',
+        };
+        const response = await fetch(`${CALDERA_BASE_URL}/api/v2/operations/${input.operationId}`, {
+          method: 'PATCH',
+          headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: stateMap[input.action] }),
+        });
+        if (!response.ok) throw new Error(`Failed to ${input.action} operation: ${response.status}`);
+        return { success: true, newState: stateMap[input.action] };
+      }),
+
+    // Build intelligent attack chain for a specific operation
+    buildChain: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        scanId: z.number().optional(),
+        campaignIndex: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildOperationChain } = await import('./lib/chain-builder');
+        const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
+        let scanData: any = null;
+        if (input.scanId) {
+          const scan = await db.getDomainIntelScanById(input.scanId);
+          scanData = scan?.pipelineOutput;
+        }
+        const campaigns = scanData?.campaignRecommendations || [];
+        const actorMatches = scanData?.threatActorMatches?.topMatches || [];
+        const campaign = input.campaignIndex !== undefined ? campaigns[input.campaignIndex] : undefined;
+        const result = await buildOperationChain({
+          operationId: input.operationId,
+          scanId: input.scanId,
+          campaignRecommendation: campaign,
+          threatActorMatches: actorMatches,
+          allAbilities: abilities || [],
+          calderaBaseUrl: CALDERA_BASE_URL,
+          calderaApiKey: CALDERA_API_KEY,
+        });
+        return result;
+      }),
+
+    // Auto-build chains for ALL paused operations without chains
+    autoBuildAllChains: protectedProcedure
+      .input(z.object({ scanId: z.number().optional() }))
+      .mutation(async ({ input }) => {
+        const { autoBuildAllChains } = await import('./lib/chain-builder');
+        let scanData: any = undefined;
+        if (input.scanId) {
+          const scan = await db.getDomainIntelScanById(input.scanId);
+          if (scan) scanData = { pipelineOutput: scan.pipelineOutput, findings: [] };
+        }
+        const results = await autoBuildAllChains({
+          calderaBaseUrl: CALDERA_BASE_URL,
+          calderaApiKey: CALDERA_API_KEY,
+          scanData,
+        });
+        return {
+          totalOperations: results.length,
+          results: results.map(r => ({
+            operationId: r.operationId,
+            operationName: r.operationName,
+            adversaryName: r.adversaryName,
+            totalAbilities: r.totalAbilities,
+            techniquesCovered: r.techniquesCovered.length,
+            techniquesNotCovered: r.techniquesNotCovered.length,
+          })),
+        };
+      }),
+
+    // Build chain with LLM intelligence
+    buildChainWithLLM: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        scanId: z.number(),
+        campaignIndex: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildChainWithLLM, buildOperationChain } = await import('./lib/chain-builder');
+        const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        const scanData = scan?.pipelineOutput;
+        const campaigns = scanData?.campaignRecommendations || [];
+        const actorMatches = scanData?.threatActorMatches?.topMatches || [];
+        const campaign = campaigns[input.campaignIndex];
+        if (!campaign) throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign recommendation not found' });
+        const llmResult = await buildChainWithLLM({
+          campaignRecommendation: campaign,
+          orgProfile: scanData?.orgProfile,
+          findings: [],
+          threatActors: actorMatches,
+          availableAbilities: abilities || [],
+        });
+        if (llmResult.selectedAbilities.length > 0) {
+          const adversaryName = `llm-${campaign.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase().substring(0, 40)}-${Date.now().toString(36)}`;
+          const advResponse = await fetch(`${CALDERA_BASE_URL}/api/v2/adversaries`, {
+            method: 'POST',
+            headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: adversaryName,
+              description: `LLM-designed adversary. ${llmResult.reasoning}`,
+              atomic_ordering: llmResult.selectedAbilities,
+              tags: ['llm-generated', 'chain-builder'],
+            }),
+          });
+          if (advResponse.ok) {
+            const adv = await advResponse.json() as any;
+            await fetch(`${CALDERA_BASE_URL}/api/v2/operations/${input.operationId}`, {
+              method: 'PATCH',
+              headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ adversary: { adversary_id: adv.adversary_id } }),
+            });
+            return { success: true, method: 'llm' as const, adversaryName, totalAbilities: llmResult.selectedAbilities.length, reasoning: llmResult.reasoning, attackNarrative: llmResult.attackNarrative };
+          }
+        }
+        const result = await buildOperationChain({
+          operationId: input.operationId,
+          scanId: input.scanId,
+          campaignRecommendation: campaign,
+          threatActorMatches: actorMatches,
+          allAbilities: abilities || [],
+          calderaBaseUrl: CALDERA_BASE_URL,
+          calderaApiKey: CALDERA_API_KEY,
+        });
+        return { success: true, method: 'rule-based' as const, adversaryName: result.adversaryName, totalAbilities: result.totalAbilities, reasoning: 'Rule-based selection from campaign attack chain', attackNarrative: '' };
+      }),
+
+    // ─── Sigma/YARA Rule Validation Engine ───
+    validateRule: protectedProcedure
+      .input(z.object({
+        ruleType: z.enum(['sigma', 'yara', 'suricata', 'splunk', 'kql']),
+        ruleContent: z.string(),
+        ruleName: z.string().optional(),
+        techniqueId: z.string().optional(),
+        sampleData: z.string().optional(),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { validateRule } = await import('./lib/rule-validator');
+        return validateRule({
+          ruleType: input.ruleType,
+          ruleContent: input.ruleContent,
+          ruleName: input.ruleName,
+          techniqueId: input.techniqueId,
+          sampleData: input.sampleData,
+        }, input.useLLM ?? true);
+      }),
+
+    validateRuleBatch: protectedProcedure
+      .input(z.object({
+        rules: z.array(z.object({
+          ruleType: z.enum(['sigma', 'yara', 'suricata', 'splunk', 'kql']),
+          ruleContent: z.string(),
+          ruleName: z.string().optional(),
+          techniqueId: z.string().optional(),
+        })),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { validateRuleBatch } = await import('./lib/rule-validator');
+        return validateRuleBatch(input.rules, input.useLLM ?? false);
+      }),
+
+    generateSampleLog: protectedProcedure
+      .input(z.object({ techniqueId: z.string() }))
+      .query(async ({ input }) => {
+        const { generateSampleLogData } = await import('./lib/rule-validator');
+        return { sampleData: generateSampleLogData(input.techniqueId) };
+      }),
   }),
 
   // GoPhish API proxy
@@ -2101,15 +2435,15 @@ Respond in JSON format as an array of 3 campaign objects.`;
         let ttpInsights: any[] = [];
         try {
           const matchedTechniques = threatActorMatches.flatMap((a: any) => (a.techniques || []).map((t: any) => t.id)).filter(Boolean);
-          const uniqueTechs = [...new Set(matchedTechniques)].slice(0, 20);
+          const uniqueTechs = Array.from(new Set(matchedTechniques)).slice(0, 20);
           for (const techId of uniqueTechs) {
             const knowledge = await db.getTtpKnowledge(techId);
             if (knowledge) {
               ttpInsights.push({
                 id: techId,
-                name: knowledge.name,
+                name: knowledge.techniqueName,
                 detectionRules: knowledge.detectionRules ? Object.keys(knowledge.detectionRules as any).length : 0,
-                tools: Array.isArray(knowledge.tools) ? (knowledge.tools as any[]).length : 0,
+                tools: Array.isArray(knowledge.toolsUsed) ? (knowledge.toolsUsed as any[]).length : 0,
               });
             }
           }

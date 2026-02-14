@@ -1024,3 +1024,55 @@
 - [x] Support hover tooltips with technique details (score, tactic, description)
 - [x] Embed heatmap in Threat Actor Detail page (replaced basic badge view)
 - [x] Support filtering by tactic and search, export ATT&CK Navigator layer JSON
+
+## Campaign Execution Dashboard
+- [x] Build backend endpoints for real-time Caldera operation monitoring (operationDetail, controlOperation)
+- [x] Fetch active operations with technique execution progress
+- [x] Fetch agent status (alive, dead, pending) per operation
+- [x] Track technique success/failure rates in real-time
+- [x] Calculate detection rate metrics (techniques attempted vs detected)
+- [x] Build real-time dashboard UI with auto-refresh (3-10s polling)
+- [x] Show operation timeline with technique execution steps (expandable chain view)
+- [x] Show agent status grid with health indicators
+- [x] Show MITRE ATT&CK progress overlay (tactic-grouped view)
+- [x] Add operation controls (pause, resume, stop)
+- [x] Add nav link in AppShell (CAMPAIGN EXEC)
+
+## Sigma/YARA Rule Validation Engine
+- [x] Build rule validation backend service (server/lib/rule-validator.ts)
+- [x] Parse and validate Sigma rule syntax (required fields, detection section, condition)
+- [x] Parse and validate YARA rule syntax (rule structure, strings, condition, braces)
+- [x] Parse and validate Suricata rule syntax (action, options, sid)
+- [x] Parse and validate Splunk SPL syntax (balanced quotes, parens, brackets)
+- [x] Parse and validate KQL syntax (table references, balanced parens)
+- [x] Generate sample log data per technique for testing (12+ technique-specific samples)
+- [x] Test rules against sample logs with LLM-powered deep analysis
+- [x] Score rule effectiveness (0-100, based on syntax, semantics, best practices)
+- [x] Assess false positive risk (low/medium/high)
+- [x] Assess coverage (techniques, data sources, platforms)
+- [x] Build rule validation UI page (RuleValidator.tsx with editor, results, samples)
+- [x] Show validation results with pass/fail, errors, warnings, suggestions
+- [x] LLM-powered improvement suggestions and sample data match testing
+- [x] Add RULE VALIDATOR nav link in AppShell
+- [x] Batch validation endpoint for multiple rules
+- [x] 20 vitest tests passing for rule validation engine
+
+## Intelligent Campaign Chain Builder
+- [x] Build backend service to auto-populate Caldera operations with abilities (chain-builder.ts)
+- [x] Map matched threat actors' TTPs to available Caldera abilities
+- [x] Map OSINT/Discovery findings (vulns, misconfigs, open ports) to exploitation abilities
+- [x] Map Domain Intel tech stack to relevant attack techniques
+- [x] Use LLM to intelligently sequence attack chain (buildChainWithLLM)
+- [x] Add endpoint to auto-build chain for any paused operation (buildChain, autoBuildAllChains)
+- [x] Add "Auto-Build Chain" and "LLM Build" buttons to campaign execution dashboard
+- [x] Run auto-build on all paused operations (5 operations, 24 abilities each, 24 techniques covered)
+
+## Campaign Execution Dashboard Enhancement
+- [x] Fix endpoint name mismatch (operationDetail → getOperationDetail)
+- [x] Rewrite CampaignExecution.tsx with enhanced features
+- [x] Add ATT&CK Flow tab (kill chain visualization by tactic phase)
+- [x] Add Timeline tab (chronological execution events with duration)
+- [x] Enhance Detection tab (bypass/blocked/partial/pending metrics)
+- [x] Improve operation list with progress bars and ability counts
+- [x] Add summary cards (running, paused, agents, completed, steps/abilities)
+- [x] Add export results functionality (JSON download)

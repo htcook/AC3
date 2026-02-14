@@ -8,7 +8,7 @@ import {
   FileText, Download, Eye, Calendar, Building, User, Shield, Target,
   CheckCircle, XCircle, AlertTriangle, Clock, Loader2, ChevronDown,
   ChevronUp, Sparkles, Globe, Mail, Lock, BarChart3, Briefcase,
-  Server, Cloud, Network, Copy, ExternalLink, RefreshCw
+  Server, Cloud, Network, Copy, ExternalLink, RefreshCw, Zap
 } from 'lucide-react';
 
 const CLIENT_TYPES = [

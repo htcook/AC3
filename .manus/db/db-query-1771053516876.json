@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, primaryDomain, status, overallRiskScore, engagementId, SUBSTRING(pipelineOutput, 1, 500) as pipeline_preview, SUBSTRING(threatModelSummary, 1, 300) as threat_model, SUBSTRING(campaignRecommendations, 1, 500) as campaigns FROM domain_intel_scans WHERE primaryDomain LIKE '%aceofcloud%' ORDER BY id DESC LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, overallRiskScore, engagementId, SUBSTRING(pipelineOutput, 1, 500) as pipeline_preview, SUBSTRING(threatModelSummary, 1, 300) as threat_model, SUBSTRING(campaignRecommendations, 1, 500) as campaigns FROM domain_intel_scans WHERE primaryDomain LIKE '%aceofcloud%' ORDER BY id DESC LIMIT 1;",
+  "rows": [
+    {
+      "id": "30122",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "overallRiskScore": "89",
+      "engagementId": "NULL",
+      "pipeline_preview": "{\"assets\": [{\"asset\": {\"assetClasses\": [\"marketing_website\", \"public_facing\"], \"assetId\": \"a-001\", \"assetType\": \"other\", \"description\": \"Main corporate website, likely built on WordPress with a CDN for performance and security.\", \"dnsRecords\": {\"A\": [\"104.21.23.123\"], \"CNAME\": [], \"MX\": [], \"NS\": [], \"TXT\": []}, \"headers\": \"Server: cloudflare, X-Powered-By: WordPress, Content-Type: text/html\", \"hostname\": \"aceofcloud.com\", \"tags\": [\"internet_exposed\", \"marketing\", \"public\"], \"technologies\": [\"ng",
+      "threat_model": "The attack surface for AceofCloud is extensive and highly exposed, primarily through internet-facing services critical to its operations, including web properties (aceofcloud.com), email infrastructure (mail.aceofcloud.com, autodiscover.aceofcloud.com), and identity management systems (login.aceofcl",
+      "campaigns": "[{\"attackChain\": [{\"action\": \"Send targeted phishing emails (SSO Password Reset, VPN Client Update, M365 Security Alert) to AceofCloud employees.\", \"phase\": \"Initial Access\", \"step\": 1, \"technique\": \"T1566.001\", \"tool\": \"GoPhish\"}, {\"action\": \"Victim clicks on malicious link, lands on credential harvesting page mimicking login.aceofcloud.com, sso.aceofcloud.com, vpn.aceofcloud.com, or mail.aceofcloud.com.\", \"phase\": \"Initial Access\", \"step\": 2, \"technique\": \"T1566.002\", \"tool\": \"GoPhish (Landing"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\toverallRiskScore\tengagementId\tpipeline_preview\tthreat_model\tcampaigns\n30122\taceofcloud.com\tcompleted\t89\tNULL\t{\"assets\": [{\"asset\": {\"assetClasses\": [\"marketing_website\", \"public_facing\"], \"assetId\": \"a-001\", \"assetType\": \"other\", \"description\": \"Main corporate website, likely built on WordPress with a CDN for performance and security.\", \"dnsRecords\": {\"A\": [\"104.21.23.123\"], \"CNAME\": [], \"MX\": [], \"NS\": [], \"TXT\": []}, \"headers\": \"Server: cloudflare, X-Powered-By: WordPress, Content-Type: text/html\", \"hostname\": \"aceofcloud.com\", \"tags\": [\"internet_exposed\", \"marketing\", \"public\"], \"technologies\": [\"ng\tThe attack surface for AceofCloud is extensive and highly exposed, primarily through internet-facing services critical to its operations, including web properties (aceofcloud.com), email infrastructure (mail.aceofcloud.com, autodiscover.aceofcloud.com), and identity management systems (login.aceofcl\t[{\"attackChain\": [{\"action\": \"Send targeted phishing emails (SSO Password Reset, VPN Client Update, M365 Security Alert) to AceofCloud employees.\", \"phase\": \"Initial Access\", \"step\": 1, \"technique\": \"T1566.001\", \"tool\": \"GoPhish\"}, {\"action\": \"Victim clicks on malicious link, lands on credential harvesting page mimicking login.aceofcloud.com, sso.aceofcloud.com, vpn.aceofcloud.com, or mail.aceofcloud.com.\", \"phase\": \"Initial Access\", \"step\": 2, \"technique\": \"T1566.002\", \"tool\": \"GoPhish (Landing\n",
+  "stderr": "",
+  "execution_time_ms": 366
+}

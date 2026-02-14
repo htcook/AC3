@@ -27,6 +27,7 @@ import {
   Layers,
   Radio,
   Workflow,
+  ShieldCheck,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -37,6 +38,8 @@ const NAV_ITEMS = [
   { href: "/adversaries", icon: Target, label: "ADVERSARIES" },
   { href: "/agents", icon: Cpu, label: "AGENTS" },
   { href: "/campaigns", icon: Zap, label: "CAMPAIGNS" },
+  { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
+  { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
   { href: "/gophish", icon: Zap, label: "GOPHISH" },
   { href: "/team", icon: Users, label: "TEAM" },
   { href: "/activity", icon: FileText, label: "ACTIVITY" },

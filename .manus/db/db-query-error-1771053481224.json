@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, primary_domain, status, overall_risk_score, JSON_LENGTH(pipeline_output) as pipeline_size FROM domain_intel_scans WHERE primary_domain LIKE '%aceofcloud%' OR primary_domain LIKE '%AceofCloud%' OR pipeline_output IS NOT NULL ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primary_domain, status, overall_risk_score, JSON_LENGTH(pipeline_output) as pipeline_size FROM domain_intel_scans WHERE primary_domain LIKE '%aceofcloud%' OR primary_domain LIKE '%AceofCloud%' OR pipeline_output IS NOT NULL ORDER BY id DESC LIMIT 10;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'primary_domain' in 'where clause'"
+  ]
+}
