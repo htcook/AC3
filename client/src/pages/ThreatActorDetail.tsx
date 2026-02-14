@@ -30,6 +30,12 @@ import {
   FileText,
   ChevronRight,
   Download,
+  ShieldCheck,
+  Copy,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Sparkles,
 } from "lucide-react";
 
 // MITRE ATT&CK Tactic colors
@@ -346,6 +352,9 @@ export default function ThreatActorDetail() {
             </TabsTrigger>
             <TabsTrigger value="targeting">
               <Crosshair className="w-4 h-4 mr-1" /> Targeting
+            </TabsTrigger>
+            <TabsTrigger value="detection-rules">
+              <ShieldCheck className="w-4 h-4 mr-1" /> Detection Rules
             </TabsTrigger>
           </TabsList>
 
@@ -692,8 +701,407 @@ export default function ThreatActorDetail() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Detection Rules Tab */}
+          <TabsContent value="detection-rules" className="space-y-4">
+            <DetectionRulesPanel actorId={actorId} actorName={actor.name} techniques={techniques} />
+          </TabsContent>
         </Tabs>
       </div>
     </AppShell>
+  );
+}
+
+// ─── Detection Rules Panel Component ────────────────────────────────────────
+
+function DetectionRulesPanel({ actorId, actorName, techniques }: {
+  actorId: string;
+  actorName: string;
+  techniques: Array<{ id: string; name: string; tactic: string }>;
+}) {
+  const [generatedRules, setGeneratedRules] = useState<any>(null);
+  const [selectedRule, setSelectedRule] = useState<any>(null);
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterTactic, setFilterTactic] = useState<string>("all");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const generateMutation = trpc.calderaProxy.generateAndValidateActorRules.useMutation({
+    onSuccess: (data) => {
+      setGeneratedRules(data);
+      toast.success(`Generated ${data.totalRules} detection rules for ${actorName}`);
+    },
+    onError: (err) => toast.error(`Rule generation failed: ${err.message}`),
+  });
+
+  const generateLLMMutation = trpc.calderaProxy.generateActorRules.useMutation({
+    onSuccess: (data) => {
+      setGeneratedRules(data);
+      toast.success(`Generated ${data.totalRules} LLM-enhanced rules for ${actorName}`);
+    },
+    onError: (err) => toast.error(`LLM rule generation failed: ${err.message}`),
+  });
+
+  const validateMutation = trpc.calderaProxy.validateRule.useMutation({
+    onSuccess: (data) => {
+      if (selectedRule) {
+        setSelectedRule({ ...selectedRule, validation: data });
+      }
+      toast.success("Rule validated successfully");
+    },
+    onError: (err) => toast.error(`Validation failed: ${err.message}`),
+  });
+
+  const handleCopy = (ruleContent: string, ruleId: string) => {
+    navigator.clipboard.writeText(ruleContent);
+    setCopiedId(ruleId);
+    setTimeout(() => setCopiedId(null), 2000);
+    toast.success("Rule copied to clipboard");
+  };
+
+  const filteredRules = generatedRules?.rules?.filter((r: any) => {
+    if (filterType !== "all" && r.ruleType !== filterType) return false;
+    if (filterTactic !== "all" && r.tactic !== filterTactic) return false;
+    return true;
+  }) || [];
+
+  const allTactics = generatedRules ? Array.from(new Set((generatedRules.rules || []).map((r: any) => r.tactic))) as string[] : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Page description */}
+      <div className="text-sm text-muted-foreground">
+        Auto-generate and validate detection rules (Sigma, YARA, Suricata) from {actorName}'s known TTPs.
+        Rules are mapped to specific MITRE ATT&CK techniques and validated for syntax and effectiveness.
+      </div>
+
+      {/* Generation Controls */}
+      <Card className="bg-card/50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400" /> Auto-Generate Detection Rules
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Generate rules from {techniques.length} known techniques across {Array.from(new Set(techniques.map(t => t.tactic))).length} tactics
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => generateMutation.mutate({ actorId })}
+                disabled={generateMutation.isPending || generateLLMMutation.isPending}
+              >
+                {generateMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1" />}
+                Generate & Validate
+              </Button>
+              <Button
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={() => generateLLMMutation.mutate({ actorId, useLLM: true })}
+                disabled={generateMutation.isPending || generateLLMMutation.isPending}
+              >
+                {generateLLMMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                LLM-Enhanced Generation
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      {generatedRules && (
+        <>
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <Card className="bg-card/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-blue-400">{generatedRules.totalRules}</div>
+                <div className="text-xs text-muted-foreground">Total Rules</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-cyan-400">{generatedRules.rulesByType?.sigma || 0}</div>
+                <div className="text-xs text-muted-foreground">Sigma</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-purple-400">{generatedRules.rulesByType?.yara || 0}</div>
+                <div className="text-xs text-muted-foreground">YARA</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-orange-400">{generatedRules.rulesByType?.suricata || 0}</div>
+                <div className="text-xs text-muted-foreground">Suricata</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-green-400">
+                  {generatedRules.rules?.filter((r: any) => r.validation?.valid).length || generatedRules.rules?.filter((r: any) => r.confidence >= 65).length || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">Validated</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Filters */}
+          <div className="flex gap-2 flex-wrap">
+            <Badge
+              variant={filterType === "all" ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setFilterType("all")}
+            >All Types</Badge>
+            {["sigma", "yara", "suricata"].map(t => (
+              <Badge
+                key={t}
+                variant={filterType === t ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setFilterType(t)}
+              >{t.toUpperCase()}</Badge>
+            ))}
+            <span className="text-muted-foreground mx-2">|</span>
+            <Badge
+              variant={filterTactic === "all" ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setFilterTactic("all")}
+            >All Tactics</Badge>
+            {allTactics.map(t => (
+              <Badge
+                key={t}
+                variant={filterTactic === t ? "default" : "outline"}
+                className="cursor-pointer capitalize"
+                onClick={() => setFilterTactic(t)}
+              >{(t as string).replace(/-/g, ' ')}</Badge>
+            ))}
+          </div>
+
+          {/* Rules Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Rules List */}
+            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
+              {filteredRules.map((rule: any) => (
+                <Card
+                  key={rule.id}
+                  className={`bg-card/50 cursor-pointer transition-colors hover:bg-card/80 ${
+                    selectedRule?.id === rule.id ? 'ring-1 ring-primary' : ''
+                  }`}
+                  onClick={() => setSelectedRule(rule)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`text-xs ${
+                            rule.ruleType === 'sigma' ? 'border-cyan-500/30 text-cyan-400' :
+                            rule.ruleType === 'yara' ? 'border-purple-500/30 text-purple-400' :
+                            'border-orange-500/30 text-orange-400'
+                          }`}>{rule.ruleType.toUpperCase()}</Badge>
+                          <span className="text-sm font-medium truncate">{rule.techniqueName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="text-xs text-muted-foreground">{rule.techniqueId}</code>
+                          <Badge variant="outline" className="text-xs capitalize">{rule.tactic.replace(/-/g, ' ')}</Badge>
+                          <Badge variant="outline" className={`text-xs ${
+                            rule.severity === 'critical' ? 'border-red-500/30 text-red-400' :
+                            rule.severity === 'high' ? 'border-orange-500/30 text-orange-400' :
+                            rule.severity === 'medium' ? 'border-yellow-500/30 text-yellow-400' :
+                            'border-green-500/30 text-green-400'
+                          }`}>{rule.severity}</Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {rule.validation ? (
+                          rule.validation.valid ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-400" />
+                          )
+                        ) : (
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted/50">
+                            <span className="text-xs font-bold">{rule.confidence}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {filteredRules.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  No rules match the current filters.
+                </div>
+              )}
+            </div>
+
+            {/* Rule Detail Panel */}
+            <div className="space-y-3">
+              {selectedRule ? (
+                <>
+                  <Card className="bg-card/50">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm">{selectedRule.ruleName}</CardTitle>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCopy(selectedRule.ruleContent, selectedRule.id)}
+                          >
+                            {copiedId === selectedRule.id ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-400" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => validateMutation.mutate({
+                              ruleType: selectedRule.ruleType,
+                              ruleContent: selectedRule.ruleContent,
+                              ruleName: selectedRule.ruleName,
+                              techniqueId: selectedRule.techniqueId,
+                              useLLM: true,
+                            })}
+                            disabled={validateMutation.isPending}
+                          >
+                            {validateMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-1" />}
+                            Deep Validate
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <pre className="text-xs bg-black/40 p-3 rounded-lg overflow-x-auto max-h-[300px] overflow-y-auto font-mono leading-relaxed">
+                        {selectedRule.ruleContent}
+                      </pre>
+                      <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+                        <span>Platform: {selectedRule.platform}</span>
+                        <span>Data Source: {selectedRule.dataSource}</span>
+                        <span>Confidence: {selectedRule.confidence}%</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Validation Results */}
+                  {selectedRule.validation && (
+                    <Card className="bg-card/50">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          {selectedRule.validation.valid ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-400" />
+                          )}
+                          Validation Results
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="text-center p-2 bg-muted/30 rounded">
+                            <div className="text-lg font-bold">{selectedRule.validation.effectivenessScore}</div>
+                            <div className="text-xs text-muted-foreground">Effectiveness</div>
+                          </div>
+                          <div className="text-center p-2 bg-muted/30 rounded">
+                            <div className={`text-lg font-bold ${
+                              selectedRule.validation.falsePositiveRisk === 'low' ? 'text-green-400' :
+                              selectedRule.validation.falsePositiveRisk === 'medium' ? 'text-yellow-400' :
+                              'text-red-400'
+                            }`}>{selectedRule.validation.falsePositiveRisk}</div>
+                            <div className="text-xs text-muted-foreground">FP Risk</div>
+                          </div>
+                          <div className="text-center p-2 bg-muted/30 rounded">
+                            <div className="text-lg font-bold">{selectedRule.validation.syntaxErrors?.length || 0}</div>
+                            <div className="text-xs text-muted-foreground">Issues</div>
+                          </div>
+                        </div>
+
+                        {selectedRule.validation.syntaxErrors?.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-red-400">Syntax Issues:</div>
+                            {selectedRule.validation.syntaxErrors.map((e: any, i: number) => (
+                              <div key={i} className="text-xs bg-red-500/10 p-2 rounded flex items-start gap-2">
+                                <AlertCircle className="w-3 h-3 mt-0.5 text-red-400 shrink-0" />
+                                <span>{e.message}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {selectedRule.validation.suggestions?.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-amber-400">Suggestions:</div>
+                            {selectedRule.validation.suggestions.map((s: string, i: number) => (
+                              <div key={i} className="text-xs bg-amber-500/10 p-2 rounded flex items-start gap-2">
+                                <Sparkles className="w-3 h-3 mt-0.5 text-amber-400 shrink-0" />
+                                <span>{s}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {selectedRule.validation.llmAnalysis && (
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-blue-400">LLM Analysis:</div>
+                            <div className="text-xs bg-blue-500/10 p-3 rounded leading-relaxed">
+                              {selectedRule.validation.llmAnalysis}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <Card className="bg-card/50">
+                  <CardContent className="p-8 text-center text-muted-foreground">
+                    <ShieldCheck className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Select a rule from the list to view its content and validation results.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+
+          {/* Export All */}
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const allRules = generatedRules.rules.map((r: any) =>
+                  `# ${r.ruleName}\n# Technique: ${r.techniqueId} - ${r.techniqueName}\n# Tactic: ${r.tactic}\n# Severity: ${r.severity}\n# Confidence: ${r.confidence}%\n\n${r.ruleContent}`
+                ).join('\n\n---\n\n');
+                const blob = new Blob([allRules], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${actorName.replace(/\s+/g, '_')}_detection_rules.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success('Detection rules exported');
+              }}
+            >
+              <Download className="w-4 h-4 mr-1" /> Export All Rules
+            </Button>
+          </div>
+        </>
+      )}
+
+      {!generatedRules && !generateMutation.isPending && !generateLLMMutation.isPending && (
+        <Card className="bg-card/50">
+          <CardContent className="p-8 text-center text-muted-foreground">
+            <ShieldCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">Click "Generate & Validate" to auto-generate detection rules from {actorName}'s {techniques.length} known techniques.</p>
+            <p className="text-xs mt-1">Rules will be generated as Sigma, YARA, and Suricata formats where applicable.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

@@ -40,6 +40,8 @@ const NAV_ITEMS = [
   { href: "/campaigns", icon: Zap, label: "CAMPAIGNS" },
   { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
   { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
+  { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
+  { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
   { href: "/gophish", icon: Zap, label: "GOPHISH" },
   { href: "/team", icon: Users, label: "TEAM" },
   { href: "/activity", icon: FileText, label: "ACTIVITY" },

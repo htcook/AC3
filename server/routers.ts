@@ -792,14 +792,14 @@ export const appRouter = router({
         const { buildChainWithLLM, buildOperationChain } = await import('./lib/chain-builder');
         const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
         const scan = await db.getDomainIntelScanById(input.scanId);
-        const scanData = scan?.pipelineOutput;
+        const scanData = scan?.pipelineOutput as any;
         const campaigns = scanData?.campaignRecommendations || [];
         const actorMatches = scanData?.threatActorMatches?.topMatches || [];
         const campaign = campaigns[input.campaignIndex];
         if (!campaign) throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign recommendation not found' });
         const llmResult = await buildChainWithLLM({
           campaignRecommendation: campaign,
-          orgProfile: scanData?.orgProfile,
+          orgProfile: (scanData as any)?.orgProfile,
           findings: [],
           threatActors: actorMatches,
           availableAbilities: abilities || [],
@@ -879,6 +879,343 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { generateSampleLogData } = await import('./lib/rule-validator');
         return { sampleData: generateSampleLogData(input.techniqueId) };
+      }),
+
+    // ─── Detection Rule Generator ───
+    generateActorRules: protectedProcedure
+      .input(z.object({
+        actorId: z.string(),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateRulesForActor, generateRulesWithLLM } = await import('./lib/rule-generator');
+        const actor = await db.getThreatActor(input.actorId);
+        if (!actor) throw new TRPCError({ code: 'NOT_FOUND', message: 'Threat actor not found' });
+        const techniques = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+        const tools = (actor.tools as string[]) || [];
+        const malware = (actor.malware as string[]) || [];
+        if (input.useLLM) {
+          return generateRulesWithLLM({
+            actorName: actor.name,
+            techniques,
+            tools,
+            malware,
+            description: actor.description || undefined,
+          });
+        }
+        return generateRulesForActor({ actorName: actor.name, techniques, tools, malware });
+      }),
+
+    // ─── Detection Coverage Matrix ───
+    getDetectionCoverageMatrix: protectedProcedure
+      .input(z.object({
+        operationId: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { generateRulesForActor } = await import('./lib/rule-generator');
+        
+        // Get all operations
+        const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
+        const ops = Array.isArray(operations) ? operations : [];
+        const targetOps = input.operationId ? ops.filter((o: any) => o.id === input.operationId) : ops;
+
+        // Collect all techniques used across operations
+        const techniqueUsage: Record<string, {
+          id: string; name: string; tactic: string;
+          operations: Array<{ opId: string; opName: string; status: string }>;
+        }> = {};
+
+        for (const op of targetOps) {
+          const chain = op.chain || [];
+          for (const step of chain) {
+            const ab = step.ability || {};
+            const techId = ab.technique_id || 'unknown';
+            if (techId === 'unknown') continue;
+            if (!techniqueUsage[techId]) {
+              techniqueUsage[techId] = {
+                id: techId,
+                name: ab.technique_name || ab.name || techId,
+                tactic: ab.tactic || 'unknown',
+                operations: [],
+              };
+            }
+            const stepStatus = step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running';
+            const existing = techniqueUsage[techId].operations.find((o: any) => o.opId === op.id);
+            if (!existing) {
+              techniqueUsage[techId].operations.push({ opId: op.id, opName: op.name, status: stepStatus });
+            }
+          }
+        }
+
+        // Get all threat actors to generate rules
+        const actorResult = await db.listThreatActors();
+        const actors = actorResult.actors || [];
+        const allActorTechniques: Array<{ id: string; name: string; tactic: string }> = [];
+        for (const actor of actors) {
+          const techs = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+          allActorTechniques.push(...techs);
+        }
+
+        // Deduplicate techniques
+        const uniqueTechMap = new Map<string, { id: string; name: string; tactic: string }>();
+        for (const t of allActorTechniques) {
+          if (!uniqueTechMap.has(t.id)) uniqueTechMap.set(t.id, t);
+        }
+
+        // Generate rules for coverage analysis
+        const genResult = generateRulesForActor({
+          actorName: 'All Actors',
+          techniques: Array.from(uniqueTechMap.values()),
+        });
+
+        // Build coverage matrix
+        const matrix: Array<{
+          techniqueId: string;
+          techniqueName: string;
+          tactic: string;
+          operationCoverage: Array<{ opId: string; opName: string; status: string }>;
+          rulesCoverage: Array<{ ruleType: string; confidence: number; severity: string }>;
+          coverageStatus: 'full' | 'partial' | 'rules-only' | 'ops-only' | 'none';
+        }> = [];
+
+        // Merge techniques from both operations and rules
+        const allTechIds = new Set([
+          ...Object.keys(techniqueUsage),
+          ...genResult.rules.map(r => r.techniqueId),
+        ]);
+
+        for (const techId of Array.from(allTechIds)) {
+          const opData = techniqueUsage[techId];
+          const ruleData = genResult.rules.filter(r => r.techniqueId === techId);
+          const techInfo = opData || uniqueTechMap.get(techId) || { id: techId, name: techId, tactic: 'unknown' };
+
+          const hasOps = !!opData && opData.operations.length > 0;
+          const hasRules = ruleData.length > 0;
+          const hasHighConfRules = ruleData.some(r => r.confidence >= 65);
+
+          let coverageStatus: 'full' | 'partial' | 'rules-only' | 'ops-only' | 'none' = 'none';
+          if (hasOps && hasHighConfRules) coverageStatus = 'full';
+          else if (hasOps && hasRules) coverageStatus = 'partial';
+          else if (hasRules) coverageStatus = 'rules-only';
+          else if (hasOps) coverageStatus = 'ops-only';
+
+          matrix.push({
+            techniqueId: techId,
+            techniqueName: (techInfo as any).name || techId,
+            tactic: (techInfo as any).tactic || 'unknown',
+            operationCoverage: opData?.operations || [],
+            rulesCoverage: ruleData.map(r => ({
+              ruleType: r.ruleType,
+              confidence: r.confidence,
+              severity: r.severity,
+            })),
+            coverageStatus,
+          });
+        }
+
+        // Sort by tactic order then technique ID
+        const tacticOrder = ['reconnaissance','resource-development','initial-access','execution','persistence','privilege-escalation','defense-evasion','credential-access','discovery','lateral-movement','collection','command-and-control','exfiltration','impact'];
+        matrix.sort((a, b) => {
+          const aIdx = tacticOrder.indexOf(a.tactic);
+          const bIdx = tacticOrder.indexOf(b.tactic);
+          if (aIdx !== bIdx) return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+          return a.techniqueId.localeCompare(b.techniqueId);
+        });
+
+        // Summary stats
+        const summary = {
+          totalTechniques: matrix.length,
+          fullCoverage: matrix.filter(m => m.coverageStatus === 'full').length,
+          partialCoverage: matrix.filter(m => m.coverageStatus === 'partial').length,
+          rulesOnly: matrix.filter(m => m.coverageStatus === 'rules-only').length,
+          opsOnly: matrix.filter(m => m.coverageStatus === 'ops-only').length,
+          noCoverage: matrix.filter(m => m.coverageStatus === 'none').length,
+          totalOperations: targetOps.length,
+          totalRules: genResult.totalRules,
+          byTactic: Object.fromEntries(
+            tacticOrder.map(t => [t, {
+              total: matrix.filter(m => m.tactic === t).length,
+              covered: matrix.filter(m => m.tactic === t && (m.coverageStatus === 'full' || m.coverageStatus === 'partial')).length,
+            }])
+          ),
+        };
+
+        return {
+          matrix,
+          summary,
+          operations: targetOps.map((o: any) => ({ id: o.id, name: o.name, state: o.state })),
+        };
+      }),
+
+    // ─── Post-Engagement Report Generator ───
+    generateReport: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        clientName: z.string().optional(),
+        engagementType: z.string().optional(),
+        customNotes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateReport, renderReportHTML } = await import('./lib/report-generator');
+        
+        // Get operation detail
+        const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
+        const op = Array.isArray(operations) ? operations.find((o: any) => o.id === input.operationId) : null;
+        if (!op) throw new TRPCError({ code: 'NOT_FOUND', message: 'Operation not found' });
+
+        const chain = op.chain || [];
+        const totalSteps = chain.length;
+        const completedSteps = chain.filter((s: any) => s.finish).length;
+        const successSteps = chain.filter((s: any) => s.status === 0 && s.finish).length;
+        const failedSteps = chain.filter((s: any) => s.status !== 0 && s.finish).length;
+
+        // Build technique map
+        const techniqueMap: Record<string, any> = {};
+        for (const step of chain) {
+          const ab = step.ability || {};
+          const techId = ab.technique_id || 'unknown';
+          if (!techniqueMap[techId]) {
+            techniqueMap[techId] = {
+              id: techId, name: ab.technique_name || ab.name || techId,
+              tactic: ab.tactic || 'unknown', status: 'pending', steps: [],
+            };
+          }
+          techniqueMap[techId].steps.push({
+            id: step.id, abilityName: ab.name, abilityId: ab.ability_id,
+            status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+            paw: step.paw, finish: step.finish,
+          });
+          const statuses = techniqueMap[techId].steps.map((s: any) => s.status);
+          if (statuses.includes('running')) techniqueMap[techId].status = 'running';
+          else if (statuses.every((s: string) => s === 'success')) techniqueMap[techId].status = 'success';
+          else if (statuses.some((s: string) => s === 'failed')) techniqueMap[techId].status = 'partial';
+        }
+
+        const timeline = chain.map((step: any) => ({
+          time: step.decide || step.finish,
+          finishTime: step.finish,
+          abilityName: step.ability?.name || 'Unknown',
+          techniqueId: step.ability?.technique_id || 'Unknown',
+          status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+          paw: step.paw,
+        })).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        const operationData = {
+          ...op,
+          techniques: Object.values(techniqueMap),
+          timeline,
+          metrics: {
+            totalSteps, completedSteps, successSteps, failedSteps,
+            pendingSteps: totalSteps - completedSteps,
+            successRate: totalSteps > 0 ? Math.round((successSteps / totalSteps) * 100) : 0,
+            detectionRate: totalSteps > 0 ? Math.round((failedSteps / totalSteps) * 100) : 0,
+            progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+          },
+        };
+
+        // Get coverage data
+        let coverageData = null;
+        try {
+          const { generateRulesForActor } = await import('./lib/rule-generator');
+          const actorResult = await db.listThreatActors();
+          const actors = actorResult.actors || [];
+          const allTechs: Array<{ id: string; name: string; tactic: string }> = [];
+          for (const actor of actors) {
+            const techs = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+            allTechs.push(...techs);
+          }
+          const uniqueTechMap = new Map<string, { id: string; name: string; tactic: string }>();
+          for (const t of allTechs) { if (!uniqueTechMap.has(t.id)) uniqueTechMap.set(t.id, t); }
+          const genResult = generateRulesForActor({ actorName: 'All Actors', techniques: Array.from(uniqueTechMap.values()) });
+          
+          const techUsage: Record<string, any> = {};
+          for (const step of chain) {
+            const ab = step.ability || {};
+            const techId = ab.technique_id || 'unknown';
+            if (techId === 'unknown') continue;
+            if (!techUsage[techId]) techUsage[techId] = { operations: [] };
+            if (!techUsage[techId].operations.find((o: any) => o.opId === op.id)) {
+              techUsage[techId].operations.push({ opId: op.id, opName: op.name, status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running' });
+            }
+          }
+
+          const allTechIds = new Set([...Object.keys(techUsage), ...genResult.rules.map(r => r.techniqueId)]);
+          const matrix: any[] = [];
+          for (const techId of Array.from(allTechIds)) {
+            const opData = techUsage[techId];
+            const ruleData = genResult.rules.filter(r => r.techniqueId === techId);
+            const hasOps = !!opData && opData.operations.length > 0;
+            const hasRules = ruleData.length > 0;
+            const hasHighConf = ruleData.some(r => r.confidence >= 65);
+            let coverageStatus = 'none';
+            if (hasOps && hasHighConf) coverageStatus = 'full';
+            else if (hasOps && hasRules) coverageStatus = 'partial';
+            else if (hasRules) coverageStatus = 'rules-only';
+            else if (hasOps) coverageStatus = 'ops-only';
+            matrix.push({ techniqueId: techId, techniqueName: (uniqueTechMap.get(techId) as any)?.name || techId, tactic: (uniqueTechMap.get(techId) as any)?.tactic || 'unknown', coverageStatus });
+          }
+          coverageData = {
+            matrix,
+            summary: {
+              totalTechniques: matrix.length,
+              fullCoverage: matrix.filter(m => m.coverageStatus === 'full').length,
+              partialCoverage: matrix.filter(m => m.coverageStatus === 'partial').length,
+              opsOnly: matrix.filter(m => m.coverageStatus === 'ops-only').length,
+              noCoverage: matrix.filter(m => m.coverageStatus === 'none').length,
+            },
+          };
+        } catch (e) { console.error('Coverage data fetch failed:', e); }
+
+        // Get threat actors
+        let threatActors: Array<{ name: string; techniques: number; type: string }> = [];
+        try {
+          const actorResult = await db.listThreatActors();
+          threatActors = (actorResult.actors || []).map((a: any) => ({
+            name: a.name, techniques: Array.isArray(a.techniques) ? a.techniques.length : 0, type: a.type,
+          }));
+        } catch (e) { /* ignore */ }
+
+        const report = await generateReport({
+          operationId: input.operationId,
+          operationData,
+          coverageData,
+          threatActors,
+          clientName: input.clientName,
+          engagementType: input.engagementType,
+          customNotes: input.customNotes,
+        });
+
+        const html = renderReportHTML(report);
+        return { report, html };
+      }),
+
+    generateAndValidateActorRules: protectedProcedure
+      .input(z.object({
+        actorId: z.string(),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateRulesForActor } = await import('./lib/rule-generator');
+        const { validateRule } = await import('./lib/rule-validator');
+        const actor = await db.getThreatActor(input.actorId);
+        if (!actor) throw new TRPCError({ code: 'NOT_FOUND', message: 'Threat actor not found' });
+        const techniques = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+        const tools = (actor.tools as string[]) || [];
+        const malware = (actor.malware as string[]) || [];
+        const genResult = generateRulesForActor({ actorName: actor.name, techniques, tools, malware });
+        // Validate each rule (no LLM to keep it fast)
+        const validated = await Promise.all(
+          genResult.rules.map(async (rule) => {
+            const validation = await validateRule({
+              ruleType: rule.ruleType,
+              ruleContent: rule.ruleContent,
+              ruleName: rule.ruleName,
+              techniqueId: rule.techniqueId,
+            }, false);
+            return { ...rule, validation };
+          })
+        );
+        return { ...genResult, rules: validated };
       }),
   }),
 

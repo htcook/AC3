@@ -195,8 +195,8 @@ export async function buildOperationChain(params: {
     abilitiesByTactic[item.tactic] = (abilitiesByTactic[item.tactic] || 0) + 1;
   });
 
-  const coveredTechniques = [...new Set(orderedChain.map(a => a.techniqueId))];
-  const allRequestedTechniques = [...new Set(techniqueSources.map(t => t.techniqueId))];
+  const coveredTechniques = Array.from(new Set(orderedChain.map(a => a.techniqueId)));
+  const allRequestedTechniques = Array.from(new Set(techniqueSources.map(t => t.techniqueId)));
   const notCovered = allRequestedTechniques.filter(t => !coveredTechniques.includes(t));
 
   return {
@@ -318,7 +318,7 @@ function mapFindingToTechniques(finding: any): string[] {
   if (desc.includes("cloud") || desc.includes("s3") || desc.includes("bucket")) techniques.push("T1530");
   if (desc.includes("dns") || desc.includes("zone transfer")) techniques.push("T1071.004");
 
-  return [...new Set(techniques)];
+  return Array.from(new Set(techniques));
 }
 
 interface AbilityMatch {
@@ -641,7 +641,8 @@ Return JSON:
       },
     });
 
-    const content = response.choices?.[0]?.message?.content || "{}";
+    const rawContent = response.choices?.[0]?.message?.content || "{}";
+    const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
     return JSON.parse(content);
   } catch (error) {
     console.error("LLM chain building failed, falling back to rule-based:", error);

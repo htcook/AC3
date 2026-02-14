@@ -1076,3 +1076,41 @@
 - [x] Improve operation list with progress bars and ability counts
 - [x] Add summary cards (running, paused, agents, completed, steps/abilities)
 - [x] Add export results functionality (JSON download)
+
+## Threat Actor Detail - Inline Rule Validation
+- [x] Add auto-generate detection rules from actor's known TTPs (Detection Rules tab)
+- [x] Generate Sigma rules for each technique
+- [x] Generate YARA rules for relevant techniques
+- [x] Generate Suricata rules for network-based techniques
+- [x] Inline validate generated rules with effectiveness scoring (Deep Validate button)
+- [x] Show validation results per rule with pass/fail indicators
+- [x] LLM-enhanced rule generation option
+- [x] Filter by rule type and tactic
+- [x] Export all rules as text file
+- [x] Copy individual rules to clipboard
+
+## Detection Coverage Matrix
+- [x] Build Detection Coverage Matrix page (DetectionCoverage.tsx)
+- [x] Cross-reference validated rules against operation attack chains
+- [x] Show coverage gaps in SIEM detection (ops-only = gap)
+- [x] Matrix view: techniques grouped by tactic with expandable details
+- [x] Summary stats: full/partial/rules-only/ops-only/none coverage
+- [x] Overall coverage percentage bar with color segments
+- [x] Tactic breakdown with clickable filter cards
+- [x] Filter by operation, tactic, and coverage status
+- [x] Add COVERAGE MATRIX nav link in AppShell
+
+## Post-Engagement Report Generator
+- [x] Build report generator backend (server/lib/report-generator.ts)
+- [x] Generate client-ready HTML report with print/download support
+- [x] LLM-powered executive summary with key metrics
+- [x] Include operation timeline and attack chain results table
+- [x] Include detection coverage analysis with coverage bar
+- [x] Include findings with severity ratings and remediation steps
+- [x] Include MITRE ATT&CK mapping visualization (tactic columns)
+- [x] AceofCloud branding with Harrison Cook attribution
+- [x] CONFIDENTIAL classification header
+- [x] Table of contents, scope & methodology, recommendations, conclusion
+- [x] Add report generation UI (PostEngagementReport.tsx) with operation selection
+- [x] Add ENGAGEMENT REPORT nav link in AppShell
+- [x] 15 vitest tests passing for report generator

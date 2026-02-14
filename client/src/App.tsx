@@ -43,6 +43,8 @@ import ThreatActorDetail from "./pages/ThreatActorDetail";
 import TtpKnowledge from "./pages/TtpKnowledge";
 import CampaignExecution from "./pages/CampaignExecution";
 import RuleValidator from "./pages/RuleValidator";
+import DetectionCoverage from "./pages/DetectionCoverage";
+import PostEngagementReport from "./pages/PostEngagementReport";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -191,6 +193,12 @@ function Router() {
       </Route>
       <Route path="/rule-validator">
         <ProtectedRoute component={RuleValidator} />
+      </Route>
+      <Route path="/detection-coverage">
+        <ProtectedRoute component={DetectionCoverage} />
+      </Route>
+      <Route path="/post-engagement-report">
+        <ProtectedRoute component={PostEngagementReport} />
       </Route>
       <Route path="/engagements/:id/results">
         {() => <ProtectedRoute component={EngagementResults} />}

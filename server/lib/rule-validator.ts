@@ -306,7 +306,7 @@ function validateYaraSyntax(content: string): SyntaxError[] {
   }
 
   // Check for unused strings
-  for (const name of stringNames) {
+  for (const name of Array.from(stringNames)) {
     if (!usedStrings.has(name) && !usedStrings.has("them")) {
       errors.push({
         line: 1,
@@ -655,7 +655,7 @@ function assessCoverage(ruleType: string, content: string, techniqueId?: string)
 
   // Extract MITRE technique references
   const techMatches = content.match(/T\d{4}(\.\d{3})?/g);
-  if (techMatches) techniques.push(...new Set(techMatches));
+  if (techMatches) techniques.push(...Array.from(new Set(techMatches)));
   if (techniqueId && !techniques.includes(techniqueId)) techniques.push(techniqueId);
 
   // Determine data sources and log sources
@@ -774,7 +774,8 @@ Return JSON:
       },
     });
 
-    const content = response.choices?.[0]?.message?.content || "{}";
+    const rawContent = response.choices?.[0]?.message?.content || "{}";
+    const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
     const parsed = JSON.parse(content);
 
     return {
