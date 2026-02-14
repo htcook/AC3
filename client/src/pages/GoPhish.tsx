@@ -8,9 +8,12 @@ import {
   Plus, RefreshCw, CheckCircle, Clock, AlertTriangle, Play,
   Crosshair, BarChart3, MousePointer, ShieldAlert, Eye, Trash2,
   Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen,
-  Shield, Globe2, Briefcase, Rocket, Filter, Download
+  Shield, Globe2, Briefcase, Rocket, Filter, Download, Search,
+  Tag, Monitor, KeyRound, DollarSign, Building2, Share2, Truck,
+  UserCheck, Calendar, Palette
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@/data/phishing-templates";
 import TemplatePreview, { TemplatePreviewThumbnail, TemplatePreviewModal } from "@/components/TemplatePreview";
 
 import AppShell from "@/components/AppShell";
@@ -411,13 +414,110 @@ function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingPro
 }
 
 // ==================== TEMPLATES PANEL ====================
+// Auto-detect category from template name/subject/html content
+const CATEGORY_KEYWORDS: Record<TemplateCategory, string[]> = {
+  "it-helpdesk": ["it department", "helpdesk", "help desk", "system admin", "mailbox", "server migration", "email quota", "storage", "account verification", "it support", "technical support"],
+  "password-auth": ["password", "mfa", "multi-factor", "2fa", "authentication", "reset", "expire", "credential", "sign-in", "login", "verify your", "security code"],
+  "cloud-services": ["onedrive", "sharepoint", "dropbox", "google drive", "cloud", "file share", "shared document", "teams", "slack", "zoom"],
+  "financial": ["invoice", "payment", "wire transfer", "bank", "payroll", "expense", "reimbursement", "purchase order", "billing", "financial"],
+  "hr-corporate": ["hr", "human resources", "benefits", "enrollment", "policy", "handbook", "pto", "vacation", "onboarding", "training", "compliance"],
+  "social-media": ["linkedin", "facebook", "twitter", "instagram", "social", "connection request", "profile", "notification"],
+  "software-update": ["update", "patch", "upgrade", "install", "software", "version", "security update", "firmware"],
+  "delivery-shipping": ["delivery", "shipping", "package", "tracking", "fedex", "ups", "usps", "dhl", "order"],
+  "executive-impersonation": ["ceo", "cfo", "cto", "executive", "urgent request", "confidential", "wire", "board", "director"],
+  "calendar-meeting": ["meeting", "calendar", "invite", "schedule", "appointment", "webinar", "conference", "event"],
+};
+
+const CATEGORY_ICONS_MAP: Record<TemplateCategory, React.ReactNode> = {
+  "it-helpdesk": <Monitor className="w-3 h-3" />,
+  "password-auth": <KeyRound className="w-3 h-3" />,
+  "cloud-services": <Cloud className="w-3 h-3" />,
+  "financial": <DollarSign className="w-3 h-3" />,
+  "hr-corporate": <Building2 className="w-3 h-3" />,
+  "social-media": <Share2 className="w-3 h-3" />,
+  "software-update": <Download className="w-3 h-3" />,
+  "delivery-shipping": <Truck className="w-3 h-3" />,
+  "executive-impersonation": <UserCheck className="w-3 h-3" />,
+  "calendar-meeting": <Calendar className="w-3 h-3" />,
+};
+
+function detectCategory(name: string, subject: string, html: string): TemplateCategory | null {
+  const text = `${name} ${subject} ${html}`.toLowerCase();
+  let bestMatch: TemplateCategory | null = null;
+  let bestScore = 0;
+  for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    const score = keywords.filter(kw => text.includes(kw)).length;
+    if (score > bestScore) { bestScore = score; bestMatch = cat as TemplateCategory; }
+  }
+  return bestMatch;
+}
+
+function detectDifficulty(html: string, subject: string): "beginner" | "intermediate" | "advanced" {
+  const text = `${html} ${subject}`.toLowerCase();
+  let score = 0;
+  // Advanced indicators
+  if (text.includes("urgent") || text.includes("immediately")) score += 2;
+  if (text.includes("ceo") || text.includes("executive") || text.includes("confidential")) score += 3;
+  if (text.includes("wire transfer") || text.includes("payment")) score += 2;
+  if (html.length > 3000) score += 1;
+  // Intermediate indicators
+  if (text.includes("verify") || text.includes("confirm")) score += 1;
+  if (text.includes("expire") || text.includes("deadline")) score += 1;
+  if (score >= 4) return "advanced";
+  if (score >= 2) return "intermediate";
+  return "beginner";
+}
+
 function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }: any) {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', subject: '', html: '', text: '' });
   const [syncing, setSyncing] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'all'>('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<'all' | 'beginner' | 'intermediate' | 'advanced'>('all');
   const syncTemplates = trpc.gophishProxy.syncTemplates.useMutation();
+
+  // Enrich templates with auto-detected tags
+  const enrichedTemplates = useMemo(() => {
+    if (!Array.isArray(templates)) return [];
+    return templates.map((t: any) => {
+      const category = detectCategory(t.name || '', t.subject || '', t.html || '');
+      const difficulty = detectDifficulty(t.html || '', t.subject || '');
+      return { ...t, _category: category, _difficulty: difficulty };
+    });
+  }, [templates]);
+
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: enrichedTemplates.length };
+    for (const t of enrichedTemplates) {
+      if (t._category) counts[t._category] = (counts[t._category] || 0) + 1;
+    }
+    return counts;
+  }, [enrichedTemplates]);
+
+  // Filter templates
+  const filteredTemplates = useMemo(() => {
+    let result = enrichedTemplates;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((t: any) =>
+        (t.name || '').toLowerCase().includes(q) ||
+        (t.subject || '').toLowerCase().includes(q) ||
+        (t.html || '').toLowerCase().includes(q) ||
+        (t.text || '').toLowerCase().includes(q)
+      );
+    }
+    if (selectedCategory !== 'all') {
+      result = result.filter((t: any) => t._category === selectedCategory);
+    }
+    if (selectedDifficulty !== 'all') {
+      result = result.filter((t: any) => t._difficulty === selectedDifficulty);
+    }
+    return result;
+  }, [enrichedTemplates, searchQuery, selectedCategory, selectedDifficulty]);
 
   const handleSave = () => {
     if (!form.name || !form.subject || !form.html) { toast.error("Name, subject, and HTML are required"); return; }
@@ -437,9 +537,15 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
     setShowForm(true);
   };
 
+  const difficultyColors: Record<string, string> = {
+    beginner: 'bg-green-500/20 text-green-400 border-green-500/30',
+    intermediate: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    advanced: 'bg-red-500/20 text-red-400 border-red-500/30',
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="font-display text-xl tracking-wider">EMAIL TEMPLATES</h2>
         <div className="flex gap-2">
           <Button
@@ -449,7 +555,6 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
             onClick={async () => {
               setSyncing(true);
               try {
-                // Dynamically import the phishing templates
                 const { PHISHING_TEMPLATES } = await import('@/data/phishing-templates');
                 const toSync = PHISHING_TEMPLATES.map(t => ({
                   name: `[C3] ${t.name}`,
@@ -474,6 +579,83 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
           <Button size="sm" className="font-display tracking-wider bg-blue-500 hover:bg-blue-600 text-white" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', subject: '', html: '', text: '' }); }}>
             {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW TEMPLATE</>}
           </Button>
+        </div>
+      </div>
+
+      {/* Search and Filter Bar */}
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search templates by name, subject, or content..."
+            className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Category Filter Chips */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setSelectedCategory('all')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-display tracking-wider transition-all border ${
+              selectedCategory === 'all'
+                ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                : 'bg-card text-muted-foreground border-border hover:border-blue-500/30 hover:text-foreground'
+            }`}
+          >
+            <Tag className="w-3 h-3" /> ALL ({categoryCounts.all || 0})
+          </button>
+          {(Object.keys(TEMPLATE_CATEGORIES) as TemplateCategory[]).map(cat => {
+            const count = categoryCounts[cat] || 0;
+            if (count === 0) return null;
+            const catInfo = TEMPLATE_CATEGORIES[cat];
+            return (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(selectedCategory === cat ? 'all' : cat)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-display tracking-wider transition-all border ${
+                  selectedCategory === cat
+                    ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                    : 'bg-card text-muted-foreground border-border hover:border-blue-500/30 hover:text-foreground'
+                }`}
+              >
+                {CATEGORY_ICONS_MAP[cat]} {catInfo.label.toUpperCase()} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Difficulty Filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-display tracking-wider text-muted-foreground">DIFFICULTY:</span>
+          {(['all', 'beginner', 'intermediate', 'advanced'] as const).map(d => (
+            <button
+              key={d}
+              onClick={() => setSelectedDifficulty(d)}
+              className={`px-2.5 py-1 rounded text-[10px] font-display tracking-wider transition-all border ${
+                selectedDifficulty === d
+                  ? d === 'all' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : difficultyColors[d] + ' border'
+                  : 'bg-card text-muted-foreground border-border hover:text-foreground'
+              }`}
+            >
+              {d.toUpperCase()}
+            </button>
+          ))}
+          {(searchQuery || selectedCategory !== 'all' || selectedDifficulty !== 'all') && (
+            <button
+              onClick={() => { setSearchQuery(''); setSelectedCategory('all'); setSelectedDifficulty('all'); }}
+              className="text-xs text-muted-foreground hover:text-foreground ml-2 flex items-center gap-1"
+            >
+              <X className="w-3 h-3" /> Clear filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -504,9 +686,16 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
         </div>
       )}
 
-      {Array.isArray(templates) && templates.length > 0 ? (
+      {/* Results count */}
+      {Array.isArray(templates) && templates.length > 0 && (
+        <div className="text-xs text-muted-foreground font-display tracking-wider">
+          SHOWING {filteredTemplates.length} OF {enrichedTemplates.length} TEMPLATES
+        </div>
+      )}
+
+      {filteredTemplates.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates.map((t: any) => (
+          {filteredTemplates.map((t: any) => (
             <div key={t.id} className="bg-card border-2 border-border hover:border-blue-500 transition-colors group overflow-hidden">
               {/* Thumbnail preview */}
               {t.html && (
@@ -528,11 +717,33 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(t.id)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mb-1">Subject: {t.subject || 'N/A'}</p>
+                <p className="text-xs text-muted-foreground mb-2">Subject: {t.subject || 'N/A'}</p>
+                {/* Tags row */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {t._category && TEMPLATE_CATEGORIES[t._category as TemplateCategory] && (
+                    <span className="flex items-center gap-1 text-[10px] font-display tracking-wider px-2 py-0.5 rounded border" style={{ borderColor: TEMPLATE_CATEGORIES[t._category as TemplateCategory].color + '40', color: TEMPLATE_CATEGORIES[t._category as TemplateCategory].color, backgroundColor: TEMPLATE_CATEGORIES[t._category as TemplateCategory].color + '15' }}>
+                      {CATEGORY_ICONS_MAP[t._category as TemplateCategory]} {TEMPLATE_CATEGORIES[t._category as TemplateCategory].label.toUpperCase()}
+                    </span>
+                  )}
+                  {t._difficulty && (
+                    <span className={`text-[10px] font-display tracking-wider px-2 py-0.5 rounded border ${difficultyColors[t._difficulty]}`}>
+                      {t._difficulty.toUpperCase()}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">Modified: {new Date(t.modified_date).toLocaleDateString()}</p>
               </div>
             </div>
           ))}
+        </div>
+      ) : Array.isArray(templates) && templates.length > 0 ? (
+        <div className="bg-card border-2 border-dashed border-border p-12 text-center">
+          <Search className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+          <h3 className="font-display text-lg tracking-wider mb-2">NO MATCHING TEMPLATES</h3>
+          <p className="text-sm text-muted-foreground">Try adjusting your search query or filters.</p>
+          <button onClick={() => { setSearchQuery(''); setSelectedCategory('all'); setSelectedDifficulty('all'); }} className="mt-3 text-sm text-blue-400 hover:text-blue-300 font-display tracking-wider">
+            CLEAR ALL FILTERS
+          </button>
         </div>
       ) : (
         <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Templates support GoPhish variables like {{.URL}} and {{.FirstName}}." />

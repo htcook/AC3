@@ -28,6 +28,7 @@ import {
   Radio,
   Workflow,
   ShieldCheck,
+  Palette,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
   { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
   { href: "/gophish", icon: Zap, label: "GOPHISH" },
+  { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
   { href: "/team", icon: Users, label: "TEAM" },
   { href: "/activity", icon: FileText, label: "ACTIVITY" },
 ];

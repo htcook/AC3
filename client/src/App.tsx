@@ -45,6 +45,7 @@ import CampaignExecution from "./pages/CampaignExecution";
 import RuleValidator from "./pages/RuleValidator";
 import DetectionCoverage from "./pages/DetectionCoverage";
 import PostEngagementReport from "./pages/PostEngagementReport";
+import LandingPageBuilder from "./pages/LandingPageBuilder";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -199,6 +200,9 @@ function Router() {
       </Route>
       <Route path="/post-engagement-report">
         <ProtectedRoute component={PostEngagementReport} />
+      </Route>
+      <Route path="/landing-page-builder">
+        <ProtectedRoute component={LandingPageBuilder} />
       </Route>
       <Route path="/engagements/:id/results">
         {() => <ProtectedRoute component={EngagementResults} />}

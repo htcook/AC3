@@ -1129,3 +1129,33 @@
 - [x] Preview modal on click for both email templates and landing pages
 - [x] Template Library expanded view now uses full TemplatePreview component
 - [x] 17 vitest tests passing for template variable substitution
+
+## GoPhish Template Tagging & Search
+- [x] Add search bar to filter templates by name, subject, or content
+- [x] Add category tags to templates (10 categories: IT Helpdesk, Password/Auth, Cloud Services, Financial, HR/Corporate, Social Media, Software Updates, Delivery/Shipping, Executive/BEC, Calendar/Meetings)
+- [x] Auto-detect category from template name/subject/content using keyword scoring
+- [x] Add tag filter chips to filter by category with counts
+- [x] Add difficulty/sophistication level indicator (beginner/intermediate/advanced)
+- [x] Difficulty filter bar alongside category chips
+- [x] Visual tag badges on template cards with category colors and icons
+- [x] "No matching templates" empty state with clear filters action
+- [x] Results count showing filtered vs total
+- [x] 28 vitest tests passing for category detection, difficulty detection, and search filtering
+
+## Visual Landing Page Builder
+- [x] Build block-based landing page editor (LandingPageBuilder.tsx)
+- [x] Pre-built blocks: header, logo, heading, text, email/username input, password, MFA code, checkbox, button, divider, spacer, link, image
+- [x] 6 theme presets: Microsoft 365, Google Workspace, Okta SSO, Generic Corporate, AWS Console, Slack
+- [x] Live preview panel with iframe rendering alongside editor
+- [x] Credential capture form auto-configuration (username, password, MFA)
+- [x] Export generated HTML directly to GoPhish landing page
+- [x] Responsive device preview (Desktop/Tablet/Mobile)
+- [x] Custom CSS injection support
+- [x] Undo/redo history
+- [x] Block properties editor panel
+- [x] Layer list with reorder (move up/down) and delete
+- [x] Copy HTML and download HTML file actions
+- [x] GoPhish settings panel (page name, redirect URL, capture credentials/passwords)
+- [x] Preview/Source toggle
+- [x] Starter template blocks per theme
+- [x] Add route and PAGE BUILDER nav link in AppShell
