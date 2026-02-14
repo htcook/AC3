@@ -718,3 +718,13 @@
 - [x] Fix GoPhish landing pages panel mobile layout
 - [x] Fix GoPhish sending profiles panel mobile layout
 - [x] Fix GoPhish target groups panel mobile layout
+
+## OSINT/Domain Search UI Integration
+- [x] Add inline domain OSINT search to engagement creation form
+- [x] Add OSINT quick-search widget to Dashboard page
+- [x] Add "Domain Recon" entry in sidebar navigation
+- [x] Integrate OSINT findings into Campaign Wizard (auto-populate from recon data)
+- [x] Show spoofability verdict and typosquat recommendations in engagement cards
+- [x] Add domain search bar to OSINT Recon page header for quick re-scan
+- [x] Show OSINT summary in engagement detail view
+- [x] Link OSINT findings to campaign template recommendations

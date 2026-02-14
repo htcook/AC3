@@ -9,6 +9,7 @@ import {
   Send, Link2, Unlink, ExternalLink, Fish, Eye, BarChart3, Radar
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { Scan, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
 const ENGAGEMENT_TYPES = [
@@ -251,13 +252,27 @@ export default function Engagements() {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground tracking-wider block mb-1">TARGET DOMAIN</label>
-                <input
-                  type="text"
-                  value={formData.targetDomain}
-                  onChange={(e) => setFormData(p => ({ ...p, targetDomain: e.target.value }))}
-                  placeholder="e.g., acmecorp.com"
-                  className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.targetDomain}
+                    onChange={(e) => setFormData(p => ({ ...p, targetDomain: e.target.value }))}
+                    placeholder="e.g., acmecorp.com"
+                    className="flex-1 px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
+                  />
+                  {formData.targetDomain && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/domain-recon?domain=${encodeURIComponent(formData.targetDomain)}`)}
+                      className="font-display tracking-wider text-[10px] whitespace-nowrap border-primary text-primary hover:bg-primary/10"
+                    >
+                      <Scan className="w-3.5 h-3.5 mr-1" /> SCAN
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Enter domain and click SCAN to run OSINT recon before creating the engagement</p>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground tracking-wider block mb-1">TARGET IP RANGE</label>

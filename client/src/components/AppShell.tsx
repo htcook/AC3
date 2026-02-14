@@ -17,6 +17,9 @@ import {
   Menu,
   X,
   ChevronRight,
+  Radar,
+  Rocket,
+  Scan,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -30,6 +33,11 @@ const NAV_ITEMS = [
   { href: "/gophish", icon: Zap, label: "GOPHISH" },
   { href: "/team", icon: Users, label: "TEAM" },
   { href: "/activity", icon: FileText, label: "ACTIVITY" },
+];
+
+const OSINT_ITEMS = [
+  { href: "/domain-recon", icon: Radar, label: "DOMAIN RECON" },
+  { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
 ];
 
 const THREAT_INTEL_ITEMS = [
@@ -181,6 +189,22 @@ export default function AppShell({
                 onClick={closeSidebar}
               />
             ))}
+
+            <div className="border-t border-border my-3 pt-3">
+              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">
+                OSINT & CAMPAIGNS
+              </p>
+              {OSINT_ITEMS.map((item) => (
+                <NavItem
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                  active={currentPath === item.href || currentPath.startsWith(item.href + "/")}
+                  onClick={closeSidebar}
+                />
+              ))}
+            </div>
 
             <div className="border-t border-border my-3 pt-3">
               <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">

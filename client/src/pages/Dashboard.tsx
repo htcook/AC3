@@ -37,6 +37,7 @@ import {
   Briefcase
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Radar, Search, Scan } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
 // Default server config for the DigitalOcean deployment
@@ -436,6 +437,27 @@ export default function Dashboard() {
             </div>
           </section>
 
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* OSINT DOMAIN SEARCH                                            */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section className="bg-card border-2 border-primary/30 p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <Radar className="w-5 h-5 text-primary" />
+                <div>
+                  <h2 className="font-display text-lg tracking-wider">DOMAIN RECONNAISSANCE</h2>
+                  <p className="text-xs text-muted-foreground">Quick-scan any domain for email spoofability, DNS records, and typosquat candidates</p>
+                </div>
+              </div>
+              <Link href="/domain-recon">
+                <Button variant="outline" size="sm" className="font-display tracking-wider text-xs">
+                  FULL RECON TOOL <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <DomainQuickSearch />
+          </section>
+
           {/* Divider */}
           <div className="w-full h-0.5 bg-primary" />
 
@@ -714,5 +736,42 @@ function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
       {icon}
       {label}
     </button>
+  );
+}
+
+function DomainQuickSearch() {
+  const [domain, setDomain] = useState('');
+  const [, navigate] = useLocation();
+
+  const handleSearch = () => {
+    if (!domain.trim()) {
+      toast.error('Enter a domain to scan');
+      return;
+    }
+    // Navigate to the full Domain Recon page with the domain pre-filled
+    navigate(`/domain-recon?domain=${encodeURIComponent(domain.trim())}`);
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row gap-2">
+      <div className="relative flex-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="text"
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          placeholder="Enter customer domain (e.g., acmecorp.com)"
+          className="w-full pl-10 pr-4 py-2.5 bg-background border border-border text-sm focus:outline-none focus:border-primary font-mono"
+          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        />
+      </div>
+      <Button
+        onClick={handleSearch}
+        className="font-display tracking-wider bg-primary hover:bg-primary/90 whitespace-nowrap"
+      >
+        <Scan className="w-4 h-4 mr-2" />
+        SCAN DOMAIN
+      </Button>
+    </div>
   );
 }

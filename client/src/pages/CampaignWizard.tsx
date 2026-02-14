@@ -10,6 +10,7 @@ import {
   Upload, Clock, AlertTriangle, Search, LayoutTemplate, MousePointerClick
 } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { Radar, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
 // Wizard steps
@@ -343,6 +344,7 @@ export default function CampaignWizard() {
                     <div className="flex-1">
                       <p className="font-medium text-sm">{eng.name}</p>
                       <p className="text-xs text-muted-foreground">{eng.customerName} — {eng.engagementType?.replace("_", " ")}</p>
+                      {eng.targetDomain && <p className="text-xs font-mono text-primary/70 mt-0.5">{eng.targetDomain}</p>}
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded ${
                       eng.status === "active" ? "bg-green-500/20 text-green-400" :
@@ -354,6 +356,11 @@ export default function CampaignWizard() {
                   </button>
                 ))}
               </div>
+
+              {/* OSINT Findings Panel - shows when an engagement is selected */}
+              {selectedEngagementId && selectedEngagement?.targetDomain && (
+                <OsintFindingsPanel engagementId={selectedEngagementId} domain={selectedEngagement.targetDomain} />
+              )}
             </div>
           )}
 
@@ -791,5 +798,123 @@ export default function CampaignWizard() {
           </div>
         </div>
     </AppShell>
+  );
+}
+
+function OsintFindingsPanel({ engagementId, domain }: { engagementId: number; domain: string }) {
+  const [, navigate] = useLocation();
+  const { data: recons } = trpc.osint.getRecon.useQuery(
+    { engagementId },
+    { enabled: !!engagementId }
+  );
+  const { data: typosquats } = trpc.osint.getTyposquats.useQuery(
+    { engagementId },
+    { enabled: !!engagementId }
+  );
+  const { data: findings } = trpc.osint.getFindings.useQuery(
+    { engagementId },
+    { enabled: !!engagementId }
+  );
+
+  // Get the latest recon for this domain
+  const latestRecon = Array.isArray(recons) ? recons[0] : null;
+  const typosquatList = typosquats || [];
+  const findingsList = findings || [];
+
+  if (!latestRecon) {
+    return (
+      <div className="mt-6 border border-dashed border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <Radar className="w-5 h-5 text-primary" />
+          <h3 className="font-display text-sm tracking-wider">OSINT RECONNAISSANCE</h3>
+        </div>
+        <p className="text-sm text-muted-foreground mb-3">
+          No recon data found for <span className="font-mono text-primary">{domain}</span>. Run a domain scan to discover email security posture, typosquat candidates, and auto-generate campaign suggestions.
+        </p>
+        <Button
+          size="sm"
+          onClick={() => navigate(`/engagements/${engagementId}/recon`)}
+          className="font-display tracking-wider text-xs"
+        >
+          <Radar className="w-3.5 h-3.5 mr-1.5" /> RUN DOMAIN RECON
+        </Button>
+      </div>
+    );
+  }
+
+  const spoofScore = latestRecon.spoofScore || 0;
+  const spoofColor = spoofScore >= 70 ? "text-red-400" : spoofScore >= 40 ? "text-yellow-400" : "text-green-400";
+  const spoofLabel = spoofScore >= 70 ? "HIGH RISK" : spoofScore >= 40 ? "MODERATE" : "LOW RISK";
+  const topTyposquats = typosquatList.filter((t: any) => t.available).slice(0, 5);
+  const aiCampaigns = findingsList.filter((f: any) => f.category === 'campaign_suggestion');
+
+  return (
+    <div className="mt-6 border border-primary/30 bg-card p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Radar className="w-5 h-5 text-primary" />
+          <div>
+            <h3 className="font-display text-sm tracking-wider">OSINT INTEL FOR {domain.toUpperCase()}</h3>
+            <p className="text-[10px] text-muted-foreground">Last scanned {new Date(latestRecon.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => navigate(`/engagements/${engagementId}/recon`)}
+          className="font-display tracking-wider text-[10px] h-7"
+        >
+          FULL RECON
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Spoofability */}
+        <div className="bg-background border border-border p-3">
+          <div className="flex items-center gap-2 mb-1">
+            {spoofScore >= 70 ? <ShieldAlert className="w-4 h-4 text-red-400" /> : <ShieldCheck className="w-4 h-4 text-green-400" />}
+            <span className="text-[10px] font-display tracking-wider text-muted-foreground">SPOOFABILITY</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-2xl font-display ${spoofColor}`}>{spoofScore}%</span>
+            <span className={`text-[10px] font-display ${spoofColor}`}>{spoofLabel}</span>
+          </div>
+          <div className="flex gap-1 mt-1.5">
+            <span className={`text-[9px] px-1.5 py-0.5 rounded ${latestRecon.spfRecord ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+              SPF {latestRecon.spfRecord ? 'YES' : 'NO'}
+            </span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded ${latestRecon.dmarcRecord ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+              DMARC {latestRecon.dmarcRecord ? 'YES' : 'NO'}
+            </span>
+          </div>
+        </div>
+
+        {/* Typosquats */}
+        <div className="bg-background border border-border p-3">
+          <span className="text-[10px] font-display tracking-wider text-muted-foreground">AVAILABLE TYPOSQUATS</span>
+          <p className="text-2xl font-display text-primary">{topTyposquats.length}</p>
+          {topTyposquats.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              {topTyposquats.slice(0, 3).map((t: any, i: number) => (
+                <p key={i} className="text-[10px] font-mono text-muted-foreground truncate">{t.domain}</p>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* AI Suggestions */}
+        <div className="bg-background border border-border p-3">
+          <span className="text-[10px] font-display tracking-wider text-muted-foreground">AI CAMPAIGN DESIGNS</span>
+          <p className="text-2xl font-display text-primary">{aiCampaigns.length}</p>
+          {aiCampaigns.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              {aiCampaigns.slice(0, 2).map((f: any, i: number) => (
+                <p key={i} className="text-[10px] text-muted-foreground truncate">{f.title}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
