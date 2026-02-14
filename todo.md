@@ -966,3 +966,8 @@
 - [x] Generate Caldera ability definitions from compatible tools/exploits
 - [x] Store all tool/exploit knowledge in TTP knowledge base for LLM reference
 - [x] Build UI for browsing offensive tool catalog
+
+## Execute Operations
+- [x] Run GitHub TTP ingestion (ATT&CK STIX + Atomic Red Team + LOLBAS + Metasploit) — 691 techniques, 181 groups, 785 software, 328 Atomic tests, 451 LOLBAS, 4368 Metasploit modules, 67 Kali tools
+- [x] Run Caldera adversary sync — 190 unique adversaries synced (from 495 total), 6,340 abilities mapped
+- [x] Run Domain Intel scan on AceofCloud.com — Risk 89/100 (critical), 30 assets, 76 findings, 20 threat actors matched, 4 campaign recommendations

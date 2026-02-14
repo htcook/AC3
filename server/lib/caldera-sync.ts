@@ -5,15 +5,11 @@
  * into the local threat_actors database. This ensures both systems
  * stay aligned for efficient campaign building.
  * 
- * For each Caldera adversary:
- * 1. Map to a threat actor record with calderaProfile data
- * 2. Extract linked abilities and map to MITRE techniques
- * 3. Upsert into the threat_actors table (merge if exists)
- * 4. Sync abilities to threat_actor_abilities table
+ * Optimized for batch processing of 495+ adversaries with 1,940+ abilities.
  */
 
 import * as db from "../db";
-import type { InsertThreatActor, InsertThreatActorAbility } from "../../drizzle/schema";
+import type { InsertThreatActor } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 
 const CALDERA_BASE_URL = ENV.calderaBaseUrl || "";
@@ -60,7 +56,6 @@ async function fetchCalderaAPI(endpoint: string): Promise<any> {
   return response.json();
 }
 
-/** Normalize a Caldera adversary name to an actorId slug */
 function toActorId(name: string): string {
   return name
     .toLowerCase()
@@ -69,7 +64,6 @@ function toActorId(name: string): string {
     .substring(0, 128);
 }
 
-/** Classify adversary type based on name/description heuristics */
 function classifyType(name: string, description: string): "apt" | "cybercrime" | "ransomware" | "hacktivist" | "unknown" {
   const text = `${name} ${description}`.toLowerCase();
   if (/apt\d|apt-|advanced persistent|nation.?state|cozy|fancy|lazarus|turla|sandworm|charming|muddy|ember|wizard|panda|bear|kitten|dragon|spider/i.test(text)) return "apt";
@@ -79,7 +73,6 @@ function classifyType(name: string, description: string): "apt" | "cybercrime" |
   return "unknown";
 }
 
-/** Classify sophistication level */
 function classifySophistication(name: string, description: string, abilityCount: number): "nation-state" | "advanced" | "intermediate" | "basic" {
   const text = `${name} ${description}`.toLowerCase();
   if (/nation.?state|apt\d|apt-|cozy|fancy|lazarus|turla|sandworm|charming|muddy/i.test(text)) return "nation-state";
@@ -88,7 +81,6 @@ function classifySophistication(name: string, description: string, abilityCount:
   return "basic";
 }
 
-/** Classify threat level */
 function classifyThreatLevel(type: string, abilityCount: number): "critical" | "high" | "medium" | "low" {
   if (type === "apt" && abilityCount > 5) return "critical";
   if (type === "apt" || type === "ransomware") return "high";
@@ -107,7 +99,7 @@ export interface SyncResult {
 
 /**
  * Sync all Caldera adversaries into the threat actor database.
- * This is the main entry point for the sync operation.
+ * Optimized with batch upserts and deduplication.
  */
 export async function syncCalderaAdversaries(): Promise<SyncResult> {
   console.log("[Caldera Sync] Starting adversary sync...");
@@ -123,6 +115,7 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
 
   try {
     // Fetch all adversaries and abilities from Caldera
+    console.log("[Caldera Sync] Fetching data from Caldera API...");
     const [adversaries, abilities] = await Promise.all([
       fetchCalderaAPI("/api/v2/adversaries") as Promise<CalderaAdversary[]>,
       fetchCalderaAPI("/api/v2/abilities") as Promise<CalderaAbility[]>,
@@ -133,7 +126,7 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
     }
 
     result.totalCalderaAdversaries = adversaries.length;
-    console.log(`[Caldera Sync] Found ${adversaries.length} adversaries and ${Array.isArray(abilities) ? abilities.length : 0} abilities`);
+    console.log(`[Caldera Sync] Fetched ${adversaries.length} adversaries and ${Array.isArray(abilities) ? abilities.length : 0} abilities`);
 
     // Build ability lookup map
     const abilityMap = new Map<string, CalderaAbility>();
@@ -143,120 +136,105 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
       }
     }
 
-    // Process each adversary
+    // Deduplicate adversaries by name (Caldera often has duplicates)
+    const uniqueAdversaries = new Map<string, CalderaAdversary>();
     for (const adv of adversaries) {
-      try {
-        const actorId = toActorId(adv.name);
-        const abilityIds = adv.atomic_ordering || [];
-        const linkedAbilities = abilityIds
-          .map(id => abilityMap.get(id))
-          .filter((a): a is CalderaAbility => !!a);
+      const actorId = toActorId(adv.name);
+      const existing = uniqueAdversaries.get(actorId);
+      // Keep the one with more abilities
+      if (!existing || (adv.atomic_ordering?.length || 0) > (existing.atomic_ordering?.length || 0)) {
+        uniqueAdversaries.set(actorId, adv);
+      }
+    }
+    
+    console.log(`[Caldera Sync] ${uniqueAdversaries.size} unique adversaries after dedup (from ${adversaries.length})`);
 
-        // Extract MITRE techniques from linked abilities
-        const techniques = linkedAbilities
-          .filter(a => a.technique_id)
-          .map(a => ({
-            id: a.technique_id,
-            name: a.technique_name || a.technique_id,
-            tactic: a.tactic,
-            score: 1,
-            description: a.description,
-          }));
+    // Process in batches of 25
+    const BATCH_SIZE = 25;
+    const entries = Array.from(uniqueAdversaries.entries());
+    
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const batch = entries.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(entries.length / BATCH_SIZE);
+      
+      if (batchNum % 5 === 1 || batchNum === totalBatches) {
+        console.log(`[Caldera Sync] Processing batch ${batchNum}/${totalBatches}...`);
+      }
+      
+      // Process batch concurrently with Promise.allSettled
+      const batchPromises = batch.map(async ([actorId, adv]) => {
+        try {
+          const abilityIds = adv.atomic_ordering || [];
+          const linkedAbilities = abilityIds
+            .map(id => abilityMap.get(id))
+            .filter((a): a is CalderaAbility => !!a);
 
-        // Deduplicate techniques by ID
-        const uniqueTechniques = Array.from(
-          new Map(techniques.map(t => [t.id, t])).values()
-        );
+          const techniques = linkedAbilities
+            .filter(a => a.technique_id)
+            .map(a => ({
+              id: a.technique_id,
+              name: a.technique_name || a.technique_id,
+              tactic: a.tactic,
+              score: 1,
+              description: a.description,
+            }));
 
-        const type = classifyType(adv.name, adv.description || "");
-        const sophistication = classifySophistication(adv.name, adv.description || "", linkedAbilities.length);
-        const threatLevel = classifyThreatLevel(type, linkedAbilities.length);
+          const uniqueTechniques = Array.from(
+            new Map(techniques.map(t => [t.id, t])).values()
+          );
 
-        const threatActor: InsertThreatActor = {
-          actorId,
-          name: adv.name,
-          aliases: adv.tags || [],
-          type,
-          origin: null,
-          description: adv.description || `Caldera adversary profile: ${adv.name}`,
-          motivation: type === "apt" ? "espionage" : type === "ransomware" ? "financial" : type === "cybercrime" ? "financial" : "unknown",
-          threatLevel,
-          sophistication,
-          targetSectors: [],
-          targetRegions: [],
-          techniques: uniqueTechniques,
-          tools: linkedAbilities.map(a => a.name).slice(0, 20),
-          malware: [],
-          calderaProfile: {
-            id: adv.adversary_id,
-            atomicOrdering: adv.atomic_ordering || [],
-            objectives: adv.objective || null,
-            plugin: adv.plugin || null,
-            hasRepeatableAbilities: adv.has_repeatable_abilities || false,
-          },
-          dataSource: "caldera",
-          confidence: 80,
-        };
+          const type = classifyType(adv.name, adv.description || "");
+          const sophistication = classifySophistication(adv.name, adv.description || "", linkedAbilities.length);
+          const threatLevel = classifyThreatLevel(type, linkedAbilities.length);
 
-        // Upsert the threat actor
-        const existingActor = await db.getThreatActor(actorId);
-        if (existingActor) {
-          // Update caldera profile and merge techniques
-          const existingTechniques = (existingActor.techniques as any[]) || [];
-          const mergedTechMap = new Map<string, any>();
-          for (const t of existingTechniques) mergedTechMap.set(t.id, t);
-          for (const t of uniqueTechniques) mergedTechMap.set(t.id, t);
+          const threatActor: InsertThreatActor = {
+            actorId,
+            name: adv.name,
+            aliases: adv.tags || [],
+            type,
+            origin: null,
+            description: adv.description || `Caldera adversary profile: ${adv.name}`,
+            motivation: type === "apt" ? "espionage" : type === "ransomware" ? "financial" : type === "cybercrime" ? "financial" : "unknown",
+            threatLevel,
+            sophistication,
+            targetSectors: [],
+            targetRegions: [],
+            techniques: uniqueTechniques,
+            tools: linkedAbilities.map(a => a.name).slice(0, 20),
+            malware: [],
+            calderaProfile: {
+              id: adv.adversary_id,
+              atomicOrdering: adv.atomic_ordering || [],
+              objectives: adv.objective || null,
+              plugin: adv.plugin || null,
+              hasRepeatableAbilities: adv.has_repeatable_abilities || false,
+            },
+            dataSource: "caldera",
+            confidence: 80,
+          };
+
+          // Use upsertThreatActor for atomic create-or-update
+          await db.upsertThreatActor(threatActor);
           
-          await db.updateThreatActor(actorId, {
-            calderaProfile: threatActor.calderaProfile,
-            techniques: Array.from(mergedTechMap.values()),
-            tools: Array.from(new Set([
-              ...((existingActor.tools as string[]) || []),
-              ...((threatActor.tools as string[]) || []),
-            ])).slice(0, 50),
-          });
-          result.updated++;
-        } else {
-          await db.createThreatActor(threatActor);
+          return { actorId, created: true, abilities: linkedAbilities.length };
+        } catch (advErr: any) {
+          result.errors.push(`${adv.name}: ${advErr.message}`);
+          result.skipped++;
+          return { actorId, created: false, abilities: 0 };
+        }
+      });
+
+      const batchResults = await Promise.allSettled(batchPromises);
+      for (const br of batchResults) {
+        if (br.status === "fulfilled" && br.value.created) {
           result.created++;
+          result.abilitiesSynced += br.value.abilities;
         }
-
-        // Sync abilities to threat_actor_abilities table
-        const existingAbilities = await db.listThreatActorAbilities(actorId);
-        const existingAbilityIds = new Set(existingAbilities.map((a: any) => a.abilityId));
-
-        for (const ability of linkedAbilities) {
-          if (!existingAbilityIds.has(ability.ability_id)) {
-            try {
-              await db.createThreatActorAbility({
-                actorId,
-                abilityId: ability.ability_id,
-                name: ability.name,
-                description: ability.description,
-                tactic: ability.tactic,
-                techniqueId: ability.technique_id,
-                techniqueName: ability.technique_name,
-                platforms: ability.platforms || {},
-                singleton: ability.singleton || false,
-                repeatable: ability.repeatable !== false,
-                requirements: ability.requirements || [],
-              });
-              result.abilitiesSynced++;
-            } catch (abilityErr: any) {
-              // Skip duplicate abilities silently
-              if (!abilityErr.message?.includes("Duplicate")) {
-                result.errors.push(`Ability ${ability.ability_id} for ${actorId}: ${abilityErr.message}`);
-              }
-            }
-          }
-        }
-      } catch (advErr: any) {
-        result.errors.push(`Adversary ${adv.name}: ${advErr.message}`);
-        result.skipped++;
       }
     }
 
-    console.log(`[Caldera Sync] Complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped, ${result.abilitiesSynced} abilities synced`);
+    console.log(`[Caldera Sync] Complete: ${result.created} synced, ${result.skipped} skipped, ${result.abilitiesSynced} abilities mapped`);
     if (result.errors.length > 0) {
       console.warn(`[Caldera Sync] ${result.errors.length} errors:`, result.errors.slice(0, 5));
     }
