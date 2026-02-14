@@ -20,6 +20,8 @@ import {
   Radar,
   Rocket,
   Scan,
+  Eye,
+  BarChart3,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -37,6 +39,7 @@ const NAV_ITEMS = [
 
 const OSINT_ITEMS = [
   { href: "/domain-recon", icon: Radar, label: "DOMAIN RECON" },
+  { href: "/osint-monitor", icon: Eye, label: "OSINT MONITOR" },
   { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
 ];
 
@@ -53,6 +56,7 @@ const GUIDE_ITEMS = [
 ];
 
 const REPORT_ITEMS = [
+  { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
   { href: "/reports/security", icon: FileText, label: "SECURITY REPORT" },
 ];
 

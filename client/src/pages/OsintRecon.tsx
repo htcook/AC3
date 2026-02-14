@@ -82,6 +82,13 @@ export default function OsintRecon() {
   const batchCheck = trpc.osint.batchCheckTyposquats.useMutation();
   const updateTyposquatStatus = trpc.osint.updateTyposquatStatus.useMutation();
   const autoCampaign = trpc.osint.autoCampaignDesign.useMutation();
+  const whoisBatchCheck = trpc.whois.batchCheck.useMutation();
+  const whoisUpdateStatus = trpc.whois.updateTyposquatStatus.useMutation();
+
+  // WHOIS lookup state
+  const [whoisData, setWhoisData] = useState<Record<string, any>>({});
+  const [whoisLoading, setWhoisLoading] = useState<Record<string, boolean>>({});
+  const [expandedWhois, setExpandedWhois] = useState<number | null>(null);
 
   const latestRecon = reconList?.[0];
 
@@ -146,15 +153,45 @@ export default function OsintRecon() {
 
   const handleBatchCheck = async () => {
     if (!latestRecon) return;
-    toast.info('Checking typosquat domain availability...');
+    toast.info('Checking typosquat domain availability via RDAP/WHOIS...');
     try {
+      // Use the existing batch check for DNS resolution
       const results = await batchCheck.mutateAsync({ reconId: latestRecon.id, limit: 30 });
-      const available = results.filter(r => !r.resolved).length;
-      const registered = results.filter(r => r.resolved).length;
-      toast.success(`Checked ${results.length} domains: ${available} available, ${registered} already registered`);
+      const available = results.filter((r: any) => !r.resolved).length;
+      const registered = results.filter((r: any) => r.resolved).length;
+
+      // Also run WHOIS batch check on the first 20 domains
+      const domainsToCheck = filteredTyposquats.slice(0, 20).map((t: any) => t.permutedDomain);
+      if (domainsToCheck.length > 0) {
+        try {
+          const whoisResults = await whoisBatchCheck.mutateAsync({ domains: domainsToCheck });
+          const newWhoisData: Record<string, any> = { ...whoisData };
+          whoisResults.forEach((r: any) => {
+            newWhoisData[r.domain] = r;
+          });
+          setWhoisData(newWhoisData);
+        } catch { /* WHOIS batch is best-effort */ }
+      }
+
+      toast.success(`Checked ${results.length} domains: ${available} available, ${registered} registered`);
       refetchTyposquats();
     } catch (err: any) {
       toast.error(err.message || 'Batch check failed');
+    }
+  };
+
+  const handleSingleWhois = async (domain: string, typosquatId: number) => {
+    setWhoisLoading(prev => ({ ...prev, [domain]: true }));
+    try {
+      const result = await fetch(`/api/trpc/whois.lookup?input=${encodeURIComponent(JSON.stringify({ domain }))}`)
+        .then(r => r.json())
+        .then(r => r.result?.data);
+      setWhoisData(prev => ({ ...prev, [domain]: result }));
+      setExpandedWhois(typosquatId);
+    } catch (err: any) {
+      toast.error(`WHOIS lookup failed for ${domain}`);
+    } finally {
+      setWhoisLoading(prev => ({ ...prev, [domain]: false }));
     }
   };
 
@@ -460,7 +497,16 @@ export default function OsintRecon() {
                       <span className="text-[10px] font-display tracking-wider text-muted-foreground bg-accent/50 px-2 py-0.5">
                         {t.permutationType.toUpperCase().replace('_', ' ')}
                       </span>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] font-display text-cyan-400"
+                          onClick={() => handleSingleWhois(t.permutedDomain, t.id)}
+                          disabled={whoisLoading[t.permutedDomain]}
+                        >
+                          {whoisLoading[t.permutedDomain] ? '...' : 'WHOIS'}
+                        </Button>
                         {t.dnsResolved === false && t.status === 'discovered' && (
                           <Button
                             variant="ghost"
@@ -482,7 +528,7 @@ export default function OsintRecon() {
                             size="sm"
                             className="h-6 text-[10px] font-display text-blue-400"
                             onClick={() => {
-                              updateTyposquatStatus.mutate(
+                              whoisUpdateStatus.mutate(
                                 { id: t.id, status: 'purchased' },
                                 { onSuccess: () => { toast.success('Marked as purchased'); refetchTyposquats(); } }
                               );
@@ -491,10 +537,81 @@ export default function OsintRecon() {
                             PURCHASED
                           </Button>
                         )}
+                        {t.status === 'purchased' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] font-display text-purple-400"
+                            onClick={() => {
+                              whoisUpdateStatus.mutate(
+                                { id: t.id, status: 'configured' },
+                                { onSuccess: () => { toast.success('Marked as configured'); refetchTyposquats(); } }
+                              );
+                            }}
+                          >
+                            CONFIGURED
+                          </Button>
+                        )}
+                        {t.status === 'in_use' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] font-display text-purple-400"
+                            onClick={() => {
+                              whoisUpdateStatus.mutate(
+                                { id: t.id, status: 'transferred' },
+                                { onSuccess: () => { toast.success('Marked as transferred to client'); refetchTyposquats(); } }
+                              );
+                            }}
+                          >
+                            TRANSFER
+                          </Button>
+                        )}
                       </div>
                     </div>
                     {t.resolvedIp && (
                       <div className="text-[10px] text-muted-foreground mt-1 font-mono">IP: {t.resolvedIp}</div>
+                    )}
+                    {/* WHOIS Expandable Details */}
+                    {expandedWhois === t.id && whoisData[t.permutedDomain] && (
+                      <div className="mt-2 p-2 bg-background border border-border text-[10px] space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status:</span>
+                          <span className={whoisData[t.permutedDomain].available ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                            {whoisData[t.permutedDomain].available ? 'AVAILABLE' : 'REGISTERED'}
+                          </span>
+                        </div>
+                        {whoisData[t.permutedDomain].registrar && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Registrar:</span>
+                            <span className="font-mono truncate ml-2">{whoisData[t.permutedDomain].registrar}</span>
+                          </div>
+                        )}
+                        {whoisData[t.permutedDomain].creationDate && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Created:</span>
+                            <span className="font-mono">{new Date(whoisData[t.permutedDomain].creationDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        {whoisData[t.permutedDomain].expirationDate && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Expires:</span>
+                            <span className="font-mono">{new Date(whoisData[t.permutedDomain].expirationDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        {whoisData[t.permutedDomain].nameservers?.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Nameservers:</span>
+                            <div className="font-mono ml-2">{whoisData[t.permutedDomain].nameservers.join(', ')}</div>
+                          </div>
+                        )}
+                        {whoisData[t.permutedDomain].status?.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Domain Status:</span>
+                            <div className="font-mono ml-2 break-all">{whoisData[t.permutedDomain].status.slice(0, 3).join(', ')}</div>
+                          </div>
+                        )}
+                      </div>
                     )}
                     {t.status !== 'discovered' && (
                       <div className={`text-[10px] font-display tracking-wider mt-1 px-2 py-0.5 inline-block ${

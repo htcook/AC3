@@ -31,6 +31,7 @@ import CampaignWizard from "./pages/CampaignWizard";
 import EngagementResults from "./pages/EngagementResults";
 import OsintRecon from "./pages/OsintRecon";
 import DomainRecon from "./pages/DomainRecon";
+import OsintMonitor from "./pages/OsintMonitor";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -143,6 +144,9 @@ function Router() {
       </Route>
       <Route path="/domain-recon">
         <ProtectedRoute component={DomainRecon} />
+      </Route>
+      <Route path="/osint-monitor">
+        <ProtectedRoute component={OsintMonitor} />
       </Route>
       <Route path="/engagements/:id/results">
         {() => <ProtectedRoute component={EngagementResults} />}

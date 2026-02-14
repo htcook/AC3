@@ -728,3 +728,60 @@
 - [x] Add domain search bar to OSINT Recon page header for quick re-scan
 - [x] Show OSINT summary in engagement detail view
 - [x] Link OSINT findings to campaign template recommendations
+
+## WHOIS + Domain Registrar Integration
+- [x] Research and integrate free WHOIS lookup API
+- [x] Add domain availability checking via RDAP/WHOIS
+- [x] Wire typosquat CHECK AVAILABILITY buttons to live data
+- [x] Show registrar info, expiry dates, nameservers in UI
+- [ ] Display pricing estimates where available
+
+## Client-Facing PDF Report Exporter
+- [x] Build PDF generation backend with branded AceofCloud templates
+- [x] Support MSP client report template
+- [x] Support enterprise domain client report template
+- [x] Support mixed hosting client report template
+- [x] Support SaaS/PaaS/IaaS provider report template
+- [x] Include OSINT findings section
+- [x] Include campaign metrics section
+- [x] Include credential harvest details
+- [x] Include ATT&CK technique coverage
+- [x] Include typosquat domain analysis
+- [x] Include executive summary with risk scoring
+- [x] Add report configuration UI with client type selector
+- [x] Add PDF download flow from engagement detail
+
+## Recurring OSINT Monitor
+- [x] Build OSINT monitoring schedule backend
+- [x] Add subdomain change detection
+- [x] Add certificate transparency monitoring
+- [x] Add DMARC/SPF policy change detection
+- [x] Add MX record change alerting
+- [x] Wire alerts to notification system
+- [x] Build monitor configuration UI
+- [x] Show monitoring history and change timeline
+
+## WHOIS + Domain Registrar Integration
+- [x] Research and integrate free WHOIS lookup API
+- [x] Add domain availability checking via RDAP/WHOIS
+- [x] Wire typosquat CHECK AVAILABILITY buttons to live data
+- [x] Show registrar info, expiry dates, nameservers in UI
+
+## Client-Facing PDF Report Exporter
+- [x] Build PDF generation backend with branded AceofCloud templates
+- [x] Support MSP client report template
+- [x] Support enterprise domain client report template
+- [x] Support mixed hosting client report template
+- [x] Support SaaS/PaaS/IaaS provider report template
+- [x] Include OSINT findings, campaign metrics, credential harvests
+- [x] Include ATT&CK technique coverage and typosquat analysis
+- [x] Include executive summary with risk scoring
+- [x] Add report configuration UI with client type selector
+- [x] Add PDF download flow from engagement detail
+
+## Recurring OSINT Monitor
+- [x] Build OSINT monitoring schedule backend
+- [x] Add subdomain and certificate change detection
+- [x] Add DMARC/SPF/MX policy change detection and alerting
+- [x] Wire alerts to notification system
+- [x] Build monitor configuration UI with history timeline

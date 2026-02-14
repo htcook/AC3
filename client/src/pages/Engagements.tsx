@@ -461,6 +461,16 @@ export default function Engagements() {
                           RECON
                         </Button>
                       </Link>
+                      <Link href="/reports/generate">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="font-display tracking-wider text-cyan-400 hover:text-cyan-300"
+                        >
+                          <FileText className="w-3.5 h-3.5 mr-1" />
+                          REPORT
+                        </Button>
+                      </Link>
                       <Button
                         variant="outline"
                         size="sm"

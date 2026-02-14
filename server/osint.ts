@@ -456,3 +456,299 @@ export async function runFullRecon(domain: string): Promise<FullReconResult> {
     typosquats,
   };
 }
+
+
+// ==================== WHOIS / RDAP LOOKUP ====================
+
+export interface WhoisResult {
+  registered: boolean;
+  available: boolean;
+  registrar: string | null;
+  registrationDate: string | null;
+  expirationDate: string | null;
+  lastChanged: string | null;
+  nameservers: string[];
+  status: string[];
+  registrantName: string | null;
+  registrantOrg: string | null;
+  abuseEmail: string | null;
+  abusePhone: string | null;
+  rawRdap: any;
+}
+
+function extractVcardField(vcardArray: any[], fieldName: string): string | null {
+  if (!Array.isArray(vcardArray) || vcardArray.length < 2) return null;
+  const fields = vcardArray[1];
+  if (!Array.isArray(fields)) return null;
+  for (const field of fields) {
+    if (Array.isArray(field) && field[0] === fieldName) {
+      return field[3] || null;
+    }
+  }
+  return null;
+}
+
+export async function whoisLookup(domain: string): Promise<WhoisResult> {
+  const result: WhoisResult = {
+    registered: false,
+    available: true,
+    registrar: null,
+    registrationDate: null,
+    expirationDate: null,
+    lastChanged: null,
+    nameservers: [],
+    status: [],
+    registrantName: null,
+    registrantOrg: null,
+    abuseEmail: null,
+    abusePhone: null,
+    rawRdap: null,
+  };
+
+  try {
+    // Use rdap.net as a redirecting bootstrap server (free, no API key)
+    const response = await fetch(`https://www.rdap.net/domain/${encodeURIComponent(domain)}`, {
+      headers: { 'Accept': 'application/rdap+json' },
+      signal: AbortSignal.timeout(15000),
+      redirect: 'follow',
+    });
+
+    if (response.status === 404) {
+      // Domain not found = available for registration
+      return { ...result, registered: false, available: true };
+    }
+
+    if (!response.ok) {
+      // Unexpected error — return unknown state
+      return result;
+    }
+
+    const data = await response.json();
+    result.rawRdap = data;
+    result.registered = true;
+    result.available = false;
+
+    // Extract status
+    if (Array.isArray(data.status)) {
+      result.status = data.status;
+    }
+
+    // Extract events (registration, expiration, last changed)
+    if (Array.isArray(data.events)) {
+      for (const event of data.events) {
+        switch (event.eventAction) {
+          case 'registration':
+            result.registrationDate = event.eventDate;
+            break;
+          case 'expiration':
+            result.expirationDate = event.eventDate;
+            break;
+          case 'last changed':
+            result.lastChanged = event.eventDate;
+            break;
+        }
+      }
+    }
+
+    // Extract nameservers
+    if (Array.isArray(data.nameservers)) {
+      result.nameservers = data.nameservers
+        .map((ns: any) => ns.ldhName || ns.unicodeName || '')
+        .filter(Boolean);
+    }
+
+    // Extract entities (registrar, registrant, abuse contact)
+    if (Array.isArray(data.entities)) {
+      for (const entity of data.entities) {
+        const roles = entity.roles || [];
+        
+        if (roles.includes('registrar')) {
+          result.registrar = extractVcardField(entity.vcardArray, 'fn');
+          // Check for abuse contact nested under registrar
+          if (Array.isArray(entity.entities)) {
+            for (const sub of entity.entities) {
+              if (sub.roles?.includes('abuse')) {
+                result.abuseEmail = extractVcardField(sub.vcardArray, 'email');
+                result.abusePhone = extractVcardField(sub.vcardArray, 'tel');
+              }
+            }
+          }
+        }
+        
+        if (roles.includes('registrant')) {
+          result.registrantName = extractVcardField(entity.vcardArray, 'fn');
+          result.registrantOrg = extractVcardField(entity.vcardArray, 'org');
+        }
+      }
+    }
+
+    return result;
+  } catch (err) {
+    console.error(`WHOIS/RDAP lookup failed for ${domain}:`, err);
+    return result;
+  }
+}
+
+// Batch WHOIS check for typosquat domains (with rate limiting)
+export async function batchWhoisCheck(
+  domains: string[],
+  concurrency: number = 3,
+  delayMs: number = 500
+): Promise<Map<string, WhoisResult>> {
+  const results = new Map<string, WhoisResult>();
+  
+  for (let i = 0; i < domains.length; i += concurrency) {
+    const batch = domains.slice(i, i + concurrency);
+    const batchResults = await Promise.allSettled(
+      batch.map(d => whoisLookup(d))
+    );
+    
+    batch.forEach((domain, idx) => {
+      const r = batchResults[idx];
+      if (r.status === 'fulfilled') {
+        results.set(domain, r.value);
+      } else {
+        results.set(domain, {
+          registered: false, available: false, registrar: null,
+          registrationDate: null, expirationDate: null, lastChanged: null,
+          nameservers: [], status: [], registrantName: null, registrantOrg: null,
+          abuseEmail: null, abusePhone: null, rawRdap: null,
+        });
+      }
+    });
+    
+    // Rate limit between batches
+    if (i + concurrency < domains.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  return results;
+}
+
+// ==================== OSINT MONITORING (Change Detection) ====================
+
+export interface DomainChangeReport {
+  domain: string;
+  timestamp: string;
+  changes: Array<{
+    type: 'spf_changed' | 'dmarc_changed' | 'mx_changed' | 'ns_changed' | 'new_subdomain' | 'removed_subdomain' | 'cert_changed' | 'a_record_changed';
+    severity: 'info' | 'warning' | 'critical';
+    previousValue: string;
+    currentValue: string;
+    description: string;
+  }>;
+}
+
+export async function detectDomainChanges(
+  domain: string,
+  previousRecon: {
+    spfRecord?: string | null;
+    dmarcRecord?: string | null;
+    mxRecords?: Array<{ exchange: string; priority: number }>;
+    nsRecords?: string[];
+    aRecords?: string[];
+    subdomains?: string[];
+  }
+): Promise<DomainChangeReport> {
+  const changes: DomainChangeReport['changes'] = [];
+  const currentDns = await analyzeDns(domain);
+  const currentSubdomains = await enumerateSubdomains(domain);
+
+  // SPF change
+  if (previousRecon.spfRecord !== undefined && previousRecon.spfRecord !== currentDns.spfRecord) {
+    changes.push({
+      type: 'spf_changed',
+      severity: !currentDns.spfRecord ? 'critical' : 'warning',
+      previousValue: previousRecon.spfRecord || 'NONE',
+      currentValue: currentDns.spfRecord || 'NONE',
+      description: !currentDns.spfRecord
+        ? 'SPF record was REMOVED — domain is now more vulnerable to spoofing'
+        : `SPF record changed from "${previousRecon.spfRecord || 'NONE'}" to "${currentDns.spfRecord}"`,
+    });
+  }
+
+  // DMARC change
+  if (previousRecon.dmarcRecord !== undefined && previousRecon.dmarcRecord !== currentDns.dmarcRecord) {
+    changes.push({
+      type: 'dmarc_changed',
+      severity: !currentDns.dmarcRecord ? 'critical' : 'warning',
+      previousValue: previousRecon.dmarcRecord || 'NONE',
+      currentValue: currentDns.dmarcRecord || 'NONE',
+      description: !currentDns.dmarcRecord
+        ? 'DMARC record was REMOVED — domain is now more vulnerable to spoofing'
+        : `DMARC record changed`,
+    });
+  }
+
+  // MX record changes
+  const prevMx = (previousRecon.mxRecords || []).map(m => m.exchange).sort().join(',');
+  const currMx = currentDns.mxRecords.map(m => m.exchange).sort().join(',');
+  if (prevMx !== currMx) {
+    changes.push({
+      type: 'mx_changed',
+      severity: 'warning',
+      previousValue: prevMx || 'NONE',
+      currentValue: currMx || 'NONE',
+      description: `MX records changed — mail routing may have been modified`,
+    });
+  }
+
+  // NS record changes
+  const prevNs = (previousRecon.nsRecords || []).sort().join(',');
+  const currNs = currentDns.nsRecords.sort().join(',');
+  if (prevNs !== currNs) {
+    changes.push({
+      type: 'ns_changed',
+      severity: 'warning',
+      previousValue: prevNs || 'NONE',
+      currentValue: currNs || 'NONE',
+      description: `Nameservers changed — DNS hosting may have been migrated`,
+    });
+  }
+
+  // A record changes
+  const prevA = (previousRecon.aRecords || []).sort().join(',');
+  const currA = currentDns.aRecords.sort().join(',');
+  if (prevA !== currA) {
+    changes.push({
+      type: 'a_record_changed',
+      severity: 'info',
+      previousValue: prevA || 'NONE',
+      currentValue: currA || 'NONE',
+      description: `A records changed — hosting infrastructure may have been modified`,
+    });
+  }
+
+  // New subdomains
+  const prevSubs = new Set(previousRecon.subdomains || []);
+  const newSubs = currentSubdomains.filter(s => !prevSubs.has(s));
+  if (newSubs.length > 0) {
+    changes.push({
+      type: 'new_subdomain',
+      severity: 'info',
+      previousValue: `${prevSubs.size} subdomains`,
+      currentValue: `${currentSubdomains.length} subdomains (+${newSubs.length} new)`,
+      description: `New subdomains discovered: ${newSubs.slice(0, 10).join(', ')}${newSubs.length > 10 ? '...' : ''}`,
+    });
+  }
+
+  // Removed subdomains
+  const currSubs = new Set(currentSubdomains);
+  const removedSubs = Array.from(prevSubs).filter(s => !currSubs.has(s));
+  if (removedSubs.length > 0) {
+    changes.push({
+      type: 'removed_subdomain',
+      severity: 'info',
+      previousValue: `${prevSubs.size} subdomains`,
+      currentValue: `${currentSubdomains.length} subdomains (-${removedSubs.length} removed)`,
+      description: `Subdomains no longer found: ${removedSubs.slice(0, 10).join(', ')}${removedSubs.length > 10 ? '...' : ''}`,
+    });
+  }
+
+  return {
+    domain,
+    timestamp: new Date().toISOString(),
+    changes,
+  };
+}

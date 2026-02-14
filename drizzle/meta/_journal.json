@@ -43,6 +43,13 @@
       "when": 1771019733113,
       "tag": "0005_funny_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1771034178139,
+      "tag": "0006_gray_argent",
+      "breakpoints": true
     }
   ]
 }

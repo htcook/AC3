@@ -313,3 +313,109 @@ export const osintFindings = mysqlTable("osint_findings", {
 
 export type OsintFinding = typeof osintFindings.$inferSelect;
 export type InsertOsintFinding = typeof osintFindings.$inferInsert;
+
+
+/**
+ * OSINT monitoring schedules for recurring domain scans
+ */
+export const osintMonitors = mysqlTable("osint_monitors", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId"),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  // Monitoring config
+  intervalHours: int("intervalHours").default(24).notNull(), // scan frequency
+  enabled: boolean("enabled").default(true).notNull(),
+  // Client type for tailored monitoring
+  clientType: mysqlEnum("clientType", [
+    "msp",
+    "enterprise",
+    "saas",
+    "paas",
+    "iaas",
+    "mixed_hosting",
+    "other"
+  ]).default("enterprise").notNull(),
+  // Last scan tracking
+  lastScanAt: timestamp("lastScanAt"),
+  lastChangeDetectedAt: timestamp("lastChangeDetectedAt"),
+  totalScans: int("totalScans").default(0),
+  totalChangesDetected: int("totalChangesDetected").default(0),
+  // Notification preferences
+  notifyOnChange: boolean("notifyOnChange").default(true),
+  notifyEmail: varchar("notifyEmail", { length: 320 }),
+  // Baseline snapshot (JSON of last known DNS state)
+  baselineSnapshot: json("baselineSnapshot"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type OsintMonitor = typeof osintMonitors.$inferSelect;
+export type InsertOsintMonitor = typeof osintMonitors.$inferInsert;
+
+/**
+ * OSINT monitor change logs
+ */
+export const osintMonitorChanges = mysqlTable("osint_monitor_changes", {
+  id: int("id").autoincrement().primaryKey(),
+  monitorId: int("monitorId").notNull(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  changeType: varchar("changeType", { length: 64 }).notNull(),
+  severity: mysqlEnum("severity", ["info", "warning", "critical"]).default("info").notNull(),
+  previousValue: text("previousValue"),
+  currentValue: text("currentValue"),
+  description: text("description"),
+  acknowledged: boolean("acknowledged").default(false),
+  acknowledgedBy: int("acknowledgedBy"),
+  acknowledgedAt: timestamp("acknowledgedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OsintMonitorChange = typeof osintMonitorChanges.$inferSelect;
+export type InsertOsintMonitorChange = typeof osintMonitorChanges.$inferInsert;
+
+/**
+ * Engagement reports (PDF generation tracking)
+ */
+export const engagementReports = mysqlTable("engagement_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId").notNull(),
+  // Report configuration
+  reportType: mysqlEnum("reportType", [
+    "executive_summary",
+    "technical_detail",
+    "compliance",
+    "phishing_results",
+    "osint_assessment",
+    "full_engagement"
+  ]).notNull(),
+  clientType: mysqlEnum("clientType", [
+    "msp",
+    "enterprise",
+    "saas",
+    "paas",
+    "iaas",
+    "mixed_hosting",
+    "other"
+  ]).default("enterprise").notNull(),
+  // Report metadata
+  title: varchar("title", { length: 512 }).notNull(),
+  preparedFor: varchar("preparedFor", { length: 255 }),
+  preparedBy: varchar("preparedBy", { length: 255 }),
+  // Sections included
+  includeSections: json("includeSections"), // array of section IDs
+  // Generated output
+  reportUrl: text("reportUrl"), // S3 URL to generated PDF
+  reportKey: varchar("reportKey", { length: 512 }),
+  status: mysqlEnum("status", ["pending", "generating", "completed", "failed"]).default("pending").notNull(),
+  generatedAt: timestamp("generatedAt"),
+  // Branding
+  brandingLogo: text("brandingLogo"),
+  brandingColor: varchar("brandingColor", { length: 32 }),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EngagementReport = typeof engagementReports.$inferSelect;
+export type InsertEngagementReport = typeof engagementReports.$inferInsert;

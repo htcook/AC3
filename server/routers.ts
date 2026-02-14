@@ -1619,6 +1619,387 @@ Respond in JSON format as an array of 3 campaign objects.`;
         }
       }),
   }),
+
+  // ==================== WHOIS & DOMAIN AVAILABILITY ====================
+  whois: router({
+    lookup: protectedProcedure
+      .input(z.object({ domain: z.string().min(3) }))
+      .query(async ({ input }) => {
+        const { whoisLookup } = await import('./osint');
+        return whoisLookup(input.domain);
+      }),
+
+    checkAvailability: protectedProcedure
+      .input(z.object({ domain: z.string().min(3) }))
+      .query(async ({ input }) => {
+        const { checkDomainRegistration } = await import('./osint');
+        return checkDomainRegistration(input.domain);
+      }),
+
+    batchCheck: protectedProcedure
+      .input(z.object({ domains: z.array(z.string()).max(50) }))
+      .mutation(async ({ input }) => {
+        const { batchWhoisCheck } = await import('./osint');
+        return batchWhoisCheck(input.domains);
+      }),
+
+    // Update a typosquat domain status after purchase/configuration
+    updateTyposquatStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['discovered', 'recommended', 'purchased', 'configured', 'in_use', 'transferred', 'released']),
+        registrar: z.string().optional(),
+        annualCost: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        await db.updateTyposquatDomain(id, updates as any);
+        return { success: true };
+      }),
+  }),
+
+  // ==================== OSINT MONITORING ====================
+  monitor: router({
+    create: protectedProcedure
+      .input(z.object({
+        domain: z.string().min(3),
+        engagementId: z.number().optional(),
+        clientType: z.enum(['msp', 'enterprise', 'saas', 'paas', 'iaas', 'mixed_hosting', 'other']).default('enterprise'),
+        intervalHours: z.number().min(1).max(720).default(24),
+        notifyOnChange: z.boolean().default(true),
+        notifyEmail: z.string().email().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Run initial baseline scan
+        const { runFullRecon } = await import('./osint');
+        const recon = await runFullRecon(input.domain);
+        const baseline = {
+          mxRecords: recon.dns.mxRecords,
+          spfRecord: recon.dns.spfRecord,
+          dmarcRecord: recon.dns.dmarcRecord,
+          dkimFound: recon.dns.dkimFound,
+          nsRecords: recon.dns.nsRecords,
+          aRecords: recon.dns.aRecords,
+          subdomainCount: recon.subdomains.length,
+          spoofScore: recon.spoofability.score,
+          scannedAt: new Date().toISOString(),
+        };
+
+        const id = await db.createOsintMonitor({
+          domain: input.domain,
+          engagementId: input.engagementId ?? null,
+          clientType: input.clientType,
+          intervalHours: input.intervalHours,
+          notifyOnChange: input.notifyOnChange,
+          notifyEmail: input.notifyEmail ?? null,
+          baselineSnapshot: baseline,
+          lastScanAt: new Date(),
+          totalScans: 1,
+          createdBy: ctx.user.id,
+        });
+        return { id, baseline };
+      }),
+
+    list: protectedProcedure.query(async () => {
+      return db.getOsintMonitors();
+    }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const monitor = await db.getOsintMonitorById(input.id);
+        if (!monitor) throw new TRPCError({ code: 'NOT_FOUND', message: 'Monitor not found' });
+        const changes = await db.getMonitorChanges(input.id);
+        return { monitor, changes };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        enabled: z.boolean().optional(),
+        intervalHours: z.number().min(1).max(720).optional(),
+        notifyOnChange: z.boolean().optional(),
+        notifyEmail: z.string().email().optional().nullable(),
+        clientType: z.enum(['msp', 'enterprise', 'saas', 'paas', 'iaas', 'mixed_hosting', 'other']).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...updates } = input;
+        await db.updateOsintMonitor(id, updates as any);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteOsintMonitor(input.id);
+        return { success: true };
+      }),
+
+    // Run a scan now (compare against baseline)
+    scanNow: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const monitor = await db.getOsintMonitorById(input.id);
+        if (!monitor) throw new TRPCError({ code: 'NOT_FOUND', message: 'Monitor not found' });
+
+        const { runFullRecon, detectDomainChanges } = await import('./osint');
+        const recon = await runFullRecon(monitor.domain);
+
+        const currentSnapshot = {
+          mxRecords: recon.dns.mxRecords,
+          spfRecord: recon.dns.spfRecord,
+          dmarcRecord: recon.dns.dmarcRecord,
+          dkimFound: recon.dns.dkimFound,
+          nsRecords: recon.dns.nsRecords,
+          aRecords: recon.dns.aRecords,
+          subdomainCount: recon.subdomains.length,
+          spoofScore: recon.spoofability.score,
+          scannedAt: new Date().toISOString(),
+        };
+
+        // Detect changes against baseline using the previous recon data
+        const baseline = (monitor.baselineSnapshot as any) || {};
+        const changeReport = await detectDomainChanges(monitor.domain, {
+          spfRecord: baseline.spfRecord,
+          dmarcRecord: baseline.dmarcRecord,
+          mxRecords: baseline.mxRecords,
+          nsRecords: baseline.nsRecords,
+          aRecords: baseline.aRecords,
+          subdomains: baseline.subdomains,
+        });
+        const changes = changeReport.changes;
+
+        // Store changes in DB
+        if (changes.length > 0) {
+          await db.bulkCreateMonitorChanges(
+            changes.map((c) => ({
+              monitorId: monitor.id,
+              domain: monitor.domain,
+              changeType: c.type,
+              severity: c.severity,
+              previousValue: c.previousValue,
+              currentValue: c.currentValue,
+              description: c.description,
+            }))
+          );
+
+          // Notify owner if enabled
+          if (monitor.notifyOnChange) {
+            try {
+              const { notifyOwner } = await import('./_core/notification');
+              await notifyOwner({
+                title: `OSINT Alert: ${changes.length} change(s) detected on ${monitor.domain}`,
+                content: changes.map((c) => `[${c.severity.toUpperCase()}] ${c.description}`).join('\n'),
+              });
+            } catch (e) { /* notification failure is non-fatal */ }
+          }
+        }
+
+        // Update monitor
+        await db.updateOsintMonitor(monitor.id, {
+          lastScanAt: new Date(),
+          totalScans: (monitor.totalScans || 0) + 1,
+          totalChangesDetected: (monitor.totalChangesDetected || 0) + changes.length,
+          baselineSnapshot: currentSnapshot,
+          ...(changes.length > 0 ? { lastChangeDetectedAt: new Date() } : {}),
+        });
+
+        return { changes, currentSnapshot };
+      }),
+
+    // Get unacknowledged changes across all monitors
+    alerts: protectedProcedure.query(async () => {
+      return db.getUnacknowledgedChanges();
+    }),
+
+    acknowledgeChange: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.acknowledgeChange(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
+
+  // ==================== ENGAGEMENT REPORTS ====================
+  reports: router({
+    generate: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        reportType: z.enum(['executive_summary', 'technical_detail', 'compliance', 'phishing_results', 'osint_assessment', 'full_engagement']),
+        clientType: z.enum(['msp', 'enterprise', 'saas', 'paas', 'iaas', 'mixed_hosting', 'other']).default('enterprise'),
+        title: z.string().min(1),
+        preparedFor: z.string().optional(),
+        preparedBy: z.string().optional(),
+        includeSections: z.array(z.string()).optional(),
+        brandingColor: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Create report record
+        const reportId = await db.createEngagementReport({
+          engagementId: input.engagementId,
+          reportType: input.reportType,
+          clientType: input.clientType,
+          title: input.title,
+          preparedFor: input.preparedFor ?? null,
+          preparedBy: input.preparedBy ?? ctx.user.name ?? 'C3 Platform',
+          includeSections: input.includeSections || [],
+          brandingColor: input.brandingColor ?? '#dc2626',
+          status: 'generating',
+          createdBy: ctx.user.id,
+        });
+
+        // Gather all engagement data
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+        const reconData = await db.getDomainReconByEngagement(input.engagementId);
+        const typosquats = await db.getTyposquatsByEngagement(input.engagementId);
+        const findings = await db.getOsintFindingsByEngagement(input.engagementId);
+        const campaignLinks = await db.getCampaignsByEngagement(input.engagementId);
+
+        // Fetch GoPhish campaign results for linked campaigns
+        let campaignResults: any[] = [];
+        const gophishBaseUrl = ENV.gophishBaseUrl;
+        const gophishApiKey = ENV.gophishApiKey;
+        if (gophishBaseUrl && gophishApiKey) {
+          for (const link of campaignLinks) {
+            try {
+              const resp = await fetch(`${gophishBaseUrl}/api/campaigns/${link.gophishCampaignId}/results`, {
+                headers: { 'Authorization': gophishApiKey },
+                ...(gophishBaseUrl.startsWith('https') ? { agent: new (await import('https')).Agent({ rejectUnauthorized: false }) } : {}),
+              } as any);
+              if (resp.ok) {
+                const data = await resp.json();
+                campaignResults.push({ ...data, campaignName: link.gophishCampaignName });
+              }
+            } catch (e) { /* skip failed fetches */ }
+          }
+        }
+
+        // Use LLM to generate report content
+        const { invokeLLM } = await import('./_core/llm');
+
+        const clientTypeLabels: Record<string, string> = {
+          msp: 'Managed Service Provider (MSP)',
+          enterprise: 'Enterprise Organization',
+          saas: 'SaaS Provider',
+          paas: 'PaaS Provider',
+          iaas: 'IaaS Provider',
+          mixed_hosting: 'Mixed Hosting Provider',
+          other: 'Organization',
+        };
+
+        const sectionPrompts: Record<string, string> = {
+          executive_summary: 'Write a concise executive summary suitable for C-level stakeholders. Focus on business risk, key findings, and recommended actions.',
+          technical_detail: 'Write a detailed technical report covering all findings, attack paths, vulnerabilities, and remediation steps with specific technical guidance.',
+          compliance: 'Write a compliance-focused report mapping findings to relevant frameworks (NIST CSF, ISO 27001, SOC 2, HIPAA, PCI DSS). Include gap analysis.',
+          phishing_results: 'Write a phishing campaign results report with click rates, credential capture rates, user behavior analysis, and awareness training recommendations.',
+          osint_assessment: 'Write an OSINT assessment report covering domain security posture, email authentication, typosquat risks, and external attack surface findings.',
+          full_engagement: 'Write a comprehensive engagement report covering all aspects: executive summary, OSINT findings, phishing results, technical findings, and recommendations.',
+        };
+
+        const reportPrompt = sectionPrompts[input.reportType] || sectionPrompts.full_engagement;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: 'system',
+                content: `You are a senior cybersecurity consultant generating a professional ${input.reportType.replace(/_/g, ' ')} report for a ${clientTypeLabels[input.clientType] || 'client'}. Use formal, professional language. Include specific data points from the provided engagement data. Format the report in Markdown with clear sections, tables where appropriate, and actionable recommendations. The report should be thorough but readable.`,
+              },
+              {
+                role: 'user',
+                content: `Generate the report with the following context:
+
+Report Title: ${input.title}
+Prepared For: ${input.preparedFor || engagement.customerName}
+Prepared By: ${input.preparedBy || ctx.user.name || 'C3 Platform'}
+Client Type: ${clientTypeLabels[input.clientType]}
+Engagement: ${engagement.name} (${engagement.engagementType})
+Customer: ${engagement.customerName}
+Target Domain: ${engagement.targetDomain || 'N/A'}
+Status: ${engagement.status}
+Date Range: ${engagement.startDate ? new Date(engagement.startDate).toLocaleDateString() : 'N/A'} - ${engagement.endDate ? new Date(engagement.endDate).toLocaleDateString() : 'Ongoing'}
+
+OSINT Recon Data (${reconData.length} scans):
+${JSON.stringify(reconData.slice(0, 3).map(r => ({
+  domain: r.domain,
+  spoofScore: r.spoofScore,
+  spoofable: r.spoofable,
+  spf: r.spfRecord ? 'Present' : 'Missing',
+  dmarc: r.dmarcRecord ? 'Present' : 'Missing',
+  subdomains: Array.isArray(r.subdomains) ? (r.subdomains as any[]).length : 0,
+})), null, 2)}
+
+Typosquat Domains Found: ${typosquats.length}
+${typosquats.slice(0, 10).map(t => `- ${t.permutedDomain} (${t.permutationType}, registered: ${t.isRegistered})`).join('\n')}
+
+OSINT Findings (${findings.length} total):
+${findings.slice(0, 15).map(f => `- [${f.severity}] ${f.title}: ${f.description?.substring(0, 100)}`).join('\n')}
+
+Phishing Campaign Results (${campaignResults.length} campaigns):
+${JSON.stringify(campaignResults.map(c => ({
+  name: c.campaignName,
+  totalTargets: c.results?.length || 0,
+  sent: c.results?.filter((r: any) => r.status === 'Email Sent').length || 0,
+  opened: c.results?.filter((r: any) => r.status === 'Email Opened').length || 0,
+  clicked: c.results?.filter((r: any) => r.status === 'Clicked Link').length || 0,
+  submitted: c.results?.filter((r: any) => r.status === 'Submitted Data').length || 0,
+})), null, 2)}
+
+Instructions: ${reportPrompt}`,
+              },
+            ],
+          });
+
+          const reportContent = (response?.choices?.[0]?.message?.content as string) || 'Report generation failed.';
+
+          // Store as S3 file
+          try {
+            const { storagePut } = await import('./storage');
+            const reportKey = `reports/${input.engagementId}/${reportId}-${Date.now()}.md`;
+            const { url } = await storagePut(reportKey, reportContent, 'text/markdown');
+
+            await db.updateReport(reportId, {
+              status: 'completed',
+              reportUrl: url,
+              reportKey,
+              generatedAt: new Date(),
+            });
+
+            return { id: reportId, url, content: reportContent };
+          } catch (storageErr) {
+            // If S3 fails, still return the content
+            await db.updateReport(reportId, {
+              status: 'completed',
+              generatedAt: new Date(),
+            });
+            return { id: reportId, url: null, content: reportContent };
+          }
+        } catch (err: any) {
+          await db.updateReport(reportId, { status: 'failed' });
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Report generation failed: ' + err.message });
+        }
+      }),
+
+    list: protectedProcedure
+      .input(z.object({ engagementId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        if (input?.engagementId) {
+          return db.getEngagementReports(input.engagementId);
+        }
+        return db.getAllReports();
+      }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const report = await db.getReportById(input.id);
+        if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
+        return report;
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

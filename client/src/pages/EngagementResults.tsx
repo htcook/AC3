@@ -135,7 +135,12 @@ export default function EngagementResults() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Link href={`/reports/generate`}>
+                <Button variant="outline" size="sm" className="font-display tracking-wider">
+                  <FileText className="w-4 h-4 mr-2" />GENERATE REPORT
+                </Button>
+              </Link>
               <Link href={`/campaign-wizard`}>
                 <Button size="sm" className="font-display tracking-wider bg-red-600 hover:bg-red-700 text-white">
                   <Rocket className="w-4 h-4 mr-2" />ADD CAMPAIGN

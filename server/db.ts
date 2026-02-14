@@ -477,3 +477,122 @@ export async function getOsintFindingsByRecon(reconId: number) {
     .where(eq(osintFindings.reconId, reconId))
     .orderBy(desc(osintFindings.createdAt));
 }
+
+// ==================== OSINT Monitors ====================
+import { osintMonitors, InsertOsintMonitor, osintMonitorChanges, InsertOsintMonitorChange, engagementReports, InsertEngagementReport } from "../drizzle/schema";
+
+export async function createOsintMonitor(monitor: InsertOsintMonitor) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(osintMonitors).values(monitor);
+  return Number(result[0].insertId);
+}
+
+export async function getOsintMonitors() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(osintMonitors).orderBy(desc(osintMonitors.createdAt));
+}
+
+export async function getOsintMonitorById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(osintMonitors).where(eq(osintMonitors.id, id));
+  return rows[0] || null;
+}
+
+export async function getEnabledMonitors() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(osintMonitors).where(eq(osintMonitors.enabled, true));
+}
+
+export async function updateOsintMonitor(id: number, updates: Partial<InsertOsintMonitor>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(osintMonitors).set(updates).where(eq(osintMonitors.id, id));
+}
+
+export async function deleteOsintMonitor(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(osintMonitors).where(eq(osintMonitors.id, id));
+}
+
+// ==================== OSINT Monitor Changes ====================
+
+export async function createMonitorChange(change: InsertOsintMonitorChange) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(osintMonitorChanges).values(change);
+  return Number(result[0].insertId);
+}
+
+export async function bulkCreateMonitorChanges(changes: InsertOsintMonitorChange[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (changes.length === 0) return;
+  await db.insert(osintMonitorChanges).values(changes);
+}
+
+export async function getMonitorChanges(monitorId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(osintMonitorChanges)
+    .where(eq(osintMonitorChanges.monitorId, monitorId))
+    .orderBy(desc(osintMonitorChanges.createdAt));
+}
+
+export async function getUnacknowledgedChanges() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(osintMonitorChanges)
+    .where(eq(osintMonitorChanges.acknowledged, false))
+    .orderBy(desc(osintMonitorChanges.createdAt));
+}
+
+export async function acknowledgeChange(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(osintMonitorChanges).set({
+    acknowledged: true,
+    acknowledgedBy: userId,
+    acknowledgedAt: new Date(),
+  }).where(eq(osintMonitorChanges.id, id));
+}
+
+// ==================== Engagement Reports ====================
+
+export async function createEngagementReport(report: InsertEngagementReport) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(engagementReports).values(report);
+  return Number(result[0].insertId);
+}
+
+export async function getEngagementReports(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(engagementReports)
+    .where(eq(engagementReports.engagementId, engagementId))
+    .orderBy(desc(engagementReports.createdAt));
+}
+
+export async function getReportById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(engagementReports).where(eq(engagementReports.id, id));
+  return rows[0] || null;
+}
+
+export async function updateReport(id: number, updates: Partial<InsertEngagementReport>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(engagementReports).set(updates).where(eq(engagementReports.id, id));
+}
+
+export async function getAllReports() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(engagementReports).orderBy(desc(engagementReports.createdAt));
+}
