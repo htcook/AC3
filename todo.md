@@ -1276,3 +1276,4 @@
 - [x] Frontend polls every 3s with progress bar and stage indicators
 - [x] Write vitest tests for async pipeline pattern (12 tests)
 - [x] Fix: 'Database not available' error when creating an engagement (added retry logic, connection health check, and auto-reconnect)
+- [x] Fix: 404 error when starting a domain scan (Dashboard navigated to /domain-intel/results/:id instead of /domain-intel/:id; also updated Dashboard to use async polling pattern)

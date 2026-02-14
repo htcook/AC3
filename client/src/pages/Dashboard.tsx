@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [sector, setSector] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<string[]>([]);
+  const [dashScanId, setDashScanId] = useState<number | null>(null);
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -78,20 +79,45 @@ export default function Dashboard() {
   // Recent domain intel scans
   const { data: recentScans } = trpc.domainIntel.listScans.useQuery();
 
-  // Domain intel scan mutation
+  // Domain intel scan mutation (async fire-and-forget)
   const startScan = trpc.domainIntel.startScan.useMutation({
     onSuccess: (data) => {
-      setIsScanning(false);
-      setScanProgress([]);
-      toast.success('Domain Intel scan completed! Redirecting to results...');
-      navigate(`/domain-intel/results/${data.scanId}`);
+      setDashScanId(data.scanId);
+      toast.success('Pipeline started! Monitoring progress...');
     },
     onError: (err) => {
       setIsScanning(false);
       setScanProgress([]);
+      setDashScanId(null);
       toast.error(`Scan failed: ${err.message}`);
     },
   });
+
+  // Poll for scan status while running from Dashboard
+  const dashScanStatus = trpc.domainIntel.getScanStatus.useQuery(
+    { scanId: dashScanId! },
+    {
+      enabled: isScanning && dashScanId !== null,
+      refetchInterval: 3000,
+    }
+  );
+
+  // React to scan status changes from Dashboard
+  useEffect(() => {
+    if (!dashScanStatus.data || !isScanning) return;
+    const { status } = dashScanStatus.data;
+    if (status === 'completed') {
+      setIsScanning(false);
+      setScanProgress([]);
+      toast.success('Domain Intel scan completed! Redirecting to results...');
+      navigate(`/domain-intel/${dashScanId}`);
+    } else if (status === 'failed') {
+      setIsScanning(false);
+      setScanProgress([]);
+      setDashScanId(null);
+      toast.error('Pipeline failed. Please try again.');
+    }
+  }, [dashScanStatus.data, isScanning, dashScanId, navigate]);
 
   useEffect(() => {
     if (healthData !== undefined) setServerStatus(healthData ? 'online' : 'offline');
