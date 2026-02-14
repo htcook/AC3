@@ -179,6 +179,13 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    // Initialize IOC Feed auto-sync cron job
+    import("../lib/ioc-sync").then(({ initIocSyncSchedule }) => {
+      initIocSyncSchedule();
+    }).catch((err) => {
+      console.warn("[IOC Sync] Failed to initialize scheduled sync:", err);
+    });
   });
 }
 

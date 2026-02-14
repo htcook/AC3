@@ -124,6 +124,8 @@ export default function DomainIntelResults() {
   const { scan, assets } = data;
   const pipeline = scan.pipelineOutput as any;
   const campaigns = (scan.campaignRecommendations || []) as any[];
+  const threatActorMatches = pipeline?.threatActorMatches as any;
+  const llmThreatAnalysis = pipeline?.llmThreatActorAnalysis as any;
 
   // Sort assets by risk score descending
   const sortedAssets = [...assets].sort((a: any, b: any) => (b.hybridRiskScore || 0) - (a.hybridRiskScore || 0));
@@ -193,9 +195,10 @@ export default function DomainIntelResults() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="assets">Assets</TabsTrigger>
+          <TabsTrigger value="adversaries">Adversaries</TabsTrigger>
           <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
           <TabsTrigger value="threat-model">Threat Model</TabsTrigger>
           <TabsTrigger value="findings">Findings</TabsTrigger>
@@ -424,6 +427,155 @@ export default function DomainIntelResults() {
         </TabsContent>
 
         {/* Campaigns Tab */}
+        {/* Recommended Adversaries Tab */}
+        <TabsContent value="adversaries" className="space-y-4">
+          {threatActorMatches ? (
+            <>
+              <Card className="bg-card/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-red-400" />
+                    Threat Actor Analysis
+                  </CardTitle>
+                  <CardDescription>
+                    {threatActorMatches.matchSummary}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-red-400">{threatActorMatches.topMatches?.length || 0}</div>
+                      <div className="text-xs text-muted-foreground">Matched Actors</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-amber-400">{threatActorMatches.totalCandidates || 0}</div>
+                      <div className="text-xs text-muted-foreground">Total Analyzed</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-purple-400">
+                        {threatActorMatches.topMatches?.filter((m: any) => m.matchScore >= 50).length || 0}
+                      </div>
+                      <div className="text-xs text-muted-foreground">High Relevance</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {llmThreatAnalysis?.overallAssessment && (
+                <Card className="bg-purple-500/5 border-purple-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-2">
+                      <Brain className="w-5 h-5 text-purple-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-sm font-semibold text-purple-400 mb-1">AI Threat Assessment</div>
+                        <p className="text-sm text-muted-foreground">{llmThreatAnalysis.overallAssessment}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="space-y-3">
+                {(threatActorMatches.topMatches || []).map((actor: any, idx: number) => {
+                  const llmMatch = llmThreatAnalysis?.enhancedMatches?.find((m: any) => m.actorId === actor.actorId || m.name === actor.name);
+                  return (
+                    <Card key={actor.actorId} className="bg-card/50 hover:bg-card/80 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/20 text-red-400 font-bold text-sm">
+                              {idx + 1}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold cursor-pointer hover:text-primary" onClick={() => navigate(`/threat-actors/${actor.actorId}`)}>
+                                  {actor.name}
+                                </span>
+                                <Badge variant="outline" className={`text-[10px] ${
+                                  actor.type === 'apt' ? 'text-red-400 border-red-500/30' :
+                                  actor.type === 'ransomware' ? 'text-purple-400 border-purple-500/30' :
+                                  actor.type === 'cybercrime' ? 'text-amber-400 border-amber-500/30' :
+                                  'text-cyan-400 border-cyan-500/30'
+                                }`}>{actor.type?.toUpperCase()}</Badge>
+                                {actor.origin && (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    <Globe className="w-3 h-3 mr-1" />{actor.origin}
+                                  </Badge>
+                                )}
+                                <Badge className={`text-[10px] ${
+                                  actor.matchScore >= 70 ? 'bg-red-500/20 text-red-400' :
+                                  actor.matchScore >= 50 ? 'bg-orange-500/20 text-orange-400' :
+                                  actor.matchScore >= 30 ? 'bg-yellow-500/20 text-yellow-400' :
+                                  'bg-green-500/20 text-green-400'
+                                }`}>
+                                  Match: {actor.matchScore}%
+                                </Badge>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {actor.matchReasons?.map((reason: string, i: number) => (
+                                  <span key={i} className="text-xs text-muted-foreground">
+                                    {i > 0 && " · "}{reason}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => navigate(`/threat-actors/${actor.actorId}`)}>
+                              <Eye className="w-3 h-3 mr-1" /> View
+                            </Button>
+                            <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => navigate(`/threat-actors/${actor.actorId}`)}>
+                              <Crosshair className="w-3 h-3 mr-1" /> Simulate
+                            </Button>
+                          </div>
+                        </div>
+
+                        {llmMatch && (
+                          <div className="mt-3 pl-11 space-y-2">
+                            <div className="text-xs">
+                              <span className="text-purple-400 font-medium">AI Rationale:</span>{" "}
+                              <span className="text-muted-foreground">{llmMatch.llmRationale}</span>
+                            </div>
+                            {llmMatch.attackScenario && (
+                              <div className="text-xs">
+                                <span className="text-orange-400 font-medium">Attack Scenario:</span>{" "}
+                                <span className="text-muted-foreground">{llmMatch.attackScenario}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {actor.relevantTechniques?.length > 0 && (
+                          <div className="mt-2 pl-11 flex flex-wrap gap-1">
+                            {actor.relevantTechniques.slice(0, 6).map((t: any, i: number) => (
+                              <Badge key={i} variant="secondary" className="text-[10px]">
+                                {t.id}: {t.name}
+                              </Badge>
+                            ))}
+                            {actor.relevantTechniques.length > 6 && (
+                              <Badge variant="secondary" className="text-[10px]">+{actor.relevantTechniques.length - 6} more</Badge>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <Card className="bg-card/50">
+              <CardContent className="p-8 text-center">
+                <Shield className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <h3 className="text-lg font-semibold">Threat Actor Matching</h3>
+                <p className="text-muted-foreground text-sm mt-1">
+                  Threat actor matching was not available for this scan. Re-run the scan to generate matches.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
         <TabsContent value="campaigns" className="space-y-4">
           {campaigns.length === 0 ? (
             <Card>

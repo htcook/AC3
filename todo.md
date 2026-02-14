@@ -879,3 +879,90 @@
 ## Bug Fix: Domain Intel Pipeline
 - [x] Fix "string did not match the expected pattern" error when scanning AceofCloud.com
 - [x] Test and verify the fix works end-to-end
+
+## E2E Test: Domain Intel Pipeline on AceofCloud.com
+- [x] Test full pipeline scan on AceofCloud.com via tRPC procedure
+- [x] Verify all 4 stages complete (discovery, analysis, campaign recs, summary)
+- [x] No runtime errors - pipeline completed successfully (65.2s, 15 assets, 7 campaigns, risk 82.8)
+
+## Threat Actor Detail Page
+- [ ] Build dedicated detail page for each of the 401 threat actors
+- [ ] Display full corroborated history and description
+- [ ] Show MITRE ATT&CK technique heatmap
+- [ ] Show associated IOCs (hashes, domains, IPs)
+- [ ] Show tools and malware used
+- [ ] Show activity timeline with sources
+- [ ] Add "Simulate This Actor" button to auto-create Caldera adversary
+- [ ] Add route and navigation wiring
+
+## IOC Feed Auto-Sync
+- [ ] Build server-side scheduled task for daily IOC feed fetch
+- [ ] Fetch from CISA KEV (Known Exploited Vulnerabilities)
+- [ ] Fetch from AlienVault OTX pulse feed
+- [ ] Fetch from abuse.ch (URLhaus, ThreatFox)
+- [ ] Cross-match new IOCs against monitored domains
+- [ ] Send notifications when critical IOCs match monitored domains
+- [ ] Add sync status and last-synced timestamp to IOC Feed dashboard
+
+## Threat Actor Detail Page
+- [x] Create ThreatActorDetail.tsx with full actor profile view
+- [x] Add MITRE ATT&CK technique heatmap by tactic
+- [x] Show aliases, origin, tools, malware, target sectors/regions
+- [x] Add "Simulate This Actor" button to deploy to Caldera
+- [x] Add "Enrich with LLM" button for intelligence enrichment
+- [x] Add "Generate Phishing Template" link
+- [x] Show associated abilities from abilities library
+- [x] Activity timeline tab with historical events
+- [x] Create ThreatActors.tsx list page with search/filter/pagination
+- [x] Add routes in App.tsx for /threat-actors and /threat-actors/:id
+- [x] Add THREAT ACTORS nav item to sidebar
+
+## Caldera Adversary Sync
+- [x] Fetch all 495 adversaries from Caldera API
+- [x] Compare with 401 threat actors in database (upsert logic handles this)
+- [x] Add missing Caldera adversaries to threat actor database
+- [x] Map Caldera ability IDs to MITRE techniques
+- [x] Keep both systems in sync for campaign building
+
+## IOC Feed Auto-Sync
+- [x] Create IOC sync background service
+- [x] Implement CISA KEV daily fetch and store
+- [x] Implement AlienVault OTX daily fetch and store
+- [x] Implement abuse.ch daily fetch and store
+- [ ] Add notifications for critical IOC matches
+- [x] Wire up as scheduled cron job
+
+## Tests for New Features
+- [ ] Tests for threat actor detail page data
+- [ ] Tests for IOC auto-sync functionality
+- [ ] Tests for Caldera adversary sync
+
+## Domain Intel → Threat Actor Auto-Matching
+- [x] After Domain Intel scan completes, auto-analyze discovered assets/tech stack/industry
+- [x] Cross-reference org profile (sector, tech, hosting type) against threat actor target sectors
+- [x] Score and rank threat actors by likelihood of targeting the organization
+- [x] Use LLM to correlate discovered infrastructure with known actor TTPs
+- [x] Surface top matched threat actors in Domain Intel results page
+- [x] Add "Recommended Adversaries" section to Domain Intel results
+- [x] Allow one-click deploy of matched threat actors to Caldera for simulation
+
+## TTP Knowledge Engine - Deep LLM Understanding
+- [x] Build TTP research service that analyzes each MITRE technique in depth
+- [x] Map how each technique is performed (tools, commands, execution methods)
+- [x] Map IOC generation patterns per technique (artifacts, file hashes, registry, network signatures, event logs)
+- [x] Generate detection rule templates (Sigma, YARA, Suricata) per technique
+- [x] Cross-reference Caldera ability catalog with technique knowledge
+- [x] Build LLM system prompt with deep TTP knowledge for campaign design
+- [x] Enable intelligent Caldera campaign recommendations based on TTP understanding
+- [x] Generate SOC/blocking rules from campaign simulations
+- [x] Store TTP knowledge base in database for reuse across features
+
+## Kali Linux & Metasploit Knowledge Integration
+- [x] Download and catalog all Kali Linux tools with categories
+- [x] Map Kali tools to MITRE ATT&CK techniques
+- [x] Research Metasploit exploit/auxiliary/post module catalog
+- [x] Map Metasploit modules to CVEs and ATT&CK techniques
+- [x] Identify Metasploit modules that could be reverse-engineered into Caldera abilities
+- [x] Generate Caldera ability definitions from compatible tools/exploits
+- [x] Store all tool/exploit knowledge in TTP knowledge base for LLM reference
+- [x] Build UI for browsing offensive tool catalog

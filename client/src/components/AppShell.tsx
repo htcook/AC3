@@ -53,8 +53,10 @@ const OSINT_ITEMS = [
 ];
 
 const THREAT_INTEL_ITEMS = [
+  { href: "/threat-actors", icon: Shield, label: "THREAT ACTORS" },
   { href: "/apt-library", icon: Shield, label: "APT SCENARIOS" },
   { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
+  { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
   { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
   { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
 ];

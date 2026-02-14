@@ -38,6 +38,9 @@ import TemplateGenerator from "./pages/TemplateGenerator";
 import AbilitiesLibrary from "./pages/AbilitiesLibrary";
 import IOCFeed from "./pages/IOCFeed";
 import EngagementPipeline from "./pages/EngagementPipeline";
+import ThreatActors from "./pages/ThreatActors";
+import ThreatActorDetail from "./pages/ThreatActorDetail";
+import TtpKnowledge from "./pages/TtpKnowledge";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -171,6 +174,15 @@ function Router() {
       </Route>
       <Route path="/engagement-pipeline">
         <ProtectedRoute component={EngagementPipeline} />
+      </Route>
+      <Route path="/threat-actors">
+        <ProtectedRoute component={ThreatActors} />
+      </Route>
+      <Route path="/threat-actors/:id">
+        {() => <ProtectedRoute component={ThreatActorDetail} />}
+      </Route>
+      <Route path="/ttp-knowledge">
+        <ProtectedRoute component={TtpKnowledge} />
       </Route>
       <Route path="/engagements/:id/results">
         {() => <ProtectedRoute component={EngagementResults} />}

@@ -64,6 +64,20 @@
       "when": 1771040006161,
       "tag": "0008_familiar_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1771044764021,
+      "tag": "0009_familiar_glorian",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1771045534760,
+      "tag": "0010_windy_dracula",
+      "breakpoints": true
     }
   ]
 }

@@ -655,3 +655,63 @@ export const engagementPipelines = mysqlTable("engagement_pipelines", {
 });
 export type EngagementPipeline = typeof engagementPipelines.$inferSelect;
 export type InsertEngagementPipeline = typeof engagementPipelines.$inferInsert;
+
+// ─── IOC Sync Log ─────────────────────────────────────────────────────────
+export const iocSyncLogs = mysqlTable("ioc_sync_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  syncType: varchar("syncType", { length: 32 }).notNull(), // 'scheduled' | 'manual'
+  status: varchar("status", { length: 32 }).notNull(), // 'running' | 'completed' | 'failed'
+  results: json("results"), // { source, fetched, error? }[]
+  totalFetched: int("totalFetched").default(0),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type IocSyncLog = typeof iocSyncLogs.$inferSelect;
+export type InsertIocSyncLog = typeof iocSyncLogs.$inferInsert;
+
+// ─── TTP Knowledge Base ───────────────────────────────────────────────
+/**
+ * Deep knowledge base for MITRE ATT&CK techniques.
+ * Stores how each technique is performed, what IOCs it generates,
+ * detection rules, and Caldera ability mappings.
+ */
+export const ttpKnowledge = mysqlTable("ttp_knowledge", {
+  id: int("id").autoincrement().primaryKey(),
+  techniqueId: varchar("techniqueId", { length: 32 }).notNull().unique(), // e.g. T1059.001
+  techniqueName: varchar("techniqueName", { length: 255 }).notNull(),
+  tactic: varchar("tactic", { length: 128 }).notNull(),
+  // Deep understanding
+  description: text("description"), // Comprehensive description of the technique
+  executionMethods: json("executionMethods"), // Array of { method, tools, commands, prerequisites, platforms }
+  toolsUsed: json("toolsUsed"), // Array of { name, type, description, commonActors }
+  // IOC Generation
+  iocPatterns: json("iocPatterns"), // Array of { type, pattern, description, confidence, volatility }
+  // type: file_hash, registry_key, network_signature, event_log, process, dns, certificate, mutex
+  artifacts: json("artifacts"), // Array of { category, description, location, persistence }
+  // Detection
+  detectionRules: json("detectionRules"), // Array of { format, name, rule, description, falsePositiveRate }
+  // format: sigma, yara, suricata, splunk_spl, kql
+  eventLogSources: json("eventLogSources"), // Array of { source, eventId, description }
+  // e.g. { source: "Sysmon", eventId: "1", description: "Process creation" }
+  // Caldera mapping
+  calderaAbilities: json("calderaAbilities"), // Array of { abilityId, name, executor, command }
+  // Campaign design intelligence
+  attackChainPosition: varchar("attackChainPosition", { length: 64 }), // initial_access, execution, persistence, etc.
+  prerequisiteTechniques: json("prerequisiteTechniques"), // string[] - techniques that typically precede this one
+  followUpTechniques: json("followUpTechniques"), // string[] - techniques that typically follow this one
+  defensiveGaps: json("defensiveGaps"), // Array of { gap, impact, recommendation }
+  // Red/Blue/Purple team relevance
+  redTeamValue: int("redTeamValue"), // 1-10 how valuable for red team exercises
+  blueTeamPriority: int("blueTeamPriority"), // 1-10 how important for blue team to detect
+  purpleTeamNotes: text("purpleTeamNotes"), // Notes for purple team exercises
+  // Metadata
+  dataSource: varchar("dataSource", { length: 128 }), // mitre, llm-enriched, manual
+  confidence: int("confidence"), // 0-100
+  lastEnriched: timestamp("lastEnriched"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TtpKnowledge = typeof ttpKnowledge.$inferSelect;
+export type InsertTtpKnowledge = typeof ttpKnowledge.$inferInsert;

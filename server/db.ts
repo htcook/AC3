@@ -658,7 +658,8 @@ import {
   threatActorAbilities, InsertThreatActorAbility,
   threatActorIocs, InsertThreatActorIoc,
   iocFeeds, InsertIocFeed,
-  engagementPipelines, InsertEngagementPipeline
+  engagementPipelines, InsertEngagementPipeline,
+  iocSyncLogs, InsertIocSyncLog
 } from "../drizzle/schema";
 import { like, and, inArray, sql } from "drizzle-orm";
 
@@ -918,4 +919,146 @@ export async function listEngagementPipelines(limit = 20) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(engagementPipelines).orderBy(desc(engagementPipelines.createdAt)).limit(limit);
+}
+
+
+// ─── IOC Sync Logs ──────────────────────────────────────────────────────
+export async function createIocSyncLog(log: InsertIocSyncLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(iocSyncLogs).values(log);
+  return Number(result[0].insertId);
+}
+
+export async function updateIocSyncLog(id: number, updates: Partial<InsertIocSyncLog>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(iocSyncLogs).set(updates).where(eq(iocSyncLogs.id, id));
+}
+
+export async function listIocSyncLogs(limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(iocSyncLogs).orderBy(desc(iocSyncLogs.createdAt)).limit(limit);
+}
+
+export async function getLastIocSync() {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(iocSyncLogs)
+    .where(eq(iocSyncLogs.status, 'completed'))
+    .orderBy(desc(iocSyncLogs.completedAt))
+    .limit(1);
+  return rows[0] || null;
+}
+
+
+// ─── Threat Actor CRUD ──────────────────────────────────────────────────
+export async function createThreatActor(actor: InsertThreatActor) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(threatActors).values(actor);
+  return Number(result[0].insertId);
+}
+
+export async function upsertThreatActor(actor: InsertThreatActor) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Check if actor already exists
+  const existing = await db.select().from(threatActors).where(eq(threatActors.actorId, actor.actorId));
+  if (existing.length > 0) {
+    // Update existing - merge calderaProfile if present
+    const updates: Partial<InsertThreatActor> = {};
+    if (actor.calderaProfile) updates.calderaProfile = actor.calderaProfile;
+    if (actor.description && !existing[0].description) updates.description = actor.description;
+    if (actor.tools) updates.tools = actor.tools;
+    if (Object.keys(updates).length > 0) {
+      await db.update(threatActors).set(updates).where(eq(threatActors.actorId, actor.actorId));
+    }
+    return existing[0].id;
+  }
+  // Create new
+  const result = await db.insert(threatActors).values(actor);
+  return Number(result[0].insertId);
+}
+
+export async function bulkUpsertThreatActors(actors: InsertThreatActor[]) {
+  const results: Array<{ actorId: string; id: number; action: 'created' | 'updated' | 'skipped' }> = [];
+  for (const actor of actors) {
+    try {
+      const id = await upsertThreatActor(actor);
+      results.push({ actorId: actor.actorId, id, action: id ? 'created' : 'updated' });
+    } catch (err: any) {
+      console.warn(`[DB] Failed to upsert threat actor ${actor.actorId}:`, err.message);
+      results.push({ actorId: actor.actorId, id: 0, action: 'skipped' });
+    }
+  }
+  return results;
+}
+
+
+// ─── TTP Knowledge Base ─────────────────────────────────────────────────
+import { ttpKnowledge, InsertTtpKnowledge, TtpKnowledge } from "../drizzle/schema";
+
+export async function upsertTtpKnowledge(entry: InsertTtpKnowledge) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(ttpKnowledge).where(eq(ttpKnowledge.techniqueId, entry.techniqueId));
+  if (existing.length > 0) {
+    await db.update(ttpKnowledge).set({ ...entry, updatedAt: new Date() }).where(eq(ttpKnowledge.techniqueId, entry.techniqueId));
+    return existing[0].id;
+  }
+  const result = await db.insert(ttpKnowledge).values(entry);
+  return Number(result[0].insertId);
+}
+
+export async function getTtpKnowledge(techniqueId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(ttpKnowledge).where(eq(ttpKnowledge.techniqueId, techniqueId));
+  return rows[0] || null;
+}
+
+export async function listTtpKnowledge(filters?: {
+  tactic?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { entries: [], total: 0 };
+  
+  const conditions: any[] = [];
+  if (filters?.tactic) conditions.push(eq(ttpKnowledge.tactic, filters.tactic));
+  if (filters?.search) {
+    conditions.push(
+      sql`(${ttpKnowledge.techniqueId} LIKE ${`%${filters.search}%`} OR ${ttpKnowledge.techniqueName} LIKE ${`%${filters.search}%`})`
+    );
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(ttpKnowledge).where(whereClause);
+  const entries = await db.select().from(ttpKnowledge)
+    .where(whereClause)
+    .orderBy(ttpKnowledge.techniqueId)
+    .limit(filters?.limit || 50)
+    .offset(filters?.offset || 0);
+  
+  return { entries, total: Number(countResult.count) };
+}
+
+export async function getTtpKnowledgeStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, byTactic: [], enriched: 0 };
+  
+  const [total] = await db.select({ count: sql<number>`COUNT(*)` }).from(ttpKnowledge);
+  const byTactic = await db.select({
+    tactic: ttpKnowledge.tactic,
+    count: sql<number>`COUNT(*)`,
+  }).from(ttpKnowledge).groupBy(ttpKnowledge.tactic);
+  const [enriched] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(ttpKnowledge)
+    .where(sql`${ttpKnowledge.detectionRules} IS NOT NULL AND JSON_LENGTH(${ttpKnowledge.detectionRules}) > 0`);
+  
+  return { total: Number(total.count), byTactic, enriched: Number(enriched.count) };
 }
