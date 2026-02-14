@@ -1277,3 +1277,14 @@
 - [x] Write vitest tests for async pipeline pattern (12 tests)
 - [x] Fix: 'Database not available' error when creating an engagement (added retry logic, connection health check, and auto-reconnect)
 - [x] Fix: 404 error when starting a domain scan (Dashboard navigated to /domain-intel/results/:id instead of /domain-intel/:id; also updated Dashboard to use async polling pattern)
+
+## Risk Results Enrichment & False Positive Prevention
+- [x] Audit pipeline risk scoring logic for inflated/false-positive ratings
+- [x] Enrich pipeline findings with CVE IDs from vuln feed matching (Stage 3.6 vuln feed enrichment)
+- [x] Add KEV status flag (CISA KEV list) to each finding (kevListed field)
+- [x] Show affected asset names per finding (affectedAssets array)
+- [x] Show discovery provenance (discoveryMethod + evidenceBasis + evidenceDetail fields)
+- [x] Add false-positive validation logic (confidence dampening, lower defaults 3 vs 5, LLM prompt severity constraints)
+- [x] Update DomainIntelResults UI: CVE links to NVD, KEV/Exploit badges, affected assets, evidence detail, confidence %
+- [x] Ensure critical risks have sufficient supporting facts and details
+- [x] Write 25 vitest tests for risk scoring, confidence dampening, evidence fields, false-positive prevention

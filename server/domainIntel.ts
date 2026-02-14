@@ -37,6 +37,8 @@ export interface DiscoveredAssetRaw {
   assetClasses: string[];
   tags: string[];
   description?: string;
+  discoveryMethod?: "inferred" | "dns_verified" | "cert_transparency" | "header_detected";
+  discoveryEvidence?: string; // What data supports this asset's existence
 }
 
 export interface CarverScores {
@@ -59,12 +61,20 @@ export interface ShockScores {
 export interface PostureFinding {
   id: string;
   assetRef: string;
+  assetHostname?: string; // Human-readable hostname
   category: string;
   title: string;
   severity: number; // 0-10
   likelihood: number; // 0-10
   confidence: number; // 0-1
   recommendedControls: string[];
+  cveIds?: string[]; // Associated CVE IDs
+  kevListed?: boolean; // On CISA KEV list
+  exploitAvailable?: boolean; // Public exploit exists
+  cvssScore?: number; // Actual CVSS score from NVD
+  affectedAssets?: string[]; // Hostnames of affected assets
+  evidenceBasis?: "confirmed_cve" | "kev_match" | "vuln_feed" | "llm_inference" | "technology_match";
+  evidenceDetail?: string; // How this finding was determined
 }
 
 export interface TestVector {
@@ -258,7 +268,13 @@ Return ONLY the JSON array, no markdown fences.`;
     const content = response.choices?.[0]?.message?.content;
     const parsed = safeParseLLMJson(content, { assets: [] });
     // Handle both { assets: [...] } and direct array format
-    return Array.isArray(parsed) ? parsed : (parsed.assets || []);
+    const rawAssets = Array.isArray(parsed) ? parsed : (parsed.assets || []);
+    // Mark all LLM-discovered assets as inferred
+    return rawAssets.map((a: any) => ({
+      ...a,
+      discoveryMethod: a.discoveryMethod || "inferred",
+      discoveryEvidence: a.discoveryEvidence || `Inferred from ${org.sector} ${org.clientType} patterns for ${org.primaryDomain}`,
+    }));
   } catch (err) {
     console.error("[DomainIntel] Discovery failed:", err);
     return generateFallbackAssets(org);
@@ -268,13 +284,13 @@ Return ONLY the JSON array, no markdown fences.`;
 function generateFallbackAssets(org: OrgProfile): DiscoveredAssetRaw[] {
   const domain = org.primaryDomain;
   const base: DiscoveredAssetRaw[] = [
-    { assetId: "a-001", hostname: `mail.${domain}`, assetType: "mail_gateway", assetClasses: ["email_infrastructure"], tags: ["internet_exposed", "email"], description: "Mail gateway" },
-    { assetId: "a-002", hostname: `sso.${domain}`, assetType: "sso", assetClasses: ["identity_provider"], tags: ["internet_exposed", "authentication", "critical_data"], description: "Single sign-on portal" },
-    { assetId: "a-003", hostname: `vpn.${domain}`, assetType: "vpn", assetClasses: ["network_access"], tags: ["internet_exposed", "authentication"], description: "VPN concentrator" },
-    { assetId: "a-004", hostname: `www.${domain}`, assetType: "customer_portal", assetClasses: ["web_application"], tags: ["internet_exposed", "public"], description: "Main website" },
-    { assetId: "a-005", hostname: `api.${domain}`, assetType: "api", assetClasses: ["api_endpoint"], tags: ["internet_exposed", "developer"], description: "API endpoint" },
-    { assetId: "a-006", hostname: `admin.${domain}`, assetType: "admin_panel", assetClasses: ["management_interface"], tags: ["internet_exposed", "authentication", "privileged"], description: "Admin panel" },
-    { assetId: "a-007", hostname: domain, url: `https://${domain}`, assetType: "other", assetClasses: ["dns_root"], tags: ["internet_exposed"], description: "Root domain - DNS records", dnsRecords: { MX: [], TXT: [], NS: [] } },
+    { assetId: "a-001", hostname: `mail.${domain}`, assetType: "mail_gateway", assetClasses: ["email_infrastructure"], tags: ["internet_exposed", "email"], description: "Mail gateway", discoveryMethod: "inferred", discoveryEvidence: "Common mail subdomain pattern" },
+    { assetId: "a-002", hostname: `sso.${domain}`, assetType: "sso", assetClasses: ["identity_provider"], tags: ["internet_exposed", "authentication", "critical_data"], description: "Single sign-on portal", discoveryMethod: "inferred", discoveryEvidence: "Common SSO subdomain pattern" },
+    { assetId: "a-003", hostname: `vpn.${domain}`, assetType: "vpn", assetClasses: ["network_access"], tags: ["internet_exposed", "authentication"], description: "VPN concentrator", discoveryMethod: "inferred", discoveryEvidence: "Common VPN subdomain pattern" },
+    { assetId: "a-004", hostname: `www.${domain}`, assetType: "customer_portal", assetClasses: ["web_application"], tags: ["internet_exposed", "public"], description: "Main website", discoveryMethod: "inferred", discoveryEvidence: "Standard www subdomain" },
+    { assetId: "a-005", hostname: `api.${domain}`, assetType: "api", assetClasses: ["api_endpoint"], tags: ["internet_exposed", "developer"], description: "API endpoint", discoveryMethod: "inferred", discoveryEvidence: "Common API subdomain pattern" },
+    { assetId: "a-006", hostname: `admin.${domain}`, assetType: "admin_panel", assetClasses: ["management_interface"], tags: ["internet_exposed", "authentication", "privileged"], description: "Admin panel", discoveryMethod: "inferred", discoveryEvidence: "Common admin subdomain pattern" },
+    { assetId: "a-007", hostname: domain, url: `https://${domain}`, assetType: "other", assetClasses: ["dns_root"], tags: ["internet_exposed"], description: "Root domain - DNS records", dnsRecords: { MX: [], TXT: [], NS: [] }, discoveryMethod: "inferred", discoveryEvidence: "Primary domain root" },
   ];
   return base;
 }
@@ -324,7 +340,8 @@ For EACH asset, provide:
 
 5. Suggested Tier: tier0_critical, tier1_high, tier2_medium, tier3_low
 
-6. Posture Findings: Security weaknesses identified (array of objects with id, category, title, severity 0-10, likelihood 0-10, recommendedControls[])
+6. Posture Findings: Security weaknesses identified (array of objects with id, category, title, severity 0-10, likelihood 0-10, confidence 0-1, recommendedControls[], cveIds[] (known CVE IDs if applicable - MUST be real CVE IDs like CVE-2024-XXXXX, do NOT invent fake CVE IDs))
+   IMPORTANT: Only assign severity >= 7 if you have specific evidence (known CVE, known misconfiguration pattern). Generic or theoretical risks should be severity 3-5. Only assign likelihood >= 7 if the vulnerability is known to be actively exploited.
 
 7. Test Vectors: Suggested attack vectors (array of objects with id, vectorType, hypothesis, suggestedEmulation {technique, tactic}, expectedTelemetry[], riskSignal {severity, likelihood})
 
@@ -366,11 +383,13 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
       const analysis = analysesMap.get(asset.assetId) || {};
       const carver = normalizeCarver(analysis.carverScores || {});
       const shock = normalizeShock(analysis.shockScores || {});
-      const cvss = clamp(analysis.cvssEstimate || 5, 0, 10);
+      // Lower defaults for missing data to prevent inflated scores
+      const hasAnalysis = !!analysesMap.get(asset.assetId);
+      const cvss = clamp(analysis.cvssEstimate || (hasAnalysis ? 4 : 3), 0, 10);
       const ctx = {
-        exposure: clamp(analysis.contextIndicators?.exposure || 0.5, 0, 1),
-        recognizability: clamp(analysis.contextIndicators?.recognizability || 0.5, 0, 1),
-        confidence: clamp(analysis.contextIndicators?.confidence || 0.5, 0, 1),
+        exposure: clamp(analysis.contextIndicators?.exposure || (hasAnalysis ? 0.5 : 0.3), 0, 1),
+        recognizability: clamp(analysis.contextIndicators?.recognizability || (hasAnalysis ? 0.5 : 0.3), 0, 1),
+        confidence: clamp(analysis.contextIndicators?.confidence || (hasAnalysis ? 0.5 : 0.3), 0, 1),
       };
 
       const missionImpact = computeMissionImpact(carver, shock);
@@ -388,13 +407,20 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
         contextIndicators: ctx,
         postureFindings: (analysis.postureFindings || []).map((f: any, i: number) => ({
           id: f.id || `pf-${asset.assetId}-${i}`,
-          assetRef: asset.hostname,
+          assetRef: asset.assetId,
+          assetHostname: asset.hostname,
           category: f.category || "general",
           title: f.title || "Finding",
-          severity: clamp(f.severity || 5, 0, 10),
-          likelihood: clamp(f.likelihood || 5, 0, 10),
-          confidence: clamp(f.confidence || 0.7, 0, 1),
+          severity: clamp(f.severity || 4, 0, 10),
+          likelihood: clamp(f.likelihood || 4, 0, 10),
+          confidence: clamp(f.confidence || 0.5, 0, 1),
           recommendedControls: f.recommendedControls || [],
+          cveIds: f.cveIds || [],
+          kevListed: false,
+          exploitAvailable: false,
+          affectedAssets: [asset.hostname],
+          evidenceBasis: "llm_inference" as const,
+          evidenceDetail: `Inferred by LLM analysis of ${asset.assetType} asset (${asset.hostname})`,
         })),
         testVectors: (analysis.testVectors || []).map((v: any, i: number) => ({
           id: v.id || `tv-${asset.assetId}-${i}`,
@@ -419,22 +445,22 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
 
 function normalizeCarver(raw: any): CarverScores {
   return {
-    criticality: clamp(raw.criticality || 5, 0, 10),
-    accessibility: clamp(raw.accessibility || 5, 0, 10),
-    recuperability: clamp(raw.recuperability || 5, 0, 10),
-    vulnerability: clamp(raw.vulnerability || 5, 0, 10),
-    effect: clamp(raw.effect || 5, 0, 10),
-    recognizability: clamp(raw.recognizability || 5, 0, 10),
+    criticality: clamp(raw.criticality || 3, 0, 10),
+    accessibility: clamp(raw.accessibility || 3, 0, 10),
+    recuperability: clamp(raw.recuperability || 3, 0, 10),
+    vulnerability: clamp(raw.vulnerability || 3, 0, 10),
+    effect: clamp(raw.effect || 3, 0, 10),
+    recognizability: clamp(raw.recognizability || 3, 0, 10),
   };
 }
 
 function normalizeShock(raw: any): ShockScores {
   return {
-    scope: clamp(raw.scope || 5, 0, 10),
-    handling: clamp(raw.handling || 5, 0, 10),
-    operationalImpact: clamp(raw.operationalImpact || 5, 0, 10),
-    cascadingEffects: clamp(raw.cascadingEffects || 5, 0, 10),
-    knowledge: clamp(raw.knowledge || 5, 0, 10),
+    scope: clamp(raw.scope || 3, 0, 10),
+    handling: clamp(raw.handling || 3, 0, 10),
+    operationalImpact: clamp(raw.operationalImpact || 3, 0, 10),
+    cascadingEffects: clamp(raw.cascadingEffects || 3, 0, 10),
+    knowledge: clamp(raw.knowledge || 3, 0, 10),
   };
 }
 
@@ -475,7 +501,11 @@ function computeHybridRisk(
   multiplier += (ctx.recognizability - 0.5) * 0.15;
   multiplier = clamp(multiplier, 0.7, 1.4);
 
-  const score = clamp(100 * blended * multiplier, 0, 100);
+  // Confidence-based dampening: low-confidence findings get reduced scores
+  // At confidence 1.0: no dampening. At confidence 0.3: 30% reduction
+  const confidenceDampening = 0.7 + (ctx.confidence * 0.3);
+
+  const score = clamp(100 * blended * multiplier * confidenceDampening, 0, 100);
   const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
 
   return { score, band };
@@ -492,7 +522,7 @@ function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
   const carver = normalizeCarver({});
   const shock = normalizeShock({});
   const mission = computeMissionImpact(carver, shock);
-  const hybrid = computeHybridRisk(5, mission, { exposure: 0.5, recognizability: 0.5, confidence: 0.4 });
+  const hybrid = computeHybridRisk(3, mission, { exposure: 0.3, recognizability: 0.3, confidence: 0.2 });
   return {
     asset,
     carverScores: carver,
@@ -501,8 +531,8 @@ function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
     suggestedTier: inferTier(hybrid.score),
     hybridRiskScore: Math.round(hybrid.score),
     riskBand: hybrid.band,
-    cvssEstimate: 5,
-    contextIndicators: { exposure: 0.5, recognizability: 0.5, confidence: 0.4 },
+    cvssEstimate: 3,
+    contextIndicators: { exposure: 0.3, recognizability: 0.3, confidence: 0.2 },
     postureFindings: [],
     testVectors: [],
     confidence: 40,
@@ -731,17 +761,25 @@ export async function runDomainIntelPipeline(
             a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
             a.riskBand = a.hybridRiskScore >= 85 ? "critical" : a.hybridRiskScore >= 70 ? "high" : a.hybridRiskScore >= 40 ? "medium" : "low";
             a.suggestedTier = a.hybridRiskScore >= 85 ? "tier0_critical" : a.hybridRiskScore >= 70 ? "tier1_high" : a.hybridRiskScore >= 40 ? "tier2_medium" : "tier3_low";
-            // Add KEV posture findings
+            // Add KEV posture findings with full evidence
             assetKevMatches.forEach(m => {
               a.postureFindings.push({
                 id: `kev-${m.cveID}`,
                 assetRef: a.asset.assetId,
+                assetHostname: a.asset.hostname,
                 category: "CISA KEV",
                 title: `${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? " [RANSOMWARE]" : ""}`,
                 severity: m.knownRansomware ? 10 : 9,
                 likelihood: 9, // KEV = actively exploited = very high likelihood
                 confidence: 0.95,
                 recommendedControls: [m.requiredAction, `Patch ${m.product} immediately`, "Monitor for exploitation indicators"],
+                cveIds: [m.cveID],
+                kevListed: true,
+                exploitAvailable: true, // KEV = known exploited
+                cvssScore: m.knownRansomware ? 9.8 : 9.0,
+                affectedAssets: [a.asset.hostname],
+                evidenceBasis: "kev_match" as const,
+                evidenceDetail: `Matched technology "${m.matchedOn}" on ${a.asset.hostname} against CISA KEV entry ${m.cveID} (${m.vendorProject} ${m.product}). Due date: ${m.dueDate}.`,
               });
             });
           }
@@ -751,6 +789,62 @@ export async function runDomainIntelPipeline(
     }
   } catch (err: any) {
     console.error(`[DomainIntel] KEV enrichment failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 3.6: Vuln Feed Enrichment — add real CVE IDs from all feeds
+  try {
+    const { matchTechnologiesAgainstAllFeeds } = await import("./lib/vuln-feeds");
+    const allTechnologies = analyses.flatMap(a => a.asset.technologies || []);
+    const uniqueTechs = Array.from(new Set(allTechnologies.filter(Boolean)));
+    if (uniqueTechs.length > 0) {
+      const vulnResult = await matchTechnologiesAgainstAllFeeds(uniqueTechs);
+      // Build a map of technology -> vuln matches for quick lookup
+      const techVulnMap = new Map<string, typeof vulnResult.matches[0]>();
+      for (const match of vulnResult.matches) {
+        techVulnMap.set(match.technology.toLowerCase(), match);
+      }
+
+      // Enrich each asset's posture findings with real CVE data
+      analyses.forEach(a => {
+        const assetTechs = (a.asset.technologies || []).map(t => t.toLowerCase());
+        for (const techLower of assetTechs) {
+          const vulnMatch = techVulnMap.get(techLower);
+          if (!vulnMatch) continue;
+
+          // Add vuln-feed-backed findings for the top CVEs
+          const topVulns = vulnMatch.vulns.slice(0, 5); // Top 5 by CVSS
+          for (const vuln of topVulns) {
+            // Skip if we already have a KEV finding for this CVE
+            if (a.postureFindings.some(f => f.cveIds?.includes(vuln.cveId))) continue;
+
+            a.postureFindings.push({
+              id: `vf-${vuln.cveId}-${a.asset.assetId}`,
+              assetRef: a.asset.assetId,
+              assetHostname: a.asset.hostname,
+              category: vuln.kevListed ? "CISA KEV" : vuln.inTheWild ? "0-Day" : vuln.exploitAvailable ? "Exploitable CVE" : "Known CVE",
+              title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"} (${vuln.vendor} ${vuln.product})`,
+              severity: vuln.cvssScore ? Math.round(vuln.cvssScore) : 5,
+              likelihood: vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 4,
+              confidence: vuln.kevListed ? 0.95 : vuln.cvssScore ? 0.85 : 0.6,
+              recommendedControls: [
+                vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
+                `Monitor for exploitation of ${vuln.cveId}`,
+              ],
+              cveIds: [vuln.cveId],
+              kevListed: vuln.kevListed,
+              exploitAvailable: vuln.exploitAvailable,
+              cvssScore: vuln.cvssScore || undefined,
+              affectedAssets: [a.asset.hostname],
+              evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
+              evidenceDetail: `${vuln.cveId} affects ${vuln.vendor} ${vuln.product} (CVSS: ${vuln.cvssScore || "N/A"}). Sources: ${vuln.sources.join(", ")}. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname}.`,
+            });
+          }
+        }
+      });
+      console.log(`[DomainIntel] Vuln feed enrichment: ${vulnResult.totalVulns} vulns across ${vulnResult.matches.length} technologies`);
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] Vuln feed enrichment failed (non-fatal): ${err.message}`);
   }
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
