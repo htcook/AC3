@@ -509,3 +509,149 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
 
 export type DiscoveredAsset = typeof discoveredAssets.$inferSelect;
 export type InsertDiscoveredAsset = typeof discoveredAssets.$inferInsert;
+
+
+/**
+ * Comprehensive threat actor database (400+ actors)
+ */
+export const threatActors = mysqlTable("threat_actors", {
+  id: int("id").autoincrement().primaryKey(),
+  actorId: varchar("actorId", { length: 128 }).notNull().unique(), // e.g. "apt29", "fin7", "lockbit"
+  name: varchar("name", { length: 255 }).notNull(),
+  aliases: json("aliases"), // string[]
+  type: mysqlEnum("actorType", ["apt", "cybercrime", "ransomware", "hacktivist", "unknown"]).notNull(),
+  origin: varchar("origin", { length: 128 }), // country or region
+  description: text("description"),
+  motivation: varchar("motivation", { length: 255 }), // espionage, financial, disruption, etc.
+  firstSeen: varchar("firstSeen", { length: 32 }),
+  lastActive: varchar("lastActive", { length: 32 }),
+  threatLevel: mysqlEnum("threatLevel", ["critical", "high", "medium", "low"]).default("medium"),
+  sophistication: mysqlEnum("sophistication", ["nation-state", "advanced", "intermediate", "basic"]).default("intermediate"),
+  targetSectors: json("targetSectors"), // string[]
+  targetRegions: json("targetRegions"), // string[]
+  // MITRE ATT&CK mapping
+  techniques: json("techniques"), // { id, name, tactic, score, description }[]
+  // Tools and malware
+  tools: json("tools"), // string[]
+  malware: json("malware"), // string[]
+  // Caldera profile
+  calderaProfile: json("calderaProfile"), // { id, atomicOrdering, objectives }
+  // Activity timeline
+  activityTimeline: json("activityTimeline"), // { date, event, source }[]
+  // STIX data
+  stixId: varchar("stixId", { length: 128 }),
+  // Metadata
+  dataSource: varchar("dataSource", { length: 128 }), // mitre, osint, llm-enriched
+  confidence: int("confidence"), // 0-100
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ThreatActor = typeof threatActors.$inferSelect;
+export type InsertThreatActor = typeof threatActors.$inferInsert;
+
+/**
+ * Caldera abilities linked to threat actors
+ */
+export const threatActorAbilities = mysqlTable("threat_actor_abilities", {
+  id: int("id").autoincrement().primaryKey(),
+  actorId: varchar("actorId", { length: 128 }).notNull(),
+  abilityId: varchar("abilityId", { length: 128 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  tactic: varchar("tactic", { length: 128 }).notNull(),
+  techniqueId: varchar("techniqueId", { length: 32 }).notNull(),
+  techniqueName: varchar("techniqueName", { length: 255 }),
+  platforms: json("platforms"), // { [platform]: { [executor]: { command, cleanup?, timeout? } } }
+  singleton: boolean("singleton").default(false),
+  repeatable: boolean("repeatable").default(true),
+  requirements: json("requirements"), // { module, source }[]
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ThreatActorAbility = typeof threatActorAbilities.$inferSelect;
+export type InsertThreatActorAbility = typeof threatActorAbilities.$inferInsert;
+
+/**
+ * IOCs linked to threat actors
+ */
+export const threatActorIocs = mysqlTable("threat_actor_iocs", {
+  id: int("id").autoincrement().primaryKey(),
+  actorId: varchar("actorId", { length: 128 }).notNull(),
+  type: varchar("iocType", { length: 64 }).notNull(), // hash_md5, hash_sha256, domain, ip, url, email, filename, registry, mutex
+  value: text("value").notNull(),
+  description: text("description"),
+  confidence: mysqlEnum("iocConfidence", ["high", "medium", "low"]).default("medium"),
+  firstSeen: varchar("iocFirstSeen", { length: 32 }),
+  lastSeen: varchar("iocLastSeen", { length: 32 }),
+  source: varchar("source", { length: 128 }), // cisa_kev, otx, abusech, osint, manual
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ThreatActorIoc = typeof threatActorIocs.$inferSelect;
+export type InsertThreatActorIoc = typeof threatActorIocs.$inferInsert;
+
+/**
+ * Live IOC feed entries from external sources
+ */
+export const iocFeeds = mysqlTable("ioc_feeds", {
+  id: int("id").autoincrement().primaryKey(),
+  feedSource: varchar("feedSource", { length: 64 }).notNull(), // cisa_kev, otx, abusech_urlhaus, abusech_malwarebazaar, abusech_threatfox
+  feedType: varchar("feedType", { length: 64 }).notNull(), // vulnerability, malware, url, domain, ip, hash
+  title: text("title"),
+  description: text("description"),
+  severity: mysqlEnum("feedSeverity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  // IOC data
+  iocType: varchar("feedIocType", { length: 64 }), // cve, hash, domain, ip, url
+  iocValue: text("iocValue"),
+  // Metadata
+  cveId: varchar("cveId", { length: 32 }),
+  vendorProduct: varchar("vendorProduct", { length: 255 }),
+  knownRansomware: boolean("knownRansomware").default(false),
+  dateAdded: varchar("dateAdded", { length: 32 }),
+  dueDate: varchar("dueDate", { length: 32 }),
+  // Linked actors
+  linkedActors: json("linkedActors"), // string[] of actorIds
+  // Tags
+  tags: json("feedTags"), // string[]
+  rawData: json("rawData"), // original API response
+  fetchedAt: timestamp("fetchedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type IocFeed = typeof iocFeeds.$inferSelect;
+export type InsertIocFeed = typeof iocFeeds.$inferInsert;
+
+/**
+ * Automated engagement pipelines
+ */
+export const engagementPipelines = mysqlTable("engagement_pipelines", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("pipelineName", { length: 255 }).notNull(),
+  status: mysqlEnum("pipelineStatus", ["pending", "intel_scan", "risk_scoring", "campaign_design", "caldera_setup", "gophish_setup", "ready", "running", "completed", "failed"]).default("pending").notNull(),
+  // Input
+  targetDomains: json("targetDomains"), // string[]
+  clientType: varchar("pipelineClientType", { length: 64 }),
+  orgProfile: json("orgProfile"), // { industry, size, compliance, etc. }
+  // Pipeline results
+  intelScanId: int("intelScanId"), // FK to domain_intel_scans
+  riskSummary: json("riskSummary"), // { overallRisk, criticalAssets, topThreats }
+  recommendedActors: json("recommendedActors"), // string[] of actorIds
+  // Caldera operation
+  calderaOperationId: varchar("calderaOperationId", { length: 128 }),
+  calderaAdversaryId: varchar("calderaAdversaryId", { length: 128 }),
+  calderaAbilitiesDeployed: int("calderaAbilitiesDeployed"),
+  // GoPhish campaign
+  gophishCampaignId: int("gophishCampaignId"),
+  gophishTemplateId: int("gophishTemplateId"),
+  gophishLandingPageId: int("gophishLandingPageId"),
+  // Engagement
+  engagementId: int("engagementId"), // FK to engagements
+  // Progress tracking
+  currentStep: int("currentStep").default(0),
+  totalSteps: int("totalSteps").default(6),
+  stepLog: json("stepLog"), // { step, status, message, timestamp }[]
+  errorMessage: text("errorMessage"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type EngagementPipeline = typeof engagementPipelines.$inferSelect;
+export type InsertEngagementPipeline = typeof engagementPipelines.$inferInsert;

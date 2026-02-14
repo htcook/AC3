@@ -651,3 +651,271 @@ export async function getDomainIntelScansByEngagement(engagementId: number) {
   if (!db) return [];
   return db.select().from(domainIntelScans).where(eq(domainIntelScans.engagementId, engagementId)).orderBy(desc(domainIntelScans.createdAt));
 }
+
+// ─── Threat Actor Database ───────────────────────────────────────────────
+import { 
+  threatActors, InsertThreatActor, ThreatActor,
+  threatActorAbilities, InsertThreatActorAbility,
+  threatActorIocs, InsertThreatActorIoc,
+  iocFeeds, InsertIocFeed,
+  engagementPipelines, InsertEngagementPipeline
+} from "../drizzle/schema";
+import { like, and, inArray, sql } from "drizzle-orm";
+
+export async function listThreatActors(filters?: {
+  type?: string;
+  origin?: string;
+  threatLevel?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { actors: [], total: 0 };
+  
+  const conditions: any[] = [];
+  if (filters?.type && filters.type !== 'all') {
+    conditions.push(eq(threatActors.type, filters.type as any));
+  }
+  if (filters?.origin && filters.origin !== 'all') {
+    conditions.push(eq(threatActors.origin, filters.origin));
+  }
+  if (filters?.threatLevel && filters.threatLevel !== 'all') {
+    conditions.push(eq(threatActors.threatLevel, filters.threatLevel as any));
+  }
+  if (filters?.search) {
+    conditions.push(
+      sql`(${threatActors.name} LIKE ${`%${filters.search}%`} OR ${threatActors.description} LIKE ${`%${filters.search}%`} OR JSON_SEARCH(${threatActors.aliases}, 'one', ${`%${filters.search}%`}) IS NOT NULL)`
+    );
+  }
+  
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  const [countResult] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(threatActors)
+    .where(whereClause);
+  
+  const actors = await db.select()
+    .from(threatActors)
+    .where(whereClause)
+    .orderBy(desc(threatActors.confidence))
+    .limit(filters?.limit || 50)
+    .offset(filters?.offset || 0);
+  
+  return { actors, total: Number(countResult.count) };
+}
+
+export async function getThreatActor(actorId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const results = await db.select().from(threatActors).where(eq(threatActors.actorId, actorId));
+  return results[0] || null;
+}
+
+export async function getThreatActorById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const results = await db.select().from(threatActors).where(eq(threatActors.id, id));
+  return results[0] || null;
+}
+
+export async function updateThreatActor(actorId: string, updates: Partial<InsertThreatActor>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(threatActors).set(updates).where(eq(threatActors.actorId, actorId));
+}
+
+export async function getThreatActorStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, byType: [], byOrigin: [], byThreatLevel: [] };
+  
+  const [total] = await db.select({ count: sql<number>`COUNT(*)` }).from(threatActors);
+  const byType = await db.select({ 
+    type: threatActors.type, 
+    count: sql<number>`COUNT(*)` 
+  }).from(threatActors).groupBy(threatActors.type);
+  const byOrigin = await db.select({ 
+    origin: threatActors.origin, 
+    count: sql<number>`COUNT(*)` 
+  }).from(threatActors).groupBy(threatActors.origin).orderBy(sql`COUNT(*) DESC`).limit(15);
+  const byThreatLevel = await db.select({ 
+    level: threatActors.threatLevel, 
+    count: sql<number>`COUNT(*)` 
+  }).from(threatActors).groupBy(threatActors.threatLevel);
+  
+  return { total: Number(total.count), byType, byOrigin, byThreatLevel };
+}
+
+// ─── Threat Actor Abilities ──────────────────────────────────────────────
+export async function listThreatActorAbilities(actorId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(threatActorAbilities).where(eq(threatActorAbilities.actorId, actorId));
+}
+
+export async function createThreatActorAbility(ability: InsertThreatActorAbility) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(threatActorAbilities).values(ability);
+  return Number(result[0].insertId);
+}
+
+export async function listAllAbilities(filters?: {
+  tactic?: string;
+  search?: string;
+  actorId?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { abilities: [], total: 0 };
+  
+  const conditions: any[] = [];
+  if (filters?.tactic && filters.tactic !== 'all') {
+    conditions.push(eq(threatActorAbilities.tactic, filters.tactic));
+  }
+  if (filters?.actorId) {
+    conditions.push(eq(threatActorAbilities.actorId, filters.actorId));
+  }
+  if (filters?.search) {
+    conditions.push(
+      sql`(${threatActorAbilities.name} LIKE ${`%${filters.search}%`} OR ${threatActorAbilities.description} LIKE ${`%${filters.search}%`})`
+    );
+  }
+  
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  const [countResult] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(threatActorAbilities)
+    .where(whereClause);
+  
+  const abilities = await db.select()
+    .from(threatActorAbilities)
+    .where(whereClause)
+    .limit(filters?.limit || 50)
+    .offset(filters?.offset || 0);
+  
+  return { abilities, total: Number(countResult.count) };
+}
+
+// ─── Threat Actor IOCs ───────────────────────────────────────────────────
+export async function listThreatActorIocs(actorId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(threatActorIocs).where(eq(threatActorIocs.actorId, actorId));
+}
+
+export async function createThreatActorIoc(ioc: InsertThreatActorIoc) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(threatActorIocs).values(ioc);
+  return Number(result[0].insertId);
+}
+
+export async function bulkCreateThreatActorIocs(iocs: InsertThreatActorIoc[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (iocs.length === 0) return;
+  await db.insert(threatActorIocs).values(iocs);
+}
+
+// ─── IOC Feeds ───────────────────────────────────────────────────────────
+export async function createIocFeedEntry(entry: InsertIocFeed) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(iocFeeds).values(entry);
+  return Number(result[0].insertId);
+}
+
+export async function bulkCreateIocFeedEntries(entries: InsertIocFeed[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (entries.length === 0) return;
+  await db.insert(iocFeeds).values(entries);
+}
+
+export async function listIocFeedEntries(filters?: {
+  feedSource?: string;
+  severity?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { entries: [], total: 0 };
+  
+  const conditions: any[] = [];
+  if (filters?.feedSource && filters.feedSource !== 'all') {
+    conditions.push(eq(iocFeeds.feedSource, filters.feedSource));
+  }
+  if (filters?.severity && filters.severity !== 'all') {
+    conditions.push(eq(iocFeeds.severity, filters.severity as any));
+  }
+  if (filters?.search) {
+    conditions.push(
+      sql`(${iocFeeds.title} LIKE ${`%${filters.search}%`} OR ${iocFeeds.iocValue} LIKE ${`%${filters.search}%`})`
+    );
+  }
+  
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  const [countResult] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(iocFeeds)
+    .where(whereClause);
+  
+  const entries = await db.select()
+    .from(iocFeeds)
+    .where(whereClause)
+    .orderBy(desc(iocFeeds.createdAt))
+    .limit(filters?.limit || 50)
+    .offset(filters?.offset || 0);
+  
+  return { entries, total: Number(countResult.count) };
+}
+
+export async function getIocFeedStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, bySource: [], bySeverity: [], recentCount: 0 };
+  
+  const [total] = await db.select({ count: sql<number>`COUNT(*)` }).from(iocFeeds);
+  const bySource = await db.select({ 
+    source: iocFeeds.feedSource, 
+    count: sql<number>`COUNT(*)` 
+  }).from(iocFeeds).groupBy(iocFeeds.feedSource);
+  const bySeverity = await db.select({ 
+    severity: iocFeeds.severity, 
+    count: sql<number>`COUNT(*)` 
+  }).from(iocFeeds).groupBy(iocFeeds.severity);
+  const [recent] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(iocFeeds)
+    .where(sql`${iocFeeds.createdAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+  
+  return { total: Number(total.count), bySource, bySeverity, recentCount: Number(recent.count) };
+}
+
+// ─── Engagement Pipelines ────────────────────────────────────────────────
+export async function createEngagementPipeline(pipeline: InsertEngagementPipeline) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(engagementPipelines).values(pipeline);
+  return Number(result[0].insertId);
+}
+
+export async function getEngagementPipeline(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const results = await db.select().from(engagementPipelines).where(eq(engagementPipelines.id, id));
+  return results[0] || null;
+}
+
+export async function updateEngagementPipeline(id: number, updates: Partial<InsertEngagementPipeline>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(engagementPipelines).set(updates).where(eq(engagementPipelines.id, id));
+}
+
+export async function listEngagementPipelines(limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(engagementPipelines).orderBy(desc(engagementPipelines.createdAt)).limit(limit);
+}

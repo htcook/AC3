@@ -24,6 +24,9 @@ import {
   BarChart3,
   Brain,
   Sparkles,
+  Layers,
+  Radio,
+  Workflow,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -43,12 +46,15 @@ const OSINT_ITEMS = [
   { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
   { href: "/domain-recon", icon: Radar, label: "DOMAIN RECON" },
   { href: "/osint-monitor", icon: Eye, label: "OSINT MONITOR" },
+  { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
   { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
   { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
+  { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
 ];
 
 const THREAT_INTEL_ITEMS = [
   { href: "/apt-library", icon: Shield, label: "APT SCENARIOS" },
+  { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
   { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
   { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
 ];

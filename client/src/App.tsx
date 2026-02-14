@@ -35,6 +35,9 @@ import OsintMonitor from "./pages/OsintMonitor";
 import DomainIntel from "./pages/DomainIntel";
 import DomainIntelResults from "./pages/DomainIntelResults";
 import TemplateGenerator from "./pages/TemplateGenerator";
+import AbilitiesLibrary from "./pages/AbilitiesLibrary";
+import IOCFeed from "./pages/IOCFeed";
+import EngagementPipeline from "./pages/EngagementPipeline";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -159,6 +162,15 @@ function Router() {
       </Route>
       <Route path="/template-generator">
         <ProtectedRoute component={TemplateGenerator} />
+      </Route>
+      <Route path="/abilities-library">
+        <ProtectedRoute component={AbilitiesLibrary} />
+      </Route>
+      <Route path="/ioc-feed">
+        <ProtectedRoute component={IOCFeed} />
+      </Route>
+      <Route path="/engagement-pipeline">
+        <ProtectedRoute component={EngagementPipeline} />
       </Route>
       <Route path="/engagements/:id/results">
         {() => <ProtectedRoute component={EngagementResults} />}

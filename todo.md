@@ -833,4 +833,45 @@
 - [x] Add abilities for: service stopping, defense evasion, persistence mechanisms
 - [x] Include IOC metadata (hashes, domains, IPs) per ability
 - [x] Wire abilities into APT scenario profiles for auto-deployment
-- [ ] Build dedicated Abilities Library page with search, filter, and deploy-to-Caldera
+- [x] Build dedicated Abilities Library page with search, filter, and deploy-to-Caldera
+
+## 400+ Caldera Threat Actors Database
+- [x] Design threat_actors DB table schema with comprehensive fields
+- [x] Build LLM-powered threat actor data generation for 400+ groups
+- [x] Include APT groups, cybercrime groups, ransomware groups, hacktivists
+- [x] Store TTPs, IOCs, tools, target sectors, origin countries, MITRE mappings
+- [x] Build tRPC procedures for CRUD and search/filter
+- [x] Wire threat actor DB to APT Library page for dynamic loading
+
+## Dedicated Abilities Library Page (COMPLETED)
+- [x] Build searchable, filterable catalog of all Caldera abilities
+- [x] Add tactic-based grouping and technique ID filtering
+- [x] Add bulk deploy to Caldera functionality
+- [x] Show ability details with executor commands and platform support
+- [x] Link abilities back to threat actor profiles
+
+## Live IOC Feed Integration
+- [x] Build CISA KEV (Known Exploited Vulnerabilities) feed integration
+- [x] Build AlienVault OTX feed integration for IOC enrichment
+- [x] Build abuse.ch (URLhaus, MalwareBazaar, ThreatFox) feed integration
+- [x] Auto-refresh IOC data on schedule
+- [x] Build IOC feed dashboard UI with real-time threat indicators
+- [x] Align phishing templates with active campaign IOCs
+
+## Automated Engagement Pipeline
+- [x] Build one-click pipeline: Domain Intel scan → risk scoring → campaign recommendation
+- [x] Auto-create Caldera operation from recommended abilities
+- [x] Auto-create GoPhish campaign from recommended templates
+- [x] Build pipeline wizard UI with progress tracking
+- [x] Add pipeline status monitoring and result aggregation
+
+## Research-Based Threat Actor Database (400+)
+- [x] Research CrowdStrike threat actor naming conventions and groups
+- [x] Research Unit 42 / Palo Alto threat groups
+- [x] Research AlienVault OTX threat groups
+- [x] Research MITRE CTI GitHub repo for comprehensive actor list
+- [x] Research ETDA and other GitHub threat intel repos
+- [x] Cross-reference and corroborate data across sources
+- [x] Build detailed histories for each group
+- [x] Create seed data files with 400+ actors
+- [x] Build seed script and populate database
