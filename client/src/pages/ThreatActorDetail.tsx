@@ -28,6 +28,7 @@ import {
   Upload,
   FileText,
   ChevronRight,
+  Download,
 } from "lucide-react";
 
 // MITRE ATT&CK Tactic colors
@@ -264,6 +265,22 @@ export default function ThreatActorDetail() {
               onClick={() => setLocation(`/template-generator?actor=${actorId}`)}
             >
               <FileText className="w-4 h-4 mr-1" /> Generate Phishing Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = `/api/export/detection-rules/${actorId}`;
+                link.download = `${actor?.name || actorId}_detection_rules.zip`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast.success('Downloading detection rules pack...');
+              }}
+            >
+              <Download className="w-4 h-4 mr-1" /> Download Rules Pack
             </Button>
           </div>
         </div>

@@ -28,6 +28,9 @@ const REPORT_TYPES = [
   { value: 'phishing_results', label: 'Phishing Results', icon: <Mail className="w-4 h-4" />, desc: 'Campaign metrics, click rates, and credential captures', color: 'text-orange-400 border-orange-500/30' },
   { value: 'osint_assessment', label: 'OSINT Assessment', icon: <Globe className="w-4 h-4" />, desc: 'Domain security, typosquats, and attack surface', color: 'text-cyan-400 border-cyan-500/30' },
   { value: 'full_engagement', label: 'Full Engagement', icon: <FileText className="w-4 h-4" />, desc: 'Comprehensive report covering all assessment areas', color: 'text-purple-400 border-purple-500/30' },
+  { value: 'purple_team', label: 'Purple Team Exercise', icon: <Target className="w-4 h-4" />, desc: 'Adversary emulation results, detection coverage, and SOC performance', color: 'text-violet-400 border-violet-500/30' },
+  { value: 'red_team_assessment', label: 'Red Team Assessment', icon: <Zap className="w-4 h-4" />, desc: 'Attack paths, kill chain analysis, and remediation steps', color: 'text-rose-400 border-rose-500/30' },
+  { value: 'detection_gap_analysis', label: 'Detection Gap Analysis', icon: <Lock className="w-4 h-4" />, desc: 'MITRE ATT&CK technique coverage with Sigma/YARA rules for gaps', color: 'text-amber-400 border-amber-500/30' },
 ] as const;
 
 const BRANDING_COLORS = [

@@ -155,6 +155,105 @@ async function startServer() {
       return res.redirect('https://dashboard.aceofcloud.io/login');
     }
   });
+  // Detection Rules ZIP Download
+  app.get('/api/export/detection-rules/:actorId', async (req, res) => {
+    try {
+      const jwt = await import('jsonwebtoken');
+      const token = req.cookies?.['caldera_session'];
+      if (!token) return res.status(401).json({ error: 'Unauthorized' });
+      try {
+        jwt.default.verify(token, AUTH_SECRET);
+      } catch { return res.status(401).json({ error: 'Invalid session' }); }
+
+      const actorId = req.params.actorId;
+      const dbModule = await import('../db');
+      const actor = await dbModule.getThreatActor(actorId);
+      if (!actor) return res.status(404).json({ error: 'Actor not found' });
+
+      const techniques = (actor.techniques as any[] || []).map((t: any) => t.id).filter(Boolean);
+      if (techniques.length === 0) return res.status(404).json({ error: 'No techniques found for this actor' });
+
+      const { generateDetectionRules } = await import('../lib/ttp-engine');
+      const rules = await generateDetectionRules(techniques);
+
+      const archiver = (await import('archiver')).default;
+      const archive = archiver('zip', { zlib: { level: 9 } });
+
+      const safeName = actor.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}_detection_rules.zip"`);
+      archive.pipe(res);
+
+      // README
+      const techList = (actor.techniques as any[] || []).map((t: any) => "- " + t.id + " " + t.name + " (" + t.tactic + ")").join("\n");
+      const readme = [
+        "# Detection Rules Pack: " + actor.name,
+        "",
+        "Generated: " + new Date().toISOString(),
+        "Author: Harrison Cook / AceofCloud",
+        "",
+        "## Contents",
+        "",
+        "| Folder | Format | Count | Import Target |",
+        "|--------|--------|-------|---------------|",
+        "| sigma/ | Sigma YAML | " + rules.sigma.length + " | Sigma-compatible SIEM (Splunk, Elastic, QRadar) |",
+        "| splunk/ | SPL Queries | " + rules.splunk.length + " | Splunk Enterprise / Cloud |",
+        "| kql/ | KQL Queries | " + rules.kql.length + " | Microsoft Sentinel / Defender |",
+        "| suricata/ | Suricata Rules | " + rules.suricata.length + " | Suricata / Snort IDS/IPS |",
+        "",
+        "## Techniques Covered (" + techniques.length + ")",
+        "",
+        techList,
+        "",
+        "## Import Instructions",
+        "",
+        "### Sigma Rules",
+        "Use sigmac or sigma-cli to convert to your SIEM format:",
+        "    sigma convert -t splunk -p sysmon sigma/*.yml",
+        "",
+        "### Splunk",
+        "Import each .spl file as a saved search or add to a detection app.",
+        "",
+        "### Microsoft Sentinel (KQL)",
+        "Create Analytics Rules using the KQL queries in the kql/ folder.",
+        "",
+        "### Suricata",
+        "Append rules to your local.rules file and reload:",
+        "    cat suricata/*.rules >> /etc/suricata/rules/local.rules",
+        "    suricatasc -c reload-rules",
+      ].join("\n");
+      archive.append(readme, { name: 'README.md' });
+
+      // Sigma rules
+      rules.sigma.forEach((rule, i) => {
+        archive.append(rule, { name: `sigma/rule_${String(i + 1).padStart(3, '0')}.yml` });
+      });
+
+      // Splunk SPL rules
+      rules.splunk.forEach((rule, i) => {
+        archive.append(rule, { name: `splunk/query_${String(i + 1).padStart(3, '0')}.spl` });
+      });
+
+      // KQL rules
+      rules.kql.forEach((rule, i) => {
+        archive.append(rule, { name: `kql/query_${String(i + 1).padStart(3, '0')}.kql` });
+      });
+
+      // Suricata rules
+      if (rules.suricata.length > 0) {
+        archive.append(rules.suricata.join('\n\n'), { name: 'suricata/all_rules.rules' });
+        rules.suricata.forEach((rule, i) => {
+          archive.append(rule, { name: `suricata/rule_${String(i + 1).padStart(3, '0')}.rules` });
+        });
+      }
+
+      await archive.finalize();
+    } catch (err: any) {
+      console.error('[Rules Export] Error:', err);
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

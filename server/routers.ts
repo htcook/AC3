@@ -2010,7 +2010,7 @@ Respond in JSON format as an array of 3 campaign objects.`;
     generate: protectedProcedure
       .input(z.object({
         engagementId: z.number(),
-        reportType: z.enum(['executive_summary', 'technical_detail', 'compliance', 'phishing_results', 'osint_assessment', 'full_engagement']),
+        reportType: z.enum(['executive_summary', 'technical_detail', 'compliance', 'phishing_results', 'osint_assessment', 'full_engagement', 'purple_team', 'red_team_assessment', 'detection_gap_analysis']),
         clientType: z.enum(['msp', 'enterprise', 'saas', 'paas', 'iaas', 'mixed_hosting', 'other']).default('enterprise'),
         title: z.string().min(1),
         preparedFor: z.string().optional(),
@@ -2061,6 +2061,60 @@ Respond in JSON format as an array of 3 campaign objects.`;
           }
         }
 
+        // Fetch Domain Intel scan results for this engagement
+        let domainIntelData: any[] = [];
+        try {
+          domainIntelData = await db.getDomainIntelScansByEngagement(input.engagementId);
+        } catch (e) { /* skip if not available */ }
+
+        // Extract threat actor matches from Domain Intel results
+        let threatActorMatches: any[] = [];
+        for (const scan of domainIntelData) {
+          const result = scan.result as any;
+          if (result?.threatActorMatches) {
+            threatActorMatches = result.threatActorMatches;
+            break;
+          }
+        }
+
+        // Fetch Caldera operation results
+        let calderaOpsData: any[] = [];
+        try {
+          const calderaUrl = ENV.calderaBaseUrl;
+          const calderaKey = ENV.calderaApiKey;
+          if (calderaUrl && calderaKey) {
+            const opsResp = await fetch(calderaUrl + '/api/v2/operations', {
+              headers: { 'KEY': calderaKey },
+            });
+            if (opsResp.ok) {
+              const allOps = await opsResp.json();
+              // Filter for operations related to this engagement
+              calderaOpsData = Array.isArray(allOps) ? allOps.filter((op: any) =>
+                op.name?.toLowerCase().includes(engagement.customerName?.toLowerCase() || '') ||
+                op.name?.toLowerCase().includes(engagement.targetDomain?.toLowerCase() || '')
+              ).slice(0, 5) : [];
+            }
+          }
+        } catch (e) { /* skip */ }
+
+        // Get TTP knowledge for matched techniques
+        let ttpInsights: any[] = [];
+        try {
+          const matchedTechniques = threatActorMatches.flatMap((a: any) => (a.techniques || []).map((t: any) => t.id)).filter(Boolean);
+          const uniqueTechs = [...new Set(matchedTechniques)].slice(0, 20);
+          for (const techId of uniqueTechs) {
+            const knowledge = await db.getTtpKnowledge(techId);
+            if (knowledge) {
+              ttpInsights.push({
+                id: techId,
+                name: knowledge.name,
+                detectionRules: knowledge.detectionRules ? Object.keys(knowledge.detectionRules as any).length : 0,
+                tools: Array.isArray(knowledge.tools) ? (knowledge.tools as any[]).length : 0,
+              });
+            }
+          }
+        } catch (e) { /* skip */ }
+
         // Use LLM to generate report content
         const { invokeLLM } = await import('./_core/llm');
 
@@ -2081,6 +2135,9 @@ Respond in JSON format as an array of 3 campaign objects.`;
           phishing_results: 'Write a phishing campaign results report with click rates, credential capture rates, user behavior analysis, and awareness training recommendations.',
           osint_assessment: 'Write an OSINT assessment report covering domain security posture, email authentication, typosquat risks, and external attack surface findings.',
           full_engagement: 'Write a comprehensive engagement report covering all aspects: executive summary, OSINT findings, phishing results, technical findings, and recommendations.',
+          purple_team: 'Write a Purple Team exercise report covering adversary emulation results, detection coverage analysis, technique-by-technique breakdown of what was detected vs missed, SOC performance metrics, and specific detection engineering recommendations. Include a MITRE ATT&CK heatmap summary.',
+          red_team_assessment: 'Write a Red Team assessment report covering attack paths, initial access methods, lateral movement, privilege escalation, persistence mechanisms, and data exfiltration attempts. Include a kill chain analysis and specific remediation steps for each finding.',
+          detection_gap_analysis: 'Write a Detection Gap Analysis report that maps every tested MITRE ATT&CK technique to its detection status (detected/partially detected/missed). Include specific Sigma rules, YARA rules, and SIEM queries that should be implemented to close each gap. Prioritize gaps by risk severity.',
         };
 
         const reportPrompt = sectionPrompts[input.reportType] || sectionPrompts.full_engagement;
@@ -2090,7 +2147,7 @@ Respond in JSON format as an array of 3 campaign objects.`;
             messages: [
               {
                 role: 'system',
-                content: `You are a senior cybersecurity consultant generating a professional ${input.reportType.replace(/_/g, ' ')} report for a ${clientTypeLabels[input.clientType] || 'client'}. Use formal, professional language. Include specific data points from the provided engagement data. Format the report in Markdown with clear sections, tables where appropriate, and actionable recommendations. The report should be thorough but readable.`,
+                content: `You are a senior cybersecurity consultant at AceofCloud generating a professional ${input.reportType.replace(/_/g, ' ')} report for a ${clientTypeLabels[input.clientType] || 'client'}. Use formal, professional language. Include specific data points from the provided engagement data including Domain Intelligence scan results, matched threat actors, Caldera adversary emulation results, and TTP knowledge base insights. Format the report in Markdown with clear sections, tables where appropriate, and actionable recommendations. Include a Detection Gap Analysis section mapping successful vs blocked techniques to MITRE ATT&CK. Include a Risk Matrix table. The report should be thorough, data-driven, and actionable. Do NOT include customer-identifiable information in template sections - only in the final report header.`,
               },
               {
                 role: 'user',
@@ -2131,6 +2188,36 @@ ${JSON.stringify(campaignResults.map(c => ({
   clicked: c.results?.filter((r: any) => r.status === 'Clicked Link').length || 0,
   submitted: c.results?.filter((r: any) => r.status === 'Submitted Data').length || 0,
 })), null, 2)}
+
+Domain Intel Scan Results (${domainIntelData.length} scans):
+${domainIntelData.slice(0, 3).map(s => {
+  const r = s.result as any;
+  return JSON.stringify({
+    domain: s.domain,
+    riskScore: r?.riskScore,
+    assetsDiscovered: r?.assets?.length || 0,
+    postureFindings: r?.posture?.length || 0,
+    campaignRecommendations: (r?.campaigns || []).map((c: any) => ({ name: c.name, priority: c.priority })),
+  });
+}).join('\n')}
+
+Matched Threat Actors (${threatActorMatches.length} actors targeting this organization):
+${threatActorMatches.slice(0, 10).map((a: any) => "- " + a.name + " (" + a.origin + ") - Score: " + a.matchScore + "/100 - Techniques: " + (a.techniques?.length || 0)).join('\n')}
+
+Caldera Operation Results (${calderaOpsData.length} operations):
+${calderaOpsData.map((op: any) => JSON.stringify({
+  name: op.name,
+  state: op.state,
+  adversary: op.adversary?.name,
+  chainLength: op.chain?.length || 0,
+  successfulSteps: op.chain?.filter((c: any) => c.status === 0).length || 0,
+  failedSteps: op.chain?.filter((c: any) => c.status !== 0 && c.status !== -3).length || 0,
+})).join('\n')}
+
+TTP Knowledge Base Insights (${ttpInsights.length} techniques analyzed):
+${ttpInsights.map(t => "- " + t.id + " " + t.name + " (" + t.detectionRules + " detection rule types, " + t.tools + " tools)").join('\n')}
+
+IMPORTANT: Include a Detection Gap Analysis section that identifies which techniques were successfully executed vs blocked. Include specific remediation recommendations for each gap. Map findings to MITRE ATT&CK framework. Include a risk matrix table.
 
 Instructions: ${reportPrompt}`,
               },

@@ -387,7 +387,10 @@ export const engagementReports = mysqlTable("engagement_reports", {
     "compliance",
     "phishing_results",
     "osint_assessment",
-    "full_engagement"
+    "full_engagement",
+    "purple_team",
+    "red_team_assessment",
+    "detection_gap_analysis"
   ]).notNull(),
   clientType: mysqlEnum("clientType", [
     "msp",

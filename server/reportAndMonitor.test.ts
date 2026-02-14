@@ -348,6 +348,9 @@ describe("Engagement Reports DB operations", () => {
       "phishing_results",
       "osint_assessment",
       "full_engagement",
+      "purple_team",
+      "red_team_assessment",
+      "detection_gap_analysis",
     ] as const;
     const engId = await createEngagement({
       name: "Report Type Test " + Date.now(),

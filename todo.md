@@ -991,3 +991,24 @@
 - [x] Add Caldera sync to server cron schedule (daily at 07:00 UTC)
 - [x] Configure daily sync interval
 - [x] Add sync status to dashboard
+
+## Detection Rules Export ZIP
+- [x] Add backend endpoint to generate ZIP of Sigma/YARA/Suricata/Splunk/KQL rules per actor
+- [x] Add "Download Rules Pack" button on Threat Actor Detail page
+- [x] Include README in ZIP with rule descriptions and import instructions
+
+## Launch AceofCloud Campaign
+- [x] Deploy SSO phishing template to GoPhish (Template ID 50)
+- [x] Deploy OWA phishing template to GoPhish (Template ID 51)
+- [x] Start Caldera operation with aceofcloud-idp-compromise-2026 adversary (paused state)
+- [x] Link GoPhish campaign and Caldera operation to Engagement #90089
+
+## Campaign Report Generator
+- [x] Build report generation backend service with LLM (enhanced existing with Domain Intel, threat actors, Caldera ops, TTP knowledge)
+- [x] Support executive summary report (non-technical, business-focused)
+- [x] Support technical report (detailed findings, detection gaps, remediation)
+- [x] Added 3 new report types: Purple Team Exercise, Red Team Assessment, Detection Gap Analysis
+- [x] Include MITRE ATT&CK mapping and detection gap analysis in all reports
+- [x] Add report generation UI page (existing ReportGenerator.tsx enhanced with 9 report types)
+- [x] Keep report templates customer-agnostic (privacy requirement - system prompt enforced)
+- [x] Author attribution: Harrison Cook / AceofCloud
