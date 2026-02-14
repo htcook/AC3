@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import AttackNavigator from "@/components/AttackNavigator";
 import {
   ArrowLeft,
   Shield,
@@ -435,75 +436,13 @@ export default function ThreatActorDetail() {
 
           {/* ATT&CK Heatmap Tab */}
           <TabsContent value="techniques" className="space-y-4">
-            <Card className="bg-card/50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Target className="w-5 h-5 text-red-400" /> MITRE ATT&CK Technique Heatmap
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {allTactics.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">
-                    No technique data available. Click "Enrich with LLM" to populate.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Tactic summary bar */}
-                    <div className="flex gap-1 h-8 rounded-lg overflow-hidden">
-                      {allTactics.map(tactic => {
-                        const count = techniquesByTactic[tactic]?.length || 0;
-                        const pct = (count / techniques.length) * 100;
-                        return (
-                          <div
-                            key={tactic}
-                            className={`${TACTIC_COLORS[tactic] || "bg-gray-600"} relative group cursor-pointer`}
-                            style={{ width: `${Math.max(pct, 3)}%` }}
-                            title={`${tactic}: ${count} techniques`}
-                          >
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-[10px] font-bold text-white/80 truncate px-1">{count}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Technique grid by tactic */}
-                    <div className="space-y-3">
-                      {allTactics.map(tactic => (
-                        <div key={tactic} className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-sm ${TACTIC_COLORS[tactic] || "bg-gray-600"}`} />
-                            <h4 className="text-sm font-semibold capitalize">
-                              {tactic.replace(/-/g, " ")}
-                            </h4>
-                            <Badge variant="secondary" className="text-xs">
-                              {techniquesByTactic[tactic]?.length || 0}
-                            </Badge>
-                          </div>
-                          <div className="flex flex-wrap gap-1 pl-5">
-                            {techniquesByTactic[tactic]?.map((tech, i) => (
-                              <Badge
-                                key={i}
-                                variant="outline"
-                                className={`text-xs cursor-default hover:bg-muted ${
-                                  (tech.score || 0) >= 8 ? "border-red-500/50 text-red-400" :
-                                  (tech.score || 0) >= 5 ? "border-orange-500/50 text-orange-400" :
-                                  "border-border"
-                                }`}
-                                title={tech.name}
-                              >
-                                {tech.id}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <AttackNavigator
+              techniques={techniques}
+              actorName={actor.name}
+              onTechniqueClick={(techId) => {
+                window.open(`https://attack.mitre.org/techniques/${techId.replace('.', '/')}/`, '_blank');
+              }}
+            />
           </TabsContent>
 
           {/* Tools & Malware Tab */}

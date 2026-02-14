@@ -1012,3 +1012,15 @@
 - [x] Add report generation UI page (existing ReportGenerator.tsx enhanced with 9 report types)
 - [x] Keep report templates customer-agnostic (privacy requirement - system prompt enforced)
 - [x] Author attribution: Harrison Cook / AceofCloud
+
+## Purple Team Report Generation
+- [x] Generate Purple Team Exercise report for AceofCloud Engagement #90089 (Report #30244, stored in S3)
+- [x] Include detection gap analysis with Sigma/YARA rules per uncovered technique
+- [x] Verify report is stored and accessible in the UI
+
+## MITRE ATT&CK Navigator Heatmap
+- [x] Build interactive ATT&CK Navigator heatmap component (with zoom, search, fullscreen, export layer JSON)
+- [x] Show technique coverage with color-coded severity/frequency (5-level color scale)
+- [x] Support hover tooltips with technique details (score, tactic, description)
+- [x] Embed heatmap in Threat Actor Detail page (replaced basic badge view)
+- [x] Support filtering by tactic and search, export ATT&CK Navigator layer JSON
