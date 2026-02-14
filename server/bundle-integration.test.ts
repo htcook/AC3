@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 
 // Test the APT Scenarios data module
 describe("APT Scenarios Data", () => {
-  it("should export 4 APT scenarios", async () => {
+  it("should export all APT and ransomware scenarios", async () => {
     const mod = await import("../client/src/data/apt-scenarios");
-    expect(mod.APT_SCENARIOS).toHaveLength(4);
+    expect(mod.APT_SCENARIOS.length).toBeGreaterThanOrEqual(21);
   });
 
   it("should have required fields for each APT scenario", async () => {
@@ -53,9 +53,9 @@ describe("APT Scenarios Data", () => {
     expect(sandworm?.calderaProfile?.atomicOrdering.length).toBeGreaterThan(0);
   });
 
-  it("should have valid Navigator layers for all 4 APT groups", async () => {
+  it("should have valid Navigator layers for all APT and ransomware groups", async () => {
     const { NAVIGATOR_LAYERS } = await import("../client/src/data/apt-scenarios");
-    expect(Object.keys(NAVIGATOR_LAYERS)).toHaveLength(4);
+    expect(Object.keys(NAVIGATOR_LAYERS).length).toBeGreaterThanOrEqual(21);
     for (const [key, layer] of Object.entries(NAVIGATOR_LAYERS)) {
       expect(layer.version).toBe("4.3");
       expect(layer.domain).toBe("enterprise-attack");

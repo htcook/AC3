@@ -362,6 +362,189 @@ export const appRouter = router({
         return false;
       }
     }),
+
+    // Create a new ability on the Caldera server
+    createAbility: protectedProcedure
+      .input(z.object({
+        ability_id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        tactic: z.string(),
+        technique_id: z.string(),
+        technique_name: z.string(),
+        executors: z.array(z.object({
+          platform: z.string(),
+          name: z.string(),
+          command: z.string(),
+          cleanup: z.string().optional(),
+          timeout: z.number().optional(),
+        })),
+        singleton: z.boolean().optional(),
+        repeatable: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/abilities`, {
+            method: 'POST',
+            headers: {
+              'KEY': CALDERA_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ability_id: input.ability_id,
+              name: input.name,
+              description: input.description,
+              tactic: input.tactic,
+              technique_id: input.technique_id,
+              technique_name: input.technique_name,
+              executors: input.executors,
+              singleton: input.singleton ?? false,
+              repeatable: input.repeatable ?? true,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) {
+            const errText = await response.text();
+            return { success: false, error: `HTTP ${response.status}: ${errText}` };
+          }
+          const result = await response.json();
+          return { success: true, ability: result };
+        } catch (err: any) {
+          return { success: false, error: err.message };
+        }
+      }),
+
+    // Create a new adversary profile on the Caldera server
+    createAdversary: protectedProcedure
+      .input(z.object({
+        adversary_id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        atomic_ordering: z.array(z.string()),
+        objective: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/adversaries`, {
+            method: 'POST',
+            headers: {
+              'KEY': CALDERA_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              adversary_id: input.adversary_id,
+              name: input.name,
+              description: input.description,
+              atomic_ordering: input.atomic_ordering,
+              objective: input.objective || '',
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) {
+            const errText = await response.text();
+            return { success: false, error: `HTTP ${response.status}: ${errText}` };
+          }
+          const result = await response.json();
+          return { success: true, adversary: result };
+        } catch (err: any) {
+          return { success: false, error: err.message };
+        }
+      }),
+
+    // Deploy a full ransomware ability profile to Caldera (abilities + adversary)
+    deployRansomwareProfile: protectedProcedure
+      .input(z.object({
+        groupId: z.string(),
+        groupName: z.string(),
+        adversaryId: z.string(),
+        description: z.string(),
+        abilities: z.array(z.object({
+          ability_id: z.string(),
+          name: z.string(),
+          description: z.string(),
+          tactic: z.string(),
+          technique_id: z.string(),
+          technique_name: z.string(),
+          platforms: z.record(z.string(), z.record(z.string(), z.object({
+            command: z.string(),
+            cleanup: z.string().optional(),
+            timeout: z.number().optional(),
+          }))),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const results: Array<{ ability_id: string; name: string; success: boolean; error?: string }> = [];
+
+        // Step 1: Create each ability
+        for (const ability of input.abilities) {
+          const executors: Array<{ platform: string; name: string; command: string; cleanup?: string; timeout?: number }> = [];
+          for (const [platform, execs] of Object.entries(ability.platforms)) {
+            for (const [executor, config] of Object.entries(execs as Record<string, { command: string; cleanup?: string; timeout?: number }>)) {
+              executors.push({
+                platform,
+                name: executor,
+                command: config.command,
+                cleanup: config.cleanup,
+                timeout: config.timeout,
+              });
+            }
+          }
+
+          try {
+            const response = await fetch(`${CALDERA_BASE_URL}/api/v2/abilities`, {
+              method: 'POST',
+              headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ability_id: ability.ability_id,
+                name: `[${input.groupName}] ${ability.name}`,
+                description: ability.description,
+                tactic: ability.tactic,
+                technique_id: ability.technique_id,
+                technique_name: ability.technique_name,
+                executors,
+                singleton: false,
+                repeatable: true,
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            results.push({
+              ability_id: ability.ability_id,
+              name: ability.name,
+              success: response.ok,
+              error: response.ok ? undefined : `HTTP ${response.status}`,
+            });
+          } catch (err: any) {
+            results.push({ ability_id: ability.ability_id, name: ability.name, success: false, error: err.message });
+          }
+        }
+
+        // Step 2: Create the adversary profile
+        let adversaryResult: { success: boolean; error?: string } = { success: false };
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/adversaries`, {
+            method: 'POST',
+            headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              adversary_id: input.adversaryId,
+              name: `${input.groupName} Simulation`,
+              description: input.description,
+              atomic_ordering: input.abilities.map(a => a.ability_id),
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          adversaryResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status}` };
+        } catch (err: any) {
+          adversaryResult = { success: false, error: err.message };
+        }
+
+        return {
+          abilitiesDeployed: results.filter(r => r.success).length,
+          abilitiesFailed: results.filter(r => !r.success).length,
+          abilityResults: results,
+          adversaryCreated: adversaryResult.success,
+          adversaryError: adversaryResult.error,
+        };
+      }),
   }),
 
   // GoPhish API proxy
@@ -1998,6 +2181,333 @@ Instructions: ${reportPrompt}`,
         const report = await db.getReportById(input.id);
         if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
         return report;
+      }),
+  }),
+
+  // IOC-Driven GoPhish Template Generator
+  templateGenerator: router({
+    // Generate phishing email template based on threat actor IOCs and TTPs
+    generateFromThreatActor: protectedProcedure
+      .input(z.object({
+        threatActorId: z.string(),
+        threatActorName: z.string(),
+        targetOrg: z.string().optional(),
+        targetSector: z.string().optional(),
+        phishingType: z.enum(['credential_harvest', 'malware_delivery', 'callback_phishing', 'business_email_compromise', 'mfa_fatigue']),
+        sophistication: z.enum(['basic', 'intermediate', 'advanced']),
+        iocs: z.array(z.object({
+          type: z.string(),
+          value: z.string(),
+          description: z.string(),
+        })).optional(),
+        techniques: z.array(z.object({
+          id: z.string(),
+          name: z.string(),
+          tactic: z.string(),
+        })).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+
+        const iocContext = input.iocs?.map(ioc => `- ${ioc.type}: ${ioc.value} (${ioc.description})`).join('\n') || 'No specific IOCs provided';
+        const ttpContext = input.techniques?.map(t => `- ${t.id} ${t.name} (${t.tactic})`).join('\n') || 'No specific TTPs provided';
+
+        const prompt = `You are a red team phishing template designer. Generate a realistic phishing email template and landing page HTML based on the following threat intelligence:
+
+Threat Actor: ${input.threatActorName}
+Target Organization: ${input.targetOrg || 'Generic enterprise'}
+Target Sector: ${input.targetSector || 'Technology'}
+Phishing Type: ${input.phishingType}
+Sophistication Level: ${input.sophistication}
+
+Known IOCs:
+${iocContext}
+
+Known TTPs:
+${ttpContext}
+
+Generate a JSON response with these exact fields:
+{
+  "emailTemplate": {
+    "name": "Template name including threat actor reference",
+    "subject": "Realistic email subject line",
+    "senderName": "Realistic sender display name",
+    "senderDomain": "Suggested sender domain",
+    "html": "Full HTML email body with {{.FirstName}}, {{.URL}} GoPhish variables",
+    "text": "Plain text version",
+    "pretext": "Brief description of the social engineering angle"
+  },
+  "landingPage": {
+    "name": "Landing page name",
+    "html": "Full HTML landing page with credential capture form",
+    "redirectUrl": "URL to redirect after credential capture"
+  },
+  "indicators": {
+    "subjectKeywords": ["list of suspicious keywords in subject"],
+    "bodyRedFlags": ["list of red flags users should spot"],
+    "technicalIndicators": ["list of technical indicators"]
+  },
+  "trainingNotes": "Brief notes for security awareness training about this phishing type"
+}
+
+Make the email realistic and based on actual ${input.threatActorName} phishing campaigns. Include proper HTML formatting, logos, and branding that matches the phishing type. The landing page should capture credentials realistically. Use GoPhish template variables: {{.FirstName}}, {{.LastName}}, {{.Email}}, {{.URL}}, {{.TrackingURL}}, {{.From}}.`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: 'system', content: 'You are an expert red team phishing template designer. Always respond with valid JSON only, no markdown code blocks.' },
+              { role: 'user', content: prompt },
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'phishing_template',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    emailTemplate: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string' },
+                        subject: { type: 'string' },
+                        senderName: { type: 'string' },
+                        senderDomain: { type: 'string' },
+                        html: { type: 'string' },
+                        text: { type: 'string' },
+                        pretext: { type: 'string' },
+                      },
+                      required: ['name', 'subject', 'senderName', 'senderDomain', 'html', 'text', 'pretext'],
+                      additionalProperties: false,
+                    },
+                    landingPage: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string' },
+                        html: { type: 'string' },
+                        redirectUrl: { type: 'string' },
+                      },
+                      required: ['name', 'html', 'redirectUrl'],
+                      additionalProperties: false,
+                    },
+                    indicators: {
+                      type: 'object',
+                      properties: {
+                        subjectKeywords: { type: 'array', items: { type: 'string' } },
+                        bodyRedFlags: { type: 'array', items: { type: 'string' } },
+                        technicalIndicators: { type: 'array', items: { type: 'string' } },
+                      },
+                      required: ['subjectKeywords', 'bodyRedFlags', 'technicalIndicators'],
+                      additionalProperties: false,
+                    },
+                    trainingNotes: { type: 'string' },
+                  },
+                  required: ['emailTemplate', 'landingPage', 'indicators', 'trainingNotes'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const content = response.choices?.[0]?.message?.content;
+          if (!content) throw new Error('No response from LLM');
+          const parsed = JSON.parse(content as string);
+          return { success: true, ...parsed };
+        } catch (err: any) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Template generation failed: ${err.message}` });
+        }
+      }),
+
+    // Deploy generated template directly to GoPhish
+    deployToGophish: protectedProcedure
+      .input(z.object({
+        template: z.object({
+          name: z.string(),
+          subject: z.string(),
+          html: z.string(),
+          text: z.string().optional(),
+        }),
+        landingPage: z.object({
+          name: z.string(),
+          html: z.string(),
+          capture_credentials: z.boolean().optional(),
+          capture_passwords: z.boolean().optional(),
+          redirect_url: z.string().optional(),
+        }).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const results: { template?: any; landingPage?: any; errors: string[] } = { errors: [] };
+
+        // Deploy email template
+        try {
+          const templateResult = await fetchGophishAPI('/api/templates/', 'POST', input.template);
+          if (templateResult?.id) {
+            results.template = { id: templateResult.id, name: input.template.name, success: true };
+          } else {
+            results.errors.push('Failed to create email template');
+          }
+        } catch (err: any) {
+          results.errors.push(`Template error: ${err.message}`);
+        }
+
+        // Deploy landing page if provided
+        if (input.landingPage) {
+          try {
+            const pageResult = await fetchGophishAPI('/api/pages/', 'POST', {
+              ...input.landingPage,
+              capture_credentials: input.landingPage.capture_credentials ?? true,
+              capture_passwords: input.landingPage.capture_passwords ?? true,
+            });
+            if (pageResult?.id) {
+              results.landingPage = { id: pageResult.id, name: input.landingPage.name, success: true };
+            } else {
+              results.errors.push('Failed to create landing page');
+            }
+          } catch (err: any) {
+            results.errors.push(`Landing page error: ${err.message}`);
+          }
+        }
+
+        return results;
+      }),
+  }),
+
+  // Domain Intel Pipeline
+  domainIntel: router({
+    // Start a new domain intel scan
+    startScan: protectedProcedure
+      .input(z.object({
+        primaryDomain: z.string().min(1),
+        additionalDomains: z.array(z.string()).optional(),
+        clientType: z.enum(['msp', 'enterprise', 'saas', 'paas', 'iaas', 'mixed_hosting', 'other']),
+        sector: z.string().min(1),
+        customerName: z.string().min(1),
+        criticalFunctions: z.array(z.string()),
+        complianceFlags: z.array(z.string()).optional(),
+        notes: z.string().optional(),
+        engagementId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { runDomainIntelPipeline } = await import('./domainIntel');
+
+        // Create scan record
+        const scanId = await db.createDomainIntelScan({
+          primaryDomain: input.primaryDomain,
+          additionalDomains: input.additionalDomains || [],
+          clientType: input.clientType,
+          sector: input.sector,
+          engagementId: input.engagementId,
+          orgProfile: {
+            customerName: input.customerName,
+            primaryDomain: input.primaryDomain,
+            sector: input.sector,
+            clientType: input.clientType,
+            criticalFunctions: input.criticalFunctions,
+            complianceFlags: input.complianceFlags || [],
+          },
+          criticalFunctions: input.criticalFunctions,
+          complianceFlags: input.complianceFlags || [],
+          notes: input.notes,
+          status: 'discovering',
+          createdBy: ctx.user.id,
+        });
+
+        // Run pipeline (async but we await it)
+        try {
+          await db.updateDomainIntelScan(scanId, { status: 'discovering' });
+
+          const result = await runDomainIntelPipeline({
+            customerName: input.customerName,
+            primaryDomain: input.primaryDomain,
+            additionalDomains: input.additionalDomains,
+            sector: input.sector,
+            clientType: input.clientType,
+            criticalFunctions: input.criticalFunctions,
+            complianceFlags: input.complianceFlags || [],
+            notes: input.notes,
+          });
+
+          // Store discovered assets
+          const assetRecords = result.assets.map(a => ({
+            scanId,
+            assetId: a.asset.assetId,
+            hostname: a.asset.hostname,
+            url: a.asset.url || null,
+            assetType: a.asset.assetType,
+            dnsRecords: a.asset.dnsRecords || null,
+            dnsStatus: a.asset.dnsStatus || null,
+            headers: a.asset.headers || null,
+            technologies: a.asset.technologies || null,
+            assetClasses: a.asset.assetClasses,
+            tags: a.asset.tags,
+            carverScores: a.carverScores,
+            shockScores: a.shockScores,
+            missionImpactScore: Math.round(a.missionImpactScore * 10),
+            suggestedTier: a.suggestedTier,
+            hybridRiskScore: a.hybridRiskScore,
+            riskBand: a.riskBand,
+            cvssEstimate: Math.round(a.cvssEstimate * 10),
+            contextIndicators: a.contextIndicators,
+            postureFindings: a.postureFindings,
+            testVectors: a.testVectors,
+            recommendedCalderaAbilities: a.testVectors.filter((v: any) => v.suggestedEmulation?.calderaAbilityHint).map((v: any) => v.suggestedEmulation),
+            recommendedGophishTemplates: null,
+            recommendedAttackChain: null,
+            confidence: a.confidence,
+            confidenceExplanation: a.contextIndicators,
+          }));
+
+          if (assetRecords.length > 0) {
+            await db.bulkCreateDiscoveredAssets(assetRecords);
+          }
+
+          // Update scan with results
+          await db.updateDomainIntelScan(scanId, {
+            status: 'completed',
+            totalAssets: result.totalAssets,
+            totalFindings: result.totalFindings,
+            overallRiskScore: result.overallRiskScore,
+            overallRiskBand: result.overallRiskBand,
+            executiveSummary: result.executiveSummary,
+            threatModelSummary: result.threatModelSummary,
+            campaignRecommendations: result.campaignRecommendations,
+            pipelineOutput: result,
+          });
+
+          return { scanId, result };
+        } catch (err: any) {
+          await db.updateDomainIntelScan(scanId, { status: 'failed' });
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Pipeline failed: ${err.message}` });
+        }
+      }),
+
+    // List all scans
+    listScans: protectedProcedure.query(async () => {
+      return db.getDomainIntelScans();
+    }),
+
+    // Get scan by ID with assets
+    getScan: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.id);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        const assets = await db.getDiscoveredAssetsByScan(input.id);
+        return { scan, assets };
+      }),
+
+    // Get assets for a scan
+    getAssets: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getDiscoveredAssetsByScan(input.scanId);
+      }),
+
+    // Get scans for an engagement
+    byEngagement: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getDomainIntelScansByEngagement(input.engagementId);
       }),
   }),
 });

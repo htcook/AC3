@@ -22,6 +22,8 @@ import {
   Scan,
   Eye,
   BarChart3,
+  Brain,
+  Sparkles,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -38,8 +40,10 @@ const NAV_ITEMS = [
 ];
 
 const OSINT_ITEMS = [
+  { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
   { href: "/domain-recon", icon: Radar, label: "DOMAIN RECON" },
   { href: "/osint-monitor", icon: Eye, label: "OSINT MONITOR" },
+  { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
   { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
 ];
 

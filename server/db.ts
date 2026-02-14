@@ -596,3 +596,58 @@ export async function getAllReports() {
   if (!db) return [];
   return db.select().from(engagementReports).orderBy(desc(engagementReports.createdAt));
 }
+
+// ─── Domain Intel Scans & Discovered Assets ──────────────────────────
+import { domainIntelScans, InsertDomainIntelScan, discoveredAssets, InsertDiscoveredAsset } from "../drizzle/schema";
+
+export async function createDomainIntelScan(scan: InsertDomainIntelScan) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(domainIntelScans).values(scan);
+  return Number(result[0].insertId);
+}
+
+export async function getDomainIntelScans() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(domainIntelScans).orderBy(desc(domainIntelScans.createdAt));
+}
+
+export async function getDomainIntelScanById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, id));
+  return rows[0] || null;
+}
+
+export async function updateDomainIntelScan(id: number, updates: Partial<InsertDomainIntelScan>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(domainIntelScans).set(updates).where(eq(domainIntelScans.id, id));
+}
+
+export async function createDiscoveredAsset(asset: InsertDiscoveredAsset) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(discoveredAssets).values(asset);
+  return Number(result[0].insertId);
+}
+
+export async function bulkCreateDiscoveredAssets(assets: InsertDiscoveredAsset[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (assets.length === 0) return;
+  await db.insert(discoveredAssets).values(assets);
+}
+
+export async function getDiscoveredAssetsByScan(scanId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(discoveredAssets).where(eq(discoveredAssets.scanId, scanId));
+}
+
+export async function getDomainIntelScansByEngagement(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(domainIntelScans).where(eq(domainIntelScans.engagementId, engagementId)).orderBy(desc(domainIntelScans.createdAt));
+}

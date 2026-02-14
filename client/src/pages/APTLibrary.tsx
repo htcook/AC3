@@ -1,14 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Cloud, Activity, Key, Target, Cpu, Zap, Users, FileText, BookOpen, Fish,
   Menu, X, LogOut, ChevronRight, Shield, AlertTriangle, Crosshair, Globe2,
   ArrowRight, ExternalLink, Search, Download, Copy, Check,
-  Briefcase,
+  Briefcase, Clock, Filter, Brain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { APT_SCENARIOS, NAVIGATOR_LAYERS, STIX_BUNDLE, type APTScenario } from "@/data/apt-scenarios";
+import { RANSOMWARE_PROFILES } from "@/data/ransomware-abilities";
+import { trpc } from "@/lib/trpc";
 
 import AppShell from "@/components/AppShell";
 // MITRE ATT&CK Tactic ordering for the heatmap
@@ -24,12 +26,37 @@ export default function APTLibrary() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showStix, setShowStix] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [levelFilter, setLevelFilter] = useState<string>("all");
+  const [sectorFilter, setSectorFilter] = useState<string>("all");
 
-  const filteredScenarios = APT_SCENARIOS.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.alias.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.origin.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const deployToCaldera = trpc.calderaProxy.deployRansomwareProfile.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Deployed ${data.abilitiesDeployed} abilities to Caldera${data.adversaryCreated ? ' with adversary profile' : ''}`);
+      if (data.abilitiesFailed > 0) {
+        toast.warning(`${data.abilitiesFailed} abilities failed to deploy`);
+      }
+    },
+    onError: (err) => {
+      toast.error(`Deployment failed: ${err.message}`);
+    },
+  });
+
+  const allSectors = useMemo(() => {
+    const sectors = new Set<string>();
+    APT_SCENARIOS.forEach(s => s.targetSectors.forEach(sec => sectors.add(sec)));
+    return Array.from(sectors).sort();
+  }, []);
+
+  const filteredScenarios = APT_SCENARIOS.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.alias.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.origin.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = typeFilter === "all" || s.type === typeFilter;
+    const matchesLevel = levelFilter === "all" || s.threatLevel === levelFilter;
+    const matchesSector = sectorFilter === "all" || s.targetSectors.includes(sectorFilter);
+    return matchesSearch && matchesType && matchesLevel && matchesSector;
+  });
 
   const copyJSON = (data: object, label: string) => {
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
@@ -66,7 +93,7 @@ export default function APTLibrary() {
 
         <div className="p-6 space-y-8">
 
-          {/* Search + APT Selector Cards */}
+          {/* Search + Filters + APT Selector Cards */}
           <section>
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -77,6 +104,43 @@ export default function APTLibrary() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+            </div>
+            <div className="flex flex-wrap gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="bg-card border border-border px-3 py-1.5 text-xs font-display tracking-wider focus:outline-none focus:border-red-500/50"
+                >
+                  <option value="all">ALL TYPES</option>
+                  <option value="Nation-State APT">NATION-STATE</option>
+                  <option value="Cybercrime">CYBERCRIME</option>
+                  <option value="Ransomware">RANSOMWARE</option>
+                  <option value="Hybrid">HYBRID</option>
+                  <option value="Hacktivist">HACKTIVIST</option>
+                </select>
+              </div>
+              <select
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+                className="bg-card border border-border px-3 py-1.5 text-xs font-display tracking-wider focus:outline-none focus:border-red-500/50"
+              >
+                <option value="all">ALL LEVELS</option>
+                <option value="CRITICAL">CRITICAL</option>
+                <option value="HIGH">HIGH</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="LOW">LOW</option>
+              </select>
+              <select
+                value={sectorFilter}
+                onChange={(e) => setSectorFilter(e.target.value)}
+                className="bg-card border border-border px-3 py-1.5 text-xs font-display tracking-wider focus:outline-none focus:border-red-500/50"
+              >
+                <option value="all">ALL SECTORS</option>
+                {allSectors.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+              </select>
+              <span className="text-xs text-muted-foreground self-center ml-auto">{filteredScenarios.length} of {APT_SCENARIOS.length} actors</span>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -90,10 +154,27 @@ export default function APTLibrary() {
                       : 'border-border hover:border-muted-foreground'
                   }`}
                 >
-                  <div className={`font-display text-2xl mb-1 ${apt.color}`}>{apt.name}</div>
-                  <div className="text-xs text-muted-foreground mb-2">{apt.alias}</div>
-                  <div className="text-[10px] tracking-wider text-muted-foreground">{apt.origin}</div>
-                  <div className="text-xs mt-2 text-muted-foreground">{apt.techniques.length} techniques</div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className={`font-display text-2xl ${apt.color}`}>{apt.name}</div>
+                    <span className={`px-1.5 py-0.5 text-[9px] font-display tracking-wider ${
+                      apt.threatLevel === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                      apt.threatLevel === 'HIGH' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                      apt.threatLevel === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                      'bg-green-500/20 text-green-400 border border-green-500/30'
+                    }`}>{apt.threatLevel}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-1">{apt.alias}</div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] tracking-wider text-muted-foreground">{apt.origin}</span>
+                    <span className={`text-[9px] px-1 py-0.5 ${apt.color} bg-current/10 border border-current/20`}>{apt.type.toUpperCase()}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {apt.targetSectors.slice(0, 3).map(s => (
+                      <span key={s} className="text-[9px] px-1 py-0.5 bg-secondary text-muted-foreground">{s}</span>
+                    ))}
+                    {apt.targetSectors.length > 3 && <span className="text-[9px] text-muted-foreground">+{apt.targetSectors.length - 3}</span>}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{apt.techniques.length} techniques</div>
                 </button>
               ))}
             </div>
@@ -180,6 +261,76 @@ export default function APTLibrary() {
               </div>
             </div>
 
+            {/* Activity Timeline + Sector Targeting */}
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <div className={`bg-card border-2 ${selectedAPT.borderColor} p-5`}>
+                <h3 className={`font-display text-lg mb-3 ${selectedAPT.color} flex items-center gap-2`}>
+                  <Clock className="w-5 h-5" />
+                  RECENT ACTIVITY
+                </h3>
+                {selectedAPT.recentActivity.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedAPT.recentActivity.map((act, i) => (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-3 h-3 rounded-full ${selectedAPT.color} bg-current`} />
+                          {i < selectedAPT.recentActivity.length - 1 && <div className="w-0.5 flex-1 bg-border mt-1" />}
+                        </div>
+                        <div className="flex-1 pb-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-display tracking-wider text-muted-foreground">{act.date}</span>
+                            <span className={`text-[9px] px-1 py-0.5 ${selectedAPT.color} bg-current/10 border border-current/20`}>{act.source}</span>
+                          </div>
+                          <p className="text-sm">{act.event}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No recent activity recorded.</p>
+                )}
+              </div>
+              <div className={`bg-card border-2 ${selectedAPT.borderColor} p-5`}>
+                <h3 className={`font-display text-lg mb-3 ${selectedAPT.color} flex items-center gap-2`}>
+                  <Target className="w-5 h-5" />
+                  TARGET SECTORS & PROFILE
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-display tracking-wider text-muted-foreground mb-2">THREAT CLASSIFICATION</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`px-2 py-1 text-xs font-display tracking-wider ${selectedAPT.color} bg-current/10 border border-current/20`}>{selectedAPT.type.toUpperCase()}</span>
+                      <span className={`px-2 py-1 text-xs font-display tracking-wider ${
+                        selectedAPT.threatLevel === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                        selectedAPT.threatLevel === 'HIGH' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                        'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                      }`}>{selectedAPT.threatLevel}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-display tracking-wider text-muted-foreground mb-2">TARGET SECTORS</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedAPT.targetSectors.map(s => (
+                        <span key={s} className="px-2 py-1 text-xs bg-secondary">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-display tracking-wider text-muted-foreground mb-2">CAMPAIGN DESIGN</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`w-full font-display tracking-wider border-current ${selectedAPT.color}`}
+                      onClick={() => navigate(`/domain-intel`)}
+                    >
+                      <Brain className="w-4 h-4 mr-2" />
+                      USE FOR DOMAIN INTEL PIPELINE
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Technique Details Table */}
             <div className={`bg-card border-2 ${selectedAPT.borderColor} overflow-hidden mb-6`}>
               <div className="px-5 py-3 border-b border-border">
@@ -261,7 +412,49 @@ export default function APTLibrary() {
                         </div>
                       ))}
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-4 space-y-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`w-full font-display tracking-wider border-current ${selectedAPT.color}`}
+                        onClick={() => {
+                          const profile = RANSOMWARE_PROFILES.find(r => r.groupId === selectedAPT.id);
+                          if (profile) {
+                            deployToCaldera.mutate({
+                              groupId: profile.groupId,
+                              groupName: profile.groupName,
+                              adversaryId: profile.adversaryId,
+                              description: profile.description,
+                              abilities: profile.abilities.map(a => ({
+                                ability_id: a.ability_id,
+                                name: a.name,
+                                description: a.description,
+                                tactic: a.tactic,
+                                technique_id: a.technique_id,
+                                technique_name: a.technique_name,
+                                platforms: a.platforms,
+                              })),
+                            });
+                          } else {
+                            toast.info('No Caldera abilities defined for this group yet.');
+                          }
+                        }}
+                        disabled={deployToCaldera.isPending}
+                      >
+                        {deployToCaldera.isPending ? (
+                          <><Cpu className="w-4 h-4 mr-2 animate-spin" />DEPLOYING...</>
+                        ) : (
+                          <><Zap className="w-4 h-4 mr-2" />DEPLOY ABILITIES TO CALDERA</>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`w-full font-display tracking-wider border-current ${selectedAPT.color}`}
+                        onClick={() => navigate(`/template-generator?actor=${selectedAPT.id}`)}
+                      >
+                        <Fish className="w-4 h-4 mr-2" />GENERATE PHISHING TEMPLATE
+                      </Button>
                       <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer">
                         <Button variant="outline" size="sm" className={`w-full font-display tracking-wider border-current ${selectedAPT.color}`}>
                           <Crosshair className="w-4 h-4 mr-2" />

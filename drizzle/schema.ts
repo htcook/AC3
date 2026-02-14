@@ -419,3 +419,93 @@ export const engagementReports = mysqlTable("engagement_reports", {
 
 export type EngagementReport = typeof engagementReports.$inferSelect;
 export type InsertEngagementReport = typeof engagementReports.$inferInsert;
+
+
+/**
+ * Domain Intel Scans - tracks each full pipeline run
+ */
+export const domainIntelScans = mysqlTable("domain_intel_scans", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId"),
+  // Input
+  primaryDomain: varchar("primaryDomain", { length: 255 }).notNull(),
+  additionalDomains: json("additionalDomains"), // string[]
+  clientType: mysqlEnum("clientType", [
+    "msp", "enterprise", "saas", "paas", "iaas", "mixed_hosting", "other"
+  ]).default("enterprise").notNull(),
+  sector: varchar("sector", { length: 128 }),
+  criticalFunctions: json("criticalFunctions"), // string[]
+  complianceFlags: json("complianceFlags"), // string[]
+  notes: text("notes"),
+  // Org profile for BIA
+  orgProfile: json("orgProfile"),
+  // Pipeline status
+  status: mysqlEnum("status", [
+    "pending", "discovering", "analyzing", "scoring", "recommending", "completed", "failed"
+  ]).default("pending").notNull(),
+  // Aggregated results
+  totalAssets: int("totalAssets").default(0),
+  totalFindings: int("totalFindings").default(0),
+  overallRiskScore: int("overallRiskScore"), // 0-100
+  overallRiskBand: varchar("overallRiskBand", { length: 32 }), // critical/high/medium/low
+  // LLM-generated summaries
+  executiveSummary: text("executiveSummary"),
+  threatModelSummary: text("threatModelSummary"),
+  // Campaign recommendations (JSON array)
+  campaignRecommendations: json("campaignRecommendations"),
+  // Full pipeline output
+  pipelineOutput: json("pipelineOutput"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DomainIntelScan = typeof domainIntelScans.$inferSelect;
+export type InsertDomainIntelScan = typeof domainIntelScans.$inferInsert;
+
+/**
+ * Discovered assets from domain intel scans
+ */
+export const discoveredAssets = mysqlTable("discovered_assets", {
+  id: int("id").autoincrement().primaryKey(),
+  scanId: int("scanId").notNull(),
+  // Asset identification
+  assetId: varchar("assetId", { length: 128 }),
+  hostname: varchar("hostname", { length: 255 }).notNull(),
+  url: text("url"),
+  assetType: varchar("assetType", { length: 64 }), // sso, mail_gateway, api, payment, cdn, etc.
+  // DNS & infrastructure
+  dnsRecords: json("dnsRecords"),
+  dnsStatus: varchar("dnsStatus", { length: 32 }),
+  headers: text("headers"),
+  technologies: json("technologies"), // detected tech stack
+  // Classification & tags
+  assetClasses: json("assetClasses"), // string[]
+  tags: json("tags"), // string[]
+  // BIA scoring (CARVER+SHOCK)
+  carverScores: json("carverScores"), // { criticality, accessibility, recuperability, vulnerability, effect, recognizability }
+  shockScores: json("shockScores"), // { scope, handling, operationalImpact, cascadingEffects, knowledge }
+  missionImpactScore: int("missionImpactScore"), // 0-10 scaled
+  suggestedTier: varchar("suggestedTier", { length: 32 }), // tier0-tier3
+  // Hybrid risk
+  hybridRiskScore: int("hybridRiskScore"), // 0-100
+  riskBand: varchar("riskBand", { length: 32 }), // critical/high/medium/low
+  cvssEstimate: int("cvssEstimate"), // 0-10 scaled
+  // Context indicators
+  contextIndicators: json("contextIndicators"), // { exposure, recognizability, confidence }
+  // Posture findings
+  postureFindings: json("postureFindings"), // array of findings
+  // Test vector hypotheses
+  testVectors: json("testVectors"), // array of attack vector suggestions
+  // Campaign mapping
+  recommendedCalderaAbilities: json("recommendedCalderaAbilities"), // ability IDs
+  recommendedGophishTemplates: json("recommendedGophishTemplates"), // template suggestions
+  recommendedAttackChain: json("recommendedAttackChain"), // ordered attack steps
+  // Confidence
+  confidence: int("confidence"), // 0-100
+  confidenceExplanation: json("confidenceExplanation"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DiscoveredAsset = typeof discoveredAssets.$inferSelect;
+export type InsertDiscoveredAsset = typeof discoveredAssets.$inferInsert;

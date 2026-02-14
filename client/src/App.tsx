@@ -32,6 +32,9 @@ import EngagementResults from "./pages/EngagementResults";
 import OsintRecon from "./pages/OsintRecon";
 import DomainRecon from "./pages/DomainRecon";
 import OsintMonitor from "./pages/OsintMonitor";
+import DomainIntel from "./pages/DomainIntel";
+import DomainIntelResults from "./pages/DomainIntelResults";
+import TemplateGenerator from "./pages/TemplateGenerator";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -147,6 +150,15 @@ function Router() {
       </Route>
       <Route path="/osint-monitor">
         <ProtectedRoute component={OsintMonitor} />
+      </Route>
+      <Route path="/domain-intel">
+        <ProtectedRoute component={DomainIntel} />
+      </Route>
+      <Route path="/domain-intel/:id">
+        {() => <ProtectedRoute component={DomainIntelResults} />}
+      </Route>
+      <Route path="/template-generator">
+        <ProtectedRoute component={TemplateGenerator} />
       </Route>
       <Route path="/engagements/:id/results">
         {() => <ProtectedRoute component={EngagementResults} />}

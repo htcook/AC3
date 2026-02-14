@@ -8,7 +8,7 @@ import {
   MoreVertical, Pencil, Trash2, ChevronRight, Search, Filter, Rocket,
   Send, Link2, Unlink, ExternalLink, Fish, Eye, BarChart3, Radar
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Scan, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
@@ -34,6 +34,32 @@ type StatusType = typeof STATUS_OPTIONS[number]['value'];
 export default function Engagements() {
   const [, navigate] = useLocation();
   const [showCreateForm, setShowCreateForm] = useState(false);
+
+  // Auto-populate from Domain Intel scan
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromIntel = params.get('fromIntel');
+    if (fromIntel) {
+      // Fetch scan data to pre-fill the form
+      fetch(`/api/trpc/domainIntel.getScan?input=${encodeURIComponent(JSON.stringify({ id: Number(fromIntel) }))}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then((res: any) => {
+          const scan = res?.result?.data?.scan;
+          if (scan) {
+            setFormData(prev => ({
+              ...prev,
+              name: `${scan.customerName || scan.primaryDomain} - Intel-Driven Engagement`,
+              customerName: scan.customerName || '',
+              targetDomain: scan.primaryDomain || '',
+              description: `Auto-generated from Domain Intel scan. Risk: ${scan.overallRiskBand} (${scan.overallRiskScore}/100). ${scan.totalAssets || 0} assets discovered.`,
+              engagementType: 'red_team' as EngagementType,
+            }));
+            setShowCreateForm(true);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');

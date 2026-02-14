@@ -37,7 +37,7 @@ import {
   Briefcase
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Radar, Search, Scan } from "lucide-react";
+import { Radar, Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
 // Default server config for the DigitalOcean deployment
@@ -456,6 +456,133 @@ export default function Dashboard() {
               </Link>
             </div>
             <DomainQuickSearch />
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* DOMAIN INTEL — AI-Powered Pipeline                            */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section className="bg-card border-2 border-cyan-500/30 p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <Brain className="w-5 h-5 text-cyan-400" />
+                <div>
+                  <h2 className="font-display text-lg tracking-wider text-cyan-400">DOMAIN INTEL PIPELINE</h2>
+                  <p className="text-xs text-muted-foreground">AI-powered asset discovery, BIA risk scoring (CARVER+SHOCK), and auto-generated campaign recommendations</p>
+                </div>
+              </div>
+              <Link href="/domain-intel">
+                <Button variant="outline" size="sm" className="font-display tracking-wider text-xs border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10">
+                  LAUNCH PIPELINE <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-background/50 border border-cyan-500/20 p-3 text-center">
+                <Crosshair className="w-5 h-5 text-cyan-400 mx-auto mb-1" />
+                <div className="text-xs font-display text-cyan-400">ASSET DISCOVERY</div>
+                <div className="text-[10px] text-muted-foreground">LLM-powered passive recon</div>
+              </div>
+              <div className="bg-background/50 border border-orange-500/20 p-3 text-center">
+                <AlertTriangle className="w-5 h-5 text-orange-400 mx-auto mb-1" />
+                <div className="text-xs font-display text-orange-400">RISK SCORING</div>
+                <div className="text-[10px] text-muted-foreground">CARVER + SHOCK + CVSS</div>
+              </div>
+              <div className="bg-background/50 border border-red-500/20 p-3 text-center">
+                <Bug className="w-5 h-5 text-red-400 mx-auto mb-1" />
+                <div className="text-xs font-display text-red-400">THREAT MODEL</div>
+                <div className="text-[10px] text-muted-foreground">Auto-generated attack paths</div>
+              </div>
+              <div className="bg-background/50 border border-emerald-500/20 p-3 text-center">
+                <Zap className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
+                <div className="text-xs font-display text-emerald-400">CAMPAIGN DESIGN</div>
+                <div className="text-[10px] text-muted-foreground">Caldera + GoPhish auto-config</div>
+              </div>
+            </div>
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* THREAT AWARENESS — Inspired by SpicyThreatIntel               */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl flex items-center gap-2">
+                <ShieldAlert className="w-6 h-6 text-red-500" />
+                THREAT AWARENESS
+              </h2>
+              <Link href="/apt-library">
+                <Button variant="outline" size="sm" className="font-display tracking-wider">
+                  FULL INTEL <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="bg-card border-2 border-red-500/30 p-4 text-center">
+                <div className="font-display text-3xl text-red-500">367</div>
+                <div className="text-[10px] tracking-widest text-muted-foreground">THREAT ACTORS</div>
+                <div className="text-xs text-red-400 mt-1">325 active</div>
+              </div>
+              <div className="bg-card border-2 border-orange-500/30 p-4 text-center">
+                <div className="font-display text-3xl text-orange-500">19</div>
+                <div className="text-[10px] tracking-widest text-muted-foreground">CRITICAL</div>
+                <div className="text-xs text-orange-400 mt-1">Immediate attention</div>
+              </div>
+              <div className="bg-card border-2 border-yellow-500/30 p-4 text-center">
+                <div className="font-display text-3xl text-yellow-500">6.5K</div>
+                <div className="text-[10px] tracking-widest text-muted-foreground">IOCs TRACKED</div>
+                <div className="text-xs text-yellow-400 mt-1">IPs, domains, hashes</div>
+              </div>
+              <div className="bg-card border-2 border-purple-500/30 p-4 text-center">
+                <div className="font-display text-3xl text-purple-500">180K</div>
+                <div className="text-[10px] tracking-widest text-muted-foreground">CISA KEV</div>
+                <div className="text-xs text-purple-400 mt-1">Known exploited vulns</div>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-card border-2 border-border p-4">
+                <h3 className="font-display text-sm tracking-wider mb-3 text-red-400">TOP THREAT ACTORS BY SECTOR</h3>
+                <div className="space-y-2">
+                  {[
+                    { actor: 'Volt Typhoon', country: 'China', targets: 'Critical Infrastructure', level: 'CRITICAL', color: 'text-red-500' },
+                    { actor: 'Scattered Spider', country: 'Unknown', targets: 'Enterprise / Cloud', level: 'CRITICAL', color: 'text-red-500' },
+                    { actor: 'LockBit', country: 'Russia', targets: 'All Sectors', level: 'CRITICAL', color: 'text-red-500' },
+                    { actor: 'Lazarus Group', country: 'N. Korea', targets: 'Financial / Crypto', level: 'HIGH', color: 'text-orange-500' },
+                    { actor: 'MuddyWater', country: 'Iran', targets: 'Government / Energy', level: 'HIGH', color: 'text-orange-500' },
+                  ].map((t) => (
+                    <div key={t.actor} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 ${t.level === 'CRITICAL' ? 'bg-red-500' : 'bg-orange-500'}`} />
+                        <span className="text-sm font-medium">{t.actor}</span>
+                        <span className="text-xs text-muted-foreground">({t.country})</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{t.targets}</span>
+                        <span className={`text-[10px] font-display tracking-wider px-1.5 py-0.5 border ${t.level === 'CRITICAL' ? 'border-red-500/30 text-red-400 bg-red-500/10' : 'border-orange-500/30 text-orange-400 bg-orange-500/10'}`}>{t.level}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-card border-2 border-border p-4">
+                <h3 className="font-display text-sm tracking-wider mb-3 text-cyan-400">ATTRIBUTION BY COUNTRY</h3>
+                <div className="space-y-2">
+                  {[
+                    { country: 'China', count: 73, pct: 20, color: 'bg-red-500' },
+                    { country: 'Russia', count: 30, pct: 8, color: 'bg-blue-500' },
+                    { country: 'Iran', count: 39, pct: 11, color: 'bg-green-500' },
+                    { country: 'North Korea', count: 16, pct: 4, color: 'bg-purple-500' },
+                    { country: 'Unknown', count: 174, pct: 47, color: 'bg-gray-500' },
+                  ].map((c) => (
+                    <div key={c.country} className="flex items-center gap-3">
+                      <span className="text-sm w-24">{c.country}</span>
+                      <div className="flex-1 h-4 bg-background/50 overflow-hidden">
+                        <div className={`h-full ${c.color} opacity-60`} style={{ width: `${c.pct}%` }} />
+                      </div>
+                      <span className="text-xs text-muted-foreground w-8 text-right">{c.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* Divider */}

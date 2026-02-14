@@ -785,3 +785,52 @@
 - [x] Add DMARC/SPF/MX policy change detection and alerting
 - [x] Wire alerts to notification system
 - [x] Build monitor configuration UI with history timeline
+
+## Domain Intel Pipeline (SpicyTip Integration)
+- [x] Build backend domain intel engine with LLM-powered passive discovery
+- [x] Implement asset signal extraction and classification (SSO, mail, API, payment, etc.)
+- [x] Implement Auto-BIA inference with CARVER+SHOCK factor scoring
+- [x] Implement hybrid risk scoring engine (CVSS + mission impact + context multiplier)
+- [x] Implement confidence fusion across discovery signals
+- [x] Build campaign recommendation engine mapping risk findings to Caldera abilities
+- [x] Build campaign recommendation engine mapping risk findings to GoPhish templates
+- [x] Build Domain Intel Wizard frontend (multi-step: domain input → discovery → analysis → recommendations)
+- [x] Build Threat Model results UI with risk heatmap and asset classification
+- [x] Build Campaign Recommendations UI with auto-generated engagement plans
+- [x] Wire engagement creation to auto-populate from intel results
+- [x] Support all client types: MSP, Enterprise, SaaS, PaaS, IaaS, Mixed Hosting
+- [x] Add database schema for domain intel scans and results
+- [x] Write comprehensive tests for intel pipeline
+
+## SpicyThreatIntel Platform Enhancement (Post Domain Intel)
+- [x] Review SpicyThreatIntel.com platform for enhancement ideas
+- [x] Enhance threat actor data with APT tracking and TTP mapping
+- [x] Enhance Caldera abilities data with threat actor alignment
+- [x] Improve OSINT/discovery functions with threat awareness feeds
+- [x] Integrate beneficial features from cyber threat intel design
+
+## Ransomware Groups from SpicyThreatIntel
+- [x] Browse SpicyThreatIntel ransomware section for group data
+- [x] Add ransomware groups to APT_SCENARIOS with full details
+- [x] Add Navigator layers for new ransomware groups
+- [x] Fix bundle-integration test to match new actor count
+- [x] Verify all tests pass
+
+## IOC-Driven GoPhish Template Generator
+- [x] Build backend LLM-powered template generator that uses latest threat actor IOCs
+- [x] Generate realistic email templates based on current phishing TTPs per threat actor
+- [x] Generate matching landing pages (credential harvesting, MFA interception, etc.)
+- [x] Support threat-actor-specific templates (APT29 style, Scattered Spider vishing, etc.)
+- [x] Include IOC indicators in template metadata for training accuracy
+- [x] Build frontend UI for template generation with actor/IOC selection
+- [x] Wire generated templates to GoPhish API for direct deployment
+- [x] Add template preview and customization before deployment
+
+## Caldera Abilities for Ransomware TTPs
+- [x] Build Caldera abilities data structure with executors, commands, and payloads
+- [x] Map each ransomware group's TTPs to specific Caldera abilities
+- [x] Add abilities for: credential dumping, lateral movement, encryption simulation, exfiltration
+- [x] Add abilities for: service stopping, defense evasion, persistence mechanisms
+- [x] Include IOC metadata (hashes, domains, IPs) per ability
+- [x] Wire abilities into APT scenario profiles for auto-deployment
+- [ ] Build dedicated Abilities Library page with search, filter, and deploy-to-Caldera
