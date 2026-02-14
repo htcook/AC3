@@ -141,6 +141,7 @@ export async function buildOperationChain(params: {
   threatActorMatches?: ThreatActorMatch[];
   findings?: any[];
   kevSteps?: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>;
+  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }>;
   allAbilities: CalderaAbility[];
   calderaBaseUrl: string;
   calderaApiKey: string;
@@ -151,6 +152,7 @@ export async function buildOperationChain(params: {
     threatActorMatches,
     findings,
     kevSteps,
+    vulnSteps,
     allAbilities,
   } = params;
 
@@ -159,7 +161,8 @@ export async function buildOperationChain(params: {
     campaignRecommendation,
     threatActorMatches,
     findings,
-    kevSteps
+    kevSteps,
+    vulnSteps
   );
 
   // Step 2: Build ability index by technique
@@ -234,7 +237,8 @@ function collectTechniques(
   campaign?: CampaignRecommendation,
   actors?: ThreatActorMatch[],
   findings?: any[],
-  kevSteps?: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>
+  kevSteps?: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>,
+  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }>
 ): TechniqueSource[] {
   const techniques: TechniqueSource[] = [];
 
@@ -297,6 +301,18 @@ function collectTechniques(
         techniqueId: step.techniqueId,
         source: "kev",
         priority: 1, // Same priority as campaign - these are actively exploited
+        context: step.context,
+      });
+    });
+  }
+
+  // From vulnerability feed matches (high priority - exploits available in the wild)
+  if (vulnSteps) {
+    vulnSteps.forEach(step => {
+      techniques.push({
+        techniqueId: step.techniqueId,
+        source: "enrichment",
+        priority: 1, // Same as KEV - these have confirmed exploits
         context: step.context,
       });
     });
@@ -680,8 +696,9 @@ export async function autoBuildAllChains(params: {
     pipelineOutput: any;
     findings?: any[];
   };
+  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }>;
 }): Promise<ChainBuildResult[]> {
-  const { calderaBaseUrl, calderaApiKey, scanData } = params;
+  const { calderaBaseUrl, calderaApiKey, scanData, vulnSteps } = params;
 
   // Fetch all operations
   const opsResponse = await fetch(`${calderaBaseUrl}/api/v2/operations`, {
@@ -723,6 +740,7 @@ export async function autoBuildAllChains(params: {
         threatActorMatches: actorMatches,
         findings,
         kevSteps: kevChainSteps,
+        vulnSteps,
         allAbilities,
         calderaBaseUrl,
         calderaApiKey,

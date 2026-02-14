@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 const RECENT_UPDATES = [
+  { date: "Feb 2026", title: "Vulnerability Intelligence", desc: "Unified 0-day tracker with CISA KEV, Project Zero, NVD, CIRCL, and Exploit-DB feeds" },
   { date: "Feb 2026", title: "Detection Coverage Matrix", desc: "Cross-reference validated rules against operation attack chains to identify SIEM gaps" },
   { date: "Feb 2026", title: "Sigma/YARA Rule Validator", desc: "Validate Sigma, YARA, Suricata, Splunk SPL, and KQL rules with LLM-powered analysis" },
   { date: "Feb 2026", title: "Post-Engagement Reports", desc: "Generate branded HTML reports with MITRE ATT&CK heatmaps, executive summaries, and remediation steps" },

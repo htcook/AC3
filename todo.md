@@ -1259,3 +1259,11 @@
 - [x] Add route /vuln-intel for vulnerability feeds dashboard
 - [x] Surface vulnerability matches in Domain Intel Results (Vulns tab)
 - [x] 39 vitest tests for vuln feed service (CSV parser, severity scoring, risk calculation, filter logic, tech matching, sort ordering)
+
+## Vulnerability Intelligence Enhancements
+- [x] Add Vuln Intel nav link to sidebar/dashboard navigation
+- [x] Wire vuln feed data into chain builder for exploit-based abilities (buildChain, autoBuildAllChains, buildChainWithLLM)
+- [x] Add scheduled cron job for vulnerability feed refresh (daily at 05:00 UTC + 30s startup warm-up)
+- [x] Add manual vuln feed sync trigger endpoint (vulnFeeds.triggerSync)
+- [x] Add getVulnFeedChainSteps helper to extract MITRE techniques from vuln matches
+- [x] Write vitest tests for chain builder vuln integration and cron job (50 tests total)

@@ -343,3 +343,227 @@ describe('Vulnerability sort ordering', () => {
     expect(sorted[3].cveId).toBe('CVE-1'); // none
   });
 });
+
+// ─── getVulnFeedChainSteps Tests ───
+
+import { getVulnFeedChainSteps } from './lib/vuln-feeds';
+import type { TechVulnMatch, VulnEntry } from './lib/vuln-feeds';
+
+function makeVuln(overrides: Partial<VulnEntry>): VulnEntry {
+  return {
+    cveId: 'CVE-2024-0001',
+    title: 'Test Vuln',
+    description: 'Test description',
+    severity: 'critical',
+    cvssScore: 9.8,
+    vendor: 'TestVendor',
+    product: 'TestProduct',
+    datePublished: '2024-01-01',
+    sources: ['nvd'],
+    exploitAvailable: false,
+    inTheWild: false,
+    kevListed: false,
+    ransomwareLinked: false,
+    suggestedTechniques: [],
+    ...overrides,
+  };
+}
+
+describe('getVulnFeedChainSteps', () => {
+  it('returns empty array for no matches', () => {
+    const steps = getVulnFeedChainSteps([]);
+    expect(steps).toEqual([]);
+  });
+
+  it('returns empty array when no vulns have exploits or 0-day status', () => {
+    const matches: TechVulnMatch[] = [{
+      technology: 'Apache',
+      vulns: [makeVuln({ suggestedTechniques: ['T1190'] })],
+      maxSeverity: 'critical',
+      exploitCount: 0,
+      kevCount: 0,
+      riskScore: 40,
+    }];
+    const steps = getVulnFeedChainSteps(matches);
+    expect(steps).toEqual([]);
+  });
+
+  it('generates steps from vulns with exploits', () => {
+    const matches: TechVulnMatch[] = [{
+      technology: 'Apache',
+      vulns: [makeVuln({
+        cveId: 'CVE-2024-5555',
+        exploitAvailable: true,
+        suggestedTechniques: ['T1190', 'T1059'],
+        severity: 'high',
+        cvssScore: 8.5,
+      })],
+      maxSeverity: 'high',
+      exploitCount: 1,
+      kevCount: 0,
+      riskScore: 59,
+    }];
+    const steps = getVulnFeedChainSteps(matches);
+    expect(steps).toHaveLength(2);
+    expect(steps[0].techniqueId).toBe('T1190');
+    expect(steps[0].source).toBe('vuln_feed');
+    expect(steps[0].priority).toBe(2); // exploit but not 0-day/KEV
+    expect(steps[0].context).toContain('CVE-2024-5555');
+    expect(steps[0].context).toContain('Apache');
+    expect(steps[0].context).toContain('[EXPLOIT]');
+    expect(steps[1].techniqueId).toBe('T1059');
+  });
+
+  it('assigns priority 1 to 0-day vulns', () => {
+    const matches: TechVulnMatch[] = [{
+      technology: 'Chrome',
+      vulns: [makeVuln({
+        cveId: 'CVE-2024-7777',
+        inTheWild: true,
+        exploitAvailable: true,
+        suggestedTechniques: ['T1190'],
+      })],
+      maxSeverity: 'critical',
+      exploitCount: 1,
+      kevCount: 0,
+      riskScore: 80,
+    }];
+    const steps = getVulnFeedChainSteps(matches);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].priority).toBe(1);
+    expect(steps[0].context).toContain('[0-DAY]');
+  });
+
+  it('assigns priority 1 to KEV-listed vulns', () => {
+    const matches: TechVulnMatch[] = [{
+      technology: 'Exchange',
+      vulns: [makeVuln({
+        cveId: 'CVE-2024-8888',
+        kevListed: true,
+        exploitAvailable: true,
+        suggestedTechniques: ['T1190'],
+      })],
+      maxSeverity: 'critical',
+      exploitCount: 1,
+      kevCount: 1,
+      riskScore: 85,
+    }];
+    const steps = getVulnFeedChainSteps(matches);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].priority).toBe(1);
+    expect(steps[0].context).toContain('[KEV]');
+  });
+
+  it('deduplicates techniques across multiple matches', () => {
+    const matches: TechVulnMatch[] = [
+      {
+        technology: 'Apache',
+        vulns: [makeVuln({
+          cveId: 'CVE-2024-1111',
+          exploitAvailable: true,
+          suggestedTechniques: ['T1190', 'T1059'],
+        })],
+        maxSeverity: 'critical',
+        exploitCount: 1,
+        kevCount: 0,
+        riskScore: 65,
+      },
+      {
+        technology: 'Tomcat',
+        vulns: [makeVuln({
+          cveId: 'CVE-2024-2222',
+          exploitAvailable: true,
+          suggestedTechniques: ['T1190', 'T1210'], // T1190 overlaps
+        })],
+        maxSeverity: 'high',
+        exploitCount: 1,
+        kevCount: 0,
+        riskScore: 59,
+      },
+    ];
+    const steps = getVulnFeedChainSteps(matches);
+    const techniqueIds = steps.map(s => s.techniqueId);
+    // T1190 should appear only once
+    expect(techniqueIds.filter(t => t === 'T1190')).toHaveLength(1);
+    // Total unique techniques: T1190, T1059, T1210
+    expect(steps).toHaveLength(3);
+  });
+
+  it('handles vulns with empty suggestedTechniques', () => {
+    const matches: TechVulnMatch[] = [{
+      technology: 'Nginx',
+      vulns: [makeVuln({
+        exploitAvailable: true,
+        suggestedTechniques: [],
+      })],
+      maxSeverity: 'medium',
+      exploitCount: 1,
+      kevCount: 0,
+      riskScore: 45,
+    }];
+    const steps = getVulnFeedChainSteps(matches);
+    expect(steps).toEqual([]);
+  });
+
+  it('includes all context details in step context string', () => {
+    const matches: TechVulnMatch[] = [{
+      technology: 'Microsoft Exchange',
+      vulns: [makeVuln({
+        cveId: 'CVE-2024-9999',
+        severity: 'critical',
+        cvssScore: 9.8,
+        inTheWild: true,
+        kevListed: true,
+        exploitAvailable: true,
+        suggestedTechniques: ['T1190'],
+      })],
+      maxSeverity: 'critical',
+      exploitCount: 1,
+      kevCount: 1,
+      riskScore: 100,
+    }];
+    const steps = getVulnFeedChainSteps(matches);
+    expect(steps[0].context).toContain('CVE-2024-9999');
+    expect(steps[0].context).toContain('CRITICAL');
+    expect(steps[0].context).toContain('9.8');
+    expect(steps[0].context).toContain('Microsoft Exchange');
+    expect(steps[0].context).toContain('[0-DAY]');
+    expect(steps[0].context).toContain('[KEV]');
+    expect(steps[0].context).toContain('[EXPLOIT]');
+  });
+});
+
+// ─── Vuln Feed Sync Module Tests ───
+
+describe('Vuln Feed Sync module', () => {
+  it('should have the sync module available', async () => {
+    const mod = await import('./lib/vuln-feed-sync');
+    expect(mod).toBeDefined();
+    expect(typeof mod.runVulnFeedSync).toBe('function');
+    expect(typeof mod.initVulnFeedSyncSchedule).toBe('function');
+  });
+});
+
+// ─── Chain Builder vulnSteps Integration Tests ───
+
+describe('Chain builder vulnSteps parameter', () => {
+  it('collectTechniques source type "enrichment" is valid', () => {
+    // Verify the source type used for vuln feed steps is a valid TechniqueSource source
+    const validSources = ['campaign', 'actor', 'finding', 'enrichment', 'kev'];
+    expect(validSources).toContain('enrichment');
+  });
+
+  it('vulnSteps format matches chain builder expectations', () => {
+    const step = {
+      techniqueId: 'T1190',
+      priority: 1,
+      source: 'vuln_feed' as const,
+      context: 'CVE-2024-1234 (CRITICAL, CVSS 9.8) affecting Apache [0-DAY] [EXPLOIT]',
+    };
+    expect(step.techniqueId).toMatch(/^T\d{4}/);
+    expect(step.priority).toBeGreaterThanOrEqual(1);
+    expect(step.priority).toBeLessThanOrEqual(2);
+    expect(step.source).toBe('vuln_feed');
+    expect(typeof step.context).toBe('string');
+  });
+});

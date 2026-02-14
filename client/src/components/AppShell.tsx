@@ -43,7 +43,7 @@ const NAV_ITEMS = [
   { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
   { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
   { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
-  { href: "/kev-catalog", icon: Bug, label: "CISA KEV" },
+  { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
   { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
   { href: "/gophish", icon: Zap, label: "GOPHISH" },
   { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },

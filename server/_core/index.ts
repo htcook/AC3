@@ -292,6 +292,13 @@ async function startServer() {
     }).catch((err) => {
       console.warn("[Caldera Sync] Failed to initialize scheduled sync:", err);
     });
+
+    // Initialize Vulnerability Feed sync cron job (daily at 05:00 UTC)
+    import("../lib/vuln-feed-sync").then(({ initVulnFeedSyncSchedule }) => {
+      initVulnFeedSyncSchedule();
+    }).catch((err) => {
+      console.warn("[Vuln Feed Sync] Failed to initialize scheduled sync:", err);
+    });
   });
 }
 

@@ -732,6 +732,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const { buildOperationChain } = await import('./lib/chain-builder');
+        const { matchTechnologiesAgainstAllFeeds, getVulnFeedChainSteps } = await import('./lib/vuln-feeds');
         const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
         let scanData: any = null;
         if (input.scanId) {
@@ -742,12 +743,33 @@ export const appRouter = router({
         const actorMatches = scanData?.threatActorMatches?.topMatches || [];
         const kevChainSteps = scanData?.kevEnrichment?.chainSteps || [];
         const campaign = input.campaignIndex !== undefined ? campaigns[input.campaignIndex] : undefined;
+
+        // Enrich with vulnerability feed data from discovered technologies
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
+        try {
+          if (input.scanId) {
+            const scanForTech = await db.getDomainIntelScanById(input.scanId);
+            const pipelineAssets = (scanForTech?.pipelineOutput as any)?.assets || [];
+            const techs = new Set<string>();
+            pipelineAssets.forEach((a: any) => {
+              ((a.technologies || a?.asset?.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+            });
+            if (techs.size > 0) {
+              const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
+              vulnSteps = getVulnFeedChainSteps(vulnMatches.matches);
+            }
+          }
+        } catch (e) {
+          console.warn('[Chain Builder] Vuln feed enrichment failed, continuing without:', e);
+        }
+
         const result = await buildOperationChain({
           operationId: input.operationId,
           scanId: input.scanId,
           campaignRecommendation: campaign,
           threatActorMatches: actorMatches,
           kevSteps: kevChainSteps,
+          vulnSteps,
           allAbilities: abilities || [],
           calderaBaseUrl: CALDERA_BASE_URL,
           calderaApiKey: CALDERA_API_KEY,
@@ -760,15 +782,34 @@ export const appRouter = router({
       .input(z.object({ scanId: z.number().optional() }))
       .mutation(async ({ input }) => {
         const { autoBuildAllChains } = await import('./lib/chain-builder');
+        const { matchTechnologiesAgainstAllFeeds, getVulnFeedChainSteps } = await import('./lib/vuln-feeds');
         let scanData: any = undefined;
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
         if (input.scanId) {
           const scan = await db.getDomainIntelScanById(input.scanId);
-          if (scan) scanData = { pipelineOutput: scan.pipelineOutput, findings: [] };
+          if (scan) {
+            scanData = { pipelineOutput: scan.pipelineOutput, findings: [] };
+            // Extract technologies and match against vuln feeds
+            try {
+              const pipelineAssets = (scan.pipelineOutput as any)?.assets || [];
+              const techs = new Set<string>();
+              pipelineAssets.forEach((a: any) => {
+                ((a.technologies || a?.asset?.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+              });
+              if (techs.size > 0) {
+                const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
+                vulnSteps = getVulnFeedChainSteps(vulnMatches.matches);
+              }
+            } catch (e) {
+              console.warn('[Auto Chain Builder] Vuln feed enrichment failed:', e);
+            }
+          }
         }
         const results = await autoBuildAllChains({
           calderaBaseUrl: CALDERA_BASE_URL,
           calderaApiKey: CALDERA_API_KEY,
           scanData,
+          vulnSteps,
         });
         return {
           totalOperations: results.length,
@@ -792,6 +833,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const { buildChainWithLLM, buildOperationChain } = await import('./lib/chain-builder');
+        const { matchTechnologiesAgainstAllFeeds, getVulnFeedChainSteps } = await import('./lib/vuln-feeds');
         const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
         const scan = await db.getDomainIntelScanById(input.scanId);
         const scanData = scan?.pipelineOutput as any;
@@ -799,6 +841,22 @@ export const appRouter = router({
         const actorMatches = scanData?.threatActorMatches?.topMatches || [];
         const campaign = campaigns[input.campaignIndex];
         if (!campaign) throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign recommendation not found' });
+
+        // Enrich with vuln feed data
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
+        try {
+          const pipelineAssets = scanData?.assets || [];
+          const techs = new Set<string>();
+          pipelineAssets.forEach((a: any) => {
+            ((a.technologies || a?.asset?.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+          });
+          if (techs.size > 0) {
+            const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
+            vulnSteps = getVulnFeedChainSteps(vulnMatches.matches);
+          }
+        } catch (e) {
+          console.warn('[LLM Chain Builder] Vuln feed enrichment failed:', e);
+        }
         const llmResult = await buildChainWithLLM({
           campaignRecommendation: campaign,
           orgProfile: (scanData as any)?.orgProfile,
@@ -835,6 +893,7 @@ export const appRouter = router({
           campaignRecommendation: campaign,
           threatActorMatches: actorMatches,
           kevSteps: kevChainSteps2,
+          vulnSteps,
           allAbilities: abilities || [],
           calderaBaseUrl: CALDERA_BASE_URL,
           calderaApiKey: CALDERA_API_KEY,
@@ -1354,6 +1413,12 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { enrichCve } = await import('./lib/vuln-feeds');
         return enrichCve(input.cveId);
+      }),
+
+    triggerSync: protectedProcedure
+      .mutation(async () => {
+        const { runVulnFeedSync } = await import('./lib/vuln-feed-sync');
+        return runVulnFeedSync('manual');
       }),
   }),
 

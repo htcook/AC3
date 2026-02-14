@@ -909,3 +909,39 @@ export {
   hasPublicExploit,
   buildUnifiedMap,
 };
+
+/**
+ * Generate chain builder steps from vulnerability feed matches.
+ * Extracts suggestedTechniques from matched vulns and formats them
+ * for the chain builder's vulnSteps parameter.
+ */
+export function getVulnFeedChainSteps(
+  matches: TechVulnMatch[]
+): Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> {
+  const steps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
+  const seenTechniques = new Set<string>();
+
+  for (const match of matches) {
+    for (const vuln of match.vulns) {
+      // Only include vulns with confirmed exploits or 0-day status
+      if (!vuln.exploitAvailable && !vuln.inTheWild && !vuln.kevListed) continue;
+
+      for (const tid of vuln.suggestedTechniques) {
+        if (seenTechniques.has(tid)) continue;
+        seenTechniques.add(tid);
+
+        // Priority: 0-day/KEV = 1 (highest), exploit available = 2
+        const priority = (vuln.inTheWild || vuln.kevListed) ? 1 : 2;
+
+        steps.push({
+          techniqueId: tid,
+          priority,
+          source: "vuln_feed",
+          context: `${vuln.cveId} (${vuln.severity.toUpperCase()}, CVSS ${vuln.cvssScore || "N/A"}) affecting ${match.technology}${vuln.inTheWild ? " [0-DAY]" : ""}${vuln.kevListed ? " [KEV]" : ""}${vuln.exploitAvailable ? " [EXPLOIT]" : ""}`,
+        });
+      }
+    }
+  }
+
+  return steps;
+}
