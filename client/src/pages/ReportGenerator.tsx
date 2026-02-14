@@ -49,7 +49,7 @@ export default function ReportGenerator() {
   const [clientType, setClientType] = useState<string>('enterprise');
   const [title, setTitle] = useState('');
   const [preparedFor, setPreparedFor] = useState('');
-  const [preparedBy, setPreparedBy] = useState('Harrison Cook');
+  const [preparedBy, setPreparedBy] = useState('');
   const [brandingColor, setBrandingColor] = useState('#dc2626');
   const [generatedReport, setGeneratedReport] = useState<{ id: number; url: string | null; content: string } | null>(null);
   const [expandedReport, setExpandedReport] = useState<number | null>(null);
@@ -255,7 +255,7 @@ export default function ReportGenerator() {
                     value={preparedBy}
                     onChange={e => setPreparedBy(e.target.value)}
                     className="w-full px-3 py-2 bg-background border-2 border-border text-sm focus:border-primary outline-none"
-                    placeholder="Harrison Cook"
+                    placeholder="Your Name"
                   />
                 </div>
                 <div>

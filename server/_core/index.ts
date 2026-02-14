@@ -190,7 +190,7 @@ async function startServer() {
         "# Detection Rules Pack: " + actor.name,
         "",
         "Generated: " + new Date().toISOString(),
-        "Author: Harrison Cook / AceofCloud",
+        "Author: Ace C3 / AceofCloud",
         "",
         "## Contents",
         "",

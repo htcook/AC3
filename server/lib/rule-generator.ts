@@ -99,7 +99,7 @@ const TEMPLATES: Record<string, RuleTemplate> = {
 id: ${generateRuleId()}
 status: experimental
 description: Detects PowerShell execution patterns associated with ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 references:
     - https://attack.mitre.org/techniques/T1059/001/
@@ -137,7 +137,7 @@ tags:
     yara: (t) => `rule ${t.actorName.replace(/[^a-zA-Z0-9]/g, '_')}_PowerShell_Payload
 {
     meta:
-        author = "AceofCloud / Harrison Cook"
+        author = "Ace C3 / AceofCloud"
         description = "Detects PowerShell payloads associated with ${t.actorName}"
         date = "${todayStr()}"
         reference = "https://attack.mitre.org/techniques/T1059/001/"
@@ -163,7 +163,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects suspicious cmd.exe execution patterns used by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -193,7 +193,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects execution of suspicious files from email attachments by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 references:
     - https://attack.mitre.org/techniques/T1566/001/
@@ -228,7 +228,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects web application exploitation patterns by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -261,7 +261,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects LSASS credential dumping techniques used by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 references:
     - https://attack.mitre.org/techniques/T1003/001/
@@ -292,7 +292,7 @@ tags:
     yara: (t) => `rule ${t.actorName.replace(/[^a-zA-Z0-9]/g, '_')}_Credential_Dump_Tool
 {
     meta:
-        author = "AceofCloud / Harrison Cook"
+        author = "Ace C3 / AceofCloud"
         description = "Detects credential dumping tools used by ${t.actorName}"
         date = "${todayStr()}"
         reference = "https://attack.mitre.org/techniques/T1003/001/"
@@ -315,7 +315,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects NTDS.dit extraction for credential harvesting by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -347,7 +347,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects brute force authentication patterns by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -371,7 +371,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects scheduled task creation for persistence by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -401,7 +401,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects suspicious use of valid accounts during off-hours by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -425,7 +425,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects obfuscation techniques used by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -447,7 +447,7 @@ tags:
     yara: (t) => `rule ${t.actorName.replace(/[^a-zA-Z0-9]/g, '_')}_Obfuscated_Script
 {
     meta:
-        author = "AceofCloud / Harrison Cook"
+        author = "Ace C3 / AceofCloud"
         description = "Detects obfuscated scripts used by ${t.actorName}"
         date = "${todayStr()}"
         severity = "high"
@@ -467,7 +467,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects file deletion and log clearing by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -492,7 +492,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects attempts to disable security tools by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -517,7 +517,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects system enumeration commands used by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -543,7 +543,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects account enumeration by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -568,7 +568,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects RDP lateral movement patterns used by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -595,7 +595,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects SMB lateral movement by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -620,7 +620,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects HTTP-based C2 communication patterns used by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     category: proxy
@@ -648,7 +648,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects large data transfers over C2 channels by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     category: proxy
@@ -674,7 +674,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects data exfiltration to cloud storage services by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     category: proxy
@@ -699,7 +699,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects privilege escalation exploitation patterns by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -725,7 +725,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects UAC bypass techniques used by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -751,7 +751,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects access to sensitive files by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -778,7 +778,7 @@ tags:
 id: ${generateRuleId()}
 status: experimental
 description: Detects ransomware encryption indicators by ${t.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 logsource:
     product: windows
@@ -810,7 +810,7 @@ function generateGenericSigmaRule(tech: TechniqueInput): string {
 id: ${generateRuleId()}
 status: experimental
 description: Generic detection rule for ${tech.name} (${tech.id}) as used by ${tech.actorName}
-author: AceofCloud / Harrison Cook
+author: Ace C3 / AceofCloud
 date: ${todayStr()}
 references:
     - https://attack.mitre.org/techniques/${tech.id.replace('.', '/')}/

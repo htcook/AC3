@@ -14,7 +14,7 @@ import {
 const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Detection Coverage Matrix", desc: "Cross-reference validated rules against operation attack chains to identify SIEM gaps" },
   { date: "Feb 2026", title: "Sigma/YARA Rule Validator", desc: "Validate Sigma, YARA, Suricata, Splunk SPL, and KQL rules with LLM-powered analysis" },
-  { date: "Feb 2026", title: "Post-Engagement Reports", desc: "Generate AceofCloud-branded HTML reports with MITRE ATT&CK heatmaps and executive summaries" },
+  { date: "Feb 2026", title: "Post-Engagement Reports", desc: "Generate branded HTML reports with MITRE ATT&CK heatmaps, executive summaries, and remediation steps" },
   { date: "Feb 2026", title: "Landing Page Builder", desc: "Visual drag-and-drop editor with 6 theme presets and direct GoPhish export" },
   { date: "Feb 2026", title: "Auto Chain Builder", desc: "Automatically build attack chains from matched actors, TTPs, vulns, and misconfigurations" },
   { date: "Feb 2026", title: "Threat Actor Detection Rules", desc: "Auto-generate Sigma/YARA/Suricata rules from each actor's known techniques" },
@@ -138,12 +138,13 @@ export default function Home() {
                 <span className="text-primary">C3</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-xl mb-4 leading-relaxed">
-                Cyber Campaign Command — the unified offensive security platform for red teams and IT service providers.
-                Orchestrate adversary emulation, phishing campaigns, OSINT reconnaissance, detection engineering,
-                and AI-powered engagement automation from a single command center.
+                Cyber Campaign Command — the offensive security execution platform that puts real attacks
+                in motion. Run adversary emulation with MITRE Caldera, launch phishing campaigns through GoPhish,
+                perform deep OSINT reconnaissance, and auto-generate detection rules to measure what your
+                defenses actually catch.
               </p>
               <p className="text-sm text-primary mb-8 font-display tracking-wider">
-                BUILT BY HARRISON COOK — POWERED BY ACE OF CLOUD
+                OFFENSIVE EXECUTION PLATFORM — POWERED BY ACE OF CLOUD
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link href="/dashboard">
@@ -230,9 +231,9 @@ export default function Home() {
           <div className="mb-16">
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-display mb-4">WHO BENEFITS</h2>
             <p className="text-lg text-muted-foreground max-w-3xl">
-              Ace C3 is built for any organization that needs to validate its security posture through
-              realistic adversary emulation, social engineering assessments, and detection engineering —
-              from dedicated red teams to IT service providers protecting their clients.
+              Ace C3 is built for teams that execute attacks, not just monitor for them. If your job
+              involves breaking into systems, testing human defenses, or proving that detection stacks
+              work under real adversary pressure — this is your command center.
             </p>
           </div>
 
@@ -258,14 +259,14 @@ export default function Home() {
                 "Domain intel scanning surfaces assets, tech stacks, and misconfigurations automatically",
                 "26 phishing templates across 10 categories with visual landing page builder",
                 "6-step campaign wizard from template selection to GoPhish launch",
-                "AceofCloud-branded HTML reports with executive summaries and remediation steps",
+                "Branded HTML reports with executive summaries and remediation steps",
               ]}
             />
             <BenefitCard
               icon={<ShieldCheck className="w-7 h-7" />}
-              title="PURPLE TEAM & SOC LEADS"
+              title="PURPLE TEAM OPERATORS"
               highlight="PRIMARY"
-              description="Security operations teams validating that their SIEM, EDR, and detection stack actually catches real-world TTPs. Ace C3 closes the loop between offense and defense with integrated detection engineering."
+              description="Offensive operators who need to prove whether defensive controls actually catch real TTPs. Ace C3 generates the attacks and the detection rules, then measures what got caught — closing the loop from execution to evidence."
               features={[
                 "Auto-generate Sigma, YARA, and Suricata rules from each threat actor's techniques",
                 "Validate rules in 5 formats with LLM-powered effectiveness scoring",
@@ -341,8 +342,8 @@ export default function Home() {
           <div className="mb-16">
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-display mb-4">PLATFORM CAPABILITIES</h2>
             <p className="text-lg text-muted-foreground max-w-3xl">
-              Six integrated pillars covering the full offensive security lifecycle — from reconnaissance
-              through adversary emulation to detection validation and client reporting.
+              Six integrated pillars covering the full offensive execution lifecycle — from target
+              reconnaissance through live adversary emulation to detection rule generation and client reporting.
             </p>
           </div>
 
@@ -352,7 +353,7 @@ export default function Home() {
               icon={<Target className="w-7 h-7" />}
               number="01"
               title="ADVERSARY EMULATION"
-              description="Full MITRE Caldera integration for adversary emulation and purple team exercises. Deploy agents, execute operations, and monitor attack chains in real time."
+              description="Execute real adversary tradecraft through MITRE Caldera. Deploy agents, run operations built from matched threat actors and discovered vulnerabilities, and watch attack chains unfold in real time."
               features={[
                 "Real-time operation monitoring with ATT&CK flow visualization",
                 "Auto-build attack chains from matched actors, TTPs, and vulns",
@@ -370,7 +371,7 @@ export default function Home() {
               icon={<Zap className="w-7 h-7" />}
               number="02"
               title="SOCIAL ENGINEERING"
-              description="End-to-end phishing campaign management through GoPhish with AI-powered template generation, visual landing page builder, and guided campaign launch."
+              description="Test the human attack surface. End-to-end phishing campaign execution through GoPhish with AI-powered template generation, a visual credential-capture page builder, and guided campaign launch."
               features={[
                 "26 pre-built email templates across 10 categories",
                 "Visual landing page builder with 6 theme presets (Microsoft, Google, Okta, AWS, Slack, Corporate)",
@@ -388,7 +389,7 @@ export default function Home() {
               icon={<Radar className="w-7 h-7" />}
               number="03"
               title="OSINT & RECONNAISSANCE"
-              description="Automated domain intelligence, asset discovery, vulnerability detection, and continuous monitoring with typosquat generation and email spoofability analysis."
+              description="Map the attack surface before you strike. Automated domain intelligence, asset discovery, vulnerability detection, typosquat generation, and email spoofability analysis — feeding directly into campaign planning."
               features={[
                 "Deep domain scanning: tech stack, assets, SSL, DNS, subdomains",
                 "Vulnerability and misconfiguration detection",
@@ -406,7 +407,7 @@ export default function Home() {
               icon={<Brain className="w-7 h-7" />}
               number="04"
               title="THREAT INTELLIGENCE"
-              description="Comprehensive threat actor database with enrichment, TTP mapping, IOC feeds, and compliance framework references for informed engagement planning."
+              description="Know your adversary before you emulate them. 492+ threat actor profiles with full TTP mapping, IOC feeds, and compliance framework references — all feeding directly into attack chain generation."
               features={[
                 "492+ threat actor profiles with MITRE ATT&CK mapping",
                 "IOC feeds from CISA KEV, Abuse.ch, and ThreatFox",
@@ -424,7 +425,7 @@ export default function Home() {
               icon={<ShieldCheck className="w-7 h-7" />}
               number="05"
               title="DETECTION ENGINEERING"
-              description="Auto-generate and validate detection rules from actor TTPs, then cross-reference against operation attack chains to identify coverage gaps in your SIEM."
+              description="Generate the detection rules your blue team should have written. Auto-create Sigma, YARA, and Suricata rules from the TTPs you just executed, then prove which ones your SIEM actually catches."
               features={[
                 "Auto-generate Sigma, YARA, and Suricata rules from actor techniques",
                 "Validate rules in 5 formats: Sigma, YARA, Suricata, Splunk SPL, KQL",
@@ -442,9 +443,9 @@ export default function Home() {
               icon={<BarChart3 className="w-7 h-7" />}
               number="06"
               title="REPORTING & AUTOMATION"
-              description="Automated engagement pipelines, AI-powered campaign design, and client-ready report generation with MITRE ATT&CK heatmaps and executive summaries."
+              description="Turn your attack results into client-ready deliverables. Automated engagement pipelines, AI-powered campaign design, and branded report generation with MITRE ATT&CK heatmaps and executive summaries."
               features={[
-                "Post-engagement HTML reports with AceofCloud branding",
+                "Post-engagement HTML reports with custom branding",
                 "LLM-powered executive summaries and remediation recommendations",
                 "MITRE ATT&CK heatmap visualization in reports",
                 "Automated engagement pipeline: OSINT → design → launch",
@@ -641,14 +642,15 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
                 Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance,
                 CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
-                The Ace C3 platform represents our commitment to building tools that empower red teams
-                and IT service providers with enterprise-grade offensive security capabilities.
+                Ace C3 is our offensive execution platform — purpose-built for teams that need to simulate
+                real-world attacks, not just monitor for them.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Designed and built by Harrison Cook, Ace C3 integrates MITRE Caldera and GoPhish with custom
-                OSINT reconnaissance, AI-powered campaign design, detection engineering, and comprehensive
-                engagement management into a unified command center serving red teams, penetration testers,
-                and IT service owners across every sector.
+                Where defensive platforms focus on telemetry normalization and alert prioritization, Ace C3
+                focuses on the attack side: executing adversary emulation through MITRE Caldera, launching
+                social engineering campaigns through GoPhish, performing OSINT reconnaissance to map attack
+                surfaces, and generating the detection rules that prove whether your defenses actually work
+                under fire.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
@@ -700,7 +702,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE C3</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
-            Ace C3 — Cyber Campaign Command | Built by Harrison Cook | Powered by Ace of Cloud
+            Ace C3 — Cyber Campaign Command | Offensive Execution Platform | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">

@@ -625,7 +625,7 @@ Campaigns Designed:
 ${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings, and recommended actions. Written by Harrison Cook, AceofCloud.
+1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings, and recommended actions. Written for Ace C3 by AceofCloud.
 2. "threatModelSummary": A technical threat model summary covering attack surface analysis, likely threat actors for this sector, and prioritized attack paths.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;

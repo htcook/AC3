@@ -69,7 +69,7 @@ describe("Report Generator", () => {
       engagementType: "Purple Team Exercise",
     });
 
-    expect(report.metadata.author).toBe("Harrison Cook");
+    expect(report.metadata.author).toBe("Ace C3");
     expect(report.metadata.company).toBe("AceofCloud");
     expect(report.metadata.website).toBe("https://aceofcloud.com");
     expect(report.metadata.clientName).toBe("Acme Corp");
@@ -185,7 +185,7 @@ describe("Report Generator", () => {
     const html = renderReportHTML(report);
     expect(html).toContain("<!DOCTYPE html>");
     expect(html).toContain("ACEOFCLOUD");
-    expect(html).toContain("Harrison Cook");
+    expect(html).toContain("Ace C3");
     expect(html).toContain("Test Client");
     expect(html).toContain("CONFIDENTIAL");
     expect(html).toContain("Executive Summary");

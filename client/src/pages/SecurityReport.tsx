@@ -54,7 +54,7 @@ export default function SecurityReport() {
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     scope: '',
-    tester: 'Harrison Cook',
+    tester: '',
     includePhishing: true,
     includeRedTeam: true,
     includeRecommendations: true,
@@ -481,7 +481,7 @@ This document contains sensitive security assessment findings. Distribution is l
             <h1 className="font-display text-3xl tracking-wider">SECURITY ASSESSMENT REPORT</h1>
           </div>
           <p className="text-muted-foreground text-lg">Generate branded customer-facing security assessment reports with live data from GoPhish and Caldera.</p>
-          <p className="text-xs text-muted-foreground mt-2">By Harrison Cook — AceofCloud</p>
+          <p className="text-xs text-muted-foreground mt-2">Ace C3 — AceofCloud</p>
         </div>
 
         {/* Data Status Indicators */}

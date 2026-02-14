@@ -4,7 +4,7 @@
  * Compiles operation results, detection rates, rule validation scores,
  * and MITRE ATT&CK mapping into a structured report.
  * 
- * Branded: AceofCloud | Author: Harrison Cook
+ * Branded: AceofCloud | Ace C3 Platform
  */
 
 import { invokeLLM } from "../_core/llm";
@@ -271,7 +271,7 @@ Return JSON with:
     metadata: {
       title: `Post-Engagement Security Assessment Report`,
       subtitle: op?.name || 'Security Assessment',
-      author: 'Harrison Cook',
+      author: 'Ace C3',
       company: 'AceofCloud',
       website: 'https://aceofcloud.com',
       date: dateStr,

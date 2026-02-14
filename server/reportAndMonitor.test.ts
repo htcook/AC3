@@ -219,7 +219,7 @@ describe("Engagement Reports DB operations", () => {
       clientType: "enterprise",
       title: "Q1 2026 Security Assessment",
       preparedFor: "Report Test Corp",
-      preparedBy: "Harrison Cook",
+      preparedBy: "Ace C3",
       status: "pending",
       brandingColor: "#dc2626",
     });

@@ -1188,3 +1188,14 @@
 - [x] 6 ALSO SERVING sectors: Healthcare, Education, Manufacturing, Retail, Critical Infrastructure, Cloud/SaaS
 - [x] Added "WHO IT'S FOR" anchor nav link
 - [x] PRIMARY badge on top 3 segments
+
+## Branding & Differentiation Update
+- [x] Remove "Harrison Cook" attribution from all pages (Home, CalderaGuide, GoPhishGuide, SecurityReport, ReportGenerator, rule-generator, report-generator, domainIntel, server/_core/index)
+- [x] Remove "Built by Harrison Cook" from hero, about, and footer sections
+- [x] Analyze SecureOrigin.io to identify feature overlaps (defensive validation vs offensive execution)
+- [x] Rewrite homepage to emphasize Ace C3's unique differentiators (attack execution, not monitoring)
+- [x] Position Ace C3 as complementary (not competitive) — offensive execution vs defensive validation
+- [x] Emphasize offensive security execution language throughout all pillar descriptions
+- [x] Sharpen hero, WHO BENEFITS, and CAPABILITIES copy to emphasize attack-side identity
+- [x] Updated all test files to match new author values
+- [x] 272 tests passing after all changes
