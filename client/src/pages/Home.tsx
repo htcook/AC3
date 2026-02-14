@@ -7,7 +7,8 @@ import {
   Briefcase, BarChart3, Sparkles, Network, Lock, Fingerprint, Scan,
   BookOpen, Server, Cpu, Eye, X, Brain, Layers, Radio, Workflow, Rocket,
   ShieldCheck, Palette, AlertTriangle, CheckCircle2, ArrowRight, Siren,
-  Search, Code2, FileCode, Bug, Gauge, MonitorPlay
+  Search, Code2, FileCode, Bug, Gauge, MonitorPlay, Building2, Stethoscope,
+  GraduationCap, Landmark, Factory, ShoppingCart, Plane
 } from "lucide-react";
 
 const RECENT_UPDATES = [
@@ -100,6 +101,7 @@ export default function Home() {
             <span className="font-display text-2xl tracking-wider">ACE C3</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-display tracking-wider text-muted-foreground">
+            <a href="#who-benefits" className="hover:text-primary transition-colors">WHO IT'S FOR</a>
             <a href="#capabilities" className="hover:text-primary transition-colors">CAPABILITIES</a>
             <a href="#operations" className="hover:text-primary transition-colors">OPERATIONS</a>
             <a href="#workflow" className="hover:text-primary transition-colors">WORKFLOW</a>
@@ -136,7 +138,7 @@ export default function Home() {
                 <span className="text-primary">C3</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-xl mb-4 leading-relaxed">
-                Cyber Campaign Command — the unified offensive security platform for MSPs and red teams.
+                Cyber Campaign Command — the unified offensive security platform for red teams and IT service providers.
                 Orchestrate adversary emulation, phishing campaigns, OSINT reconnaissance, detection engineering,
                 and AI-powered engagement automation from a single command center.
               </p>
@@ -216,6 +218,117 @@ export default function Home() {
             <AnimatedStat value={6} label="LANDING PAGE THEMES" />
             <AnimatedStat value={5} label="RULE FORMATS" />
             <AnimatedStat value={45} label="PLATFORM MODULES" />
+          </div>
+        </div>
+      </section>
+
+      <div className="w-full h-px bg-primary" />
+
+      {/* Who Benefits */}
+      <section id="who-benefits" className="py-20">
+        <div className="container">
+          <div className="mb-16">
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-display mb-4">WHO BENEFITS</h2>
+            <p className="text-lg text-muted-foreground max-w-3xl">
+              Ace C3 is built for any organization that needs to validate its security posture through
+              realistic adversary emulation, social engineering assessments, and detection engineering —
+              from dedicated red teams to IT service providers protecting their clients.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            <BenefitCard
+              icon={<Crosshair className="w-7 h-7" />}
+              title="RED TEAM OPERATORS"
+              highlight="PRIMARY"
+              description="Internal and consulting red teams running adversary emulation engagements. Ace C3 replaces the patchwork of disconnected tools with a single command center that chains OSINT, attack execution, detection validation, and client reporting into one workflow."
+              features={[
+                "Auto-build attack chains from matched threat actors and discovered vulnerabilities",
+                "1,940+ Caldera abilities mapped to MITRE ATT&CK across all 14 tactics",
+                "Real-time operation monitoring with kill chain visualization",
+                "Post-engagement reports with MITRE heatmaps generated in one click",
+              ]}
+            />
+            <BenefitCard
+              icon={<Shield className="w-7 h-7" />}
+              title="PENETRATION TESTERS"
+              highlight="PRIMARY"
+              description="Independent and firm-based pentesters who need to scope engagements, execute phishing campaigns, and deliver professional reports. Ace C3 handles the full lifecycle from reconnaissance through branded deliverables."
+              features={[
+                "Domain intel scanning surfaces assets, tech stacks, and misconfigurations automatically",
+                "26 phishing templates across 10 categories with visual landing page builder",
+                "6-step campaign wizard from template selection to GoPhish launch",
+                "AceofCloud-branded HTML reports with executive summaries and remediation steps",
+              ]}
+            />
+            <BenefitCard
+              icon={<ShieldCheck className="w-7 h-7" />}
+              title="PURPLE TEAM & SOC LEADS"
+              highlight="PRIMARY"
+              description="Security operations teams validating that their SIEM, EDR, and detection stack actually catches real-world TTPs. Ace C3 closes the loop between offense and defense with integrated detection engineering."
+              features={[
+                "Auto-generate Sigma, YARA, and Suricata rules from each threat actor's techniques",
+                "Validate rules in 5 formats with LLM-powered effectiveness scoring",
+                "Detection coverage matrix shows exactly which techniques your SIEM misses",
+                "Cross-reference operation attack chains against validated detection rules",
+              ]}
+            />
+            <BenefitCard
+              icon={<Server className="w-7 h-7" />}
+              title="MANAGED SERVICE PROVIDERS"
+              description="IT service providers managing security across multiple client environments. Ace C3's engagement management, automated pipelines, and per-client reporting let you scale offensive assessments without scaling headcount."
+              features={[
+                "Per-engagement tracking with linked campaigns, operations, and results",
+                "Automated pipeline: OSINT → campaign design → template generation → launch",
+                "Multi-tenant credential vault for API keys and access credentials",
+                "Client-ready branded reports with compliance framework mapping",
+              ]}
+            />
+            <BenefitCard
+              icon={<Building2 className="w-7 h-7" />}
+              title="ENTERPRISE SECURITY TEAMS"
+              description="In-house security teams at enterprises, financial institutions, and technology companies who run internal red team exercises and phishing simulations to test employee awareness and infrastructure resilience."
+              features={[
+                "492+ threat actor profiles to emulate the adversaries most relevant to your sector",
+                "Spoofability analysis with SPF/DKIM/DMARC scoring for your own domains",
+                "Continuous OSINT monitoring with change detection and alerts",
+                "Compliance mapping to NIST CSF, CMMC, and FedRAMP frameworks",
+              ]}
+            />
+            <BenefitCard
+              icon={<Landmark className="w-7 h-7" />}
+              title="GOVERNMENT & DEFENSE CONTRACTORS"
+              description="Organizations operating under FedRAMP, CMMC, or NIST 800-171 requirements who need to demonstrate security testing and compliance validation as part of their authorization process."
+              features={[
+                "FedRAMP control mapping with ATO boundary scoping",
+                "CMMC Level 1–3 assessment support with control family coverage",
+                "APT scenario library with nation-state threat group emulation",
+                "Audit-ready reports with NIST 800-53 control mapping and ATT&CK references",
+              ]}
+            />
+          </div>
+
+          {/* Additional sectors */}
+          <div className="border-2 border-border/50 p-6">
+            <h3 className="font-display text-sm tracking-[0.25em] text-muted-foreground mb-4">ALSO SERVING</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { icon: Stethoscope, label: "Healthcare", desc: "HIPAA-regulated environments" },
+                { icon: GraduationCap, label: "Education", desc: "Universities & research institutions" },
+                { icon: Factory, label: "Manufacturing", desc: "OT/ICS security validation" },
+                { icon: ShoppingCart, label: "Retail & E-Commerce", desc: "PCI DSS environments" },
+                { icon: Plane, label: "Critical Infrastructure", desc: "Energy, transport, utilities" },
+                { icon: Network, label: "Cloud & SaaS Providers", desc: "Multi-tenant platforms" },
+              ].map((s) => (
+                <div key={s.label} className="flex items-start gap-3 p-3 bg-card/30 border border-border/30">
+                  <s.icon className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-display tracking-wider">{s.label}</div>
+                    <div className="text-[10px] text-muted-foreground">{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -528,13 +641,14 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
                 Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance,
                 CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
-                The Ace C3 platform represents our commitment to building tools that empower MSPs and red teams
-                with enterprise-grade offensive security capabilities.
+                The Ace C3 platform represents our commitment to building tools that empower red teams
+                and IT service providers with enterprise-grade offensive security capabilities.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                 Designed and built by Harrison Cook, Ace C3 integrates MITRE Caldera and GoPhish with custom
                 OSINT reconnaissance, AI-powered campaign design, detection engineering, and comprehensive
-                engagement management into a unified command center with 45 integrated modules.
+                engagement management into a unified command center serving red teams, penetration testers,
+                and IT service owners across every sector.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
@@ -658,6 +772,40 @@ function ModuleSection({
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// === Component: Benefit Card ===
+function BenefitCard({
+  icon, title, highlight, description, features
+}: {
+  icon: React.ReactNode; title: string; highlight?: string; description: string; features: string[];
+}) {
+  return (
+    <div className={`bg-card border-2 ${highlight ? 'border-primary/50' : 'border-border'} hover:border-primary/70 transition-colors flex flex-col`}>
+      <div className="p-6 pb-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-primary">{icon}</div>
+          {highlight && (
+            <span className="text-[10px] font-display tracking-widest px-2 py-0.5 bg-primary/10 text-primary border border-primary/30">
+              {highlight}
+            </span>
+          )}
+        </div>
+        <h3 className="font-display text-lg tracking-wider mb-3">{title}</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-4">{description}</p>
+      </div>
+      <div className="px-6 pb-6 flex-1">
+        <div className="space-y-2">
+          {features.map((f, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+              <CheckCircle2 className="w-3 h-3 text-primary flex-shrink-0 mt-0.5" />
+              <span>{f}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

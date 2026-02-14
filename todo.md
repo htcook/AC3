@@ -1170,3 +1170,21 @@
 - [x] Anchor nav links (Capabilities, Operations, Workflow, About)
 - [x] 7-phase engagement workflow section
 - [x] Architecture section with 4 server pillars
+
+## Branding Fix - Remove MSP-specific references
+- [x] Remove "MSPs" from homepage hero description (now "red teams and IT service providers")
+- [x] Remove "MSPs" from About section (now "red teams and IT service providers")
+- [x] Footer already uses "Ace C3" branding without MSP reference
+- [x] Broaden language to "IT service owners and providers" across homepage
+- [x] Checked all pages — remaining MSP references are in Caldera operation names and APT scenario data (correct usage)
+
+## Homepage - Target Customer Segments
+- [x] Analyze platform capabilities to identify ideal customer segments (6 primary + 6 additional sectors)
+- [x] Add "WHO BENEFITS" section to homepage with specific customer types
+- [x] Map platform features to each customer segment's pain points (4 features per segment)
+- [x] Remove MSP-specific language from homepage hero and about sections
+- [x] 3 PRIMARY segments: Red Team Operators, Penetration Testers, Purple Team & SOC Leads
+- [x] 3 SECONDARY segments: Managed Service Providers, Enterprise Security Teams, Government & Defense Contractors
+- [x] 6 ALSO SERVING sectors: Healthcare, Education, Manufacturing, Retail, Critical Infrastructure, Cloud/SaaS
+- [x] Added "WHO IT'S FOR" anchor nav link
+- [x] PRIMARY badge on top 3 segments
