@@ -154,6 +154,15 @@ export default function DomainIntelResults() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            onClick={() => navigate(`/domain-intel/curate/${scanId}`)}
+          >
+            <Eye className="h-3.5 w-3.5 mr-1.5" />
+            Review & Curate Findings
+          </Button>
           <RiskGauge score={scan.overallRiskScore || 0} band={scan.overallRiskBand || "low"} />
         </div>
       </div>

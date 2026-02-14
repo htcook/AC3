@@ -46,6 +46,7 @@ import RuleValidator from "./pages/RuleValidator";
 import DetectionCoverage from "./pages/DetectionCoverage";
 import PostEngagementReport from "./pages/PostEngagementReport";
 import LandingPageBuilder from "./pages/LandingPageBuilder";
+import DiscoveryCuration from "./pages/DiscoveryCuration";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -164,6 +165,9 @@ function Router() {
       </Route>
       <Route path="/domain-intel">
         <ProtectedRoute component={DomainIntel} />
+      </Route>
+      <Route path="/domain-intel/curate/:scanId">
+        {() => <ProtectedRoute component={DiscoveryCuration} />}
       </Route>
       <Route path="/domain-intel/:id">
         {() => <ProtectedRoute component={DomainIntelResults} />}

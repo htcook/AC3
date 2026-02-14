@@ -646,6 +646,50 @@ export async function getDiscoveredAssetsByScan(scanId: number) {
   return db.select().from(discoveredAssets).where(eq(discoveredAssets.scanId, scanId));
 }
 
+export async function excludeDiscoveredAsset(assetId: number, reason: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(discoveredAssets).set({
+    excluded: true,
+    exclusionReason: reason,
+    excludedAt: new Date(),
+  }).where(eq(discoveredAssets.id, assetId));
+}
+
+export async function includeDiscoveredAsset(assetId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(discoveredAssets).set({
+    excluded: false,
+    exclusionReason: null,
+    excludedAt: null,
+  }).where(eq(discoveredAssets.id, assetId));
+}
+
+export async function bulkExcludeDiscoveredAssets(assetIds: number[], reason: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  for (const id of assetIds) {
+    await db.update(discoveredAssets).set({
+      excluded: true,
+      exclusionReason: reason,
+      excludedAt: new Date(),
+    }).where(eq(discoveredAssets.id, id));
+  }
+}
+
+export async function bulkIncludeDiscoveredAssets(assetIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  for (const id of assetIds) {
+    await db.update(discoveredAssets).set({
+      excluded: false,
+      exclusionReason: null,
+      excludedAt: null,
+    }).where(eq(discoveredAssets.id, id));
+  }
+}
+
 export async function getDomainIntelScansByEngagement(engagementId: number) {
   const db = await getDb();
   if (!db) return [];

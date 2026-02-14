@@ -3,44 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { 
-  Activity, 
-  Terminal, 
-  Users, 
-  Key,
-  ExternalLink,
-  RefreshCw,
-  Server,
-  Cpu,
-  HardDrive,
-  Clock,
-  Copy,
-  LogOut,
-  Menu,
-  X,
-  ChevronRight,
-  Zap,
-  Target,
-  FileText,
-  Cloud,
-  BookOpen,
-  Fish,
-  Mail,
-  MousePointerClick,
-  Eye,
-  FileWarning,
-  Send,
-  LayoutTemplate,
-  Globe,
-  UserCheck,
-  Shield,
-  Globe2,
-  Briefcase
+  Activity, Terminal, Users, Key, ExternalLink, RefreshCw, Server, Cpu,
+  Clock, Copy, ChevronRight, ChevronDown, Zap, Target, FileText, Cloud,
+  Fish, Mail, MousePointerClick, Eye, FileWarning, Send, Globe, Shield,
+  Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert,
+  Rocket, Building2, ArrowRight, Layers, BarChart3, Play, Pause,
+  CheckCircle2, XCircle, Loader2, Plus, History
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { Radar, Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert } from "lucide-react";
-
+import { useState, useEffect, useMemo } from "react";
 import AppShell from "@/components/AppShell";
-// Default server config for the DigitalOcean deployment
+
 const DEFAULT_SERVER = {
   id: 1,
   name: "Caldera Production",
@@ -52,66 +24,86 @@ const DEFAULT_SERVER = {
   status: "online" as const,
 };
 
+const CLIENT_TYPES = [
+  { value: "enterprise", label: "Enterprise" },
+  { value: "msp", label: "Managed Service Provider" },
+  { value: "saas", label: "SaaS Provider" },
+  { value: "paas", label: "PaaS Provider" },
+  { value: "iaas", label: "IaaS Provider" },
+  { value: "mixed_hosting", label: "Mixed Hosting" },
+  { value: "other", label: "Other" },
+];
+
+const SECTORS = [
+  "Technology", "Financial Services", "Healthcare", "Government", "Education",
+  "Manufacturing", "Retail", "Energy", "Telecommunications", "Defense",
+  "Legal", "Media", "Transportation", "Real Estate", "Consulting",
+];
+
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const [gophishStatus, setGophishStatus] = useState<'online' | 'offline' | 'checking'>('checking');
 
-  // Live stats from DigitalOcean Caldera API via server proxy
+  // Start Engagement form state
+  const [domain, setDomain] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [clientType, setClientType] = useState('enterprise');
+  const [sector, setSector] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<string[]>([]);
+
+  // Collapsible sections
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    servers: true,
+    caldera: true,
+    gophish: false,
+    threats: false,
+    operations: false,
+  });
+
+  const toggleSection = (key: string) => {
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Live stats
   const { data: stats, refetch: refetchStats } = trpc.calderaProxy.getStats.useQuery(undefined, {
     refetchInterval: 30000,
   });
+  const calderaStats = stats || { totalAdversaries: 0, totalAbilities: 0, activeOperations: 0, totalAgents: 0 };
 
-  const calderaStats = stats || {
-    totalAdversaries: 0,
-    totalAbilities: 0,
-    activeOperations: 0,
-    totalAgents: 0,
-  };
+  const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, { refetchInterval: 30000 });
 
-  // Check server health via server proxy
-  const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, {
-    refetchInterval: 30000,
-  });
+  // Recent domain intel scans
+  const { data: recentScans } = trpc.domainIntel.listScans.useQuery();
 
-  // GoPhish stats
-  const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, {
-    refetchInterval: 30000,
+  // Domain intel scan mutation
+  const startScan = trpc.domainIntel.startScan.useMutation({
+    onSuccess: (data) => {
+      setIsScanning(false);
+      setScanProgress([]);
+      toast.success('Domain Intel scan completed! Redirecting to results...');
+      navigate(`/domain-intel/results/${data.scanId}`);
+    },
+    onError: (err) => {
+      setIsScanning(false);
+      setScanProgress([]);
+      toast.error(`Scan failed: ${err.message}`);
+    },
   });
 
   useEffect(() => {
-    if (healthData !== undefined) {
-      setServerStatus(healthData ? 'online' : 'offline');
-    }
+    if (healthData !== undefined) setServerStatus(healthData ? 'online' : 'offline');
   }, [healthData]);
 
   useEffect(() => {
-    if (gophishData !== undefined) {
-      setGophishStatus(gophishData.online ? 'online' : 'offline');
-    }
+    if (gophishData !== undefined) setGophishStatus(gophishData.online ? 'online' : 'offline');
   }, [gophishData]);
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} copied to clipboard`);
-  };
-
-  const refreshAll = () => {
-    refetchStats();
-    refetchGophish();
-    toast.success('Refreshing all data...');
-  };
-
-  // Compute GoPhish metrics
   const gophish = gophishData || {
-    online: false,
-    totalCampaigns: 0,
-    activeCampaigns: 0,
-    completedCampaigns: 0,
-    totalTemplates: 0,
-    totalLandingPages: 0,
-    totalGroups: 0,
-    totalSendingProfiles: 0,
+    online: false, totalCampaigns: 0, activeCampaigns: 0, completedCampaigns: 0,
+    totalTemplates: 0, totalLandingPages: 0, totalGroups: 0, totalSendingProfiles: 0,
     totalTargets: 0,
     emailMetrics: { sent: 0, opened: 0, clicked: 0, submitted: 0, reported: 0 },
     recentEvents: [] as Array<{ time: string; message: string; campaign: string; status: string }>,
@@ -122,783 +114,568 @@ export default function Dashboard() {
   const clickRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.clicked / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
   const submitRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.submitted / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
 
-  return (
-    <AppShell activePath="/dashboard">
-{/* Sidebar */}
-{/* Header */}
-        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <div>
-              <h1 className="font-display text-3xl md:text-2xl sm:text-3xl lg:text-4xl">COMMAND CENTER</h1>
-              <p className="text-sm text-muted-foreground">Unified server and campaign monitoring dashboard</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" className="font-display tracking-wider border-2" onClick={refreshAll}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                REFRESH ALL
-              </Button>
-              <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" className="font-display tracking-wider border-2">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  CALDERA UI
-                </Button>
-              </a>
-            </div>
-          </div>
-          {/* Divider */}
-          <div className="w-full h-1 bg-primary" />
-        </header>
-
-        <div className="p-6 space-y-8">
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* SERVER STATUS — Both Caldera and GoPhish side by side         */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section>
-            <h2 className="font-display text-2xl mb-4">SERVER STATUS</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Caldera Server */}
-              <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border p-6 cursor-pointer hover:border-primary transition-colors group block">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className={`w-4 h-4 ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
-                  <div className="flex-1">
-                    <h3 className="font-display text-lg">CALDERA SERVER</h3>
-                    <p className="text-xs text-muted-foreground">{DEFAULT_SERVER.ipAddress}:8888</p>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-display tracking-wider ${serverStatus === 'online' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : serverStatus === 'offline' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
-                    {serverStatus.toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <StatusBadge icon={<Server />} label="REGION" value={DEFAULT_SERVER.region} />
-                  <StatusBadge icon={<Cpu />} label="SIZE" value={DEFAULT_SERVER.dropletSize} />
-                </div>
-                <div className="text-[10px] mt-3 text-muted-foreground tracking-wider opacity-0 group-hover:opacity-100 transition-opacity text-center">OPEN CALDERA UI →</div>
-              </a>
-
-              {/* GoPhish Server */}
-              <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-emerald-500/30 p-6 cursor-pointer hover:border-emerald-500 transition-colors group block">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className={`w-4 h-4 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
-                  <div className="flex-1">
-                    <h3 className="font-display text-lg text-emerald-500">GOPHISH SERVER</h3>
-                    <p className="text-xs text-muted-foreground">{DEFAULT_SERVER.ipAddress}:3333</p>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-display tracking-wider ${gophishStatus === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : gophishStatus === 'offline' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
-                    {gophishStatus.toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <StatusBadge icon={<Fish />} label="CAMPAIGNS" value={`${gophish.totalCampaigns} total`} />
-                  <StatusBadge icon={<Mail />} label="ACTIVE" value={`${gophish.activeCampaigns} running`} />
-                </div>
-                <div className="text-[10px] mt-3 text-emerald-500/70 tracking-wider opacity-0 group-hover:opacity-100 transition-opacity text-center">OPEN GOPHISH ADMIN →</div>
-              </a>
-            </div>
-          </section>
-
-          {/* Divider */}
-          <div className="w-full h-0.5 bg-primary" />
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* CALDERA STATISTICS                                            */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section>
-            <h2 className="font-display text-2xl mb-4">CALDERA STATISTICS</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-white" href="/adversaries" />
-              <StatCard value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-white" href="https://caldera.aceofcloud.io/#/abilities" external />
-              <StatCard value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-white" href="/operations/monitor" />
-              <StatCard value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-white" href="/agents" />
-            </div>
-          </section>
-
-          {/* Divider */}
-          <div className="w-full h-0.5 bg-emerald-500/50" />
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* GOPHISH STATISTICS                                            */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-2xl flex items-center gap-2">
-                <Fish className="w-6 h-6 text-emerald-500" />
-                GOPHISH STATISTICS
-              </h2>
-              <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" size="sm" className="font-display tracking-wider border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10">
-                  <ExternalLink className="w-4 h-4 mr-1" />
-                  GOPHISH ADMIN
-                </Button>
-              </a>
-            </div>
-
-            {/* Top-level GoPhish counts */}
-            <div className="grid grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <StatCard value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-500" href="/gophish" />
-              <StatCard value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-500" href="https://gophish.aceofcloud.io/templates" external />
-              <StatCard value={gophish.totalLandingPages.toString()} label="LANDING PAGES" color="text-emerald-500" href="https://gophish.aceofcloud.io/landing_pages" external />
-              <StatCard value={gophish.totalSendingProfiles.toString()} label="SMTP PROFILES" color="text-emerald-500" href="https://gophish.aceofcloud.io/sending_profiles" external />
-            </div>
-
-            {/* Email Metrics Funnel */}
-            <h3 className="font-display text-lg mb-3 text-muted-foreground">EMAIL METRICS</h3>
-            <div className="grid grid-cols-2 lg:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-              <MetricCard icon={<Send />} value={gophish.emailMetrics.sent} label="EMAILS SENT" color="text-emerald-500" href="/gophish" />
-              <MetricCard icon={<Eye />} value={gophish.emailMetrics.opened} label="OPENED" subtext={`${openRate}% rate`} color="text-blue-400" href="/gophish" />
-              <MetricCard icon={<MousePointerClick />} value={gophish.emailMetrics.clicked} label="CLICKED" subtext={`${clickRate}% rate`} color="text-yellow-400" href="/gophish" />
-              <MetricCard icon={<UserCheck />} value={gophish.emailMetrics.submitted} label="SUBMITTED" subtext={`${submitRate}% rate`} color="text-red-400" href="/gophish" />
-              <MetricCard icon={<FileWarning />} value={gophish.emailMetrics.reported} label="REPORTED" color="text-purple-400" href="/gophish" />
-            </div>
-
-            {/* Campaign Breakdown + GoPhish Resources */}
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Campaign Status Breakdown */}
-              <div className="bg-card border-2 border-emerald-500/30 p-5">
-                <h3 className="font-display text-lg mb-4 text-emerald-500">CAMPAIGN STATUS</h3>
-                <div className="space-y-3">
-                  <Link href="/gophish" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
-                    <span className="text-sm text-muted-foreground group-hover:text-emerald-400 transition-colors">Active Campaigns</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-lg text-emerald-400">{gophish.activeCampaigns}</span>
-                      <ChevronRight className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </Link>
-                  <div className="w-full h-px bg-border" />
-                  <Link href="/gophish" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
-                    <span className="text-sm text-muted-foreground group-hover:text-blue-400 transition-colors">Completed Campaigns</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-lg text-blue-400">{gophish.completedCampaigns}</span>
-                      <ChevronRight className="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </Link>
-                  <div className="w-full h-px bg-border" />
-                  <a href="https://gophish.aceofcloud.io/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
-                    <span className="text-sm text-muted-foreground group-hover:text-yellow-400 transition-colors">Total Targets</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-lg text-yellow-400">{gophish.totalTargets}</span>
-                      <ExternalLink className="w-3 h-3 text-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </a>
-                  <div className="w-full h-px bg-border" />
-                  <a href="https://gophish.aceofcloud.io/users" target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
-                    <span className="text-sm text-muted-foreground group-hover:text-purple-400 transition-colors">Target Groups</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-lg text-purple-400">{gophish.totalGroups}</span>
-                      <ExternalLink className="w-3 h-3 text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </a>
-                </div>
-              </div>
-
-              {/* GoPhish Resources */}
-              <div className="bg-card border-2 border-emerald-500/30 p-5">
-                <h3 className="font-display text-lg mb-4 text-emerald-500">GOPHISH RESOURCES</h3>
-                <div className="space-y-3">
-                  <ResourceRow icon={<LayoutTemplate />} label="Email Templates" count={gophish.totalTemplates} href="https://gophish.aceofcloud.io/templates" external />
-                  <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Globe />} label="Landing Pages" count={gophish.totalLandingPages} href="https://gophish.aceofcloud.io/landing_pages" external />
-                  <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Send />} label="Sending Profiles (SMTP)" count={gophish.totalSendingProfiles} href="https://gophish.aceofcloud.io/sending_profiles" external />
-                  <div className="w-full h-px bg-border" />
-                  <ResourceRow icon={<Users />} label="Target Groups" count={gophish.totalGroups} href="https://gophish.aceofcloud.io/users" external />
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Campaign Activity */}
-            {gophish.campaigns.length > 0 && (
-              <div className="mt-4">
-                <h3 className="font-display text-lg mb-3 text-muted-foreground">RECENT CAMPAIGNS</h3>
-                <div className="bg-card border-2 border-border overflow-hidden">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border bg-secondary/50">
-                        <th className="text-left text-xs font-display tracking-wider text-muted-foreground px-4 py-3">CAMPAIGN</th>
-                        <th className="text-left text-xs font-display tracking-wider text-muted-foreground px-4 py-3">STATUS</th>
-                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">SENT</th>
-                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">OPENED</th>
-                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">CLICKED</th>
-                        <th className="text-center text-xs font-display tracking-wider text-muted-foreground px-4 py-3">SUBMITTED</th>
-                        <th className="text-left text-xs font-display tracking-wider text-muted-foreground px-4 py-3">CREATED</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gophish.campaigns.slice(0, 5).map((campaign) => (
-                        <tr key={campaign.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                          <td className="px-4 py-3">
-                            <Link href={`/campaigns/${campaign.id}`} className="text-sm font-medium hover:text-emerald-500 transition-colors">
-                              {campaign.name}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 text-[10px] font-display tracking-wider ${
-                              campaign.status === 'In progress' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                              campaign.status === 'Completed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                              'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                            }`}>
-                              {campaign.status?.toUpperCase() || 'UNKNOWN'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center text-sm">{campaign.stats?.sent || 0}</td>
-                          <td className="px-4 py-3 text-center text-sm text-blue-400">{campaign.stats?.opened || 0}</td>
-                          <td className="px-4 py-3 text-center text-sm text-yellow-400">{campaign.stats?.clicked || 0}</td>
-                          <td className="px-4 py-3 text-center text-sm text-red-400">{campaign.stats?.submitted_data || 0}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {campaign.created_date ? new Date(campaign.created_date).toLocaleDateString() : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {gophish.campaigns.length === 0 && (
-                    <div className="p-4 sm:p-6 lg:p-8 text-center text-muted-foreground">
-                      <Fish className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No campaigns found. Launch your first campaign from the GoPhish page.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* GoPhish Recent Events */}
-            {gophish.recentEvents.length > 0 && (
-              <div className="mt-4">
-                <h3 className="font-display text-lg mb-3 text-muted-foreground">RECENT ACTIVITY</h3>
-                <div className="bg-card border-2 border-border p-4 space-y-2 max-h-64 overflow-y-auto">
-                  {gophish.recentEvents.map((event, i) => (
-                    <div key={i} className="flex items-start gap-3 py-2 border-b border-border/30 last:border-0">
-                      <div className="w-2 h-2 mt-1.5 bg-emerald-500 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{event.message || event.status}</p>
-                        <p className="text-xs text-muted-foreground">{event.campaign}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {event.time ? new Date(event.time).toLocaleString() : ''}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Divider */}
-          <div className="w-full h-0.5 bg-primary" />
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* QUICK ACTIONS                                                 */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section>
-            <h2 className="font-display text-2xl mb-4">QUICK ACTIONS</h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <QuickAction
-                icon={<ExternalLink />}
-                label="OPEN CALDERA"
-                onClick={() => window.open(DEFAULT_SERVER.httpUrl, '_blank')}
-              />
-              <QuickAction
-                icon={<Fish />}
-                label="OPEN GOPHISH"
-                onClick={() => window.open('https://gophish.aceofcloud.io', '_blank')}
-              />
-              <QuickAction
-                icon={<Terminal />}
-                label="COPY SSH"
-                onClick={() => copyToClipboard(`ssh -i ~/.ssh/caldera_do_key root@${DEFAULT_SERVER.ipAddress}`, 'SSH command')}
-              />
-              <QuickAction
-                icon={<Key />}
-                label="VIEW CREDENTIALS"
-                onClick={() => navigate('/credentials')}
-              />
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-              <QuickAction
-                icon={<Target />}
-                label="BROWSE ADVERSARIES"
-                onClick={() => navigate('/adversaries')}
-              />
-              <QuickAction
-                icon={<Cpu />}
-                label="DEPLOY AGENTS"
-                onClick={() => navigate('/agents/deploy')}
-              />
-              <QuickAction
-                icon={<FileText />}
-                label="GENERATE REPORT"
-                onClick={() => navigate('/reports/security')}
-              />
-              <QuickAction
-                icon={<RefreshCw />}
-                label="REFRESH DATA"
-                onClick={refreshAll}
-              />
-            </div>
-          </section>
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* OSINT DOMAIN SEARCH                                            */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section className="bg-card border-2 border-primary/30 p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div className="flex items-center gap-3">
-                <Radar className="w-5 h-5 text-primary" />
-                <div>
-                  <h2 className="font-display text-lg tracking-wider">DOMAIN RECONNAISSANCE</h2>
-                  <p className="text-xs text-muted-foreground">Quick-scan any domain for email spoofability, DNS records, and typosquat candidates</p>
-                </div>
-              </div>
-              <Link href="/domain-recon">
-                <Button variant="outline" size="sm" className="font-display tracking-wider text-xs">
-                  FULL RECON TOOL <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            <DomainQuickSearch />
-          </section>
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* DOMAIN INTEL — AI-Powered Pipeline                            */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section className="bg-card border-2 border-cyan-500/30 p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div className="flex items-center gap-3">
-                <Brain className="w-5 h-5 text-cyan-400" />
-                <div>
-                  <h2 className="font-display text-lg tracking-wider text-cyan-400">DOMAIN INTEL PIPELINE</h2>
-                  <p className="text-xs text-muted-foreground">AI-powered asset discovery, BIA risk scoring (CARVER+SHOCK), and auto-generated campaign recommendations</p>
-                </div>
-              </div>
-              <Link href="/domain-intel">
-                <Button variant="outline" size="sm" className="font-display tracking-wider text-xs border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10">
-                  LAUNCH PIPELINE <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-background/50 border border-cyan-500/20 p-3 text-center">
-                <Crosshair className="w-5 h-5 text-cyan-400 mx-auto mb-1" />
-                <div className="text-xs font-display text-cyan-400">ASSET DISCOVERY</div>
-                <div className="text-[10px] text-muted-foreground">LLM-powered passive recon</div>
-              </div>
-              <div className="bg-background/50 border border-orange-500/20 p-3 text-center">
-                <AlertTriangle className="w-5 h-5 text-orange-400 mx-auto mb-1" />
-                <div className="text-xs font-display text-orange-400">RISK SCORING</div>
-                <div className="text-[10px] text-muted-foreground">CARVER + SHOCK + CVSS</div>
-              </div>
-              <div className="bg-background/50 border border-red-500/20 p-3 text-center">
-                <Bug className="w-5 h-5 text-red-400 mx-auto mb-1" />
-                <div className="text-xs font-display text-red-400">THREAT MODEL</div>
-                <div className="text-[10px] text-muted-foreground">Auto-generated attack paths</div>
-              </div>
-              <div className="bg-background/50 border border-emerald-500/20 p-3 text-center">
-                <Zap className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                <div className="text-xs font-display text-emerald-400">CAMPAIGN DESIGN</div>
-                <div className="text-[10px] text-muted-foreground">Caldera + GoPhish auto-config</div>
-              </div>
-            </div>
-          </section>
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* THREAT AWARENESS — Inspired by SpicyThreatIntel               */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-2xl flex items-center gap-2">
-                <ShieldAlert className="w-6 h-6 text-red-500" />
-                THREAT AWARENESS
-              </h2>
-              <Link href="/apt-library">
-                <Button variant="outline" size="sm" className="font-display tracking-wider">
-                  FULL INTEL <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="bg-card border-2 border-red-500/30 p-4 text-center">
-                <div className="font-display text-3xl text-red-500">367</div>
-                <div className="text-[10px] tracking-widest text-muted-foreground">THREAT ACTORS</div>
-                <div className="text-xs text-red-400 mt-1">325 active</div>
-              </div>
-              <div className="bg-card border-2 border-orange-500/30 p-4 text-center">
-                <div className="font-display text-3xl text-orange-500">19</div>
-                <div className="text-[10px] tracking-widest text-muted-foreground">CRITICAL</div>
-                <div className="text-xs text-orange-400 mt-1">Immediate attention</div>
-              </div>
-              <div className="bg-card border-2 border-yellow-500/30 p-4 text-center">
-                <div className="font-display text-3xl text-yellow-500">6.5K</div>
-                <div className="text-[10px] tracking-widest text-muted-foreground">IOCs TRACKED</div>
-                <div className="text-xs text-yellow-400 mt-1">IPs, domains, hashes</div>
-              </div>
-              <div className="bg-card border-2 border-purple-500/30 p-4 text-center">
-                <div className="font-display text-3xl text-purple-500">180K</div>
-                <div className="text-[10px] tracking-widest text-muted-foreground">CISA KEV</div>
-                <div className="text-xs text-purple-400 mt-1">Known exploited vulns</div>
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="bg-card border-2 border-border p-4">
-                <h3 className="font-display text-sm tracking-wider mb-3 text-red-400">TOP THREAT ACTORS BY SECTOR</h3>
-                <div className="space-y-2">
-                  {[
-                    { actor: 'Volt Typhoon', country: 'China', targets: 'Critical Infrastructure', level: 'CRITICAL', color: 'text-red-500' },
-                    { actor: 'Scattered Spider', country: 'Unknown', targets: 'Enterprise / Cloud', level: 'CRITICAL', color: 'text-red-500' },
-                    { actor: 'LockBit', country: 'Russia', targets: 'All Sectors', level: 'CRITICAL', color: 'text-red-500' },
-                    { actor: 'Lazarus Group', country: 'N. Korea', targets: 'Financial / Crypto', level: 'HIGH', color: 'text-orange-500' },
-                    { actor: 'MuddyWater', country: 'Iran', targets: 'Government / Energy', level: 'HIGH', color: 'text-orange-500' },
-                  ].map((t) => (
-                    <div key={t.actor} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 ${t.level === 'CRITICAL' ? 'bg-red-500' : 'bg-orange-500'}`} />
-                        <span className="text-sm font-medium">{t.actor}</span>
-                        <span className="text-xs text-muted-foreground">({t.country})</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{t.targets}</span>
-                        <span className={`text-[10px] font-display tracking-wider px-1.5 py-0.5 border ${t.level === 'CRITICAL' ? 'border-red-500/30 text-red-400 bg-red-500/10' : 'border-orange-500/30 text-orange-400 bg-orange-500/10'}`}>{t.level}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-card border-2 border-border p-4">
-                <h3 className="font-display text-sm tracking-wider mb-3 text-cyan-400">ATTRIBUTION BY COUNTRY</h3>
-                <div className="space-y-2">
-                  {[
-                    { country: 'China', count: 73, pct: 20, color: 'bg-red-500' },
-                    { country: 'Russia', count: 30, pct: 8, color: 'bg-blue-500' },
-                    { country: 'Iran', count: 39, pct: 11, color: 'bg-green-500' },
-                    { country: 'North Korea', count: 16, pct: 4, color: 'bg-purple-500' },
-                    { country: 'Unknown', count: 174, pct: 47, color: 'bg-gray-500' },
-                  ].map((c) => (
-                    <div key={c.country} className="flex items-center gap-3">
-                      <span className="text-sm w-24">{c.country}</span>
-                      <div className="flex-1 h-4 bg-background/50 overflow-hidden">
-                        <div className={`h-full ${c.color} opacity-60`} style={{ width: `${c.pct}%` }} />
-                      </div>
-                      <span className="text-xs text-muted-foreground w-8 text-right">{c.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Divider */}
-          <div className="w-full h-0.5 bg-primary" />
-
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* ACTIVE OPERATIONS                                             */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <section>
-            <h2 className="font-display text-2xl mb-4">ACTIVE OPERATIONS</h2>
-            <div className="grid md:grid-cols-3 gap-4 mb-8">
-              {/* MSP Target Complete - Merged Operation */}
-              <div className="bg-card border-2 border-emerald-500 p-5 hover:border-emerald-500/80 transition-colors md:col-span-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs text-muted-foreground">59 ABILITIES</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-display tracking-wider">MERGED</span>
-                </div>
-                <h3 className="font-display text-xl text-emerald-500 mb-2">MSP TARGET COMPLETE RED TEAM EXERCISE</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Comprehensive adversary profile combining APT29 VCD Cloud Compromise with CrowdStrike Falcon bypass defense evasion. Full attack lifecycle from initial access through exfiltration with EDR evasion.
-                </p>
-                <div className="flex flex-wrap gap-1 mb-4">
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">APT29</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">VCD</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">CROWDSTRIKE BYPASS</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">DEFENSE EVASION</span>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-xs border border-emerald-500/30">CLOUD</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Link href="/adversaries/MSP_Target_Complete_APT29_VCD_CrowdStrike">
-                    <Button size="sm" className="w-full font-display tracking-wider bg-emerald-500 hover:bg-emerald-500/90 text-black">
-                      VIEW PROFILE
-                    </Button>
-                  </Link>
-                  <a href="https://caldera.aceofcloud.io/#/operations" target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="outline" className="w-full font-display tracking-wider border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
-                      OPEN IN CALDERA
-                    </Button>
-                  </a>
-                </div>
-              </div>
-
-              {/* APT29 VCD Campaign */}
-              <div className="bg-card border-2 border-primary p-5 hover:border-primary/80 transition-colors">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-display tracking-wider border border-primary">ACTIVE</span>
-                  <span className="text-xs text-muted-foreground">48 ABILITIES</span>
-                </div>
-                <h3 className="font-display text-lg text-primary mb-2">APT29 VCD ENHANCED</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  VMware Cloud Director campaign with authentic APT29 TTPs.
-                </p>
-                <div className="flex flex-wrap gap-1 mb-4">
-                  <span className="px-2 py-0.5 bg-secondary text-xs">CLOUD</span>
-                  <span className="px-2 py-0.5 bg-secondary text-xs">VCD</span>
-                </div>
-                <Link href="/adversaries/APT29_VCD_Cloud_Compromise_Enhanced">
-                  <Button size="sm" className="w-full font-display tracking-wider bg-primary hover:bg-primary/90">
-                    VIEW DETAILS
-                  </Button>
-                </Link>
-              </div>
-
-              {/* CrowdStrike Falcon Bypass */}
-              <div className="bg-card border-2 border-yellow-500 p-5 hover:border-yellow-500/80 transition-colors">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs font-display tracking-wider border border-yellow-500">EDR</span>
-                  <span className="text-xs text-muted-foreground">12 ABILITIES</span>
-                </div>
-                <h3 className="font-display text-lg text-yellow-500 mb-2">CROWDSTRIKE BYPASS</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Defense evasion for CrowdStrike Falcon-protected endpoints.
-                </p>
-                <div className="flex flex-wrap gap-1 mb-4">
-                  <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">T1562.001</span>
-                  <span className="px-2 py-0.5 bg-yellow-500/20 text-xs border border-yellow-500/30">STEALTH</span>
-                </div>
-                <Link href="/adversaries/MSP_Target_CrowdStrike_Bypass">
-                  <Button size="sm" className="w-full font-display tracking-wider bg-yellow-500 hover:bg-yellow-500/90 text-black">
-                    VIEW DETAILS
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Operation Status Card */}
-              <div className="bg-card border-2 border-border p-5 md:col-span-2">
-                <h3 className="font-display text-lg mb-3">OPERATION STATUS</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-display text-emerald-500">3</div>
-                    <div className="text-xs text-muted-foreground">OPERATIONS</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-display text-primary">119</div>
-                    <div className="text-xs text-muted-foreground">TOTAL ABILITIES</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-display text-yellow-500">PAUSED</div>
-                    <div className="text-xs text-muted-foreground">AWAITING AGENTS</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* APT Threat Actor Library */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-2xl">APT THREAT ACTOR LIBRARY</h2>
-              <Link href="/adversaries">
-                <Button variant="outline" size="sm" className="font-display tracking-wider">
-                  VIEW ALL <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {/* APT29 */}
-              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-blue-500 p-4 text-center transition-colors group">
-                <div className="text-3xl font-display text-blue-500 mb-1">APT29</div>
-                <div className="text-xs text-muted-foreground mb-2">COZY BEAR</div>
-                <div className="text-xs text-blue-500">50 ABILITIES</div>
-                <div className="text-[10px] text-muted-foreground mt-1">Russia • G0016</div>
-              </a>
-              {/* APT28 */}
-              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-red-500 p-4 text-center transition-colors group">
-                <div className="text-3xl font-display text-red-500 mb-1">APT28</div>
-                <div className="text-xs text-muted-foreground mb-2">FANCY BEAR</div>
-                <div className="text-xs text-red-500">50 ABILITIES</div>
-                <div className="text-[10px] text-muted-foreground mt-1">Russia • G0007</div>
-              </a>
-              {/* APT41 */}
-              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-orange-500 p-4 text-center transition-colors group">
-                <div className="text-3xl font-display text-orange-500 mb-1">APT41</div>
-                <div className="text-xs text-muted-foreground mb-2">DOUBLE DRAGON</div>
-                <div className="text-xs text-orange-500">50 ABILITIES</div>
-                <div className="text-[10px] text-muted-foreground mt-1">China • G0096</div>
-              </a>
-              {/* Lazarus */}
-              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-purple-500 p-4 text-center transition-colors group">
-                <div className="text-3xl font-display text-purple-500 mb-1">LAZARUS</div>
-                <div className="text-xs text-muted-foreground mb-2">HIDDEN COBRA</div>
-                <div className="text-xs text-purple-500">50 ABILITIES</div>
-                <div className="text-[10px] text-muted-foreground mt-1">N. Korea • G0032</div>
-              </a>
-              {/* FIN7 */}
-              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-green-500 p-4 text-center transition-colors group">
-                <div className="text-3xl font-display text-green-500 mb-1">FIN7</div>
-                <div className="text-xs text-muted-foreground mb-2">CARBANAK</div>
-                <div className="text-xs text-green-500">50 ABILITIES</div>
-                <div className="text-[10px] text-muted-foreground mt-1">Financial • G0046</div>
-              </a>
-              {/* Cobalt Group */}
-              <a href="https://caldera.aceofcloud.io/#/adversaries" target="_blank" rel="noopener noreferrer" className="bg-card border-2 border-border hover:border-cyan-500 p-4 text-center transition-colors group">
-                <div className="text-3xl font-display text-cyan-500 mb-1">COBALT</div>
-                <div className="text-xs text-muted-foreground mb-2">COBALT GROUP</div>
-                <div className="text-xs text-cyan-500">50 ABILITIES</div>
-                <div className="text-[10px] text-muted-foreground mt-1">Financial • G0080</div>
-              </a>
-            </div>
-          </section>
-        </div>
-      </AppShell>
-  );
-}
-
-function StatusBadge({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-secondary">
-      <span className="text-muted-foreground">{icon}</span>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-sm font-medium">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ value, label, color = "text-white", href, external }: { value: string; label: string; color?: string; href?: string; external?: boolean }) {
-  const content = (
-    <>
-      <div className={`font-display text-5xl md:text-6xl mb-2 ${color}`}>{value}</div>
-      <div className="text-xs tracking-widest text-muted-foreground">{label}</div>
-      {href && <div className={`text-[10px] mt-2 tracking-wider opacity-0 group-hover:opacity-100 transition-opacity ${color}`}>VIEW DETAILS →</div>}
-    </>
-  );
-  if (href && external) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="group bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors cursor-pointer block">
-        {content}
-      </a>
-    );
-  }
-  if (href) {
-    return (
-      <Link href={href} className="group bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors cursor-pointer block">
-        {content}
-      </Link>
-    );
-  }
-  return (
-    <div className="bg-card border-2 border-border p-6 text-center hover:border-primary transition-colors">
-      {content}
-    </div>
-  );
-}
-
-function MetricCard({ icon, value, label, subtext, color = "text-white", href, external }: { icon: React.ReactNode; value: number; label: string; subtext?: string; color?: string; href?: string; external?: boolean }) {
-  const content = (
-    <>
-      <div className={`flex justify-center mb-2 ${color}`}>{icon}</div>
-      <div className={`font-display text-3xl md:text-4xl mb-1 ${color}`}>{value}</div>
-      <div className="text-[10px] tracking-widest text-muted-foreground">{label}</div>
-      {subtext && <div className={`text-xs mt-1 ${color} opacity-70`}>{subtext}</div>}
-      {href && <div className={`text-[10px] mt-2 tracking-wider opacity-0 group-hover:opacity-100 transition-opacity ${color}`}>DETAILS →</div>}
-    </>
-  );
-  if (href && external) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="group bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors cursor-pointer block">
-        {content}
-      </a>
-    );
-  }
-  if (href) {
-    return (
-      <Link href={href} className="group bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors cursor-pointer block">
-        {content}
-      </Link>
-    );
-  }
-  return (
-    <div className="bg-card border-2 border-border p-4 text-center hover:border-emerald-500/50 transition-colors">
-      {content}
-    </div>
-  );
-}
-
-function ResourceRow({ icon, label, count, href, external }: { icon: React.ReactNode; label: string; count: number; href?: string; external?: boolean }) {
-  const content = (
-    <>
-      <div className="flex items-center gap-2">
-        <span className="text-emerald-500">{icon}</span>
-        <span className="text-sm text-muted-foreground group-hover:text-emerald-400 transition-colors">{label}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="font-display text-lg text-emerald-400">{count}</span>
-        {href && <ChevronRight className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
-      </div>
-    </>
-  );
-  if (href && external) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
-        {content}
-      </a>
-    );
-  }
-  if (href) {
-    return (
-      <Link href={href} className="group flex items-center justify-between cursor-pointer hover:bg-emerald-500/5 -mx-2 px-2 py-1 rounded transition-colors">
-        {content}
-      </Link>
-    );
-  }
-  return (
-    <div className="flex items-center justify-between">
-      {content}
-    </div>
-  );
-}
-
-function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center justify-center gap-3 bg-card border-2 border-border p-4 font-display tracking-wider hover:border-primary hover:text-primary transition-colors"
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function DomainQuickSearch() {
-  const [domain, setDomain] = useState('');
-  const [, navigate] = useLocation();
-
-  const handleSearch = () => {
-    if (!domain.trim()) {
-      toast.error('Enter a domain to scan');
-      return;
-    }
-    // Navigate to the full Domain Recon page with the domain pre-filled
-    navigate(`/domain-recon?domain=${encodeURIComponent(domain.trim())}`);
+  const refreshAll = () => {
+    refetchStats();
+    refetchGophish();
+    toast.success('Refreshing all data...');
   };
 
+  const handleStartEngagement = () => {
+    if (!domain.trim()) {
+      toast.error('Enter a target domain to begin');
+      return;
+    }
+    setIsScanning(true);
+    setScanProgress(['Initializing OSINT pipeline...']);
+
+    // Simulate progress updates
+    const steps = [
+      { delay: 2000, msg: 'Running passive asset discovery...' },
+      { delay: 5000, msg: 'Enumerating DNS records and subdomains...' },
+      { delay: 8000, msg: 'Analyzing tech stack and infrastructure...' },
+      { delay: 12000, msg: 'Running BIA risk assessment (CARVER+SHOCK)...' },
+      { delay: 16000, msg: 'Matching threat actors to target profile...' },
+      { delay: 20000, msg: 'Generating campaign recommendations...' },
+    ];
+    steps.forEach(({ delay, msg }) => {
+      setTimeout(() => setScanProgress(prev => [...prev, msg]), delay);
+    });
+
+    startScan.mutate({
+      primaryDomain: domain.trim(),
+      clientType: clientType as any,
+      sector: sector || 'Technology',
+      customerName: companyName || domain.trim(),
+      criticalFunctions: [],
+    });
+  };
+
+  const recentCompletedScans = useMemo(() => {
+    if (!recentScans) return [];
+    return recentScans
+      .filter((s: any) => s.status === 'completed')
+      .slice(0, 5);
+  }, [recentScans]);
+
   return (
-    <div className="flex flex-col sm:flex-row gap-2">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          type="text"
-          value={domain}
-          onChange={(e) => setDomain(e.target.value)}
-          placeholder="Enter customer domain (e.g., acmecorp.com)"
-          className="w-full pl-10 pr-4 py-2.5 bg-background border border-border text-sm focus:outline-none focus:border-primary font-mono"
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-        />
+    <AppShell activePath="/dashboard">
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-2xl sm:text-3xl">ACE C3 COMMAND CENTER</h1>
+            <p className="text-xs text-muted-foreground">Offensive Security Execution Platform</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 mr-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+              <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">CALDERA</span>
+              <div className={`w-2.5 h-2.5 rounded-full ml-2 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+              <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">GOPHISH</span>
+            </div>
+            <Button variant="outline" size="sm" className="font-display tracking-wider text-xs" onClick={refreshAll}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1" />
+              REFRESH
+            </Button>
+          </div>
+        </div>
+        <div className="w-full h-1 bg-gradient-to-r from-primary via-cyan-500 to-emerald-500" />
+      </header>
+
+      <div className="p-4 sm:p-6 space-y-6">
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* START ENGAGEMENT — Hero Section                                */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <section className="relative overflow-hidden bg-gradient-to-br from-card via-card to-primary/5 border-2 border-primary/40 p-5 sm:p-8">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-500/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+          
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-primary/20 border border-primary/40 flex items-center justify-center">
+                <Rocket className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl sm:text-2xl tracking-wider">START NEW ENGAGEMENT</h2>
+                <p className="text-xs text-muted-foreground">Enter a domain to begin automated OSINT discovery, threat modeling, and campaign generation</p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {/* Domain Input — Primary */}
+              <div>
+                <label className="text-[10px] font-display tracking-widest text-muted-foreground mb-1.5 block">TARGET DOMAIN *</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
+                    <input
+                      type="text"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value)}
+                      placeholder="e.g., acmecorp.com"
+                      className="w-full pl-10 pr-4 py-3 bg-background/80 border-2 border-primary/30 text-sm font-mono focus:outline-none focus:border-primary transition-colors"
+                      onKeyDown={(e) => e.key === 'Enter' && !isScanning && handleStartEngagement()}
+                      disabled={isScanning}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Context Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-display tracking-widest text-muted-foreground mb-1.5 block">COMPANY NAME</label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+                    <input
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Acme Corporation"
+                      className="w-full pl-10 pr-3 py-2.5 bg-background/60 border border-border text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                      disabled={isScanning}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-display tracking-widest text-muted-foreground mb-1.5 block">CLIENT TYPE</label>
+                  <select
+                    value={clientType}
+                    onChange={(e) => setClientType(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-background/60 border border-border text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                    disabled={isScanning}
+                  >
+                    {CLIENT_TYPES.map(ct => (
+                      <option key={ct.value} value={ct.value}>{ct.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-display tracking-widest text-muted-foreground mb-1.5 block">INDUSTRY SECTOR</label>
+                  <select
+                    value={sector}
+                    onChange={(e) => setSector(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-background/60 border border-border text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                    disabled={isScanning}
+                  >
+                    <option value="">Select sector...</option>
+                    {SECTORS.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Pipeline Steps Preview */}
+              <div className="flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                {['OSINT Discovery', 'Asset Enumeration', 'BIA Risk Scoring', 'Threat Actor Matching', 'Campaign Generation'].map((step, i) => (
+                  <span key={step} className="flex items-center gap-1">
+                    {i > 0 && <ArrowRight className="w-3 h-3 text-primary/40" />}
+                    <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 font-display tracking-wider">{step}</span>
+                  </span>
+                ))}
+              </div>
+
+              {/* Launch Button */}
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleStartEngagement}
+                  disabled={isScanning || !domain.trim()}
+                  className="font-display tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-sm"
+                  size="lg"
+                >
+                  {isScanning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      SCANNING...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 mr-2" />
+                      LAUNCH PIPELINE
+                    </>
+                  )}
+                </Button>
+                <Link href="/domain-intel">
+                  <Button variant="outline" size="lg" className="font-display tracking-wider text-sm">
+                    ADVANCED OPTIONS
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Scan Progress */}
+              {isScanning && scanProgress.length > 0 && (
+                <div className="bg-background/80 border border-primary/30 p-4 mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                    <span className="text-xs font-display tracking-wider text-primary">PIPELINE IN PROGRESS</span>
+                  </div>
+                  <div className="space-y-1">
+                    {scanProgress.map((msg, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        {i < scanProgress.length - 1 ? (
+                          <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+                        ) : (
+                          <Loader2 className="w-3 h-3 text-primary animate-spin shrink-0" />
+                        )}
+                        <span className={i < scanProgress.length - 1 ? 'text-muted-foreground' : 'text-foreground'}>{msg}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* RECENT SCANS — Quick access to previous results                */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {recentCompletedScans.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-muted-foreground" />
+                <h3 className="font-display text-sm tracking-wider text-muted-foreground">RECENT SCANS</h3>
+              </div>
+              <Link href="/domain-intel">
+                <Button variant="ghost" size="sm" className="text-xs font-display tracking-wider">
+                  VIEW ALL <ChevronRight className="w-3 h-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              {recentCompletedScans.map((scan: any) => {
+                const output = scan.pipelineOutput as any;
+                const riskScore = output?.riskScore || scan.riskScore || 0;
+                const riskColor = riskScore >= 80 ? 'text-red-500 border-red-500/30' : riskScore >= 60 ? 'text-orange-500 border-orange-500/30' : riskScore >= 40 ? 'text-yellow-500 border-yellow-500/30' : 'text-green-500 border-green-500/30';
+                return (
+                  <div key={scan.id} className={`bg-card border-2 ${riskColor} p-3`}>
+                    <Link href={`/domain-intel/results/${scan.id}`}>
+                      <div className="hover:bg-secondary/30 transition-colors cursor-pointer">
+                        <div className="font-mono text-sm truncate">{scan.primaryDomain}</div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] text-muted-foreground">{scan.clientType?.toUpperCase()}</span>
+                          <span className={`font-display text-lg ${riskColor.split(' ')[0]}`}>{riskScore}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                        </div>
+                      </div>
+                    </Link>
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
+                      <Link href={`/domain-intel/results/${scan.id}`} className="flex-1">
+                        <span className="text-[9px] font-display tracking-wider text-primary hover:text-primary/80 cursor-pointer">VIEW RESULTS</span>
+                      </Link>
+                      <Link href={`/domain-intel/curate/${scan.id}`}>
+                        <span className="text-[9px] font-display tracking-wider text-yellow-400 hover:text-yellow-300 cursor-pointer">CURATE</span>
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* QUICK ACCESS — Most important features                         */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <section>
+          <h2 className="font-display text-lg tracking-wider mb-3">QUICK ACCESS</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <QuickAccessCard icon={<Brain />} label="DOMAIN INTEL" desc="AI-powered pipeline" href="/domain-intel" color="text-cyan-400 border-cyan-500/30" />
+            <QuickAccessCard icon={<Target />} label="THREAT ACTORS" desc="401+ actor profiles" href="/threat-actors" color="text-red-400 border-red-500/30" />
+            <QuickAccessCard icon={<Layers />} label="ENGAGEMENTS" desc="Manage campaigns" href="/engagements" color="text-primary border-primary/30" />
+            <QuickAccessCard icon={<Fish />} label="GOPHISH" desc="Phishing campaigns" href="/gophish" color="text-emerald-400 border-emerald-500/30" />
+            <QuickAccessCard icon={<Activity />} label="CAMPAIGN EXEC" desc="Live operations" href="/operations/monitor" color="text-yellow-400 border-yellow-500/30" />
+            <QuickAccessCard icon={<BarChart3 />} label="REPORTS" desc="Generate reports" href="/reports/engagement" color="text-purple-400 border-purple-500/30" />
+          </div>
+        </section>
+
+        <div className="w-full h-0.5 bg-primary/30" />
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* LIVE STATS — Caldera + GoPhish at a glance                     */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <section>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            <MiniStat value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-primary" href="/adversaries" />
+            <MiniStat value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-primary" href="/abilities" />
+            <MiniStat value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-primary" href="/operations/monitor" />
+            <MiniStat value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-primary" href="/agents" />
+            <MiniStat value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-400" href="/gophish" />
+            <MiniStat value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-400" href="/template-library" />
+            <MiniStat value={`${clickRate}%`} label="CLICK RATE" color="text-yellow-400" href="/gophish" />
+            <MiniStat value={`${submitRate}%`} label="SUBMIT RATE" color="text-red-400" href="/gophish" />
+          </div>
+        </section>
+
+        <div className="w-full h-0.5 bg-border" />
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* SERVER STATUS — Collapsible                                    */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="SERVER STATUS"
+          expanded={expandedSections.servers}
+          onToggle={() => toggleSection('servers')}
+          badge={
+            <div className="flex items-center gap-2">
+              <StatusDot status={serverStatus} label="CALDERA" />
+              <StatusDot status={gophishStatus} label="GOPHISH" />
+            </div>
+          }
+        >
+          <div className="grid md:grid-cols-2 gap-3">
+            <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer" className="bg-card border border-border p-4 cursor-pointer hover:border-primary transition-colors group block">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-3 h-3 ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                <div className="flex-1">
+                  <h3 className="font-display text-sm">CALDERA SERVER</h3>
+                  <p className="text-[10px] text-muted-foreground">{DEFAULT_SERVER.ipAddress}:8888</p>
+                </div>
+                <span className={`px-2 py-0.5 text-[10px] font-display tracking-wider ${serverStatus === 'online' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                  {serverStatus.toUpperCase()}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="px-2 py-0.5 bg-secondary">{DEFAULT_SERVER.region}</span>
+                <span className="px-2 py-0.5 bg-secondary">{DEFAULT_SERVER.dropletSize}</span>
+              </div>
+            </a>
+            <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer" className="bg-card border border-emerald-500/30 p-4 cursor-pointer hover:border-emerald-500 transition-colors group block">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-3 h-3 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                <div className="flex-1">
+                  <h3 className="font-display text-sm text-emerald-500">GOPHISH SERVER</h3>
+                  <p className="text-[10px] text-muted-foreground">{DEFAULT_SERVER.ipAddress}:3333</p>
+                </div>
+                <span className={`px-2 py-0.5 text-[10px] font-display tracking-wider ${gophishStatus === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                  {gophishStatus.toUpperCase()}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="px-2 py-0.5 bg-secondary">{gophish.totalCampaigns} campaigns</span>
+                <span className="px-2 py-0.5 bg-secondary">{gophish.activeCampaigns} active</span>
+              </div>
+            </a>
+          </div>
+        </CollapsibleSection>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* GOPHISH METRICS — Collapsible                                  */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="GOPHISH EMAIL METRICS"
+          expanded={expandedSections.gophish}
+          onToggle={() => toggleSection('gophish')}
+          icon={<Fish className="w-4 h-4 text-emerald-500" />}
+          badge={
+            <span className="text-xs text-muted-foreground">{gophish.emailMetrics.sent} sent · {openRate}% open · {clickRate}% click</span>
+          }
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+            <MetricCard icon={<Send />} value={gophish.emailMetrics.sent} label="SENT" color="text-emerald-500" />
+            <MetricCard icon={<Eye />} value={gophish.emailMetrics.opened} label="OPENED" subtext={`${openRate}%`} color="text-blue-400" />
+            <MetricCard icon={<MousePointerClick />} value={gophish.emailMetrics.clicked} label="CLICKED" subtext={`${clickRate}%`} color="text-yellow-400" />
+            <MetricCard icon={<Key />} value={gophish.emailMetrics.submitted} label="CREDS" subtext={`${submitRate}%`} color="text-red-400" />
+            <MetricCard icon={<FileWarning />} value={gophish.emailMetrics.reported} label="REPORTED" color="text-purple-400" />
+          </div>
+          {gophish.campaigns.length > 0 && (
+            <div className="bg-card border border-border overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/50">
+                    <th className="text-left text-[10px] font-display tracking-wider text-muted-foreground px-3 py-2">CAMPAIGN</th>
+                    <th className="text-left text-[10px] font-display tracking-wider text-muted-foreground px-3 py-2">STATUS</th>
+                    <th className="text-center text-[10px] font-display tracking-wider text-muted-foreground px-3 py-2">SENT</th>
+                    <th className="text-center text-[10px] font-display tracking-wider text-muted-foreground px-3 py-2">CLICKED</th>
+                    <th className="text-center text-[10px] font-display tracking-wider text-muted-foreground px-3 py-2">CREDS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gophish.campaigns.slice(0, 5).map((campaign) => (
+                    <tr key={campaign.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                      <td className="px-3 py-2">
+                        <Link href={`/campaigns/${campaign.id}`} className="text-xs font-medium hover:text-emerald-500 transition-colors">
+                          {campaign.name}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`px-1.5 py-0.5 text-[9px] font-display tracking-wider ${
+                          campaign.status === 'In progress' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                          campaign.status === 'Completed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                          'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                        }`}>
+                          {campaign.status?.toUpperCase() || 'UNKNOWN'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-center text-xs">{campaign.stats?.sent || 0}</td>
+                      <td className="px-3 py-2 text-center text-xs text-yellow-400">{campaign.stats?.clicked || 0}</td>
+                      <td className="px-3 py-2 text-center text-xs text-red-400">{campaign.stats?.submitted_data || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CollapsibleSection>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* THREAT AWARENESS — Collapsible                                 */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="THREAT AWARENESS"
+          expanded={expandedSections.threats}
+          onToggle={() => toggleSection('threats')}
+          icon={<ShieldAlert className="w-4 h-4 text-red-500" />}
+          badge={<span className="text-xs text-muted-foreground">401 actors · 6.5K IOCs</span>}
+        >
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-card border border-red-500/30 p-3 text-center">
+              <div className="font-display text-2xl text-red-500">401</div>
+              <div className="text-[10px] tracking-widest text-muted-foreground">THREAT ACTORS</div>
+            </div>
+            <div className="bg-card border border-orange-500/30 p-3 text-center">
+              <div className="font-display text-2xl text-orange-500">19</div>
+              <div className="text-[10px] tracking-widest text-muted-foreground">CRITICAL</div>
+            </div>
+            <div className="bg-card border border-yellow-500/30 p-3 text-center">
+              <div className="font-display text-2xl text-yellow-500">6.5K</div>
+              <div className="text-[10px] tracking-widest text-muted-foreground">IOCs TRACKED</div>
+            </div>
+            <div className="bg-card border border-purple-500/30 p-3 text-center">
+              <div className="font-display text-2xl text-purple-500">180K</div>
+              <div className="text-[10px] tracking-widest text-muted-foreground">CISA KEV</div>
+            </div>
+          </div>
+          <div className="bg-card border border-border p-4">
+            <h3 className="font-display text-xs tracking-wider mb-3 text-red-400">TOP THREAT ACTORS</h3>
+            <div className="space-y-1.5">
+              {[
+                { actor: 'Volt Typhoon', country: 'China', targets: 'Critical Infrastructure', level: 'CRITICAL' },
+                { actor: 'Scattered Spider', country: 'Unknown', targets: 'Enterprise / Cloud', level: 'CRITICAL' },
+                { actor: 'LockBit', country: 'Russia', targets: 'All Sectors', level: 'CRITICAL' },
+                { actor: 'Lazarus Group', country: 'N. Korea', targets: 'Financial / Crypto', level: 'HIGH' },
+                { actor: 'MuddyWater', country: 'Iran', targets: 'Government / Energy', level: 'HIGH' },
+              ].map((t) => (
+                <div key={t.actor} className="flex items-center justify-between py-1 border-b border-border/30 last:border-0">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 ${t.level === 'CRITICAL' ? 'bg-red-500' : 'bg-orange-500'}`} />
+                    <span className="text-xs font-medium">{t.actor}</span>
+                    <span className="text-[10px] text-muted-foreground">({t.country})</span>
+                  </div>
+                  <span className={`text-[9px] font-display tracking-wider px-1.5 py-0.5 border ${t.level === 'CRITICAL' ? 'border-red-500/30 text-red-400 bg-red-500/10' : 'border-orange-500/30 text-orange-400 bg-orange-500/10'}`}>{t.level}</span>
+                </div>
+              ))}
+            </div>
+            <Link href="/threat-actors">
+              <Button variant="ghost" size="sm" className="w-full mt-3 font-display tracking-wider text-xs text-red-400 hover:text-red-300">
+                VIEW ALL 401 THREAT ACTORS <ChevronRight className="w-3 h-3 ml-1" />
+              </Button>
+            </Link>
+          </div>
+        </CollapsibleSection>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* MORE TOOLS — Grid of remaining features                        */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <section>
+          <h2 className="font-display text-lg tracking-wider mb-3">MORE TOOLS</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <ToolCard icon={<Scan />} label="Domain Recon" desc="DNS, WHOIS, SPF/DKIM" href="/domain-recon" />
+            <ToolCard icon={<Shield />} label="Rule Validator" desc="Sigma/YARA/Suricata" href="/rule-validator" />
+            <ToolCard icon={<BarChart3 />} label="Coverage Matrix" desc="Detection gap analysis" href="/detection-coverage" />
+            <ToolCard icon={<Layers />} label="Abilities Library" desc="6,340+ attack abilities" href="/abilities" />
+            <ToolCard icon={<FileText />} label="Template Library" desc="26 phishing templates" href="/template-library" />
+            <ToolCard icon={<Globe />} label="Page Builder" desc="Visual landing pages" href="/landing-page-builder" />
+            <ToolCard icon={<ShieldAlert />} label="IOC Feeds" desc="CISA KEV, OTX, abuse.ch" href="/ioc-feeds" />
+            <ToolCard icon={<Terminal />} label="Offensive Tools" desc="Kali + Metasploit catalog" href="/offensive-tools" />
+          </div>
+        </section>
+
       </div>
-      <Button
-        onClick={handleSearch}
-        className="font-display tracking-wider bg-primary hover:bg-primary/90 whitespace-nowrap"
-      >
-        <Scan className="w-4 h-4 mr-2" />
-        SCAN DOMAIN
-      </Button>
+    </AppShell>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* Helper Components                                              */
+/* ═══════════════════════════════════════════════════════════════ */
+
+function CollapsibleSection({ title, expanded, onToggle, children, icon, badge }: {
+  title: string; expanded: boolean; onToggle: () => void; children: React.ReactNode;
+  icon?: React.ReactNode; badge?: React.ReactNode;
+}) {
+  return (
+    <section>
+      <button onClick={onToggle} className="w-full flex items-center justify-between py-2 group">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h2 className="font-display text-lg tracking-wider">{title}</h2>
+          {!expanded && badge && <span className="ml-2">{badge}</span>}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && <div className="mt-2">{children}</div>}
+    </section>
+  );
+}
+
+function StatusDot({ status, label }: { status: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-green-500' : status === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+      <span className="text-[10px] font-display tracking-wider text-muted-foreground">{label}</span>
     </div>
+  );
+}
+
+function QuickAccessCard({ icon, label, desc, href, color }: { icon: React.ReactNode; label: string; desc: string; href: string; color: string }) {
+  return (
+    <Link href={href}>
+      <div className={`bg-card border-2 ${color} p-3 hover:bg-secondary/30 transition-colors cursor-pointer text-center`}>
+        <div className={`flex justify-center mb-1.5 ${color.split(' ')[0]}`}>{icon}</div>
+        <div className="font-display text-xs tracking-wider">{label}</div>
+        <div className="text-[10px] text-muted-foreground mt-0.5">{desc}</div>
+      </div>
+    </Link>
+  );
+}
+
+function MiniStat({ value, label, color, href }: { value: string; label: string; color: string; href?: string }) {
+  const content = (
+    <div className="bg-card border border-border p-2.5 text-center hover:border-primary/30 transition-colors">
+      <div className={`font-display text-xl ${color}`}>{value}</div>
+      <div className="text-[9px] tracking-widest text-muted-foreground">{label}</div>
+    </div>
+  );
+  if (href) return <Link href={href} className="block">{content}</Link>;
+  return content;
+}
+
+function MetricCard({ icon, value, label, subtext, color = "text-white" }: { icon: React.ReactNode; value: number; label: string; subtext?: string; color?: string }) {
+  return (
+    <div className="bg-card border border-border p-3 text-center">
+      <div className={`flex justify-center mb-1 ${color}`}>{icon}</div>
+      <div className={`font-display text-2xl ${color}`}>{value}</div>
+      <div className="text-[9px] tracking-widest text-muted-foreground">{label}</div>
+      {subtext && <div className={`text-xs mt-0.5 ${color} opacity-70`}>{subtext}</div>}
+    </div>
+  );
+}
+
+function ToolCard({ icon, label, desc, href }: { icon: React.ReactNode; label: string; desc: string; href: string }) {
+  return (
+    <Link href={href}>
+      <div className="bg-card border border-border p-3 hover:border-primary/40 transition-colors cursor-pointer flex items-center gap-3">
+        <div className="text-muted-foreground shrink-0">{icon}</div>
+        <div>
+          <div className="text-xs font-medium">{label}</div>
+          <div className="text-[10px] text-muted-foreground">{desc}</div>
+        </div>
+      </div>
+    </Link>
   );
 }

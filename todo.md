@@ -1199,3 +1199,31 @@
 - [x] Sharpen hero, WHO BENEFITS, and CAPABILITIES copy to emphasize attack-side identity
 - [x] Updated all test files to match new author values
 - [x] 272 tests passing after all changes
+
+## Dashboard Redesign - Start Engagement Front & Center
+- [x] Build prominent "Start Engagement" card on dashboard with domain + company input
+- [x] Wire domain input to kick off OSINT/BIA pipeline (domain intel scan)
+- [x] Add company name, industry sector, client type, and critical functions fields
+- [x] Show pipeline progress after submission (OSINT → BIA → Threat Matching → Campaign Gen)
+- [x] Surface QUICK ACCESS cards for 6 most important features
+- [x] Add RECENT SCANS section with VIEW RESULTS and CURATE links
+- [x] Add LIVE STATS section with Caldera + GoPhish metrics
+- [x] Dashboard is first thing users see after login
+- [x] Streamlined layout: Start Engagement → Recent Scans → Quick Access → Live Stats
+
+## OSINT Discovery Result Inspection & Curation
+- [x] Build DiscoveryCuration.tsx inspection UI for reviewing domain intel results
+- [x] Show each discovered asset with hostname, URL, technologies, confidence, risk band
+- [x] Allow users to exclude findings with predefined reasons (Wrong Company, Outdated, Duplicate, Irrelevant, False Positive, Custom)
+- [x] Allow users to re-include previously excluded findings
+- [x] Persist exclusion decisions in DB (excluded + exclusionReason columns on discovered_assets)
+- [x] Bulk exclude/include with multi-select checkboxes
+- [x] Filter by risk band, asset type, confidence level, and search query
+- [x] Toggle between ACTIVE and EXCLUDED views
+- [x] Stats bar showing included/excluded/critical/high/medium/low counts
+- [x] "Review & Curate Findings" button on DomainIntelResults page header
+- [x] CURATE link on Dashboard recent scan cards
+- [x] Route added at /domain-intel/curate/:scanId
+- [x] Backend endpoints: excludeAsset, includeAsset, bulkExclude, bulkInclude
+- [x] 24 vitest tests passing for curation logic
+- [x] 296 total tests passing

@@ -507,6 +507,10 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
   // Confidence
   confidence: int("confidence"), // 0-100
   confidenceExplanation: json("confidenceExplanation"),
+  // Curation / exclusion
+  excluded: boolean("excluded").default(false).notNull(), // false = included, true = excluded by user
+  exclusionReason: varchar("exclusionReason", { length: 512 }), // why the user excluded this asset
+  excludedAt: timestamp("excludedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

@@ -3290,6 +3290,38 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         return db.getDiscoveredAssetsByScan(input.scanId);
       }),
 
+    // Exclude a discovered asset (mark as incorrect/irrelevant)
+    excludeAsset: protectedProcedure
+      .input(z.object({ assetId: z.number(), reason: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        await db.excludeDiscoveredAsset(input.assetId, input.reason);
+        return { success: true };
+      }),
+
+    // Re-include a previously excluded asset
+    includeAsset: protectedProcedure
+      .input(z.object({ assetId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.includeDiscoveredAsset(input.assetId);
+        return { success: true };
+      }),
+
+    // Bulk exclude assets
+    bulkExcludeAssets: protectedProcedure
+      .input(z.object({ assetIds: z.array(z.number()), reason: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        await db.bulkExcludeDiscoveredAssets(input.assetIds, input.reason);
+        return { success: true, count: input.assetIds.length };
+      }),
+
+    // Bulk re-include assets
+    bulkIncludeAssets: protectedProcedure
+      .input(z.object({ assetIds: z.array(z.number()) }))
+      .mutation(async ({ input }) => {
+        await db.bulkIncludeDiscoveredAssets(input.assetIds);
+        return { success: true, count: input.assetIds.length };
+      }),
+
      // Get scans for an engagement
     byEngagement: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
