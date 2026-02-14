@@ -10,6 +10,7 @@
  */
 
 import { invokeLLM } from "./_core/llm";
+import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -131,6 +132,15 @@ export interface AssetAnalysis {
   confidence: number;
 }
 
+export interface KevEnrichment {
+  matches: KevMatch[];
+  riskBoost: number;
+  ransomwareExposure: boolean;
+  criticalKevCount: number;
+  summary: string;
+  chainSteps: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>;
+}
+
 export interface PipelineResult {
   orgProfile: OrgProfile;
   assets: AssetAnalysis[];
@@ -141,6 +151,7 @@ export interface PipelineResult {
   threatModelSummary: string;
   totalAssets: number;
   totalFindings: number;
+  kevEnrichment?: KevEnrichment;
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────
@@ -502,7 +513,8 @@ function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
 
 export async function generateCampaignRecommendations(
   analyses: AssetAnalysis[],
-  org: OrgProfile
+  org: OrgProfile,
+  kevEnrichment?: KevEnrichment
 ): Promise<CampaignRecommendation[]> {
   // Sort by risk score descending
   const sorted = [...analyses].sort((a, b) => b.hybridRiskScore - a.hybridRiskScore);
@@ -542,7 +554,13 @@ Campaign types to consider:
 - Lateral movement chains based on discovered internal assets
 - Supply chain attack simulations for ${org.clientType} environments
 - Purple team validation of specific posture findings
+${kevEnrichment && kevEnrichment.matches.length > 0 ? `
+CISA KEV ALERT: The following actively exploited vulnerabilities were found in the target's technology stack:
+${kevEnrichment.matches.slice(0, 20).map(m => `- ${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? " [KNOWN RANSOMWARE]" : ""}`).join("\n")}
 
+You MUST incorporate these KEV vulnerabilities into your campaign designs. Prioritize campaigns that exploit these known-exploited CVEs. Include specific exploitation steps for KEV-listed vulnerabilities in attack chains.
+${kevEnrichment.ransomwareExposure ? "WARNING: Some KEV entries are linked to known ransomware campaigns. Design campaigns that simulate ransomware attack paths." : ""}
+` : ""}
 For each campaign, provide:
 {
   "id": "camp-001",
@@ -677,17 +695,72 @@ export async function runDomainIntelPipeline(org: OrgProfile): Promise<PipelineR
   // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk)
   const analyses = await analyzeAssets(rawAssets, org);
 
-  // Stage 4: Generate campaign recommendations
-  const campaigns = await generateCampaignRecommendations(analyses, org);
+  // Stage 3.5: CISA KEV Enrichment
+  let kevEnrichment: KevEnrichment | undefined;
+  try {
+    const allTechnologies = analyses.flatMap(a => a.asset.technologies || []);
+    const uniqueTechs = Array.from(new Set(allTechnologies.filter(Boolean)));
+    if (uniqueTechs.length > 0) {
+      const kevCatalog = await fetchKevCatalog();
+      const kevMatches = matchTechnologiesAgainstKev(uniqueTechs, kevCatalog);
+      if (kevMatches.length > 0) {
+        const boost = calculateKevRiskBoost(kevMatches);
+        const chainSteps = getKevChainSteps(kevMatches);
+        kevEnrichment = {
+          matches: kevMatches,
+          riskBoost: boost.riskBoost,
+          ransomwareExposure: boost.ransomwareExposure,
+          criticalKevCount: boost.criticalKevCount,
+          summary: boost.summary,
+          chainSteps,
+        };
+        // Boost risk scores for assets with KEV-matched technologies
+        analyses.forEach(a => {
+          const assetTechs = (a.asset.technologies || []).map(t => t.toLowerCase());
+          const assetKevMatches = kevMatches.filter(m =>
+            assetTechs.some(t => t.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(t.toLowerCase()))
+          );
+          if (assetKevMatches.length > 0) {
+            const assetBoost = Math.min(assetKevMatches.reduce((s, m) => s + m.severityBoost, 0), 30);
+            a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
+            a.riskBand = a.hybridRiskScore >= 85 ? "critical" : a.hybridRiskScore >= 70 ? "high" : a.hybridRiskScore >= 40 ? "medium" : "low";
+            a.suggestedTier = a.hybridRiskScore >= 85 ? "tier0_critical" : a.hybridRiskScore >= 70 ? "tier1_high" : a.hybridRiskScore >= 40 ? "tier2_medium" : "tier3_low";
+            // Add KEV posture findings
+            assetKevMatches.forEach(m => {
+              a.postureFindings.push({
+                id: `kev-${m.cveID}`,
+                assetRef: a.asset.assetId,
+                category: "CISA KEV",
+                title: `${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? " [RANSOMWARE]" : ""}`,
+                severity: m.knownRansomware ? 10 : 9,
+                likelihood: 9, // KEV = actively exploited = very high likelihood
+                confidence: 0.95,
+                recommendedControls: [m.requiredAction, `Patch ${m.product} immediately`, "Monitor for exploitation indicators"],
+              });
+            });
+          }
+        });
+        console.log(`[DomainIntel] KEV enrichment: ${kevMatches.length} matches, ${chainSteps.length} chain steps, boost=${boost.riskBoost}`);
+      }
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] KEV enrichment failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 4: Generate campaign recommendations (now KEV-enriched)
+  const campaigns = await generateCampaignRecommendations(analyses, org, kevEnrichment);
 
   // Stage 5: Generate summaries
   const summaries = await generateSummaries(analyses, campaigns, org);
 
-  // Compute overall risk
+  // Compute overall risk (with KEV boost)
   const riskScores = analyses.map(a => a.hybridRiskScore);
-  const overallRisk = riskScores.length > 0
+  let overallRisk = riskScores.length > 0
     ? Math.round(riskScores.reduce((s, v) => s + v, 0) / riskScores.length)
     : 0;
+  if (kevEnrichment) {
+    overallRisk = Math.min(100, overallRisk + Math.round(kevEnrichment.riskBoost / 3));
+  }
   const overallBand = overallRisk >= 85 ? "critical" : overallRisk >= 70 ? "high" : overallRisk >= 40 ? "medium" : "low";
   const totalFindings = analyses.reduce((s, a) => s + a.postureFindings.length, 0);
 
@@ -701,5 +774,6 @@ export async function runDomainIntelPipeline(org: OrgProfile): Promise<PipelineR
     threatModelSummary: summaries.threatModelSummary,
     totalAssets: analyses.length,
     totalFindings,
+    kevEnrichment,
   };
 }

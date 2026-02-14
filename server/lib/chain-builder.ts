@@ -140,6 +140,7 @@ export async function buildOperationChain(params: {
   campaignRecommendation?: CampaignRecommendation;
   threatActorMatches?: ThreatActorMatch[];
   findings?: any[];
+  kevSteps?: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>;
   allAbilities: CalderaAbility[];
   calderaBaseUrl: string;
   calderaApiKey: string;
@@ -149,6 +150,7 @@ export async function buildOperationChain(params: {
     campaignRecommendation,
     threatActorMatches,
     findings,
+    kevSteps,
     allAbilities,
   } = params;
 
@@ -156,7 +158,8 @@ export async function buildOperationChain(params: {
   const techniqueSources = collectTechniques(
     campaignRecommendation,
     threatActorMatches,
-    findings
+    findings,
+    kevSteps
   );
 
   // Step 2: Build ability index by technique
@@ -221,7 +224,7 @@ export async function buildOperationChain(params: {
 
 interface TechniqueSource {
   techniqueId: string;
-  source: "campaign" | "actor" | "finding" | "enrichment";
+  source: "campaign" | "actor" | "finding" | "enrichment" | "kev";
   priority: number; // 1 = highest
   phase?: string;
   context?: string;
@@ -230,7 +233,8 @@ interface TechniqueSource {
 function collectTechniques(
   campaign?: CampaignRecommendation,
   actors?: ThreatActorMatch[],
-  findings?: any[]
+  findings?: any[],
+  kevSteps?: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>
 ): TechniqueSource[] {
   const techniques: TechniqueSource[] = [];
 
@@ -283,6 +287,18 @@ function collectTechniques(
           });
         });
       }
+    });
+  }
+
+  // From CISA KEV (highest priority - actively exploited in the wild)
+  if (kevSteps) {
+    kevSteps.forEach(step => {
+      techniques.push({
+        techniqueId: step.techniqueId,
+        source: "kev",
+        priority: 1, // Same priority as campaign - these are actively exploited
+        context: step.context,
+      });
     });
   }
 
@@ -690,6 +706,7 @@ export async function autoBuildAllChains(params: {
   const campaigns = scanData?.pipelineOutput?.campaignRecommendations || [];
   const actorMatches = scanData?.pipelineOutput?.threatActorMatches?.topMatches || [];
   const findings = scanData?.findings || [];
+  const kevChainSteps = scanData?.pipelineOutput?.kevEnrichment?.chainSteps || [];
 
   for (const op of pausedOps) {
     try {
@@ -705,6 +722,7 @@ export async function autoBuildAllChains(params: {
         },
         threatActorMatches: actorMatches,
         findings,
+        kevSteps: kevChainSteps,
         allAbilities,
         calderaBaseUrl,
         calderaApiKey,

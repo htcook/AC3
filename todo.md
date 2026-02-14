@@ -1227,3 +1227,35 @@
 - [x] Backend endpoints: excludeAsset, includeAsset, bulkExclude, bulkInclude
 - [x] 24 vitest tests passing for curation logic
 - [x] 296 total tests passing
+
+## CISA KEV Integration
+- [x] Build CISA KEV backend service (fetch catalog, cache in DB, auto-refresh)
+- [x] Create kevEntries DB table for persistent KEV storage
+- [x] Fetch and parse CISA KEV JSON catalog (known_exploited_vulnerabilities.json)
+- [x] Schedule daily KEV catalog refresh
+- [x] Integrate KEV into domain intel pipeline (match discovered CVEs against KEV)
+- [x] Flag KEV-listed vulns in domain analysis results with severity boost
+- [x] Integrate KEV into APT ability mapping (prioritize KEV-exploited techniques)
+- [x] Integrate KEV into attack chain builder (add KEV-based steps)
+- [x] Surface KEV matches in campaign recommendations
+- [x] Build KEV dashboard/browser UI page
+- [x] Show KEV badges on DomainIntelResults vulnerability findings
+- [x] Show KEV indicators on ThreatActorDetail pages
+- [x] Add KEV stats to Dashboard
+- [x] Write vitest tests for KEV service
+
+## 0-Day & Exploit Feed Integration
+- [x] Build unified vulnerability feed service (server/lib/vuln-feeds.ts)
+- [x] Integrate Google Project Zero 0-day in-the-wild CSV feed
+- [x] Integrate NVD/NIST CVE API 2.0 for CVSS enrichment
+- [x] Integrate CIRCL CVE API for fast recent CVE lookup
+- [x] Integrate Exploit-DB CSV for weaponization indicators
+- [x] In-memory caching with configurable TTL for all feeds
+- [x] Technology-to-CVE matching for discovered assets
+- [x] Exploit availability indicator (has public exploit vs theoretical)
+- [x] Wire tRPC endpoints for unified vuln feeds (getVulnFeedStats, getRecentZeroDays, getWeaponizedCves, searchVulnerabilities, matchTechVulns, enrichCve)
+- [x] Build combined KEV + 0-day Vulnerability Intelligence Dashboard UI
+- [x] Show 0-day timeline, exploit availability, and severity breakdown
+- [x] Add route /vuln-intel for vulnerability feeds dashboard
+- [x] Surface vulnerability matches in Domain Intel Results (Vulns tab)
+- [x] 39 vitest tests for vuln feed service (CSV parser, severity scoring, risk calculation, filter logic, tech matching, sort ordering)

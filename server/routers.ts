@@ -740,12 +740,14 @@ export const appRouter = router({
         }
         const campaigns = scanData?.campaignRecommendations || [];
         const actorMatches = scanData?.threatActorMatches?.topMatches || [];
+        const kevChainSteps = scanData?.kevEnrichment?.chainSteps || [];
         const campaign = input.campaignIndex !== undefined ? campaigns[input.campaignIndex] : undefined;
         const result = await buildOperationChain({
           operationId: input.operationId,
           scanId: input.scanId,
           campaignRecommendation: campaign,
           threatActorMatches: actorMatches,
+          kevSteps: kevChainSteps,
           allAbilities: abilities || [],
           calderaBaseUrl: CALDERA_BASE_URL,
           calderaApiKey: CALDERA_API_KEY,
@@ -826,11 +828,13 @@ export const appRouter = router({
             return { success: true, method: 'llm' as const, adversaryName, totalAbilities: llmResult.selectedAbilities.length, reasoning: llmResult.reasoning, attackNarrative: llmResult.attackNarrative };
           }
         }
+        const kevChainSteps2 = (scanData as any)?.kevEnrichment?.chainSteps || [];
         const result = await buildOperationChain({
           operationId: input.operationId,
           scanId: input.scanId,
           campaignRecommendation: campaign,
           threatActorMatches: actorMatches,
+          kevSteps: kevChainSteps2,
           allAbilities: abilities || [],
           calderaBaseUrl: CALDERA_BASE_URL,
           calderaApiKey: CALDERA_API_KEY,
@@ -1216,6 +1220,140 @@ export const appRouter = router({
           })
         );
         return { ...genResult, rules: validated };
+      }),
+
+    // ─── CISA KEV Endpoints ───
+    getKevCatalog: protectedProcedure
+      .query(async () => {
+        const { fetchKevCatalog, getKevStats } = await import('./lib/kev-service');
+        const catalog = await fetchKevCatalog();
+        const stats = getKevStats(catalog);
+        const vulns = catalog.vulnerabilities || [];
+        return {
+          totalVulnerabilities: vulns.length,
+          catalogVersion: catalog.catalogVersion,
+          dateReleased: catalog.dateReleased,
+          vulnerabilities: vulns.slice(0, 500),
+          ransomwareCount: stats.ransomwareLinked,
+          recentlyAdded: stats.recentlyAdded,
+          topVendors: stats.topVendors,
+          topProducts: stats.topProducts,
+        };
+      }),
+
+    searchKev: protectedProcedure
+      .input(z.object({
+        query: z.string().optional(),
+        vendor: z.string().optional(),
+        product: z.string().optional(),
+        ransomwareOnly: z.boolean().optional(),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { fetchKevCatalog } = await import('./lib/kev-service');
+        const catalog = await fetchKevCatalog();
+        let results = catalog.vulnerabilities || [];
+        if (input.query) {
+          const q = input.query.toLowerCase();
+          results = results.filter((v) =>
+            v.cveID?.toLowerCase().includes(q) ||
+            v.vulnerabilityName?.toLowerCase().includes(q) ||
+            v.vendorProject?.toLowerCase().includes(q) ||
+            v.product?.toLowerCase().includes(q) ||
+            v.shortDescription?.toLowerCase().includes(q)
+          );
+        }
+        if (input.vendor) {
+          results = results.filter((v) => v.vendorProject?.toLowerCase().includes(input.vendor!.toLowerCase()));
+        }
+        if (input.product) {
+          results = results.filter((v) => v.product?.toLowerCase().includes(input.product!.toLowerCase()));
+        }
+        if (input.ransomwareOnly) {
+          results = results.filter((v) => v.knownRansomwareCampaignUse === 'Known');
+        }
+        return { total: results.length, results: results.slice(0, input.limit || 100) };
+      }),
+
+    matchKevToScan: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps } = await import('./lib/kev-service');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        const pipeline = scan.pipelineOutput as any;
+        const allTechs = (pipeline?.assets || []).flatMap((a: any) => a?.asset?.technologies || []);
+        const uniqueTechs = Array.from(new Set(allTechs.filter(Boolean))) as string[];
+        const catalog = await fetchKevCatalog();
+        const matches = matchTechnologiesAgainstKev(uniqueTechs, catalog);
+        const boost = calculateKevRiskBoost(matches);
+        const chainSteps = getKevChainSteps(matches);
+        return {
+          scanId: input.scanId,
+          domain: scan.primaryDomain,
+          technologiesScanned: uniqueTechs.length,
+          kevMatches: matches,
+          riskBoost: boost,
+          chainSteps,
+        };
+      }),
+
+    // ─── Unified Vulnerability Feed Endpoints ───
+    getVulnFeedStats: protectedProcedure
+      .query(async () => {
+        const { getVulnFeedStats } = await import('./lib/vuln-feeds');
+        return getVulnFeedStats();
+      }),
+
+    getRecentZeroDays: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const { getRecentZeroDays } = await import('./lib/vuln-feeds');
+        return getRecentZeroDays(input?.limit || 50);
+      }),
+
+    getWeaponizedCves: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const { getWeaponizedCves } = await import('./lib/vuln-feeds');
+        return getWeaponizedCves(input?.limit || 50);
+      }),
+
+    searchVulnerabilities: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        severity: z.string().optional(),
+        source: z.enum(['cisa_kev', 'project_zero', 'nvd', 'circl', 'exploit_db']).optional(),
+        exploitOnly: z.boolean().optional(),
+        kevOnly: z.boolean().optional(),
+        zeroDayOnly: z.boolean().optional(),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { searchVulnerabilities } = await import('./lib/vuln-feeds');
+        const { query, limit, ...filters } = input;
+        return searchVulnerabilities(query, filters, limit || 100);
+      }),
+
+    matchTechVulns: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { matchTechnologiesAgainstAllFeeds } = await import('./lib/vuln-feeds');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new Error('Scan not found');
+        const output = scan.pipelineOutput as any;
+        const techs = new Set<string>();
+        (output?.assets || []).forEach((a: any) => {
+          (a.technologies || []).forEach((t: string) => techs.add(t));
+        });
+        return matchTechnologiesAgainstAllFeeds(Array.from(techs));
+      }),
+
+    enrichCve: protectedProcedure
+      .input(z.object({ cveId: z.string() }))
+      .query(async ({ input }) => {
+        const { enrichCve } = await import('./lib/vuln-feeds');
+        return enrichCve(input.cveId);
       }),
   }),
 
