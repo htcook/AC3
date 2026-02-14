@@ -971,3 +971,23 @@
 - [x] Run GitHub TTP ingestion (ATT&CK STIX + Atomic Red Team + LOLBAS + Metasploit) — 691 techniques, 181 groups, 785 software, 328 Atomic tests, 451 LOLBAS, 4368 Metasploit modules, 67 Kali tools
 - [x] Run Caldera adversary sync — 190 unique adversaries synced (from 495 total), 6,340 abilities mapped
 - [x] Run Domain Intel scan on AceofCloud.com — Risk 89/100 (critical), 30 assets, 76 findings, 20 threat actors matched, 4 campaign recommendations
+
+## Enrich Matched Threat Actors
+- [x] Run LLM enrichment on 20 AceofCloud-matched threat actors (20/20 enriched)
+- [x] Generate deep TTP analysis per actor (execution methods, tools, IOC patterns)
+- [x] Generate Sigma detection rules per actor
+- [x] Generate YARA rules per actor
+- [x] Generate Suricata/Splunk/KQL rules per actor
+- [x] Store enrichment results in TTP knowledge base
+
+## Build Identity Provider Compromise Campaign
+- [x] Create Caldera operation from "Identity Provider Compromise via Phishing" recommendation
+- [x] Configure GoPhish phishing campaign targeting SSO/OWA infrastructure
+- [x] Link campaign to AceofCloud engagement (Engagement ID: 90089)
+- [x] Set up adversary profile with matched threat actor TTPs (aceofcloud-idp-compromise-2026)
+- [x] Generate phishing templates for SSO/OWA credential harvesting (APT29 SSO + Scattered Spider OWA)
+
+## Recurring Caldera Sync
+- [x] Add Caldera sync to server cron schedule (daily at 07:00 UTC)
+- [x] Configure daily sync interval
+- [x] Add sync status to dashboard

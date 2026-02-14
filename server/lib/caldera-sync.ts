@@ -8,6 +8,7 @@
  * Optimized for batch processing of 495+ adversaries with 1,940+ abilities.
  */
 
+import cron from "node-cron";
 import * as db from "../db";
 import type { InsertThreatActor } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
@@ -245,4 +246,27 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
     result.errors.push(`Fatal: ${err.message}`);
     return result;
   }
+}
+
+/**
+ * Initialize the recurring Caldera sync cron job.
+ * Runs daily at 07:00 UTC (1 hour after IOC sync at 06:00).
+ */
+export function initCalderaSyncSchedule() {
+  console.log("[Caldera Sync] Scheduling daily sync at 07:00 UTC");
+  
+  const task = cron.schedule("0 7 * * *", async () => {
+    console.log(`[Caldera Sync] Scheduled sync starting at ${new Date().toISOString()}`);
+    try {
+      const result = await syncCalderaAdversaries();
+      console.log(`[Caldera Sync] Scheduled sync complete: ${result.created} synced, ${result.skipped} skipped, ${result.abilitiesSynced} abilities`);
+    } catch (err: any) {
+      console.error("[Caldera Sync] Scheduled sync failed:", err.message);
+    }
+  }, {
+    timezone: "UTC",
+  });
+
+  task.start();
+  console.log("[Caldera Sync] Daily sync cron job active");
 }

@@ -180,11 +180,18 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
 
-    // Initialize IOC Feed auto-sync cron job
+    // Initialize IOC Feed auto-sync cron job (daily at 06:00 UTC)
     import("../lib/ioc-sync").then(({ initIocSyncSchedule }) => {
       initIocSyncSchedule();
     }).catch((err) => {
       console.warn("[IOC Sync] Failed to initialize scheduled sync:", err);
+    });
+
+    // Initialize Caldera adversary sync cron job (daily at 07:00 UTC)
+    import("../lib/caldera-sync").then(({ initCalderaSyncSchedule }) => {
+      initCalderaSyncSchedule();
+    }).catch((err) => {
+      console.warn("[Caldera Sync] Failed to initialize scheduled sync:", err);
     });
   });
 }
