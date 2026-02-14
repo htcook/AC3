@@ -1159,3 +1159,14 @@
 - [x] Preview/Source toggle
 - [x] Starter template blocks per theme
 - [x] Add route and PAGE BUILDER nav link in AppShell
+## Homepage Rewrite - Accurate Capability Showcase
+- [x] Audit all platform pages (45), routers (24), and features
+- [x] Rewrite homepage to reflect actual platform capabilities (6 pillars, 45 modules)
+- [x] Include live stats/analytics feel (animated counters, platform status panel)
+- [x] Show all major feature areas with accurate descriptions (5 operational domains)
+- [x] Maintain AceofCloud branding with Harrison Cook attribution
+- [x] Brand platform as "Ace C3" on homepage
+- [x] Platform Updates popup with recent additions and close button
+- [x] Anchor nav links (Capabilities, Operations, Workflow, About)
+- [x] 7-phase engagement workflow section
+- [x] Architecture section with 4 server pillars
