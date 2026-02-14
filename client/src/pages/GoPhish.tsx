@@ -11,6 +11,7 @@ import {
   Shield, Globe2, Briefcase, Rocket, Filter, Download
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import TemplatePreview, { TemplatePreviewThumbnail, TemplatePreviewModal } from "@/components/TemplatePreview";
 
 import AppShell from "@/components/AppShell";
 const NAV_ITEMS = [
@@ -415,6 +416,7 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', subject: '', html: '', text: '' });
   const [syncing, setSyncing] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
   const syncTemplates = trpc.gophishProxy.syncTemplates.useMutation();
 
   const handleSave = () => {
@@ -505,25 +507,46 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
       {Array.isArray(templates) && templates.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {templates.map((t: any) => (
-            <div key={t.id} className="bg-card border-2 border-border hover:border-blue-500 p-4 transition-colors group">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Mail className="w-4 h-4 text-blue-500 shrink-0" />
-                  <h3 className="font-display text-sm tracking-wider truncate">{t.name}</h3>
+            <div key={t.id} className="bg-card border-2 border-border hover:border-blue-500 transition-colors group overflow-hidden">
+              {/* Thumbnail preview */}
+              {t.html && (
+                <TemplatePreviewThumbnail
+                  html={t.html}
+                  className="w-full h-[100px] rounded-none border-0 border-b border-border"
+                  onClick={() => setPreviewTemplate(t)}
+                />
+              )}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Mail className="w-4 h-4 text-blue-500 shrink-0" />
+                    <h3 className="font-display text-sm tracking-wider truncate">{t.name}</h3>
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Preview" onClick={() => setPreviewTemplate(t)}><Eye className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(t)}><Edit className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(t.id)}><Trash2 className="w-3 h-3" /></Button>
+                  </div>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(t)}><Edit className="w-3 h-3" /></Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(t.id)}><Trash2 className="w-3 h-3" /></Button>
-                </div>
+                <p className="text-xs text-muted-foreground mb-1">Subject: {t.subject || 'N/A'}</p>
+                <p className="text-xs text-muted-foreground">Modified: {new Date(t.modified_date).toLocaleDateString()}</p>
               </div>
-              <p className="text-xs text-muted-foreground mb-1">Subject: {t.subject || 'N/A'}</p>
-              <p className="text-xs text-muted-foreground">Modified: {new Date(t.modified_date).toLocaleDateString()}</p>
-              {t.html && <div className="mt-2 p-2 bg-background/50 border border-border rounded text-[10px] text-muted-foreground max-h-20 overflow-hidden">{t.html.replace(/<[^>]*>/g, '').substring(0, 150)}...</div>}
             </div>
           ))}
         </div>
       ) : (
         <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Templates support GoPhish variables like {{.URL}} and {{.FirstName}}." />
+      )}
+
+      {/* Template Preview Modal */}
+      {previewTemplate && (
+        <TemplatePreviewModal
+          html={previewTemplate.html || ''}
+          title={previewTemplate.name}
+          subject={previewTemplate.subject}
+          type="email"
+          onClose={() => setPreviewTemplate(null)}
+        />
       )}
     </div>
   );
@@ -534,6 +557,7 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', html: '', capture_credentials: true, capture_passwords: true, redirect_url: '' });
+  const [previewPage, setPreviewPage] = useState<any>(null);
 
   const handleSave = () => {
     if (!form.name || !form.html) { toast.error("Name and HTML are required"); return; }
@@ -598,28 +622,50 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
       {Array.isArray(pages) && pages.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pages.map((p: any) => (
-            <div key={p.id} className="bg-card border-2 border-border hover:border-green-500 p-4 transition-colors group">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Globe className="w-4 h-4 text-green-500 shrink-0" />
-                  <h3 className="font-display text-sm tracking-wider truncate">{p.name}</h3>
+            <div key={p.id} className="bg-card border-2 border-border hover:border-green-500 transition-colors group overflow-hidden">
+              {/* Thumbnail preview */}
+              {p.html && (
+                <TemplatePreviewThumbnail
+                  html={p.html}
+                  type="landing-page"
+                  className="w-full h-[100px] rounded-none border-0 border-b border-border"
+                  onClick={() => setPreviewPage(p)}
+                />
+              )}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Globe className="w-4 h-4 text-green-500 shrink-0" />
+                    <h3 className="font-display text-sm tracking-wider truncate">{p.name}</h3>
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Preview" onClick={() => setPreviewPage(p)}><Eye className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(p)}><Edit className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(p.id)}><Trash2 className="w-3 h-3" /></Button>
+                  </div>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(p)}><Edit className="w-3 h-3" /></Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(p.id)}><Trash2 className="w-3 h-3" /></Button>
+                <div className="flex gap-2 mt-2">
+                  {p.capture_credentials && <span className="text-[10px] font-display tracking-wider bg-yellow-500/20 text-yellow-400 px-2 py-0.5">CAPTURES CREDS</span>}
+                  {p.capture_passwords && <span className="text-[10px] font-display tracking-wider bg-red-500/20 text-red-400 px-2 py-0.5">CAPTURES PASSWORDS</span>}
                 </div>
+                {p.redirect_url && <p className="text-xs text-muted-foreground mt-2">Redirect: {p.redirect_url}</p>}
+                <p className="text-xs text-muted-foreground mt-1">Modified: {new Date(p.modified_date).toLocaleDateString()}</p>
               </div>
-              <div className="flex gap-2 mt-2">
-                {p.capture_credentials && <span className="text-[10px] font-display tracking-wider bg-yellow-500/20 text-yellow-400 px-2 py-0.5">CAPTURES CREDS</span>}
-                {p.capture_passwords && <span className="text-[10px] font-display tracking-wider bg-red-500/20 text-red-400 px-2 py-0.5">CAPTURES PASSWORDS</span>}
-              </div>
-              {p.redirect_url && <p className="text-xs text-muted-foreground mt-2">Redirect: {p.redirect_url}</p>}
-              <p className="text-xs text-muted-foreground mt-1">Modified: {new Date(p.modified_date).toLocaleDateString()}</p>
             </div>
           ))}
         </div>
       ) : (
         <EmptyState icon={<Globe className="w-12 h-12 text-green-500/50" />} title="NO LANDING PAGES" description="Create landing pages with credential capture forms for phishing simulations." />
+      )}
+
+      {/* Landing Page Preview Modal */}
+      {previewPage && (
+        <TemplatePreviewModal
+          html={previewPage.html || ''}
+          title={previewPage.name}
+          type="landing-page"
+          onClose={() => setPreviewPage(null)}
+        />
       )}
     </div>
   );

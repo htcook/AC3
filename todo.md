@@ -1114,3 +1114,18 @@
 - [x] Add report generation UI (PostEngagementReport.tsx) with operation selection
 - [x] Add ENGAGEMENT REPORT nav link in AppShell
 - [x] 15 vitest tests passing for report generator
+
+## Email & Landing Page Template Review
+- [x] Review existing email templates - all 26 templates have complete HTML (DOCTYPE, styles, body, closing tags)
+- [x] Review existing landing page templates - all properly structured
+- [x] No incomplete or broken template designs found
+- [x] Add recipient preview mode (renders as recipient sees it with sample data substitution)
+- [x] Keep existing source code view alongside preview (Source Code tab)
+- [x] Add toggle between "Recipient View" and "Source Code" views
+- [x] Device frame selector (Desktop/Tablet/Mobile) for responsive preview
+- [x] Email header simulation (From/To/Subject) in recipient view
+- [x] Fullscreen mode, copy, download, open-in-new-tab actions
+- [x] Thumbnail previews on GoPhish template and landing page cards
+- [x] Preview modal on click for both email templates and landing pages
+- [x] Template Library expanded view now uses full TemplatePreview component
+- [x] 17 vitest tests passing for template variable substitution

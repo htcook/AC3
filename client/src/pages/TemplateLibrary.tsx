@@ -9,6 +9,7 @@ import {
   X, Check, ExternalLink, Tag, Layers, Zap, AlertTriangle
 } from "lucide-react";
 import { PHISHING_TEMPLATES, TEMPLATE_CATEGORIES, searchTemplates, getTemplatesByCategory, type PhishingTemplate, type TemplateCategory } from "@/data/phishing-templates";
+import TemplatePreview, { TemplatePreviewThumbnail, TemplatePreviewModal } from "@/components/TemplatePreview";
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   "it-helpdesk": <Monitor className="w-4 h-4" />,
@@ -55,6 +56,7 @@ export default function TemplateLibrary() {
   const [previewTemplate, setPreviewTemplate] = useState<PhishingTemplate | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<Record<string, "preview" | "source">>({});
 
   const filteredTemplates = useMemo(() => {
     let results = PHISHING_TEMPLATES;
@@ -300,21 +302,15 @@ export default function TemplateLibrary() {
                       </div>
                     </div>
 
-                    {/* Expanded Source Code */}
+                    {/* Expanded Preview/Source with Toggle */}
                     {isExpanded && (
-                      <div className="border-t border-white/5 bg-[#080b14]">
-                        <div className="flex items-center justify-between px-5 py-2 border-b border-white/5">
-                          <span className="text-xs text-gray-500 font-mono">HTML Source — {template.id}.html</span>
-                          <button
-                            onClick={() => copyToClipboard(template)}
-                            className="text-xs text-teal-400 hover:text-teal-300"
-                          >
-                            {copiedId === template.id ? "Copied!" : "Copy to clipboard"}
-                          </button>
-                        </div>
-                        <pre className="p-5 text-xs text-gray-400 font-mono overflow-x-auto max-h-[400px] overflow-y-auto leading-relaxed">
-                          {template.htmlContent}
-                        </pre>
+                      <div className="border-t border-white/5">
+                        <TemplatePreview
+                          html={template.htmlContent}
+                          name={template.name}
+                          subject={template.subjectLine}
+                          type="email"
+                        />
                       </div>
                     )}
                   </div>
@@ -360,52 +356,13 @@ export default function TemplateLibrary() {
 
       {/* Preview Modal */}
       {previewTemplate && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPreviewTemplate(null)}>
-          <div className="bg-[#0d1221] border border-white/10 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-              <div>
-                <h3 className="text-white font-semibold">{previewTemplate.name}</h3>
-                <p className="text-gray-500 text-xs mt-0.5">Subject: {previewTemplate.subjectLine}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => copyToClipboard(previewTemplate)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-500/10 text-teal-400 rounded-lg hover:bg-teal-500/20 transition-colors text-xs"
-                >
-                  {copiedId === previewTemplate.id ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy HTML</>}
-                </button>
-                <button
-                  onClick={() => downloadTemplate(previewTemplate)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-300 rounded-lg hover:bg-white/10 transition-colors text-xs"
-                >
-                  <Download className="w-3.5 h-3.5" /> Download
-                </button>
-                <button onClick={() => setPreviewTemplate(null)} className="text-gray-400 hover:text-white p-1">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
-              <div className="bg-white rounded-lg m-4">
-                <iframe
-                  srcDoc={previewTemplate.htmlContent
-                    .replace(/\{\{\.FirstName\}\}/g, "John")
-                    .replace(/\{\{\.LastName\}\}/g, "Smith")
-                    .replace(/\{\{\.Email\}\}/g, "john.smith@company.com")
-                    .replace(/\{\{\.URL\}\}/g, "#")
-                    .replace(/\{\{\.Tracker\}\}/g, "")
-                    .replace(/\{\{sender\}\}/g, "Sarah Johnson")
-                    .replace(/\{\{deadline\}\}/g, "February 14, 2025")
-                  }
-                  className="w-full border-0 rounded-lg"
-                  style={{ minHeight: "600px" }}
-                  sandbox="allow-same-origin"
-                  title="Email Preview"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <TemplatePreviewModal
+          html={previewTemplate.htmlContent}
+          title={previewTemplate.name}
+          subject={previewTemplate.subjectLine}
+          type="email"
+          onClose={() => setPreviewTemplate(null)}
+        />
       )}
     </AppShell>
   );
