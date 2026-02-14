@@ -1267,3 +1267,11 @@
 - [x] Add manual vuln feed sync trigger endpoint (vulnFeeds.triggerSync)
 - [x] Add getVulnFeedChainSteps helper to extract MITRE techniques from vuln matches
 - [x] Write vitest tests for chain builder vuln integration and cron job (50 tests total)
+
+## Bug Fixes
+- [x] Fix: Domain Intel pipeline scan on AceofCloud.com returns to blank search window instead of showing results
+- [x] Fix: 'Disconnected from server' error during pipeline execution (converted to async fire-and-forget with polling)
+- [x] Add getScanStatus polling endpoint for async pipeline progress tracking
+- [x] Add onProgress callback to runDomainIntelPipeline for real-time stage updates
+- [x] Frontend polls every 3s with progress bar and stage indicators
+- [x] Write vitest tests for async pipeline pattern (12 tests)

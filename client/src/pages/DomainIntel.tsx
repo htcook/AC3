@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import {
   Globe, Search, Shield, Target, ChevronRight, ChevronLeft, Plus, X,
   Loader2, CheckCircle2, AlertTriangle, Zap, Building2, Server, Cloud,
@@ -60,16 +61,56 @@ export default function DomainIntel() {
 
   // Pipeline state
   const [scanId, setScanId] = useState<number | null>(null);
+  const [pipelineStage, setPipelineStage] = useState(0);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startScan = trpc.domainIntel.startScan.useMutation({
     onSuccess: (data) => {
       setScanId(data.scanId);
-      setStep("complete");
+      setStep("running");
+      setPipelineStage(0);
+      setPipelineError(null);
     },
-    onError: () => {
+    onError: (err) => {
       setStep("review");
+      setPipelineError(err.message);
     },
   });
+
+  // Poll for scan status while running
+  const scanStatusQuery = trpc.domainIntel.getScanStatus.useQuery(
+    { scanId: scanId! },
+    {
+      enabled: step === "running" && scanId !== null,
+      refetchInterval: 3000, // Poll every 3 seconds
+    }
+  );
+
+  // React to scan status changes
+  useEffect(() => {
+    if (!scanStatusQuery.data || step !== "running") return;
+    const { status } = scanStatusQuery.data;
+
+    // Update pipeline stage indicator
+    const stageMap: Record<string, number> = {
+      discovering: 1,
+      analyzing: 2,
+      scoring: 3,
+      recommending: 4,
+      completed: 5,
+      failed: -1,
+    };
+    const stageNum = stageMap[status] ?? 0;
+    if (stageNum > 0) setPipelineStage(stageNum);
+
+    if (status === "completed") {
+      setStep("complete");
+    } else if (status === "failed") {
+      setPipelineError("Pipeline failed. Please try again.");
+      setStep("review");
+    }
+  }, [scanStatusQuery.data, step]);
 
   // Past scans
   const scansQuery = trpc.domainIntel.listScans.useQuery();
@@ -99,7 +140,8 @@ export default function DomainIntel() {
   };
 
   const handleStartScan = () => {
-    setStep("running");
+    setPipelineError(null);
+    setPipelineStage(0);
     startScan.mutate({
       primaryDomain,
       additionalDomains,
@@ -420,12 +462,12 @@ export default function DomainIntel() {
             </CardContent>
           </Card>
 
-          {startScan.error && (
+          {(startScan.error || pipelineError) && (
             <Card className="border-destructive bg-destructive/10">
               <CardContent className="p-4">
                 <p className="text-sm text-destructive flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
-                  {startScan.error.message}
+                  {pipelineError || startScan.error?.message}
                 </p>
               </CardContent>
             </Card>
@@ -447,20 +489,36 @@ export default function DomainIntel() {
               <h2 className="text-xl font-bold">Running Domain Intelligence Pipeline</h2>
               <p className="text-muted-foreground max-w-md">
                 Analyzing <span className="font-mono text-purple-400">{primaryDomain}</span> across multiple stages.
-                This typically takes 30-60 seconds.
+                This typically takes 60-120 seconds.
+              </p>
+            </div>
+            <div className="w-full max-w-sm space-y-2">
+              <Progress value={Math.max(5, (pipelineStage / 5) * 100)} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                {scanStatusQuery.data?.status === "discovering" ? "Discovering assets..." :
+                 scanStatusQuery.data?.status === "analyzing" ? "Analyzing & scoring assets..." :
+                 scanStatusQuery.data?.status === "scoring" ? "Computing hybrid risk scores..." :
+                 scanStatusQuery.data?.status === "recommending" ? "Generating campaign recommendations..." :
+                 "Initializing pipeline..."}
               </p>
             </div>
             <div className="space-y-3 w-full max-w-sm">
               {[
-                { label: "Passive Discovery", delay: "0s" },
-                { label: "Asset Classification & BIA", delay: "0.2s" },
-                { label: "Hybrid Risk Scoring", delay: "0.4s" },
-                { label: "Campaign Recommendations", delay: "0.6s" },
-                { label: "Threat Model Generation", delay: "0.8s" },
-              ].map((stage, i) => (
-                <div key={stage.label} className="flex items-center gap-3 animate-pulse" style={{ animationDelay: stage.delay }}>
-                  <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
-                  <span className="text-sm">{stage.label}</span>
+                { label: "Passive Discovery", stage: 1 },
+                { label: "Asset Classification & BIA", stage: 2 },
+                { label: "Hybrid Risk Scoring", stage: 3 },
+                { label: "Campaign Recommendations", stage: 4 },
+                { label: "Threat Model Generation", stage: 5 },
+              ].map((s) => (
+                <div key={s.label} className={`flex items-center gap-3 transition-opacity ${pipelineStage >= s.stage ? "opacity-100" : "opacity-40"}`}>
+                  {pipelineStage > s.stage ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  ) : pipelineStage === s.stage ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border border-muted-foreground/30" />
+                  )}
+                  <span className={`text-sm ${pipelineStage >= s.stage ? "text-foreground" : "text-muted-foreground"}`}>{s.label}</span>
                 </div>
               ))}
             </div>

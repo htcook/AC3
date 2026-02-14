@@ -688,14 +688,20 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
 // ─── Full Pipeline ───────────────────────────────────────────────────
 
-export async function runDomainIntelPipeline(org: OrgProfile): Promise<PipelineResult> {
+export async function runDomainIntelPipeline(
+  org: OrgProfile,
+  onProgress?: (stage: 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>
+): Promise<PipelineResult> {
   // Stage 1: Discover assets
+  await onProgress?.('discovering');
   const rawAssets = await discoverAssets(org);
 
   // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk)
+  await onProgress?.('analyzing');
   const analyses = await analyzeAssets(rawAssets, org);
 
   // Stage 3.5: CISA KEV Enrichment
+  await onProgress?.('scoring');
   let kevEnrichment: KevEnrichment | undefined;
   try {
     const allTechnologies = analyses.flatMap(a => a.asset.technologies || []);
@@ -748,6 +754,7 @@ export async function runDomainIntelPipeline(org: OrgProfile): Promise<PipelineR
   }
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
+  await onProgress?.('recommending');
   const campaigns = await generateCampaignRecommendations(analyses, org, kevEnrichment);
 
   // Stage 5: Generate summaries

@@ -3336,7 +3336,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
 
   // Domain Intel Pipeline
   domainIntel: router({
-    // Start a new domain intel scan
+    // Start a new domain intel scan (async fire-and-forget pattern)
     startScan: protectedProcedure
       .input(z.object({
         primaryDomain: z.string().min(1),
@@ -3350,9 +3350,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         engagementId: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { runDomainIntelPipeline } = await import('./domainIntel');
-
-        // Create scan record
+        // Create scan record immediately
         const scanId = await db.createDomainIntelScan({
           primaryDomain: input.primaryDomain,
           additionalDomains: input.additionalDomains || [],
@@ -3374,101 +3372,133 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           createdBy: ctx.user.id,
         });
 
-        // Run pipeline (async but we await it)
-        try {
-          await db.updateDomainIntelScan(scanId, { status: 'discovering' });
-
-          const result = await runDomainIntelPipeline({
-            customerName: input.customerName,
-            primaryDomain: input.primaryDomain,
-            additionalDomains: input.additionalDomains,
-            sector: input.sector,
-            clientType: input.clientType,
-            criticalFunctions: input.criticalFunctions,
-            complianceFlags: input.complianceFlags || [],
-            notes: input.notes,
-          });
-
-          // Store discovered assets
-          const assetRecords = result.assets.map(a => ({
-            scanId,
-            assetId: a.asset.assetId,
-            hostname: a.asset.hostname,
-            url: a.asset.url || null,
-            assetType: a.asset.assetType,
-            dnsRecords: a.asset.dnsRecords || null,
-            dnsStatus: a.asset.dnsStatus || null,
-            headers: a.asset.headers || null,
-            technologies: a.asset.technologies || null,
-            assetClasses: a.asset.assetClasses,
-            tags: a.asset.tags,
-            carverScores: a.carverScores,
-            shockScores: a.shockScores,
-            missionImpactScore: Math.round(a.missionImpactScore * 10),
-            suggestedTier: a.suggestedTier,
-            hybridRiskScore: a.hybridRiskScore,
-            riskBand: a.riskBand,
-            cvssEstimate: Math.round(a.cvssEstimate * 10),
-            contextIndicators: a.contextIndicators,
-            postureFindings: a.postureFindings,
-            testVectors: a.testVectors,
-            recommendedCalderaAbilities: a.testVectors.filter((v: any) => v.suggestedEmulation?.calderaAbilityHint).map((v: any) => v.suggestedEmulation),
-            recommendedGophishTemplates: null,
-            recommendedAttackChain: null,
-            confidence: a.confidence,
-            confidenceExplanation: a.contextIndicators,
-          }));
-
-          if (assetRecords.length > 0) {
-            await db.bulkCreateDiscoveredAssets(assetRecords);
-          }
-
-          // Run threat actor matching against scan results
-          let threatActorMatches = null;
+        // Return scanId immediately — run pipeline in background to avoid timeout
+        // The frontend will poll getScanStatus for progress
+        const pipelineInput = { ...input };
+        setImmediate(async () => {
           try {
-            const { matchThreatActors } = await import('./lib/threat-actor-matcher');
-            const allTech: string[] = [];
-            for (const a of result.assets) {
-              if (a.asset.technologies) allTech.push(...a.asset.technologies);
+            console.log(`[DomainIntel] Pipeline started for scan ${scanId}: ${input.primaryDomain}`);
+            const { runDomainIntelPipeline } = await import('./domainIntel');
+
+            await db.updateDomainIntelScan(scanId, { status: 'discovering' });
+
+            const result = await runDomainIntelPipeline(
+              {
+                customerName: pipelineInput.customerName,
+                primaryDomain: pipelineInput.primaryDomain,
+                additionalDomains: pipelineInput.additionalDomains,
+                sector: pipelineInput.sector,
+                clientType: pipelineInput.clientType,
+                criticalFunctions: pipelineInput.criticalFunctions,
+                complianceFlags: pipelineInput.complianceFlags || [],
+                notes: pipelineInput.notes,
+              },
+              // Progress callback: update scan status in DB so frontend can poll
+              async (stage) => {
+                await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
+                console.log(`[DomainIntel] Scan ${scanId} stage: ${stage}`);
+              }
+            );
+
+            // Store discovered assets
+            const assetRecords = result.assets.map(a => ({
+              scanId,
+              assetId: a.asset.assetId,
+              hostname: a.asset.hostname,
+              url: a.asset.url || null,
+              assetType: a.asset.assetType,
+              dnsRecords: a.asset.dnsRecords || null,
+              dnsStatus: a.asset.dnsStatus || null,
+              headers: a.asset.headers || null,
+              technologies: a.asset.technologies || null,
+              assetClasses: a.asset.assetClasses,
+              tags: a.asset.tags,
+              carverScores: a.carverScores,
+              shockScores: a.shockScores,
+              missionImpactScore: Math.round(a.missionImpactScore * 10),
+              suggestedTier: a.suggestedTier,
+              hybridRiskScore: a.hybridRiskScore,
+              riskBand: a.riskBand,
+              cvssEstimate: Math.round(a.cvssEstimate * 10),
+              contextIndicators: a.contextIndicators,
+              postureFindings: a.postureFindings,
+              testVectors: a.testVectors,
+              recommendedCalderaAbilities: a.testVectors.filter((v: any) => v.suggestedEmulation?.calderaAbilityHint).map((v: any) => v.suggestedEmulation),
+              recommendedGophishTemplates: null,
+              recommendedAttackChain: null,
+              confidence: a.confidence,
+              confidenceExplanation: a.contextIndicators,
+            }));
+
+            if (assetRecords.length > 0) {
+              await db.bulkCreateDiscoveredAssets(assetRecords);
             }
-            threatActorMatches = await matchThreatActors({
-              sector: input.sector,
-              clientType: input.clientType,
-              discoveredTechnologies: allTech,
-              discoveredAssets: result.assets.map(a => ({
-                hostname: a.asset.hostname,
-                assetType: a.asset.assetType,
-                technologies: a.asset.technologies,
-              })),
-              riskScore: result.overallRiskScore,
-              criticalFunctions: input.criticalFunctions,
+
+            // Run threat actor matching against scan results
+            let threatActorMatches = null;
+            try {
+              const { matchThreatActors } = await import('./lib/threat-actor-matcher');
+              const allTech: string[] = [];
+              for (const a of result.assets) {
+                if (a.asset.technologies) allTech.push(...a.asset.technologies);
+              }
+              threatActorMatches = await matchThreatActors({
+                sector: pipelineInput.sector,
+                clientType: pipelineInput.clientType,
+                discoveredTechnologies: allTech,
+                discoveredAssets: result.assets.map(a => ({
+                  hostname: a.asset.hostname,
+                  assetType: a.asset.assetType,
+                  technologies: a.asset.technologies,
+                })),
+                riskScore: result.overallRiskScore,
+                criticalFunctions: pipelineInput.criticalFunctions,
+              });
+            } catch (matchErr: any) {
+              console.error('[DomainIntel] Threat actor matching failed:', matchErr.message);
+            }
+
+            // Update scan with results (including threat actor matches)
+            const pipelineOutputWithMatches = {
+              ...result,
+              threatActorMatches,
+            };
+            await db.updateDomainIntelScan(scanId, {
+              status: 'completed',
+              totalAssets: result.totalAssets,
+              totalFindings: result.totalFindings,
+              overallRiskScore: result.overallRiskScore,
+              overallRiskBand: result.overallRiskBand,
+              executiveSummary: result.executiveSummary,
+              threatModelSummary: result.threatModelSummary,
+              campaignRecommendations: result.campaignRecommendations,
+              pipelineOutput: pipelineOutputWithMatches,
             });
-          } catch (matchErr: any) {
-            console.error('[DomainIntel] Threat actor matching failed:', matchErr.message);
+
+            console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+          } catch (err: any) {
+            console.error(`[DomainIntel] Pipeline failed for scan ${scanId}:`, err.message);
+            await db.updateDomainIntelScan(scanId, { status: 'failed' }).catch(() => {});
           }
+        });
 
-          // Update scan with results (including threat actor matches)
-          const pipelineOutputWithMatches = {
-            ...result,
-            threatActorMatches,
-          };
-          await db.updateDomainIntelScan(scanId, {
-            status: 'completed',
-            totalAssets: result.totalAssets,
-            totalFindings: result.totalFindings,
-            overallRiskScore: result.overallRiskScore,
-            overallRiskBand: result.overallRiskBand,
-            executiveSummary: result.executiveSummary,
-            threatModelSummary: result.threatModelSummary,
-            campaignRecommendations: result.campaignRecommendations,
-            pipelineOutput: pipelineOutputWithMatches,
-          });
+        return { scanId };
+      }),
 
-          return { scanId, result: pipelineOutputWithMatches };
-        } catch (err: any) {
-          await db.updateDomainIntelScan(scanId, { status: 'failed' });
-          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Pipeline failed: ${err.message}` });
-        }
+    // Poll scan status (used by frontend to track async pipeline progress)
+    getScanStatus: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        return {
+          scanId: scan.id,
+          status: scan.status,
+          primaryDomain: scan.primaryDomain,
+          totalAssets: scan.totalAssets || 0,
+          overallRiskScore: scan.overallRiskScore || null,
+          overallRiskBand: scan.overallRiskBand || null,
+        };
       }),
 
     // List all scans
