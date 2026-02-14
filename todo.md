@@ -875,3 +875,7 @@
 - [x] Build detailed histories for each group
 - [x] Create seed data files with 400+ actors
 - [x] Build seed script and populate database
+
+## Bug Fix: Domain Intel Pipeline
+- [x] Fix "string did not match the expected pattern" error when scanning AceofCloud.com
+- [x] Test and verify the fix works end-to-end

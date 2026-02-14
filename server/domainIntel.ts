@@ -149,6 +149,39 @@ function clamp(x: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, x));
 }
 
+/** Sanitize LLM output: strip markdown fences, fix common JSON issues */
+function sanitizeJsonResponse(raw: string): string {
+  let s = raw.trim();
+  // Strip markdown code fences
+  if (s.startsWith('```')) {
+    s = s.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+  // Strip leading/trailing whitespace
+  s = s.trim();
+  // If it doesn't start with { or [, try to find the first { or [
+  if (!s.startsWith('{') && !s.startsWith('[')) {
+    const objIdx = s.indexOf('{');
+    const arrIdx = s.indexOf('[');
+    if (objIdx >= 0 && (arrIdx < 0 || objIdx < arrIdx)) {
+      s = s.substring(objIdx);
+    } else if (arrIdx >= 0) {
+      s = s.substring(arrIdx);
+    }
+  }
+  return s;
+}
+
+/** Safely parse JSON from LLM response with fallback */
+function safeParseLLMJson(content: unknown, fallback: any = {}): any {
+  const raw = String(content || '{}');
+  try {
+    return JSON.parse(sanitizeJsonResponse(raw));
+  } catch {
+    console.error('[DomainIntel] JSON parse failed, raw content:', raw.substring(0, 500));
+    return fallback;
+  }
+}
+
 // ─── Stage 1: LLM-Powered Passive Discovery ─────────────────────────
 
 export async function discoverAssets(org: OrgProfile): Promise<DiscoveredAssetRaw[]> {
@@ -208,43 +241,13 @@ Return ONLY the JSON array, no markdown fences.`;
         { role: "system", content: "You are a cybersecurity OSINT analyst. Return only valid JSON arrays." },
         { role: "user", content: prompt },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "discovered_assets",
-          strict: false,
-          schema: {
-            type: "object",
-            properties: {
-              assets: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    assetId: { type: "string" },
-                    hostname: { type: "string" },
-                    url: { type: "string" },
-                    assetType: { type: "string" },
-                    technologies: { type: "array", items: { type: "string" } },
-                    assetClasses: { type: "array", items: { type: "string" } },
-                    tags: { type: "array", items: { type: "string" } },
-                    description: { type: "string" },
-                    dnsRecords: { type: "object" },
-                    headers: { type: "string" },
-                  },
-                  required: ["assetId", "hostname", "assetType", "assetClasses", "tags"],
-                },
-              },
-            },
-            required: ["assets"],
-          },
-        },
-      },
+      response_format: { type: "json_object" },
     });
 
-    const content = String(response.choices?.[0]?.message?.content || "{}");
-    const parsed = JSON.parse(content);
-    return parsed.assets || [];
+    const content = response.choices?.[0]?.message?.content;
+    const parsed = safeParseLLMJson(content, { assets: [] });
+    // Handle both { assets: [...] } and direct array format
+    return Array.isArray(parsed) ? parsed : (parsed.assets || []);
   } catch (err) {
     console.error("[DomainIntel] Discovery failed:", err);
     return generateFallbackAssets(org);
@@ -338,40 +341,11 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
         { role: "system", content: "You are a cybersecurity risk analyst. Return only valid JSON." },
         { role: "user", content: prompt },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "asset_analyses",
-          strict: false,
-          schema: {
-            type: "object",
-            properties: {
-              analyses: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    assetId: { type: "string" },
-                    carverScores: { type: "object" },
-                    shockScores: { type: "object" },
-                    cvssEstimate: { type: "number" },
-                    contextIndicators: { type: "object" },
-                    suggestedTier: { type: "string" },
-                    postureFindings: { type: "array" },
-                    testVectors: { type: "array" },
-                  },
-                  required: ["assetId", "carverScores", "shockScores", "cvssEstimate"],
-                },
-              },
-            },
-            required: ["analyses"],
-          },
-        },
-      },
+      response_format: { type: "json_object" },
     });
 
-    const content = String(response.choices?.[0]?.message?.content || "{}");
-    const parsed = JSON.parse(content);
+    const content = response.choices?.[0]?.message?.content;
+    const parsed = safeParseLLMJson(content, { analyses: [] });
     const analysesMap = new Map<string, any>();
     for (const a of (parsed.analyses || [])) {
       analysesMap.set(a.assetId, a);
@@ -599,43 +573,11 @@ Return JSON: { "campaigns": [...] }`;
         { role: "system", content: "You are a red team campaign designer. Return only valid JSON." },
         { role: "user", content: prompt },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "campaign_recommendations",
-          strict: false,
-          schema: {
-            type: "object",
-            properties: {
-              campaigns: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    id: { type: "string" },
-                    name: { type: "string" },
-                    type: { type: "string" },
-                    priority: { type: "string" },
-                    description: { type: "string" },
-                    targetAssets: { type: "array", items: { type: "string" } },
-                    calderaAbilities: { type: "array" },
-                    gophishTemplates: { type: "array" },
-                    attackChain: { type: "array" },
-                    estimatedRisk: { type: "number" },
-                    mitreTactics: { type: "array", items: { type: "string" } },
-                  },
-                  required: ["id", "name", "type", "description"],
-                },
-              },
-            },
-            required: ["campaigns"],
-          },
-        },
-      },
+      response_format: { type: "json_object" },
     });
 
-    const content = String(response.choices?.[0]?.message?.content || "{}");
-    const parsed = JSON.parse(content);
+    const content = response.choices?.[0]?.message?.content;
+    const parsed = safeParseLLMJson(content, { campaigns: [] });
     return (parsed.campaigns || []).map((c: any) => ({
       id: c.id || `camp-${Date.now()}`,
       name: c.name || "Unnamed Campaign",
@@ -712,8 +654,11 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
       },
     });
 
-    const content = String(response.choices?.[0]?.message?.content || "{}");
-    return JSON.parse(content);
+    const content = response.choices?.[0]?.message?.content;
+    return safeParseLLMJson(content, {
+      executiveSummary: `Domain intelligence analysis of ${org.primaryDomain} identified ${analyses.length} assets.`,
+      threatModelSummary: `Attack surface analysis for ${org.customerName} reveals ${analyses.length} discoverable assets.`,
+    });
   } catch (err) {
     console.error("[DomainIntel] Summary generation failed:", err);
     return {
