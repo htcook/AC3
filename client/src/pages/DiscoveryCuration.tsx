@@ -243,7 +243,7 @@ export default function DiscoveryCuration() {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href={`/domain-intel/results/${scanId}`}>
+            <Link href={`/domain-intel/${scanId}`}>
               <Button variant="ghost" size="sm" className="font-display tracking-wider text-xs">
                 <ChevronRight className="w-3 h-3 mr-1 rotate-180" /> BACK TO RESULTS
               </Button>
@@ -259,7 +259,7 @@ export default function DiscoveryCuration() {
               variant="outline"
               size="sm"
               className="font-display tracking-wider text-xs"
-              onClick={() => navigate(`/domain-intel/results/${scanId}`)}
+              onClick={() => navigate(`/domain-intel/${scanId}`)}
             >
               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
               CONFIRM & PROCEED
@@ -528,7 +528,7 @@ export default function DiscoveryCuration() {
               variant="outline"
               size="sm"
               className="font-display tracking-wider text-xs"
-              onClick={() => navigate(`/domain-intel/results/${scanId}`)}
+              onClick={() => navigate(`/domain-intel/${scanId}`)}
             >
               BACK TO RESULTS
             </Button>
@@ -537,7 +537,7 @@ export default function DiscoveryCuration() {
               className="font-display tracking-wider text-xs bg-primary hover:bg-primary/90"
               onClick={() => {
                 toast.success('Curation confirmed! Proceeding with campaign generation...');
-                navigate(`/domain-intel/results/${scanId}`);
+                navigate(`/domain-intel/${scanId}`);
               }}
             >
               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />

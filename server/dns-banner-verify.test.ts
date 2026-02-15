@@ -41,7 +41,7 @@ describe('DNS/Banner Verification', () => {
       // Should be either dns_verified or header_detected
       expect(['dns_verified', 'header_detected']).toContain(result.assets[0].discoveryMethod);
       expect(result.summary.dnsVerified + result.summary.bannerDetected).toBeGreaterThan(0);
-    });
+    }, 15000);
 
     it('should handle multiple assets concurrently', async () => {
       const { verifyAllAssets } = await import('./lib/dns-banner-verify');

@@ -48,11 +48,15 @@ export default function DomainIntel() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState<Step>("client_type");
 
+  // Pre-fill domain from query parameter (from landing page search)
+  const urlParams = new URLSearchParams(window.location.search);
+  const domainFromQuery = urlParams.get("domain") || "";
+
   // Form state
   const [clientType, setClientType] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [sector, setSector] = useState("");
-  const [primaryDomain, setPrimaryDomain] = useState("");
+  const [primaryDomain, setPrimaryDomain] = useState(domainFromQuery);
   const [additionalDomains, setAdditionalDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState("");
   const [criticalFunctions, setCriticalFunctions] = useState<string[]>([]);
@@ -601,30 +605,52 @@ export default function DomainIntel() {
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Recent Scans</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {scansQuery.data.slice(0, 6).map((scan: any) => (
-              <Card
-                key={scan.id}
-                className="cursor-pointer hover:border-purple-500/50 transition-all"
-                onClick={() => navigate(`/domain-intel/${scan.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-mono text-sm font-semibold">{scan.primaryDomain}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {scan.totalAssets || 0} assets &middot; Risk: {scan.overallRiskScore || "N/A"}
-                      </p>
+            {scansQuery.data.slice(0, 6).map((scan: any) => {
+              const output = scan.pipelineOutput as any;
+              const riskScore = output?.riskScore || scan.overallRiskScore || 0;
+              const assetCount = output?.assets?.length || scan.totalAssets || 0;
+              const findingCount = output?.postureFindings?.length || 0;
+              const confirmedCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'confirmed').length || 0;
+              const probableCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'probable').length || 0;
+              const potentialCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'potential').length || 0;
+              return (
+                <Card
+                  key={scan.id}
+                  className="cursor-pointer hover:border-purple-500/50 transition-all"
+                  onClick={() => navigate(`/domain-intel/${scan.id}`)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-mono text-sm font-semibold">{scan.primaryDomain}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {scan.clientType?.toUpperCase() || 'SCAN'} &middot; Risk: <span className={riskScore >= 70 ? 'text-red-400 font-bold' : riskScore >= 40 ? 'text-orange-400 font-bold' : 'text-green-400 font-bold'}>{riskScore || 'N/A'}</span>
+                        </p>
+                      </div>
+                      <Badge variant={
+                        scan.status === "completed" ? "default" :
+                        scan.status === "failed" ? "destructive" : "secondary"
+                      } className={scan.status === "completed" ? "bg-emerald-500/20 text-emerald-400" : ""}>
+                        {scan.status}
+                      </Badge>
                     </div>
-                    <Badge variant={
-                      scan.status === "completed" ? "default" :
-                      scan.status === "failed" ? "destructive" : "secondary"
-                    } className={scan.status === "completed" ? "bg-emerald-500/20 text-emerald-400" : ""}>
-                      {scan.status}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{assetCount} assets</span>
+                      {findingCount > 0 && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{findingCount} findings</span>}
+                      {confirmedCount > 0 && <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">{confirmedCount} confirmed</span>}
+                      {probableCount > 0 && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">{probableCount} probable</span>}
+                      {potentialCount > 0 && <span className="text-[10px] bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded">{potentialCount} potential</span>}
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                      <span className="text-[10px] text-muted-foreground">
+                        {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                      </span>
+                      <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}

@@ -375,29 +375,32 @@ export default function Dashboard() {
                 const output = scan.pipelineOutput as any;
                 const riskScore = output?.riskScore || scan.riskScore || 0;
                 const riskColor = riskScore >= 80 ? 'text-red-500 border-red-500/30' : riskScore >= 60 ? 'text-orange-500 border-orange-500/30' : riskScore >= 40 ? 'text-yellow-500 border-yellow-500/30' : 'text-green-500 border-green-500/30';
+                const assetCount = output?.assets?.length || scan.totalAssets || 0;
+                const findingCount = output?.postureFindings?.length || 0;
+                const confirmedCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'confirmed').length || 0;
+                const probableCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'probable').length || 0;
                 return (
-                  <div key={scan.id} className={`bg-card border-2 ${riskColor} p-3`}>
-                    <Link href={`/domain-intel/results/${scan.id}`}>
-                      <div className="hover:bg-secondary/30 transition-colors cursor-pointer">
-                        <div className="font-mono text-sm truncate">{scan.primaryDomain}</div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-[10px] text-muted-foreground">{scan.clientType?.toUpperCase()}</span>
-                          <span className={`font-display text-lg ${riskColor.split(' ')[0]}`}>{riskScore}</span>
-                        </div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">
-                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
-                        </div>
+                  <Link key={scan.id} href={`/domain-intel/${scan.id}`}>
+                    <div className={`bg-card border-2 ${riskColor} p-3 hover:bg-secondary/30 transition-all cursor-pointer h-full`}>
+                      <div className="font-mono text-sm truncate">{scan.primaryDomain}</div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-muted-foreground">{scan.clientType?.toUpperCase() || 'SCAN'}</span>
+                        <span className={`font-display text-lg ${riskColor.split(' ')[0]}`}>{riskScore}</span>
                       </div>
-                    </Link>
-                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
-                      <Link href={`/domain-intel/results/${scan.id}`} className="flex-1">
-                        <span className="text-[9px] font-display tracking-wider text-primary hover:text-primary/80 cursor-pointer">VIEW RESULTS</span>
-                      </Link>
-                      <Link href={`/domain-intel/curate/${scan.id}`}>
-                        <span className="text-[9px] font-display tracking-wider text-yellow-400 hover:text-yellow-300 cursor-pointer">CURATE</span>
-                      </Link>
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded">{assetCount} assets</span>
+                        {findingCount > 0 && <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded">{findingCount} findings</span>}
+                        {confirmedCount > 0 && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">{confirmedCount} confirmed</span>}
+                        {probableCount > 0 && <span className="text-[9px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">{probableCount} probable</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                        <span className="text-[10px] text-muted-foreground">
+                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                        </span>
+                        <span className="text-[9px] font-display tracking-wider text-primary">VIEW RESULTS →</span>
+                      </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

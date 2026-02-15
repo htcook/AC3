@@ -1337,3 +1337,12 @@
 - [x] Updated Operations Center: added Vuln Intelligence, DNS/Banner Verify, Scan Comparison modules
 - [x] Updated Architecture: added Vuln Feed Engine card
 - [x] Updated hero description, benefit cards, workflow steps, and about section
+
+## Domain Search on Landing Page & Data Cleanup
+- [x] Add domain search feature prominently on the main login/landing page (DomainSearchHero component)
+- [x] Audit scan history and remove synthetic/test data from the database (574 synthetic scans removed, 8 real remain)
+- [x] Pre-fill domain on DomainIntel page from ?domain= query parameter
+- [x] Fix all broken /domain-intel/results/ routes (Dashboard, DiscoveryCuration → /domain-intel/:id)
+- [x] Add click-through on scan list items with scan type, finding count, corroboration tier badges
+- [x] Enhanced Dashboard scan cards with asset count, finding count, and tier badges
+- [x] Enhanced DomainIntel scan list cards with richer details
