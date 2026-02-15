@@ -1288,3 +1288,16 @@
 - [x] Update DomainIntelResults UI: CVE links to NVD, KEV/Exploit badges, affected assets, evidence detail, confidence %
 - [x] Ensure critical risks have sufficient supporting facts and details
 - [x] Write 25 vitest tests for risk scoring, confidence dampening, evidence fields, false-positive prevention
+
+## Evidence Corroboration Framework
+- [x] Audit current pipeline: how assets/technologies/vulns are matched (product vs version)
+- [x] Design multi-tier evidence system: Confirmed (version-matched), Probable (product-matched), Potential (inferred)
+- [x] Implement corroboration logic: only version-confirmed vulns get high severity; product-match vulns are flagged as unconfirmed
+- [x] Add version detection to asset discovery (LLM prompt + header/banner parsing)
+- [x] Enrich vuln feed matching to distinguish version-specific vs product-family matches
+- [x] Add evidence chain to each finding: what was detected → how it was matched → what CVE applies → why severity was assigned
+- [x] Downgrade product-only matches to "Probable" tier with severity capped at 6; LLM-inferred to "Potential" capped at 4
+- [x] Update DomainIntelResults UI: corroboration tier badges, evidence chains, version details, summary cards
+- [x] Show clear distinction: findings grouped by tier with visual dimming for potential-only
+- [x] Write 45 vitest tests for corroboration logic, tier assignment, severity caps, evidence chains, campaign filtering
+- [x] Filter campaign recommendations and chain builder to only use confirmed/probable findings (exclude potential-only noise)

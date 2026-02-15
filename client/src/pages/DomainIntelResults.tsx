@@ -397,40 +397,55 @@ export default function DomainIntelResults() {
                       <div>
                         <p className="text-xs font-medium text-muted-foreground mb-2">Posture Findings ({findings.length})</p>
                         <div className="space-y-2">
-                          {findings.map((f: any, i: number) => (
-                            <div key={i} className={`p-2 rounded border ${f.kevListed ? "bg-red-500/5 border-red-500/30" : "bg-muted/30 border-border"}`}>
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium">{f.title}</p>
-                                  {f.cveIds?.length > 0 && (
-                                    <div className="flex gap-1 mt-0.5 flex-wrap">
-                                      {f.cveIds.map((cve: string) => (
-                                        <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
-                                          className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
-                                      ))}
+                          {findings.map((f: any, i: number) => {
+                            const tierColor = f.corroborationTier === "confirmed" ? "text-emerald-400 bg-emerald-500/20 border-emerald-500/40"
+                              : f.corroborationTier === "probable" ? "text-yellow-400 bg-yellow-500/20 border-yellow-500/40"
+                              : "text-purple-400 bg-purple-500/20 border-purple-500/40";
+                            const tierLabel = f.corroborationTier === "confirmed" ? "CONFIRMED" : f.corroborationTier === "probable" ? "PROBABLE" : "POTENTIAL";
+                            return (
+                              <div key={i} className={`p-2 rounded border ${f.kevListed ? "bg-red-500/5 border-red-500/30" : f.corroborationTier === "potential" ? "bg-muted/20 border-purple-500/20 opacity-75" : "bg-muted/30 border-border"}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                      <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{tierLabel}</Badge>
+                                      <p className="text-sm font-medium">{f.title}</p>
                                     </div>
-                                  )}
-                                  {f.evidenceDetail && (
-                                    <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">{f.evidenceDetail}</p>
-                                  )}
+                                    {f.cveIds?.length > 0 && (
+                                      <div className="flex gap-1 mt-0.5 flex-wrap">
+                                        {f.cveIds.map((cve: string) => (
+                                          <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                            className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {f.detectedVersion && (
+                                      <p className="text-[10px] text-emerald-400 font-mono mt-0.5">Version: {f.detectedVersion} {f.versionMatchConfirmed ? "✔ matched" : ""}</p>
+                                    )}
+                                    {!f.detectedVersion && f.corroborationTier === "probable" && (
+                                      <p className="text-[10px] text-yellow-400 mt-0.5">Version unconfirmed — severity capped</p>
+                                    )}
+                                    {f.evidenceDetail && (
+                                      <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">{f.evidenceDetail}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-1 shrink-0 flex-wrap">
+                                    {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                    {f.exploitAvailable && !f.kevListed && <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">Exploit</Badge>}
+                                    <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10{f.corroborationTier === "probable" ? " (cap)" : ""}</Badge>
+                                    {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
+                                    <Badge variant="outline" className="text-[10px]">Likely: {f.likelihood}/10</Badge>
+                                  </div>
                                 </div>
-                                <div className="flex gap-1 shrink-0 flex-wrap">
-                                  {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
-                                  {f.exploitAvailable && !f.kevListed && <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">Exploit</Badge>}
-                                  <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10</Badge>
-                                  {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
-                                  <Badge variant="outline" className="text-[10px]">Likely: {f.likelihood}/10</Badge>
-                                </div>
+                                {f.recommendedControls && f.recommendedControls.length > 0 && (
+                                  <div className="mt-1 flex gap-1 flex-wrap">
+                                    {f.recommendedControls.map((c: string, j: number) => (
+                                      <Badge key={j} variant="secondary" className="text-[10px]">{c}</Badge>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                              {f.recommendedControls && f.recommendedControls.length > 0 && (
-                                <div className="mt-1 flex gap-1 flex-wrap">
-                                  {f.recommendedControls.map((c: string, j: number) => (
-                                    <Badge key={j} variant="secondary" className="text-[10px]">{c}</Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -850,7 +865,11 @@ export default function DomainIntelResults() {
             const allFindings = assets.flatMap((a: any) =>
               ((a.postureFindings || []) as any[]).map((f: any) => ({ ...f, assetHostname: f.assetHostname || a.asset?.hostname || a.hostname, assetRisk: a.hybridRiskScore }))
             ).sort((a: any, b: any) => {
-              // Sort: KEV first, then by severity, then by confidence
+              // Sort: Confirmed first, then probable, then potential; within each tier by severity
+              const tierOrder: Record<string, number> = { confirmed: 0, probable: 1, potential: 2 };
+              const aTier = tierOrder[a.corroborationTier || "potential"] ?? 2;
+              const bTier = tierOrder[b.corroborationTier || "potential"] ?? 2;
+              if (aTier !== bTier) return aTier - bTier;
               if (a.kevListed && !b.kevListed) return -1;
               if (!a.kevListed && b.kevListed) return 1;
               if ((b.severity || 0) !== (a.severity || 0)) return (b.severity || 0) - (a.severity || 0);
@@ -867,99 +886,171 @@ export default function DomainIntelResults() {
               );
             }
 
-            // Evidence basis labels
-            const evidenceLabels: Record<string, { label: string; color: string }> = {
-              kev_match: { label: "CISA KEV Confirmed", color: "text-red-400 bg-red-500/20 border-red-500/40" },
-              confirmed_cve: { label: "CVE Confirmed", color: "text-orange-400 bg-orange-500/20 border-orange-500/40" },
-              vuln_feed: { label: "Vuln Feed Match", color: "text-yellow-400 bg-yellow-500/20 border-yellow-500/40" },
-              technology_match: { label: "Tech Match", color: "text-blue-400 bg-blue-500/20 border-blue-500/40" },
-              llm_inference: { label: "LLM Inferred", color: "text-purple-400 bg-purple-500/20 border-purple-500/40" },
+            // Corroboration tier labels
+            const tierLabels: Record<string, { label: string; icon: string; color: string; desc: string }> = {
+              confirmed: { label: "CONFIRMED", icon: "✅", color: "text-emerald-400 bg-emerald-500/20 border-emerald-500/40", desc: "Version detected and matched to CVE affected range" },
+              probable: { label: "PROBABLE", icon: "⚠️", color: "text-yellow-400 bg-yellow-500/20 border-yellow-500/40", desc: "Product detected but version unconfirmed — CVE exists for this product family" },
+              potential: { label: "POTENTIAL", icon: "❓", color: "text-purple-400 bg-purple-500/20 border-purple-500/40", desc: "LLM-inferred risk — no CVE evidence, advisory only" },
             };
 
-            return allFindings.map((f: any, i: number) => {
-              const evidenceInfo = evidenceLabels[f.evidenceBasis] || evidenceLabels.llm_inference;
-              const confidencePct = Math.round((f.confidence || 0) * 100);
+            // Summary counts by tier
+            const confirmed = allFindings.filter((f: any) => f.corroborationTier === "confirmed");
+            const probable = allFindings.filter((f: any) => f.corroborationTier === "probable");
+            const potential = allFindings.filter((f: any) => !f.corroborationTier || f.corroborationTier === "potential");
 
-              return (
-                <Card key={i} className={f.kevListed ? "border-red-500/40" : ""}>
-                  <CardContent className="p-4">
-                    {/* Header row */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <AlertTriangle className={`h-4 w-4 shrink-0 ${
-                            f.severity >= 8 ? "text-red-400" : f.severity >= 6 ? "text-orange-400" : f.severity >= 4 ? "text-yellow-400" : "text-emerald-400"
-                          }`} />
-                          <p className="font-semibold text-sm">{f.title}</p>
-                        </div>
+            return (
+              <>
+                {/* Corroboration Summary */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <Card className="border-emerald-500/30">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-2xl font-bold text-emerald-400">{confirmed.length}</p>
+                      <p className="text-[10px] text-emerald-400/80 font-semibold">CONFIRMED</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Version-matched CVEs</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-yellow-500/30">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-2xl font-bold text-yellow-400">{probable.length}</p>
+                      <p className="text-[10px] text-yellow-400/80 font-semibold">PROBABLE</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Product-match, version unconfirmed</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-purple-500/30">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-2xl font-bold text-purple-400">{potential.length}</p>
+                      <p className="text-[10px] text-purple-400/80 font-semibold">POTENTIAL</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">LLM-inferred, advisory only</p>
+                    </CardContent>
+                  </Card>
+                </div>
 
-                        {/* CVE IDs as clickable links */}
-                        {f.cveIds?.length > 0 && (
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            {f.cveIds.map((cve: string) => (
-                              <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
-                                className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">
-                                {cve}
-                              </a>
-                            ))}
-                          </div>
-                        )}
+                {/* Findings list grouped by tier */}
+                {[{ tier: "confirmed", items: confirmed }, { tier: "probable", items: probable }, { tier: "potential", items: potential }].map(({ tier, items }) => {
+                  if (items.length === 0) return null;
+                  const info = tierLabels[tier];
+                  return (
+                    <div key={tier} className="space-y-2">
+                      <div className="flex items-center gap-2 mt-2 mb-1">
+                        <span className="text-sm">{info.icon}</span>
+                        <Badge className={`text-[10px] ${info.color}`}>{info.label}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{info.desc}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">({items.length} finding{items.length !== 1 ? "s" : ""})</span>
                       </div>
+                      {items.map((f: any, i: number) => {
+                        const confidencePct = Math.round((f.confidence || 0) * 100);
+                        return (
+                          <Card key={`${tier}-${i}`} className={`${f.kevListed ? "border-red-500/40" : tier === "potential" ? "border-purple-500/20 opacity-75" : ""}`}>
+                            <CardContent className="p-4">
+                              {/* Header row with corroboration tier badge */}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <Badge className={`text-[9px] px-1.5 py-0 ${info.color}`}>{info.label}</Badge>
+                                    <AlertTriangle className={`h-4 w-4 shrink-0 ${
+                                      f.severity >= 8 ? "text-red-400" : f.severity >= 6 ? "text-orange-400" : f.severity >= 4 ? "text-yellow-400" : "text-emerald-400"
+                                    }`} />
+                                    <p className="font-semibold text-sm">{f.title}</p>
+                                  </div>
 
-                      <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
-                        {f.kevListed && (
-                          <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">
-                            <Skull className="h-3 w-3 mr-0.5" /> KEV
-                          </Badge>
-                        )}
-                        {f.exploitAvailable && !f.kevListed && (
-                          <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">
-                            <Zap className="h-3 w-3 mr-0.5" /> Exploit
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10</Badge>
-                        {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
-                        <Badge variant="outline" className="text-[10px]">Likelihood: {f.likelihood}/10</Badge>
-                      </div>
+                                  {/* CVE IDs as clickable links */}
+                                  {f.cveIds?.length > 0 && (
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <Bug className="h-3 w-3 text-cyan-400" />
+                                      {f.cveIds.map((cve: string) => (
+                                        <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                          className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">
+                                          {cve}
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Version detection info */}
+                                  {f.detectedVersion && (
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Database className="h-3 w-3 text-emerald-400" />
+                                      <span className="text-[11px] text-emerald-400 font-mono">Detected version: {f.detectedVersion}</span>
+                                      {f.versionMatchConfirmed && <Badge className="text-[9px] bg-emerald-600/30 text-emerald-300 border-emerald-500/50 ml-1">VERSION MATCH</Badge>}
+                                    </div>
+                                  )}
+                                  {!f.detectedVersion && f.corroborationTier === "probable" && (
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <AlertTriangle className="h-3 w-3 text-yellow-400" />
+                                      <span className="text-[11px] text-yellow-400">Version not detected — product-family match only (severity capped)</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
+                                  {f.kevListed && (
+                                    <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">
+                                      <Skull className="h-3 w-3 mr-0.5" /> KEV
+                                    </Badge>
+                                  )}
+                                  {f.exploitAvailable && !f.kevListed && (
+                                    <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">
+                                      <Zap className="h-3 w-3 mr-0.5" /> Exploit
+                                    </Badge>
+                                  )}
+                                  <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10{tier === "probable" ? " (capped)" : ""}</Badge>
+                                  {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
+                                  <Badge variant="outline" className="text-[10px]">Likelihood: {f.likelihood}/10</Badge>
+                                </div>
+                              </div>
+
+                              {/* Affected assets */}
+                              <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px]">
+                                <div className="flex items-center gap-1">
+                                  <Server className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Affected assets:</span>
+                                  {(f.affectedAssets || [f.assetHostname || f.assetRef]).map((h: string, j: number) => (
+                                    <span key={j} className="font-mono text-foreground bg-muted/50 px-1 rounded">{h}</span>
+                                  ))}
+                                </div>
+                                <span className="text-muted-foreground">
+                                  Confidence: <span className={confidencePct >= 80 ? "text-emerald-400" : confidencePct >= 50 ? "text-yellow-400" : "text-red-400"}>{confidencePct}%</span>
+                                </span>
+                              </div>
+
+                              {/* Evidence chain */}
+                              {f.evidenceChain?.length > 0 && (
+                                <div className="mt-2 border-l-2 border-cyan-500/30 pl-2 space-y-0.5">
+                                  <p className="text-[10px] font-semibold text-cyan-400 mb-1">Evidence Chain:</p>
+                                  {f.evidenceChain.map((step: string, j: number) => (
+                                    <div key={j} className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
+                                      <span className="text-cyan-500/60 shrink-0">{j + 1}.</span>
+                                      <span>{step}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Fallback: evidence detail if no chain */}
+                              {(!f.evidenceChain || f.evidenceChain.length === 0) && f.evidenceDetail && (
+                                <p className="mt-1.5 text-[11px] text-muted-foreground/80 italic border-l-2 border-muted pl-2">
+                                  {f.evidenceDetail}
+                                </p>
+                              )}
+
+                              {/* Controls */}
+                              {f.recommendedControls?.length > 0 && (
+                                <div className="mt-2 flex gap-1 flex-wrap">
+                                  <span className="text-[10px] text-muted-foreground mr-1">Controls:</span>
+                                  {f.recommendedControls.map((c: string, j: number) => (
+                                    <Badge key={j} variant="secondary" className="text-[10px]">{c}</Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
-
-                    {/* Affected assets & evidence row */}
-                    <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px]">
-                      <div className="flex items-center gap-1">
-                        <Server className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-muted-foreground">Assets:</span>
-                        {(f.affectedAssets || [f.assetHostname || f.assetRef]).map((h: string, j: number) => (
-                          <span key={j} className="font-mono text-foreground">{h}</span>
-                        ))}
-                      </div>
-                      <Badge variant="outline" className={`text-[10px] ${evidenceInfo.color}`}>
-                        {evidenceInfo.label}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        Confidence: <span className={confidencePct >= 80 ? "text-emerald-400" : confidencePct >= 50 ? "text-yellow-400" : "text-red-400"}>{confidencePct}%</span>
-                      </span>
-                    </div>
-
-                    {/* Evidence detail */}
-                    {f.evidenceDetail && (
-                      <p className="mt-1.5 text-[11px] text-muted-foreground/80 italic border-l-2 border-muted pl-2">
-                        {f.evidenceDetail}
-                      </p>
-                    )}
-
-                    {/* Controls */}
-                    {f.recommendedControls?.length > 0 && (
-                      <div className="mt-2 flex gap-1 flex-wrap">
-                        <span className="text-[10px] text-muted-foreground mr-1">Controls:</span>
-                        {f.recommendedControls.map((c: string, j: number) => (
-                          <Badge key={j} variant="secondary" className="text-[10px]">{c}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            });
+                  );
+                })}
+              </>
+            );
           })()}
         </TabsContent>
       </Tabs>

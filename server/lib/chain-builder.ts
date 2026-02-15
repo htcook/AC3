@@ -141,7 +141,7 @@ export async function buildOperationChain(params: {
   threatActorMatches?: ThreatActorMatch[];
   findings?: any[];
   kevSteps?: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>;
-  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }>;
+  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }>;
   allAbilities: CalderaAbility[];
   calderaBaseUrl: string;
   calderaApiKey: string;
@@ -238,7 +238,7 @@ function collectTechniques(
   actors?: ThreatActorMatch[],
   findings?: any[],
   kevSteps?: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>,
-  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }>
+  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }>
 ): TechniqueSource[] {
   const techniques: TechniqueSource[] = [];
 
@@ -696,7 +696,7 @@ export async function autoBuildAllChains(params: {
     pipelineOutput: any;
     findings?: any[];
   };
-  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }>;
+  vulnSteps?: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }>;
 }): Promise<ChainBuildResult[]> {
   const { calderaBaseUrl, calderaApiKey, scanData, vulnSteps } = params;
 

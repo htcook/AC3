@@ -34,6 +34,7 @@ export interface DiscoveredAssetRaw {
   dnsStatus?: string;
   headers?: string;
   technologies?: string[];
+  technologyVersions?: Record<string, string>; // e.g. { "nginx": "1.18.0", "OpenSSL": "1.1.1" }
   assetClasses: string[];
   tags: string[];
   description?: string;
@@ -58,6 +59,14 @@ export interface ShockScores {
   knowledge: number;
 }
 
+/**
+ * Corroboration tiers for findings:
+ * - confirmed: Version detected AND matched to specific CVE affected version range. Severity uncapped.
+ * - probable: Product/brand detected but version unknown; CVE exists for this product family. Severity capped at 6.
+ * - potential: LLM-inferred risk with no CVE backing. Severity capped at 4. Shown as advisory.
+ */
+export type CorroborationTier = "confirmed" | "probable" | "potential";
+
 export interface PostureFinding {
   id: string;
   assetRef: string;
@@ -75,6 +84,12 @@ export interface PostureFinding {
   affectedAssets?: string[]; // Hostnames of affected assets
   evidenceBasis?: "confirmed_cve" | "kev_match" | "vuln_feed" | "llm_inference" | "technology_match";
   evidenceDetail?: string; // How this finding was determined
+  // Corroboration fields
+  corroborationTier: CorroborationTier;
+  detectedVersion?: string; // The actual version detected (if any)
+  affectedVersions?: string; // The CVE's affected version range (e.g. "< 1.21.0")
+  versionMatchConfirmed?: boolean; // True if detected version falls within affected range
+  evidenceChain?: string[]; // Step-by-step evidence trail
 }
 
 export interface TestVector {
@@ -239,12 +254,18 @@ Return a JSON array of discovered assets. Each asset must have:
   "url": "https://subdomain.domain.com",
   "assetType": "sso|mail_gateway|api|payment|cdn|vpn|owa|crm|erp|dev|ci_cd|storage|database|monitoring|customer_portal|admin_panel|other",
   "technologies": ["nginx", "Microsoft 365", etc],
+  "technologyVersions": {"nginx": "1.18.0", "OpenSSL": "1.1.1", etc},  // Include version numbers when they can be reasonably inferred from sector/client type patterns. Use null for unknown versions.
   "assetClasses": ["identity_provider", "email_infrastructure", etc],
   "tags": ["internet_exposed", "authentication", "critical_data", etc],
   "description": "Brief description of what this asset likely does",
   "dnsRecords": {"A": [], "CNAME": [], "MX": [], "TXT": [], "NS": []},
   "headers": "likely server headers"
 }
+
+IMPORTANT: For the "technologyVersions" field, only include version numbers you have HIGH confidence about based on:
+- Common default versions for this sector/client type
+- Versions implied by other technology choices (e.g., if using Ubuntu 22.04, OpenSSL is likely 3.0.x)
+- DO NOT guess random version numbers. If you cannot reasonably infer the version, omit that technology from technologyVersions.
 
 Generate 15-30 realistic assets. Be specific to the sector and client type. For ${org.clientType} clients, emphasize:
 ${org.clientType === "msp" ? "- Multi-tenant management portals, RMM tools, PSA platforms, client VPN endpoints, backup systems" : ""}
@@ -405,23 +426,47 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
         riskBand: hybrid.band,
         cvssEstimate: Math.round(cvss * 10) / 10,
         contextIndicators: ctx,
-        postureFindings: (analysis.postureFindings || []).map((f: any, i: number) => ({
-          id: f.id || `pf-${asset.assetId}-${i}`,
-          assetRef: asset.assetId,
-          assetHostname: asset.hostname,
-          category: f.category || "general",
-          title: f.title || "Finding",
-          severity: clamp(f.severity || 4, 0, 10),
-          likelihood: clamp(f.likelihood || 4, 0, 10),
-          confidence: clamp(f.confidence || 0.5, 0, 1),
-          recommendedControls: f.recommendedControls || [],
-          cveIds: f.cveIds || [],
-          kevListed: false,
-          exploitAvailable: false,
-          affectedAssets: [asset.hostname],
-          evidenceBasis: "llm_inference" as const,
-          evidenceDetail: `Inferred by LLM analysis of ${asset.assetType} asset (${asset.hostname})`,
-        })),
+        postureFindings: (analysis.postureFindings || []).map((f: any, i: number) => {
+          // Determine corroboration tier based on evidence
+          const hasCveIds = f.cveIds && f.cveIds.length > 0;
+          const tier: CorroborationTier = hasCveIds ? "probable" : "potential";
+          // Cap severity based on tier: potential=4, probable=6, confirmed=uncapped
+          const severityCap = tier === "potential" ? 4 : tier === "probable" ? 6 : 10;
+          const rawSeverity = clamp(f.severity || 4, 0, 10);
+          const cappedSeverity = Math.min(rawSeverity, severityCap);
+          // Build evidence chain
+          const evidenceChain: string[] = [
+            `Asset "${asset.hostname}" identified as ${asset.assetType} (discovery: ${asset.discoveryMethod || "inferred"})`,
+          ];
+          if (hasCveIds) {
+            evidenceChain.push(`CVE(s) ${f.cveIds.join(", ")} associated with ${asset.assetType} product family`);
+            evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
+          } else {
+            evidenceChain.push(`Risk inferred by LLM analysis — no specific CVE or version evidence`);
+            evidenceChain.push(`Advisory only — severity capped at ${severityCap}/10 pending corroboration`);
+          }
+          return {
+            id: f.id || `pf-${asset.assetId}-${i}`,
+            assetRef: asset.assetId,
+            assetHostname: asset.hostname,
+            category: f.category || "general",
+            title: f.title || "Finding",
+            severity: cappedSeverity,
+            likelihood: clamp(f.likelihood || 3, 0, tier === "potential" ? 5 : 10),
+            confidence: clamp(f.confidence || 0.4, 0, 1),
+            recommendedControls: f.recommendedControls || [],
+            cveIds: f.cveIds || [],
+            kevListed: false,
+            exploitAvailable: false,
+            affectedAssets: [asset.hostname],
+            evidenceBasis: hasCveIds ? "technology_match" as const : "llm_inference" as const,
+            evidenceDetail: hasCveIds
+              ? `Product-family match: CVE(s) ${f.cveIds.join(", ")} affect ${asset.assetType} products. Version not confirmed — finding is PROBABLE, not confirmed.`
+              : `Inferred by LLM analysis of ${asset.assetType} asset (${asset.hostname}). No CVE or version evidence — finding is POTENTIAL only.`,
+            corroborationTier: tier,
+            evidenceChain,
+          };
+        }),
         testVectors: (analysis.testVectors || []).map((v: any, i: number) => ({
           id: v.id || `tv-${asset.assetId}-${i}`,
           assetRef: asset.hostname,
@@ -557,18 +602,29 @@ Critical Functions: ${org.criticalFunctions.join(", ")}
 Compliance: ${org.complianceFlags.join(", ") || "none"}
 
 Top Risk Assets (sorted by hybrid risk score):
-${JSON.stringify(topAssets.map(a => ({
-  id: a.asset.assetId,
-  hostname: a.asset.hostname,
-  type: a.asset.assetType,
-  riskScore: a.hybridRiskScore,
-  riskBand: a.riskBand,
-  tier: a.suggestedTier,
-  classes: a.asset.assetClasses,
-  tags: a.asset.tags,
-  findings: a.postureFindings.map(f => f.title),
-  vectors: a.testVectors.map(v => ({ type: v.vectorType, hypothesis: v.hypothesis })),
-})), null, 2)}
+${JSON.stringify(topAssets.map(a => {
+  // Only include confirmed and probable findings for campaign design — exclude potential-only (LLM-inferred without CVE evidence)
+  const actionableFindings = a.postureFindings.filter(f => f.corroborationTier === "confirmed" || f.corroborationTier === "probable");
+  return {
+    id: a.asset.assetId,
+    hostname: a.asset.hostname,
+    type: a.asset.assetType,
+    riskScore: a.hybridRiskScore,
+    riskBand: a.riskBand,
+    tier: a.suggestedTier,
+    classes: a.asset.assetClasses,
+    tags: a.asset.tags,
+    confirmedFindings: actionableFindings.filter(f => f.corroborationTier === "confirmed").map(f => ({ title: f.title, cves: f.cveIds, severity: f.severity, version: f.detectedVersion })),
+    probableFindings: actionableFindings.filter(f => f.corroborationTier === "probable").map(f => ({ title: f.title, cves: f.cveIds, severity: f.severity, note: "version not confirmed" })),
+    vectors: a.testVectors.map(v => ({ type: v.vectorType, hypothesis: v.hypothesis })),
+  };
+}), null, 2)}
+
+IMPORTANT CORROBORATION RULES:
+- Only design campaigns targeting CONFIRMED or PROBABLE findings. Do NOT target POTENTIAL-only findings.
+- CONFIRMED findings have a detected version that matches a known vulnerable version range — these are highest priority.
+- PROBABLE findings have a real CVE but the specific version on the target is unconfirmed — include these but note the version uncertainty.
+- Do NOT invent vulnerabilities or assume versions that have not been detected.
 
 Design 4-8 campaigns that:
 1. Target the highest-risk assets first
@@ -761,25 +817,54 @@ export async function runDomainIntelPipeline(
             a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
             a.riskBand = a.hybridRiskScore >= 85 ? "critical" : a.hybridRiskScore >= 70 ? "high" : a.hybridRiskScore >= 40 ? "medium" : "low";
             a.suggestedTier = a.hybridRiskScore >= 85 ? "tier0_critical" : a.hybridRiskScore >= 70 ? "tier1_high" : a.hybridRiskScore >= 40 ? "tier2_medium" : "tier3_low";
-            // Add KEV posture findings with full evidence
+            // Add KEV posture findings with full evidence and corroboration
             assetKevMatches.forEach(m => {
+              // Check if we have a detected version for this technology
+              const versions = a.asset.technologyVersions || {};
+              const detectedVersion = Object.entries(versions).find(
+                ([tech]) => tech.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(tech.toLowerCase())
+              )?.[1] || undefined;
+              // KEV entries are product-family matches unless we have a version
+              // KEV is always at least "probable" because it's a confirmed CVE on a confirmed product family
+              const tier: CorroborationTier = detectedVersion ? "confirmed" : "probable";
+              const severityCap = tier === "confirmed" ? 10 : 6;
+              const rawSeverity = m.knownRansomware ? 10 : 9;
+              const cappedSeverity = Math.min(rawSeverity, severityCap);
+              const evidenceChain: string[] = [
+                `Technology "${m.matchedOn}" detected on asset "${a.asset.hostname}"`,
+                `Matched against CISA KEV entry ${m.cveID} (${m.vendorProject} ${m.product})`,
+              ];
+              if (detectedVersion) {
+                evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED`);
+              } else {
+                evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
+              }
+              evidenceChain.push(`KEV status: actively exploited in the wild. Due date: ${m.dueDate}`);
+              if (m.knownRansomware) evidenceChain.push(`Ransomware association confirmed`);
+
               a.postureFindings.push({
                 id: `kev-${m.cveID}`,
                 assetRef: a.asset.assetId,
                 assetHostname: a.asset.hostname,
                 category: "CISA KEV",
                 title: `${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? " [RANSOMWARE]" : ""}`,
-                severity: m.knownRansomware ? 10 : 9,
-                likelihood: 9, // KEV = actively exploited = very high likelihood
-                confidence: 0.95,
+                severity: cappedSeverity,
+                likelihood: detectedVersion ? 9 : 6, // Lower likelihood without version confirmation
+                confidence: detectedVersion ? 0.95 : 0.7,
                 recommendedControls: [m.requiredAction, `Patch ${m.product} immediately`, "Monitor for exploitation indicators"],
                 cveIds: [m.cveID],
                 kevListed: true,
-                exploitAvailable: true, // KEV = known exploited
+                exploitAvailable: true,
                 cvssScore: m.knownRansomware ? 9.8 : 9.0,
                 affectedAssets: [a.asset.hostname],
                 evidenceBasis: "kev_match" as const,
-                evidenceDetail: `Matched technology "${m.matchedOn}" on ${a.asset.hostname} against CISA KEV entry ${m.cveID} (${m.vendorProject} ${m.product}). Due date: ${m.dueDate}.`,
+                evidenceDetail: detectedVersion
+                  ? `CONFIRMED: Technology "${m.matchedOn}" v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}.`
+                  : `PROBABLE: Technology "${m.matchedOn}" on ${a.asset.hostname} matches CISA KEV product family ${m.vendorProject} ${m.product}. Version not confirmed — severity capped. Due date: ${m.dueDate}.`,
+                corroborationTier: tier,
+                detectedVersion,
+                versionMatchConfirmed: !!detectedVersion,
+                evidenceChain,
               });
             });
           }
@@ -817,18 +902,45 @@ export async function runDomainIntelPipeline(
             // Skip if we already have a KEV finding for this CVE
             if (a.postureFindings.some(f => f.cveIds?.includes(vuln.cveId))) continue;
 
+            // Determine corroboration tier based on version evidence
+            const versions = a.asset.technologyVersions || {};
+            const detectedVersion = Object.entries(versions).find(
+              ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
+            )?.[1] || undefined;
+            // With version: confirmed. Without: probable (we have a real CVE, just no version confirmation)
+            const tier: CorroborationTier = detectedVersion ? "confirmed" : "probable";
+            const severityCap = tier === "confirmed" ? 10 : 6;
+            const rawSeverity = vuln.cvssScore ? Math.round(vuln.cvssScore) : 5;
+            const cappedSeverity = Math.min(rawSeverity, severityCap);
+            const evidenceChain: string[] = [
+              `Technology "${vulnMatch.technology}" detected on asset "${a.asset.hostname}"`,
+              `${vuln.cveId} affects ${vuln.vendor} ${vuln.product} (CVSS: ${vuln.cvssScore || "N/A"})`,
+              `Sources: ${vuln.sources.join(", ")}`,
+            ];
+            if (detectedVersion) {
+              evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED`);
+            } else {
+              evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
+            }
+            if (vuln.kevListed) evidenceChain.push(`Listed on CISA KEV — actively exploited in the wild`);
+            if (vuln.exploitAvailable) evidenceChain.push(`Public exploit available`);
+            if (vuln.inTheWild) evidenceChain.push(`Confirmed 0-day exploitation in the wild`);
+
             a.postureFindings.push({
               id: `vf-${vuln.cveId}-${a.asset.assetId}`,
               assetRef: a.asset.assetId,
               assetHostname: a.asset.hostname,
               category: vuln.kevListed ? "CISA KEV" : vuln.inTheWild ? "0-Day" : vuln.exploitAvailable ? "Exploitable CVE" : "Known CVE",
               title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"} (${vuln.vendor} ${vuln.product})`,
-              severity: vuln.cvssScore ? Math.round(vuln.cvssScore) : 5,
-              likelihood: vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 4,
-              confidence: vuln.kevListed ? 0.95 : vuln.cvssScore ? 0.85 : 0.6,
+              severity: cappedSeverity,
+              likelihood: detectedVersion
+                ? (vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 5)
+                : Math.min(vuln.kevListed ? 6 : vuln.inTheWild ? 5 : vuln.exploitAvailable ? 4 : 3, 6),
+              confidence: detectedVersion ? (vuln.cvssScore ? 0.9 : 0.75) : (vuln.cvssScore ? 0.6 : 0.4),
               recommendedControls: [
                 vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
                 `Monitor for exploitation of ${vuln.cveId}`,
+                ...(!detectedVersion ? [`Verify ${vuln.vendor} ${vuln.product} version on ${a.asset.hostname} to confirm vulnerability`] : []),
               ],
               cveIds: [vuln.cveId],
               kevListed: vuln.kevListed,
@@ -836,7 +948,13 @@ export async function runDomainIntelPipeline(
               cvssScore: vuln.cvssScore || undefined,
               affectedAssets: [a.asset.hostname],
               evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
-              evidenceDetail: `${vuln.cveId} affects ${vuln.vendor} ${vuln.product} (CVSS: ${vuln.cvssScore || "N/A"}). Sources: ${vuln.sources.join(", ")}. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname}.`,
+              evidenceDetail: detectedVersion
+                ? `CONFIRMED: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
+                : `PROBABLE: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but version not confirmed. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
+              corroborationTier: tier,
+              detectedVersion,
+              versionMatchConfirmed: !!detectedVersion,
+              evidenceChain,
             });
           }
         }

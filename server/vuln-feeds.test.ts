@@ -407,14 +407,14 @@ describe('getVulnFeedChainSteps', () => {
     expect(steps).toHaveLength(2);
     expect(steps[0].techniqueId).toBe('T1190');
     expect(steps[0].source).toBe('vuln_feed');
-    expect(steps[0].priority).toBe(2); // exploit but not 0-day/KEV
+    expect(steps[0].priority).toBe(3); // probable tier: exploit without 0-day/KEV = priority 3
     expect(steps[0].context).toContain('CVE-2024-5555');
     expect(steps[0].context).toContain('Apache');
     expect(steps[0].context).toContain('[EXPLOIT]');
     expect(steps[1].techniqueId).toBe('T1059');
   });
 
-  it('assigns priority 1 to 0-day vulns', () => {
+  it('assigns priority 2 to 0-day vulns without version confirmation (probable tier)', () => {
     const matches: TechVulnMatch[] = [{
       technology: 'Chrome',
       vulns: [makeVuln({
@@ -430,11 +430,12 @@ describe('getVulnFeedChainSteps', () => {
     }];
     const steps = getVulnFeedChainSteps(matches);
     expect(steps).toHaveLength(1);
-    expect(steps[0].priority).toBe(1);
+    expect(steps[0].priority).toBe(2); // probable tier: 0-day/KEV = priority 2
     expect(steps[0].context).toContain('[0-DAY]');
+    expect(steps[0].corroborationTier).toBe('probable');
   });
 
-  it('assigns priority 1 to KEV-listed vulns', () => {
+  it('assigns priority 2 to KEV-listed vulns without version confirmation (probable tier)', () => {
     const matches: TechVulnMatch[] = [{
       technology: 'Exchange',
       vulns: [makeVuln({
@@ -450,8 +451,31 @@ describe('getVulnFeedChainSteps', () => {
     }];
     const steps = getVulnFeedChainSteps(matches);
     expect(steps).toHaveLength(1);
-    expect(steps[0].priority).toBe(1);
+    expect(steps[0].priority).toBe(2); // probable tier: KEV = priority 2
     expect(steps[0].context).toContain('[KEV]');
+    expect(steps[0].corroborationTier).toBe('probable');
+  });
+
+  it('assigns priority 1 to confirmed (version-matched) 0-day vulns', () => {
+    const matches: TechVulnMatch[] = [{
+      technology: 'Chrome',
+      vulns: [makeVuln({
+        cveId: 'CVE-2024-7777',
+        inTheWild: true,
+        exploitAvailable: true,
+        suggestedTechniques: ['T1190'],
+      })],
+      maxSeverity: 'critical',
+      exploitCount: 1,
+      kevCount: 0,
+      riskScore: 80,
+    }];
+    const steps = getVulnFeedChainSteps(matches, { Chrome: '120.0.6099.109' });
+    expect(steps).toHaveLength(1);
+    expect(steps[0].priority).toBe(1); // confirmed tier: 0-day = priority 1
+    expect(steps[0].context).toContain('[0-DAY]');
+    expect(steps[0].context).toContain('[VERSION CONFIRMED]');
+    expect(steps[0].corroborationTier).toBe('confirmed');
   });
 
   it('deduplicates techniques across multiple matches', () => {

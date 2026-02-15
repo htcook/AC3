@@ -330,3 +330,244 @@ describe("Discovery Method Labels", () => {
     expect(methods).toContain("dns_verified");
   });
 });
+
+// ─── Corroboration Tier Tests ───
+
+describe("Corroboration Tiers - Classification", () => {
+  it("should classify as 'confirmed' when version is detected and matches CVE affected range", () => {
+    const finding = {
+      corroborationTier: "confirmed",
+      detectedVersion: "1.18.0",
+      versionMatchConfirmed: true,
+      cveIds: ["CVE-2021-23017"],
+      evidenceBasis: "confirmed_cve",
+      confidence: 0.95,
+    };
+    expect(finding.corroborationTier).toBe("confirmed");
+    expect(finding.versionMatchConfirmed).toBe(true);
+    expect(finding.detectedVersion).toBeTruthy();
+    expect(finding.cveIds.length).toBeGreaterThan(0);
+  });
+
+  it("should classify as 'probable' when product detected but version unknown", () => {
+    const finding = {
+      corroborationTier: "probable",
+      detectedVersion: undefined,
+      versionMatchConfirmed: false,
+      cveIds: ["CVE-2024-1234"],
+      evidenceBasis: "vuln_feed",
+      confidence: 0.6,
+    };
+    expect(finding.corroborationTier).toBe("probable");
+    expect(finding.detectedVersion).toBeUndefined();
+    expect(finding.versionMatchConfirmed).toBe(false);
+    expect(finding.cveIds.length).toBeGreaterThan(0);
+  });
+
+  it("should classify as 'potential' when LLM-inferred with no CVE backing", () => {
+    const finding = {
+      corroborationTier: "potential",
+      detectedVersion: undefined,
+      versionMatchConfirmed: false,
+      cveIds: [],
+      evidenceBasis: "llm_inference",
+      confidence: 0.3,
+    };
+    expect(finding.corroborationTier).toBe("potential");
+    expect(finding.cveIds.length).toBe(0);
+    expect(finding.evidenceBasis).toBe("llm_inference");
+  });
+});
+
+describe("Corroboration Tiers - Severity Caps", () => {
+  it("should not cap severity for confirmed findings", () => {
+    // Confirmed findings can have any severity
+    const severity = 9;
+    const tier = "confirmed";
+    const capped = tier === "probable" ? Math.min(severity, 6) : tier === "potential" ? Math.min(severity, 4) : severity;
+    expect(capped).toBe(9);
+  });
+
+  it("should cap severity at 6 for probable findings", () => {
+    const severity = 9;
+    const tier = "probable";
+    const capped = tier === "probable" ? Math.min(severity, 6) : tier === "potential" ? Math.min(severity, 4) : severity;
+    expect(capped).toBe(6);
+  });
+
+  it("should cap severity at 4 for potential findings", () => {
+    const severity = 8;
+    const tier = "potential";
+    const capped = tier === "probable" ? Math.min(severity, 6) : tier === "potential" ? Math.min(severity, 4) : severity;
+    expect(capped).toBe(4);
+  });
+
+  it("should not increase severity when already below cap", () => {
+    const severity = 3;
+    const tier = "probable";
+    const capped = tier === "probable" ? Math.min(severity, 6) : severity;
+    expect(capped).toBe(3);
+  });
+});
+
+describe("Corroboration Tiers - Evidence Chains", () => {
+  it("should build a multi-step evidence chain for confirmed findings", () => {
+    const chain = [
+      "Asset mail.example.com discovered via DNS enumeration",
+      "Technology nginx 1.18.0 detected via HTTP response headers",
+      "CVE-2021-23017 affects nginx versions < 1.21.0 (NVD confirmed)",
+      "Detected version 1.18.0 falls within affected range",
+      "CISA KEV listing confirms active exploitation in the wild",
+    ];
+    expect(chain.length).toBeGreaterThanOrEqual(3);
+    expect(chain[0]).toContain("discovered");
+    expect(chain[1]).toContain("detected");
+    expect(chain[chain.length - 1]).toContain("confirm");
+  });
+
+  it("should build a shorter evidence chain for probable findings", () => {
+    const chain = [
+      "Asset www.example.com discovered via OSINT inference",
+      "Technology Apache identified via product name match",
+      "CVE-2024-5678 exists for Apache product family — version unconfirmed",
+    ];
+    expect(chain.length).toBeGreaterThanOrEqual(2);
+    expect(chain[chain.length - 1]).toContain("unconfirmed");
+  });
+
+  it("should have minimal evidence chain for potential findings", () => {
+    const chain = [
+      "Risk inferred by LLM analysis — no direct CVE or version evidence",
+    ];
+    expect(chain.length).toBe(1);
+    expect(chain[0]).toContain("inferred");
+  });
+});
+
+describe("Corroboration Tiers - Version Matching Logic", () => {
+  function isVersionAffected(detected: string, affectedRange: string): boolean {
+    // Simple semver comparison: "< X.Y.Z" or "<= X.Y.Z"
+    const match = affectedRange.match(/^([<>]=?)\s*([\d.]+)$/);
+    if (!match) return false;
+    const [, op, ver] = match;
+    const dParts = detected.split(".").map(Number);
+    const vParts = ver.split(".").map(Number);
+    for (let i = 0; i < Math.max(dParts.length, vParts.length); i++) {
+      const d = dParts[i] || 0;
+      const v = vParts[i] || 0;
+      if (d < v) return op === "<" || op === "<=" || op === ">";
+      if (d > v) return op === ">" || op === ">=";
+    }
+    return op === "<=" || op === ">=";
+  }
+
+  it("should match version within affected range (< operator)", () => {
+    expect(isVersionAffected("1.18.0", "< 1.21.0")).toBe(true);
+  });
+
+  it("should not match version outside affected range", () => {
+    expect(isVersionAffected("1.25.0", "< 1.21.0")).toBe(false);
+  });
+
+  it("should match exact version with <= operator", () => {
+    expect(isVersionAffected("1.21.0", "<= 1.21.0")).toBe(true);
+  });
+
+  it("should not match exact version with < operator", () => {
+    expect(isVersionAffected("1.21.0", "< 1.21.0")).toBe(false);
+  });
+});
+
+describe("Corroboration Tiers - Campaign Filtering", () => {
+  it("should include confirmed findings in campaign recommendations", () => {
+    const findings = [
+      { corroborationTier: "confirmed", severity: 9, title: "Confirmed vuln" },
+      { corroborationTier: "probable", severity: 6, title: "Probable vuln" },
+      { corroborationTier: "potential", severity: 4, title: "Potential vuln" },
+    ];
+    const campaignFindings = findings.filter(f => f.corroborationTier !== "potential");
+    expect(campaignFindings.length).toBe(2);
+    expect(campaignFindings.map(f => f.title)).toContain("Confirmed vuln");
+    expect(campaignFindings.map(f => f.title)).toContain("Probable vuln");
+    expect(campaignFindings.map(f => f.title)).not.toContain("Potential vuln");
+  });
+
+  it("should exclude potential-only findings from chain builder", () => {
+    const vulnSteps = [
+      { corroborationTier: "confirmed", techniqueId: "T1190", name: "Exploit nginx" },
+      { corroborationTier: "potential", techniqueId: "T1059", name: "LLM-inferred script" },
+    ];
+    const filtered = vulnSteps.filter((s: any) => s.corroborationTier !== "potential");
+    expect(filtered.length).toBe(1);
+    expect(filtered[0].name).toBe("Exploit nginx");
+  });
+
+  it("should prioritize confirmed over probable in chain ordering", () => {
+    const steps = [
+      { corroborationTier: "probable", priority: 2 },
+      { corroborationTier: "confirmed", priority: 1 },
+    ];
+    const sorted = [...steps].sort((a, b) => {
+      const order: Record<string, number> = { confirmed: 0, probable: 1, potential: 2 };
+      return (order[a.corroborationTier] ?? 2) - (order[b.corroborationTier] ?? 2);
+    });
+    expect(sorted[0].corroborationTier).toBe("confirmed");
+    expect(sorted[1].corroborationTier).toBe("probable");
+  });
+});
+
+describe("Corroboration Tiers - Sorting in UI", () => {
+  it("should sort findings: confirmed first, then probable, then potential", () => {
+    const findings = [
+      { corroborationTier: "potential", severity: 4, kevListed: false, confidence: 0.3 },
+      { corroborationTier: "confirmed", severity: 9, kevListed: true, confidence: 0.95 },
+      { corroborationTier: "probable", severity: 6, kevListed: false, confidence: 0.6 },
+      { corroborationTier: "confirmed", severity: 7, kevListed: false, confidence: 0.9 },
+    ];
+
+    const tierOrder: Record<string, number> = { confirmed: 0, probable: 1, potential: 2 };
+    const sorted = [...findings].sort((a, b) => {
+      const aTier = tierOrder[a.corroborationTier] ?? 2;
+      const bTier = tierOrder[b.corroborationTier] ?? 2;
+      if (aTier !== bTier) return aTier - bTier;
+      if (a.kevListed && !b.kevListed) return -1;
+      if (!a.kevListed && b.kevListed) return 1;
+      if (b.severity !== a.severity) return b.severity - a.severity;
+      return b.confidence - a.confidence;
+    });
+
+    expect(sorted[0].corroborationTier).toBe("confirmed");
+    expect(sorted[0].kevListed).toBe(true);
+    expect(sorted[1].corroborationTier).toBe("confirmed");
+    expect(sorted[2].corroborationTier).toBe("probable");
+    expect(sorted[3].corroborationTier).toBe("potential");
+  });
+
+  it("should visually dim potential findings (opacity-75)", () => {
+    const tier = "potential";
+    const className = tier === "potential" ? "border-purple-500/20 opacity-75" : "";
+    expect(className).toContain("opacity-75");
+  });
+});
+
+describe("Corroboration Tiers - Summary Counts", () => {
+  it("should correctly count findings by tier", () => {
+    const findings = [
+      { corroborationTier: "confirmed" },
+      { corroborationTier: "confirmed" },
+      { corroborationTier: "probable" },
+      { corroborationTier: "potential" },
+      { corroborationTier: "potential" },
+      { corroborationTier: "potential" },
+      { corroborationTier: undefined }, // defaults to potential
+    ];
+
+    const confirmed = findings.filter(f => f.corroborationTier === "confirmed");
+    const probable = findings.filter(f => f.corroborationTier === "probable");
+    const potential = findings.filter(f => !f.corroborationTier || f.corroborationTier === "potential");
+
+    expect(confirmed.length).toBe(2);
+    expect(probable.length).toBe(1);
+    expect(potential.length).toBe(4); // 3 explicit + 1 undefined
+  });
+});

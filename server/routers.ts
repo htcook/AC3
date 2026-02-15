@@ -745,18 +745,27 @@ export const appRouter = router({
         const campaign = input.campaignIndex !== undefined ? campaigns[input.campaignIndex] : undefined;
 
         // Enrich with vulnerability feed data from discovered technologies
-        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
+        // Only confirmed/probable findings are included to prevent false-positive noise in adversary emulation
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }> = [];
         try {
           if (input.scanId) {
             const scanForTech = await db.getDomainIntelScanById(input.scanId);
             const pipelineAssets = (scanForTech?.pipelineOutput as any)?.assets || [];
             const techs = new Set<string>();
+            const detectedVersions: Record<string, string> = {};
             pipelineAssets.forEach((a: any) => {
-              ((a.technologies || a?.asset?.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+              const asset = a?.asset || a;
+              ((asset.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+              // Collect detected versions for corroboration
+              if (asset.technologyVersions) {
+                Object.entries(asset.technologyVersions).forEach(([tech, ver]) => {
+                  if (ver) detectedVersions[tech] = ver as string;
+                });
+              }
             });
             if (techs.size > 0) {
               const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
-              vulnSteps = getVulnFeedChainSteps(vulnMatches.matches);
+              vulnSteps = getVulnFeedChainSteps(vulnMatches.matches, Object.keys(detectedVersions).length > 0 ? detectedVersions : undefined);
             }
           }
         } catch (e) {
@@ -784,21 +793,28 @@ export const appRouter = router({
         const { autoBuildAllChains } = await import('./lib/chain-builder');
         const { matchTechnologiesAgainstAllFeeds, getVulnFeedChainSteps } = await import('./lib/vuln-feeds');
         let scanData: any = undefined;
-        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }> = [];
         if (input.scanId) {
           const scan = await db.getDomainIntelScanById(input.scanId);
           if (scan) {
             scanData = { pipelineOutput: scan.pipelineOutput, findings: [] };
-            // Extract technologies and match against vuln feeds
+            // Extract technologies and match against vuln feeds with version corroboration
             try {
               const pipelineAssets = (scan.pipelineOutput as any)?.assets || [];
               const techs = new Set<string>();
+              const detectedVersions: Record<string, string> = {};
               pipelineAssets.forEach((a: any) => {
-                ((a.technologies || a?.asset?.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+                const asset = a?.asset || a;
+                ((asset.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+                if (asset.technologyVersions) {
+                  Object.entries(asset.technologyVersions).forEach(([tech, ver]) => {
+                    if (ver) detectedVersions[tech] = ver as string;
+                  });
+                }
               });
               if (techs.size > 0) {
                 const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
-                vulnSteps = getVulnFeedChainSteps(vulnMatches.matches);
+                vulnSteps = getVulnFeedChainSteps(vulnMatches.matches, Object.keys(detectedVersions).length > 0 ? detectedVersions : undefined);
               }
             } catch (e) {
               console.warn('[Auto Chain Builder] Vuln feed enrichment failed:', e);
@@ -842,17 +858,24 @@ export const appRouter = router({
         const campaign = campaigns[input.campaignIndex];
         if (!campaign) throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign recommendation not found' });
 
-        // Enrich with vuln feed data
-        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
+        // Enrich with vuln feed data — only confirmed/probable findings to prevent false-positive noise
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }> = [];
         try {
           const pipelineAssets = scanData?.assets || [];
           const techs = new Set<string>();
+          const detectedVersions: Record<string, string> = {};
           pipelineAssets.forEach((a: any) => {
-            ((a.technologies || a?.asset?.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+            const asset = a?.asset || a;
+            ((asset.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+            if (asset.technologyVersions) {
+              Object.entries(asset.technologyVersions).forEach(([tech, ver]) => {
+                if (ver) detectedVersions[tech] = ver as string;
+              });
+            }
           });
           if (techs.size > 0) {
             const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
-            vulnSteps = getVulnFeedChainSteps(vulnMatches.matches);
+            vulnSteps = getVulnFeedChainSteps(vulnMatches.matches, Object.keys(detectedVersions).length > 0 ? detectedVersions : undefined);
           }
         } catch (e) {
           console.warn('[LLM Chain Builder] Vuln feed enrichment failed:', e);

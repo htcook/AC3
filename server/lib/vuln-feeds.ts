@@ -911,33 +911,48 @@ export {
 };
 
 /**
- * Generate chain builder steps from vulnerability feed matches.
- * Extracts suggestedTechniques from matched vulns and formats them
- * for the chain builder's vulnSteps parameter.
+ * Generate chain steps from vuln feed matches.
+ * Only includes confirmed/probable findings to prevent false-positive noise in adversary emulation.
+ * @param matches - Technology vulnerability matches from all feeds
+ * @param detectedVersions - Optional map of technology -> detected version for corroboration
  */
 export function getVulnFeedChainSteps(
-  matches: TechVulnMatch[]
-): Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> {
-  const steps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string }> = [];
+  matches: TechVulnMatch[],
+  detectedVersions?: Record<string, string>
+): Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier: string }> {
+  const steps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier: string }> = [];
   const seenTechniques = new Set<string>();
 
   for (const match of matches) {
+    // Determine corroboration tier for this technology match
+    const hasVersion = detectedVersions && Object.keys(detectedVersions).some(
+      tech => tech.toLowerCase().includes(match.technology.toLowerCase()) || match.technology.toLowerCase().includes(tech.toLowerCase())
+    );
+    const tier = hasVersion ? "confirmed" : "probable";
+
     for (const vuln of match.vulns) {
-      // Only include vulns with confirmed exploits or 0-day status
+      // Only include vulns with confirmed exploits, 0-day status, or KEV listing
       if (!vuln.exploitAvailable && !vuln.inTheWild && !vuln.kevListed) continue;
 
       for (const tid of vuln.suggestedTechniques) {
         if (seenTechniques.has(tid)) continue;
         seenTechniques.add(tid);
 
-        // Priority: 0-day/KEV = 1 (highest), exploit available = 2
-        const priority = (vuln.inTheWild || vuln.kevListed) ? 1 : 2;
+        // Priority: confirmed + 0-day/KEV = 1, confirmed + exploit = 2, probable + KEV = 2, probable + exploit = 3
+        let priority: number;
+        if (tier === "confirmed") {
+          priority = (vuln.inTheWild || vuln.kevListed) ? 1 : 2;
+        } else {
+          priority = (vuln.inTheWild || vuln.kevListed) ? 2 : 3;
+        }
 
+        const versionNote = hasVersion ? " [VERSION CONFIRMED]" : " [VERSION UNCONFIRMED]";
         steps.push({
           techniqueId: tid,
           priority,
           source: "vuln_feed",
-          context: `${vuln.cveId} (${vuln.severity.toUpperCase()}, CVSS ${vuln.cvssScore || "N/A"}) affecting ${match.technology}${vuln.inTheWild ? " [0-DAY]" : ""}${vuln.kevListed ? " [KEV]" : ""}${vuln.exploitAvailable ? " [EXPLOIT]" : ""}`,
+          context: `${vuln.cveId} (${vuln.severity.toUpperCase()}, CVSS ${vuln.cvssScore || "N/A"}) affecting ${match.technology}${vuln.inTheWild ? " [0-DAY]" : ""}${vuln.kevListed ? " [KEV]" : ""}${vuln.exploitAvailable ? " [EXPLOIT]" : ""}${versionNote}`,
+          corroborationTier: tier,
         });
       }
     }
