@@ -11,8 +11,9 @@ import {
   ArrowLeft, Shield, Target, AlertTriangle, Brain, Globe, Server,
   ChevronDown, ChevronUp, Crosshair, Zap, FileText, ExternalLink,
   Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database,
-  TrendingUp
+  TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
@@ -205,7 +206,7 @@ export default function DomainIntelResults() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid grid-cols-7 w-full max-w-4xl">
+        <TabsList className="grid grid-cols-8 w-full max-w-5xl">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="assets">Assets</TabsTrigger>
           <TabsTrigger value="vulns">Vulns</TabsTrigger>
@@ -213,6 +214,7 @@ export default function DomainIntelResults() {
           <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
           <TabsTrigger value="threat-model">Threat Model</TabsTrigger>
           <TabsTrigger value="findings">Findings</TabsTrigger>
+          <TabsTrigger value="methods">Methods</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -859,6 +861,11 @@ export default function DomainIntelResults() {
           <VulnIntelSection scanId={scanId} />
         </TabsContent>
 
+        {/* Scan Methods Tab */}
+        <TabsContent value="methods" className="space-y-4">
+          <ScanMethodsTab assets={assets} scan={scan} />
+        </TabsContent>
+
         {/* Findings Tab */}
         <TabsContent value="findings" className="space-y-3">
           {(() => {
@@ -1013,25 +1020,70 @@ export default function DomainIntelResults() {
                                 </span>
                               </div>
 
-                              {/* Evidence chain */}
-                              {f.evidenceChain?.length > 0 && (
-                                <div className="mt-2 border-l-2 border-cyan-500/30 pl-2 space-y-0.5">
-                                  <p className="text-[10px] font-semibold text-cyan-400 mb-1">Evidence Chain:</p>
-                                  {f.evidenceChain.map((step: string, j: number) => (
-                                    <div key={j} className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
-                                      <span className="text-cyan-500/60 shrink-0">{j + 1}.</span>
-                                      <span>{step}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Fallback: evidence detail if no chain */}
-                              {(!f.evidenceChain || f.evidenceChain.length === 0) && f.evidenceDetail && (
-                                <p className="mt-1.5 text-[11px] text-muted-foreground/80 italic border-l-2 border-muted pl-2">
-                                  {f.evidenceDetail}
+                              {/* ─── Source Attribution Block ─── */}
+                              <div className="mt-3 p-2.5 rounded-lg bg-muted/20 border border-border/50 space-y-2">
+                                <p className="text-[10px] font-bold text-foreground/80 flex items-center gap-1.5">
+                                  <Fingerprint className="h-3 w-3 text-cyan-400" />
+                                  Finding Attribution & Verification
                                 </p>
-                              )}
+
+                                {/* Source Method */}
+                                <div className="flex items-start gap-2">
+                                  <Badge className="text-[8px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shrink-0 mt-0.5">SOURCE</Badge>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {f.corroborationTier === "confirmed"
+                                      ? "DNS Verification + HTTP Banner Analysis → Vulnerability Feed Match (version-confirmed CVE)"
+                                      : f.corroborationTier === "probable"
+                                      ? "DNS Verification + Product Detection → Vulnerability Feed Match (product-family, version unconfirmed)"
+                                      : "LLM Passive Reconnaissance → Risk Inference (no CVE evidence)"}
+                                  </span>
+                                </div>
+
+                                {/* Evidence Chain */}
+                                {f.evidenceChain?.length > 0 && (
+                                  <div className="flex items-start gap-2">
+                                    <Badge className="text-[8px] bg-cyan-500/20 text-cyan-400 border-cyan-500/40 shrink-0 mt-0.5">EVIDENCE</Badge>
+                                    <div className="space-y-0.5">
+                                      {f.evidenceChain.map((step: string, j: number) => (
+                                        <div key={j} className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
+                                          <span className="text-cyan-500/60 shrink-0 font-mono">{j + 1}.</span>
+                                          <span>{step}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {(!f.evidenceChain || f.evidenceChain.length === 0) && f.evidenceDetail && (
+                                  <div className="flex items-start gap-2">
+                                    <Badge className="text-[8px] bg-cyan-500/20 text-cyan-400 border-cyan-500/40 shrink-0 mt-0.5">EVIDENCE</Badge>
+                                    <span className="text-[10px] text-muted-foreground italic">{f.evidenceDetail}</span>
+                                  </div>
+                                )}
+
+                                {/* Verification Instructions */}
+                                <div className="flex items-start gap-2">
+                                  <Badge className="text-[8px] bg-purple-500/20 text-purple-400 border-purple-500/40 shrink-0 mt-0.5">VERIFY</Badge>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {f.cveIds?.length > 0
+                                      ? `Verify CVE at NVD: ${f.cveIds.map((c: string) => `https://nvd.nist.gov/vuln/detail/${c}`).join(" | ")}${f.detectedVersion ? `. Confirm version ${f.detectedVersion} with: curl -I https://${f.assetHostname || f.assetRef || 'target'}` : ". Run active scan to confirm version."}`
+                                      : f.kevListed
+                                      ? `Verify at CISA KEV catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog`
+                                      : `This is an LLM-inferred risk. Perform manual assessment or active scanning to confirm.`}
+                                  </span>
+                                </div>
+
+                                {/* False Positive Risk */}
+                                <div className="flex items-start gap-2">
+                                  <Badge className="text-[8px] bg-orange-500/20 text-orange-400 border-orange-500/40 shrink-0 mt-0.5">FP RISK</Badge>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {f.corroborationTier === "confirmed"
+                                      ? "Low — version was detected and matched to CVE affected range. Server may have been patched without changing version string."
+                                      : f.corroborationTier === "probable"
+                                      ? "Medium — product was detected but version is unconfirmed. The running version may not be in the CVE's affected range."
+                                      : "High — this risk was inferred by LLM analysis without specific CVE evidence. Treat as advisory only."}
+                                  </span>
+                                </div>
+                              </div>
 
                               {/* Controls */}
                               {f.recommendedControls?.length > 0 && (
@@ -1055,6 +1107,282 @@ export default function DomainIntelResults() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// ─── Scan Methods Tab Component ───
+function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
+  // Compute stats from the scan data
+  const dnsVerifiedCount = assets.filter((a: any) => {
+    const dm = a.discoveryMethod || (a.asset as any)?.discoveryMethod;
+    return dm === 'dns_verified' || dm === 'header_detected';
+  }).length;
+  const inferredCount = assets.filter((a: any) => {
+    const dm = a.discoveryMethod || (a.asset as any)?.discoveryMethod;
+    return dm === 'inferred' || !dm;
+  }).length;
+  const headerDetectedCount = assets.filter((a: any) => {
+    const dm = a.discoveryMethod || (a.asset as any)?.discoveryMethod;
+    return dm === 'header_detected';
+  }).length;
+  const allFindings = assets.flatMap((a: any) => (a.postureFindings || []) as any[]);
+  const confirmedFindings = allFindings.filter((f: any) => f.corroborationTier === 'confirmed');
+  const probableFindings = allFindings.filter((f: any) => f.corroborationTier === 'probable');
+  const potentialFindings = allFindings.filter((f: any) => !f.corroborationTier || f.corroborationTier === 'potential');
+  const kevFindings = allFindings.filter((f: any) => f.kevListed);
+
+  const METHODS = [
+    {
+      id: "llm_passive_recon",
+      name: "LLM-Powered Passive Reconnaissance",
+      icon: Brain,
+      category: "Discovery",
+      status: "completed",
+      description: "Used a large language model to infer likely subdomains, services, and technology stacks based on the organization's sector, client type, and domain patterns. No active probing was performed.",
+      outputs: `Discovered ${assets.length} total assets (${inferredCount} inferred, ${dnsVerifiedCount} verified)`,
+      attribution: 'Findings labeled as "Inferred" are hypotheses. Verify by checking DNS records or visiting the URL.',
+      fpRisk: "Medium — the LLM may suggest subdomains that don't exist.",
+      verifyCmd: "nslookup <hostname> or dig <hostname>",
+    },
+    {
+      id: "dns_verification",
+      name: "Active DNS Resolution",
+      icon: Globe,
+      category: "Discovery",
+      status: dnsVerifiedCount > 0 ? "completed" : "no_results",
+      description: "Resolved each inferred hostname via DNS (A, AAAA, CNAME, MX, TXT, NS records) to confirm whether the asset actually exists.",
+      outputs: `${dnsVerifiedCount} of ${assets.length} assets confirmed via DNS resolution`,
+      attribution: 'Findings labeled "DNS Verified" resolved to an IP address.',
+      fpRisk: "Low — DNS resolution is deterministic.",
+      verifyCmd: "nslookup <hostname> or dig <hostname>",
+    },
+    {
+      id: "banner_grabbing",
+      name: "HTTP Banner & Header Analysis",
+      icon: Fingerprint,
+      category: "Discovery",
+      status: headerDetectedCount > 0 ? "completed" : "no_results",
+      description: "Sent HTTP/HTTPS requests to resolved hostnames and parsed response headers (Server, X-Powered-By, X-Generator, Set-Cookie) to detect technology names and versions.",
+      outputs: `${headerDetectedCount} assets with header-detected technologies`,
+      attribution: 'Findings labeled "Header Detected" — version extracted from HTTP response headers.',
+      fpRisk: "Low — headers come directly from the server (but can be spoofed).",
+      verifyCmd: "curl -I https://<hostname>",
+    },
+    {
+      id: "kev_enrichment",
+      name: "CISA KEV Matching",
+      icon: Shield,
+      category: "Vulnerability Intelligence",
+      status: kevFindings.length > 0 ? "completed" : "no_results",
+      description: "Cross-referenced detected technologies against the CISA Known Exploited Vulnerabilities catalog — CVEs confirmed to be actively exploited in the wild.",
+      outputs: `${kevFindings.length} KEV-listed findings matched`,
+      attribution: 'Verify at: https://www.cisa.gov/known-exploited-vulnerabilities-catalog',
+      fpRisk: "Low for product match, Medium for version match.",
+      verifyCmd: "Search CISA KEV by CVE ID",
+    },
+    {
+      id: "vuln_feed",
+      name: "Multi-Source Vulnerability Feed Matching",
+      icon: Bug,
+      category: "Vulnerability Intelligence",
+      status: confirmedFindings.length + probableFindings.length > 0 ? "completed" : "no_results",
+      description: "Matched technologies against NVD, Google Project Zero, CIRCL CVE database, and Exploit-DB. Provides CVSS scores and exploit availability.",
+      outputs: `${confirmedFindings.length} confirmed + ${probableFindings.length} probable CVE matches`,
+      attribution: 'Each CVE links to NVD: https://nvd.nist.gov/vuln/detail/<CVE-ID>',
+      fpRisk: "Medium — product-family matches may not apply to the specific version.",
+      verifyCmd: "Visit NVD page for each CVE ID",
+    },
+    {
+      id: "carver_shock",
+      name: "CARVER+SHOCK Business Impact Analysis",
+      icon: Target,
+      category: "Risk Scoring",
+      status: "completed",
+      description: "Applied military-grade CARVER targeting methodology combined with SHOCK factors to score each asset's mission importance and cascading risk.",
+      outputs: `Scored ${assets.length} assets with CARVER (6 dimensions) + SHOCK (5 dimensions)`,
+      attribution: 'Scores are LLM-generated analytical estimates based on asset type and sector context.',
+      fpRisk: "N/A — risk scores, not binary findings.",
+      verifyCmd: "Review individual asset CARVER/SHOCK scores in Assets tab",
+    },
+    {
+      id: "hybrid_risk",
+      name: "Hybrid Risk Score Computation",
+      icon: Radar,
+      category: "Risk Scoring",
+      status: "completed",
+      description: "Combined CVSS scores (40%) + Mission Impact (35%) + Context indicators (25%) into a single 0-100 hybrid risk score per asset.",
+      outputs: `Overall risk score: ${scan.overallRiskScore || 'N/A'} (${scan.overallRiskBand || 'N/A'})`,
+      attribution: 'Deterministic formula — same inputs always produce the same score.',
+      fpRisk: "N/A — composite score.",
+      verifyCmd: "Compare sub-scores in the Assets tab",
+    },
+    {
+      id: "threat_actors",
+      name: "Threat Actor Profiling",
+      icon: Crosshair,
+      category: "Threat Intelligence",
+      status: (scan.pipelineOutput as any)?.threatActorMatches ? "completed" : "no_results",
+      description: "Matched the organization's sector, technology stack, and risk profile against known threat actor groups (APTs, cybercrime groups).",
+      outputs: `${(scan.pipelineOutput as any)?.threatActorMatches?.topMatches?.length || 0} threat actors matched`,
+      attribution: 'Verify actor profiles at: https://attack.mitre.org/groups/',
+      fpRisk: "Medium — threat actor targeting is probabilistic.",
+      verifyCmd: "Search MITRE ATT&CK Groups by name",
+    },
+    {
+      id: "campaign_design",
+      name: "Automated Campaign Design",
+      icon: Zap,
+      category: "Offensive Planning",
+      status: ((scan.campaignRecommendations || []) as any[]).length > 0 ? "completed" : "no_results",
+      description: "Auto-generated red team, phishing, and purple team campaign recommendations based on discovered assets, vulnerabilities, and threat actor TTPs.",
+      outputs: `${((scan.campaignRecommendations || []) as any[]).length} campaigns designed`,
+      attribution: 'Caldera abilities reference real ATT&CK technique IDs. Verify at: https://attack.mitre.org/techniques/<ID>',
+      fpRisk: "N/A — recommendations, not findings.",
+      verifyCmd: "Review campaigns in the Campaigns tab",
+    },
+  ];
+
+  const categories = ["Discovery", "Vulnerability Intelligence", "Risk Scoring", "Threat Intelligence", "Offensive Planning"];
+
+  return (
+    <>
+      {/* Page description */}
+      <Card className="bg-purple-500/5 border-purple-500/20">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-purple-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">Scan Methods & Attribution</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                This tab shows every method that was executed during this full-scope domain intelligence scan.
+                Each method includes what it found, how to verify the results independently, and the false positive risk level.
+                Use this information to validate findings before acting on them.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-purple-400">{METHODS.length}</p>
+            <p className="text-[10px] text-muted-foreground">Methods Executed</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-emerald-400">{METHODS.filter(m => m.status === 'completed').length}</p>
+            <p className="text-[10px] text-muted-foreground">Produced Results</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-cyan-400">{categories.length}</p>
+            <p className="text-[10px] text-muted-foreground">Categories Covered</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-yellow-400">{allFindings.length}</p>
+            <p className="text-[10px] text-muted-foreground">Total Findings</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Methods by category */}
+      {categories.map(category => {
+        const methods = METHODS.filter(m => m.category === category);
+        if (methods.length === 0) return null;
+        return (
+          <div key={category}>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{category}</p>
+            <div className="space-y-2">
+              {methods.map(method => {
+                const Icon = method.icon;
+                const isCompleted = method.status === 'completed';
+                return (
+                  <Card key={method.id} className={isCompleted ? "border-emerald-500/20" : "border-border/40 opacity-60"}>
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-lg ${isCompleted ? 'bg-emerald-500/10' : 'bg-muted'}`}>
+                            <Icon className={`h-4 w-4 ${isCompleted ? 'text-emerald-400' : 'text-muted-foreground'}`} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm">{method.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{method.category}</p>
+                          </div>
+                        </div>
+                        <Badge className={isCompleted
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px]"
+                          : "bg-muted text-muted-foreground text-[10px]"
+                        }>
+                          {isCompleted ? "Results Found" : "No Results"}
+                        </Badge>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground leading-relaxed">{method.description}</p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                        <div className="space-y-1.5">
+                          <div className="flex items-start gap-2">
+                            <Badge className="text-[8px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shrink-0">OUTPUT</Badge>
+                            <span className="text-[10px] text-foreground/80">{method.outputs}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Badge className="text-[8px] bg-orange-500/20 text-orange-400 border-orange-500/40 shrink-0">FP RISK</Badge>
+                            <span className="text-[10px] text-muted-foreground">{method.fpRisk}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="flex items-start gap-2">
+                            <Badge className="text-[8px] bg-cyan-500/20 text-cyan-400 border-cyan-500/40 shrink-0">VERIFY</Badge>
+                            <span className="text-[10px] text-muted-foreground">{method.attribution}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Badge className="text-[8px] bg-purple-500/20 text-purple-400 border-purple-500/40 shrink-0">CMD</Badge>
+                            <code className="text-[10px] text-purple-400/80 font-mono bg-muted/30 px-1 rounded">{method.verifyCmd}</code>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Corroboration Tiers Explanation */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Finding Corroboration Tiers</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          Every finding is assigned a corroboration tier that indicates how much evidence supports it.
+          Severity scores are capped based on the tier to prevent inflated risk from unverified findings.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { tier: "CONFIRMED", count: confirmedFindings.length, color: "text-emerald-400 bg-emerald-500/20 border-emerald-500/40", desc: "Technology version detected AND matched to CVE affected range. Severity uncapped.", verify: "Check CVE affected version range against detected version." },
+            { tier: "PROBABLE", count: probableFindings.length, color: "text-yellow-400 bg-yellow-500/20 border-yellow-500/40", desc: "Product detected but version unknown. CVE exists for product family. Severity capped at 6/10.", verify: "Confirm actual version to determine if it falls within CVE range." },
+            { tier: "POTENTIAL", count: potentialFindings.length, color: "text-purple-400 bg-purple-500/20 border-purple-500/40", desc: "LLM-inferred risk with no CVE backing. Severity capped at 4/10. Advisory only.", verify: "Perform manual assessment or active scanning." },
+          ].map(t => (
+            <Card key={t.tier} className={`border ${t.color.split(' ').filter(c => c.startsWith('border-')).join(' ')}`}>
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Badge className={`text-[10px] ${t.color}`}>{t.tier}</Badge>
+                  <span className="text-lg font-bold">{t.count}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">{t.desc}</p>
+                <p className="text-[10px] text-cyan-400/80"><span className="font-medium">Verify:</span> {t.verify}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 

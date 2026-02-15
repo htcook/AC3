@@ -1346,3 +1346,14 @@
 - [x] Add click-through on scan list items with scan type, finding count, corroboration tier badges
 - [x] Enhanced Dashboard scan cards with asset count, finding count, and tier badges
 - [x] Enhanced DomainIntel scan list cards with richer details
+
+## Unified Full-Scope Domain Intelligence Search
+- [x] Consolidate all search types into a single unified "Full Scope Domain Intelligence" scan
+- [x] Add clear method/technique explanations showing what the scan performs (DNS resolution, banner grabbing, vuln matching, etc.)
+- [x] Add traceable source attribution on every finding for user verification (source, method, evidence chain)
+- [x] Update DomainIntel UI to remove separate scan type selection - one unified scan
+- [x] Update DomainIntelResults to show attribution details per finding (source method, raw evidence, verification link)
+- [x] Update tests for consolidated scan flow
+- [x] Add source attribution badges to DomainIntelResults findings
+- [x] Add Scan Methods tab to results page
+- [x] Save checkpoint and publish to AceofCloud.io
