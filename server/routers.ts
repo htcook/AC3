@@ -3649,6 +3649,98 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
 
         return { dbMatches, llmEnhanced };
       }),
+
+    // Compare two scans side-by-side
+    compareScans: protectedProcedure
+      .input(z.object({ scanIdA: z.number(), scanIdB: z.number() }))
+      .query(async ({ input }) => {
+        const [scanA, scanB] = await Promise.all([
+          db.getDomainIntelScanById(input.scanIdA),
+          db.getDomainIntelScanById(input.scanIdB),
+        ]);
+        if (!scanA || !scanB) throw new TRPCError({ code: 'NOT_FOUND', message: 'One or both scans not found' });
+
+        const outA = scanA.pipelineOutput as any || {};
+        const outB = scanB.pipelineOutput as any || {};
+
+        const assetsA = (outA.assets || []).map((a: any) => a.asset || a);
+        const assetsB = (outB.assets || []).map((a: any) => a.asset || a);
+
+        const findingsA = (outA.assets || []).flatMap((a: any) => a.postureFindings || []);
+        const findingsB = (outB.assets || []).flatMap((a: any) => a.postureFindings || []);
+
+        const hostnamesA = new Set<string>(assetsA.map((a: any) => a.hostname as string));
+        const hostnamesB = new Set<string>(assetsB.map((a: any) => a.hostname as string));
+
+        const newAssets = assetsB.filter((a: any) => !hostnamesA.has(a.hostname));
+        const removedAssets = assetsA.filter((a: any) => !hostnamesB.has(a.hostname));
+        const commonHostnames = Array.from(hostnamesA).filter(h => hostnamesB.has(h));
+
+        // Compare findings by CVE ID
+        const cveSetA = new Set<string>(findingsA.flatMap((f: any) => (f.cveIds || []) as string[]));
+        const cveSetB = new Set<string>(findingsB.flatMap((f: any) => (f.cveIds || []) as string[]));
+        const newCves = Array.from(cveSetB).filter(c => !cveSetA.has(c));
+        const resolvedCves = Array.from(cveSetA).filter(c => !cveSetB.has(c));
+
+        // Compare risk scores per common asset
+        const riskChanges = commonHostnames.map(hostname => {
+          const assetAnalysisA = (outA.assets || []).find((a: any) => (a.asset || a).hostname === hostname);
+          const assetAnalysisB = (outB.assets || []).find((a: any) => (a.asset || a).hostname === hostname);
+          const riskA = assetAnalysisA?.hybridRiskScore ?? 0;
+          const riskB = assetAnalysisB?.hybridRiskScore ?? 0;
+          const bandA = assetAnalysisA?.riskBand ?? 'unknown';
+          const bandB = assetAnalysisB?.riskBand ?? 'unknown';
+          return { hostname, riskA, riskB, delta: riskB - riskA, bandA, bandB };
+        }).filter(r => r.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+        // Compare corroboration tiers
+        const tierCountA: Record<string, number> = { confirmed: 0, probable: 0, potential: 0 };
+        const tierCountB: Record<string, number> = { confirmed: 0, probable: 0, potential: 0 };
+        findingsA.forEach((f: any) => { if (f.corroborationTier) tierCountA[f.corroborationTier] = (tierCountA[f.corroborationTier] || 0) + 1; });
+        findingsB.forEach((f: any) => { if (f.corroborationTier) tierCountB[f.corroborationTier] = (tierCountB[f.corroborationTier] || 0) + 1; });
+
+        // New findings in scan B not in scan A (by finding ID)
+        const findingIdsA = new Set(findingsA.map((f: any) => f.id));
+        const newFindings = findingsB.filter((f: any) => !findingIdsA.has(f.id));
+        const findingIdsB = new Set(findingsB.map((f: any) => f.id));
+        const resolvedFindings = findingsA.filter((f: any) => !findingIdsB.has(f.id));
+
+        return {
+          scanA: {
+            id: scanA.id,
+            primaryDomain: scanA.primaryDomain,
+            createdAt: scanA.createdAt,
+            overallRiskScore: outA.overallRiskScore ?? 0,
+            overallRiskBand: outA.overallRiskBand ?? 'unknown',
+            totalAssets: assetsA.length,
+            totalFindings: findingsA.length,
+          },
+          scanB: {
+            id: scanB.id,
+            primaryDomain: scanB.primaryDomain,
+            createdAt: scanB.createdAt,
+            overallRiskScore: outB.overallRiskScore ?? 0,
+            overallRiskBand: outB.overallRiskBand ?? 'unknown',
+            totalAssets: assetsB.length,
+            totalFindings: findingsB.length,
+          },
+          riskDelta: (outB.overallRiskScore ?? 0) - (outA.overallRiskScore ?? 0),
+          newAssets: newAssets.map((a: any) => ({ hostname: a.hostname, assetType: a.assetType, discoveryMethod: a.discoveryMethod })),
+          removedAssets: removedAssets.map((a: any) => ({ hostname: a.hostname, assetType: a.assetType })),
+          riskChanges,
+          newCves,
+          resolvedCves,
+          newFindings: newFindings.slice(0, 50).map((f: any) => ({
+            id: f.id, title: f.title, severity: f.severity, category: f.category,
+            cveIds: f.cveIds, corroborationTier: f.corroborationTier, assetHostname: f.assetHostname,
+          })),
+          resolvedFindings: resolvedFindings.slice(0, 50).map((f: any) => ({
+            id: f.id, title: f.title, severity: f.severity, category: f.category,
+            cveIds: f.cveIds, corroborationTier: f.corroborationTier, assetHostname: f.assetHostname,
+          })),
+          tierComparison: { scanA: tierCountA, scanB: tierCountB },
+        };
+      }),
   }),
 
   // ─── Threat Actor Database ──────────────────────────────────────────

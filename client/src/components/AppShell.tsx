@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   Palette,
   Bug,
+  ArrowLeftRight,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -53,6 +54,7 @@ const NAV_ITEMS = [
 
 const OSINT_ITEMS = [
   { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+  { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
   { href: "/domain-recon", icon: Radar, label: "DOMAIN RECON" },
   { href: "/osint-monitor", icon: Eye, label: "OSINT MONITOR" },
   { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },

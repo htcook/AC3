@@ -62,6 +62,10 @@ export default function KevDashboard() {
   const [expandedCve, setExpandedCve] = useState<string | null>(null);
   const [kevVendorFilter, setKevVendorFilter] = useState("");
   const [kevRansomwareOnly, setKevRansomwareOnly] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+
+  // Trigger sync mutation
+  const triggerSync = trpc.calderaProxy.triggerSync.useMutation();
 
   // Unified feed stats
   const { data: feedStats, isLoading: statsLoading, refetch: refetchStats } =
@@ -129,11 +133,24 @@ export default function KevDashboard() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => refetchStats()}
-          className="gap-1.5"
+          disabled={syncStatus === "syncing"}
+          onClick={async () => {
+            setSyncStatus("syncing");
+            try {
+              await triggerSync.mutateAsync();
+              setSyncStatus("success");
+              // Refetch all data after sync
+              refetchStats();
+              setTimeout(() => setSyncStatus("idle"), 3000);
+            } catch {
+              setSyncStatus("error");
+              setTimeout(() => setSyncStatus("idle"), 3000);
+            }
+          }}
+          className={`gap-1.5 ${syncStatus === "success" ? "border-green-500/50 text-green-400" : syncStatus === "error" ? "border-red-500/50 text-red-400" : ""}`}
         >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh Feeds
+          <RefreshCw className={`h-3.5 w-3.5 ${syncStatus === "syncing" ? "animate-spin" : ""}`} />
+          {syncStatus === "syncing" ? "Syncing Feeds..." : syncStatus === "success" ? "Feeds Refreshed" : syncStatus === "error" ? "Sync Failed" : "Refresh Feeds"}
         </Button>
       </div>
 

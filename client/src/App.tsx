@@ -48,6 +48,7 @@ import PostEngagementReport from "./pages/PostEngagementReport";
 import LandingPageBuilder from "./pages/LandingPageBuilder";
 import DiscoveryCuration from "./pages/DiscoveryCuration";
 import KevDashboard from "./pages/KevDashboard";
+import ScanComparison from "./pages/ScanComparison";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -205,6 +206,9 @@ function Router() {
       </Route>
       <Route path="/kev-catalog">
         <ProtectedRoute component={KevDashboard} />
+      </Route>
+      <Route path="/scan-compare">
+        <ProtectedRoute component={ScanComparison} />
       </Route>
       <Route path="/vuln-intel">
         <ProtectedRoute component={KevDashboard} />

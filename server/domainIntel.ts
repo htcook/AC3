@@ -782,9 +782,21 @@ export async function runDomainIntelPipeline(
   await onProgress?.('discovering');
   const rawAssets = await discoverAssets(org);
 
+  // Stage 1.5: Active DNS & Banner Verification
+  let verifiedAssets: typeof rawAssets;
+  try {
+    const { verifyAllAssets } = await import("./lib/dns-banner-verify");
+    const verification = await verifyAllAssets(rawAssets, 5);
+    verifiedAssets = verification.assets;
+    console.log(`[DomainIntel] Verification: ${verification.summary.dnsVerified} DNS verified, ${verification.summary.bannerDetected} banner detected, ${verification.summary.unresolved} unresolved. ${verification.summary.versionsFound} versions found.`);
+  } catch (err: any) {
+    console.error(`[DomainIntel] DNS/banner verification failed (non-fatal): ${err.message}`);
+    verifiedAssets = rawAssets;
+  }
+
   // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk)
   await onProgress?.('analyzing');
-  const analyses = await analyzeAssets(rawAssets, org);
+  const analyses = await analyzeAssets(verifiedAssets, org);
 
   // Stage 3.5: CISA KEV Enrichment
   await onProgress?.('scoring');

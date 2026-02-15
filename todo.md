@@ -1301,3 +1301,28 @@
 - [x] Show clear distinction: findings grouped by tier with visual dimming for potential-only
 - [x] Write 45 vitest tests for corroboration logic, tier assignment, severity caps, evidence chains, campaign filtering
 - [x] Filter campaign recommendations and chain builder to only use confirmed/probable findings (exclude potential-only noise)
+
+## Active DNS/Banner Verification
+- [x] Create server/lib/dns-banner-verify.ts module (verifyDns, verifyBanner, verifyAsset, verifyAllAssets)
+- [x] Implement DNS resolution (A, AAAA, CNAME, MX, TXT, NS records)
+- [x] Implement HTTP banner/header parsing for version detection (Server, X-Powered-By, etc.)
+- [x] Integrate verification into pipeline Stage 1.5 (after LLM discovery, before analysis)
+- [x] Upgrade verified assets from "llm_inferred" to "dns_verified" or "header_detected"
+- [x] Extract real version numbers from HTTP headers and banners via extractTechnologiesFromHeaders
+- [x] Update corroboration tier: version-confirmed assets get "Confirmed" tier findings
+- [x] Write 23 vitest tests for DNS/banner verification module
+
+## Refresh Feeds Button
+- [x] Wire existing Refresh Feeds button to vulnFeeds.triggerSync tRPC mutation
+- [x] Show loading state (spinner) and success/error toast feedback
+- [x] Invalidate all vuln feed queries on successful sync
+
+## Scan Comparison Feature
+- [x] Add tRPC endpoint domainIntel.compareScans (diff assets, findings, CVEs, risk scores, tiers)
+- [x] Build comparison logic: new/removed assets, new/resolved CVEs, per-asset risk delta, tier comparison
+- [x] Create ScanComparison.tsx page with scan selector dropdowns and side-by-side view
+- [x] Show added/removed/changed findings with visual indicators (color-coded cards, delta arrows)
+- [x] Add route /scan-compare and nav link in OSINT sidebar section
+- [x] Evidence Quality Comparison section showing tier changes between scans
+- [x] Write 23 vitest tests for DNS/banner verification and scan comparison logic
+- [x] 427 total tests passing across 24 files
