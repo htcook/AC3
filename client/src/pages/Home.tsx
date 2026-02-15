@@ -12,13 +12,14 @@ import {
 } from "lucide-react";
 
 const RECENT_UPDATES = [
-  { date: "Feb 2026", title: "Vulnerability Intelligence", desc: "Unified 0-day tracker with CISA KEV, Project Zero, NVD, CIRCL, and Exploit-DB feeds" },
+  { date: "Feb 2026", title: "Evidence Corroboration Framework", desc: "3-tier validation system (Confirmed/Probable/Potential) with severity caps, evidence chains, and false-positive prevention" },
+  { date: "Feb 2026", title: "Active DNS & Banner Verification", desc: "Real DNS resolution and HTTP header parsing to detect actual software versions and upgrade asset confidence" },
+  { date: "Feb 2026", title: "Scan Comparison", desc: "Side-by-side scan diff showing new/removed assets, CVE changes, risk deltas, and evidence quality trends" },
+  { date: "Feb 2026", title: "Vulnerability Intelligence", desc: "Unified 0-day tracker with CISA KEV, Project Zero, NVD, CIRCL, and Exploit-DB feeds with daily auto-sync" },
   { date: "Feb 2026", title: "Detection Coverage Matrix", desc: "Cross-reference validated rules against operation attack chains to identify SIEM gaps" },
-  { date: "Feb 2026", title: "Sigma/YARA Rule Validator", desc: "Validate Sigma, YARA, Suricata, Splunk SPL, and KQL rules with LLM-powered analysis" },
   { date: "Feb 2026", title: "Post-Engagement Reports", desc: "Generate branded HTML reports with MITRE ATT&CK heatmaps, executive summaries, and remediation steps" },
+  { date: "Feb 2026", title: "Auto Chain Builder", desc: "Build attack chains from matched actors, TTPs, and corroborated vulnerabilities — filters out unvalidated noise" },
   { date: "Feb 2026", title: "Landing Page Builder", desc: "Visual drag-and-drop editor with 6 theme presets and direct GoPhish export" },
-  { date: "Feb 2026", title: "Auto Chain Builder", desc: "Automatically build attack chains from matched actors, TTPs, vulns, and misconfigurations" },
-  { date: "Feb 2026", title: "Threat Actor Detection Rules", desc: "Auto-generate Sigma/YARA/Suricata rules from each actor's known techniques" },
 ];
 
 function UpdatesPopup({ onClose }: { onClose: () => void }) {
@@ -141,8 +142,8 @@ export default function Home() {
               <p className="text-lg text-muted-foreground max-w-xl mb-4 leading-relaxed">
                 Cyber Campaign Command — the offensive security execution platform that puts real attacks
                 in motion. Run adversary emulation with MITRE Caldera, launch phishing campaigns through GoPhish,
-                perform deep OSINT reconnaissance, and auto-generate detection rules to measure what your
-                defenses actually catch.
+                perform verified OSINT reconnaissance with DNS/banner validation, track vulnerabilities across
+                5 intel feeds, and auto-generate detection rules to measure what your defenses actually catch.
               </p>
               <p className="text-sm text-primary mb-8 font-display tracking-wider">
                 OFFENSIVE EXECUTION PLATFORM — POWERED BY ACE OF CLOUD
@@ -174,10 +175,10 @@ export default function Home() {
                   {[
                     { icon: Target, label: "Adversary Emulation", status: "MITRE Caldera" },
                     { icon: Zap, label: "Phishing Campaigns", status: "GoPhish" },
-                    { icon: Radar, label: "OSINT & Recon", status: "Domain Intel" },
-                    { icon: Brain, label: "Threat Intelligence", status: "492+ Actors" },
+                    { icon: Radar, label: "OSINT & Recon", status: "DNS/Banner Verified" },
+                    { icon: Bug, label: "Vuln Intelligence", status: "5 Feed Sources" },
                     { icon: ShieldCheck, label: "Detection Engineering", status: "5 Rule Formats" },
-                    { icon: FileText, label: "Report Generation", status: "LLM-Powered" },
+                    { icon: Brain, label: "Threat Intelligence", status: "492+ Actors" },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center gap-3 p-3 bg-background/50 border border-border/50">
                       <item.icon className="w-4 h-4 text-primary flex-shrink-0" />
@@ -189,9 +190,9 @@ export default function Home() {
                   ))}
                 </div>
                 <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[10px] text-muted-foreground font-display tracking-wider">
-                  <span>45 MODULES</span>
-                  <span>24 API ROUTERS</span>
-                  <span>272 TESTS PASSING</span>
+                  <span>50+ MODULES</span>
+                  <span>28 API ROUTERS</span>
+                  <span>427 TESTS PASSING</span>
                 </div>
               </div>
             </div>
@@ -216,10 +217,10 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
             <AnimatedStat value={492} label="THREAT ACTORS" suffix="+" />
             <AnimatedStat value={1940} label="CALDERA ABILITIES" suffix="+" />
-            <AnimatedStat value={26} label="EMAIL TEMPLATES" />
-            <AnimatedStat value={6} label="LANDING PAGE THEMES" />
-            <AnimatedStat value={5} label="RULE FORMATS" />
-            <AnimatedStat value={45} label="PLATFORM MODULES" />
+            <AnimatedStat value={5} label="VULN FEED SOURCES" />
+            <AnimatedStat value={3} label="CORROBORATION TIERS" />
+            <AnimatedStat value={5} label="DETECTION FORMATS" />
+            <AnimatedStat value={427} label="TESTS PASSING" />
           </div>
         </div>
       </section>
@@ -245,9 +246,9 @@ export default function Home() {
               highlight="PRIMARY"
               description="Internal and consulting red teams running adversary emulation engagements. Ace C3 replaces the patchwork of disconnected tools with a single command center that chains OSINT, attack execution, detection validation, and client reporting into one workflow."
               features={[
-                "Auto-build attack chains from matched threat actors and discovered vulnerabilities",
+                "Auto-build attack chains from corroborated vulnerabilities — no false positive noise",
                 "1,940+ Caldera abilities mapped to MITRE ATT&CK across all 14 tactics",
-                "Real-time operation monitoring with kill chain visualization",
+                "5 vuln feed sources with 3-tier evidence corroboration",
                 "Post-engagement reports with MITRE heatmaps generated in one click",
               ]}
             />
@@ -257,10 +258,10 @@ export default function Home() {
               highlight="PRIMARY"
               description="Independent and firm-based pentesters who need to scope engagements, execute phishing campaigns, and deliver professional reports. Ace C3 handles the full lifecycle from reconnaissance through branded deliverables."
               features={[
-                "Domain intel scanning surfaces assets, tech stacks, and misconfigurations automatically",
+                "Domain intel with active DNS/banner verification and real version detection",
                 "26 phishing templates across 10 categories with visual landing page builder",
-                "6-step campaign wizard from template selection to GoPhish launch",
-                "Branded HTML reports with executive summaries and remediation steps",
+                "Scan comparison to track risk posture changes between assessments",
+                "Branded HTML reports with corroboration-filtered findings and remediation steps",
               ]}
             />
             <BenefitCard
@@ -343,8 +344,9 @@ export default function Home() {
           <div className="mb-16">
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-display mb-4">PLATFORM CAPABILITIES</h2>
             <p className="text-lg text-muted-foreground max-w-3xl">
-              Six integrated pillars covering the full offensive execution lifecycle — from target
-              reconnaissance through live adversary emulation to detection rule generation and client reporting.
+              Six integrated pillars covering the full offensive execution lifecycle — from verified
+              reconnaissance with evidence corroboration through live adversary emulation to detection
+              rule generation and client reporting. Every finding is backed by evidence chains.
             </p>
           </div>
 
@@ -354,13 +356,13 @@ export default function Home() {
               icon={<Target className="w-7 h-7" />}
               number="01"
               title="ADVERSARY EMULATION"
-              description="Execute real adversary tradecraft through MITRE Caldera. Deploy agents, run operations built from matched threat actors and discovered vulnerabilities, and watch attack chains unfold in real time."
+              description="Execute real adversary tradecraft through MITRE Caldera. Deploy agents, run operations built from matched threat actors and corroborated vulnerabilities, and watch attack chains unfold in real time — with noise from unvalidated findings filtered out."
               features={[
                 "Real-time operation monitoring with ATT&CK flow visualization",
-                "Auto-build attack chains from matched actors, TTPs, and vulns",
+                "Auto-build chains from corroborated vulns (confirmed/probable only)",
                 "Agent deployment with trust level management",
                 "1,940+ abilities across all MITRE ATT&CK tactics",
-                "Custom adversary profile creation",
+                "Vuln-feed-enriched chains with CVE-backed exploit steps",
                 "Campaign execution dashboard with timeline and detection metrics",
               ]}
               link="/agents"
@@ -390,35 +392,35 @@ export default function Home() {
               icon={<Radar className="w-7 h-7" />}
               number="03"
               title="OSINT & RECONNAISSANCE"
-              description="Map the attack surface before you strike. Automated domain intelligence, asset discovery, vulnerability detection, typosquat generation, and email spoofability analysis — feeding directly into campaign planning."
+              description="Map the attack surface with verified evidence. Async domain intelligence pipeline with active DNS resolution, HTTP banner parsing for real version detection, and 3-tier corroboration that separates confirmed vulnerabilities from inferred risks."
               features={[
-                "Deep domain scanning: tech stack, assets, SSL, DNS, subdomains",
-                "Vulnerability and misconfiguration detection",
+                "Active DNS & banner verification: real version detection from HTTP headers",
+                "3-tier evidence corroboration: Confirmed, Probable, Potential with severity caps",
+                "Async pipeline with real-time progress tracking (5 stages)",
+                "Scan comparison: side-by-side risk posture delta over time",
                 "Automatic threat actor matching from discovered attack surface",
-                "12 typosquat algorithms with batch availability checking",
                 "SPF/DKIM/DMARC analysis with spoofability scoring",
-                "Continuous OSINT monitoring with change alerts",
               ]}
               link="/domain-intel"
               linkLabel="START SCANNING"
             />
 
-            {/* Pillar 4: Threat Intelligence */}
+            {/* Pillar 4: Threat Intelligence & Vuln Feeds */}
             <PillarCard
               icon={<Brain className="w-7 h-7" />}
               number="04"
-              title="THREAT INTELLIGENCE"
-              description="Know your adversary before you emulate them. 492+ threat actor profiles with full TTP mapping, IOC feeds, and compliance framework references — all feeding directly into attack chain generation."
+              title="THREAT & VULN INTELLIGENCE"
+              description="Know your adversary and their weapons. 492+ threat actor profiles with full TTP mapping, plus a unified vulnerability intelligence engine aggregating 5 feed sources with daily auto-sync and on-demand refresh."
               features={[
                 "492+ threat actor profiles with MITRE ATT&CK mapping",
-                "IOC feeds from CISA KEV, Abuse.ch, and ThreatFox",
-                "TTP knowledge base with Kali tool mapping",
-                "APT scenario library for purple team exercises",
-                "NIST CSF, CMMC, and FedRAMP compliance frameworks",
-                "Automatic actor enrichment with LLM analysis",
+                "Unified vuln feeds: CISA KEV, Project Zero, NVD, CIRCL, Exploit-DB",
+                "0-day tracker with exploit availability and weaponization indicators",
+                "Daily auto-sync cron job with manual refresh trigger",
+                "IOC feeds from Abuse.ch and ThreatFox",
+                "APT scenario library and compliance framework mapping",
               ]}
-              link="/threat-actors"
-              linkLabel="EXPLORE ACTORS"
+              link="/vuln-intel"
+              linkLabel="VULN INTELLIGENCE"
             />
 
             {/* Pillar 5: Detection Engineering */}
@@ -444,14 +446,14 @@ export default function Home() {
               icon={<BarChart3 className="w-7 h-7" />}
               number="06"
               title="REPORTING & AUTOMATION"
-              description="Turn your attack results into client-ready deliverables. Automated engagement pipelines, AI-powered campaign design, and branded report generation with MITRE ATT&CK heatmaps and executive summaries."
+              description="Turn validated attack results into client-ready deliverables. Corroboration-aware reports only include confirmed and probable findings — no noise from unvalidated inferences. Automated pipelines handle the full lifecycle."
               features={[
                 "Post-engagement HTML reports with custom branding",
-                "LLM-powered executive summaries and remediation recommendations",
-                "MITRE ATT&CK heatmap visualization in reports",
+                "Corroboration-aware: only confirmed/probable findings in reports",
+                "MITRE ATT&CK heatmap visualization with evidence tiers",
                 "Automated engagement pipeline: OSINT → design → launch",
-                "AI campaign designer from OSINT findings",
-                "Per-engagement results with funnel charts and timelines",
+                "AI campaign designer from corroborated OSINT findings",
+                "Scan comparison reports for risk posture trending",
               ]}
               link="/post-engagement-report"
               linkLabel="GENERATE REPORTS"
@@ -468,7 +470,7 @@ export default function Home() {
           <div className="mb-16">
             <h2 className="text-4xl sm:text-5xl lg:text-6xl font-display mb-4">OPERATIONS CENTER</h2>
             <p className="text-lg text-muted-foreground max-w-3xl">
-              45 integrated modules organized across five operational domains.
+              50+ integrated modules organized across six operational domains.
               Every module connects to live backend APIs — no static dashboards.
             </p>
           </div>
@@ -506,9 +508,11 @@ export default function Home() {
               title="INTELLIGENCE & RECON"
               color="text-amber-400"
               modules={[
-                { icon: Brain, name: "Domain Intel", desc: "Deep scanning: asset discovery, tech stack, vulns, threat actor matching" },
+                { icon: Brain, name: "Domain Intel", desc: "Async pipeline: asset discovery, DNS/banner verification, corroborated risk scoring" },
+                { icon: Scan, name: "DNS/Banner Verify", desc: "Active DNS resolution and HTTP header parsing for real version detection" },
                 { icon: Radar, name: "Domain Recon", desc: "DNS/MX/SPF/DKIM/DMARC analysis, subdomains, spoofability scoring" },
-                { icon: Eye, name: "OSINT Monitor", desc: "Continuous domain monitoring with change detection and alerts" },
+                { icon: Eye, name: "Scan Comparison", desc: "Side-by-side diff of two scans: new/removed assets, CVE changes, risk deltas" },
+                { icon: Bug, name: "Vuln Intelligence", desc: "Unified 0-day tracker: CISA KEV, Project Zero, NVD, CIRCL, Exploit-DB" },
                 { icon: Radio, name: "IOC Feed", desc: "Aggregated feeds from CISA KEV, Abuse.ch, and ThreatFox" },
                 { icon: Shield, name: "Threat Actors", desc: "492+ actor profiles with enrichment, TTPs, and detection rules" },
                 { icon: Shield, name: "APT Scenarios", desc: "490+ threat group emulation scenarios for purple team exercises" },
@@ -559,7 +563,7 @@ export default function Home() {
           <div className="grid md:grid-cols-2 lg:grid-cols-7 gap-4">
             {[
               { step: "01", title: "ENGAGE", desc: "Create client engagement with scope, targets, and timeline", icon: Briefcase },
-              { step: "02", title: "RECON", desc: "Domain intel scan — assets, vulns, tech stack, threat actors", icon: Radar },
+              { step: "02", title: "RECON", desc: "Domain intel with DNS/banner verification, vuln feeds, and corroborated risk scoring", icon: Radar },
               { step: "03", title: "DESIGN", desc: "AI generates campaign strategies from OSINT findings", icon: Sparkles },
               { step: "04", title: "BUILD", desc: "Create templates, landing pages, and adversary profiles", icon: Palette },
               { step: "05", title: "LAUNCH", desc: "Deploy phishing campaigns and adversary emulations", icon: Rocket },
@@ -610,11 +614,22 @@ export default function Home() {
               icon={<Radar className="w-6 h-6" />}
               title="INTEL ENGINE"
               items={[
-                "Domain intelligence scanner",
-                "OSINT reconnaissance",
+                "Domain intel with DNS/banner verification",
+                "3-tier evidence corroboration",
+                "Scan comparison & risk trending",
                 "IOC feed aggregator",
-                "Typosquat generator",
-                "Continuous monitoring",
+                "Typosquat & spoofability analysis",
+              ]}
+            />
+            <ArchCard
+              icon={<Bug className="w-6 h-6" />}
+              title="VULN FEED ENGINE"
+              items={[
+                "CISA KEV catalog",
+                "Google Project Zero 0-days",
+                "NVD/NIST CVE API 2.0",
+                "CIRCL & Exploit-DB feeds",
+                "Daily auto-sync + on-demand refresh",
               ]}
             />
             <ArchCard
@@ -625,7 +640,7 @@ export default function Home() {
                 "Detection rule generation",
                 "Rule validation analysis",
                 "Executive report summaries",
-                "Template creation",
+                "Corroboration-filtered chains",
               ]}
             />
           </div>
@@ -649,9 +664,10 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                 Where defensive platforms focus on telemetry normalization and alert prioritization, Ace C3
                 focuses on the attack side: executing adversary emulation through MITRE Caldera, launching
-                social engineering campaigns through GoPhish, performing OSINT reconnaissance to map attack
-                surfaces, and generating the detection rules that prove whether your defenses actually work
-                under fire.
+                social engineering campaigns through GoPhish, performing verified OSINT reconnaissance with
+                DNS/banner validation and 3-tier evidence corroboration, tracking vulnerabilities across 5
+                intelligence feeds, and generating the detection rules that prove whether your defenses
+                actually work under fire.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">

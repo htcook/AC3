@@ -1326,3 +1326,14 @@
 - [x] Evidence Quality Comparison section showing tier changes between scans
 - [x] Write 23 vitest tests for DNS/banner verification and scan comparison logic
 - [x] 427 total tests passing across 24 files
+
+## Home Page Capabilities Update
+- [x] Audit current Home page capabilities vs actual platform features
+- [x] Rewrite capabilities section to accurately reflect current feature set
+- [x] Updated RECENT_UPDATES popup with Evidence Corroboration, DNS/Banner Verify, Scan Comparison
+- [x] Updated hero status box: 427 tests, 50+ modules, 28 API routers, Vuln Intelligence
+- [x] Updated stats bar: 5 vuln feed sources, 3 corroboration tiers, 5 detection formats
+- [x] Updated all 6 pillars: OSINT with DNS/banner verify, Threat & Vuln Intelligence, corroboration-aware reporting
+- [x] Updated Operations Center: added Vuln Intelligence, DNS/Banner Verify, Scan Comparison modules
+- [x] Updated Architecture: added Vuln Feed Engine card
+- [x] Updated hero description, benefit cards, workflow steps, and about section
