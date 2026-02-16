@@ -1,0 +1,780 @@
+/**
+ * Phishing Operations Router
+ *
+ * Unified backend for the Ace C3 phishing automation pipeline.
+ * Connects domain intel scan results → APT matching → campaign materialization
+ * → GoPhish deployment → Caldera post-exploitation triggering.
+ */
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { protectedProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
+import {
+  phishingDrafts, InsertPhishingDraft,
+  domainIntelScans,
+  engagements,
+} from "../../drizzle/schema";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
+
+async function requireDb() {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+  return db;
+}
+
+/**
+ * Fetch from GoPhish API (reuse the same pattern as main routers.ts)
+ */
+async function fetchGophish(endpoint: string, method = "GET", data?: any) {
+  const { ENV } = await import("../_core/env");
+  const baseUrl = ENV.gophishBaseUrl;
+  const apiKey = ENV.gophishApiKey;
+  if (!baseUrl || !apiKey) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "GoPhish not configured" });
+  }
+  const url = `${baseUrl}${endpoint}`;
+  const opts: RequestInit = {
+    method,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    // GoPhish uses self-signed certs in many setups
+    ...(typeof globalThis !== "undefined" && { signal: AbortSignal.timeout(15000) }),
+  };
+  if (data && method !== "GET") {
+    opts.body = JSON.stringify(data);
+  }
+  // Disable TLS verification for GoPhish self-signed certs
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `GoPhish ${method} ${endpoint}: ${res.status} ${text}` });
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+export const phishingOpsRouter = router({
+  /**
+   * getIntelFeed — Aggregate all campaign recommendations from completed domain intel scans.
+   * Returns scan-derived phishing opportunities ranked by priority.
+   */
+  getIntelFeed: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(50),
+      statusFilter: z.enum(["all", "unmaterialized", "materialized"]).default("all"),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const opts = input || { limit: 50, statusFilter: "all" };
+
+      // Get all completed scans with campaign recommendations
+      const scans = await db.select({
+        id: domainIntelScans.id,
+        domain: domainIntelScans.primaryDomain,
+        status: domainIntelScans.status,
+        clientType: domainIntelScans.clientType,
+        sector: domainIntelScans.sector,
+        campaignRecommendations: domainIntelScans.campaignRecommendations,
+        pipelineOutput: domainIntelScans.pipelineOutput,
+        createdAt: domainIntelScans.createdAt,
+      })
+        .from(domainIntelScans)
+        .where(eq(domainIntelScans.status, "scan_complete"))
+        .orderBy(desc(domainIntelScans.createdAt))
+        .limit(opts.limit);
+
+      // Get all existing drafts to check materialization status
+      const existingDrafts = await db.select({
+        scanId: phishingDrafts.scanId,
+        campaignRecommendationIndex: phishingDrafts.campaignRecommendationIndex,
+        status: phishingDrafts.status,
+        id: phishingDrafts.id,
+      }).from(phishingDrafts);
+
+      const draftMap = new Map<string, { id: number; status: string }>();
+      for (const d of existingDrafts) {
+        if (d.scanId != null && d.campaignRecommendationIndex != null) {
+          draftMap.set(`${d.scanId}-${d.campaignRecommendationIndex}`, { id: d.id, status: d.status });
+        }
+      }
+
+      // Flatten all campaign recommendations into a unified feed
+      const feed: Array<{
+        scanId: number;
+        domain: string;
+        sector: string | null;
+        clientType: string | null;
+        scanDate: Date;
+        recommendationIndex: number;
+        recommendation: any;
+        threatActorMatches: any;
+        materialized: boolean;
+        draftId: number | null;
+        draftStatus: string | null;
+      }> = [];
+
+      for (const scan of scans) {
+        const recs = (scan.campaignRecommendations as any[]) || [];
+        const pipelineOut = scan.pipelineOutput as any;
+        const actorMatches = pipelineOut?.threatActorMatches;
+        for (let i = 0; i < recs.length; i++) {
+          const key = `${scan.id}-${i}`;
+          const draft = draftMap.get(key);
+          const materialized = !!draft;
+
+          if (opts.statusFilter === "unmaterialized" && materialized) continue;
+          if (opts.statusFilter === "materialized" && !materialized) continue;
+
+          feed.push({
+            scanId: scan.id,
+            domain: scan.domain as string,
+            sector: scan.sector as string | null,
+            clientType: scan.clientType as string | null,
+            scanDate: scan.createdAt,
+            recommendationIndex: i,
+            recommendation: recs[i],
+            threatActorMatches: actorMatches,
+            materialized,
+            draftId: draft?.id ?? null,
+            draftStatus: draft?.status ?? null,
+          });
+        }
+      }
+
+      // Sort by priority: critical > high > medium > low
+      const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      feed.sort((a, b) => {
+        const pa = priorityOrder[a.recommendation?.priority] ?? 3;
+        const pb = priorityOrder[b.recommendation?.priority] ?? 3;
+        return pa - pb;
+      });
+
+      return {
+        feed,
+        totalScans: scans.length,
+        totalRecommendations: feed.length,
+      };
+    }),
+
+  /**
+   * materialize — Convert a scan campaign recommendation into a phishing draft
+   * with fully-formed GoPhish resources (email template, landing page, target group).
+   * Uses LLM to generate realistic phishing content based on scan intelligence.
+   */
+  materialize: protectedProcedure
+    .input(z.object({
+      scanId: z.number(),
+      recommendationIndex: z.number(),
+      // Optional overrides
+      campaignName: z.string().optional(),
+      targetEmails: z.array(z.object({
+        email: z.string(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        position: z.string().optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+
+      // Check if already materialized
+      const existing = await db.select().from(phishingDrafts)
+        .where(and(
+          eq(phishingDrafts.scanId, input.scanId),
+          sql`${phishingDrafts.campaignRecommendationIndex} = ${input.recommendationIndex}`
+        ));
+      if (existing.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "This recommendation has already been materialized", cause: { draftId: existing[0].id } });
+      }
+
+      // Get the scan and its campaign recommendations
+      const [scan] = await db.select().from(domainIntelScans)
+        .where(eq(domainIntelScans.id, input.scanId));
+      if (!scan) throw new TRPCError({ code: "NOT_FOUND", message: "Scan not found" });
+
+      const recs = (scan.campaignRecommendations as any[]) || [];
+      const rec = recs[input.recommendationIndex];
+      if (!rec) throw new TRPCError({ code: "NOT_FOUND", message: "Campaign recommendation not found at index" });
+
+      const pipelineOut = scan.pipelineOutput as any;
+      const actorMatches = pipelineOut?.threatActorMatches;
+      const topActor = actorMatches?.topMatches?.[0];
+
+      // Use LLM to generate realistic phishing email template and landing page
+      const { invokeLLM } = await import("../_core/llm");
+
+      const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (Ace C3 platform).
+Given the following domain intelligence and campaign recommendation, generate a complete phishing campaign package.
+
+TARGET DOMAIN: ${scan.primaryDomain}
+SECTOR: ${scan.sector || "unknown"}
+CLIENT TYPE: ${scan.clientType || "enterprise"}
+CAMPAIGN NAME: ${input.campaignName || rec.name}
+CAMPAIGN TYPE: ${rec.type}
+PRIORITY: ${rec.priority}
+DESCRIPTION: ${rec.description}
+TARGET ASSETS: ${JSON.stringify(rec.targetAssets || [])}
+ATTACK CHAIN: ${JSON.stringify(rec.attackChain || [])}
+MITRE TACTICS: ${JSON.stringify(rec.mitreTactics || [])}
+MATCHED THREAT ACTOR: ${topActor ? `${topActor.actorName} (confidence: ${topActor.confidence}%)` : "None"}
+GOPHISH TEMPLATE SUGGESTIONS: ${JSON.stringify(rec.gophishTemplates || [])}
+
+Generate a JSON object with these fields:
+{
+  "templateSubject": "Realistic email subject line",
+  "templateHtml": "Full HTML email body with GoPhish variables: {{.FirstName}}, {{.LastName}}, {{.Email}}, {{.TrackingURL}}, {{.URL}}, {{.From}}. Must look like a legitimate business email. Include proper HTML structure with inline CSS.",
+  "templateText": "Plain text version of the email",
+  "landingPageHtml": "HTML for a credential capture landing page that mimics the target domain's login page. Include form fields for email and password. Use GoPhish action URL.",
+  "landingPageRedirectUrl": "https://${scan.primaryDomain}",
+  "smtpProfileName": "Ace C3 - ${scan.primaryDomain} Profile"
+}
+
+Make the phishing content highly realistic and tailored to the target domain and sector. Use professional language and branding cues from the target organization.`;
+
+      let generatedContent: any = {};
+      try {
+        const llmResponse = await invokeLLM({
+          messages: [
+            { role: "system", content: "You are a red team phishing content generator. Output only valid JSON." },
+            { role: "user", content: materializePrompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "phishing_draft",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  templateSubject: { type: "string", description: "Email subject line" },
+                  templateHtml: { type: "string", description: "Full HTML email body" },
+                  templateText: { type: "string", description: "Plain text email" },
+                  landingPageHtml: { type: "string", description: "Landing page HTML" },
+                  landingPageRedirectUrl: { type: "string", description: "Redirect URL after capture" },
+                  smtpProfileName: { type: "string", description: "SMTP profile name" },
+                },
+                required: ["templateSubject", "templateHtml", "templateText", "landingPageHtml", "landingPageRedirectUrl", "smtpProfileName"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const rawContent = llmResponse?.choices?.[0]?.message?.content;
+        if (rawContent && typeof rawContent === "string") {
+          generatedContent = JSON.parse(rawContent);
+        }
+      } catch (e: any) {
+        console.error("[PhishingOps] LLM materialization error:", e.message);
+        // Fall back to template-based generation
+        generatedContent = {
+          templateSubject: rec.gophishTemplates?.[0]?.subject || `Important: Action Required - ${scan.primaryDomain}`,
+          templateHtml: `<html><body><p>Dear {{.FirstName}},</p><p>Please review the attached document regarding your ${scan.primaryDomain} account.</p><p><a href="{{.URL}}">Click here to review</a></p><p>Best regards,<br>IT Security Team</p></body></html>`,
+          templateText: `Dear {{.FirstName}},\n\nPlease review the attached document regarding your ${scan.primaryDomain} account.\n\nClick here to review: {{.URL}}\n\nBest regards,\nIT Security Team`,
+          landingPageHtml: `<html><body><h2>${scan.primaryDomain} - Login</h2><form method="POST"><input name="email" placeholder="Email" /><input name="password" type="password" placeholder="Password" /><button type="submit">Sign In</button></form></body></html>`,
+          landingPageRedirectUrl: `https://${scan.primaryDomain}`,
+          smtpProfileName: `Ace C3 - ${scan.primaryDomain} Profile`,
+        };
+      }
+
+      const campaignName = input.campaignName || rec.name || `${scan.primaryDomain} - ${rec.type} Campaign`;
+      const templateName = `[Ace C3] ${campaignName} - Template`;
+      const landingPageName = `[Ace C3] ${campaignName} - Landing Page`;
+      const targetGroupName = `[Ace C3] ${campaignName} - Targets`;
+
+      // Insert the draft
+      const draftData: InsertPhishingDraft = {
+        scanId: input.scanId,
+        campaignRecommendationIndex: input.recommendationIndex,
+        status: "draft",
+        campaignName,
+        campaignType: rec.type || "phishing",
+        priority: rec.priority || "medium",
+        targetDomain: scan.primaryDomain,
+        targetSector: (scan.sector as string) || null,
+        templateName,
+        templateSubject: generatedContent.templateSubject,
+        templateHtml: generatedContent.templateHtml,
+        templateText: generatedContent.templateText,
+        landingPageName,
+        landingPageHtml: generatedContent.landingPageHtml,
+        landingPageRedirectUrl: generatedContent.landingPageRedirectUrl,
+        captureCredentials: true,
+        capturePasswords: false,
+        targetGroupName,
+        targetEmails: input.targetEmails || null,
+        smtpProfileName: generatedContent.smtpProfileName,
+        attackChain: rec.attackChain || null,
+        calderaAbilities: rec.calderaAbilities || null,
+        threatActorId: topActor?.actorId || null,
+        threatActorName: topActor?.actorName || null,
+        matchRationale: topActor ? `Matched with ${topActor.confidence}% confidence based on domain intel scan` : null,
+        createdBy: ctx.user?.id || null,
+      };
+
+      const [result] = await db.insert(phishingDrafts).values(draftData).$returningId();
+
+      return {
+        draftId: result.id,
+        campaignName,
+        status: "draft",
+        message: "Campaign recommendation materialized into draft. Review and edit before deploying to GoPhish.",
+      };
+    }),
+
+  /**
+   * listDrafts — List all phishing drafts with filtering
+   */
+  listDrafts: protectedProcedure
+    .input(z.object({
+      status: z.enum(["draft", "approved", "deployed", "launched", "completed", "archived", "all"]).default("all"),
+      scanId: z.number().optional(),
+      limit: z.number().min(1).max(100).default(50),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const opts = input || { status: "all", limit: 50 };
+
+      const conditions = [];
+      if (opts.status !== "all") {
+        conditions.push(eq(phishingDrafts.status, opts.status as any));
+      }
+      if (opts.scanId) {
+        conditions.push(eq(phishingDrafts.scanId, opts.scanId));
+      }
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const drafts = await db.select().from(phishingDrafts)
+        .where(where)
+        .orderBy(desc(phishingDrafts.createdAt))
+        .limit(opts.limit);
+
+      return { drafts, total: drafts.length };
+    }),
+
+  /**
+   * getDraft — Get a single draft by ID with full details
+   */
+  getDraft: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const [draft] = await db.select().from(phishingDrafts)
+        .where(eq(phishingDrafts.id, input.id));
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+      return draft;
+    }),
+
+  /**
+   * updateDraft — Edit a draft before deployment
+   */
+  updateDraft: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      campaignName: z.string().optional(),
+      templateSubject: z.string().optional(),
+      templateHtml: z.string().optional(),
+      templateText: z.string().optional(),
+      landingPageHtml: z.string().optional(),
+      landingPageRedirectUrl: z.string().optional(),
+      captureCredentials: z.boolean().optional(),
+      capturePasswords: z.boolean().optional(),
+      targetEmails: z.array(z.object({
+        email: z.string(),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        position: z.string().optional(),
+      })).optional(),
+      phishingUrl: z.string().optional(),
+      autoTriggerCaldera: z.boolean().optional(),
+      triggerCondition: z.any().optional(),
+      launchDate: z.string().optional(),
+      sendByDate: z.string().optional(),
+      status: z.enum(["draft", "approved", "archived"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const { id, launchDate, sendByDate, ...updates } = input;
+
+      // Check draft exists and is editable
+      const [existing] = await db.select().from(phishingDrafts)
+        .where(eq(phishingDrafts.id, id));
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+      if (existing.status === "launched" || existing.status === "completed") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cannot edit a launched or completed campaign" });
+      }
+
+      const updateData: any = { ...updates };
+      if (launchDate) updateData.launchDate = new Date(launchDate);
+      if (sendByDate) updateData.sendByDate = new Date(sendByDate);
+
+      await db.update(phishingDrafts).set(updateData).where(eq(phishingDrafts.id, id));
+      return { success: true, message: "Draft updated" };
+    }),
+
+  /**
+   * deployToGophish — Push a draft's resources to the GoPhish server.
+   * Creates template, landing page, and target group in GoPhish.
+   * Does NOT launch the campaign — that's a separate step requiring operator approval.
+   */
+  deployToGophish: protectedProcedure
+    .input(z.object({ draftId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+
+      const [draft] = await db.select().from(phishingDrafts)
+        .where(eq(phishingDrafts.id, input.draftId));
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+      if (draft.status !== "draft" && draft.status !== "approved") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Cannot deploy a draft with status: ${draft.status}` });
+      }
+
+      const results: { templateId?: number; pageId?: number; groupId?: number; errors: string[] } = { errors: [] };
+
+      // 1. Create Email Template in GoPhish
+      if (draft.templateHtml) {
+        try {
+          const template = await fetchGophish("/api/templates/", "POST", {
+            name: draft.templateName || `${draft.campaignName} - Template`,
+            subject: draft.templateSubject || "Important Notification",
+            html: draft.templateHtml,
+            text: draft.templateText || "",
+          });
+          results.templateId = template?.id;
+        } catch (e: any) {
+          results.errors.push(`Template: ${e.message}`);
+        }
+      }
+
+      // 2. Create Landing Page in GoPhish
+      if (draft.landingPageHtml) {
+        try {
+          const page = await fetchGophish("/api/pages/", "POST", {
+            name: draft.landingPageName || `${draft.campaignName} - Landing Page`,
+            html: draft.landingPageHtml,
+            capture_credentials: draft.captureCredentials ?? true,
+            capture_passwords: draft.capturePasswords ?? false,
+            redirect_url: draft.landingPageRedirectUrl || "",
+          });
+          results.pageId = page?.id;
+        } catch (e: any) {
+          results.errors.push(`Landing Page: ${e.message}`);
+        }
+      }
+
+      // 3. Create Target Group in GoPhish
+      const emails = (draft.targetEmails as any[]) || [];
+      if (emails.length > 0) {
+        try {
+          const group = await fetchGophish("/api/groups/", "POST", {
+            name: draft.targetGroupName || `${draft.campaignName} - Targets`,
+            targets: emails.map((e: any) => ({
+              first_name: e.firstName || "",
+              last_name: e.lastName || "",
+              email: e.email,
+              position: e.position || "",
+            })),
+          });
+          results.groupId = group?.id;
+        } catch (e: any) {
+          results.errors.push(`Target Group: ${e.message}`);
+        }
+      }
+
+      // Update draft with GoPhish resource IDs
+      const updateData: any = { status: "deployed" };
+      if (results.templateId) updateData.gophishTemplateId = results.templateId;
+      if (results.pageId) updateData.gophishPageId = results.pageId;
+      if (results.groupId) updateData.gophishGroupId = results.groupId;
+
+      await db.update(phishingDrafts).set(updateData).where(eq(phishingDrafts.id, input.draftId));
+
+      return {
+        success: results.errors.length === 0,
+        draftId: input.draftId,
+        gophishTemplateId: results.templateId,
+        gophishPageId: results.pageId,
+        gophishGroupId: results.groupId,
+        errors: results.errors,
+        message: results.errors.length === 0
+          ? "All resources deployed to GoPhish. Ready to launch campaign."
+          : `Deployed with ${results.errors.length} error(s): ${results.errors.join("; ")}`,
+      };
+    }),
+
+  /**
+   * launchCampaign — Launch a deployed draft as a GoPhish campaign.
+   * Requires all GoPhish resources to be deployed first.
+   */
+  launchCampaign: protectedProcedure
+    .input(z.object({
+      draftId: z.number(),
+      smtpProfileName: z.string(),
+      phishingUrl: z.string(),
+      launchDate: z.string().optional(),
+      sendByDate: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+
+      const [draft] = await db.select().from(phishingDrafts)
+        .where(eq(phishingDrafts.id, input.draftId));
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+      if (draft.status !== "deployed") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Draft must be deployed to GoPhish before launching" });
+      }
+      if (!draft.gophishTemplateId || !draft.gophishGroupId) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Missing GoPhish template or target group" });
+      }
+
+      // Launch the campaign in GoPhish
+      const campaignPayload: any = {
+        name: draft.campaignName,
+        template: { name: draft.templateName },
+        page: { name: draft.landingPageName || "" },
+        smtp: { name: input.smtpProfileName },
+        url: input.phishingUrl,
+        groups: [{ name: draft.targetGroupName }],
+      };
+      if (input.launchDate) campaignPayload.launch_date = input.launchDate;
+      if (input.sendByDate) campaignPayload.send_by_date = input.sendByDate;
+
+      const campaign = await fetchGophish("/api/campaigns/", "POST", campaignPayload);
+
+      // Update draft with campaign ID and status
+      await db.update(phishingDrafts).set({
+        status: "launched",
+        gophishCampaignId: campaign?.id,
+        phishingUrl: input.phishingUrl,
+        smtpProfileName: input.smtpProfileName,
+        launchDate: input.launchDate ? new Date(input.launchDate) : new Date(),
+        sendByDate: input.sendByDate ? new Date(input.sendByDate) : null,
+      }).where(eq(phishingDrafts.id, input.draftId));
+
+      return {
+        success: true,
+        gophishCampaignId: campaign?.id,
+        message: `Campaign "${draft.campaignName}" launched in GoPhish`,
+      };
+    }),
+
+  /**
+   * syncCampaignStats — Pull latest campaign stats from GoPhish for launched drafts
+   */
+  syncCampaignStats: protectedProcedure
+    .input(z.object({ draftId: z.number() }).optional())
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+
+      const conditions = [
+        sql`${phishingDrafts.gophishCampaignId} IS NOT NULL`,
+      ];
+      if (input?.draftId) {
+        conditions.push(eq(phishingDrafts.id, input.draftId));
+      } else {
+        conditions.push(
+          inArray(phishingDrafts.status, ["launched"] as any)
+        );
+      }
+
+      const launchedDrafts = await db.select({
+        id: phishingDrafts.id,
+        gophishCampaignId: phishingDrafts.gophishCampaignId,
+      }).from(phishingDrafts).where(and(...conditions));
+
+      let synced = 0;
+      for (const draft of launchedDrafts) {
+        if (!draft.gophishCampaignId) continue;
+        try {
+          const campaign = await fetchGophish(`/api/campaigns/${draft.gophishCampaignId}`);
+          if (campaign) {
+            const stats = {
+              sent: campaign.stats?.sent || 0,
+              opened: campaign.stats?.opened || 0,
+              clicked: campaign.stats?.clicked || 0,
+              submitted: campaign.stats?.submitted_data || 0,
+              reported: campaign.stats?.email_reported || 0,
+              total: campaign.stats?.total || 0,
+              status: campaign.status,
+            };
+            const updateData: any = { campaignStats: stats };
+            if (campaign.status === "Completed") {
+              updateData.status = "completed";
+            }
+            await db.update(phishingDrafts).set(updateData).where(eq(phishingDrafts.id, draft.id));
+            synced++;
+          }
+        } catch (e: any) {
+          console.error(`[PhishingOps] Failed to sync campaign ${draft.gophishCampaignId}:`, e.message);
+        }
+      }
+
+      return { synced, total: launchedDrafts.length };
+    }),
+
+  /**
+   * triggerCaldera — After a phishing campaign captures credentials,
+   * trigger a Caldera operation for post-exploitation.
+   */
+  triggerCaldera: protectedProcedure
+    .input(z.object({
+      draftId: z.number(),
+      operationName: z.string().optional(),
+      adversaryId: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+
+      const [draft] = await db.select().from(phishingDrafts)
+        .where(eq(phishingDrafts.id, input.draftId));
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+
+      // Check if campaign has captured credentials
+      const stats = draft.campaignStats as any;
+      if (!stats || (stats.submitted || 0) === 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No credentials captured yet. Wait for campaign results before triggering Caldera.",
+        });
+      }
+
+      // Create a Caldera operation using the linked abilities
+      const { ENV } = await import("../_core/env");
+      const calderaUrl = ENV.calderaBaseUrl;
+      const calderaApiKey = ENV.calderaApiKey;
+
+      if (!calderaUrl || !calderaApiKey) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Caldera not configured" });
+      }
+
+      const operationName = input.operationName ||
+        `[Ace C3] Post-Phish: ${draft.campaignName} - ${new Date().toISOString().split("T")[0]}`;
+
+      const operationPayload: any = {
+        name: operationName,
+        autonomous: 0, // Manual mode for safety
+        state: "paused", // Start paused so operator can review
+      };
+
+      if (input.adversaryId) {
+        operationPayload.adversary = { adversary_id: input.adversaryId };
+      }
+
+      try {
+        const res = await fetch(`${calderaUrl}/api/v2/operations`, {
+          method: "POST",
+          headers: {
+            "KEY": calderaApiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(operationPayload),
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`Caldera API error: ${res.status} ${text}`);
+        }
+
+        const operation = await res.json();
+
+        // Update draft with Caldera operation ID
+        await db.update(phishingDrafts).set({
+          calderaOperationId: operation.id || operation.name,
+        }).where(eq(phishingDrafts.id, input.draftId));
+
+        return {
+          success: true,
+          operationId: operation.id,
+          operationName: operation.name,
+          state: operation.state,
+          message: `Caldera operation "${operationName}" created in PAUSED state. Review and start manually.`,
+        };
+      } catch (e: any) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create Caldera operation: ${e.message}`,
+        });
+      }
+    }),
+
+  /**
+   * deleteDraft — Delete a draft (only if not launched)
+   */
+  deleteDraft: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const [draft] = await db.select().from(phishingDrafts)
+        .where(eq(phishingDrafts.id, input.id));
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+      if (draft.status === "launched") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cannot delete a launched campaign" });
+      }
+      await db.delete(phishingDrafts).where(eq(phishingDrafts.id, input.id));
+      return { success: true };
+    }),
+
+  /**
+   * getArsenal — Get all GoPhish resources (templates, pages, groups, profiles)
+   * for the Arsenal tab
+   */
+  getArsenal: protectedProcedure.query(async () => {
+    try {
+      const [templates, pages, groups, smtp] = await Promise.all([
+        fetchGophish("/api/templates/").catch(() => []),
+        fetchGophish("/api/pages/").catch(() => []),
+        fetchGophish("/api/groups/").catch(() => []),
+        fetchGophish("/api/smtp/").catch(() => []),
+      ]);
+
+      return {
+        online: true,
+        templates: Array.isArray(templates) ? templates : [],
+        landingPages: Array.isArray(pages) ? pages : [],
+        groups: Array.isArray(groups) ? groups : [],
+        sendingProfiles: Array.isArray(smtp) ? smtp : [],
+      };
+    } catch {
+      return {
+        online: false,
+        templates: [],
+        landingPages: [],
+        groups: [],
+        sendingProfiles: [],
+      };
+    }
+  }),
+
+  /**
+   * deleteGophishTemplate — Delete a template from GoPhish
+   */
+  deleteGophishTemplate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await fetchGophish(`/api/templates/${input.id}`, "DELETE");
+      return { success: true };
+    }),
+
+  /**
+   * deleteGophishPage — Delete a landing page from GoPhish
+   */
+  deleteGophishPage: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await fetchGophish(`/api/pages/${input.id}`, "DELETE");
+      return { success: true };
+    }),
+
+  /**
+   * deleteGophishGroup — Delete a target group from GoPhish
+   */
+  deleteGophishGroup: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await fetchGophish(`/api/groups/${input.id}`, "DELETE");
+      return { success: true };
+    }),
+});

@@ -41,7 +41,7 @@ const NAV_ITEMS = [
   { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
   { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
   { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
-  { href: "/gophish", icon: Zap, label: "GOPHISH" },
+  { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
   { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
   { href: "/team", icon: Users, label: "TEAM" },
   { href: "/activity", icon: FileText, label: "ACTIVITY" },

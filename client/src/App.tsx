@@ -19,6 +19,7 @@ import OperationMonitor from "./pages/OperationMonitor";
 import ReportGenerator from "./pages/ReportGenerator";
 import OperationDetail from "./pages/OperationDetail";
 import GoPhish from "./pages/GoPhish";
+import PhishingOperations from "./pages/PhishingOperations";
 import GoPhishGuide from "./pages/GoPhishGuide";
 import CalderaGuide from "./pages/CalderaGuide";
 // SecurityReport merged into ReportGenerator
@@ -136,8 +137,11 @@ function Router() {
       <Route path="/reports/generate">
         <ProtectedRoute component={ReportGenerator} />
       </Route>
+      <Route path="/phishing-ops">
+        <ProtectedRoute component={PhishingOperations} />
+      </Route>
       <Route path="/gophish">
-        <ProtectedRoute component={GoPhish} />
+        <Redirect to="/phishing-ops" />
       </Route>
       <Route path="/guide/gophish">
         <ProtectedRoute component={GoPhishGuide} />

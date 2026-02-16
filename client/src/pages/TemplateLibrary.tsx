@@ -33,7 +33,7 @@ const DIFFICULTY_COLORS = {
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" />, label: "Dashboard" },
   { href: "/campaigns", icon: <Target className="w-4 h-4" />, label: "Campaigns" },
-  { href: "/gophish", icon: <Crosshair className="w-4 h-4" />, label: "GoPhish" },
+  { href: "/phishing-ops", icon: <Crosshair className="w-4 h-4" />, label: "GoPhish" },
   { href: "/credentials", icon: <Shield className="w-4 h-4" />, label: "Credentials" },
 ];
 

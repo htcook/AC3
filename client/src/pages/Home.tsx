@@ -452,7 +452,7 @@ export default function Home() {
                 "Template tagging, search, and difficulty filtering",
                 "Recipient preview mode with device frames",
               ]}
-              link="/gophish"
+              link="/phishing-ops"
               linkLabel="MANAGE CAMPAIGNS"
             />
 

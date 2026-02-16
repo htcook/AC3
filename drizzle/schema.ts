@@ -954,3 +954,87 @@ export const archetypeActorMappings = mysqlTable("archetype_actor_mappings", {
 });
 export type ArchetypeActorMapping = typeof archetypeActorMappings.$inferSelect;
 export type InsertArchetypeActorMapping = typeof archetypeActorMappings.$inferInsert;
+
+
+/**
+ * Phishing Drafts — materialized campaign resources from domain intel scan recommendations.
+ * Bridges the gap between LLM-generated campaign recommendations and actual GoPhish deployment.
+ * Workflow: Domain Scan → Campaign Recommendation → Materialize Draft → Review → Deploy to GoPhish
+ */
+export const phishingDrafts = mysqlTable("phishing_drafts", {
+  id: int("id").autoincrement().primaryKey(),
+  // Link to source intelligence
+  scanId: int("scanId"),
+  engagementId: int("engagementId"),
+  campaignRecommendationIndex: int("campaignRecommendationIndex"),
+
+  // Draft lifecycle
+  status: mysqlEnum("draftStatus", [
+    "draft",
+    "approved",
+    "deployed",
+    "launched",
+    "completed",
+    "archived",
+  ]).default("draft").notNull(),
+
+  // Campaign metadata
+  campaignName: varchar("campaignName", { length: 255 }).notNull(),
+  campaignType: varchar("campaignType", { length: 64 }),
+  priority: mysqlEnum("draftPriority", ["critical", "high", "medium", "low"]).default("medium"),
+  targetDomain: varchar("targetDomain", { length: 255 }),
+  targetSector: varchar("targetSector", { length: 128 }),
+
+  // GoPhish Email Template
+  templateName: varchar("templateName", { length: 255 }),
+  templateSubject: varchar("templateSubject", { length: 500 }),
+  templateHtml: text("templateHtml"),
+  templateText: text("templateText"),
+
+  // GoPhish Landing Page
+  landingPageName: varchar("landingPageName", { length: 255 }),
+  landingPageHtml: text("landingPageHtml"),
+  landingPageRedirectUrl: varchar("landingPageRedirectUrl", { length: 500 }),
+  captureCredentials: boolean("captureCredentials").default(true),
+  capturePasswords: boolean("capturePasswords").default(false),
+
+  // Target Group
+  targetGroupName: varchar("targetGroupName", { length: 255 }),
+  targetEmails: json("targetEmails"),
+
+  // Sending Profile
+  smtpProfileName: varchar("smtpProfileName", { length: 255 }),
+  phishingUrl: varchar("phishingUrl", { length: 500 }),
+
+  // Attack Chain & Caldera Integration
+  attackChain: json("attackChain"),
+  calderaAbilities: json("calderaAbilities"),
+  calderaOperationId: varchar("calderaOperationId", { length: 128 }),
+  autoTriggerCaldera: boolean("autoTriggerCaldera").default(false),
+  triggerCondition: json("triggerCondition"),
+
+  // Threat Actor Intelligence
+  threatActorId: varchar("threatActorId", { length: 128 }),
+  threatActorName: varchar("threatActorName", { length: 255 }),
+  matchRationale: text("matchRationale"),
+
+  // GoPhish Resource IDs (populated after deployment)
+  gophishTemplateId: int("gophishTemplateId"),
+  gophishPageId: int("gophishPageId"),
+  gophishGroupId: int("gophishGroupId"),
+  gophishCampaignId: int("gophishCampaignId"),
+
+  // Scheduling
+  launchDate: timestamp("launchDate"),
+  sendByDate: timestamp("sendByDate"),
+
+  // Campaign Results (synced from GoPhish after launch)
+  campaignStats: json("campaignStats"),
+
+  // Metadata
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PhishingDraft = typeof phishingDrafts.$inferSelect;
+export type InsertPhishingDraft = typeof phishingDrafts.$inferInsert;

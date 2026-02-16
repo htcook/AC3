@@ -1727,3 +1727,34 @@
 ## Production .map() Crash Error
 - [x] Investigate and fix production crash: comprehensive sweep of all .map() calls across 44 pages
 - [x] Add defensive null guards: ThreatActorCatalogDetail events/iocs, CampaignDetail status, GoPhish filteredCampaigns. All other .map() calls verified safe.
+
+## GoPhish Template Cleanup
+- [ ] Identify empty/test GoPhish templates via API
+- [ ] Remove empty/test templates from GoPhish server
+- [ ] Verify remaining templates are valid
+
+## GoPhish Integration Redesign
+- [x] Audit current GoPhish UI in dashboard and production
+- [x] Audit backend GoPhish router, domain intel pipeline, engagement system
+- [x] Design improved GoPhish integration tied to domain intel + APT matching + Caldera campaigns
+- [x] Write detailed design document with architecture, UI wireframes, and implementation plan
+- [ ] Remove empty/test GoPhish templates from production
+
+## GoPhish Integration Redesign — Implementation
+- [x] Create phishing_drafts table in drizzle schema
+- [x] Push DB migration for phishing_drafts
+- [x] Build phishingOps.getIntelFeed procedure
+- [x] Build phishingOps.materialize procedure
+- [x] Build phishingOps.deployToGophish procedure
+- [x] Build phishingOps.triggerCaldera procedure
+- [x] Build phishingOps.listDrafts procedure
+- [x] Build phishingOps.updateDraft procedure
+- [ ] Update engagement pipeline Step 5/6 to call materialization
+- [x] Build unified Phishing Operations page (/phishing-ops)
+- [x] Build Intelligence Feed tab
+- [x] Build Campaign Builder tab
+- [x] Build Active Campaigns tab
+- [x] Build Arsenal tab
+- [x] Update sidebar navigation (consolidate GoPhish items into Phishing Operations)
+- [x] Add redirects from old GoPhish pages to /phishing-ops
+- [x] Write tests for all new procedures (31 vitest tests passing)

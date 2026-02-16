@@ -11,6 +11,7 @@ import type { InsertIocFeed } from "../drizzle/schema";
 import { threatIntelRouter } from "./routers/threat-intel";
 import { darkwebBridgeRouter } from "./routers/darkweb-bridge";
 import { campaignArchetypeRouter } from "./routers/campaign-archetypes";
+import { phishingOpsRouter } from "./routers/phishing-ops";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -97,6 +98,7 @@ export const appRouter = router({
   threatIntel: threatIntelRouter,
   darkwebBridge: darkwebBridgeRouter,
   campaignArchetypes: campaignArchetypeRouter,
+  phishingOps: phishingOpsRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

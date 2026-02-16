@@ -234,7 +234,7 @@ export default function CampaignWizard() {
       }
 
       toast.success("Campaign launched successfully!");
-      navigate("/gophish");
+      navigate("/phishing-ops");
     } catch (error: any) {
       toast.error(error.message || "Failed to launch campaign");
     }
@@ -259,7 +259,7 @@ export default function CampaignWizard() {
             </h1>
             <p className="text-muted-foreground text-sm mt-1">Create and launch GoPhish phishing campaigns step by step</p>
           </div>
-          <Button variant="outline" onClick={() => navigate("/gophish")} className="font-display tracking-wider">
+          <Button variant="outline" onClick={() => navigate("/phishing-ops")} className="font-display tracking-wider">
             <X className="w-4 h-4 mr-2" /> CANCEL
           </Button>
         </div>

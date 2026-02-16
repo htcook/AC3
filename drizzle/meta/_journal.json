@@ -141,6 +141,13 @@
       "when": 1771225666117,
       "tag": "0019_perfect_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1771265508853,
+      "tag": "0020_glamorous_tigra",
+      "breakpoints": true
     }
   ]
 }

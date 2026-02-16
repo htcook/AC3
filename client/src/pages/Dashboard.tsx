@@ -434,7 +434,7 @@ export default function Dashboard() {
             <QuickAccessCard icon={<Brain />} label="DOMAIN INTEL" desc="AI-powered pipeline" href="/domain-intel" color="text-cyan-400 border-cyan-500/30" />
             <QuickAccessCard icon={<Target />} label="THREAT ACTORS" desc={`${threatStats?.totalActors ?? '...'}+ actor profiles`} href="/threat-catalog" color="text-red-400 border-red-500/30" />
             <QuickAccessCard icon={<Layers />} label="ENGAGEMENTS" desc="Manage campaigns" href="/engagements" color="text-primary border-primary/30" />
-            <QuickAccessCard icon={<Fish />} label="GOPHISH" desc="Phishing campaigns" href="/gophish" color="text-emerald-400 border-emerald-500/30" />
+            <QuickAccessCard icon={<Fish />} label="GOPHISH" desc="Phishing campaigns" href="/phishing-ops" color="text-emerald-400 border-emerald-500/30" />
             <QuickAccessCard icon={<Activity />} label="CAMPAIGN EXEC" desc="Live operations" href="/operations/monitor" color="text-yellow-400 border-yellow-500/30" />
             <QuickAccessCard icon={<BarChart3 />} label="REPORTS" desc="Generate reports" href="/reports/engagement" color="text-purple-400 border-purple-500/30" />
           </div>
@@ -451,10 +451,10 @@ export default function Dashboard() {
             <MiniStat value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-primary" href="/abilities" />
             <MiniStat value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-primary" href="/operations/monitor" />
             <MiniStat value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-primary" href="/agents" />
-            <MiniStat value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-400" href="/gophish" />
+            <MiniStat value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-400" href="/phishing-ops" />
             <MiniStat value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-400" href="/template-library" />
-            <MiniStat value={`${clickRate}%`} label="CLICK RATE" color="text-yellow-400" href="/gophish" />
-            <MiniStat value={`${submitRate}%`} label="SUBMIT RATE" color="text-red-400" href="/gophish" />
+            <MiniStat value={`${clickRate}%`} label="CLICK RATE" color="text-yellow-400" href="/phishing-ops" />
+            <MiniStat value={`${submitRate}%`} label="SUBMIT RATE" color="text-red-400" href="/phishing-ops" />
           </div>
         </section>
 
