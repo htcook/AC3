@@ -15,6 +15,7 @@ import { urlscanConnector } from "./urlscan";
 import { rdapConnector } from "./rdap";
 import { ripestatConnector } from "./ripestat";
 import { securitytrailsConnector } from "./securitytrails";
+import { dehashedConnector } from "./dehashed";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 
@@ -28,6 +29,7 @@ const ALL_CONNECTORS: PassiveConnector[] = [
   rdapConnector,
   ripestatConnector,
   securitytrailsConnector,
+  dehashedConnector,
 ];
 
 export interface PassiveReconConfig {
@@ -38,6 +40,7 @@ export interface PassiveReconConfig {
     censys_secret?: string;
     urlscan?: string;
     securitytrails?: string;
+    dehashed?: string;
   };
   timeout?: number;
   maxConcurrent?: number;
@@ -85,6 +88,7 @@ export async function runPassiveRecon(
       case "censys": cfg.apiId = apiKeys.censys_id; cfg.apiSecret = apiKeys.censys_secret; break;
       case "urlscan": cfg.apiKey = apiKeys.urlscan; break;
       case "securitytrails": cfg.apiKey = apiKeys.securitytrails; break;
+      case "dehashed": cfg.apiKey = apiKeys.dehashed; break;
     }
     connectorConfigs.set(connector.name, cfg);
   }

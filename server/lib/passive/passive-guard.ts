@@ -24,6 +24,7 @@ const STRICT_PASSIVE_CONNECTORS = new Set([
   "wayback",
   "urlscan",
   "securitytrails",
+  "dehashed",
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)
@@ -53,6 +54,7 @@ export function getDefaultPolicy(scanMode: ScanMode): PassivePolicyConfig {
           "web.archive.org",
           "urlscan.io",
           "api.securitytrails.com",
+          "api.dehashed.com",
         ]),
       };
     case "standard":
@@ -67,6 +69,7 @@ export function getDefaultPolicy(scanMode: ScanMode): PassivePolicyConfig {
           "web.archive.org",
           "urlscan.io",
           "api.securitytrails.com",
+          "api.dehashed.com",
           "rdap.org",
           "stat.ripe.net",
         ]),
@@ -141,6 +144,7 @@ export function getScanModeDescription(scanMode: ScanMode): {
           "Wayback Machine historical URL archive search",
           "urlscan.io community scan database search",
           "SecurityTrails DNS intelligence API",
+          "Dehashed breach intelligence & domain mapping",
         ],
         restrictions: [
           "No DNS resolution against target nameservers",
@@ -154,7 +158,7 @@ export function getScanModeDescription(scanMode: ScanMode): {
         label: "Standard",
         description: "Queries third-party databases plus DNS resolution and registration lookups. Minimal footprint on target infrastructure.",
         techniques: [
-          "All strict passive techniques",
+          "All strict passive techniques (including Dehashed breach intelligence)",
           "DNS A/AAAA/MX/NS/TXT record resolution",
           "RDAP domain registration lookup",
           "RIPEstat ASN and prefix analysis",

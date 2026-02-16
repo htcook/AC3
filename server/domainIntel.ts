@@ -833,6 +833,7 @@ export async function runDomainIntelPipeline(
         censys_secret: ENV.CENSYS_API_SECRET || undefined,
         urlscan: ENV.URLSCAN_API_KEY || undefined,
         securitytrails: ENV.SECURITYTRAILS_API_KEY || undefined,
+        dehashed: ENV.DEHASHED_API_KEY || undefined,
       },
       timeout: 30000,
       maxConcurrent: 5,

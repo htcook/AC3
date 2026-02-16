@@ -1418,12 +1418,12 @@
 - [ ] Deploy latest passive ASM build to DigitalOcean
 
 ## Dehashed Breach Intelligence Connector
-- [ ] Research Dehashed API endpoints and authentication
-- [ ] Store DEHASHED_API_KEY secret
-- [ ] Create Dehashed connector (server/lib/passive/dehashed.ts)
-- [ ] Add Dehashed to passive orchestrator and guard
-- [ ] Add breach-related signal classifier rules
-- [ ] Update DomainIntel UI to show Dehashed as data source
-- [ ] Write vitest tests for Dehashed connector
-- [ ] Run full test suite (all tests passing)
+- [x] Research Dehashed API endpoints and authentication
+- [x] Store DEHASHED_API_KEY secret
+- [x] Create Dehashed connector (server/lib/passive/dehashed.ts)
+- [x] Add Dehashed to passive orchestrator and guard
+- [x] Add breach-related signal classifier rules (credential_exposure, high_volume_breach, breach_subdomain)
+- [x] Update DomainIntel UI to show Dehashed as data source
+- [x] Write vitest tests for Dehashed connector (21 tests)
+- [x] Run full test suite (497 tests passing across 30 files)
 - [ ] Save checkpoint

@@ -25,4 +25,5 @@ export const ENV = {
   CENSYS_API_SECRET: process.env.CENSYS_API_SECRET ?? "",
   URLSCAN_API_KEY: process.env.URLSCAN_API_KEY ?? "",
   SECURITYTRAILS_API_KEY: process.env.SECURITYTRAILS_API_KEY ?? "",
+  DEHASHED_API_KEY: process.env.DEHASHED_API_KEY ?? "",
 };

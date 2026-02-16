@@ -171,6 +171,54 @@ const SIGNAL_RULES: SignalRule[] = [
     rationale: (obs) => `Historical admin path found in Wayback Machine archive: ${obs.name}. Even if no longer active, this reveals the application's admin URL pattern.`,
   },
 
+  // ─── Credential Exposure (Breach Data) ────────────────────────
+  {
+    id: "credential_exposure",
+    name: "Credentials Exposed in Data Breach",
+    severity: "critical",
+    confidence: 0.95,
+    match: (obs) => {
+      return obs.source === "dehashed" && obs.assetType === "breach" &&
+             obs.tags.includes("credentials_exposed");
+    },
+    rationale: (obs) => {
+      const creds = obs.evidence?.credentials_exposed || 0;
+      const dbName = obs.evidence?.database_name || obs.name;
+      return `${creds} credentials (passwords/hashes) for ${obs.domain} exposed in the "${dbName}" data breach. Exposed credentials enable password spraying and credential stuffing attacks.`;
+    },
+  },
+
+  // ─── High-Volume Breach Exposure ──────────────────────────────
+  {
+    id: "high_volume_breach",
+    name: "High-Volume Breach Exposure",
+    severity: "high",
+    confidence: 0.9,
+    match: (obs) => {
+      return obs.source === "dehashed" && obs.assetType === "breach" &&
+             obs.tags.includes("breach_summary") &&
+             (obs.evidence?.total_records || 0) > 100;
+    },
+    rationale: (obs) => {
+      const total = obs.evidence?.total_records || 0;
+      const breaches = obs.evidence?.unique_breaches || 0;
+      return `${total} breach records found across ${breaches} data breaches for ${obs.domain}. High-volume exposure significantly increases the risk of credential stuffing and account takeover attacks.`;
+    },
+  },
+
+  // ─── Breach-Derived Subdomain Discovery ───────────────────────
+  {
+    id: "breach_subdomain",
+    name: "Subdomain Discovered via Breach Data",
+    severity: "info",
+    confidence: 0.8,
+    match: (obs) => {
+      return obs.source === "dehashed" && obs.assetType === "subdomain" &&
+             obs.tags.includes("breach_derived");
+    },
+    rationale: (obs) => `Subdomain ${obs.name} discovered through email addresses found in breach records. This subdomain may host services with compromised user accounts.`,
+  },
+
   // ─── Open Remote Access Ports ──────────────────────────────────
   {
     id: "open_remote_access",

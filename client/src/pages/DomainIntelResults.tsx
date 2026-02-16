@@ -1376,6 +1376,32 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       verifyCmd: "curl -I https://<hostname>",
     },
     {
+      id: "dehashed_breach",
+      name: "Dehashed Breach Intelligence",
+      icon: Lock,
+      category: "Passive Data Collection",
+      status: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "no_results";
+        const dh = pr.connectorResults.find((r: any) => r.connector === "dehashed");
+        return dh && dh.observations?.length > 0 ? "completed" : "no_results";
+      })(),
+      description: "Queried Dehashed's 15B+ breach record database for domain and subdomain mapping through leaked email addresses, credential exposure detection, IP associations, and breach database attribution.",
+      outputs: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "Not executed";
+        const dh = pr.connectorResults.find((r: any) => r.connector === "dehashed");
+        if (!dh) return "Not executed";
+        const breachObs = dh.observations?.filter((o: any) => o.assetType === "breach") || [];
+        const subdomainObs = dh.observations?.filter((o: any) => o.assetType === "subdomain") || [];
+        const ipObs = dh.observations?.filter((o: any) => o.assetType === "ip") || [];
+        return `${dh.observations?.length || 0} observations: ${subdomainObs.length} subdomains, ${ipObs.length} IPs, ${breachObs.length} breach records`;
+      })(),
+      attribution: 'Data from Dehashed (dehashed.com). Breach records aggregated from public and private data wells.',
+      fpRisk: "Low — breach records are real artifacts. Subdomains from email domains are highly reliable.",
+      verifyCmd: "Search dehashed.com for domain:<domain>",
+    },
+    {
       id: "kev_enrichment",
       name: "CISA KEV Matching",
       icon: Shield,
@@ -1449,7 +1475,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
     },
   ];
 
-  const categories = ["Discovery", "Vulnerability Intelligence", "Risk Scoring", "Threat Intelligence", "Offensive Planning"];
+  const categories = ["Passive Data Collection", "Discovery", "Vulnerability Intelligence", "Risk Scoring", "Threat Intelligence", "Offensive Planning"];
 
   return (
     <>

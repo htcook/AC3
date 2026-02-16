@@ -14,7 +14,7 @@ import {
   Globe, Search, Shield, Target, Plus, X,
   Loader2, CheckCircle2, AlertTriangle, Zap, Building2, Server, Cloud,
   Network, FileText, Brain, Crosshair, ChevronDown, ChevronUp,
-  Eye, Fingerprint, Bug, Database, Radio, Radar, Scan, Info
+  Eye, Fingerprint, Bug, Database, Radio, Radar, Scan, Info, Lock
 } from "lucide-react";
 
 const CLIENT_TYPES = [
@@ -126,6 +126,16 @@ const SCAN_METHODS = [
     outputs: "Subdomains, DNS record history, associated domains, hosting changes",
     attribution: "Data from SecurityTrails (securitytrails.com). Verify at: https://securitytrails.com/domain/<domain>",
     falsePositiveRisk: "Low — DNS data is factual, but historical records may reference decommissioned infrastructure.",
+  },
+  {
+    id: "passive_asm_dehashed",
+    name: "Dehashed Breach Intelligence",
+    icon: Lock,
+    category: "Passive Data Collection",
+    description: "Queries Dehashed's 15B+ breach record database to discover subdomains from email domains, credential exposures, IP associations, and breach database attribution. Excellent for domain and subdomain mapping through leaked email addresses. Requires Dehashed API key (credit-based).",
+    outputs: "Breach-derived subdomains, credential exposure counts, IP associations, breach database names, email pattern analysis",
+    attribution: "Data from Dehashed (dehashed.com). Breach records are aggregated from public and private data wells.",
+    falsePositiveRisk: "Low — breach records are real artifacts. Subdomains derived from email domains are highly reliable for domain mapping.",
   },
   {
     id: "llm_passive_recon",
@@ -386,7 +396,7 @@ export default function DomainIntel() {
 
   // Pipeline stages for progress display
   const PIPELINE_STAGES = [
-    { label: "Passive Recon (crt.sh, Shodan, Wayback, RDAP, RIPEstat" + (scanMode === 'full' ? ', Censys, urlscan, SecurityTrails)' : ')'), stage: 0.5, method: "passive_asm" },
+    { label: "Passive Recon (crt.sh, Shodan, Wayback, RDAP, RIPEstat" + (scanMode === 'full' ? ', Censys, urlscan, SecurityTrails, Dehashed)' : ')'), stage: 0.5, method: "passive_asm" },
     { label: "LLM-Powered Discovery (enriched with passive data)", stage: 1, method: "llm_passive_recon" },
     { label: "DNS Verification & Banner Grabbing", stage: 2, method: "dns_verification" },
     { label: "CARVER+SHOCK BIA & Risk Scoring", stage: 3, method: "carver_shock_bia" },
@@ -519,7 +529,7 @@ export default function DomainIntel() {
             <div className="w-full max-w-sm space-y-2">
               <Progress value={Math.max(5, (pipelineStage / 5) * 100)} className="h-2" />
               <p className="text-xs text-muted-foreground text-center">
-                {scanStatusQuery.data?.status === "passive_recon" ? "Stage 0.5: Passive reconnaissance — querying crt.sh, Shodan, Wayback, RDAP..." :
+                {scanStatusQuery.data?.status === "passive_recon" ? "Stage 0.5: Passive reconnaissance — querying crt.sh, Shodan, Wayback, RDAP, Dehashed..." :
                  scanStatusQuery.data?.status === "discovering" ? "Stage 1: LLM discovery enriched with passive recon data..." :
                  scanStatusQuery.data?.status === "analyzing" ? "Stage 2: BIA scoring + asset classification..." :
                  scanStatusQuery.data?.status === "scoring" ? "Stage 3: Vuln feeds + KEV enrichment + risk computation..." :
@@ -602,7 +612,7 @@ export default function DomainIntel() {
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Subdomains will be discovered automatically via 8+ passive data sources and DNS verification.</p>
+                  <p className="text-[11px] text-muted-foreground">Subdomains will be discovered automatically via 9+ passive data sources (including breach intelligence) and DNS verification.</p>
                 </div>
 
                 {/* Additional Domains */}
