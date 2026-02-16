@@ -49,6 +49,11 @@ import LandingPageBuilder from "./pages/LandingPageBuilder";
 import DiscoveryCuration from "./pages/DiscoveryCuration";
 import KevDashboard from "./pages/KevDashboard";
 import ScanComparison from "./pages/ScanComparison";
+import ThreatCatalog from "./pages/ThreatCatalog";
+import ThreatActorCatalogDetail from "./pages/ThreatActorCatalogDetail";
+import RansomwareGroups from "./pages/RansomwareGroups";
+import RansomwareGroupDetail from "./pages/RansomwareGroupDetail";
+import DarkwebIntel from "./pages/DarkwebIntel";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -212,6 +217,21 @@ function Router() {
       </Route>
       <Route path="/vuln-intel">
         <ProtectedRoute component={KevDashboard} />
+      </Route>
+      <Route path="/threat-catalog">
+        <ProtectedRoute component={ThreatCatalog} />
+      </Route>
+      <Route path="/threat-catalog/:id">
+        {() => <ProtectedRoute component={ThreatActorCatalogDetail} />}
+      </Route>
+      <Route path="/ransomware-groups">
+        <ProtectedRoute component={RansomwareGroups} />
+      </Route>
+      <Route path="/ransomware-groups/:name">
+        {() => <ProtectedRoute component={RansomwareGroupDetail} />}
+      </Route>
+      <Route path="/darkweb-intel">
+        <ProtectedRoute component={DarkwebIntel} />
       </Route>
       <Route path="/post-engagement-report">
         <ProtectedRoute component={PostEngagementReport} />

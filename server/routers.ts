@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import * as db from "./db";
 import jwt from "jsonwebtoken";
 import type { InsertIocFeed } from "../drizzle/schema";
+import { threatIntelRouter } from "./routers/threat-intel";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -91,6 +92,7 @@ async function fetchCalderaAPI(url: string, apiKey: string, endpoint: string) {
 
 export const appRouter = router({
   system: systemRouter,
+  threatIntel: threatIntelRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

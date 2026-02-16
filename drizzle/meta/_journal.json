@@ -113,6 +113,27 @@
       "when": 1771212192728,
       "tag": "0015_aspiring_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1771213828074,
+      "tag": "0016_ambiguous_echo",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1771214185669,
+      "tag": "0017_sharp_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1771216584925,
+      "tag": "0018_fixed_tinkerer",
+      "breakpoints": true
     }
   ]
 }

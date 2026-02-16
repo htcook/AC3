@@ -526,7 +526,7 @@ export const threatActors = mysqlTable("threat_actors", {
   actorId: varchar("actorId", { length: 128 }).notNull().unique(), // e.g. "apt29", "fin7", "lockbit"
   name: varchar("name", { length: 255 }).notNull(),
   aliases: json("aliases"), // string[]
-  type: mysqlEnum("actorType", ["apt", "cybercrime", "ransomware", "hacktivist", "unknown"]).notNull(),
+  type: mysqlEnum("actorType", ["apt", "cybercrime", "ransomware", "hacktivist", "access_broker", "influence_ops", "unknown"]).notNull(),
   origin: varchar("origin", { length: 128 }), // country or region
   description: text("description"),
   motivation: varchar("motivation", { length: 255 }), // espionage, financial, disruption, etc.
@@ -755,3 +755,134 @@ export const falsePositiveFindings = mysqlTable("false_positive_findings", {
 });
 export type FalsePositiveFinding = typeof falsePositiveFindings.$inferSelect;
 export type InsertFalsePositiveFinding = typeof falsePositiveFindings.$inferInsert;
+
+
+// ─── Ransomware Group Profiles ───────────────────────────────────────────
+/**
+ * Comprehensive ransomware group catalog with activity scoring,
+ * TTP mapping, and targeting intelligence. Enriched via LLM from
+ * public threat intel sources.
+ */
+export const ransomwareGroups = mysqlTable("ransomware_groups", {
+  id: int("id").autoincrement().primaryKey(),
+  groupName: varchar("groupName", { length: 255 }).notNull().unique(),
+  aliases: json("aliases"),                     // string[]
+  description: text("description"),
+  // Activity scoring
+  activityScore: int("activityScore").default(0),    // 0-100 composite
+  trend: mysqlEnum("trend", ["surging", "active", "declining", "dormant"]).default("active"),
+  threatLevel: mysqlEnum("rwThreatLevel", ["critical", "high", "medium", "low"]).default("medium"),
+  // Victim statistics
+  victims7d: int("victims7d").default(0),
+  victims30d: int("victims30d").default(0),
+  totalVictims: int("totalVictims").default(0),
+  // Targeting intelligence
+  topSectors: json("topSectors"),               // string[]
+  topCountries: json("topCountries"),           // string[]
+  // Technical profile
+  associatedMalware: json("associatedMalware"), // string[]
+  mitreTechniques: json("mitreTechniques"),     // string[] (T-codes)
+  ransomwareFamily: varchar("ransomwareFamily", { length: 255 }),
+  extortionModel: mysqlEnum("extortionModel", ["single", "double", "triple", "unknown"]).default("unknown"),
+  affiliateProgram: boolean("affiliateProgram").default(false),
+  // Infrastructure
+  knownInfrastructure: json("knownInfrastructure"), // string[] (.onion sites, leak sites)
+  notableAttacks: json("notableAttacks"),       // NotableAttack[]
+  // Timeline
+  firstSeen: varchar("rwFirstSeen", { length: 32 }),
+  lastActive: varchar("rwLastActive", { length: 32 }),
+  // Caldera integration
+  calderaActorId: varchar("calderaActorId", { length: 128 }), // FK to threat_actors.actorId
+  // Metadata
+  dataSource: varchar("rwDataSource", { length: 128 }), // llm_enriched, manual, osint
+  confidence: int("rwConfidence").default(75),
+  lastEnriched: timestamp("lastEnriched"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type RansomwareGroup = typeof ransomwareGroups.$inferSelect;
+export type InsertRansomwareGroup = typeof ransomwareGroups.$inferInsert;
+
+// ─── Ransomware Victim Events ────────────────────────────────────────────
+/**
+ * Individual ransomware victim reports / leak site postings.
+ * Tracks which groups are actively attacking which sectors/countries.
+ */
+export const ransomwareEvents = mysqlTable("ransomware_events", {
+  id: int("id").autoincrement().primaryKey(),
+  groupName: varchar("reGroupName", { length: 255 }).notNull(),
+  victimName: varchar("victimName", { length: 512 }).notNull(),
+  victimUrl: varchar("victimUrl", { length: 512 }),
+  country: varchar("reCountry", { length: 128 }),
+  sector: varchar("reSector", { length: 128 }),
+  description: text("reDescription"),
+  publishedAt: timestamp("publishedAt"),
+  source: varchar("reSource", { length: 128 }),  // leak_site, news, osint
+  verified: boolean("verified").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type RansomwareEventRow = typeof ransomwareEvents.$inferSelect;
+export type InsertRansomwareEvent = typeof ransomwareEvents.$inferInsert;
+
+// ─── Threat Group Events (Activity History) ──────────────────────────────
+/**
+ * Granular event tracking for all threat groups.
+ * Each row represents a specific activity: attack, infrastructure change,
+ * new malware variant, law enforcement action, etc.
+ */
+export const threatGroupEvents = mysqlTable("threat_group_events", {
+  id: int("id").autoincrement().primaryKey(),
+  actorId: varchar("tgeActorId", { length: 128 }).notNull(), // FK to threat_actors.actorId
+  eventType: mysqlEnum("eventType", [
+    "attack", "campaign", "infrastructure_change", "malware_update",
+    "law_enforcement", "affiliate_change", "data_leak", "ttp_evolution",
+    "group_merger", "group_rebrand", "new_tool", "zero_day",
+  ]).notNull(),
+  title: varchar("tgeTitle", { length: 512 }).notNull(),
+  description: text("tgeDescription"),
+  severity: mysqlEnum("tgeSeverity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  // Victim/target details (for attack events)
+  victimName: varchar("tgeVictimName", { length: 512 }),
+  victimSector: varchar("tgeVictimSector", { length: 128 }),
+  victimCountry: varchar("tgeVictimCountry", { length: 128 }),
+  // Technical details
+  mitreTechniques: json("tgeMitreTechniques"), // string[] — techniques used in this event
+  iocs: json("tgeIocs"), // { type, value }[] — IOCs from this event
+  // Source attribution
+  source: varchar("tgeSource", { length: 255 }), // news URL, feed name, etc.
+  sourceUrl: varchar("tgeSourceUrl", { length: 1024 }),
+  confidence: int("tgeConfidence").default(75), // 0-100
+  // Timestamps
+  eventDate: timestamp("eventDate"), // when the event occurred
+  discoveredAt: timestamp("discoveredAt").defaultNow().notNull(), // when we learned about it
+  createdAt: timestamp("tgeCreatedAt").defaultNow().notNull(),
+});
+export type ThreatGroupEvent = typeof threatGroupEvents.$inferSelect;
+export type InsertThreatGroupEvent = typeof threatGroupEvents.$inferInsert;
+
+// ─── Threat Intelligence Updates (LLM Monitoring Log) ────────────────────
+/**
+ * Tracks LLM monitoring sweeps — when the system scanned news/feeds
+ * and what updates were discovered and applied.
+ */
+export const threatIntelUpdates = mysqlTable("threat_intel_updates", {
+  id: int("id").autoincrement().primaryKey(),
+  sweepType: mysqlEnum("sweepType", ["scheduled", "manual", "triggered"]).default("manual"),
+  status: mysqlEnum("tiuStatus", ["running", "completed", "failed"]).default("running"),
+  // Results
+  groupsScanned: int("groupsScanned").default(0),
+  updatesApplied: int("updatesApplied").default(0),
+  newEventsFound: int("newEventsFound").default(0),
+  newIocsFound: int("newIocsFound").default(0),
+  newTtpsFound: int("newTtpsFound").default(0),
+  // Details
+  summary: text("tiuSummary"), // LLM-generated summary of what changed
+  details: json("tiuDetails"), // { groupName, changes[] }[]
+  errors: json("tiuErrors"), // string[]
+  // Timing
+  startedAt: timestamp("tiuStartedAt").defaultNow().notNull(),
+  completedAt: timestamp("tiuCompletedAt"),
+  durationMs: int("durationMs"),
+});
+export type ThreatIntelUpdate = typeof threatIntelUpdates.$inferSelect;
+export type InsertThreatIntelUpdate = typeof threatIntelUpdates.$inferInsert;

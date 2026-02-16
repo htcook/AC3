@@ -31,6 +31,9 @@ import {
   Palette,
   Bug,
   ArrowLeftRight,
+  Skull,
+  Database,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -64,7 +67,10 @@ const OSINT_ITEMS = [
 ];
 
 const THREAT_INTEL_ITEMS = [
+  { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
   { href: "/threat-actors", icon: Shield, label: "THREAT ACTORS" },
+  { href: "/ransomware-groups", icon: Skull, label: "RANSOMWARE" },
+  { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
   { href: "/apt-library", icon: Shield, label: "APT SCENARIOS" },
   { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
   { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },

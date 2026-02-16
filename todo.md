@@ -1468,3 +1468,139 @@
 - [x] Update past scans list with cyan badge for scan_complete status
 - [x] Write 25 vitest tests for scan engagement flow and clickable heatmap (522 total tests passing)
 - [x] Deploy to DigitalOcean (active, HTTP 200)
+
+## Ransomware Group Intelligence & Darkweb Integration
+
+### Phase 1: Shared Data Model & Schema
+- [ ] Create shared/darkweb-types.ts with RansomwareGroupProfile, DarkwebIOC, CorroborationMatch interfaces
+- [ ] Add ransomware_groups table to drizzle schema
+- [ ] Add darkweb_iocs table to drizzle schema
+- [ ] Add ransomware_events table to drizzle schema
+- [ ] Push database migrations
+
+### Phase 2: SpicyThreatIntel API Bridge & LLM Enrichment
+- [ ] Create server/lib/spicy-tip-bridge.ts with typed API client
+- [ ] Implement ransomware group data ingestion (LLM-powered profiling from public intel)
+- [ ] Add tRPC procedures for darkweb intelligence queries
+- [ ] Add ransomware group CRUD and search endpoints
+
+### Phase 3: Darkweb Intelligence Dashboard
+- [ ] Create DarkwebIntel.tsx page with ransomware activity overview
+- [ ] Add ransomware group catalog with activity scores, trends, TTPs
+- [ ] Add IOC feed panel with ThreatFox/Abuse.ch data
+- [ ] Add activity trend visualization
+- [ ] Add sector/country targeting heatmap
+- [ ] Add sidebar navigation entry for DARKWEB INTELLIGENCE
+- [ ] Follow AceC3 design guide styling
+
+### Phase 4: Pipeline Integration
+- [ ] Enrich domain intel threat actor matching with ransomware activity ratings
+- [ ] Add darkweb IOC corroboration to vulnerability findings
+- [ ] Enhance Caldera campaign builder with ransomware group TTPs
+- [ ] Add Intelligence Enrichment panel to scan results
+
+### Phase 5: Tests & Deployment
+- [ ] Write vitest tests for ransomware data model and bridge
+- [ ] Run full test suite
+- [ ] Deploy to DigitalOcean
+
+## Threat Intelligence Section (Navigation Restructure)
+- [ ] Fix TypeScript errors in ransomware-intel.ts
+- [ ] Add tRPC routes for ransomware group CRUD, seeding, and dashboard stats
+- [ ] Create Threat Intelligence section in sidebar with collapsible sub-nav
+- [ ] Build Ransomware Groups catalog page (grid/list view, detail panels, seed button)
+- [ ] Build Darkweb Intelligence dashboard page (activity heatmap, IOC feeds, sector targeting)
+- [ ] Move existing threat actor features under Threat Intelligence section
+- [ ] Integrate ransomware intel into domain intel pipeline (enrichWithRansomwareIntel)
+- [ ] Write vitest tests for ransomware-intel service
+- [ ] Run full test suite
+- [ ] Deploy to DigitalOcean
+
+## Comprehensive Threat Intelligence Section
+### Schema & Backend
+- [ ] Add threat_group_events table for activity/event history tracking per group
+- [ ] Add threat_intel_updates table for LLM monitoring log entries
+- [ ] Extend ransomware-intel.ts to support ALL threat group types (APT, cybercrime, hacktivist, nation-state)
+- [ ] Build LLM-powered threat monitoring service (news/feed ingestion, TTP/IOC updates)
+- [ ] Build comprehensive seed list for all threat group categories (40+ ransomware, 30+ APT, 15+ cybercrime, 10+ hacktivist)
+- [ ] Create profile generation for APT/nation-state groups (different schema than ransomware)
+- [ ] Create profile generation for cybercrime and hacktivist groups
+### tRPC Routes
+- [ ] Add threatIntel.listGroups (filterable by type, origin, threat level, trend)
+- [ ] Add threatIntel.getGroup (full profile with activity history)
+- [ ] Add threatIntel.seedCatalog (seed all groups via LLM)
+- [ ] Add threatIntel.refreshGroup (re-profile a single group)
+- [ ] Add threatIntel.getDashboardStats (aggregate stats for dashboard)
+- [ ] Add threatIntel.getActivityTimeline (events for a group)
+- [ ] Add threatIntel.runMonitoringSweep (LLM scans news/feeds for updates)
+### Frontend - Navigation
+- [ ] Create Threat Intelligence section in sidebar with collapsible sub-nav
+- [ ] Add sub-pages: Threat Groups, Darkweb Intel, IOC Feeds, MITRE Map
+### Frontend - Threat Groups Catalog
+- [ ] Build grid/list view with group cards showing activity score, trend, type badge
+- [ ] Add filter bar (type, origin, threat level, sector targeting)
+- [ ] Add search functionality across group names and aliases
+- [ ] Add "Seed Catalog" button with progress indicator
+### Frontend - Group Detail Page
+- [ ] Build detailed profile card with description, aliases, infrastructure
+- [ ] Build activity timeline with event history (attacks, campaigns, infrastructure changes)
+- [ ] Build TTP panel with MITRE ATT&CK technique grid
+- [ ] Build IOC panel with associated indicators
+- [ ] Build notable attacks table with victim details
+- [ ] Build sector/country targeting visualization
+- [ ] Build associated malware and tools section
+### Frontend - Darkweb Intelligence Dashboard
+- [ ] Build overview stats (active groups, victims, IOCs, KEV matches)
+- [ ] Build activity heatmap by sector and country
+- [ ] Build recent events feed
+- [ ] Build IOC feed status panel
+### Pipeline Integration
+- [ ] Integrate enrichWithRansomwareIntel into domain intel pipeline
+- [ ] Add threat group matching to scan results
+### Tests & Deployment
+- [ ] Write vitest tests for threat intel service
+- [ ] Run full test suite
+- [ ] Deploy to DigitalOcean
+
+## Master Threat Catalog (Single Source of Truth)
+- [ ] Unify threatActors + ransomwareGroups into single master catalog service
+- [ ] Auto-discovery hooks: domain intel pipeline writes new actors to catalog
+- [ ] Auto-discovery hooks: Caldera campaign imports sync to catalog
+- [ ] Auto-discovery hooks: engagement threat modeling writes to catalog
+- [ ] LLM monitoring sweep: scan news/feeds for new groups and update existing profiles
+- [ ] Propagation: catalog changes push to Caldera adversary profiles
+- [ ] Propagation: catalog changes update domain intel threat matching
+- [ ] Comprehensive seed: 40+ ransomware, 30+ APT/nation-state, 15+ cybercrime, 10+ hacktivist
+- [ ] Each group gets full profile: description, aliases, TTPs, IOCs, tools, malware, infrastructure
+- [ ] Event history tracking via threat_group_events table
+- [ ] LLM monitoring log via threat_intel_updates table
+
+## Threat Intel Data Source Research & Integration
+- [x] Research MITRE ATT&CK STIX data for group profiles, TTPs, and software (187 intrusion-sets)
+- [x] Research MITRE Caldera abilities/adversary profiles for direct import (501 adversaries)
+- [x] Research Malpedia for malware family and actor data (941 actors)
+- [x] Research RansomWatch/RansomLook for real-time ransomware activity (ransomware.live: 318 groups, real-time victims)
+- [x] Research additional OSINT feeds (AlienVault OTX, Abuse.ch, etc.)
+- [ ] Build MITRE ATT&CK STIX ingestion connector
+- [ ] Build MITRE Caldera adversary/ability import connector
+- [ ] Build Malpedia API connector
+- [ ] Build RansomWatch/RansomLook data connector
+- [ ] Integrate all data sources into master catalog with LLM enrichment
+- [ ] Wire auto-discovery to propagate new groups across all platform features
+
+## Expanded Threat Actor Types (access_broker + influence_ops)
+- [x] Add access_broker and influence_ops to schema actorType enum
+- [x] Update threat-intel router list/syncCatalog to accept new types
+- [x] Update ThreatCatalog.tsx filter buttons and type config for new types
+- [x] Create ActorDetail page for individual threat actor profiles
+- [x] Create Ransomware page with dedicated ransomware group catalog
+- [x] Create DarkwebIntel page with darkweb intelligence dashboard
+- [x] Register /threat-catalog, /threat-catalog/:id, /ransomware-groups, /darkweb-intel routes in App.tsx
+- [x] Write vitest tests for new threat intel procedures
+- [x] Verify all pages in browser (API verified via curl, browser had connection issues)
+
+## PDF Review & Platform Enhancement Recommendations
+- [ ] Review AceC3 Design Guide PDF for enhancement opportunities
+- [ ] Review AceofCloud Strategic Recommendations PDF
+- [ ] Compile recommendations report comparing PDFs to current platform capabilities
+- [ ] Deliver recommendations to user
