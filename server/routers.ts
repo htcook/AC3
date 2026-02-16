@@ -4415,10 +4415,12 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           const campaignRecs = scanResult.campaignRecommendations || [];
           
           if (latestScan && campaignRecs.length > 0) {
-            // Import the materialize logic from phishing-ops
-            const { phishingOpsRouter } = await import('./routers/phishing-ops');
+            const { invokeLLM } = await import('./_core/llm');
+            const pipelineOut = latestScan.pipelineOutput as any;
+            const actorMatches = pipelineOut?.threatActorMatches;
+            const topActor = actorMatches?.topMatches?.[0];
             
-            // Auto-materialize up to 3 top-priority recommendations
+            // Auto-materialize up to 3 top-priority recommendations using LLM
             const topRecs = campaignRecs.slice(0, 3);
             for (let i = 0; i < topRecs.length; i++) {
               try {
@@ -4433,12 +4435,85 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                   continue;
                 }
                 
-                // Build draft data with fallback template (skip LLM for speed in auto-pipeline)
                 const rec = topRecs[i];
                 const campaignName = rec.name || `${domains[0]} - ${rec.type || 'phishing'} Campaign`;
                 const templateName = `[Ace C3] ${campaignName} - Template`;
                 const landingPageName = `[Ace C3] ${campaignName} - Landing Page`;
                 const targetGroupName = `[Ace C3] ${campaignName} - Targets`;
+                
+                // LLM-powered materialization
+                let generatedContent: any = {};
+                try {
+                  const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (Ace C3 platform).
+Given the following domain intelligence and campaign recommendation, generate a complete phishing campaign package.
+
+TARGET DOMAIN: ${domains[0]}
+SECTOR: ${latestScan.sector || 'unknown'}
+CAMPAIGN NAME: ${campaignName}
+CAMPAIGN TYPE: ${rec.type}
+PRIORITY: ${rec.priority}
+DESCRIPTION: ${rec.description}
+TARGET ASSETS: ${JSON.stringify(rec.targetAssets || [])}
+ATTACK CHAIN: ${JSON.stringify(rec.attackChain || [])}
+MITRE TACTICS: ${JSON.stringify(rec.mitreTactics || [])}
+MATCHED THREAT ACTOR: ${topActor ? `${topActor.actorName} (confidence: ${topActor.confidence}%)` : 'None'}
+GOPHISH TEMPLATE SUGGESTIONS: ${JSON.stringify(rec.gophishTemplates || [])}
+
+Generate a JSON object with these fields:
+{
+  "templateSubject": "Realistic email subject line",
+  "templateHtml": "Full HTML email body with GoPhish variables: {{.FirstName}}, {{.LastName}}, {{.Email}}, {{.TrackingURL}}, {{.URL}}, {{.From}}. Must look like a legitimate business email. Include proper HTML structure with inline CSS.",
+  "templateText": "Plain text version of the email",
+  "landingPageHtml": "HTML for a credential capture landing page that mimics the target domain's login page. Include form fields for email and password. Use GoPhish action URL.",
+  "landingPageRedirectUrl": "https://${domains[0]}",
+  "smtpProfileName": "Ace C3 - ${domains[0]} Profile"
+}
+
+Make the phishing content highly realistic and tailored to the target domain and sector. Use professional language and branding cues from the target organization.`;
+
+                  const llmResponse = await invokeLLM({
+                    messages: [
+                      { role: 'system', content: 'You are a red team phishing content generator. Output only valid JSON.' },
+                      { role: 'user', content: materializePrompt },
+                    ],
+                    response_format: {
+                      type: 'json_schema',
+                      json_schema: {
+                        name: 'phishing_draft',
+                        strict: true,
+                        schema: {
+                          type: 'object',
+                          properties: {
+                            templateSubject: { type: 'string', description: 'Email subject line' },
+                            templateHtml: { type: 'string', description: 'Full HTML email body' },
+                            templateText: { type: 'string', description: 'Plain text email' },
+                            landingPageHtml: { type: 'string', description: 'Landing page HTML' },
+                            landingPageRedirectUrl: { type: 'string', description: 'Redirect URL after capture' },
+                            smtpProfileName: { type: 'string', description: 'SMTP profile name' },
+                          },
+                          required: ['templateSubject', 'templateHtml', 'templateText', 'landingPageHtml', 'landingPageRedirectUrl', 'smtpProfileName'],
+                          additionalProperties: false,
+                        },
+                      },
+                    },
+                  });
+                  const rawContent = llmResponse?.choices?.[0]?.message?.content;
+                  if (rawContent && typeof rawContent === 'string') {
+                    generatedContent = JSON.parse(rawContent);
+                  }
+                  console.log(`[Pipeline] LLM materialized recommendation ${i}: ${campaignName}`);
+                } catch (llmErr: any) {
+                  console.warn(`[Pipeline] LLM materialization failed for rec ${i}, using fallback:`, llmErr.message);
+                  // Fallback to basic template
+                  generatedContent = {
+                    templateSubject: rec.gophishTemplates?.[0]?.subject || `Important: Action Required - ${domains[0]}`,
+                    templateHtml: `<html><body><p>Dear {{.FirstName}},</p><p>Please review the attached document regarding your ${domains[0]} account.</p><p><a href="{{.URL}}">Click here to review</a></p><p>Best regards,<br>IT Security Team</p></body></html>`,
+                    templateText: `Dear {{.FirstName}},\n\nPlease review the document regarding your ${domains[0]} account.\n\n{{.URL}}\n\nBest regards,\nIT Security Team`,
+                    landingPageHtml: `<html><body><h2>${domains[0]} - Login</h2><form method="POST"><input name="email" placeholder="Email" /><input name="password" type="password" placeholder="Password" /><button type="submit">Sign In</button></form></body></html>`,
+                    landingPageRedirectUrl: `https://${domains[0]}`,
+                    smtpProfileName: `Ace C3 - ${domains[0]} Profile`,
+                  };
+                }
                 
                 const [draftResult] = await drizzleDb.insert(phishingDrafts).values({
                   scanId: latestScan.id,
@@ -4450,22 +4525,24 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                   targetDomain: domains[0],
                   targetSector: latestScan.sector || null,
                   templateName,
-                  templateSubject: rec.gophishTemplates?.[0]?.subject || `Important: Action Required - ${domains[0]}`,
-                  templateHtml: `<html><body><p>Dear {{.FirstName}},</p><p>Please review the attached document regarding your ${domains[0]} account.</p><p><a href="{{.URL}}">Click here to review</a></p><p>Best regards,<br>IT Security Team</p></body></html>`,
-                  templateText: `Dear {{.FirstName}},\n\nPlease review the document regarding your ${domains[0]} account.\n\n{{.URL}}\n\nBest regards,\nIT Security Team`,
+                  templateSubject: generatedContent.templateSubject,
+                  templateHtml: generatedContent.templateHtml,
+                  templateText: generatedContent.templateText,
                   landingPageName,
-                  landingPageHtml: `<html><body><h2>${domains[0]} - Login</h2><form method="POST"><input name="email" placeholder="Email" /><input name="password" type="password" placeholder="Password" /><button type="submit">Sign In</button></form></body></html>`,
-                  landingPageRedirectUrl: `https://${domains[0]}`,
+                  landingPageHtml: generatedContent.landingPageHtml,
+                  landingPageRedirectUrl: generatedContent.landingPageRedirectUrl,
                   captureCredentials: true,
                   capturePasswords: false,
                   targetGroupName,
                   targetEmails: null,
-                  smtpProfileName: `Ace C3 - ${domains[0]} Profile`,
+                  smtpProfileName: generatedContent.smtpProfileName,
                   attackChain: rec.attackChain || null,
                   calderaAbilities: rec.calderaAbilities || null,
-                  threatActorId: null,
-                  threatActorName: null,
-                  matchRationale: 'Auto-materialized by engagement pipeline',
+                  threatActorId: topActor?.actorId || null,
+                  threatActorName: topActor?.actorName || null,
+                  matchRationale: topActor
+                    ? `Matched with ${topActor.confidence}% confidence. LLM-materialized by engagement pipeline.`
+                    : 'LLM-materialized by engagement pipeline',
                   createdBy: null,
                 }).$returningId();
                 materializedDraftIds.push(draftResult.id);

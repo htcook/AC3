@@ -1768,3 +1768,17 @@
 - [x] Add inline editing for landing page HTML, redirect URL, capture settings
 - [x] Add target email list editing (CSV format)
 - [x] Write tests for all new features (49 tests passing)
+
+## LLM Auto-Materialization + Template Fixes + Post-Campaign Reports
+- [x] Audit all GoPhish email templates and landing pages for visibility/preview issues
+- [x] Fix template detail view to show full HTML preview with iframe rendering
+- [x] Fix landing page detail view to show full HTML preview with iframe rendering
+- [x] Ensure all professionally developed templates (help desk, logon, etc.) are viewable
+- [x] Add template preview modal/panel with full-screen HTML rendering
+- [x] Upgrade pipeline Step 5 to use LLM-powered materialization instead of fallback templates
+- [x] Build post-campaign report generator with GoPhish stats + Caldera results
+- [x] Brand reports with AceofCloud styling and Harrison Cook attribution
+- [x] Add report export as JSON (with compliance framework analysis)
+- [x] Add compliance framework gap analysis (SOC2, HIPAA, PCI-DSS, NIST, CMMC, FedRAMP, etc.)
+- [x] Pull compliance frameworks from domain intel scans and engagement pipelines
+- [x] Write tests for new features (66 tests passing)

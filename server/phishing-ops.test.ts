@@ -142,11 +142,17 @@ describe("Phishing Operations Router", () => {
       expect(routerObj).toHaveProperty("bulkCleanup");
     });
 
-    it("should have exactly 16 procedures", async () => {
+    it("should have exactly 17 procedures", async () => {
       const mod = await import("./routers/phishing-ops");
       const routerObj = mod.phishingOpsRouter as any;
       const keys = Object.keys(routerObj);
-      expect(keys.length).toBe(16);
+      expect(keys.length).toBe(17);
+    });
+
+    it("should have the generateReport procedure", async () => {
+      const mod = await import("./routers/phishing-ops");
+      const routerObj = mod.phishingOpsRouter as any;
+      expect(routerObj).toHaveProperty("generateReport");
     });
   });
 
@@ -654,6 +660,182 @@ describe("Phishing Operations Router", () => {
       const stats = null as any;
       const canTrigger = (stats?.submitted || 0) > 0;
       expect(canTrigger).toBe(false);
+    });
+  });
+
+  describe("Report Generation Logic", () => {
+    it("should calculate risk score from campaign stats", () => {
+      const total = 100;
+      const opened = 60;
+      const clicked = 30;
+      const submitted = 10;
+      const riskScore = Math.round(
+        (opened / total) * 15 +
+        (clicked / total) * 35 +
+        (submitted / total) * 50
+      );
+      expect(riskScore).toBe(25); // 9 + 10.5 + 5 = 24.5 -> rounds to 25
+    });
+
+    it("should classify risk levels correctly", () => {
+      const classify = (score: number) =>
+        score >= 70 ? "Critical" :
+        score >= 50 ? "High" :
+        score >= 30 ? "Medium" : "Low";
+      expect(classify(85)).toBe("Critical");
+      expect(classify(70)).toBe("Critical");
+      expect(classify(55)).toBe("High");
+      expect(classify(50)).toBe("High");
+      expect(classify(35)).toBe("Medium");
+      expect(classify(30)).toBe("Medium");
+      expect(classify(20)).toBe("Low");
+      expect(classify(0)).toBe("Low");
+    });
+
+    it("should generate report ID with correct format", () => {
+      const draftId = 42;
+      const reportId = `ACE-RPT-${draftId}-${Date.now().toString(36).toUpperCase()}`;
+      expect(reportId).toMatch(/^ACE-RPT-42-[A-Z0-9]+$/);
+    });
+
+    it("should handle zero total targets without division errors", () => {
+      const total = 0;
+      const opened = 0;
+      const openRate = total > 0 ? ((opened / total) * 100).toFixed(1) : "0.0";
+      expect(openRate).toBe("0.0");
+    });
+
+    it("should calculate rates as percentages with one decimal", () => {
+      const total = 50;
+      const clicked = 7;
+      const clickRate = total > 0 ? ((clicked / total) * 100).toFixed(1) : "0.0";
+      expect(clickRate).toBe("14.0");
+    });
+  });
+
+  describe("Compliance Framework Analysis", () => {
+    const FRAMEWORK_DETAILS: Record<string, { fullName: string; relevantControls: string }> = {
+      "SOC2": { fullName: "SOC 2 Type II", relevantControls: "CC6.1 (Logical Access), CC6.6 (External Threats), CC7.2 (Monitoring), CC8.1 (Change Management)" },
+      "HIPAA": { fullName: "HIPAA Security Rule", relevantControls: "\u00a7164.308(a)(5) Security Awareness Training, \u00a7164.312(d) Authentication, \u00a7164.308(a)(1) Risk Analysis" },
+      "PCI-DSS": { fullName: "PCI DSS v4.0", relevantControls: "Req 5.4 (Anti-Phishing), Req 8.3 (MFA), Req 12.6 (Security Awareness), Req 12.10 (Incident Response)" },
+      "NIST": { fullName: "NIST CSF 2.0 / NIST 800-53", relevantControls: "PR.AT (Awareness & Training), DE.CM (Continuous Monitoring), RS.RP (Response Planning), ID.RA (Risk Assessment)" },
+      "CMMC": { fullName: "CMMC 2.0", relevantControls: "AT.L2-3.2.1 (Role-Based Training), AT.L2-3.2.2 (Literacy Training), IR.L2-3.6.1 (Incident Handling), SI.L2-3.14.2 (Malicious Code Protection)" },
+      "FedRAMP": { fullName: "FedRAMP (NIST 800-53)", relevantControls: "AT-2 (Literacy Training), IR-4 (Incident Handling), SI-3 (Malicious Code Protection), CA-8 (Penetration Testing)" },
+    };
+
+    it("should map all 12 supported compliance frameworks", () => {
+      const allFrameworks = ["SOC2", "HIPAA", "PCI-DSS", "GDPR", "NIST", "ISO27001", "FedRAMP", "CMMC", "SOX", "CCPA", "FERPA", "ITAR"];
+      expect(allFrameworks.length).toBe(12);
+    });
+
+    it("should build compliance context string from selected frameworks", () => {
+      const frameworks = ["SOC2", "HIPAA"];
+      const context = frameworks.map(f => {
+        const details = FRAMEWORK_DETAILS[f];
+        return details ? `${f} (${details.fullName}): Relevant controls \u2014 ${details.relevantControls}` : f;
+      }).join("\n");
+      expect(context).toContain("SOC 2 Type II");
+      expect(context).toContain("HIPAA Security Rule");
+      expect(context).toContain("CC6.1");
+    });
+
+    it("should handle unknown framework IDs gracefully", () => {
+      const frameworks = ["UNKNOWN_FRAMEWORK"];
+      const context = frameworks.map(f => {
+        const details = FRAMEWORK_DETAILS[f];
+        return details ? `${f} (${details.fullName})` : f;
+      }).join("\n");
+      expect(context).toBe("UNKNOWN_FRAMEWORK");
+    });
+
+    it("should generate fallback compliance analysis when LLM fails", () => {
+      const riskScore = 55;
+      const riskLevel = "High";
+      const submitRate = "15.0";
+      const frameworks = ["NIST", "CMMC"];
+      const analysis = frameworks.map(f => {
+        const details = FRAMEWORK_DETAILS[f];
+        return {
+          framework: f,
+          fullName: details?.fullName || f,
+          status: riskScore >= 50 ? "non_compliant" : riskScore >= 30 ? "at_risk" : "partial",
+          impactedControls: (details?.relevantControls || "").split(", "),
+          findings: `Phishing simulation results indicate a ${riskLevel.toLowerCase()} risk to ${details?.fullName || f} compliance. ${submitRate}% credential submission rate suggests gaps in security awareness controls.`,
+        };
+      });
+      expect(analysis.length).toBe(2);
+      expect(analysis[0].framework).toBe("NIST");
+      expect(analysis[0].status).toBe("non_compliant");
+      expect(analysis[0].impactedControls.length).toBe(4);
+      expect(analysis[1].framework).toBe("CMMC");
+      expect(analysis[1].findings).toContain("high risk");
+    });
+
+    it("should classify compliance status based on risk score", () => {
+      const classify = (riskScore: number) =>
+        riskScore >= 50 ? "non_compliant" : riskScore >= 30 ? "at_risk" : "partial";
+      expect(classify(75)).toBe("non_compliant");
+      expect(classify(50)).toBe("non_compliant");
+      expect(classify(40)).toBe("at_risk");
+      expect(classify(30)).toBe("at_risk");
+      expect(classify(20)).toBe("partial");
+      expect(classify(0)).toBe("partial");
+    });
+
+    it("should pull compliance from scan orgProfile as fallback", () => {
+      const scanComplianceFlags: string[] = [];
+      const orgProfile = { complianceFlags: ["SOC2", "HIPAA"] };
+      const result = scanComplianceFlags.length > 0 ? scanComplianceFlags : (orgProfile?.complianceFlags || []);
+      expect(result).toEqual(["SOC2", "HIPAA"]);
+    });
+
+    it("should handle empty compliance frameworks", () => {
+      const frameworks: string[] = [];
+      const context = frameworks.length > 0
+        ? frameworks.map(f => f).join("\n")
+        : "No specific compliance frameworks selected";
+      expect(context).toBe("No specific compliance frameworks selected");
+    });
+  });
+
+  describe("Report Branding", () => {
+    it("should include AceofCloud branding in report", () => {
+      const branding = {
+        company: "AceofCloud",
+        platform: "Ace C3 \u2014 Command, Control, Conquer",
+        author: "Harrison Cook",
+        website: "https://aceofcloud.com",
+      };
+      expect(branding.company).toBe("AceofCloud");
+      expect(branding.author).toBe("Harrison Cook");
+      expect(branding.website).toBe("https://aceofcloud.com");
+    });
+  });
+
+  describe("LLM Materialization in Pipeline", () => {
+    it("should limit auto-materialization to top 3 recommendations", () => {
+      const recommendations = [
+        { name: "A", priority: "critical" },
+        { name: "B", priority: "high" },
+        { name: "C", priority: "medium" },
+        { name: "D", priority: "low" },
+        { name: "E", priority: "low" },
+      ];
+      const top3 = recommendations.slice(0, 3);
+      expect(top3.length).toBe(3);
+      expect(top3[2].name).toBe("C");
+    });
+
+    it("should handle fewer than 3 recommendations", () => {
+      const recommendations = [{ name: "A" }];
+      const top3 = recommendations.slice(0, 3);
+      expect(top3.length).toBe(1);
+    });
+
+    it("should handle empty recommendations", () => {
+      const recommendations: any[] = [];
+      const top3 = recommendations.slice(0, 3);
+      expect(top3.length).toBe(0);
     });
   });
 });

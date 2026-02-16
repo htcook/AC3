@@ -11,13 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { TemplatePreviewModal } from "@/components/TemplatePreview";
 import {
   Fish, Zap, Target, Shield, RefreshCw, Play, Trash2, Edit,
   Eye, Send, Globe, Mail, Users, FileText, Crosshair, Activity,
   AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronUp,
   Loader2, Plus, Copy, ExternalLink, Cpu, BarChart3, Search,
   ArrowRight, Rocket, X, Save, MousePointer, ShieldAlert, Brain,
-  Database, Layers
+  Database, Layers, Download, ShieldCheck, ArrowLeft, Printer
 } from "lucide-react";
 
 // ─── Priority badge colors ───
@@ -248,6 +249,7 @@ function CampaignBuilderTab() {
   const [editTargetEmails, setEditTargetEmails] = useState(""); // CSV format: email,firstName,lastName,position
   const [showHtmlSource, setShowHtmlSource] = useState(false);
   const [showLandingSource, setShowLandingSource] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<{ html: string; title: string; type: "email" | "landing-page" } | null>(null);
 
   const { data: draftsData, isLoading, refetch } = trpc.phishingOps.listDrafts.useQuery({ status: "all" });
   const { data: selectedDraft, refetch: refetchDraft } = trpc.phishingOps.getDraft.useQuery(
@@ -510,8 +512,13 @@ function CampaignBuilderTab() {
                           placeholder="<html><body>...</body></html>"
                         />
                       ) : (
-                        <div className="mt-1 bg-white rounded-md p-3 max-h-60 overflow-auto border border-border">
-                          <div className="text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: editHtml || "<p>No template</p>" }} />
+                        <div className="mt-1 bg-white rounded-md overflow-hidden border border-border" style={{ height: "200px" }}>
+                          <iframe
+                            srcDoc={editHtml || "<p style='padding:16px;color:#666'>No template</p>"}
+                            className="w-full h-full border-0"
+                            sandbox="allow-same-origin"
+                            title="Email preview"
+                          />
                         </div>
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">
@@ -528,9 +535,19 @@ function CampaignBuilderTab() {
                       </p>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">HTML Preview</Label>
-                      <div className="mt-1 bg-white rounded-md p-3 max-h-60 overflow-auto">
-                        <div className="text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: selectedDraft.templateHtml || "<p>No template</p>" }} />
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Email Preview</Label>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setPreviewHtml({ html: selectedDraft.templateHtml || "", title: selectedDraft.campaignName || "Email Template", type: "email" })}>
+                          <ExternalLink className="w-3 h-3 mr-1" /> Full Preview
+                        </Button>
+                      </div>
+                      <div className="mt-1 bg-white rounded-md overflow-hidden border border-border" style={{ height: "200px" }}>
+                        <iframe
+                          srcDoc={selectedDraft.templateHtml || "<p style='padding:16px;color:#666'>No template</p>"}
+                          className="w-full h-full border-0"
+                          sandbox="allow-same-origin"
+                          title="Email preview"
+                        />
                       </div>
                     </div>
                   </>
@@ -574,8 +591,13 @@ function CampaignBuilderTab() {
                           placeholder="<html><body>...</body></html>"
                         />
                       ) : (
-                        <div className="mt-1 bg-white rounded-md p-3 max-h-40 overflow-auto border border-border">
-                          <div className="text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: editLandingHtml || "<p>No page</p>" }} />
+                        <div className="mt-1 bg-white rounded-md overflow-hidden border border-border" style={{ height: "160px" }}>
+                          <iframe
+                            srcDoc={editLandingHtml || "<p style='padding:16px;color:#666'>No landing page</p>"}
+                            className="w-full h-full border-0"
+                            sandbox="allow-same-origin"
+                            title="Landing page preview"
+                          />
                         </div>
                       )}
                     </div>
@@ -598,6 +620,24 @@ function CampaignBuilderTab() {
                         {selectedDraft.landingPageRedirectUrl || "—"}
                       </p>
                     </div>
+                    {selectedDraft.landingPageHtml && (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">Landing Page Preview</Label>
+                          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setPreviewHtml({ html: selectedDraft.landingPageHtml || "", title: selectedDraft.campaignName + " - Landing Page" || "Landing Page", type: "landing-page" })}>
+                            <ExternalLink className="w-3 h-3 mr-1" /> Full Preview
+                          </Button>
+                        </div>
+                        <div className="mt-1 bg-white rounded-md overflow-hidden border border-border" style={{ height: "160px" }}>
+                          <iframe
+                            srcDoc={selectedDraft.landingPageHtml}
+                            className="w-full h-full border-0"
+                            sandbox="allow-same-origin"
+                            title="Landing page preview"
+                          />
+                        </div>
+                      </div>
+                    )}
                     <div className="flex gap-3 text-xs">
                       <span className="text-muted-foreground">
                         Capture Credentials: {selectedDraft.captureCredentials ? "Yes" : "No"}
@@ -657,6 +697,16 @@ function CampaignBuilderTab() {
             </Card>
           </div>
         </div>
+
+        {/* Full-screen template/landing page preview modal */}
+        {previewHtml && (
+          <TemplatePreviewModal
+            html={previewHtml.html}
+            title={previewHtml.title}
+            type={previewHtml.type}
+            onClose={() => setPreviewHtml(null)}
+          />
+        )}
       </div>
     );
   }
@@ -727,6 +777,8 @@ function CampaignBuilderTab() {
 // ACTIVE CAMPAIGNS TAB
 // ═══════════════════════════════════════════════════════════════════
 function ActiveCampaignsTab() {
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportDraftId, setReportDraftId] = useState<number | null>(null);
   const { data: draftsData, isLoading, refetch } = trpc.phishingOps.listDrafts.useQuery({ status: "all" });
   const syncStats = trpc.phishingOps.syncCampaignStats.useMutation({
     onSuccess: (data) => {
@@ -740,6 +792,14 @@ function ActiveCampaignsTab() {
     onSuccess: (data) => {
       toast.success(data.message);
       refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const generateReport = trpc.phishingOps.generateReport.useMutation({
+    onSuccess: (data) => {
+      setReportData(data);
+      toast.success("Report generated!");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -816,6 +876,23 @@ function ActiveCampaignsTab() {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-primary border-primary/30"
+                        disabled={generateReport.isPending && reportDraftId === campaign.id}
+                        onClick={() => {
+                          setReportDraftId(campaign.id);
+                          generateReport.mutate({ draftId: campaign.id });
+                        }}
+                      >
+                        {generateReport.isPending && reportDraftId === campaign.id ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 mr-1.5" />
+                        )}
+                        Generate Report
+                      </Button>
                       {stats && (stats.submitted || 0) > 0 && !campaign.calderaOperationId && (
                         <Button
                           size="sm"
@@ -867,6 +944,242 @@ function ActiveCampaignsTab() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Report View Panel ── */}
+      {reportData && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center overflow-y-auto py-8">
+          <div className="bg-card border border-border rounded-xl max-w-4xl w-full mx-4 shadow-2xl">
+            {/* Report Header */}
+            <div className="border-b border-border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground">Post-Campaign Assessment Report</h2>
+                    <p className="text-xs text-muted-foreground font-mono">{reportData.reportId}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `${reportData.reportId}.json`; a.click();
+                    URL.revokeObjectURL(url);
+                  }}>
+                    <Download className="w-3.5 h-3.5 mr-1.5" /> Export JSON
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setReportData(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span>{reportData.branding.company} — {reportData.branding.platform}</span>
+                <span>·</span>
+                <span>Prepared by {reportData.branding.author}</span>
+                <span>·</span>
+                <span>{new Date(reportData.generatedAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {/* Campaign Overview */}
+            <div className="p-6 border-b border-border">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Campaign Overview</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="text-muted-foreground">Campaign:</span> <span className="text-foreground font-medium">{reportData.campaign.name}</span></div>
+                <div><span className="text-muted-foreground">Type:</span> <span className="text-foreground">{reportData.campaign.type}</span></div>
+                <div><span className="text-muted-foreground">Target Domain:</span> <span className="text-foreground font-mono">{reportData.campaign.targetDomain}</span></div>
+                <div><span className="text-muted-foreground">Sector:</span> <span className="text-foreground">{reportData.campaign.targetSector || "—"}</span></div>
+                {reportData.campaign.threatActorSimulated && (
+                  <div className="col-span-2"><span className="text-muted-foreground">Threat Actor Simulated:</span> <span className="text-red-400 font-medium">{reportData.campaign.threatActorSimulated}</span></div>
+                )}
+              </div>
+            </div>
+
+            {/* Statistics */}
+            <div className="p-6 border-b border-border">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Campaign Results</h3>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {[
+                  { label: "Total Targets", value: reportData.statistics.total, color: "text-foreground" },
+                  { label: "Emails Sent", value: reportData.statistics.sent, color: "text-blue-400" },
+                  { label: "Opened", value: `${reportData.statistics.opened} (${reportData.statistics.openRate}%)`, color: "text-yellow-400" },
+                  { label: "Clicked", value: `${reportData.statistics.clicked} (${reportData.statistics.clickRate}%)`, color: "text-orange-400" },
+                  { label: "Credentials Submitted", value: `${reportData.statistics.submitted} (${reportData.statistics.submitRate}%)`, color: "text-red-400" },
+                  { label: "Reported as Phishing", value: `${reportData.statistics.reported} (${reportData.statistics.reportRate}%)`, color: "text-green-400" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="bg-card-elevated rounded-lg p-3">
+                    <p className={`text-lg font-bold ${color}`}>{value}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-4 bg-card-elevated rounded-lg p-4">
+                <div className="text-center">
+                  <p className={`text-3xl font-bold ${
+                    reportData.statistics.riskScore >= 70 ? "text-red-400" :
+                    reportData.statistics.riskScore >= 50 ? "text-orange-400" :
+                    reportData.statistics.riskScore >= 30 ? "text-yellow-400" : "text-green-400"
+                  }`}>{reportData.statistics.riskScore}</p>
+                  <p className="text-xs text-muted-foreground">Risk Score</p>
+                </div>
+                <div className="flex-1">
+                  <div className="h-3 bg-background rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        reportData.statistics.riskScore >= 70 ? "bg-red-500" :
+                        reportData.statistics.riskScore >= 50 ? "bg-orange-500" :
+                        reportData.statistics.riskScore >= 30 ? "bg-yellow-500" : "bg-green-500"
+                      }`}
+                      style={{ width: `${reportData.statistics.riskScore}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Risk Level: <span className="font-semibold text-foreground">{reportData.statistics.riskLevel}</span></p>
+                </div>
+              </div>
+            </div>
+
+            {/* Compliance Framework Analysis */}
+            {reportData.compliance?.hasFrameworks && reportData.compliance.analysis.length > 0 && (
+              <div className="p-6 border-b border-border">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" /> Compliance Framework Analysis
+                </h3>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {reportData.compliance.frameworks.map((f: string) => (
+                    <Badge key={f} variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">{f}</Badge>
+                  ))}
+                </div>
+                <div className="space-y-4">
+                  {reportData.compliance.analysis.map((item: any, idx: number) => {
+                    const statusColors: Record<string, string> = {
+                      compliant: "text-green-400 bg-green-500/10 border-green-500/30",
+                      partial: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+                      at_risk: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+                      non_compliant: "text-red-400 bg-red-500/10 border-red-500/30",
+                    };
+                    return (
+                      <Card key={idx} className="bg-card-elevated border-border">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <ShieldCheck className="w-4 h-4 text-blue-400" />
+                              <span className="font-semibold text-foreground">{item.fullName}</span>
+                            </div>
+                            <Badge variant="outline" className={statusColors[item.status] || statusColors.partial}>
+                              {item.status.replace("_", " ").toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-3">{item.findings}</p>
+                          <div className="mb-3">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">Impacted Controls:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {(item.impactedControls || []).map((ctrl: string, i: number) => (
+                                <Badge key={i} variant="outline" className="text-xs font-mono bg-card border-border">{ctrl}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">Remediation Steps:</p>
+                            <ul className="text-sm text-muted-foreground space-y-1">
+                              {(item.remediationSteps || []).map((step: string, i: number) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <ArrowRight className="w-3 h-3 mt-1 text-primary shrink-0" />
+                                  <span>{step}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Executive Summary */}
+            {reportData.executiveSummary && (
+              <div className="p-6 border-b border-border">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Executive Summary</h3>
+                <div className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{reportData.executiveSummary}</div>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {reportData.recommendations?.length > 0 && (
+              <div className="p-6 border-b border-border">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Recommendations</h3>
+                <div className="space-y-2">
+                  {reportData.recommendations.map((rec: string, i: number) => (
+                    <div key={i} className="flex items-start gap-3 text-sm">
+                      <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
+                      <span className="text-foreground/90">{rec}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Caldera Post-Exploitation */}
+            {reportData.caldera && (
+              <div className="p-6 border-b border-border">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Caldera Post-Exploitation</h3>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="bg-card-elevated rounded-lg p-3">
+                    <p className="text-lg font-bold text-orange-400">{reportData.caldera.stepsExecuted}</p>
+                    <p className="text-xs text-muted-foreground">Steps Executed</p>
+                  </div>
+                  <div className="bg-card-elevated rounded-lg p-3">
+                    <p className="text-sm font-medium text-foreground">{reportData.caldera.operationName}</p>
+                    <p className="text-xs text-muted-foreground">Operation</p>
+                  </div>
+                  <div className="bg-card-elevated rounded-lg p-3">
+                    <p className="text-sm font-medium text-foreground">{reportData.caldera.state}</p>
+                    <p className="text-xs text-muted-foreground">State</p>
+                  </div>
+                </div>
+                {reportData.caldera.abilities?.length > 0 && (
+                  <div className="space-y-1">
+                    {reportData.caldera.abilities.map((ab: any, i: number) => (
+                      <div key={i} className="flex items-center gap-3 text-sm bg-card-elevated rounded px-3 py-2">
+                        <Badge variant="outline" className="text-xs font-mono">{ab.tactic}</Badge>
+                        <span className="text-foreground">{ab.name}</span>
+                        <Badge variant="outline" className={`ml-auto text-xs ${ab.status === 'success' ? 'text-green-400 border-green-500/30' : 'text-yellow-400 border-yellow-500/30'}`}>{ab.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Timeline */}
+            {reportData.timeline?.length > 0 && (
+              <div className="p-6 border-b border-border">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Event Timeline ({reportData.timeline.length} events)</h3>
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  {reportData.timeline.map((evt: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3 text-xs bg-card-elevated rounded px-3 py-2">
+                      <span className="text-muted-foreground font-mono w-40 shrink-0">{new Date(evt.time).toLocaleString()}</span>
+                      <span className="text-foreground">{evt.message}</span>
+                      {evt.email && <span className="text-muted-foreground ml-auto">{evt.email}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              <p>This report was generated by the Ace C3 platform. © {new Date().getFullYear()} AceofCloud. All rights reserved.</p>
+              <p className="mt-1">{reportData.branding.website}</p>
+            </div>
+          </div>
         </div>
       )}
     </div>

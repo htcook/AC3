@@ -13,6 +13,7 @@ import {
   phishingDrafts, InsertPhishingDraft,
   domainIntelScans,
   engagements,
+  engagementPipelines,
 } from "../../drizzle/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 
@@ -889,5 +890,346 @@ Make the phishing content highly realistic and tailored to the target domain and
       }
 
       return results;
+    }),
+
+  /**
+   * generateReport — Generate a branded AceofCloud post-campaign report
+   * Pulls GoPhish campaign stats + Caldera operation results into a structured report.
+   */
+  generateReport: protectedProcedure
+    .input(z.object({
+      draftId: z.number(),
+      includeCaldera: z.boolean().default(true),
+      includeRecommendations: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+
+      const [draft] = await db.select().from(phishingDrafts)
+        .where(eq(phishingDrafts.id, input.draftId));
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+
+      // ── Pull compliance frameworks from the source domain intel scan ──
+      let complianceFrameworks: string[] = [];
+      let scanOrgProfile: any = null;
+      let scanSummaries: any = null;
+      if (draft.scanId) {
+        const [sourceScan] = await db.select().from(domainIntelScans)
+          .where(eq(domainIntelScans.id, draft.scanId));
+        if (sourceScan) {
+          complianceFrameworks = (sourceScan.complianceFlags as string[]) || [];
+          scanOrgProfile = sourceScan.orgProfile as any;
+          scanSummaries = (sourceScan as any).summaries;
+          // Also check orgProfile for compliance
+          if (complianceFrameworks.length === 0 && scanOrgProfile?.complianceFlags) {
+            complianceFrameworks = scanOrgProfile.complianceFlags;
+          }
+        }
+      }
+      // Also check engagement pipeline orgProfile for compliance
+      if (complianceFrameworks.length === 0 && draft.engagementId) {
+        try {
+          const [pipeline] = await db.select().from(engagementPipelines)
+            .where(eq(engagementPipelines.id, draft.engagementId));
+          if (pipeline) {
+            const pipeOrgProfile = pipeline.orgProfile as any;
+            if (pipeOrgProfile?.complianceFlags) {
+              complianceFrameworks = pipeOrgProfile.complianceFlags;
+            }
+          }
+        } catch (_) { /* ignore */ }
+      }
+
+      // Sync latest stats from GoPhish
+      let campaignDetail: any = null;
+      if (draft.gophishCampaignId) {
+        try {
+          campaignDetail = await fetchGophish(`/api/campaigns/${draft.gophishCampaignId}`);
+        } catch (e: any) {
+          console.warn(`[Report] Could not fetch campaign detail:`, e.message);
+        }
+      }
+
+      const stats = (draft.campaignStats as any) || campaignDetail?.stats || {};
+      const total = stats.total || 0;
+      const sent = stats.sent || 0;
+      const opened = stats.opened || 0;
+      const clicked = stats.clicked || 0;
+      const submitted = stats.submitted || stats.submitted_data || 0;
+      const reported = stats.reported || stats.email_reported || 0;
+
+      // Calculate rates
+      const openRate = total > 0 ? ((opened / total) * 100).toFixed(1) : "0.0";
+      const clickRate = total > 0 ? ((clicked / total) * 100).toFixed(1) : "0.0";
+      const submitRate = total > 0 ? ((submitted / total) * 100).toFixed(1) : "0.0";
+      const reportRate = total > 0 ? ((reported / total) * 100).toFixed(1) : "0.0";
+
+      // Risk score calculation
+      let riskScore = 0;
+      if (total > 0) {
+        riskScore = Math.round(
+          (opened / total) * 15 +
+          (clicked / total) * 35 +
+          (submitted / total) * 50
+        );
+      }
+      const riskLevel = riskScore >= 70 ? "Critical" :
+        riskScore >= 50 ? "High" :
+        riskScore >= 30 ? "Medium" : "Low";
+
+      // Caldera operation results
+      let calderaResults: any = null;
+      if (input.includeCaldera && draft.calderaOperationId) {
+        try {
+          const { ENV } = await import("../_core/env");
+          const calderaUrl = ENV.calderaBaseUrl;
+          const calderaApiKey = ENV.calderaApiKey;
+          if (calderaUrl && calderaApiKey) {
+            const opRes = await fetch(`${calderaUrl}/api/v2/operations/${draft.calderaOperationId}`, {
+              headers: { "KEY": calderaApiKey },
+            });
+            if (opRes.ok) {
+              calderaResults = await opRes.json();
+            }
+          }
+        } catch (e: any) {
+          console.warn(`[Report] Could not fetch Caldera operation:`, e.message);
+        }
+      }
+
+      // Get timeline events from GoPhish
+      let timelineEvents: any[] = [];
+      if (campaignDetail?.timeline) {
+        timelineEvents = campaignDetail.timeline.map((e: any) => ({
+          time: e.time,
+          message: e.message,
+          email: e.email,
+        })).slice(0, 50); // Limit to 50 events
+      }
+
+      // ── Build compliance framework context for the LLM ──
+      const FRAMEWORK_DETAILS: Record<string, { fullName: string; relevantControls: string }> = {
+        "SOC2": { fullName: "SOC 2 Type II", relevantControls: "CC6.1 (Logical Access), CC6.6 (External Threats), CC7.2 (Monitoring), CC8.1 (Change Management)" },
+        "HIPAA": { fullName: "HIPAA Security Rule", relevantControls: "§164.308(a)(5) Security Awareness Training, §164.312(d) Authentication, §164.308(a)(1) Risk Analysis" },
+        "PCI-DSS": { fullName: "PCI DSS v4.0", relevantControls: "Req 5.4 (Anti-Phishing), Req 8.3 (MFA), Req 12.6 (Security Awareness), Req 12.10 (Incident Response)" },
+        "GDPR": { fullName: "EU GDPR", relevantControls: "Art 32 (Security of Processing), Art 33 (Breach Notification), Art 39 (DPO Tasks), Art 5(1)(f) (Integrity & Confidentiality)" },
+        "NIST": { fullName: "NIST CSF 2.0 / NIST 800-53", relevantControls: "PR.AT (Awareness & Training), DE.CM (Continuous Monitoring), RS.RP (Response Planning), ID.RA (Risk Assessment)" },
+        "ISO27001": { fullName: "ISO/IEC 27001:2022", relevantControls: "A.6.3 (Awareness/Training), A.8.7 (Malware Protection), A.5.24 (Incident Management), A.8.16 (Monitoring)" },
+        "FedRAMP": { fullName: "FedRAMP (NIST 800-53)", relevantControls: "AT-2 (Literacy Training), IR-4 (Incident Handling), SI-3 (Malicious Code Protection), CA-8 (Penetration Testing)" },
+        "CMMC": { fullName: "CMMC 2.0", relevantControls: "AT.L2-3.2.1 (Role-Based Training), AT.L2-3.2.2 (Literacy Training), IR.L2-3.6.1 (Incident Handling), SI.L2-3.14.2 (Malicious Code Protection)" },
+        "SOX": { fullName: "Sarbanes-Oxley Act", relevantControls: "Section 302 (Internal Controls), Section 404 (Assessment of Internal Controls), IT General Controls" },
+        "CCPA": { fullName: "California Consumer Privacy Act", relevantControls: "§1798.150 (Data Security), §1798.100 (Consumer Rights), Reasonable Security Measures" },
+        "FERPA": { fullName: "Family Educational Rights and Privacy Act", relevantControls: "§99.31 (Disclosure Conditions), Technical Safeguards, Access Controls" },
+        "ITAR": { fullName: "International Traffic in Arms Regulations", relevantControls: "§120.17 (Defense Services), §127.1 (Violations), Access Control for Technical Data" },
+      };
+
+      const complianceContext = complianceFrameworks.length > 0
+        ? complianceFrameworks.map(f => {
+            const details = FRAMEWORK_DETAILS[f];
+            return details
+              ? `${f} (${details.fullName}): Relevant controls — ${details.relevantControls}`
+              : f;
+          }).join("\n")
+        : "No specific compliance frameworks selected";
+
+      // LLM-generated executive summary, recommendations, and compliance analysis
+      let executiveSummary = "";
+      let recommendations: string[] = [];
+      let complianceAnalysis: any[] = [];
+      if (input.includeRecommendations) {
+        try {
+          const { invokeLLM } = await import("../_core/llm");
+          const reportPrompt = `You are a cybersecurity consultant at AceofCloud generating a post-campaign phishing assessment report.
+
+CAMPAIGN: ${draft.campaignName}
+TARGET DOMAIN: ${draft.targetDomain}
+SECTOR: ${draft.targetSector || "Unknown"}
+CAMPAIGN TYPE: ${draft.campaignType}
+THREAT ACTOR SIMULATED: ${draft.threatActorName || "Generic"}
+
+RESULTS:
+- Total targets: ${total}
+- Emails sent: ${sent}
+- Emails opened: ${opened} (${openRate}%)
+- Links clicked: ${clicked} (${clickRate}%)
+- Credentials submitted: ${submitted} (${submitRate}%)
+- Emails reported as phishing: ${reported} (${reportRate}%)
+- Risk Score: ${riskScore}/100 (${riskLevel})
+
+ATTACK CHAIN: ${JSON.stringify(draft.attackChain || [])}
+${calderaResults ? `CALDERA POST-EXPLOITATION: Operation ran with ${calderaResults.chain?.length || 0} steps` : ""}
+
+COMPLIANCE FRAMEWORKS SELECTED FOR THIS ENGAGEMENT:
+${complianceContext}
+
+Generate a JSON object with:
+{
+  "executiveSummary": "A 2-3 paragraph executive summary suitable for C-level stakeholders. Discuss the campaign objectives, key findings, and overall organizational risk posture. Be specific about what the results mean for the organization. If compliance frameworks were selected, reference how the phishing results impact compliance posture.",
+  "recommendations": ["Array of 5-7 specific, actionable security recommendations based on the results. Each should be 1-2 sentences. If compliance frameworks are selected, include framework-specific remediation guidance."],
+  "complianceAnalysis": [${complianceFrameworks.length > 0 ? `"For EACH selected compliance framework, provide an object with: framework (the framework ID like SOC2), fullName, status (compliant/partial/non_compliant/at_risk), impactedControls (array of specific control IDs that are impacted by the phishing results), findings (1-2 sentence description of how the phishing results affect this framework), remediationSteps (array of 2-3 specific remediation actions to address the gap)"` : `"Return empty array if no compliance frameworks selected"`}]
+}
+
+Be thorough and specific about compliance impact. Map the phishing campaign results directly to control failures or gaps in each framework.`;
+
+          const llmResponse = await invokeLLM({
+            messages: [
+              { role: "system", content: "You are a cybersecurity compliance consultant. Output only valid JSON." },
+              { role: "user", content: reportPrompt },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "campaign_report",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    executiveSummary: { type: "string", description: "Executive summary" },
+                    recommendations: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "Security recommendations",
+                    },
+                    complianceAnalysis: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          framework: { type: "string", description: "Framework ID (e.g. SOC2, HIPAA)" },
+                          fullName: { type: "string", description: "Full framework name" },
+                          status: { type: "string", description: "compliant, partial, non_compliant, or at_risk" },
+                          impactedControls: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Specific control IDs impacted",
+                          },
+                          findings: { type: "string", description: "How phishing results affect this framework" },
+                          remediationSteps: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Specific remediation actions",
+                          },
+                        },
+                        required: ["framework", "fullName", "status", "impactedControls", "findings", "remediationSteps"],
+                        additionalProperties: false,
+                      },
+                      description: "Per-framework compliance gap analysis",
+                    },
+                  },
+                  required: ["executiveSummary", "recommendations", "complianceAnalysis"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+          const rawContent = llmResponse?.choices?.[0]?.message?.content;
+          if (rawContent && typeof rawContent === "string") {
+            const parsed = JSON.parse(rawContent);
+            executiveSummary = parsed.executiveSummary || "";
+            recommendations = parsed.recommendations || [];
+            complianceAnalysis = parsed.complianceAnalysis || [];
+          }
+        } catch (e: any) {
+          console.warn(`[Report] LLM report generation failed:`, e.message);
+          executiveSummary = `The ${draft.campaignName} phishing simulation targeting ${draft.targetDomain} has concluded. Out of ${total} targets, ${opened} opened the email (${openRate}%), ${clicked} clicked the phishing link (${clickRate}%), and ${submitted} submitted credentials (${submitRate}%). The overall risk score is ${riskScore}/100 (${riskLevel}).`;
+          recommendations = [
+            "Implement mandatory phishing awareness training for all employees.",
+            "Deploy email authentication protocols (SPF, DKIM, DMARC) if not already in place.",
+            "Consider implementing multi-factor authentication across all critical systems.",
+            "Establish a clear incident reporting process for suspected phishing emails.",
+            "Conduct regular phishing simulations to track improvement over time.",
+          ];
+          // Generate basic compliance analysis from framework details
+          complianceAnalysis = complianceFrameworks.map(f => {
+            const details = FRAMEWORK_DETAILS[f];
+            return {
+              framework: f,
+              fullName: details?.fullName || f,
+              status: riskScore >= 50 ? "non_compliant" : riskScore >= 30 ? "at_risk" : "partial",
+              impactedControls: (details?.relevantControls || "").split(", "),
+              findings: `Phishing simulation results indicate a ${riskLevel.toLowerCase()} risk to ${details?.fullName || f} compliance. ${submitRate}% credential submission rate suggests gaps in security awareness controls.`,
+              remediationSteps: [
+                `Implement ${details?.fullName || f}-aligned security awareness training program.`,
+                "Deploy technical controls (MFA, email filtering) to reduce phishing attack surface.",
+                "Establish regular phishing simulation cadence to demonstrate continuous compliance.",
+              ],
+            };
+          });
+        }
+      }
+
+      const report = {
+        // Report metadata
+        reportId: `ACE-RPT-${draft.id}-${Date.now().toString(36).toUpperCase()}`,
+        generatedAt: new Date().toISOString(),
+        generatedBy: ctx.user?.name || "AceofCloud Operator",
+        branding: {
+          company: "AceofCloud",
+          platform: "Ace C3 — Command, Control, Conquer",
+          author: "Harrison Cook",
+          website: "https://aceofcloud.com",
+        },
+
+        // Campaign overview
+        campaign: {
+          name: draft.campaignName,
+          type: draft.campaignType,
+          targetDomain: draft.targetDomain,
+          targetSector: draft.targetSector,
+          priority: draft.priority,
+          threatActorSimulated: draft.threatActorName || null,
+          matchRationale: draft.matchRationale || null,
+          launchDate: draft.launchDate?.toISOString() || null,
+          status: draft.status,
+        },
+
+        // Statistics
+        statistics: {
+          total,
+          sent,
+          opened,
+          clicked,
+          submitted,
+          reported,
+          openRate: parseFloat(openRate),
+          clickRate: parseFloat(clickRate),
+          submitRate: parseFloat(submitRate),
+          reportRate: parseFloat(reportRate),
+          riskScore,
+          riskLevel,
+        },
+
+        // Attack chain
+        attackChain: draft.attackChain || [],
+
+        // Caldera results
+        caldera: calderaResults ? {
+          operationId: draft.calderaOperationId,
+          operationName: calderaResults.name,
+          state: calderaResults.state,
+          stepsExecuted: calderaResults.chain?.length || 0,
+          abilities: (calderaResults.chain || []).map((step: any) => ({
+            name: step.ability?.name || step.name,
+            tactic: step.ability?.tactic || step.tactic,
+            status: step.status,
+          })),
+        } : null,
+
+        // Timeline (first 50 events)
+        timeline: timelineEvents,
+
+        // LLM-generated content
+        executiveSummary,
+        recommendations,
+
+        // Compliance framework analysis
+        compliance: {
+          frameworks: complianceFrameworks,
+          analysis: complianceAnalysis,
+          hasFrameworks: complianceFrameworks.length > 0,
+        },
+      };
+
+      return report;
     }),
 });
