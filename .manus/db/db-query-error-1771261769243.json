@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, domain, status, clientName, sector, createdAt, userId FROM domain_intel_scans ORDER BY createdAt ASC",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, domain, status, clientName, sector, createdAt, userId FROM domain_intel_scans ORDER BY createdAt ASC",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'domain' in 'field list'"
+  ]
+}

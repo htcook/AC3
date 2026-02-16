@@ -1712,3 +1712,8 @@
 - [ ] CampaignDetail.tsx: Remove hardcoded APT29_VCD_ABILITIES array (use DB)
 - [ ] Dashboard.tsx: Remove hardcoded Top Threat Actors array (use DB query)
 - [ ] Campaigns.tsx: Remove OPERATION_METADATA mock object
+
+## Database Cleanup — Mock/Test Scans
+- [x] Identify and remove mock/test domain intel scans not initiated by real users (312 test scans deleted)
+- [x] Identify and remove mock/test discovered assets from non-user scans (92 assets deleted)
+- [x] Identify and remove any other test data in DB tables — 207 engagements, 437 reports, 374 monitors, 214 monitor changes, 414 pipelines, 135 activity logs, 88 orphaned campaign_engagements deleted
