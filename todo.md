@@ -1794,3 +1794,26 @@
   - aceofcloud-app-fw: SSH from bastion only, HTTPS/Caldera/GoPhish public
   - aceofcloud-mail-fw: SSH from bastion, SMTP from VPC, existing services
   - aceofcloud-logsink-fw: SSH from bastion, syslog 6514 from VPC
+
+## Caldera + GoPhish on App Server, DNS, Rsyslog
+- [x] SSH through bastion to app server and verify connectivity
+- [x] Install Caldera C2 on app server (app.aceofcloud.io / 134.199.213.248)
+- [x] Configure Caldera with credentials and adversary profiles (systemd service)
+- [x] Install GoPhish on app server (app.aceofcloud.io / 134.199.213.248)
+- [x] Configure GoPhish with credentials and templates (systemd service)
+- [x] Set up DNS A records via Namecheap API for all subdomains (bastion, app, logsink, caldera, gophish, www)
+- [x] Configure rsyslog forwarding on bastion, app, and logsink (mail pending SSH key)
+- [x] Update dashboard API endpoints (CALDERA_BASE_URL, GOPHISH_BASE_URL) to app server
+- [x] Test Caldera API connectivity from dashboard (5/5 tests passing)
+- [x] Test GoPhish API connectivity from dashboard
+
+## Caldera API Password Rotation
+- [x] Generate strong random password (44-char URL-safe token)
+- [x] Update Caldera config on app server (local.yml + default.yml) with new password
+- [x] Restart Caldera service on app server
+- [x] Verify new key returns 200, old ADMIN123 returns 401
+- [x] Update CALDERA_API_KEY secret in Manus dashboard
+- [x] Update CALDERA_PASSWORD secret in Manus dashboard
+- [x] Run API connectivity test (5/5 passing with new creds)
+- [x] Remove all hardcoded ADMIN123 from codebase (server/_core/index.ts now uses ENV vars)
+- [x] Verify 0 TS errors after changes

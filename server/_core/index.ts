@@ -8,6 +8,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { ENV } from "./env";
 import { serveStatic, setupVite } from "./vite";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -67,7 +68,7 @@ async function startServer() {
       const calderaResp = await fetch('http://127.0.0.1:8888/enter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'red', password: 'ADMIN123' }),
+        body: JSON.stringify({ name: ENV.calderaUsername, password: ENV.calderaPassword }),
         redirect: 'manual',
       });
       // Extract Set-Cookie from Caldera response and forward to user
@@ -116,7 +117,7 @@ async function startServer() {
       // Step 2: POST login with CSRF token
       const formData = new URLSearchParams();
       formData.append('username', 'admin');
-      formData.append('password', 'ADMIN123');
+      formData.append('password', ENV.gophishApiKey);
       formData.append('csrf_token', csrfToken);
       
       const loginResp = await fetch('https://127.0.0.1:3333/login', {
