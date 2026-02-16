@@ -237,11 +237,64 @@ function IntelFeedTab() {
 function CampaignBuilderTab() {
   const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
+  // Inline edit fields
+  const [editSubject, setEditSubject] = useState("");
+  const [editHtml, setEditHtml] = useState("");
+  const [editCampaignName, setEditCampaignName] = useState("");
+  const [editLandingHtml, setEditLandingHtml] = useState("");
+  const [editRedirectUrl, setEditRedirectUrl] = useState("");
+  const [editCaptureCreds, setEditCaptureCreds] = useState(true);
+  const [editCapturePasswords, setEditCapturePasswords] = useState(false);
+  const [editTargetEmails, setEditTargetEmails] = useState(""); // CSV format: email,firstName,lastName,position
+  const [showHtmlSource, setShowHtmlSource] = useState(false);
+  const [showLandingSource, setShowLandingSource] = useState(false);
+
   const { data: draftsData, isLoading, refetch } = trpc.phishingOps.listDrafts.useQuery({ status: "all" });
   const { data: selectedDraft, refetch: refetchDraft } = trpc.phishingOps.getDraft.useQuery(
     { id: selectedDraftId! },
     { enabled: !!selectedDraftId }
   );
+
+  // Populate edit fields when entering edit mode
+  const enterEditMode = () => {
+    if (!selectedDraft) return;
+    setEditCampaignName(selectedDraft.campaignName || "");
+    setEditSubject(selectedDraft.templateSubject || "");
+    setEditHtml(selectedDraft.templateHtml || "");
+    setEditLandingHtml(selectedDraft.landingPageHtml || "");
+    setEditRedirectUrl(selectedDraft.landingPageRedirectUrl || "");
+    setEditCaptureCreds(selectedDraft.captureCredentials ?? true);
+    setEditCapturePasswords(selectedDraft.capturePasswords ?? false);
+    // Convert target emails array to CSV
+    const targets = (selectedDraft.targetEmails as any[]) || [];
+    setEditTargetEmails(
+      targets.map((t: any) => [t.email, t.firstName || "", t.lastName || "", t.position || ""].join(",")).join("\n")
+    );
+    setEditMode(true);
+  };
+
+  const saveEdits = () => {
+    if (!selectedDraft) return;
+    // Parse target emails from CSV
+    const parsedTargets = editTargetEmails.trim()
+      ? editTargetEmails.trim().split("\n").map((line) => {
+          const [email, firstName, lastName, position] = line.split(",").map((s) => s.trim());
+          return { email: email || "", firstName, lastName, position };
+        }).filter((t) => t.email.includes("@"))
+      : undefined;
+
+    updateDraft.mutate({
+      id: selectedDraft.id,
+      campaignName: editCampaignName || undefined,
+      templateSubject: editSubject || undefined,
+      templateHtml: editHtml || undefined,
+      landingPageHtml: editLandingHtml || undefined,
+      landingPageRedirectUrl: editRedirectUrl || undefined,
+      captureCredentials: editCaptureCreds,
+      capturePasswords: editCapturePasswords,
+      targetEmails: parsedTargets,
+    });
+  };
 
   const updateDraft = trpc.phishingOps.updateDraft.useMutation({
     onSuccess: () => {
@@ -301,21 +354,35 @@ function CampaignBuilderTab() {
           <div className="flex gap-2">
             {(selectedDraft.status === "draft" || selectedDraft.status === "approved") && (
               <>
-                <Button variant="outline" size="sm" onClick={() => setEditMode(!editMode)}>
-                  <Edit className="w-3.5 h-3.5 mr-1.5" /> {editMode ? "Cancel Edit" : "Edit"}
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={deployDraft.isPending}
-                  onClick={() => deployDraft.mutate({ draftId: selectedDraft.id })}
-                >
-                  {deployDraft.isPending ? (
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  ) : (
-                    <Send className="w-3.5 h-3.5 mr-1.5" />
-                  )}
-                  Deploy to GoPhish
-                </Button>
+                {editMode ? (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => setEditMode(false)}>
+                      <X className="w-3.5 h-3.5 mr-1.5" /> Cancel
+                    </Button>
+                    <Button size="sm" disabled={updateDraft.isPending} onClick={saveEdits}>
+                      {updateDraft.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                      Save Changes
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={enterEditMode}>
+                    <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit
+                  </Button>
+                )}
+                {!editMode && (
+                  <Button
+                    size="sm"
+                    disabled={deployDraft.isPending}
+                    onClick={() => deployDraft.mutate({ draftId: selectedDraft.id })}
+                  >
+                    {deployDraft.isPending ? (
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                    )}
+                    Deploy to GoPhish
+                  </Button>
+                )}
               </>
             )}
             {selectedDraft.status !== "launched" && (
@@ -405,8 +472,9 @@ function CampaignBuilderTab() {
             )}
           </div>
 
-          {/* Right: Email Template Preview */}
+          {/* Right: Email Template + Landing Page + Targets */}
           <div className="space-y-4">
+            {/* Email Template */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -414,24 +482,63 @@ function CampaignBuilderTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Subject</Label>
-                  <p className="text-sm font-medium text-foreground mt-1">
-                    {selectedDraft.templateSubject || "—"}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">HTML Preview</Label>
-                  <div className="mt-1 bg-white rounded-md p-3 max-h-60 overflow-auto">
-                    <div
-                      className="text-sm text-gray-800"
-                      dangerouslySetInnerHTML={{ __html: selectedDraft.templateHtml || "<p>No template</p>" }}
-                    />
-                  </div>
-                </div>
+                {editMode ? (
+                  <>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Subject Line</Label>
+                      <Input
+                        value={editSubject}
+                        onChange={(e) => setEditSubject(e.target.value)}
+                        placeholder="Email subject line..."
+                        className="mt-1 bg-background border-border"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">HTML Body</Label>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setShowHtmlSource(!showHtmlSource)}>
+                          {showHtmlSource ? <Eye className="w-3 h-3 mr-1" /> : <FileText className="w-3 h-3 mr-1" />}
+                          {showHtmlSource ? "Preview" : "Source"}
+                        </Button>
+                      </div>
+                      {showHtmlSource ? (
+                        <Textarea
+                          value={editHtml}
+                          onChange={(e) => setEditHtml(e.target.value)}
+                          rows={12}
+                          className="mt-1 bg-background border-border font-mono text-xs"
+                          placeholder="<html><body>...</body></html>"
+                        />
+                      ) : (
+                        <div className="mt-1 bg-white rounded-md p-3 max-h-60 overflow-auto border border-border">
+                          <div className="text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: editHtml || "<p>No template</p>" }} />
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        GoPhish variables: {"{{.FirstName}}"}, {"{{.LastName}}"}, {"{{.Email}}"}, {"{{.URL}}"}, {"{{.TrackingURL}}"}, {"{{.From}}"}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Subject</Label>
+                      <p className="text-sm font-medium text-foreground mt-1">
+                        {selectedDraft.templateSubject || "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">HTML Preview</Label>
+                      <div className="mt-1 bg-white rounded-md p-3 max-h-60 overflow-auto">
+                        <div className="text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: selectedDraft.templateHtml || "<p>No template</p>" }} />
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
+            {/* Landing Page */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -439,20 +546,113 @@ function CampaignBuilderTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Redirect URL</Label>
-                  <p className="text-sm font-mono text-foreground mt-1">
-                    {selectedDraft.landingPageRedirectUrl || "—"}
-                  </p>
-                </div>
-                <div className="flex gap-3 text-xs">
-                  <span className="text-muted-foreground">
-                    Capture Credentials: {selectedDraft.captureCredentials ? "Yes" : "No"}
-                  </span>
-                  <span className="text-muted-foreground">
-                    Capture Passwords: {selectedDraft.capturePasswords ? "Yes" : "No"}
-                  </span>
-                </div>
+                {editMode ? (
+                  <>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Redirect URL</Label>
+                      <Input
+                        value={editRedirectUrl}
+                        onChange={(e) => setEditRedirectUrl(e.target.value)}
+                        placeholder="https://target-domain.com"
+                        className="mt-1 bg-background border-border font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Landing Page HTML</Label>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setShowLandingSource(!showLandingSource)}>
+                          {showLandingSource ? <Eye className="w-3 h-3 mr-1" /> : <FileText className="w-3 h-3 mr-1" />}
+                          {showLandingSource ? "Preview" : "Source"}
+                        </Button>
+                      </div>
+                      {showLandingSource ? (
+                        <Textarea
+                          value={editLandingHtml}
+                          onChange={(e) => setEditLandingHtml(e.target.value)}
+                          rows={8}
+                          className="mt-1 bg-background border-border font-mono text-xs"
+                          placeholder="<html><body>...</body></html>"
+                        />
+                      ) : (
+                        <div className="mt-1 bg-white rounded-md p-3 max-h-40 overflow-auto border border-border">
+                          <div className="text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: editLandingHtml || "<p>No page</p>" }} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-6">
+                      <div className="flex items-center gap-2">
+                        <Switch checked={editCaptureCreds} onCheckedChange={setEditCaptureCreds} />
+                        <Label className="text-xs text-muted-foreground">Capture Credentials</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch checked={editCapturePasswords} onCheckedChange={setEditCapturePasswords} />
+                        <Label className="text-xs text-muted-foreground">Capture Passwords</Label>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Redirect URL</Label>
+                      <p className="text-sm font-mono text-foreground mt-1">
+                        {selectedDraft.landingPageRedirectUrl || "—"}
+                      </p>
+                    </div>
+                    <div className="flex gap-3 text-xs">
+                      <span className="text-muted-foreground">
+                        Capture Credentials: {selectedDraft.captureCredentials ? "Yes" : "No"}
+                      </span>
+                      <span className="text-muted-foreground">
+                        Capture Passwords: {selectedDraft.capturePasswords ? "Yes" : "No"}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Target Emails */}
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Users className="w-4 h-4 text-primary" /> Target List
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {editMode ? (
+                  <>
+                    <Textarea
+                      value={editTargetEmails}
+                      onChange={(e) => setEditTargetEmails(e.target.value)}
+                      rows={6}
+                      className="bg-background border-border font-mono text-xs"
+                      placeholder={"email,firstName,lastName,position\njohn@example.com,John,Doe,CEO\njane@example.com,Jane,Smith,CFO"}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      CSV format: email,firstName,lastName,position (one per line)
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {Array.isArray(selectedDraft.targetEmails) && (selectedDraft.targetEmails as any[]).length > 0 ? (
+                      <div className="space-y-1">
+                        {(selectedDraft.targetEmails as any[]).slice(0, 10).map((t: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <Mail className="w-3 h-3 text-muted-foreground" />
+                            <span className="font-mono text-foreground">{t.email}</span>
+                            {t.firstName && <span className="text-muted-foreground">({t.firstName} {t.lastName || ""})</span>}
+                            {t.position && <Badge variant="outline" className="text-[10px] py-0">{t.position}</Badge>}
+                          </div>
+                        ))}
+                        {(selectedDraft.targetEmails as any[]).length > 10 && (
+                          <p className="text-xs text-muted-foreground">...and {(selectedDraft.targetEmails as any[]).length - 10} more</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No targets defined yet. Click Edit to add target emails.</p>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -677,7 +877,23 @@ function ActiveCampaignsTab() {
 // ARSENAL TAB
 // ═══════════════════════════════════════════════════════════════════
 function ArsenalTab() {
+  const [showCleanup, setShowCleanup] = useState(false);
+  const [selectedStaleTemplates, setSelectedStaleTemplates] = useState<number[]>([]);
+  const [selectedStalePages, setSelectedStalePages] = useState<number[]>([]);
+  const [selectedStaleGroups, setSelectedStaleGroups] = useState<number[]>([]);
+
   const { data: arsenal, isLoading, refetch } = trpc.phishingOps.getArsenal.useQuery();
+  const { data: staleData, refetch: refetchStale, isLoading: staleLoading } = trpc.phishingOps.identifyStaleResources.useQuery(undefined, { enabled: showCleanup });
+  const bulkCleanup = trpc.phishingOps.bulkCleanup.useMutation({
+    onSuccess: (data) => {
+      const total = data.deletedTemplates + data.deletedPages + data.deletedGroups;
+      toast.success(`Cleaned up ${total} stale resource${total !== 1 ? 's' : ''}`);
+      if (data.errors.length > 0) toast.error(`${data.errors.length} error(s): ${data.errors[0]}`);
+      setSelectedStaleTemplates([]); setSelectedStalePages([]); setSelectedStaleGroups([]);
+      refetch(); refetchStale();
+    },
+    onError: (err) => toast.error(err.message),
+  });
   const deleteTemplate = trpc.phishingOps.deleteGophishTemplate.useMutation({
     onSuccess: () => { toast.success("Template deleted"); refetch(); },
     onError: (err) => toast.error(err.message),
@@ -752,10 +968,161 @@ function ArsenalTab() {
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="text-sm text-green-400">GoPhish Online</span>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant={showCleanup ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowCleanup(!showCleanup)}
+          >
+            <Search className="w-3.5 h-3.5 mr-1.5" /> {showCleanup ? "Hide Cleanup" : "Find Stale Resources"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
+          </Button>
+        </div>
       </div>
+
+      {/* Stale Resource Cleanup Panel */}
+      {showCleanup && (
+        <Card className="bg-card border-yellow-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-400" /> Stale Resource Cleanup
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Resources identified as empty, test, or placeholder items that can be safely removed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {staleLoading ? (
+              <div className="flex items-center gap-2 py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Scanning for stale resources...</span>
+              </div>
+            ) : staleData && staleData.summary.totalStale > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Found <span className="text-yellow-400 font-semibold">{staleData.summary.totalStale}</span> stale resource{staleData.summary.totalStale !== 1 ? 's' : ''}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        setSelectedStaleTemplates(staleData.staleTemplates.map((t: any) => t.id));
+                        setSelectedStalePages(staleData.stalePages.map((p: any) => p.id));
+                        setSelectedStaleGroups(staleData.staleGroups.map((g: any) => g.id));
+                      }}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="text-xs bg-red-600 hover:bg-red-700"
+                      disabled={bulkCleanup.isPending || (selectedStaleTemplates.length + selectedStalePages.length + selectedStaleGroups.length) === 0}
+                      onClick={() => {
+                        const total = selectedStaleTemplates.length + selectedStalePages.length + selectedStaleGroups.length;
+                        if (confirm(`Delete ${total} stale resource${total !== 1 ? 's' : ''}? This cannot be undone.`)) {
+                          bulkCleanup.mutate({
+                            templateIds: selectedStaleTemplates,
+                            pageIds: selectedStalePages,
+                            groupIds: selectedStaleGroups,
+                          });
+                        }
+                      }}
+                    >
+                      {bulkCleanup.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                      Delete Selected ({selectedStaleTemplates.length + selectedStalePages.length + selectedStaleGroups.length})
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Stale Templates */}
+                {staleData.staleTemplates.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">Templates ({staleData.staleTemplates.length})</p>
+                    <div className="space-y-1">
+                      {staleData.staleTemplates.map((t: any) => (
+                        <label key={t.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer text-xs">
+                          <input
+                            type="checkbox"
+                            checked={selectedStaleTemplates.includes(t.id)}
+                            onChange={(e) => setSelectedStaleTemplates(prev => e.target.checked ? [...prev, t.id] : prev.filter(id => id !== t.id))}
+                            className="rounded"
+                          />
+                          <Mail className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-foreground">{t.name}</span>
+                          <Badge variant="outline" className="text-[10px] py-0 bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
+                            {t.reason === 'empty_body' ? 'Empty' : t.reason === 'test_name' ? 'Test' : 'No Subject'}
+                          </Badge>
+                          <span className="text-muted-foreground ml-auto">{t.htmlLength} chars</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Stale Pages */}
+                {staleData.stalePages.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">Landing Pages ({staleData.stalePages.length})</p>
+                    <div className="space-y-1">
+                      {staleData.stalePages.map((p: any) => (
+                        <label key={p.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer text-xs">
+                          <input
+                            type="checkbox"
+                            checked={selectedStalePages.includes(p.id)}
+                            onChange={(e) => setSelectedStalePages(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id))}
+                            className="rounded"
+                          />
+                          <Globe className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-foreground">{p.name}</span>
+                          <Badge variant="outline" className="text-[10px] py-0 bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
+                            {p.reason === 'empty_body' ? 'Empty' : 'Test'}
+                          </Badge>
+                          <span className="text-muted-foreground ml-auto">{p.htmlLength} chars</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Stale Groups */}
+                {staleData.staleGroups.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">Target Groups ({staleData.staleGroups.length})</p>
+                    <div className="space-y-1">
+                      {staleData.staleGroups.map((g: any) => (
+                        <label key={g.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer text-xs">
+                          <input
+                            type="checkbox"
+                            checked={selectedStaleGroups.includes(g.id)}
+                            onChange={(e) => setSelectedStaleGroups(prev => e.target.checked ? [...prev, g.id] : prev.filter(id => id !== g.id))}
+                            className="rounded"
+                          />
+                          <Users className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-foreground">{g.name}</span>
+                          <Badge variant="outline" className="text-[10px] py-0 bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
+                            {g.reason === 'no_targets' ? 'Empty' : 'Test'}
+                          </Badge>
+                          <span className="text-muted-foreground ml-auto">{g.targetCount} target(s)</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : staleData ? (
+              <div className="flex items-center gap-2 py-4">
+                <CheckCircle className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-muted-foreground">No stale resources found. Your GoPhish arsenal is clean.</span>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-4 gap-4">

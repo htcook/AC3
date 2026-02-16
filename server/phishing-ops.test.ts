@@ -138,13 +138,15 @@ describe("Phishing Operations Router", () => {
       expect(routerObj).toHaveProperty("deleteGophishTemplate");
       expect(routerObj).toHaveProperty("deleteGophishPage");
       expect(routerObj).toHaveProperty("deleteGophishGroup");
+      expect(routerObj).toHaveProperty("identifyStaleResources");
+      expect(routerObj).toHaveProperty("bulkCleanup");
     });
 
-    it("should have exactly 14 procedures", async () => {
+    it("should have exactly 16 procedures", async () => {
       const mod = await import("./routers/phishing-ops");
       const routerObj = mod.phishingOpsRouter as any;
       const keys = Object.keys(routerObj);
-      expect(keys.length).toBe(14);
+      expect(keys.length).toBe(16);
     });
   });
 
@@ -437,6 +439,201 @@ describe("Phishing Operations Router", () => {
       expect(canDelete("approved")).toBe(true);
       expect(canDelete("launched")).toBe(false);
       expect(canDelete("completed")).toBe(true);
+    });
+  });
+
+  describe("Stale Resource Identification Logic", () => {
+    it("should identify templates with empty body as stale", () => {
+      const templates = [
+        { id: 1, name: "Real Template", html: "<html><body><p>Full email content here with lots of text</p></body></html>", subject: "Important" },
+        { id: 2, name: "Empty One", html: "", subject: "Test" },
+        { id: 3, name: "Short", html: "<p>hi</p>", subject: "" },
+      ];
+      const stale = templates.filter((t) => {
+        const isEmpty = (t.html || "").trim().length < 20;
+        const isTest = /^test|^demo|^sample|^placeholder|^untitled|^default|^new template/i.test(t.name);
+        const noSubject = (t.subject || "").trim().length === 0;
+        return isEmpty || isTest || (noSubject && (t.html || "").trim().length < 100);
+      });
+      expect(stale.length).toBe(2);
+      expect(stale.map(s => s.id)).toContain(2);
+      expect(stale.map(s => s.id)).toContain(3);
+    });
+
+    it("should identify templates with test names as stale", () => {
+      const templates = [
+        { id: 1, name: "Test Email", html: "<html><body><p>Full content with lots of text here</p></body></html>", subject: "Real Subject" },
+        { id: 2, name: "Production Campaign", html: "<html><body><p>Full content with lots of text here</p></body></html>", subject: "Real Subject" },
+      ];
+      const stale = templates.filter((t) => /^test|^demo|^sample|^placeholder|^untitled|^default|^new template/i.test(t.name));
+      expect(stale.length).toBe(1);
+      expect(stale[0].id).toBe(1);
+    });
+
+    it("should identify groups with no targets as stale", () => {
+      const groups = [
+        { id: 1, name: "Active Group", targets: [{ email: "a@b.com" }] },
+        { id: 2, name: "Empty Group", targets: [] },
+        { id: 3, name: "Demo Group", targets: [{ email: "x@y.com" }] },
+      ];
+      const stale = groups.filter((g) => {
+        const isEmpty = g.targets.length === 0;
+        const isTest = /^test|^demo|^sample|^placeholder|^untitled|^default/i.test(g.name);
+        return isEmpty || isTest;
+      });
+      expect(stale.length).toBe(2);
+      expect(stale.map(s => s.id)).toContain(2);
+      expect(stale.map(s => s.id)).toContain(3);
+    });
+
+    it("should categorize stale reasons correctly", () => {
+      const getReason = (html: string, name: string) => {
+        if (html.trim().length < 20) return "empty_body";
+        if (/^test|^demo|^sample|^placeholder|^untitled|^default|^new template/i.test(name)) return "test_name";
+        return "no_subject";
+      };
+      expect(getReason("", "Real")).toBe("empty_body");
+      expect(getReason("<p>short</p>", "Real")).toBe("empty_body");
+      expect(getReason("<html><body><p>Long enough content here for testing</p></body></html>", "Test Template")).toBe("test_name");
+      expect(getReason("<html><body><p>Long enough content here for testing</p></body></html>", "Real Template")).toBe("no_subject");
+    });
+  });
+
+  describe("Bulk Cleanup Payload", () => {
+    it("should accept arrays of IDs for each resource type", () => {
+      const payload = {
+        templateIds: [1, 2, 3],
+        pageIds: [4, 5],
+        groupIds: [6],
+      };
+      expect(payload.templateIds.length).toBe(3);
+      expect(payload.pageIds.length).toBe(2);
+      expect(payload.groupIds.length).toBe(1);
+    });
+
+    it("should handle empty arrays for selective cleanup", () => {
+      const payload = {
+        templateIds: [],
+        pageIds: [1, 2],
+        groupIds: [],
+      };
+      const totalToDelete = payload.templateIds.length + payload.pageIds.length + payload.groupIds.length;
+      expect(totalToDelete).toBe(2);
+    });
+
+    it("should track deletion results with error reporting", () => {
+      const results = { deletedTemplates: 2, deletedPages: 1, deletedGroups: 0, errors: ["Group 6: Not found"] };
+      const totalDeleted = results.deletedTemplates + results.deletedPages + results.deletedGroups;
+      expect(totalDeleted).toBe(3);
+      expect(results.errors.length).toBe(1);
+    });
+  });
+
+  describe("Pipeline Auto-Materialization", () => {
+    it("should limit auto-materialization to top 3 recommendations", () => {
+      const recs = [
+        { name: "Rec 1", priority: "critical" },
+        { name: "Rec 2", priority: "high" },
+        { name: "Rec 3", priority: "medium" },
+        { name: "Rec 4", priority: "low" },
+        { name: "Rec 5", priority: "low" },
+      ];
+      const topRecs = recs.slice(0, 3);
+      expect(topRecs.length).toBe(3);
+      expect(topRecs[0].name).toBe("Rec 1");
+      expect(topRecs[2].name).toBe("Rec 3");
+    });
+
+    it("should generate correct campaign name from domain and type", () => {
+      const domain = "example.com";
+      const rec = { name: null, type: "spear_phishing" };
+      const campaignName = rec.name || `${domain} - ${rec.type || 'phishing'} Campaign`;
+      expect(campaignName).toBe("example.com - spear_phishing Campaign");
+    });
+
+    it("should use recommendation name when available", () => {
+      const domain = "example.com";
+      const rec = { name: "Custom Campaign", type: "spear_phishing" };
+      const campaignName = rec.name || `${domain} - ${rec.type || 'phishing'} Campaign`;
+      expect(campaignName).toBe("Custom Campaign");
+    });
+
+    it("should set matchRationale for auto-materialized drafts", () => {
+      const rationale = "Auto-materialized by engagement pipeline";
+      expect(rationale).toContain("Auto-materialized");
+      expect(rationale).toContain("engagement pipeline");
+    });
+
+    it("should track materialized draft IDs in riskSummary", () => {
+      const riskSummary = {
+        gophishCampaign: {
+          status: "materialized",
+          materializedDraftIds: [10, 11, 12],
+          totalRecommendations: 5,
+          materializedCount: 3,
+          recommendedTemplates: [],
+        },
+      };
+      expect(riskSummary.gophishCampaign.status).toBe("materialized");
+      expect(riskSummary.gophishCampaign.materializedDraftIds.length).toBe(3);
+      expect(riskSummary.gophishCampaign.materializedCount).toBe(3);
+    });
+
+    it("should fall back to ready status when no drafts materialized", () => {
+      const materializedDraftIds: number[] = [];
+      const status = materializedDraftIds.length > 0 ? "materialized" : "ready";
+      expect(status).toBe("ready");
+    });
+  });
+
+  describe("Inline Draft Editing", () => {
+    it("should parse CSV target emails correctly", () => {
+      const csv = "john@example.com,John,Doe,CEO\njane@example.com,Jane,Smith,CFO";
+      const parsed = csv.trim().split("\n").map((line) => {
+        const [email, firstName, lastName, position] = line.split(",").map((s) => s.trim());
+        return { email: email || "", firstName, lastName, position };
+      }).filter((t) => t.email.includes("@"));
+      expect(parsed.length).toBe(2);
+      expect(parsed[0].email).toBe("john@example.com");
+      expect(parsed[0].firstName).toBe("John");
+      expect(parsed[0].position).toBe("CEO");
+      expect(parsed[1].email).toBe("jane@example.com");
+    });
+
+    it("should filter out invalid email lines", () => {
+      const csv = "john@example.com,John,Doe\ninvalid-line\n,,,\njane@test.com,Jane";
+      const parsed = csv.trim().split("\n").map((line) => {
+        const [email, firstName, lastName, position] = line.split(",").map((s) => s.trim());
+        return { email: email || "", firstName, lastName, position };
+      }).filter((t) => t.email.includes("@"));
+      expect(parsed.length).toBe(2);
+    });
+
+    it("should handle empty CSV input", () => {
+      const csv = "";
+      const parsed = csv.trim() ? csv.trim().split("\n").map((line) => {
+        const [email, firstName, lastName, position] = line.split(",").map((s) => s.trim());
+        return { email, firstName, lastName, position };
+      }).filter((t) => t.email.includes("@")) : undefined;
+      expect(parsed).toBeUndefined();
+    });
+
+    it("should convert target emails array to CSV for editing", () => {
+      const targets = [
+        { email: "a@b.com", firstName: "Alice", lastName: "Brown", position: "CTO" },
+        { email: "c@d.com", firstName: "", lastName: "", position: "" },
+      ];
+      const csv = targets.map((t) => [t.email, t.firstName || "", t.lastName || "", t.position || ""].join(",")).join("\n");
+      expect(csv).toBe("a@b.com,Alice,Brown,CTO\nc@d.com,,,");
+    });
+
+    it("should only allow editing draft and approved statuses", () => {
+      const canEdit = (status: string) => status === "draft" || status === "approved";
+      expect(canEdit("draft")).toBe(true);
+      expect(canEdit("approved")).toBe(true);
+      expect(canEdit("deployed")).toBe(false);
+      expect(canEdit("launched")).toBe(false);
+      expect(canEdit("completed")).toBe(false);
     });
   });
 

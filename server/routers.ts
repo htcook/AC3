@@ -4391,12 +4391,97 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           };
           stepLog[3] = { ...stepLog[3], status: 'complete', timestamp: Date.now() };
           
-          // Step 5: Create GoPhish Campaign (ready state)
+          // Step 5: Auto-Materialize Phishing Drafts from scan recommendations
           stepLog[4] = { ...stepLog[4], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 5, stepLog });
+          
+          // First, we need a domain intel scan record. The pipeline ran runDomainIntelPipeline
+          // directly, so we need to find or create the scan record.
+          const { domainIntelScans, phishingDrafts } = await import('../drizzle/schema');
+          const { eq: eqOp, desc: descOp, and: andOp, sql: sqlOp } = await import('drizzle-orm');
+          const drizzleDb = await (await import('./db')).getDb();
+          if (!drizzleDb) throw new Error('Database not available');
+          
+          // Find the most recent completed scan for this domain
+          const [latestScan] = await drizzleDb.select().from(domainIntelScans)
+            .where(andOp(
+              eqOp(domainIntelScans.primaryDomain, domains[0] || ''),
+              eqOp(domainIntelScans.status, 'completed')
+            ))
+            .orderBy(descOp(domainIntelScans.createdAt))
+            .limit(1);
+          
+          const materializedDraftIds: number[] = [];
+          const campaignRecs = scanResult.campaignRecommendations || [];
+          
+          if (latestScan && campaignRecs.length > 0) {
+            // Import the materialize logic from phishing-ops
+            const { phishingOpsRouter } = await import('./routers/phishing-ops');
+            
+            // Auto-materialize up to 3 top-priority recommendations
+            const topRecs = campaignRecs.slice(0, 3);
+            for (let i = 0; i < topRecs.length; i++) {
+              try {
+                // Check if already materialized
+                const existing = await drizzleDb.select().from(phishingDrafts)
+                  .where(andOp(
+                    eqOp(phishingDrafts.scanId, latestScan.id),
+                    sqlOp`${phishingDrafts.campaignRecommendationIndex} = ${i}`
+                  ));
+                if (existing.length > 0) {
+                  materializedDraftIds.push(existing[0].id);
+                  continue;
+                }
+                
+                // Build draft data with fallback template (skip LLM for speed in auto-pipeline)
+                const rec = topRecs[i];
+                const campaignName = rec.name || `${domains[0]} - ${rec.type || 'phishing'} Campaign`;
+                const templateName = `[Ace C3] ${campaignName} - Template`;
+                const landingPageName = `[Ace C3] ${campaignName} - Landing Page`;
+                const targetGroupName = `[Ace C3] ${campaignName} - Targets`;
+                
+                const [draftResult] = await drizzleDb.insert(phishingDrafts).values({
+                  scanId: latestScan.id,
+                  campaignRecommendationIndex: i,
+                  status: 'draft',
+                  campaignName,
+                  campaignType: rec.type || 'phishing',
+                  priority: rec.priority || 'medium',
+                  targetDomain: domains[0],
+                  targetSector: latestScan.sector || null,
+                  templateName,
+                  templateSubject: rec.gophishTemplates?.[0]?.subject || `Important: Action Required - ${domains[0]}`,
+                  templateHtml: `<html><body><p>Dear {{.FirstName}},</p><p>Please review the attached document regarding your ${domains[0]} account.</p><p><a href="{{.URL}}">Click here to review</a></p><p>Best regards,<br>IT Security Team</p></body></html>`,
+                  templateText: `Dear {{.FirstName}},\n\nPlease review the document regarding your ${domains[0]} account.\n\n{{.URL}}\n\nBest regards,\nIT Security Team`,
+                  landingPageName,
+                  landingPageHtml: `<html><body><h2>${domains[0]} - Login</h2><form method="POST"><input name="email" placeholder="Email" /><input name="password" type="password" placeholder="Password" /><button type="submit">Sign In</button></form></body></html>`,
+                  landingPageRedirectUrl: `https://${domains[0]}`,
+                  captureCredentials: true,
+                  capturePasswords: false,
+                  targetGroupName,
+                  targetEmails: null,
+                  smtpProfileName: `Ace C3 - ${domains[0]} Profile`,
+                  attackChain: rec.attackChain || null,
+                  calderaAbilities: rec.calderaAbilities || null,
+                  threatActorId: null,
+                  threatActorName: null,
+                  matchRationale: 'Auto-materialized by engagement pipeline',
+                  createdBy: null,
+                }).$returningId();
+                materializedDraftIds.push(draftResult.id);
+                console.log(`[Pipeline] Auto-materialized draft ${draftResult.id} for recommendation ${i}: ${campaignName}`);
+              } catch (matErr: any) {
+                console.error(`[Pipeline] Failed to materialize recommendation ${i}:`, matErr.message);
+              }
+            }
+          }
+          
           riskSummary.gophishCampaign = {
-            status: 'ready',
-            recommendedTemplates: (scanResult.campaignRecommendations || []).flatMap((c: any) => c.gophishTemplates || []),
+            status: materializedDraftIds.length > 0 ? 'materialized' : 'ready',
+            materializedDraftIds,
+            totalRecommendations: campaignRecs.length,
+            materializedCount: materializedDraftIds.length,
+            recommendedTemplates: campaignRecs.flatMap((c: any) => c.gophishTemplates || []),
           };
           stepLog[4] = { ...stepLog[4], status: 'complete', timestamp: Date.now() };
           

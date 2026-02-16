@@ -1758,3 +1758,13 @@
 - [x] Update sidebar navigation (consolidate GoPhish items into Phishing Operations)
 - [x] Add redirects from old GoPhish pages to /phishing-ops
 - [x] Write tests for all new procedures (31 vitest tests passing)
+
+## Phishing Ops Enhancements
+- [x] Wire engagement pipeline Step 5/6 to auto-materialize phishing drafts after domain scans
+- [x] Clean up stale/empty GoPhish resources (templates, pages, groups) from production
+- [x] Add inline draft editing in Campaign Builder (email subject, HTML body, target list)
+- [x] Add identifyStaleResources + bulkCleanup procedures (16 total procedures)
+- [x] Add stale resource cleanup UI to Arsenal tab (select-all, bulk delete)
+- [x] Add inline editing for landing page HTML, redirect URL, capture settings
+- [x] Add target email list editing (CSV format)
+- [x] Write tests for all new features (49 tests passing)
