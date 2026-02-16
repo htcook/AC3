@@ -1150,3 +1150,179 @@ export async function getTtpKnowledgeStats() {
   
   return { total: Number(total.count), byTactic, enriched: Number(enriched.count) };
 }
+
+
+// ─── False Positive Management ──────────────────────────────────────────
+import { falsePositiveFindings, InsertFalsePositiveFinding, FalsePositiveFinding } from "../drizzle/schema";
+
+export async function createFalsePositive(fp: {
+  scanId: number;
+  assetId: number;
+  findingIndex: number;
+  findingHash: string;
+  findingTitle: string;
+  findingType: string | null;
+  findingSeverity: string | null;
+  reason: string;
+  markedBy: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(falsePositiveFindings).values({
+    scanId: fp.scanId,
+    assetId: fp.assetId,
+    findingIndex: fp.findingIndex,
+    findingHash: fp.findingHash,
+    findingTitle: fp.findingTitle,
+    findingType: fp.findingType,
+    findingSeverity: fp.findingSeverity,
+    reason: fp.reason,
+    status: "false_positive",
+    markedBy: fp.markedBy,
+  });
+  return result.insertId;
+}
+
+export async function reinstateFalsePositive(fpId: number, reinstatedBy: string, reason: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(falsePositiveFindings)
+    .set({
+      status: "reinstated",
+      reinstatedBy,
+      reinstatedAt: new Date(),
+      reinstatedReason: reason,
+    })
+    .where(eq(falsePositiveFindings.id, fpId));
+}
+
+export async function getFalsePositivesByScan(scanId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(falsePositiveFindings)
+    .where(eq(falsePositiveFindings.scanId, scanId))
+    .orderBy(sql`${falsePositiveFindings.markedAt} DESC`);
+}
+
+export async function getAllFalsePositives() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(falsePositiveFindings)
+    .orderBy(sql`${falsePositiveFindings.markedAt} DESC`)
+    .limit(500);
+}
+
+/**
+ * Get all active (non-reinstated) false positive hashes.
+ * Used by the pipeline to inject FP context into LLM prompts
+ * and to auto-flag findings that match known FP patterns.
+ */
+export async function getActiveFPHashes(): Promise<{ hash: string; title: string; reason: string; count: number }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db.select({
+    hash: falsePositiveFindings.findingHash,
+    title: falsePositiveFindings.findingTitle,
+    reason: falsePositiveFindings.reason,
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(falsePositiveFindings)
+    .where(eq(falsePositiveFindings.status, "false_positive"))
+    .groupBy(falsePositiveFindings.findingHash, falsePositiveFindings.findingTitle, falsePositiveFindings.reason);
+  return results.map(r => ({ hash: r.hash, title: r.title, reason: r.reason, count: Number(r.count) }));
+}
+
+/**
+ * Get FP context for LLM injection — summarizes false positive patterns
+ * by category and severity for the LLM to learn from.
+ */
+export async function getFPContextForLLM(): Promise<{
+  totalFPs: number;
+  patterns: { title: string; type: string | null; severity: string | null; reason: string; occurrences: number }[];
+  categorySummary: { type: string; count: number; fpRate: string }[];
+}> {
+  const db = await getDb();
+  if (!db) return { totalFPs: 0, patterns: [], categorySummary: [] };
+
+  // Get all active FP patterns grouped by finding hash
+  const patterns = await db.select({
+    title: falsePositiveFindings.findingTitle,
+    type: falsePositiveFindings.findingType,
+    severity: falsePositiveFindings.findingSeverity,
+    reason: falsePositiveFindings.reason,
+    occurrences: sql<number>`COUNT(*)`,
+  })
+    .from(falsePositiveFindings)
+    .where(eq(falsePositiveFindings.status, "false_positive"))
+    .groupBy(
+      falsePositiveFindings.findingTitle,
+      falsePositiveFindings.findingType,
+      falsePositiveFindings.findingSeverity,
+      falsePositiveFindings.reason
+    )
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(50);
+
+  // Get category summary
+  const categorySummary = await db.select({
+    type: falsePositiveFindings.findingType,
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(falsePositiveFindings)
+    .where(eq(falsePositiveFindings.status, "false_positive"))
+    .groupBy(falsePositiveFindings.findingType)
+    .orderBy(sql`COUNT(*) DESC`);
+
+  const [totalRow] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(falsePositiveFindings)
+    .where(eq(falsePositiveFindings.status, "false_positive"));
+
+  return {
+    totalFPs: Number(totalRow.count),
+    patterns: patterns.map(p => ({
+      title: p.title,
+      type: p.type,
+      severity: p.severity,
+      reason: p.reason,
+      occurrences: Number(p.occurrences),
+    })),
+    categorySummary: categorySummary.map(c => ({
+      type: c.type || 'unknown',
+      count: Number(c.count),
+      fpRate: 'N/A', // Will be calculated when we have total findings per category
+    })),
+  };
+}
+
+/**
+ * Check if a specific finding hash is already marked as FP.
+ * Used for post-scan auto-suppression.
+ */
+export async function isFindingFalsePositive(findingHash: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const [result] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(falsePositiveFindings)
+    .where(and(
+      eq(falsePositiveFindings.findingHash, findingHash),
+      eq(falsePositiveFindings.status, "false_positive")
+    ));
+  return Number(result.count) > 0;
+}
+
+/**
+ * Batch check multiple finding hashes against FP database.
+ * Returns a Set of hashes that are known false positives.
+ */
+export async function batchCheckFalsePositives(hashes: string[]): Promise<Set<string>> {
+  const db = await getDb();
+  if (!db) return new Set();
+  if (hashes.length === 0) return new Set();
+  const results = await db.select({ hash: falsePositiveFindings.findingHash })
+    .from(falsePositiveFindings)
+    .where(and(
+      inArray(falsePositiveFindings.findingHash, hashes),
+      eq(falsePositiveFindings.status, "false_positive")
+    ));
+  return new Set(results.map(r => r.hash));
+}

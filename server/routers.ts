@@ -3650,6 +3650,66 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         return { dbMatches, llmEnhanced };
       }),
 
+    // ─── False Positive Management ─────────────────────────────────
+    // Mark a finding as false positive
+    markFalsePositive: protectedProcedure
+      .input(z.object({
+        scanId: z.number(),
+        assetId: z.number(),
+        findingIndex: z.number(),
+        findingTitle: z.string(),
+        findingType: z.string().optional(),
+        findingSeverity: z.string().optional(),
+        reason: z.string().min(1, 'A reason is required'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createHash } = await import('crypto');
+        const findingHash = createHash('sha256')
+          .update(`${input.findingTitle}|${input.assetId}|${input.findingType || ''}`)
+          .digest('hex').slice(0, 64);
+
+        await db.createFalsePositive({
+          scanId: input.scanId,
+          assetId: input.assetId,
+          findingIndex: input.findingIndex,
+          findingHash,
+          findingTitle: input.findingTitle,
+          findingType: input.findingType || null,
+          findingSeverity: input.findingSeverity || null,
+          reason: input.reason,
+          markedBy: ctx.user.name || `user-${ctx.user.id}`,
+        });
+        return { success: true, findingHash };
+      }),
+
+    // Reinstate a finding (un-mark as false positive)
+    reinstateFinding: protectedProcedure
+      .input(z.object({
+        fpId: z.number(),
+        reason: z.string().min(1, 'A reason for reinstatement is required'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.reinstateFalsePositive(
+          input.fpId,
+          ctx.user.name || `user-${ctx.user.id}`,
+          input.reason
+        );
+        return { success: true };
+      }),
+
+    // List false positives for a scan
+    listFalsePositives: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getFalsePositivesByScan(input.scanId);
+      }),
+
+    // List all false positives (cross-scan, by hash)
+    listAllFalsePositives: protectedProcedure
+      .query(async () => {
+        return db.getAllFalsePositives();
+      }),
+
     // Compare two scans side-by-side
     compareScans: protectedProcedure
       .input(z.object({ scanIdA: z.number(), scanIdB: z.number() }))

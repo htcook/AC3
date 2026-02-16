@@ -11,8 +11,12 @@ import {
   ArrowLeft, Shield, Target, AlertTriangle, Brain, Globe, Server,
   ChevronDown, ChevronUp, Crosshair, Zap, FileText, ExternalLink,
   Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database,
-  TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan
+  TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const RISK_COLORS: Record<string, string> = {
@@ -100,6 +104,46 @@ export default function DomainIntelResults() {
   const scanId = Number(params.id);
   const [expandedAsset, setExpandedAsset] = useState<number | null>(null);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [fpDialogOpen, setFpDialogOpen] = useState(false);
+  const [fpTarget, setFpTarget] = useState<{ finding: any; assetId: number; findingIndex: number } | null>(null);
+  const [fpReasonTemplate, setFpReasonTemplate] = useState<string>("");
+  const [fpReasonCustom, setFpReasonCustom] = useState<string>("");
+  // Fetch existing FPs for this scan
+  const fpQuery = trpc.domainIntel.listFalsePositives.useQuery({ scanId }, { enabled: !!scanId });
+  const fpHashes = new Set((fpQuery.data || []).filter((fp: any) => fp.status === 'false_positive').map((fp: any) => fp.findingHash));
+
+  const markFPMutation = trpc.domainIntel.markFalsePositive.useMutation({
+    onSuccess: () => {
+      toast.success("Marked as False Positive — the LLM will learn from your feedback on future scans.");
+      fpQuery.refetch();
+      setFpDialogOpen(false);
+      setFpTarget(null);
+      setFpReasonTemplate("");
+      setFpReasonCustom("");
+    },
+    onError: (err) => {
+      toast.error(`Error: ${err.message}`);
+    },
+  });
+
+  const reinstateMutation = trpc.domainIntel.reinstateFinding.useMutation({
+    onSuccess: () => {
+      toast.success("Finding reinstated — removed from false positive list.");
+      fpQuery.refetch();
+    },
+  });
+
+  const FP_REASON_TEMPLATES = [
+    { value: "patched", label: "Already patched / remediated" },
+    { value: "internal", label: "Internal-only service, not exposed" },
+    { value: "compensating", label: "Compensating controls in place" },
+    { value: "scanner_error", label: "Scanner/detection error (wrong product)" },
+    { value: "version_mismatch", label: "Version mismatch (detected version is wrong)" },
+    { value: "accepted_risk", label: "Accepted risk (documented exception)" },
+    { value: "duplicate", label: "Duplicate of another finding" },
+    { value: "not_applicable", label: "Not applicable to our environment" },
+    { value: "custom", label: "Custom reason (type below)" },
+  ];
 
   const { data, isLoading, error } = trpc.domainIntel.getScan.useQuery({ id: scanId }, { enabled: !!scanId });
 
@@ -946,9 +990,45 @@ export default function DomainIntelResults() {
                       </div>
                       {items.map((f: any, i: number) => {
                         const confidencePct = Math.round((f.confidence || 0) * 100);
+                        // Generate a simple hash for FP matching
+                        const findingKey = `${f.title}|${f.assetHostname || f.assetRef || ''}|${f.category || ''}`;
+                        const isFP = fpHashes.has(findingKey) || f.previouslyMarkedFP || f.fpAutoFlagged;
                         return (
-                          <Card key={`${tier}-${i}`} className={`${f.kevListed ? "border-red-500/40" : tier === "potential" ? "border-purple-500/20 opacity-75" : ""}`}>
+                          <Card key={`${tier}-${i}`} className={`${isFP ? "border-amber-500/40 opacity-60" : f.kevListed ? "border-red-500/40" : tier === "potential" ? "border-purple-500/20 opacity-75" : ""}`}>
                             <CardContent className="p-4">
+                              {/* FP Auto-flag Banner */}
+                              {isFP && (
+                                <div className="flex items-center gap-2 mb-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                                  <Flag className="h-4 w-4 text-amber-400 shrink-0" />
+                                  <span className="text-[11px] text-amber-400 font-medium">Previously marked as False Positive by analyst</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="ml-auto h-6 px-2 text-[10px] text-emerald-400 hover:text-emerald-300"
+                                    onClick={() => {
+                                      // Find the asset for this finding
+                                      const assetMatch = assets.find((a: any) => {
+                                        const hostname = a.asset?.hostname || a.hostname;
+                                        return hostname === f.assetHostname || hostname === f.assetRef;
+                                      });
+                                      // Find the FP record for this finding
+                                      const fpRecord = (fpQuery.data || []).find((fp: any) => fp.findingHash === findingKey && fp.status === 'false_positive');
+                                      if (fpRecord) {
+                                        reinstateMutation.mutate({
+                                          fpId: fpRecord.id,
+                                          reason: 'Reinstated by analyst — finding is valid',
+                                        });
+                                      } else {
+                                        toast.info('Could not find the FP record to reinstate.');
+                                      }
+                                    }}
+                                    disabled={reinstateMutation.isPending}
+                                  >
+                                    <Undo2 className="h-3 w-3 mr-1" /> Reinstate
+                                  </Button>
+                                </div>
+                              )}
+
                               {/* Header row with corroboration tier badge */}
                               <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1 min-w-0">
@@ -1094,6 +1174,35 @@ export default function DomainIntelResults() {
                                   ))}
                                 </div>
                               )}
+
+                              {/* Mark as False Positive Button */}
+                              {!isFP && (
+                                <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">
+                                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <MessageSquare className="h-3 w-3" />
+                                    Is this finding incorrect? Help the LLM learn.
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-3 text-[11px] text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+                                    onClick={() => {
+                                      const assetMatch = assets.find((a: any) => {
+                                        const hostname = a.asset?.hostname || a.hostname;
+                                        return hostname === f.assetHostname || hostname === f.assetRef;
+                                      });
+                                      setFpTarget({
+                                        finding: f,
+                                        assetId: assetMatch?.id || 0,
+                                        findingIndex: i,
+                                      });
+                                      setFpDialogOpen(true);
+                                    }}
+                                  >
+                                    <Flag className="h-3 w-3 mr-1" /> Mark as False Positive
+                                  </Button>
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
                         );
@@ -1106,6 +1215,104 @@ export default function DomainIntelResults() {
           })()}
         </TabsContent>
       </Tabs>
+
+      {/* ─── False Positive Reason Dialog ─── */}
+      <Dialog open={fpDialogOpen} onOpenChange={setFpDialogOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Flag className="h-5 w-5 text-amber-400" />
+              Mark Finding as False Positive
+            </DialogTitle>
+            <DialogDescription>
+              Your feedback helps the LLM learn. On future scans, findings matching this pattern will have reduced confidence or be auto-flagged.
+            </DialogDescription>
+          </DialogHeader>
+
+          {fpTarget && (
+            <div className="space-y-4">
+              {/* Finding being marked */}
+              <div className="p-3 rounded-lg bg-muted/30 border border-border/50">
+                <p className="text-sm font-semibold">{fpTarget.finding.title}</p>
+                <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
+                  <span>Severity: {fpTarget.finding.severity}/10</span>
+                  <span>·</span>
+                  <span>Asset: {fpTarget.finding.assetHostname || fpTarget.finding.assetRef || 'Unknown'}</span>
+                  {fpTarget.finding.cveIds?.length > 0 && (
+                    <><span>·</span><span>{fpTarget.finding.cveIds.join(', ')}</span></>
+                  )}
+                </div>
+              </div>
+
+              {/* Reason Template Selector */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Why is this a false positive?</label>
+                <Select value={fpReasonTemplate} onValueChange={setFpReasonTemplate}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a reason..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FP_REASON_TEMPLATES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Custom Reason Text */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {fpReasonTemplate === 'custom' ? 'Describe why this is a false positive:' : 'Additional details (optional):'}
+                </label>
+                <Textarea
+                  placeholder="e.g., We patched this last week but the banner still shows the old version string. Internal ticket #SEC-1234."
+                  value={fpReasonCustom}
+                  onChange={(e) => setFpReasonCustom(e.target.value)}
+                  rows={3}
+                  className="text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  💡 The more detail you provide, the better the LLM learns. Include ticket numbers, dates, or specific technical context.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setFpDialogOpen(false); setFpTarget(null); setFpReasonTemplate(''); setFpReasonCustom(''); }}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={!fpReasonTemplate || (fpReasonTemplate === 'custom' && !fpReasonCustom.trim()) || markFPMutation.isPending}
+              onClick={() => {
+                if (!fpTarget) return;
+                const templateLabel = FP_REASON_TEMPLATES.find(t => t.value === fpReasonTemplate)?.label || fpReasonTemplate;
+                const fullReason = fpReasonTemplate === 'custom'
+                  ? fpReasonCustom.trim()
+                  : fpReasonCustom.trim()
+                    ? `${templateLabel}: ${fpReasonCustom.trim()}`
+                    : templateLabel;
+                markFPMutation.mutate({
+                  scanId,
+                  assetId: fpTarget.assetId,
+                  findingIndex: fpTarget.findingIndex,
+                  findingTitle: fpTarget.finding.title,
+                  findingType: fpTarget.finding.category || undefined,
+                  findingSeverity: fpTarget.finding.severity?.toString() || null,
+                  reason: fullReason,
+                });
+              }}
+            >
+              {markFPMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting...</>
+              ) : (
+                <><Flag className="h-4 w-4 mr-2" /> Confirm False Positive</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

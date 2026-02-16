@@ -1,0 +1,103 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DROPLET_IP: 137.184.7.224
+  APP_DIR: /opt/caldera-dashboard
+  NODE_VERSION: '22'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Package build artifacts
+        run: |
+          tar czf deploy-bundle.tar.gz dist/ package.json pnpm-lock.yaml node_modules/
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.DROPLET_IP }} >> ~/.ssh/known_hosts
+
+      - name: Transfer build to droplet
+        run: |
+          scp -i ~/.ssh/deploy_key deploy-bundle.tar.gz root@${{ env.DROPLET_IP }}:/tmp/deploy-bundle.tar.gz
+
+      - name: Deploy on droplet
+        run: |
+          ssh -i ~/.ssh/deploy_key root@${{ env.DROPLET_IP }} << 'DEPLOY_SCRIPT'
+            set -euo pipefail
+            APP_DIR="/opt/caldera-dashboard"
+            
+            echo "═══ Caldera Dashboard CI/CD Deploy ═══"
+            echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+            
+            # Backup current dist
+            if [ -d "$APP_DIR/dist" ]; then
+              rm -rf /opt/caldera-dashboard-backup
+              cp -r "$APP_DIR/dist" /opt/caldera-dashboard-backup
+              echo "✓ Backup created"
+            fi
+            
+            # Extract new build
+            cd "$APP_DIR"
+            rm -rf dist/
+            tar xzf /tmp/deploy-bundle.tar.gz
+            rm /tmp/deploy-bundle.tar.gz
+            echo "✓ Build extracted"
+            
+            # Restart service
+            systemctl daemon-reload
+            systemctl restart caldera-dashboard
+            sleep 5
+            
+            # Health check
+            STATUS=$(systemctl is-active caldera-dashboard)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ 2>/dev/null || echo "000")
+            
+            if [ "$STATUS" = "active" ] && [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ DEPLOY SUCCESS — Service: $STATUS | HTTP: $HTTP_CODE"
+              exit 0
+            else
+              echo "⚠ DEPLOY FAILED — Service: $STATUS | HTTP: $HTTP_CODE"
+              echo "Rolling back..."
+              if [ -d "/opt/caldera-dashboard-backup" ]; then
+                rm -rf "$APP_DIR/dist"
+                cp -r /opt/caldera-dashboard-backup "$APP_DIR/dist"
+                systemctl restart caldera-dashboard
+                echo "Rolled back to previous version"
+              fi
+              exit 1
+            fi
+          DEPLOY_SCRIPT
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

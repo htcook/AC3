@@ -1,0 +1,20 @@
+CREATE TABLE `false_positive_findings` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`scanId` int NOT NULL,
+	`assetId` int NOT NULL,
+	`findingIndex` int NOT NULL,
+	`findingHash` varchar(64) NOT NULL,
+	`findingTitle` varchar(512) NOT NULL,
+	`findingType` varchar(128),
+	`findingSeverity` varchar(32),
+	`reason` text NOT NULL,
+	`fpStatus` enum('false_positive','under_review','reinstated') NOT NULL DEFAULT 'false_positive',
+	`markedBy` varchar(255),
+	`markedAt` timestamp NOT NULL DEFAULT (now()),
+	`reinstatedBy` varchar(255),
+	`reinstatedAt` timestamp,
+	`reinstatedReason` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `false_positive_findings_id` PRIMARY KEY(`id`)
+);

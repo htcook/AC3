@@ -722,3 +722,36 @@ export const ttpKnowledge = mysqlTable("ttp_knowledge", {
 });
 export type TtpKnowledge = typeof ttpKnowledge.$inferSelect;
 export type InsertTtpKnowledge = typeof ttpKnowledge.$inferInsert;
+
+
+// ─── False Positive Findings ─────────────────────────────────────────────
+/**
+ * Tracks findings that analysts have marked as false positives.
+ * References a finding by scanId + findingIndex (position in the postureFindings array)
+ * or by a content hash for deduplication across scans.
+ */
+export const falsePositiveFindings = mysqlTable("false_positive_findings", {
+  id: int("id").autoincrement().primaryKey(),
+  scanId: int("scanId").notNull(),
+  assetId: int("assetId").notNull(), // FK to discovered_assets.id
+  findingIndex: int("findingIndex").notNull(), // index within postureFindings array
+  // Finding identification (for cross-scan dedup)
+  findingHash: varchar("findingHash", { length: 64 }).notNull(), // SHA-256 of title+asset+type
+  findingTitle: varchar("findingTitle", { length: 512 }).notNull(),
+  findingType: varchar("findingType", { length: 128 }), // vulnerability, misconfiguration, exposure, etc.
+  findingSeverity: varchar("findingSeverity", { length: 32 }), // critical, high, medium, low, info
+  // FP metadata
+  reason: text("reason").notNull(), // analyst's explanation for why this is a false positive
+  status: mysqlEnum("fpStatus", ["false_positive", "under_review", "reinstated"]).default("false_positive").notNull(),
+  // Who marked it
+  markedBy: varchar("markedBy", { length: 255 }), // username or user ID
+  markedAt: timestamp("markedAt").defaultNow().notNull(),
+  // If reinstated (un-FP'd)
+  reinstatedBy: varchar("reinstatedBy", { length: 255 }),
+  reinstatedAt: timestamp("reinstatedAt"),
+  reinstatedReason: text("reinstatedReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type FalsePositiveFinding = typeof falsePositiveFindings.$inferSelect;
+export type InsertFalsePositiveFinding = typeof falsePositiveFindings.$inferInsert;

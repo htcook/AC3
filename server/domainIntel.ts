@@ -220,8 +220,17 @@ function safeParseLLMJson(content: unknown, fallback: any = {}): any {
 
 // ─── Stage 1: LLM-Powered Passive Discovery ─────────────────────────
 
-export async function discoverAssets(org: OrgProfile): Promise<DiscoveredAssetRaw[]> {
+export async function discoverAssets(org: OrgProfile, fpContext?: { patterns: { title: string; type: string | null; reason: string; occurrences: number }[] }): Promise<DiscoveredAssetRaw[]> {
   const allDomains = [org.primaryDomain, ...(org.additionalDomains || [])];
+  
+  // Build FP learning context for the LLM
+  let fpLearningBlock = '';
+  if (fpContext && fpContext.patterns.length > 0) {
+    const fpLines = fpContext.patterns.slice(0, 20).map(p =>
+      `  - "${p.title}" (type: ${p.type || 'unknown'}, marked ${p.occurrences}x) — Analyst reason: ${p.reason}`
+    ).join('\n');
+    fpLearningBlock = `\n\nANALYST FEEDBACK (False Positive History):\nThe following finding patterns have been previously marked as false positives by security analysts. Use these insights to calibrate your asset discovery — avoid inferring assets that consistently produce these false positive patterns unless you have strong evidence they exist:\n${fpLines}\n`;
+  }
   
   const prompt = `You are a passive OSINT reconnaissance analyst. Given the following organization profile, infer and enumerate likely digital assets that would exist for this organization. This is PASSIVE analysis only - no active scanning.
 
@@ -233,7 +242,7 @@ Organization:
 - Client Type: ${org.clientType}
 - Critical Functions: ${org.criticalFunctions.join(", ")}
 - Compliance: ${org.complianceFlags.join(", ") || "none specified"}
-- Notes: ${org.notes || "none"}
+- Notes: ${org.notes || "none"}${fpLearningBlock}
 
 For each domain (${allDomains.join(", ")}), infer likely subdomains, services, and assets based on:
 1. Common subdomain patterns for this sector and client type
@@ -320,8 +329,21 @@ function generateFallbackAssets(org: OrgProfile): DiscoveredAssetRaw[] {
 
 export async function analyzeAssets(
   assets: DiscoveredAssetRaw[],
-  org: OrgProfile
+  org: OrgProfile,
+  fpContext?: { patterns: { title: string; type: string | null; severity: string | null; reason: string; occurrences: number }[]; categorySummary: { type: string; count: number }[] }
 ): Promise<AssetAnalysis[]> {
+  // Build FP learning context for severity calibration
+  let fpCalibrationBlock = '';
+  if (fpContext && fpContext.patterns.length > 0) {
+    const fpLines = fpContext.patterns.slice(0, 30).map(p =>
+      `  - "${p.title}" (type: ${p.type || 'unknown'}, severity: ${p.severity || '?'}, marked FP ${p.occurrences}x) — Analyst reason: ${p.reason}`
+    ).join('\n');
+    const catLines = fpContext.categorySummary.slice(0, 10).map(c =>
+      `  - ${c.type}: ${c.count} false positives`
+    ).join('\n');
+    fpCalibrationBlock = `\n\nANALYST FALSE POSITIVE FEEDBACK:\nSecurity analysts have reviewed previous scan results and marked the following findings as false positives. Use this feedback to CALIBRATE your severity and likelihood scores — reduce confidence for finding patterns that analysts consistently reject, and avoid generating findings that match these known FP patterns unless you have strong new evidence:\n\nKnown FP Patterns:\n${fpLines}\n\nFP Rates by Category:\n${catLines}\n\nIMPORTANT: This feedback represents real analyst expertise. Findings matching these patterns should have LOWER severity and confidence scores unless new evidence contradicts the analyst's assessment.\n`;
+  }
+
   const prompt = `You are a cybersecurity risk analyst performing Business Impact Analysis using the CARVER+SHOCK methodology combined with hybrid risk scoring.
 
 Organization Profile:
@@ -382,7 +404,7 @@ Return JSON with this exact structure:
   ]
 }
 
-Be thorough and realistic. Score based on the specific sector (${org.sector}) and client type (${org.clientType}).`;
+Be thorough and realistic. Score based on the specific sector (${org.sector}) and client type (${org.clientType}).${fpCalibrationBlock}`;
 
   try {
     const response = await invokeLLM({
@@ -778,9 +800,24 @@ export async function runDomainIntelPipeline(
   org: OrgProfile,
   onProgress?: (stage: 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>
 ): Promise<PipelineResult> {
-  // Stage 1: Discover assets
+  // Stage 0: Load FP learning context from analyst feedback
+  let fpContext: { totalFPs: number; patterns: { title: string; type: string | null; severity: string | null; reason: string; occurrences: number }[]; categorySummary: { type: string; count: number; fpRate: string }[] } | undefined;
+  let fpHashes: Set<string> | undefined;
+  try {
+    const db = await import('./db');
+    fpContext = await db.getFPContextForLLM();
+    if (fpContext.totalFPs > 0) {
+      const activeFPs = await db.getActiveFPHashes();
+      fpHashes = new Set(activeFPs.map(fp => fp.hash));
+      console.log(`[DomainIntel] FP Learning: Loaded ${fpContext.totalFPs} false positive patterns across ${fpContext.categorySummary.length} categories`);
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] FP context load failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 1: Discover assets (with FP learning context)
   await onProgress?.('discovering');
-  const rawAssets = await discoverAssets(org);
+  const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined);
 
   // Stage 1.5: Active DNS & Banner Verification
   let verifiedAssets: typeof rawAssets;
@@ -794,9 +831,12 @@ export async function runDomainIntelPipeline(
     verifiedAssets = rawAssets;
   }
 
-  // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk)
+  // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk) — with FP calibration
   await onProgress?.('analyzing');
-  const analyses = await analyzeAssets(verifiedAssets, org);
+  const analyses = await analyzeAssets(verifiedAssets, org, fpContext ? {
+    patterns: fpContext.patterns,
+    categorySummary: fpContext.categorySummary.map(c => ({ type: c.type, count: c.count })),
+  } : undefined);
 
   // Stage 3.5: CISA KEV Enrichment
   await onProgress?.('scoring');
@@ -993,6 +1033,35 @@ export async function runDomainIntelPipeline(
     overallRisk = Math.min(100, overallRisk + Math.round(kevEnrichment.riskBoost / 3));
   }
   const overallBand = overallRisk >= 85 ? "critical" : overallRisk >= 70 ? "high" : overallRisk >= 40 ? "medium" : "low";
+
+  // Stage 6: Post-scan FP auto-flagging — mark findings that match known FP hashes
+  if (fpHashes && fpHashes.size > 0) {
+    const { createHash } = await import('crypto');
+    let autoFlagged = 0;
+    for (const a of analyses) {
+      for (const f of a.postureFindings) {
+        const hash = createHash('sha256')
+          .update(`${f.title}|${a.asset.assetId}|${f.category || ''}`)
+          .digest('hex').slice(0, 64);
+        // Also check title-only hash for cross-asset matching
+        const titleHash = createHash('sha256')
+          .update(`${f.title}||${f.category || ''}`)
+          .digest('hex').slice(0, 64);
+        if (fpHashes.has(hash) || fpHashes.has(titleHash)) {
+          (f as any).previouslyMarkedFP = true;
+          (f as any).fpAutoFlagged = true;
+          f.confidence = Math.max(0, f.confidence - 0.3); // Reduce confidence
+          if (!f.evidenceChain) f.evidenceChain = [];
+          f.evidenceChain.push('⚠ Previously marked as false positive by analyst — confidence reduced');
+          autoFlagged++;
+        }
+      }
+    }
+    if (autoFlagged > 0) {
+      console.log(`[DomainIntel] FP Auto-flag: ${autoFlagged} findings matched known FP patterns`);
+    }
+  }
+
   const totalFindings = analyses.reduce((s, a) => s + a.postureFindings.length, 0);
 
   return {

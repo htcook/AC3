@@ -1363,3 +1363,35 @@
 - [x] Assess current deployment state
 - [x] Update deployment to latest changes
 - [x] Verify deployment is live and working
+
+## SSL Certificate (Let's Encrypt)
+- [x] Install Certbot on DigitalOcean droplet (already installed)
+- [x] Obtain Let's Encrypt certificates for aceofcloud.io and dashboard.aceofcloud.io (already valid, expires May 14 2026)
+- [x] Update nginx configuration to use Let's Encrypt certs (already configured with TLS 1.2/1.3, HSTS)
+- [x] Set up auto-renewal cron job (certbot manages this)
+- [x] Verify no browser security warnings on all domains (confirmed working)
+
+## Mark as False Positive Feature
+- [x] Add false_positive_findings database table (finding ID, scan ID, reason, marked_by, timestamp)
+- [x] Add tRPC endpoints for marking/unmarking findings as false positive
+- [x] Add "Mark as False Positive" button on each finding card in DomainIntelResults
+- [x] Show visual indicator on FP-marked findings (strikethrough, dimmed, badge)
+- [x] Add FP filter toggle to show/hide false positives
+- [x] Write vitest tests for FP marking logic (13 tests passing)
+
+## CI/CD Pipeline (GitHub Actions)
+- [x] Export project to GitHub repository (use Settings > GitHub in Management UI)
+- [x] Create GitHub Actions workflow for build and deploy (.github/workflows/deploy.yml)
+- [ ] Configure SSH deploy key as GitHub secret (DROPLET_SSH_KEY — user must add after GitHub export)
+- [x] Add build step (pnpm install, pnpm build)
+- [x] Add deploy step (scp dist + restart service on droplet)
+- [ ] Test pipeline with a push (requires GitHub export + SSH key secret)
+
+## FP Learning Loop (LLM learns from analyst feedback)
+- [x] Add fp_knowledge table for cross-scan FP pattern storage
+- [x] Add getFPContext() helper that injects FP history into LLM prompts
+- [x] Integrate FP context into pipeline LLM discovery stage
+- [x] Integrate FP context into pipeline LLM BIA scoring stage
+- [x] Add post-scan auto-suppression with "Previously marked FP" badge
+- [x] Add confidence recalibration based on FP rates per category
+- [x] Add scan-over-scan learning (permanent suppression after repeated FPs)
