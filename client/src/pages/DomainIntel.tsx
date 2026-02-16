@@ -364,6 +364,10 @@ export default function DomainIntel() {
     if (!primaryDomain || !customerName || !sector) return;
     setPipelineError(null);
     setPipelineStage(0);
+    // Map frontend scan mode to backend ScanMode type
+    const backendScanMode = scanMode === 'passive_only' ? 'strict_passive' as const
+      : scanMode === 'passive_plus_dns' ? 'standard' as const
+      : 'active' as const;
     startScan.mutate({
       primaryDomain,
       additionalDomains,
@@ -373,6 +377,7 @@ export default function DomainIntel() {
       criticalFunctions,
       complianceFlags,
       notes: notes || undefined,
+      scanMode: backendScanMode,
     });
   };
 
@@ -690,7 +695,7 @@ export default function DomainIntel() {
                     {[
                       { value: "passive_only" as const, label: "Passive Only", desc: "crt.sh, RDAP, RIPEstat, Wayback — no API keys needed", icon: Eye },
                       { value: "passive_plus_dns" as const, label: "Passive + DNS", desc: "Adds DNS resolution & banner grabbing to passive recon", icon: Globe },
-                      { value: "full" as const, label: "Full Scope", desc: "All 9 connectors + LLM + DNS + vuln feeds + campaigns", icon: Radar },
+                      { value: "full" as const, label: "Full Scope", desc: "All 10 connectors (incl. Dehashed breach intel) + LLM + DNS + vuln feeds + campaigns", icon: Radar },
                     ].map(mode => {
                       const Icon = mode.icon;
                       return (

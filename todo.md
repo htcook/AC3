@@ -1426,4 +1426,17 @@
 - [x] Update DomainIntel UI to show Dehashed as data source
 - [x] Write vitest tests for Dehashed connector (21 tests)
 - [x] Run full test suite (497 tests passing across 30 files)
-- [ ] Save checkpoint
+- [x] Save checkpoint (v877b7fd8)
+
+## Full Domain Intel Scan Test (Dehashed Integration)
+- [x] Run a Full scan mode domain intel scan on aceofcloud.com (28 assets, 1593 findings, 7 campaigns)
+- [x] Verify Dehashed results appear in scan output (Methods tab confirmed)
+- [x] Verify breach-derived subdomains feed into discovery stage (0 breach records for aceofcloud.com — clean domain)
+- [x] Fix scanMode wiring: frontend now passes scan mode to backend via tRPC mutation
+
+## Deploy Latest Build to DigitalOcean
+- [x] Build production bundle (4.5MB tarball)
+- [x] Transfer files to DigitalOcean server (137.184.7.224)
+- [x] Add all passive connector API keys to systemd service (Dehashed, Shodan, Censys, SecurityTrails, urlscan)
+- [x] Install dependencies and restart service
+- [x] Verify deployment is accessible (active, HTTP 200)

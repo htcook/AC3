@@ -3371,6 +3371,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         complianceFlags: z.array(z.string()).optional(),
         notes: z.string().optional(),
         engagementId: z.number().optional(),
+        scanMode: z.enum(['strict_passive', 'standard', 'active']).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // Create scan record immediately
@@ -3420,7 +3421,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               async (stage) => {
                 await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
                 console.log(`[DomainIntel] Scan ${scanId} stage: ${stage}`);
-              }
+              },
+              { scanMode: pipelineInput.scanMode || 'standard' }
             );
 
             // Store discovered assets
