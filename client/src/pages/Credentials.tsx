@@ -32,7 +32,7 @@ import AppShell from "@/components/AppShell";
 const CREDENTIALS = {
   adminLogin: {
     username: 'admin',
-    password: '9TR#qaO7Ev3uIjeVP51D',
+    password: 'PVYedK$BUAYzyXaAegdEl2Dz',
   },
   redApiKey: 'cb92aba983b485cbbdf92015a7384e2e8fe7d17854adb8002bb1e36e69c5bb9e',
   blueApiKey: '16498a3a0320fefc58083406f86d2de08f6f3735c537e72e6ae481ee8dd6cb7d',

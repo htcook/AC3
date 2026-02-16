@@ -1667,3 +1667,8 @@
 - [x] Seed 8 campaign archetypes on production
 - [x] Restart dashboard service
 - [x] Verify all endpoints working (campaignArchetypes, threatIntel, darkwebBridge)
+
+## Bug Fix - Login Failed Invalid Credentials
+- [x] Diagnose login credential mismatch on DigitalOcean (old password on Credentials page)
+- [x] Fix the credential/password configuration (updated Credentials.tsx, rewrote login procedure)
+- [x] Verify login works on production (env-password, api-key, and wrong-password all tested)

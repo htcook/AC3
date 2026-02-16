@@ -2167,79 +2167,48 @@ export const appRouter = router({
         password: z.string().min(1),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Try to authenticate against Caldera API
+        const validUsernames = ['red', 'blue', 'admin'];
+        const validPassword = ENV.calderaPassword;
+        const calderaApiKey = ENV.calderaApiKey;
+
+        // Helper to create session and return success
+        const createSession = (username: string, mode: string) => {
+          const role = (username === 'admin' || username === 'red') ? 'admin' : 'user';
+          const token = jwt.sign(
+            { username, role, loginTime: Date.now() },
+            CALDERA_JWT_SECRET,
+            { expiresIn: '24h' }
+          );
+          ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCalderaCookieOptions(ctx.req));
+          console.log(`[Auth] Login successful for ${username} (${mode})`);
+          return { success: true, message: `Login successful`, user: { username, role } };
+        };
+
+        // Check 1: Validate against env password (primary method)
+        if (validPassword && validUsernames.includes(input.username) && input.password === validPassword) {
+          return createSession(input.username, 'env-password');
+        }
+
+        // Check 2: Accept Caldera API key as password
+        if (calderaApiKey && validUsernames.includes(input.username) && input.password === calderaApiKey) {
+          return createSession(input.username, 'api-key');
+        }
+
+        // Check 3: Try authenticating against Caldera API directly
         try {
-          // Caldera uses basic auth or API key - we'll validate credentials
-          // by attempting to access a protected endpoint
           const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
-            headers: {
-              'KEY': input.password, // Caldera uses API key in KEY header
-            },
+            headers: { 'KEY': input.password },
             signal: AbortSignal.timeout(5000),
           });
-
-          // Also check if it's the admin credentials from env
-          const validPassword = ENV.calderaPassword;
-          const isValidAdmin = validPassword && (
-            (input.username === 'red' || input.username === 'blue' || input.username === 'admin') &&
-            input.password === validPassword
-          );
-
-          if (response.ok || isValidAdmin) {
-            // Create JWT token for session
-            const token = jwt.sign(
-              { 
-                username: input.username,
-                role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user',
-                loginTime: Date.now(),
-              },
-              CALDERA_JWT_SECRET,
-              { expiresIn: '24h' }
-            );
-
-            // Set session cookie
-            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCalderaCookieOptions(ctx.req));
-
-            return { 
-              success: true, 
-              message: 'Login successful',
-              user: { username: input.username, role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user' }
-            };
-          } else {
-            return { success: false, message: 'Invalid credentials' };
+          if (response.ok) {
+            return createSession(input.username, 'caldera-api');
           }
         } catch (error) {
-          console.error('Caldera auth error:', error);
-          
-          // Fallback: check credentials from env if Caldera is unreachable
-          const validPassword = ENV.calderaPassword;
-          const isValidAdmin = validPassword && (
-            (input.username === 'red' || input.username === 'blue' || input.username === 'admin') &&
-            input.password === validPassword
-          );
-
-          if (isValidAdmin) {
-            const token = jwt.sign(
-              { 
-                username: input.username,
-                role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user',
-                loginTime: Date.now(),
-              },
-              CALDERA_JWT_SECRET,
-              { expiresIn: '24h' }
-            );
-
-            ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCalderaCookieOptions(ctx.req));
-
-            return { 
-              success: true, 
-              message: 'Login successful (offline mode)',
-              user: { username: input.username, role: input.username === 'admin' || input.username === 'red' ? 'admin' : 'user' }
-            };
-          }
-          
-          return { success: false, message: 'Authentication failed' };
+          console.error('[Auth] Caldera API unreachable:', (error as Error).message);
         }
+
+        console.log(`[Auth] Login failed for ${input.username}`);
+        return { success: false, message: 'Invalid credentials' };
       }),
 
     // Check current session
