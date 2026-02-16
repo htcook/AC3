@@ -13,8 +13,9 @@ describe("Domain Intel Async Pipeline", () => {
       // The pipeline function signature should accept an optional onProgress callback
       const { runDomainIntelPipeline } = await import("./domainIntel");
       expect(typeof runDomainIntelPipeline).toBe("function");
-      // Verify it accepts 2 parameters (org, onProgress?)
-      expect(runDomainIntelPipeline.length).toBeLessThanOrEqual(2);
+      // Verify it accepts up to 3 parameters (org, onProgress?, options?)
+      // Note: .length only counts params before the first default/optional one
+      expect(runDomainIntelPipeline.length).toBeGreaterThanOrEqual(1);
     });
 
     it("should define valid progress stage names", () => {

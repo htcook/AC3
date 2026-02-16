@@ -11,6 +11,8 @@
 
 import { invokeLLM } from "./_core/llm";
 import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
+import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/passive/index";
+import { ENV } from "./_core/env";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -177,6 +179,7 @@ export interface PipelineResult {
   totalAssets: number;
   totalFindings: number;
   kevEnrichment?: KevEnrichment;
+  passiveRecon?: PassiveReconResult;
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────
@@ -220,7 +223,7 @@ function safeParseLLMJson(content: unknown, fallback: any = {}): any {
 
 // ─── Stage 1: LLM-Powered Passive Discovery ─────────────────────────
 
-export async function discoverAssets(org: OrgProfile, fpContext?: { patterns: { title: string; type: string | null; reason: string; occurrences: number }[] }): Promise<DiscoveredAssetRaw[]> {
+export async function discoverAssets(org: OrgProfile, fpContext?: { patterns: { title: string; type: string | null; reason: string; occurrences: number }[] }, passiveContext?: string): Promise<DiscoveredAssetRaw[]> {
   const allDomains = [org.primaryDomain, ...(org.additionalDomains || [])];
   
   // Build FP learning context for the LLM
@@ -242,9 +245,9 @@ Organization:
 - Client Type: ${org.clientType}
 - Critical Functions: ${org.criticalFunctions.join(", ")}
 - Compliance: ${org.complianceFlags.join(", ") || "none specified"}
-- Notes: ${org.notes || "none"}${fpLearningBlock}
+- Notes: ${org.notes || "none"}${fpLearningBlock}${passiveContext || ''}
 
-For each domain (${allDomains.join(", ")}), infer likely subdomains, services, and assets based on:
+For each domain (${allDomains.join(", ")}), ${passiveContext ? 'use the PASSIVE RECONNAISSANCE DATA above as your primary source of truth. Prioritize confirmed subdomains, IPs, and services from passive recon. Then supplement with additional inferences' : 'infer likely subdomains, services, and assets'} based on:
 1. Common subdomain patterns for this sector and client type
 2. Expected technology stack based on sector
 3. Likely email infrastructure (MX, SPF, DMARC patterns)
@@ -798,8 +801,10 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
 export async function runDomainIntelPipeline(
   org: OrgProfile,
-  onProgress?: (stage: 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>
+  onProgress?: (stage: 'passive_recon' | 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>,
+  options?: { scanMode?: ScanMode }
 ): Promise<PipelineResult> {
+  const scanMode: ScanMode = options?.scanMode || 'standard';
   // Stage 0: Load FP learning context from analyst feedback
   let fpContext: { totalFPs: number; patterns: { title: string; type: string | null; severity: string | null; reason: string; occurrences: number }[]; categorySummary: { type: string; count: number; fpRate: string }[] } | undefined;
   let fpHashes: Set<string> | undefined;
@@ -815,9 +820,59 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] FP context load failed (non-fatal): ${err.message}`);
   }
 
-  // Stage 1: Discover assets (with FP learning context)
+  // Stage 0.5: Passive Reconnaissance (run all connectors)
+  await onProgress?.('passive_recon');
+  let passiveRecon: PassiveReconResult | undefined;
+  let passiveContext = '';
+  try {
+    passiveRecon = await runPassiveRecon(org.primaryDomain, {
+      scanMode,
+      apiKeys: {
+        shodan: ENV.SHODAN_API_KEY || undefined,
+        censys_id: ENV.CENSYS_API_ID || undefined,
+        censys_secret: ENV.CENSYS_API_SECRET || undefined,
+        urlscan: ENV.URLSCAN_API_KEY || undefined,
+        securitytrails: ENV.SECURITYTRAILS_API_KEY || undefined,
+      },
+      timeout: 30000,
+      maxConcurrent: 5,
+    });
+    console.log(`[DomainIntel] Passive Recon: ${passiveRecon.summary.totalObservations} observations from ${passiveRecon.connectorResults.filter(r => r.observations.length > 0).length} connectors, ${passiveRecon.summary.totalSignals} risk signals detected`);
+
+    // Build context string for LLM discovery stage
+    if (passiveRecon.allObservations.length > 0) {
+      const subdomains = passiveRecon.allObservations.filter(o => o.assetType === 'subdomain').map(o => o.name);
+      const ips = passiveRecon.allObservations.filter(o => o.assetType === 'ip').map(o => `${o.name} (${o.tags.filter(t => t.startsWith('port:') || t.startsWith('service:')).join(', ')})`);
+      const urls = passiveRecon.allObservations.filter(o => o.assetType === 'url').map(o => o.name).slice(0, 30);
+      const certs = passiveRecon.allObservations.filter(o => o.assetType === 'certificate').map(o => o.name);
+      const nsRecords = passiveRecon.allObservations.filter(o => o.assetType === 'ns').map(o => o.name);
+      const mxRecords = passiveRecon.allObservations.filter(o => o.assetType === 'mx').map(o => o.name);
+
+      const parts: string[] = ['\n--- PASSIVE RECONNAISSANCE DATA (verified from external sources) ---'];
+      if (subdomains.length > 0) parts.push(`Confirmed subdomains (${subdomains.length}): ${subdomains.slice(0, 50).join(', ')}${subdomains.length > 50 ? ` ... and ${subdomains.length - 50} more` : ''}`);
+      if (ips.length > 0) parts.push(`Discovered IPs/services (${ips.length}): ${ips.slice(0, 20).join('; ')}`);
+      if (urls.length > 0) parts.push(`Historical URLs from Wayback (${urls.length}): ${urls.join(', ')}`);
+      if (certs.length > 0) parts.push(`Certificate subjects (${certs.length}): ${certs.slice(0, 20).join(', ')}`);
+      if (nsRecords.length > 0) parts.push(`Nameservers: ${nsRecords.join(', ')}`);
+      if (mxRecords.length > 0) parts.push(`Mail servers: ${mxRecords.join(', ')}`);
+
+      // Add risk signals
+      if (passiveRecon.riskSignals.length > 0) {
+        parts.push(`\nRisk signals detected (${passiveRecon.riskSignals.length}):`);
+        for (const sig of passiveRecon.riskSignals.slice(0, 15)) {
+          parts.push(`  - [${sig.severity.toUpperCase()}] ${sig.rationale.substring(0, 150)}`);
+        }
+      }
+      parts.push('--- END PASSIVE RECON DATA ---\n');
+      passiveContext = parts.join('\n');
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] Passive recon failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 1: Discover assets (with FP learning context + passive recon data)
   await onProgress?.('discovering');
-  const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined);
+  const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined, passiveContext);
 
   // Stage 1.5: Active DNS & Banner Verification
   let verifiedAssets: typeof rawAssets;
@@ -1075,5 +1130,6 @@ export async function runDomainIntelPipeline(
     totalAssets: analyses.length,
     totalFindings,
     kevEnrichment,
+    passiveRecon,
   };
 }

@@ -1395,3 +1395,35 @@
 - [x] Add post-scan auto-suppression with "Previously marked FP" badge
 - [x] Add confidence recalibration based on FP rates per category
 - [x] Add scan-over-scan learning (permanent suppression after repeated FPs)
+
+## Passive ASM Connector Integration
+- [x] Create shared types and base connector interface (server/lib/passive/types.ts)
+- [x] Port crt.sh connector to TypeScript (server/lib/passive/crtsh.ts)
+- [x] Port Shodan connector to TypeScript (server/lib/passive/shodan.ts)
+- [x] Port Wayback CDX connector to TypeScript (server/lib/passive/wayback.ts)
+- [x] Port Censys connector to TypeScript (server/lib/passive/censys.ts)
+- [x] Port urlscan.io connector to TypeScript (server/lib/passive/urlscan.ts)
+- [x] Port RDAP connector to TypeScript (server/lib/passive/rdap.ts)
+- [x] Port RIPEstat connector to TypeScript (server/lib/passive/ripestat.ts)
+- [x] Port SecurityTrails connector to TypeScript (server/lib/passive/securitytrails.ts)
+- [x] Port signal classifier to TypeScript (server/lib/passive/signal-classifier.ts)
+- [x] Port passive policy guard to TypeScript (server/lib/passive/passive-guard.ts)
+- [x] Create passive data collection orchestrator (server/lib/passive/index.ts)
+- [x] Integrate Stage 0.5 into domainIntel.ts pipeline
+- [x] Update DomainIntel.tsx with scan mode toggle (Strict Passive / Standard / Active)
+- [x] Add data source status panel to DomainIntelResults Scan Methods tab
+- [x] Add multi-source corroboration badges to findings
+- [x] Add API key secrets (SHODAN_API_KEY, CENSYS_API_ID, CENSYS_API_SECRET, SECURITYTRAILS_API_KEY, URLSCAN_API_KEY)
+- [x] Write vitest tests for passive connectors (13 unit tests + 8 integration tests)
+- [ ] Deploy latest passive ASM build to DigitalOcean
+
+## Dehashed Breach Intelligence Connector
+- [ ] Research Dehashed API endpoints and authentication
+- [ ] Store DEHASHED_API_KEY secret
+- [ ] Create Dehashed connector (server/lib/passive/dehashed.ts)
+- [ ] Add Dehashed to passive orchestrator and guard
+- [ ] Add breach-related signal classifier rules
+- [ ] Update DomainIntel UI to show Dehashed as data source
+- [ ] Write vitest tests for Dehashed connector
+- [ ] Run full test suite (all tests passing)
+- [ ] Save checkpoint

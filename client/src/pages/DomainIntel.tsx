@@ -48,6 +48,86 @@ const COMPLIANCE_FLAGS = [
 // This describes every method the unified pipeline performs, for user transparency.
 const SCAN_METHODS = [
   {
+    id: "passive_asm_crtsh",
+    name: "Certificate Transparency (crt.sh)",
+    icon: Fingerprint,
+    category: "Passive Data Collection",
+    description: "Queries the crt.sh Certificate Transparency log database to discover subdomains from publicly issued SSL/TLS certificates. This is a free, no-API-key-required source that reveals real subdomains that have been issued certificates.",
+    outputs: "Confirmed subdomains, certificate issuers, validity dates, SAN entries",
+    attribution: "Data from crt.sh (Sectigo). Verify at: https://crt.sh/?q=%25.<domain>",
+    falsePositiveRisk: "Low — certificates are real artifacts, but some subdomains may be expired or decommissioned.",
+  },
+  {
+    id: "passive_asm_shodan",
+    name: "Shodan Passive Port Discovery",
+    icon: Radar,
+    category: "Passive Data Collection",
+    description: "Queries Shodan's database of internet-wide scan results to discover open ports, services, and technologies without sending any traffic to the target. Requires a Shodan API key for full results.",
+    outputs: "Open ports, service banners, OS detection, technology fingerprints, CVE associations",
+    attribution: "Data from Shodan (shodan.io). Verify at: https://www.shodan.io/host/<IP>",
+    falsePositiveRisk: "Low — Shodan data is from real scans, but may be stale (days to weeks old).",
+  },
+  {
+    id: "passive_asm_wayback",
+    name: "Wayback Machine Historical Analysis",
+    icon: Database,
+    category: "Passive Data Collection",
+    description: "Queries the Internet Archive's CDX API to discover historical URLs, forgotten admin panels, old API endpoints, and previously exposed paths. Reveals attack surface that may still be accessible.",
+    outputs: "Historical URLs, MIME types, HTTP status codes, forgotten endpoints, old admin panels",
+    attribution: "Data from Internet Archive (web.archive.org). Verify at: https://web.archive.org/web/*/<URL>",
+    falsePositiveRisk: "Medium — historical URLs may no longer be accessible. Always verify current availability.",
+  },
+  {
+    id: "passive_asm_rdap",
+    name: "RDAP Domain Registration",
+    icon: FileText,
+    category: "Passive Data Collection",
+    description: "Queries the Registration Data Access Protocol to retrieve domain registration details including registrar, nameservers, registration dates, and status codes. Free, no API key required.",
+    outputs: "Registrar info, nameservers, registration/expiry dates, domain status, abuse contacts",
+    attribution: "Data from RDAP (RFC 7483). Verify via: whois <domain> or rdap.org",
+    falsePositiveRisk: "Very low — registration data is authoritative.",
+  },
+  {
+    id: "passive_asm_ripestat",
+    name: "RIPEstat Network Intelligence",
+    icon: Network,
+    category: "Passive Data Collection",
+    description: "Queries RIPEstat's API for IP geolocation, ASN ownership, BGP prefix announcements, and network abuse contacts. Free, no API key required.",
+    outputs: "IP geolocation, ASN info, BGP prefixes, network holder, abuse contacts",
+    attribution: "Data from RIPE NCC (stat.ripe.net). Verify at: https://stat.ripe.net/<IP>",
+    falsePositiveRisk: "Very low — network registration data is authoritative.",
+  },
+  {
+    id: "passive_asm_censys",
+    name: "Censys Host Discovery",
+    icon: Search,
+    category: "Passive Data Collection",
+    description: "Queries Censys's internet-wide scan database for host details, certificates, and services. Requires Censys API credentials for access.",
+    outputs: "Hosts, open ports, TLS certificates, autonomous systems, service protocols",
+    attribution: "Data from Censys (censys.io). Verify at: https://search.censys.io/hosts/<IP>",
+    falsePositiveRisk: "Low — based on real scan data, but may be slightly stale.",
+  },
+  {
+    id: "passive_asm_urlscan",
+    name: "urlscan.io Web Analysis",
+    icon: Globe,
+    category: "Passive Data Collection",
+    description: "Searches urlscan.io's database of previously scanned pages to find technologies, linked domains, and page screenshots without visiting the target directly.",
+    outputs: "Page technologies, linked domains, IP addresses, screenshots, HTTP transactions",
+    attribution: "Data from urlscan.io. Verify at: https://urlscan.io/search/#domain:<domain>",
+    falsePositiveRisk: "Low — based on real page scans by other users.",
+  },
+  {
+    id: "passive_asm_securitytrails",
+    name: "SecurityTrails DNS History",
+    icon: Server,
+    category: "Passive Data Collection",
+    description: "Queries SecurityTrails for current and historical DNS records, subdomain enumeration, and associated domains. Requires SecurityTrails API key.",
+    outputs: "Subdomains, DNS record history, associated domains, hosting changes",
+    attribution: "Data from SecurityTrails (securitytrails.com). Verify at: https://securitytrails.com/domain/<domain>",
+    falsePositiveRisk: "Low — DNS data is factual, but historical records may reference decommissioned infrastructure.",
+  },
+  {
     id: "llm_passive_recon",
     name: "LLM-Powered Passive Reconnaissance",
     icon: Brain,
@@ -186,6 +266,7 @@ export default function DomainIntel() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showMethods, setShowMethods] = useState(false);
   const [showCorroboration, setShowCorroboration] = useState(false);
+  const [scanMode, setScanMode] = useState<"passive_only" | "passive_plus_dns" | "full">("full");
 
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false);
@@ -222,6 +303,7 @@ export default function DomainIntel() {
     if (!scanStatusQuery.data || !isRunning) return;
     const { status } = scanStatusQuery.data;
     const stageMap: Record<string, number> = {
+      passive_recon: 0.5,
       discovering: 1,
       analyzing: 2,
       scoring: 3,
@@ -304,7 +386,8 @@ export default function DomainIntel() {
 
   // Pipeline stages for progress display
   const PIPELINE_STAGES = [
-    { label: "LLM Passive Reconnaissance", stage: 1, method: "llm_passive_recon" },
+    { label: "Passive Recon (crt.sh, Shodan, Wayback, RDAP, RIPEstat" + (scanMode === 'full' ? ', Censys, urlscan, SecurityTrails)' : ')'), stage: 0.5, method: "passive_asm" },
+    { label: "LLM-Powered Discovery (enriched with passive data)", stage: 1, method: "llm_passive_recon" },
     { label: "DNS Verification & Banner Grabbing", stage: 2, method: "dns_verification" },
     { label: "CARVER+SHOCK BIA & Risk Scoring", stage: 3, method: "carver_shock_bia" },
     { label: "Vuln Feed & KEV Enrichment", stage: 3, method: "kev_enrichment" },
@@ -436,7 +519,8 @@ export default function DomainIntel() {
             <div className="w-full max-w-sm space-y-2">
               <Progress value={Math.max(5, (pipelineStage / 5) * 100)} className="h-2" />
               <p className="text-xs text-muted-foreground text-center">
-                {scanStatusQuery.data?.status === "discovering" ? "Stage 1: Passive recon + DNS verification..." :
+                {scanStatusQuery.data?.status === "passive_recon" ? "Stage 0.5: Passive reconnaissance — querying crt.sh, Shodan, Wayback, RDAP..." :
+                 scanStatusQuery.data?.status === "discovering" ? "Stage 1: LLM discovery enriched with passive recon data..." :
                  scanStatusQuery.data?.status === "analyzing" ? "Stage 2: BIA scoring + asset classification..." :
                  scanStatusQuery.data?.status === "scoring" ? "Stage 3: Vuln feeds + KEV enrichment + risk computation..." :
                  scanStatusQuery.data?.status === "recommending" ? "Stage 4: Threat actors + campaign design + summaries..." :
@@ -518,7 +602,7 @@ export default function DomainIntel() {
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Subdomains will be discovered automatically via passive recon and DNS verification.</p>
+                  <p className="text-[11px] text-muted-foreground">Subdomains will be discovered automatically via 8+ passive data sources and DNS verification.</p>
                 </div>
 
                 {/* Additional Domains */}
@@ -583,6 +667,40 @@ export default function DomainIntel() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+
+                {/* Scan Mode Selector */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Radar className="h-4 w-4 text-cyan-400" />
+                    Scan Mode
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {[
+                      { value: "passive_only" as const, label: "Passive Only", desc: "crt.sh, RDAP, RIPEstat, Wayback — no API keys needed", icon: Eye },
+                      { value: "passive_plus_dns" as const, label: "Passive + DNS", desc: "Adds DNS resolution & banner grabbing to passive recon", icon: Globe },
+                      { value: "full" as const, label: "Full Scope", desc: "All 9 connectors + LLM + DNS + vuln feeds + campaigns", icon: Radar },
+                    ].map(mode => {
+                      const Icon = mode.icon;
+                      return (
+                        <div
+                          key={mode.value}
+                          onClick={() => setScanMode(mode.value)}
+                          className={`cursor-pointer rounded-lg border p-3 transition-all ${
+                            scanMode === mode.value
+                              ? "border-purple-500 bg-purple-500/10"
+                              : "border-border hover:border-purple-500/30"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Icon className={`h-4 w-4 ${scanMode === mode.value ? 'text-purple-400' : 'text-muted-foreground'}`} />
+                            <span className={`text-sm font-medium ${scanMode === mode.value ? 'text-purple-400' : ''}`}>{mode.label}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">{mode.desc}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

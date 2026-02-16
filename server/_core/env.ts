@@ -19,4 +19,10 @@ export const ENV = {
     ? process.env.GOPHISH_BASE_URL
     : "https://137.184.7.224:3333",
   gophishApiKey: process.env.GOPHISH_API_KEY ?? "",
+  // Passive ASM connector API keys (optional — free connectors work without keys)
+  SHODAN_API_KEY: process.env.SHODAN_API_KEY ?? "",
+  CENSYS_API_ID: process.env.CENSYS_API_ID ?? "",
+  CENSYS_API_SECRET: process.env.CENSYS_API_SECRET ?? "",
+  URLSCAN_API_KEY: process.env.URLSCAN_API_KEY ?? "",
+  SECURITYTRAILS_API_KEY: process.env.SECURITYTRAILS_API_KEY ?? "",
 };

@@ -1,0 +1,1 @@
+ALTER TABLE `domain_intel_scans` MODIFY COLUMN `status` enum('pending','passive_recon','discovering','analyzing','scoring','recommending','completed','failed') NOT NULL DEFAULT 'pending';
