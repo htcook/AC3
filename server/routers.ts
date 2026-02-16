@@ -10,6 +10,7 @@ import jwt from "jsonwebtoken";
 import type { InsertIocFeed } from "../drizzle/schema";
 import { threatIntelRouter } from "./routers/threat-intel";
 import { darkwebBridgeRouter } from "./routers/darkweb-bridge";
+import { campaignArchetypeRouter } from "./routers/campaign-archetypes";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -95,6 +96,7 @@ export const appRouter = router({
   system: systemRouter,
   threatIntel: threatIntelRouter,
   darkwebBridge: darkwebBridgeRouter,
+  campaignArchetypes: campaignArchetypeRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

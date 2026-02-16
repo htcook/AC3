@@ -71,6 +71,7 @@ const THREAT_INTEL_ITEMS = [
   { href: "/threat-actors", icon: Shield, label: "THREAT ACTORS" },
   { href: "/ransomware-groups", icon: Skull, label: "RANSOMWARE" },
   { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
+  { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
   { href: "/apt-library", icon: Shield, label: "APT SCENARIOS" },
   { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
   { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },

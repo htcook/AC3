@@ -1637,3 +1637,24 @@
 - [ ] Create darkweb credential leak, forum chatter, and breach alert schemas
 - [ ] Wire DarkwebIntel page to use real data from the bridge
 - [ ] Add sync button for darkweb sources
+
+## Wire DarkwebIntel Page to Live Bridge
+- [x] Replace mock/placeholder data with trpc.darkwebBridge.* queries
+- [x] Wire ransomwareVictimStats, activityRatings, escalationAlerts, adaptiveKeywords
+- [x] Add bridge health indicator to DarkwebIntel page
+- [x] Add sync button that calls darkwebBridge.syncAll
+- [x] Handle loading/error/empty states for all bridge queries
+
+## Corroboration Enrichment Panel on Domain Scans
+- [x] Add corroborateAssets call after domain scan completes
+- [x] Create CorroborationPanel component showing matched IOCs with confidence tiers
+- [x] Display corroboration results in domain scan detail view (new Corroboration tab)
+- [x] Color-code tiers: confirmed (red), probable (orange), potential (amber)
+
+## Campaign Archetype Templates
+- [x] Create campaign archetype schema in drizzle/schema.ts
+- [x] Build campaign archetype data model and seed templates (8 built-in archetypes)
+- [x] Create CampaignArchetypes page with template browser
+- [x] Auto-populate templates with actor-specific techniques from bridge data
+- [x] Add route and sidebar navigation for Campaign Archetypes
+- [x] Write vitest tests for campaign archetype procedures (11/11 pass)

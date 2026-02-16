@@ -886,3 +886,71 @@ export const threatIntelUpdates = mysqlTable("threat_intel_updates", {
 });
 export type ThreatIntelUpdate = typeof threatIntelUpdates.$inferSelect;
 export type InsertThreatIntelUpdate = typeof threatIntelUpdates.$inferInsert;
+
+
+/**
+ * Campaign archetype templates — reusable attack patterns
+ * (SaaS OAuth compromise, token abuse, cloud lateral movement, etc.)
+ * that auto-populate with actor-specific MITRE techniques.
+ */
+export const campaignArchetypes = mysqlTable("campaign_archetypes", {
+  id: int("id").autoincrement().primaryKey(),
+  slug: varchar("slug", { length: 128 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: mysqlEnum("archetypeCategory", [
+    "saas_oauth_compromise",
+    "token_abuse",
+    "cloud_lateral_movement",
+    "supply_chain",
+    "credential_harvesting",
+    "ransomware_deployment",
+    "data_exfiltration",
+    "persistence_implant",
+    "custom",
+  ]).notNull(),
+  description: text("description"),
+  // Kill chain phases this archetype covers
+  killChainPhases: json("killChainPhases"), // string[] — e.g. ["initial-access", "execution", "lateral-movement"]
+  // Default MITRE techniques for this archetype
+  defaultTechniques: json("defaultTechniques"), // { id: string, name: string, tactic: string }[]
+  // Caldera ability IDs that implement the archetype steps
+  defaultAbilities: json("defaultAbilities"), // { abilityId: string, name: string, step: number, description: string }[]
+  // Target environment descriptors
+  targetPlatforms: json("targetPlatforms"), // string[] — e.g. ["azure", "aws", "gcp", "m365"]
+  targetServices: json("targetServices"), // string[] — e.g. ["Exchange Online", "SharePoint", "S3"]
+  // Prerequisites and assumptions
+  prerequisites: json("prerequisites"), // string[] — e.g. ["Valid OAuth token", "Compromised service account"]
+  // Detection guidance
+  detectionGuidance: text("detectionGuidance"),
+  // Difficulty / complexity rating
+  complexity: mysqlEnum("archetypeComplexity", ["low", "medium", "high", "expert"]).default("medium"),
+  // Metadata
+  isBuiltIn: boolean("isBuiltIn").default(true),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CampaignArchetype = typeof campaignArchetypes.$inferSelect;
+export type InsertCampaignArchetype = typeof campaignArchetypes.$inferInsert;
+
+/**
+ * Links campaign archetypes to specific threat actors.
+ * When an actor is selected, the archetype auto-populates
+ * with the actor's known techniques that overlap the archetype.
+ */
+export const archetypeActorMappings = mysqlTable("archetype_actor_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  archetypeId: int("archetypeId").notNull(),
+  actorId: varchar("actorId", { length: 128 }).notNull(),
+  // Actor-specific technique overrides for this archetype
+  actorTechniques: json("actorTechniques"), // { id, name, tactic, actorScore }[]
+  // Actor-specific ability overrides
+  actorAbilities: json("actorAbilities"), // { abilityId, name, step }[]
+  // Confidence that this actor uses this archetype pattern
+  confidence: int("confidence").default(50), // 0-100
+  // Evidence / source
+  evidence: text("evidence"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ArchetypeActorMapping = typeof archetypeActorMappings.$inferSelect;
+export type InsertArchetypeActorMapping = typeof archetypeActorMappings.$inferInsert;

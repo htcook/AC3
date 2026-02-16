@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import CorroborationPanel from "@/components/CorroborationPanel";
 
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
@@ -336,17 +337,19 @@ export default function DomainIntelResults() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
+            <TabsTrigger value="corroboration">Corroboration</TabsTrigger>
             <TabsTrigger value="findings">Findings</TabsTrigger>
             <TabsTrigger value="methods">Methods</TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className="grid grid-cols-8 w-full max-w-5xl">
+          <TabsList className="grid grid-cols-9 w-full max-w-6xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
             <TabsTrigger value="adversaries">Adversaries</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="threat-model">Threat Model</TabsTrigger>
+            <TabsTrigger value="corroboration">Corroboration</TabsTrigger>
             <TabsTrigger value="findings">Findings</TabsTrigger>
             <TabsTrigger value="methods">Methods</TabsTrigger>
           </TabsList>
@@ -1508,6 +1511,11 @@ export default function DomainIntelResults() {
             );
           })()}
         </TabsContent>
+        {/* Corroboration Tab */}
+        <TabsContent value="corroboration" className="space-y-4">
+          <CorroborationPanel assets={assets} scanId={scanId} autoRun={false} />
+        </TabsContent>
+
       </Tabs>
 
       {/* ─── False Positive Reason Dialog ─── */}
