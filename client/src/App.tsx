@@ -158,6 +158,9 @@ function Router() {
       <Route path="/compliance">
         <ProtectedRoute component={ComplianceFrameworks} />
       </Route>
+      <Route path="/infrastructure">
+        <Redirect to="/infra-reference" />
+      </Route>
       <Route path="/infra-reference">
         <ProtectedRoute component={InfraReference} />
       </Route>

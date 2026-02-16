@@ -1782,3 +1782,15 @@
 - [x] Add compliance framework gap analysis (SOC2, HIPAA, PCI-DSS, NIST, CMMC, FedRAMP, etc.)
 - [x] Pull compliance frameworks from domain intel scans and engagement pipelines
 - [x] Write tests for new features (66 tests passing)
+
+## Infrastructure Route Fix & Droplet Provisioning
+- [x] Fix sidebar INFRASTRUCTURE link — added /infrastructure -> /infra-reference redirect
+- [x] Provision bastion droplet (ID: 552206449, 165.232.149.233, s-1vcpu-1gb, sfo3)
+- [x] Provision app server droplet (ID: 552206480, 64.23.160.27, s-2vcpu-2gb, sfo3)
+- [x] Provision log sink droplet (ID: 552206505, 146.190.112.63, s-1vcpu-1gb, sfo3)
+- [x] Create and attach 50GB storage volume (logsink-storage) to log sink
+- [x] Configure DigitalOcean Cloud Firewalls for all 4 droplets
+  - aceofcloud-bastion-fw: SSH from anywhere, outbound all
+  - aceofcloud-app-fw: SSH from bastion only, HTTPS/Caldera/GoPhish public
+  - aceofcloud-mail-fw: SSH from bastion, SMTP from VPC, existing services
+  - aceofcloud-logsink-fw: SSH from bastion, syslog 6514 from VPC
