@@ -38,10 +38,29 @@ export async function getDb() {
   _dbLastCheck = now;
 
   try {
-    _db = drizzle(process.env.DATABASE_URL);
+    // Strip ssl query param from URL (mysql2 can't parse it from URL string)
+    // and pass ssl config as a connection option instead
+    let dbUrl = process.env.DATABASE_URL!;
+    const needsSsl = dbUrl.includes('tidbcloud.com') || dbUrl.includes('ssl=');
+    // Remove ssl param from URL to avoid mysql2 parsing errors
+    dbUrl = dbUrl.replace(/[?&]ssl=[^&]*/g, '').replace(/\?$/, '');
+    
+    if (needsSsl) {
+      // For TiDB Cloud, pass ssl as connection option via mysql2 pool
+      const mysql2 = await import('mysql2');
+      const pool = mysql2.createPool({
+        uri: dbUrl,
+        ssl: { rejectUnauthorized: false },
+        waitForConnections: true,
+        connectionLimit: 10,
+      });
+      _db = drizzle({ client: pool });
+    } else {
+      _db = drizzle(dbUrl);
+    }
     // Verify the connection actually works
     const { sql } = await import('drizzle-orm');
-    await _db.execute(sql`SELECT 1`);
+    await _db!.execute(sql`SELECT 1`);
     console.log('[Database] Connected successfully');
     return _db;
   } catch (error) {

@@ -1658,3 +1658,12 @@
 - [x] Auto-populate templates with actor-specific techniques from bridge data
 - [x] Add route and sidebar navigation for Campaign Archetypes
 - [x] Write vitest tests for campaign archetype procedures (11/11 pass)
+
+## Deploy to DigitalOcean (Feb 16, 2026)
+- [x] Build production bundle (pnpm build - vite + esbuild)
+- [x] Transfer files to DigitalOcean server (137.184.7.224)
+- [x] Add DATABASE_URL to systemd service (TiDB Cloud with SSL fix)
+- [x] Add SPICY_TIP_BASE_URL and SPICY_TIP_API_KEY env vars
+- [x] Seed 8 campaign archetypes on production
+- [x] Restart dashboard service
+- [x] Verify all endpoints working (campaignArchetypes, threatIntel, darkwebBridge)
