@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -104,6 +104,7 @@ export default function DomainIntelResults() {
   const scanId = Number(params.id);
   const [expandedAsset, setExpandedAsset] = useState<number | null>(null);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [heatmapExpandedAsset, setHeatmapExpandedAsset] = useState<number | null>(null);
   const [fpDialogOpen, setFpDialogOpen] = useState(false);
   const [fpTarget, setFpTarget] = useState<{ finding: any; assetId: number; findingIndex: number } | null>(null);
   const [fpReasonTemplate, setFpReasonTemplate] = useState<string>("");
@@ -145,7 +146,41 @@ export default function DomainIntelResults() {
     { value: "custom", label: "Custom reason (type below)" },
   ];
 
-  const { data, isLoading, error } = trpc.domainIntel.getScan.useQuery({ id: scanId }, { enabled: !!scanId });
+  const { data, isLoading, error, refetch } = trpc.domainIntel.getScan.useQuery({ id: scanId }, { enabled: !!scanId });
+
+  // Engagement mutation for scan_complete scans
+  const startEngagement = trpc.domainIntel.startEngagement.useMutation({
+    onSuccess: () => {
+      toast.success('Engagement started — threat actor profiling and campaign design in progress...');
+      setEngagementRunning(true);
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to start engagement: ${err.message}`);
+    },
+  });
+  const [engagementRunning, setEngagementRunning] = useState(false);
+
+  // Poll for engagement completion
+  const engagementPoll = trpc.domainIntel.getScanStatus.useQuery(
+    { scanId },
+    {
+      enabled: engagementRunning,
+      refetchInterval: 3000,
+    }
+  );
+
+  useEffect(() => {
+    if (!engagementPoll.data || !engagementRunning) return;
+    if (engagementPoll.data.status === 'completed') {
+      setEngagementRunning(false);
+      toast.success('Engagement complete — campaigns and threat actors are now available.');
+      refetch();
+    } else if (engagementPoll.data.status === 'failed') {
+      setEngagementRunning(false);
+      toast.error('Engagement failed. You can retry from the results page.');
+      refetch();
+    }
+  }, [engagementPoll.data, engagementRunning]);
 
   if (isLoading) {
     return (
@@ -213,6 +248,52 @@ export default function DomainIntelResults() {
         </div>
       </div>
 
+      {/* Scan Complete — Start Engagement Banner */}
+      {scan.status === 'scan_complete' && !engagementRunning && (
+        <Card className="border-cyan-500/30 bg-cyan-500/5">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-cyan-500/10">
+                <Search className="h-6 w-6 text-cyan-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Reconnaissance Scan Complete</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Review the discovered assets, risk scores, and posture findings below. When ready, start a full engagement to add threat actor profiling and campaign design.
+                </p>
+              </div>
+            </div>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 shrink-0"
+              onClick={() => startEngagement.mutate({ scanId })}
+              disabled={startEngagement.isPending}
+            >
+              {startEngagement.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-2" />
+              )}
+              Start Full Engagement
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Engagement Running Banner */}
+      {engagementRunning && (
+        <Card className="border-purple-500/30 bg-purple-500/5">
+          <CardContent className="p-5 flex items-center gap-4">
+            <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+            <div>
+              <p className="font-semibold text-sm">Engagement in Progress</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Running threat actor profiling and campaign design. This typically takes 30-60 seconds...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
@@ -250,16 +331,26 @@ export default function DomainIntelResults() {
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid grid-cols-8 w-full max-w-5xl">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="assets">Assets</TabsTrigger>
-          <TabsTrigger value="vulns">Vulns</TabsTrigger>
-          <TabsTrigger value="adversaries">Adversaries</TabsTrigger>
-          <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-          <TabsTrigger value="threat-model">Threat Model</TabsTrigger>
-          <TabsTrigger value="findings">Findings</TabsTrigger>
-          <TabsTrigger value="methods">Methods</TabsTrigger>
-        </TabsList>
+        {scan.status === 'scan_complete' ? (
+          <TabsList className="grid grid-cols-5 w-full max-w-3xl">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="assets">Assets</TabsTrigger>
+            <TabsTrigger value="vulns">Vulns</TabsTrigger>
+            <TabsTrigger value="findings">Findings</TabsTrigger>
+            <TabsTrigger value="methods">Methods</TabsTrigger>
+          </TabsList>
+        ) : (
+          <TabsList className="grid grid-cols-8 w-full max-w-5xl">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="assets">Assets</TabsTrigger>
+            <TabsTrigger value="vulns">Vulns</TabsTrigger>
+            <TabsTrigger value="adversaries">Adversaries</TabsTrigger>
+            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+            <TabsTrigger value="threat-model">Threat Model</TabsTrigger>
+            <TabsTrigger value="findings">Findings</TabsTrigger>
+            <TabsTrigger value="methods">Methods</TabsTrigger>
+          </TabsList>
+        )}
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
@@ -287,16 +378,18 @@ export default function DomainIntelResults() {
                 <BarChart3 className="h-4 w-4 text-purple-400" />
                 Asset Risk Heatmap
               </CardTitle>
+              <CardDescription className="text-xs">Click any asset to see the supporting details behind its risk score</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                 {sortedAssets.map((asset: any) => {
                   const band = asset.riskBand || "low";
+                  const isHeatmapExpanded = heatmapExpandedAsset === asset.id;
                   return (
                     <div
                       key={asset.id}
-                      className={`p-2 rounded-lg border cursor-pointer transition-all hover:scale-105 ${RISK_COLORS[band]}`}
-                      onClick={() => setExpandedAsset(expandedAsset === asset.id ? null : asset.id)}
+                      className={`p-2 rounded-lg border cursor-pointer transition-all hover:scale-105 ${RISK_COLORS[band]} ${isHeatmapExpanded ? 'ring-2 ring-purple-500 scale-105' : ''}`}
+                      onClick={() => setHeatmapExpandedAsset(isHeatmapExpanded ? null : asset.id)}
                     >
                       <p className="font-mono text-xs truncate">{asset.hostname}</p>
                       <div className="flex items-center justify-between mt-1">
@@ -307,6 +400,207 @@ export default function DomainIntelResults() {
                   );
                 })}
               </div>
+
+              {/* Expanded Asset Detail Panel */}
+              {heatmapExpandedAsset && (() => {
+                const _asset = sortedAssets.find((a: any) => a.id === heatmapExpandedAsset);
+                if (!_asset) return null;
+                const asset = _asset as any;
+                const band = asset.riskBand || "low";
+                const carver = (asset.carverScores || {}) as Record<string, number>;
+                const shock = (asset.shockScores || {}) as Record<string, number>;
+                const findings = (asset.postureFindings || []) as any[];
+                const vectors = (asset.testVectors || []) as any[];
+                const technologies = (asset.technologies || []) as string[];
+                const confirmedFindings = findings.filter((f: any) => f.corroborationTier === 'confirmed');
+                const probableFindings = findings.filter((f: any) => f.corroborationTier === 'probable');
+                const potentialFindings = findings.filter((f: any) => f.corroborationTier === 'potential');
+                const kevFindings = findings.filter((f: any) => f.kevListed);
+
+                return (
+                  <div className="border border-purple-500/30 rounded-lg bg-card/80 p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${RISK_COLORS[band]}`}>
+                          <span className="text-lg font-bold">{asset.hybridRiskScore}</span>
+                        </div>
+                        <div>
+                          <p className="font-mono font-semibold">{asset.hostname}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="outline" className="text-[10px]">{asset.assetType}</Badge>
+                            <Badge className={`text-[10px] ${RISK_COLORS[band]}`}>{band}</Badge>
+                            {asset.discoveryMethod && (
+                              <Badge variant="outline" className={`text-[10px] ${
+                                asset.discoveryMethod === 'inferred' ? 'text-purple-400 border-purple-500/40' :
+                                asset.discoveryMethod === 'dns_verified' ? 'text-emerald-400 border-emerald-500/40' :
+                                'text-blue-400 border-blue-500/40'
+                              }`}>
+                                {asset.discoveryMethod === 'inferred' ? 'Inferred' : asset.discoveryMethod === 'dns_verified' ? 'DNS Verified' : asset.discoveryMethod}
+                              </Badge>
+                            )}
+                            {asset.suggestedTier && <Badge variant="outline" className="text-[10px]">{asset.suggestedTier.replace('_', ' ')}</Badge>}
+                          </div>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setHeatmapExpandedAsset(null)}>
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Score Breakdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* CARVER Scores */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          <Target className="h-3 w-3" /> CARVER Scores
+                        </p>
+                        <div className="space-y-1">
+                          {Object.entries(carver).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-20 capitalize">{k}</span>
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${(v as number) >= 7 ? 'bg-red-500' : (v as number) >= 4 ? 'bg-yellow-500' : 'bg-emerald-500'}`} style={{ width: `${(v as number) * 10}%` }} />
+                              </div>
+                              <span className="text-[10px] font-mono w-4 text-right">{v as number}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* SHOCK Scores */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          <Zap className="h-3 w-3" /> SHOCK Scores
+                        </p>
+                        <div className="space-y-1">
+                          {Object.entries(shock).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-24 capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</span>
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${(v as number) >= 7 ? 'bg-red-500' : (v as number) >= 4 ? 'bg-yellow-500' : 'bg-emerald-500'}`} style={{ width: `${(v as number) * 10}%` }} />
+                              </div>
+                              <span className="text-[10px] font-mono w-4 text-right">{v as number}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Risk Composition */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          <Activity className="h-3 w-3" /> Risk Composition
+                        </p>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-muted-foreground">Mission Impact</span>
+                            <span className="font-bold">{((asset.missionImpactScore || 0) / 10).toFixed(1)}/10</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-muted-foreground">CVSS Estimate</span>
+                            <span className="font-bold">{((asset.cvssEstimate || 0) / 10).toFixed(1)}/10</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-muted-foreground">Confidence</span>
+                            <span className="font-bold">{asset.confidence || 0}%</span>
+                          </div>
+                          <div className="flex justify-between text-[11px] pt-1 border-t border-border">
+                            <span className="text-muted-foreground">Hybrid Risk Score</span>
+                            <span className={`font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}/100</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Technologies */}
+                    {technologies.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                          <Server className="h-3 w-3" /> Detected Technologies ({technologies.length})
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {technologies.map((t: string, i: number) => (
+                            <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Finding Summary */}
+                    {findings.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Posture Findings ({findings.length})
+                        </p>
+                        <div className="flex gap-2 mb-2 flex-wrap">
+                          {kevFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{kevFindings.length} KEV-listed</Badge>}
+                          {confirmedFindings.length > 0 && <Badge className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40">{confirmedFindings.length} Confirmed</Badge>}
+                          {probableFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-400 border-yellow-500/40">{probableFindings.length} Probable</Badge>}
+                          {potentialFindings.length > 0 && <Badge className="text-[10px] bg-purple-500/20 text-purple-400 border-purple-500/40">{potentialFindings.length} Potential</Badge>}
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                          {[...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed), ...probableFindings.slice(0, 5)].slice(0, 8).map((f: any, i: number) => {
+                            const tierColor = f.corroborationTier === 'confirmed' ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/40'
+                              : f.corroborationTier === 'probable' ? 'text-yellow-400 bg-yellow-500/20 border-yellow-500/40'
+                              : 'text-purple-400 bg-purple-500/20 border-purple-500/40';
+                            return (
+                              <div key={i} className={`p-2 rounded border text-xs ${f.kevListed ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/20 border-border'}`}>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{f.corroborationTier === 'confirmed' ? 'CONFIRMED' : f.corroborationTier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}</Badge>
+                                  {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                  <span className="font-medium">{f.title}</span>
+                                  <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
+                                </div>
+                                {f.cveIds?.length > 0 && (
+                                  <div className="flex gap-1 mt-0.5 flex-wrap">
+                                    {f.cveIds.slice(0, 3).map((cve: string) => (
+                                      <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                        className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {findings.length > 8 && (
+                            <p className="text-[10px] text-muted-foreground text-center pt-1">+ {findings.length - 8} more findings — see Assets tab for full details</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Test Vectors Preview */}
+                    {vectors.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                          <Crosshair className="h-3 w-3" /> Test Vectors ({vectors.length})
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {vectors.slice(0, 5).map((v: any, i: number) => (
+                            <Badge key={i} variant="outline" className="text-[10px]">
+                              {v.vectorType}
+                              {v.suggestedEmulation?.technique && <span className="ml-1 text-purple-400">{v.suggestedEmulation.technique}</span>}
+                            </Badge>
+                          ))}
+                          {vectors.length > 5 && <Badge variant="outline" className="text-[10px]">+{vectors.length - 5} more</Badge>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* View Full Details Button */}
+                    <div className="flex justify-end pt-1">
+                      <Button variant="outline" size="sm" className="text-xs" onClick={() => {
+                        setExpandedAsset(asset.id);
+                        const tabsTrigger = document.querySelector('[data-value="assets"]') as HTMLElement;
+                        if (tabsTrigger) tabsTrigger.click();
+                      }}>
+                        <Eye className="h-3 w-3 mr-1" />
+                        View Full Asset Details
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 

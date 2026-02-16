@@ -106,10 +106,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!dashScanStatus.data || !isScanning) return;
     const { status } = dashScanStatus.data;
-    if (status === 'completed') {
+    if (status === 'completed' || status === 'scan_complete') {
       setIsScanning(false);
       setScanProgress([]);
-      toast.success('Domain Intel scan completed! Redirecting to results...');
+      toast.success(status === 'scan_complete' ? 'Domain scan complete! Review results before starting engagement...' : 'Domain Intel scan completed! Redirecting to results...');
       navigate(`/domain-intel/${dashScanId}`);
     } else if (status === 'failed') {
       setIsScanning(false);
@@ -179,7 +179,7 @@ export default function Dashboard() {
   const recentCompletedScans = useMemo(() => {
     if (!recentScans) return [];
     return recentScans
-      .filter((s: any) => s.status === 'completed')
+      .filter((s: any) => s.status === 'completed' || s.status === 'scan_complete')
       .slice(0, 5);
   }, [recentScans]);
 

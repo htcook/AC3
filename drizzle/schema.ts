@@ -444,7 +444,7 @@ export const domainIntelScans = mysqlTable("domain_intel_scans", {
   orgProfile: json("orgProfile"),
   // Pipeline status
   status: mysqlEnum("status", [
-    "pending", "passive_recon", "discovering", "analyzing", "scoring", "recommending", "completed", "failed"
+    "pending", "passive_recon", "discovering", "analyzing", "scoring", "recommending", "scan_complete", "completed", "failed"
   ]).default("pending").notNull(),
   // Aggregated results
   totalAssets: int("totalAssets").default(0),

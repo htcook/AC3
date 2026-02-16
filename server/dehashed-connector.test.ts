@@ -66,36 +66,36 @@ describe("Dehashed Connector", () => {
         entries: [
           {
             id: "1",
-            email: "user@mail.example.com",
-            ip_address: "1.2.3.4",
-            password: "leaked123",
+            email: ["user@mail.example.com"],
+            ip_address: ["1.2.3.4"],
+            password: ["leaked123"],
             database_name: "BreachDB_2023",
             domain: "example.com",
           },
           {
             id: "2",
-            email: "admin@internal.example.com",
-            ip_address: "5.6.7.8",
-            hashed_password: "abc123hash",
+            email: ["admin@internal.example.com"],
+            ip_address: ["5.6.7.8"],
+            hashed_password: ["abc123hash"],
             database_name: "BreachDB_2023",
             domain: "example.com",
           },
           {
             id: "3",
-            email: "dev@dev.example.com",
-            ip_address: "1.2.3.4", // duplicate IP
+            email: ["dev@dev.example.com"],
+            ip_address: ["1.2.3.4"], // duplicate IP
             database_name: "AnotherBreach",
             domain: "example.com",
           },
           {
             id: "4",
-            email: "user2@mail.example.com", // duplicate subdomain
+            email: ["user2@mail.example.com"], // duplicate subdomain
             database_name: "AnotherBreach",
             domain: "example.com",
           },
           {
             id: "5",
-            email: "test@example.com", // root domain, not a subdomain
+            email: ["test@example.com"], // root domain, not a subdomain
             database_name: "AnotherBreach",
             domain: "example.com",
           },
@@ -146,13 +146,13 @@ describe("Dehashed Connector", () => {
         total: 2,
         entries: [
           {
-            email: "user@sub.example.com",
-            password: "plaintext_password",
+            email: ["user@sub.example.com"],
+            password: ["plaintext_password"],
             database_name: "LeakedDB",
           },
           {
-            email: "user2@sub.example.com",
-            hashed_password: "5f4dcc3b5aa765d61d8327deb882cf99",
+            email: ["user2@sub.example.com"],
+            hashed_password: ["5f4dcc3b5aa765d61d8327deb882cf99"],
             database_name: "LeakedDB",
           },
         ],
@@ -182,8 +182,8 @@ describe("Dehashed Connector", () => {
         total: 1,
         entries: [
           {
-            email: "user@sub.example.com",
-            ip_address: "10.0.0.1",
+            email: ["user@sub.example.com"],
+            ip_address: ["10.0.0.1"],
             database_name: "TestDB",
           },
         ],
@@ -299,7 +299,7 @@ describe("Dehashed Connector", () => {
     const [url, options] = mockFetch.mock.calls[0];
     expect(url).toBe("https://api.dehashed.com/v2/search");
     expect(options.method).toBe("POST");
-    expect(options.headers["DeHashed-Api-Key"]).toBe("my-api-key");
+    expect(options.headers["Dehashed-Api-Key"]).toBe("my-api-key");
     expect(options.headers["Content-Type"]).toBe("application/json");
 
     const body = JSON.parse(options.body);
@@ -319,10 +319,10 @@ describe("Dehashed Connector", () => {
         balance: 90,
         total: 4,
         entries: [
-          { email: "a@sub1.example.com", ip_address: "1.1.1.1", database_name: "DB1" },
-          { email: "b@sub1.example.com", ip_address: "1.1.1.1", database_name: "DB1" },
-          { email: "c@sub1.example.com", ip_address: "2.2.2.2", database_name: "DB2" },
-          { email: "d@sub2.example.com", ip_address: "2.2.2.2", database_name: "DB2" },
+          { email: ["a@sub1.example.com"], ip_address: ["1.1.1.1"], database_name: "DB1" },
+          { email: ["b@sub1.example.com"], ip_address: ["1.1.1.1"], database_name: "DB1" },
+          { email: ["c@sub1.example.com"], ip_address: ["2.2.2.2"], database_name: "DB2" },
+          { email: ["d@sub2.example.com"], ip_address: ["2.2.2.2"], database_name: "DB2" },
         ],
       }),
     });
@@ -531,6 +531,6 @@ describe("Dehashed Orchestrator Integration", () => {
       (call: any[]) => call[0] === "https://api.dehashed.com/v2/search"
     );
     expect(dehashedCall).toBeDefined();
-    expect(dehashedCall![1].headers["DeHashed-Api-Key"]).toBe("my-dehashed-key");
+    expect(dehashedCall![1].headers["Dehashed-Api-Key"]).toBe("my-dehashed-key");
   });
 });

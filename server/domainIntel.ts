@@ -726,6 +726,74 @@ Return JSON: { "campaigns": [...] }`;
   }
 }
 
+// ─── Scan-Only Summary (no campaigns) ───────────────────────────────
+
+export async function generateScanOnlySummary(
+  analyses: AssetAnalysis[],
+  org: OrgProfile
+): Promise<{ executiveSummary: string; threatModelSummary: string }> {
+  const criticalAssets = analyses.filter(a => a.riskBand === 'critical' || a.riskBand === 'high');
+  const allFindings = analyses.flatMap(a => a.postureFindings);
+  const kevFindings = allFindings.filter(f => (f as any).kevListed);
+
+  const prompt = `Generate a scan summary for a domain intelligence reconnaissance:
+
+Organization: ${org.customerName} (${org.sector}, ${org.clientType})
+Total Assets Discovered: ${analyses.length}
+Critical/High Risk Assets: ${criticalAssets.length}
+Total Posture Findings: ${allFindings.length}
+KEV-listed Findings: ${kevFindings.length}
+
+Top Risk Assets:
+${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100 [${a.riskBand}]`).join('\n')}
+
+Key Findings:
+${allFindings.slice(0, 10).map(f => `- ${f.title} (severity: ${f.severity}/10)`).join('\n')}
+
+Provide:
+1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas, and a recommendation on whether to proceed with a full engagement (campaign design + threat actor profiling). Written for Ace C3 by AceofCloud.
+2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Note that campaign design and threat actor matching have not yet been performed — this is a pre-engagement scan.
+
+Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
+
+  try {
+    const response = await invokeLLM({
+      messages: [
+        { role: 'system', content: 'You are a cybersecurity report writer. Return only valid JSON.' },
+        { role: 'user', content: prompt },
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'scan_summaries',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              executiveSummary: { type: 'string' },
+              threatModelSummary: { type: 'string' },
+            },
+            required: ['executiveSummary', 'threatModelSummary'],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    return safeParseLLMJson(content, {
+      executiveSummary: `Reconnaissance scan of ${org.primaryDomain} identified ${analyses.length} assets with ${criticalAssets.length} classified as critical or high risk. Review the findings below to decide whether to proceed with a full engagement.`,
+      threatModelSummary: `Attack surface scan for ${org.customerName} reveals ${analyses.length} discoverable assets across the ${org.primaryDomain} domain. Campaign design and threat actor profiling are available upon engagement start.`,
+    });
+  } catch (err) {
+    console.error('[DomainIntel] Scan-only summary generation failed:', err);
+    return {
+      executiveSummary: `Reconnaissance scan of ${org.primaryDomain} identified ${analyses.length} assets with ${criticalAssets.length} classified as critical or high risk and ${allFindings.length} posture findings. Review the results to decide whether to proceed with a full engagement.`,
+      threatModelSummary: `Attack surface scan for ${org.customerName} reveals ${analyses.length} discoverable assets across the ${org.primaryDomain} domain infrastructure. Campaign design and threat actor profiling have not yet been performed.`,
+    };
+  }
+}
+
 // ─── Stage 5: Executive Summary & Threat Model ───────────────────────
 
 export async function generateSummaries(
@@ -802,7 +870,7 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 export async function runDomainIntelPipeline(
   org: OrgProfile,
   onProgress?: (stage: 'passive_recon' | 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>,
-  options?: { scanMode?: ScanMode }
+  options?: { scanMode?: ScanMode; skipEngagement?: boolean }
 ): Promise<PipelineResult> {
   const scanMode: ScanMode = options?.scanMode || 'standard';
   // Stage 0: Load FP learning context from analyst feedback
@@ -1074,11 +1142,19 @@ export async function runDomainIntelPipeline(
   }
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
-  await onProgress?.('recommending');
-  const campaigns = await generateCampaignRecommendations(analyses, org, kevEnrichment);
+  // If skipEngagement is true, skip campaign design and generate scan-only summaries
+  let campaigns: CampaignRecommendation[] = [];
+  let summaries: { executiveSummary: string; threatModelSummary: string };
 
-  // Stage 5: Generate summaries
-  const summaries = await generateSummaries(analyses, campaigns, org);
+  if (options?.skipEngagement) {
+    // Scan-only mode: generate a scan summary without campaign design
+    summaries = await generateScanOnlySummary(analyses, org);
+    console.log(`[DomainIntel] Scan-only mode: skipped campaign design and threat modeling`);
+  } else {
+    await onProgress?.('recommending');
+    campaigns = await generateCampaignRecommendations(analyses, org, kevEnrichment);
+    summaries = await generateSummaries(analyses, campaigns, org);
+  }
 
   // Compute overall risk (with KEV boost)
   const riskScores = analyses.map(a => a.hybridRiskScore);

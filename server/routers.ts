@@ -3372,6 +3372,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         notes: z.string().optional(),
         engagementId: z.number().optional(),
         scanMode: z.enum(['strict_passive', 'standard', 'active']).optional(),
+        scanOnly: z.boolean().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // Create scan record immediately
@@ -3422,7 +3423,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
                 console.log(`[DomainIntel] Scan ${scanId} stage: ${stage}`);
               },
-              { scanMode: pipelineInput.scanMode || 'standard' }
+              { scanMode: pipelineInput.scanMode || 'standard', skipEngagement: !!pipelineInput.scanOnly }
             );
 
             // Store discovered assets
@@ -3459,51 +3460,171 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               await db.bulkCreateDiscoveredAssets(assetRecords);
             }
 
-            // Run threat actor matching against scan results
+            // If scan-only mode, skip threat actor matching and campaign design
+            if (pipelineInput.scanOnly) {
+              await db.updateDomainIntelScan(scanId, {
+                status: 'scan_complete',
+                totalAssets: result.totalAssets,
+                totalFindings: result.totalFindings,
+                overallRiskScore: result.overallRiskScore,
+                overallRiskBand: result.overallRiskBand,
+                executiveSummary: result.executiveSummary,
+                threatModelSummary: result.threatModelSummary,
+                campaignRecommendations: [],
+                pipelineOutput: result,
+              });
+              console.log(`[DomainIntel] Scan-only completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            } else {
+              // Full engagement: run threat actor matching + campaign design
+              let threatActorMatches = null;
+              try {
+                const { matchThreatActors } = await import('./lib/threat-actor-matcher');
+                const allTech: string[] = [];
+                for (const a of result.assets) {
+                  if (a.asset.technologies) allTech.push(...a.asset.technologies);
+                }
+                threatActorMatches = await matchThreatActors({
+                  sector: pipelineInput.sector,
+                  clientType: pipelineInput.clientType,
+                  discoveredTechnologies: allTech,
+                  discoveredAssets: result.assets.map(a => ({
+                    hostname: a.asset.hostname,
+                    assetType: a.asset.assetType,
+                    technologies: a.asset.technologies,
+                  })),
+                  riskScore: result.overallRiskScore,
+                  criticalFunctions: pipelineInput.criticalFunctions,
+                });
+              } catch (matchErr: any) {
+                console.error('[DomainIntel] Threat actor matching failed:', matchErr.message);
+              }
+
+              // Update scan with results (including threat actor matches)
+              const pipelineOutputWithMatches = {
+                ...result,
+                threatActorMatches,
+              };
+              await db.updateDomainIntelScan(scanId, {
+                status: 'completed',
+                totalAssets: result.totalAssets,
+                totalFindings: result.totalFindings,
+                overallRiskScore: result.overallRiskScore,
+                overallRiskBand: result.overallRiskBand,
+                executiveSummary: result.executiveSummary,
+                threatModelSummary: result.threatModelSummary,
+                campaignRecommendations: result.campaignRecommendations,
+                pipelineOutput: pipelineOutputWithMatches,
+              });
+
+              console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            }
+          } catch (err: any) {
+            console.error(`[DomainIntel] Pipeline failed for scan ${scanId}:`, err.message);
+            await db.updateDomainIntelScan(scanId, { status: 'failed' }).catch(() => {});
+          }
+        });
+
+        return { scanId };
+      }),
+
+    // Start engagement on an existing scan-complete scan (runs threat actor matching + campaign design)
+    startEngagement: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        if (scan.status !== 'scan_complete') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `Scan must be in scan_complete status to start engagement. Current status: ${scan.status}` });
+        }
+
+        // Update status to indicate engagement is running
+        await db.updateDomainIntelScan(input.scanId, { status: 'recommending' });
+
+        const scanId = input.scanId;
+        setImmediate(async () => {
+          try {
+            console.log(`[DomainIntel] Starting engagement for scan ${scanId}`);
+            const pipeline = scan.pipelineOutput as any;
+            const orgProfile = scan.orgProfile as any;
+            const assets = await db.getDiscoveredAssetsByScan(scanId);
+
+            // Reconstruct analyses from stored assets for campaign generation
+            const { generateCampaignRecommendations, generateSummaries } = await import('./domainIntel');
+            const analyses = assets.map((a: any) => ({
+              asset: {
+                assetId: a.assetId || a.hostname,
+                hostname: a.hostname,
+                url: a.url,
+                assetType: a.assetType || 'unknown',
+                dnsRecords: a.dnsRecords || [],
+                dnsStatus: a.dnsStatus,
+                headers: a.headers,
+                technologies: a.technologies || [],
+                assetClasses: a.assetClasses || [],
+                tags: a.tags || [],
+              },
+              carverScores: a.carverScores || {},
+              shockScores: a.shockScores || {},
+              missionImpactScore: (a.missionImpactScore || 0) / 10,
+              suggestedTier: a.suggestedTier || 'tier_3',
+              hybridRiskScore: a.hybridRiskScore || 0,
+              riskBand: a.riskBand || 'low',
+              cvssEstimate: (a.cvssEstimate || 0) / 10,
+              contextIndicators: a.contextIndicators || [],
+              postureFindings: a.postureFindings || [],
+              testVectors: a.testVectors || [],
+              confidence: a.confidence || 0,
+            }));
+
+            // Run campaign design
+            const kevEnrichment = pipeline?.kevEnrichment;
+            const campaigns = await generateCampaignRecommendations(analyses, orgProfile, kevEnrichment);
+
+            // Run threat actor matching
             let threatActorMatches = null;
             try {
               const { matchThreatActors } = await import('./lib/threat-actor-matcher');
               const allTech: string[] = [];
-              for (const a of result.assets) {
+              for (const a of analyses) {
                 if (a.asset.technologies) allTech.push(...a.asset.technologies);
               }
               threatActorMatches = await matchThreatActors({
-                sector: pipelineInput.sector,
-                clientType: pipelineInput.clientType,
+                sector: orgProfile.sector,
+                clientType: orgProfile.clientType,
                 discoveredTechnologies: allTech,
-                discoveredAssets: result.assets.map(a => ({
+                discoveredAssets: analyses.map(a => ({
                   hostname: a.asset.hostname,
                   assetType: a.asset.assetType,
                   technologies: a.asset.technologies,
                 })),
-                riskScore: result.overallRiskScore,
-                criticalFunctions: pipelineInput.criticalFunctions,
+                riskScore: scan.overallRiskScore || 0,
+                criticalFunctions: orgProfile.criticalFunctions || [],
               });
             } catch (matchErr: any) {
               console.error('[DomainIntel] Threat actor matching failed:', matchErr.message);
             }
 
-            // Update scan with results (including threat actor matches)
+            // Generate full summaries (with campaigns)
+            const summaries = await generateSummaries(analyses, campaigns, orgProfile);
+
+            // Update scan with engagement results
             const pipelineOutputWithMatches = {
-              ...result,
+              ...pipeline,
               threatActorMatches,
             };
             await db.updateDomainIntelScan(scanId, {
               status: 'completed',
-              totalAssets: result.totalAssets,
-              totalFindings: result.totalFindings,
-              overallRiskScore: result.overallRiskScore,
-              overallRiskBand: result.overallRiskBand,
-              executiveSummary: result.executiveSummary,
-              threatModelSummary: result.threatModelSummary,
-              campaignRecommendations: result.campaignRecommendations,
+              executiveSummary: summaries.executiveSummary,
+              threatModelSummary: summaries.threatModelSummary,
+              campaignRecommendations: campaigns,
               pipelineOutput: pipelineOutputWithMatches,
             });
 
-            console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            console.log(`[DomainIntel] Engagement completed for scan ${scanId}: ${campaigns.length} campaigns designed`);
           } catch (err: any) {
-            console.error(`[DomainIntel] Pipeline failed for scan ${scanId}:`, err.message);
-            await db.updateDomainIntelScan(scanId, { status: 'failed' }).catch(() => {});
+            console.error(`[DomainIntel] Engagement failed for scan ${scanId}:`, err.message);
+            // Revert to scan_complete so user can retry
+            await db.updateDomainIntelScan(scanId, { status: 'scan_complete' }).catch(() => {});
           }
         });
 

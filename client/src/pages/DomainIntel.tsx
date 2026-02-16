@@ -277,6 +277,7 @@ export default function DomainIntel() {
   const [showMethods, setShowMethods] = useState(false);
   const [showCorroboration, setShowCorroboration] = useState(false);
   const [scanMode, setScanMode] = useState<"passive_only" | "passive_plus_dns" | "full">("full");
+  const [scanOnly, setScanOnly] = useState(true); // Default to scan-only so user reviews before engagement
 
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false);
@@ -284,12 +285,27 @@ export default function DomainIntel() {
   const [scanId, setScanId] = useState<number | null>(null);
   const [pipelineStage, setPipelineStage] = useState(0);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [isScanComplete, setIsScanComplete] = useState(false);
+
+  const startEngagement = trpc.domainIntel.startEngagement.useMutation({
+    onSuccess: () => {
+      setIsRunning(true);
+      setIsComplete(false);
+      setIsScanComplete(false);
+      setPipelineStage(4); // Engagement starts at campaign stage
+      setPipelineError(null);
+    },
+    onError: (err) => {
+      setPipelineError(err.message);
+    },
+  });
 
   const startScan = trpc.domainIntel.startScan.useMutation({
     onSuccess: (data) => {
       setScanId(data.scanId);
       setIsRunning(true);
       setIsComplete(false);
+      setIsScanComplete(false);
       setPipelineStage(0);
       setPipelineError(null);
     },
@@ -318,15 +334,21 @@ export default function DomainIntel() {
       analyzing: 2,
       scoring: 3,
       recommending: 4,
+      scan_complete: 3.5,
       completed: 5,
       failed: -1,
     };
     const stageNum = stageMap[status] ?? 0;
     if (stageNum > 0) setPipelineStage(stageNum);
 
-    if (status === "completed") {
+    if (status === "scan_complete") {
+      setIsRunning(false);
+      setIsScanComplete(true);
+      setIsComplete(false);
+    } else if (status === "completed") {
       setIsRunning(false);
       setIsComplete(true);
+      setIsScanComplete(false);
     } else if (status === "failed") {
       setPipelineError("Pipeline failed. Please try again.");
       setIsRunning(false);
@@ -378,6 +400,7 @@ export default function DomainIntel() {
       complianceFlags,
       notes: notes || undefined,
       scanMode: backendScanMode,
+      scanOnly,
     });
   };
 
@@ -394,21 +417,27 @@ export default function DomainIntel() {
     setNotes("");
     setIsRunning(false);
     setIsComplete(false);
+    setIsScanComplete(false);
     setScanId(null);
     setPipelineStage(0);
     setPipelineError(null);
   };
 
   // Pipeline stages for progress display
-  const PIPELINE_STAGES = [
+  const SCAN_STAGES = [
     { label: "Passive Recon (crt.sh, Shodan, Wayback, RDAP, RIPEstat" + (scanMode === 'full' ? ', Censys, urlscan, SecurityTrails, Dehashed)' : ')'), stage: 0.5, method: "passive_asm" },
     { label: "LLM-Powered Discovery (enriched with passive data)", stage: 1, method: "llm_passive_recon" },
     { label: "DNS Verification & Banner Grabbing", stage: 2, method: "dns_verification" },
     { label: "CARVER+SHOCK BIA & Risk Scoring", stage: 3, method: "carver_shock_bia" },
     { label: "Vuln Feed & KEV Enrichment", stage: 3, method: "kev_enrichment" },
+  ];
+
+  const ENGAGEMENT_STAGES = [
     { label: "Threat Actor Matching", stage: 4, method: "threat_actor_matching" },
     { label: "Campaign Design & Summaries", stage: 4, method: "campaign_design" },
   ];
+
+  const PIPELINE_STAGES = scanOnly ? SCAN_STAGES : [...SCAN_STAGES, ...ENGAGEMENT_STAGES];
 
   return (
     <div className="space-y-6">
@@ -560,7 +589,51 @@ export default function DomainIntel() {
         </Card>
       )}
 
-      {/* ─── Complete State ─────────────────────────────────────────── */}
+      {/* ─── Scan Complete (Pre-Engagement) State ────────────────── */}
+      {isScanComplete && scanId && (
+        <Card className="border-cyan-500/30">
+          <CardContent className="p-10 flex flex-col items-center justify-center text-center space-y-6">
+            <div className="bg-cyan-500/10 rounded-full p-5">
+              <Search className="h-10 w-10 text-cyan-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold">Domain Scan Complete</h2>
+              <p className="text-muted-foreground">
+                Reconnaissance scan completed for <span className="font-mono text-cyan-400">{primaryDomain}</span>.
+                Review the discovered assets, risk scores, and posture findings below.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                When you're ready, start a full engagement to add threat actor profiling and campaign design.
+              </p>
+            </div>
+            <div className="flex gap-3 flex-wrap justify-center">
+              <Button onClick={() => navigate(`/domain-intel/${scanId}`)}>
+                <Target className="h-4 w-4 mr-2" />
+                Review Scan Results
+              </Button>
+              <Button
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={() => {
+                  startEngagement.mutate({ scanId });
+                }}
+                disabled={startEngagement.isPending}
+              >
+                {startEngagement.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
+                Start Full Engagement
+              </Button>
+              <Button variant="outline" onClick={resetForm}>
+                Start New Scan
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Full Engagement Complete State ─────────────────────────── */}
       {isComplete && scanId && (
         <Card className="border-emerald-500/30">
           <CardContent className="p-10 flex flex-col items-center justify-center text-center space-y-6">
@@ -568,7 +641,7 @@ export default function DomainIntel() {
               <CheckCircle2 className="h-10 w-10 text-emerald-400" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-xl font-bold">Full-Scope Scan Complete</h2>
+              <h2 className="text-xl font-bold">Full Engagement Complete</h2>
               <p className="text-muted-foreground">
                 All {SCAN_METHODS.length} methods completed for <span className="font-mono text-emerald-400">{primaryDomain}</span>.
                 Every finding includes source attribution and verification instructions.
@@ -719,6 +792,45 @@ export default function DomainIntel() {
                   </div>
                 </div>
 
+                {/* Engagement Mode Toggle */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Target className="h-4 w-4 text-orange-400" />
+                    Engagement Mode
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div
+                      onClick={() => setScanOnly(true)}
+                      className={`cursor-pointer rounded-lg border p-3 transition-all ${
+                        scanOnly
+                          ? "border-cyan-500 bg-cyan-500/10"
+                          : "border-border hover:border-cyan-500/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Search className={`h-4 w-4 ${scanOnly ? 'text-cyan-400' : 'text-muted-foreground'}`} />
+                        <span className={`text-sm font-medium ${scanOnly ? 'text-cyan-400' : ''}`}>Scan Only</span>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-cyan-500/40 text-cyan-400">Recommended</Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Discover assets, score risks, and identify vulnerabilities. Review results before deciding to start a full engagement with campaign design.</p>
+                    </div>
+                    <div
+                      onClick={() => setScanOnly(false)}
+                      className={`cursor-pointer rounded-lg border p-3 transition-all ${
+                        !scanOnly
+                          ? "border-purple-500 bg-purple-500/10"
+                          : "border-border hover:border-purple-500/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className={`h-4 w-4 ${!scanOnly ? 'text-purple-400' : 'text-muted-foreground'}`} />
+                        <span className={`text-sm font-medium ${!scanOnly ? 'text-purple-400' : ''}`}>Full Engagement</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Run the complete pipeline including threat actor profiling and campaign design in one pass. No review step before engagement.</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Advanced Options Toggle */}
                 <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
                   <CollapsibleTrigger asChild>
@@ -800,7 +912,7 @@ export default function DomainIntel() {
                   ) : (
                     <Zap className="h-5 w-5 mr-2" />
                   )}
-                  Launch Full-Scope Domain Intelligence Scan
+                  {scanOnly ? 'Launch Domain Reconnaissance Scan' : 'Launch Full Engagement Scan'}
                 </Button>
 
                 {!canLaunch && (
@@ -904,9 +1016,13 @@ export default function DomainIntel() {
                       </div>
                       <Badge variant={
                         scan.status === "completed" ? "default" :
+                        scan.status === "scan_complete" ? "default" :
                         scan.status === "failed" ? "destructive" : "secondary"
-                      } className={scan.status === "completed" ? "bg-emerald-500/20 text-emerald-400" : ""}>
-                        {scan.status}
+                      } className={
+                        scan.status === "completed" ? "bg-emerald-500/20 text-emerald-400" :
+                        scan.status === "scan_complete" ? "bg-cyan-500/20 text-cyan-400" : ""
+                      }>
+                        {scan.status === "scan_complete" ? "scan complete" : scan.status}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">

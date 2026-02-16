@@ -1440,3 +1440,31 @@
 - [x] Add all passive connector API keys to systemd service (Dehashed, Shodan, Censys, SecurityTrails, urlscan)
 - [x] Install dependencies and restart service
 - [x] Verify deployment is accessible (active, HTTP 200)
+
+## Dehashed Breach Intelligence Demo Scan
+- [x] Identify a suitable breached domain for testing (lastpass.com — 275 breach records)
+- [x] Run Full Scope domain intel scan on lastpass.com (25 assets, 1532 findings, 5 campaigns, risk score 97)
+- [x] Verify Dehashed returns breach records with subdomains, emails, and database attribution (42 observations: 2 subdomains, 2 IPs, 38 breach records)
+- [x] Review Methods tab for Dehashed output details (Results Found badge, full attribution and verification instructions)
+
+## Clickable Asset Risk Heatmap
+- [x] Make each asset in the heatmap clickable/expandable (accordion-style toggle)
+- [x] Show CARVER/SHOCK score breakdown on click (6 CARVER + 5 SHOCK dimensions with progress bars)
+- [x] Show vulnerability findings associated with the asset (top 3 by severity with corroboration tier)
+- [x] Show technology detections and source attribution (badges)
+- [x] Show test vectors for the asset
+- [x] Show confidence score and risk band
+
+## Pre-Engagement Domain Scan Flow
+- [x] Restructure domain intel into two phases: Scan → Engage
+- [x] Phase 1 (Scan): Run passive recon, LLM discovery, DNS verification, vuln matching, risk scoring → status: scan_complete
+- [x] Phase 2 (Engage): Run threat actor profiling and campaign design (only after user confirms) → status: completed
+- [x] Add "Start Engagement" CTA button on scan results page (cyan banner with progress polling)
+- [x] Show scan results with asset heatmap, findings, and risk scores before engagement (5 tabs: Overview, Assets, Vulns, Findings, Methods)
+- [x] Allow user to review scan data and decide whether to proceed to engagement (scan_complete status with engagement toggle)
+- [x] Add Scan Only / Full Engagement toggle to scan form (defaults to Scan Only)
+- [x] Conditionally hide Adversaries, Campaigns, Threat Model tabs for scan_complete scans
+- [x] Update Dashboard to handle scan_complete status in recent scans and polling
+- [x] Update past scans list with cyan badge for scan_complete status
+- [x] Write 25 vitest tests for scan engagement flow and clickable heatmap (522 total tests passing)
+- [x] Deploy to DigitalOcean (active, HTTP 200)
