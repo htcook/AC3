@@ -1600,7 +1600,18 @@
 - [x] Verify all pages in browser (API verified via curl, browser had connection issues)
 
 ## PDF Review & Platform Enhancement Recommendations
-- [ ] Review AceC3 Design Guide PDF for enhancement opportunities
-- [ ] Review AceofCloud Strategic Recommendations PDF
-- [ ] Compile recommendations report comparing PDFs to current platform capabilities
-- [ ] Deliver recommendations to user
+- [x] Review AceC3 Design Guide PDF for enhancement opportunities
+- [x] Review AceofCloud Strategic Recommendations PDF
+- [x] Compile recommendations report comparing PDFs to current platform capabilities
+- [x] Deliver recommendations to user
+
+## Bug Fixes - Threat Intel Pages
+- [x] Fix error on Threat Actor Catalog page (confidence was int, not string - .toUpperCase() crashed)
+- [x] Test all links and clickable fields across threat intel pages (15/16 API endpoints pass)
+- [x] Test Ransomware Groups page links
+- [x] Test Darkweb Intel page links
+- [x] Test Actor Detail page links
+- [x] Test sidebar navigation links for threat intel section
+
+## Bug Fixes - Domain Scan
+- [x] Fix "Database not available" error when running domain scans (added getDbRequired with 3-retry logic)

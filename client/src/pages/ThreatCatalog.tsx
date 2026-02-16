@@ -317,9 +317,9 @@ export default function ThreatCatalog() {
                             {actor.threatLevel.toUpperCase()}
                           </span>
                         )}
-                        {actor.confidence && (
-                          <span className={`text-[10px] tracking-wider ${CONFIDENCE_COLORS[actor.confidence] || "text-muted-foreground"}`}>
-                            {actor.confidence.toUpperCase()} CONF
+                        {actor.confidence != null && (
+                          <span className={`text-[10px] tracking-wider ${actor.confidence >= 80 ? "text-green-400" : actor.confidence >= 50 ? "text-yellow-400" : "text-red-400"}`}>
+                            {actor.confidence}% CONF
                           </span>
                         )}
                       </div>
@@ -359,10 +359,10 @@ export default function ThreatCatalog() {
                             {sectors.length} sectors
                           </span>
                         )}
-                        {actor.lastSeen && (
+                        {actor.lastActive && (
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {actor.lastSeen}
+                            {actor.lastActive}
                           </span>
                         )}
                         {actor.dataSource && (

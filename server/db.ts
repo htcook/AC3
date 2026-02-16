@@ -11,10 +11,20 @@ import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _dbLastCheck = 0;
-const DB_RETRY_INTERVAL = 5000; // retry every 5s if connection failed
+const DB_RETRY_INTERVAL = 2000; // retry every 2s if connection failed
 
 export async function getDb() {
-  if (_db) return _db;
+  if (_db) {
+    // Verify cached connection is still alive
+    try {
+      const { sql } = await import('drizzle-orm');
+      await _db.execute(sql`SELECT 1`);
+      return _db;
+    } catch {
+      console.warn('[Database] Cached connection lost, reconnecting...');
+      _db = null;
+    }
+  }
 
   const now = Date.now();
   if (!process.env.DATABASE_URL) {
@@ -39,6 +49,24 @@ export async function getDb() {
     _db = null;
     return null;
   }
+}
+
+/**
+ * Get database connection with automatic retry (up to 3 attempts).
+ * Use this for write operations that must not silently fail.
+ */
+export async function getDbRequired(): Promise<ReturnType<typeof drizzle>> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    // Reset cooldown so each attempt actually tries
+    _dbLastCheck = 0;
+    const conn = await getDb();
+    if (conn) return conn;
+    if (attempt < 3) {
+      console.warn(`[Database] Retry ${attempt}/3 — waiting 1s...`);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  throw new Error('Database not available after 3 retries — please try again in a few seconds');
 }
 
 /**
@@ -127,8 +155,7 @@ export async function updateUserRole(userId: number, role: "user" | "admin" | "v
 
 // Server config operations
 export async function createServerConfig(config: InsertServerConfig) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(serverConfigs).values(config);
   return result[0].insertId;
 }
@@ -154,8 +181,7 @@ export async function updateServerStatus(id: number, status: "online" | "offline
 
 // Credential operations
 export async function createCredential(credential: InsertServerCredential) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.insert(serverCredentials).values(credential);
 }
 
@@ -223,8 +249,7 @@ import {
 
 // Campaign operations
 export async function createCampaign(campaign: InsertCampaign) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(campaigns).values(campaign);
   return result[0].insertId;
 }
@@ -259,8 +284,7 @@ export async function deleteCampaign(id: number) {
 
 // Campaign agent operations
 export async function addCampaignAgent(agent: InsertCampaignAgent) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(campaignAgents).values(agent);
   return result[0].insertId;
 }
@@ -285,15 +309,13 @@ export async function deleteCampaignAgent(id: number) {
 
 // Campaign ability operations
 export async function addCampaignAbility(ability: InsertCampaignAbility) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(campaignAbilities).values(ability);
   return result[0].insertId;
 }
 
 export async function addCampaignAbilities(abilities: InsertCampaignAbility[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   if (abilities.length === 0) return;
   await db.insert(campaignAbilities).values(abilities);
 }
@@ -334,13 +356,7 @@ export async function reorderCampaignAbilities(campaignId: number, abilityIds: n
 import { engagements, InsertEngagement, Engagement } from "../drizzle/schema";
 
 export async function createEngagement(engagement: InsertEngagement) {
-  let db = await getDb();
-  if (!db) {
-    // Retry once after resetting connection
-    resetDbConnection();
-    db = await getDb();
-  }
-  if (!db) throw new Error("Database not available — please try again in a few seconds");
+  const db = await getDbRequired();
   try {
     const result = await db.insert(engagements).values(engagement);
     return result[0].insertId;
@@ -348,8 +364,7 @@ export async function createEngagement(engagement: InsertEngagement) {
     // On connection-level errors, reset and retry once
     if (err?.code === 'ECONNRESET' || err?.code === 'PROTOCOL_CONNECTION_LOST' || err?.message?.includes('ECONNREFUSED')) {
       resetDbConnection();
-      const retryDb = await getDb();
-      if (!retryDb) throw new Error("Database connection lost — please try again");
+      const retryDb = await getDbRequired();
       const result = await retryDb.insert(engagements).values(engagement);
       return result[0].insertId;
     }
@@ -386,8 +401,7 @@ export async function deleteEngagement(id: number) {
 import { campaignEngagements, InsertCampaignEngagement, CampaignEngagement } from "../drizzle/schema";
 
 export async function linkCampaignToEngagement(link: InsertCampaignEngagement) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(campaignEngagements).values(link);
   return result[0].insertId;
 }
@@ -425,8 +439,7 @@ export async function unlinkCampaignFromEngagement(id: number) {
 import { domainRecon, InsertDomainRecon, typosquatDomains, InsertTyposquatDomain, osintFindings, InsertOsintFinding } from "../drizzle/schema";
 
 export async function createDomainRecon(recon: InsertDomainRecon) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(domainRecon).values(recon);
   return Number(result[0].insertId);
 }
@@ -455,15 +468,13 @@ export async function getDomainReconById(id: number) {
 // ==================== TYPOSQUAT DOMAINS ====================
 
 export async function createTyposquatDomain(domain: InsertTyposquatDomain) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(typosquatDomains).values(domain);
   return Number(result[0].insertId);
 }
 
 export async function bulkCreateTyposquatDomains(domains: InsertTyposquatDomain[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   if (domains.length === 0) return;
   await db.insert(typosquatDomains).values(domains);
 }
@@ -493,15 +504,13 @@ export async function getTyposquatsByEngagement(engagementId: number) {
 // ==================== OSINT FINDINGS ====================
 
 export async function createOsintFinding(finding: InsertOsintFinding) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(osintFindings).values(finding);
   return Number(result[0].insertId);
 }
 
 export async function bulkCreateOsintFindings(findings: InsertOsintFinding[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   if (findings.length === 0) return;
   await db.insert(osintFindings).values(findings);
 }
@@ -526,8 +535,7 @@ export async function getOsintFindingsByRecon(reconId: number) {
 import { osintMonitors, InsertOsintMonitor, osintMonitorChanges, InsertOsintMonitorChange, engagementReports, InsertEngagementReport } from "../drizzle/schema";
 
 export async function createOsintMonitor(monitor: InsertOsintMonitor) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(osintMonitors).values(monitor);
   return Number(result[0].insertId);
 }
@@ -552,29 +560,25 @@ export async function getEnabledMonitors() {
 }
 
 export async function updateOsintMonitor(id: number, updates: Partial<InsertOsintMonitor>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(osintMonitors).set(updates).where(eq(osintMonitors.id, id));
 }
 
 export async function deleteOsintMonitor(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.delete(osintMonitors).where(eq(osintMonitors.id, id));
 }
 
 // ==================== OSINT Monitor Changes ====================
 
 export async function createMonitorChange(change: InsertOsintMonitorChange) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(osintMonitorChanges).values(change);
   return Number(result[0].insertId);
 }
 
 export async function bulkCreateMonitorChanges(changes: InsertOsintMonitorChange[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   if (changes.length === 0) return;
   await db.insert(osintMonitorChanges).values(changes);
 }
@@ -596,8 +600,7 @@ export async function getUnacknowledgedChanges() {
 }
 
 export async function acknowledgeChange(id: number, userId: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(osintMonitorChanges).set({
     acknowledged: true,
     acknowledgedBy: userId,
@@ -608,8 +611,7 @@ export async function acknowledgeChange(id: number, userId: number) {
 // ==================== Engagement Reports ====================
 
 export async function createEngagementReport(report: InsertEngagementReport) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(engagementReports).values(report);
   return Number(result[0].insertId);
 }
@@ -630,8 +632,7 @@ export async function getReportById(id: number) {
 }
 
 export async function updateReport(id: number, updates: Partial<InsertEngagementReport>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(engagementReports).set(updates).where(eq(engagementReports.id, id));
 }
 
@@ -645,8 +646,7 @@ export async function getAllReports() {
 import { domainIntelScans, InsertDomainIntelScan, discoveredAssets, InsertDiscoveredAsset } from "../drizzle/schema";
 
 export async function createDomainIntelScan(scan: InsertDomainIntelScan) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(domainIntelScans).values(scan);
   return Number(result[0].insertId);
 }
@@ -665,21 +665,18 @@ export async function getDomainIntelScanById(id: number) {
 }
 
 export async function updateDomainIntelScan(id: number, updates: Partial<InsertDomainIntelScan>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(domainIntelScans).set(updates).where(eq(domainIntelScans.id, id));
 }
 
 export async function createDiscoveredAsset(asset: InsertDiscoveredAsset) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(discoveredAssets).values(asset);
   return Number(result[0].insertId);
 }
 
 export async function bulkCreateDiscoveredAssets(assets: InsertDiscoveredAsset[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   if (assets.length === 0) return;
   await db.insert(discoveredAssets).values(assets);
 }
@@ -691,8 +688,7 @@ export async function getDiscoveredAssetsByScan(scanId: number) {
 }
 
 export async function excludeDiscoveredAsset(assetId: number, reason: string) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(discoveredAssets).set({
     excluded: true,
     exclusionReason: reason,
@@ -701,8 +697,7 @@ export async function excludeDiscoveredAsset(assetId: number, reason: string) {
 }
 
 export async function includeDiscoveredAsset(assetId: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(discoveredAssets).set({
     excluded: false,
     exclusionReason: null,
@@ -711,8 +706,7 @@ export async function includeDiscoveredAsset(assetId: number) {
 }
 
 export async function bulkExcludeDiscoveredAssets(assetIds: number[], reason: string) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   for (const id of assetIds) {
     await db.update(discoveredAssets).set({
       excluded: true,
@@ -723,8 +717,7 @@ export async function bulkExcludeDiscoveredAssets(assetIds: number[], reason: st
 }
 
 export async function bulkIncludeDiscoveredAssets(assetIds: number[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   for (const id of assetIds) {
     await db.update(discoveredAssets).set({
       excluded: false,
@@ -809,8 +802,7 @@ export async function getThreatActorById(id: number) {
 }
 
 export async function updateThreatActor(actorId: string, updates: Partial<InsertThreatActor>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(threatActors).set(updates).where(eq(threatActors.actorId, actorId));
 }
 
@@ -843,8 +835,7 @@ export async function listThreatActorAbilities(actorId: string) {
 }
 
 export async function createThreatActorAbility(ability: InsertThreatActorAbility) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(threatActorAbilities).values(ability);
   return Number(result[0].insertId);
 }
@@ -895,30 +886,26 @@ export async function listThreatActorIocs(actorId: string) {
 }
 
 export async function createThreatActorIoc(ioc: InsertThreatActorIoc) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(threatActorIocs).values(ioc);
   return Number(result[0].insertId);
 }
 
 export async function bulkCreateThreatActorIocs(iocs: InsertThreatActorIoc[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   if (iocs.length === 0) return;
   await db.insert(threatActorIocs).values(iocs);
 }
 
 // ─── IOC Feeds ───────────────────────────────────────────────────────────
 export async function createIocFeedEntry(entry: InsertIocFeed) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(iocFeeds).values(entry);
   return Number(result[0].insertId);
 }
 
 export async function bulkCreateIocFeedEntries(entries: InsertIocFeed[]) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   if (entries.length === 0) return;
   await db.insert(iocFeeds).values(entries);
 }
@@ -984,8 +971,7 @@ export async function getIocFeedStats() {
 
 // ─── Engagement Pipelines ────────────────────────────────────────────────
 export async function createEngagementPipeline(pipeline: InsertEngagementPipeline) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(engagementPipelines).values(pipeline);
   return Number(result[0].insertId);
 }
@@ -998,8 +984,7 @@ export async function getEngagementPipeline(id: number) {
 }
 
 export async function updateEngagementPipeline(id: number, updates: Partial<InsertEngagementPipeline>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(engagementPipelines).set(updates).where(eq(engagementPipelines.id, id));
 }
 
@@ -1012,15 +997,13 @@ export async function listEngagementPipelines(limit = 20) {
 
 // ─── IOC Sync Logs ──────────────────────────────────────────────────────
 export async function createIocSyncLog(log: InsertIocSyncLog) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(iocSyncLogs).values(log);
   return Number(result[0].insertId);
 }
 
 export async function updateIocSyncLog(id: number, updates: Partial<InsertIocSyncLog>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(iocSyncLogs).set(updates).where(eq(iocSyncLogs.id, id));
 }
 
@@ -1043,15 +1026,13 @@ export async function getLastIocSync() {
 
 // ─── Threat Actor CRUD ──────────────────────────────────────────────────
 export async function createThreatActor(actor: InsertThreatActor) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const result = await db.insert(threatActors).values(actor);
   return Number(result[0].insertId);
 }
 
 export async function upsertThreatActor(actor: InsertThreatActor) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   // Check if actor already exists
   const existing = await db.select().from(threatActors).where(eq(threatActors.actorId, actor.actorId));
   if (existing.length > 0) {
@@ -1089,8 +1070,7 @@ export async function bulkUpsertThreatActors(actors: InsertThreatActor[]) {
 import { ttpKnowledge, InsertTtpKnowledge, TtpKnowledge } from "../drizzle/schema";
 
 export async function upsertTtpKnowledge(entry: InsertTtpKnowledge) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const existing = await db.select().from(ttpKnowledge).where(eq(ttpKnowledge.techniqueId, entry.techniqueId));
   if (existing.length > 0) {
     await db.update(ttpKnowledge).set({ ...entry, updatedAt: new Date() }).where(eq(ttpKnowledge.techniqueId, entry.techniqueId));
@@ -1166,8 +1146,7 @@ export async function createFalsePositive(fp: {
   reason: string;
   markedBy: string;
 }) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   const [result] = await db.insert(falsePositiveFindings).values({
     scanId: fp.scanId,
     assetId: fp.assetId,
@@ -1184,8 +1163,7 @@ export async function createFalsePositive(fp: {
 }
 
 export async function reinstateFalsePositive(fpId: number, reinstatedBy: string, reason: string) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const db = await getDbRequired();
   await db.update(falsePositiveFindings)
     .set({
       status: "reinstated",
