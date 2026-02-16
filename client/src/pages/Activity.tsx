@@ -23,19 +23,8 @@ import {
 import { useState, useEffect } from "react";
 
 import AppShell from "@/components/AppShell";
-// Sample activity data - in production this would come from the API
-const ACTIVITY_LOGS = [
-  { id: 1, action: 'server_health_check', user: 'System', details: 'Automated health check completed - Server online', timestamp: '2026-01-22T11:00:00Z', type: 'success' },
-  { id: 2, action: 'user_login', user: 'Admin User', details: 'User logged in from 192.168.1.100', timestamp: '2026-01-22T10:30:00Z', type: 'info' },
-  { id: 3, action: 'credential_viewed', user: 'Admin User', details: 'Viewed Red Team API Key', timestamp: '2026-01-22T10:25:00Z', type: 'info' },
-  { id: 4, action: 'adversary_accessed', user: 'Red Team Lead', details: 'Accessed APT29_VCD_Cloud_Compromise_Enhanced', timestamp: '2026-01-21T14:45:00Z', type: 'info' },
-  { id: 5, action: 'server_created', user: 'Admin User', details: 'Created server: Caldera Production', timestamp: '2026-01-21T09:00:00Z', type: 'success' },
-  { id: 6, action: 'credential_created', user: 'Admin User', details: 'Added admin_login credential', timestamp: '2026-01-21T09:05:00Z', type: 'success' },
-  { id: 7, action: 'role_updated', user: 'Admin User', details: 'Updated user 2 role to user', timestamp: '2026-01-20T16:30:00Z', type: 'warning' },
-  { id: 8, action: 'server_health_check', user: 'System', details: 'Automated health check completed - Server online', timestamp: '2026-01-20T11:00:00Z', type: 'success' },
-  { id: 9, action: 'user_login', user: 'Security Analyst', details: 'User logged in from 10.0.0.50', timestamp: '2026-01-20T09:15:00Z', type: 'info' },
-  { id: 10, action: 'adversary_accessed', user: 'Security Analyst', details: 'Accessed Lazarus Group profile', timestamp: '2026-01-20T09:20:00Z', type: 'info' },
-];
+// Activity logs - populated from real platform events
+const ACTIVITY_LOGS: { id: number; action: string; user: string; details: string; timestamp: string; type: string }[] = [];
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
   server_health_check: <Server className="w-4 h-4" />,

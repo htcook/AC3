@@ -1672,3 +1672,43 @@
 - [x] Diagnose login credential mismatch on DigitalOcean (old password on Credentials page)
 - [x] Fix the credential/password configuration (updated Credentials.tsx, rewrote login procedure)
 - [x] Verify login works on production (env-password, api-key, and wrong-password all tested)
+
+## Bug Fix - Domain Scan Runtime Error
+- [ ] Diagnose runtime error from minified stack trace (B7, Df, je, ft, Ca)
+- [ ] Fix the root cause in domain scan pages
+- [ ] Rebuild and deploy to DigitalOcean
+- [ ] Verify domain scan works on production
+
+## Domain Scan Crash Fixes
+- [x] Fix TabsList grid-cols-5 → grid-cols-6 (6 tabs but only 5 columns)
+- [x] Fix matchTechVulns backend: handle both nested (a.asset.technologies) and flat (a.technologies) pipeline output
+- [x] Add defensive null guards throughout DomainIntelResults.tsx for nullable fields (existing guards were already solid, verified)
+
+## Malpedia Sync Bug Fix
+- [x] Fix ingestMalpedia: API returns array, not object — Object.keys() returned indices ["0","1",...] instead of actor names
+- [x] Delete 941 garbage numbered entries (0-940) from threat_actors table
+- [x] Re-run Malpedia sync with enriched /api/get/actors endpoint — 757 new, 180 updated
+- [x] Verify Malpedia actors now have correct names — 1653 total actors, 0 garbage, 97% with descriptions
+
+## Feature Consolidation — Reduce Redundant Pages
+- [x] Merge Adversaries.tsx into ThreatActors.tsx (redirected /adversaries → /threat-catalog)
+- [x] Merge APTLibrary.tsx mock data into ThreatCatalog.tsx (deleted APTLibrary.tsx, redirected /apt-library → /threat-catalog)
+- [x] Merge RansomwareGroups.tsx as a filtered tab in ThreatCatalog.tsx (deleted, redirected /ransomware-groups → /threat-catalog)
+- [x] Consolidate ThreatActors.tsx + ThreatCatalog.tsx into single unified Threat Actor page (redirected /threat-actors → /threat-catalog)
+- [x] Merge SecurityReport.tsx into ReportGenerator.tsx (deleted SecurityReport.tsx, redirected /reports/security → /reports/generate)
+- [x] Merge OsintMonitor.tsx into OsintRecon.tsx (deleted OsintMonitor.tsx, redirected /osint-monitor → /osint-recon)
+- [x] Merge DomainRecon.tsx into DomainIntel.tsx (deleted DomainRecon.tsx, redirected /domain-recon → /domain-intel)
+- [x] Remove ComponentShowcase.tsx (deleted, redirected /components → /dashboard)
+- [x] Merge Credentials.tsx into InfraReference.tsx (deleted, redirected /credentials → /infra-reference)
+- [x] Update sidebar navigation to reflect consolidated structure (AppShell.tsx updated)
+
+## Remove Synthetic/Mock Data
+- [x] Activity.tsx: Replaced hardcoded ACTIVITY_LOGS with empty state + placeholder
+- [x] Team.tsx: Replaced hardcoded TEAM_MEMBERS with empty state + placeholder
+- [ ] AgentDeploy.tsx: Replace hardcoded DEPLOYMENT_SCRIPTS with env-based server config
+- [ ] ComplianceFrameworks.tsx: Keep reference data (not mock) but mark as static reference
+- [x] OperationMonitor.tsx: Cleaned up MOCK_OPERATION naming (still uses defaults for initial state)
+- [ ] RuleValidator.tsx: Keep SAMPLE_RULES as examples but label them clearly
+- [ ] CampaignDetail.tsx: Remove hardcoded APT29_VCD_ABILITIES array (use DB)
+- [ ] Dashboard.tsx: Remove hardcoded Top Threat Actors array (use DB query)
+- [ ] Campaigns.tsx: Remove OPERATION_METADATA mock object

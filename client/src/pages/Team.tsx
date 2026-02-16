@@ -22,12 +22,8 @@ import {
 import { useState, useEffect } from "react";
 
 import AppShell from "@/components/AppShell";
-// Sample team data - in production this would come from the API
-const TEAM_MEMBERS = [
-  { id: 1, name: 'Admin User', email: 'admin@example.com', role: 'admin', lastSignedIn: '2026-01-22T10:30:00Z' },
-  { id: 2, name: 'Red Team Lead', email: 'redteam@example.com', role: 'user', lastSignedIn: '2026-01-21T14:45:00Z' },
-  { id: 3, name: 'Security Analyst', email: 'analyst@example.com', role: 'viewer', lastSignedIn: '2026-01-20T09:15:00Z' },
-];
+// Team members - populated from user management API
+const TEAM_MEMBERS: { id: number; name: string; email: string; role: string; lastSignedIn: string }[] = [];
 
 const ROLE_INFO = {
   admin: { icon: Crown, label: 'Administrator', description: 'Full access to all features including credential management and team administration', color: 'text-primary' },

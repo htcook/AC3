@@ -1432,7 +1432,15 @@ export const appRouter = router({
         const output = scan.pipelineOutput as any;
         const techs = new Set<string>();
         (output?.assets || []).forEach((a: any) => {
-          (a.technologies || []).forEach((t: string) => techs.add(t));
+          // Handle both nested (a.asset.technologies) and flat (a.technologies) structures
+          const techList = a.technologies || a.asset?.technologies || [];
+          (Array.isArray(techList) ? techList : []).forEach((t: string) => techs.add(t));
+        });
+        // Also pull technologies from discovered_assets DB rows as fallback
+        const dbAssets = await db.getDiscoveredAssetsByScan(input.scanId);
+        dbAssets.forEach((a: any) => {
+          const techList = a.technologies || [];
+          (Array.isArray(techList) ? techList : []).forEach((t: string) => techs.add(t));
         });
         return matchTechnologiesAgainstAllFeeds(Array.from(techs));
       }),

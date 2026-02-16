@@ -6,8 +6,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import Credentials from "./pages/Credentials";
-import Adversaries from "./pages/Adversaries";
+// Credentials merged into InfraReference
+// Adversaries merged into ThreatCatalog
 import AdversaryDetail from "./pages/AdversaryDetail";
 import Team from "./pages/Team";
 import Activity from "./pages/Activity";
@@ -21,8 +21,8 @@ import OperationDetail from "./pages/OperationDetail";
 import GoPhish from "./pages/GoPhish";
 import GoPhishGuide from "./pages/GoPhishGuide";
 import CalderaGuide from "./pages/CalderaGuide";
-import SecurityReport from "./pages/SecurityReport";
-import APTLibrary from "./pages/APTLibrary";
+// SecurityReport merged into ReportGenerator
+// APTLibrary removed (mock data, merged into ThreatCatalog)
 import ComplianceFrameworks from "./pages/ComplianceFrameworks";
 import InfraReference from "./pages/InfraReference";
 import TemplateLibrary from "./pages/TemplateLibrary";
@@ -30,15 +30,14 @@ import Engagements from "./pages/Engagements";
 import CampaignWizard from "./pages/CampaignWizard";
 import EngagementResults from "./pages/EngagementResults";
 import OsintRecon from "./pages/OsintRecon";
-import DomainRecon from "./pages/DomainRecon";
-import OsintMonitor from "./pages/OsintMonitor";
+// DomainRecon and OsintMonitor merged into DomainIntel
 import DomainIntel from "./pages/DomainIntel";
 import DomainIntelResults from "./pages/DomainIntelResults";
 import TemplateGenerator from "./pages/TemplateGenerator";
 import AbilitiesLibrary from "./pages/AbilitiesLibrary";
 import IOCFeed from "./pages/IOCFeed";
 import EngagementPipeline from "./pages/EngagementPipeline";
-import ThreatActors from "./pages/ThreatActors";
+// ThreatActors merged into ThreatCatalog
 import ThreatActorDetail from "./pages/ThreatActorDetail";
 import TtpKnowledge from "./pages/TtpKnowledge";
 import CampaignExecution from "./pages/CampaignExecution";
@@ -51,8 +50,7 @@ import KevDashboard from "./pages/KevDashboard";
 import ScanComparison from "./pages/ScanComparison";
 import ThreatCatalog from "./pages/ThreatCatalog";
 import ThreatActorCatalogDetail from "./pages/ThreatActorCatalogDetail";
-import RansomwareGroups from "./pages/RansomwareGroups";
-import RansomwareGroupDetail from "./pages/RansomwareGroupDetail";
+// RansomwareGroups merged into ThreatCatalog as a filter
 import DarkwebIntel from "./pages/DarkwebIntel";
 import CampaignArchetypes from "./pages/CampaignArchetypes";
 import Login from "./pages/Login";
@@ -103,10 +101,10 @@ function Router() {
         <ProtectedRoute component={Engagements} />
       </Route>
       <Route path="/credentials">
-        <ProtectedRoute component={Credentials} />
+        <Redirect to="/infra-reference" />
       </Route>
       <Route path="/adversaries">
-        <ProtectedRoute component={Adversaries} />
+        <Redirect to="/threat-catalog" />
       </Route>
       <Route path="/adversaries/:id">
         {(params) => <ProtectedRoute component={() => <AdversaryDetail />} />}
@@ -148,10 +146,10 @@ function Router() {
         <ProtectedRoute component={CalderaGuide} />
       </Route>
       <Route path="/reports/security">
-        <ProtectedRoute component={SecurityReport} />
+        <Redirect to="/reports/generate" />
       </Route>
       <Route path="/apt-library">
-        <ProtectedRoute component={APTLibrary} />
+        <Redirect to="/threat-catalog" />
       </Route>
       <Route path="/compliance">
         <ProtectedRoute component={ComplianceFrameworks} />
@@ -166,10 +164,10 @@ function Router() {
         <ProtectedRoute component={CampaignWizard} />
       </Route>
       <Route path="/domain-recon">
-        <ProtectedRoute component={DomainRecon} />
+        <Redirect to="/domain-intel" />
       </Route>
       <Route path="/osint-monitor">
-        <ProtectedRoute component={OsintMonitor} />
+        <Redirect to="/domain-intel" />
       </Route>
       <Route path="/domain-intel">
         <ProtectedRoute component={DomainIntel} />
@@ -193,7 +191,7 @@ function Router() {
         <ProtectedRoute component={EngagementPipeline} />
       </Route>
       <Route path="/threat-actors">
-        <ProtectedRoute component={ThreatActors} />
+        <Redirect to="/threat-catalog" />
       </Route>
       <Route path="/threat-actors/:id">
         {() => <ProtectedRoute component={ThreatActorDetail} />}
@@ -226,10 +224,10 @@ function Router() {
         {() => <ProtectedRoute component={ThreatActorCatalogDetail} />}
       </Route>
       <Route path="/ransomware-groups">
-        <ProtectedRoute component={RansomwareGroups} />
+        <Redirect to="/threat-catalog" />
       </Route>
       <Route path="/ransomware-groups/:name">
-        {() => <ProtectedRoute component={RansomwareGroupDetail} />}
+        <Redirect to="/threat-catalog" />
       </Route>
       <Route path="/darkweb-intel">
         <ProtectedRoute component={DarkwebIntel} />

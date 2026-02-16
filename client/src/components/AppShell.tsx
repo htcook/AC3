@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import {
   Activity,
   Target,
-  Key,
   Users,
   Cpu,
   Zap,
@@ -16,11 +15,7 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronRight,
-  Radar,
   Rocket,
-  Scan,
-  Eye,
   BarChart3,
   Brain,
   Sparkles,
@@ -31,7 +26,6 @@ import {
   Palette,
   Bug,
   ArrowLeftRight,
-  Skull,
   Database,
   AlertTriangle,
 } from "lucide-react";
@@ -40,8 +34,6 @@ import { useState, useEffect, ReactNode } from "react";
 const NAV_ITEMS = [
   { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
   { href: "/engagements", icon: Briefcase, label: "ENGAGEMENTS" },
-  { href: "/credentials", icon: Key, label: "CREDENTIALS" },
-  { href: "/adversaries", icon: Target, label: "ADVERSARIES" },
   { href: "/agents", icon: Cpu, label: "AGENTS" },
   { href: "/campaigns", icon: Zap, label: "CAMPAIGNS" },
   { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
@@ -58,8 +50,6 @@ const NAV_ITEMS = [
 const OSINT_ITEMS = [
   { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
   { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
-  { href: "/domain-recon", icon: Radar, label: "DOMAIN RECON" },
-  { href: "/osint-monitor", icon: Eye, label: "OSINT MONITOR" },
   { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
   { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
   { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
@@ -68,11 +58,8 @@ const OSINT_ITEMS = [
 
 const THREAT_INTEL_ITEMS = [
   { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
-  { href: "/threat-actors", icon: Shield, label: "THREAT ACTORS" },
-  { href: "/ransomware-groups", icon: Skull, label: "RANSOMWARE" },
   { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
   { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
-  { href: "/apt-library", icon: Shield, label: "APT SCENARIOS" },
   { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
   { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
   { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
@@ -87,7 +74,6 @@ const GUIDE_ITEMS = [
 
 const REPORT_ITEMS = [
   { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
-  { href: "/reports/security", icon: FileText, label: "SECURITY REPORT" },
 ];
 
 function NavItem({

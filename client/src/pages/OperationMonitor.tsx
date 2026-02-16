@@ -58,25 +58,23 @@ interface OperationStatus {
   abilities_blocked: number;
 }
 
-// Simulated real-time data (in production, this would come from WebSocket)
-const MOCK_OPERATION: OperationStatus = {
-  id: 'msp-target-complete-001',
-  name: 'MSP_Target_Complete_Red_Team_Exercise',
-  adversary_id: 'MSP_Target_Complete_APT29_VCD_CrowdStrike',
+// Default empty state (populated from Caldera API)
+const DEFAULT_OPERATION: OperationStatus = {
+  id: '',
+  name: '',
+  adversary_id: '',
   state: 'running',
   start_time: new Date().toISOString(),
   agents: 0,
-  abilities_total: 59,
+  abilities_total: 0,
   abilities_completed: 0,
   abilities_failed: 0,
   abilities_blocked: 0
 };
 
-const MOCK_RESULTS: AbilityResult[] = [];
-
 export default function OperationMonitor() {
-  const [operation, setOperation] = useState<OperationStatus>(MOCK_OPERATION);
-  const [results, setResults] = useState<AbilityResult[]>(MOCK_RESULTS);
+  const [operation, setOperation] = useState<OperationStatus>(DEFAULT_OPERATION);
+  const [results, setResults] = useState<AbilityResult[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [filter, setFilter] = useState<'all' | 'success' | 'failed' | 'blocked'>('all');

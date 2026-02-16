@@ -434,67 +434,156 @@ export async function ingestRansomwareLive(): Promise<IngestionResult> {
 
 // ─── 3. Malpedia (Public List) ───────────────────────────────────────────────
 
-const MALPEDIA_URL = "https://malpedia.caad.fkie.fraunhofer.de/api/list/actors";
+// Use the enriched /api/get/actors endpoint which returns descriptions, country, synonyms, etc.
+const MALPEDIA_URL = "https://malpedia.caad.fkie.fraunhofer.de/api/get/actors";
+
+function classifyActorType(name: string, meta: any): "apt" | "cybercrime" | "ransomware" | "hacktivist" | "access_broker" | "influence_ops" | "unknown" {
+  const lower = name.toLowerCase();
+  const rawClassification = meta?.["threat-actor-classification"];
+  const classification = (typeof rawClassification === "string" ? rawClassification : Array.isArray(rawClassification) ? rawClassification.join(" ") : "").toLowerCase();
+  if (lower.includes("ransom") || classification.includes("ransom")) return "ransomware";
+  if (lower.includes("apt") || classification.includes("apt") || classification.includes("nation-state")) return "apt";
+  if (classification.includes("hacktivist")) return "hacktivist";
+  if (classification.includes("crime") || classification.includes("criminal")) return "cybercrime";
+  if (meta?.["cfr-suspected-state-sponsor"]) return "apt";
+  return "unknown";
+}
+
+function extractOrigin(meta: any): string | null {
+  if (meta?.country) return meta.country;
+  const sponsor = meta?.["cfr-suspected-state-sponsor"];
+  if (sponsor) {
+    // Map common names to ISO codes
+    const map: Record<string, string> = {
+      "russian federation": "RU", "russia": "RU",
+      "china": "CN", "people's republic of china": "CN",
+      "korea (democratic people's republic of)": "KP", "north korea": "KP",
+      "iran, islamic republic of": "IR", "iran": "IR",
+      "israel": "IL", "united states": "US", "united states of america": "US",
+      "vietnam": "VN", "india": "IN", "pakistan": "PK", "turkey": "TR",
+      "united arab emirates": "AE", "lebanon": "LB", "ukraine": "UA",
+    };
+    return map[sponsor.toLowerCase()] || sponsor;
+  }
+  return null;
+}
+
+function extractMotivation(meta: any): string | null {
+  if (meta?.motive) return meta.motive;
+  const incidents = meta?.["cfr-type-of-incident"] || [];
+  if (incidents.length > 0) {
+    const types = Array.isArray(incidents) ? incidents : [incidents];
+    if (types.some((t: string) => t.toLowerCase().includes("espionage"))) return "espionage";
+    if (types.some((t: string) => t.toLowerCase().includes("financial"))) return "financial";
+    if (types.some((t: string) => t.toLowerCase().includes("destruct"))) return "disruption";
+  }
+  return null;
+}
 
 export async function ingestMalpedia(): Promise<IngestionResult> {
   const start = Date.now();
   const r: IngestionResult = { source: "Malpedia", groupsIngested: 0, groupsUpdated: 0, ttpsIngested: 0, eventsIngested: 0, errors: [], duration: 0 };
 
   try {
-    const resp = await fetch(MALPEDIA_URL, { signal: AbortSignal.timeout(30000) });
+    const resp = await fetch(MALPEDIA_URL, { signal: AbortSignal.timeout(60000) });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const actors = await resp.json() as Record<string, any>;
-    const names = Object.keys(actors);
+    const actorsMap = await resp.json() as Record<string, any>;
 
+    // /api/get/actors returns { "ActorName": { description, meta, uuid, value }, ... }
+    const entries = Object.entries(actorsMap);
     const db = await requireDb();
 
-    for (const name of names) {
+    for (const [displayName, data] of entries) {
       try {
-        const displayName = name.replace(/_/g, " ");
-        const actorIdSlug = slugify(name);
+        const meta = data?.meta || {};
+        const actorIdSlug = slugify(displayName);
+
+        // Build aliases from synonyms + value field
+        const synonyms: string[] = Array.isArray(meta.synonyms) ? meta.synonyms : [];
+        const allAliases = [displayName, ...synonyms].filter(Boolean);
+
+        // Extract enrichment fields
+        const origin = extractOrigin(meta);
+        const motivation = extractMotivation(meta);
+        const actorType = classifyActorType(displayName, meta);
+        const description = data?.description || `${displayName} is a threat actor tracked by Malpedia.`;
+        const targetSectors = Array.isArray(meta["targeted-sector"]) ? meta["targeted-sector"] :
+          Array.isArray(meta["cfr-target-category"]) ? meta["cfr-target-category"] : [];
+        const targetRegions = Array.isArray(meta["cfr-suspected-victims"]) ? meta["cfr-suspected-victims"] :
+          Array.isArray(meta["suspected-victims"]) ? meta["suspected-victims"] : [];
+        const firstSeen = meta.since || null;
+        const stixId = data?.uuid ? `threat-actor--${data.uuid}` : null;
+        const confidence = meta["attribution-confidence"] ? parseInt(meta["attribution-confidence"], 10) : 70;
 
         const existing = await db.select().from(threatActors)
           .where(eq(threatActors.actorId, actorIdSlug))
           .limit(1);
 
         if (existing.length > 0) {
-          if (!(existing[0].dataSource || "").includes("malpedia")) {
-            await db.update(threatActors).set({
-              dataSource: `${existing[0].dataSource || ""},malpedia`.replace(/^,/, ""),
-            }).where(eq(threatActors.id, existing[0].id));
+          // Update existing entry with richer Malpedia data if it was sparse
+          const updates: any = {};
+          const ex = existing[0];
+          if (!ex.description || ex.description.endsWith("tracked by Malpedia.")) updates.description = description;
+          if (!ex.origin && origin) updates.origin = origin;
+          if (!ex.motivation && motivation) updates.motivation = motivation;
+          if (!ex.firstSeen && firstSeen) updates.firstSeen = firstSeen;
+          if (!ex.stixId && stixId) updates.stixId = stixId;
+          if (ex.type === "unknown" || ex.type === "apt") updates.type = actorType;
+          if (targetSectors.length > 0 && (!ex.targetSectors || JSON.stringify(ex.targetSectors) === "[]")) {
+            updates.targetSectors = JSON.stringify(targetSectors);
+          }
+          if (targetRegions.length > 0 && (!ex.targetRegions || JSON.stringify(ex.targetRegions) === "[]")) {
+            updates.targetRegions = JSON.stringify(targetRegions);
+          }
+          // Merge aliases
+          const existingAliases: string[] = Array.isArray(ex.aliases) ? ex.aliases :
+            (typeof ex.aliases === "string" ? JSON.parse(ex.aliases || "[]") : []);
+          const mergedAliases = Array.from(new Set([...existingAliases, ...allAliases]));
+          updates.aliases = JSON.stringify(mergedAliases);
+
+          if (!(ex.dataSource || "").includes("malpedia")) {
+            updates.dataSource = `${ex.dataSource || ""},malpedia`.replace(/^,/, "");
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await db.update(threatActors).set(updates).where(eq(threatActors.id, ex.id));
             r.groupsUpdated++;
           }
         } else {
           await db.insert(threatActors).values({
             actorId: actorIdSlug,
             name: displayName,
-            type: name.toLowerCase().includes("ransom") ? "ransomware" : "apt",
-            description: `${displayName} is a threat actor tracked by Malpedia.`,
-            aliases: JSON.stringify([name]),
-            sophistication: "intermediate",
-            targetSectors: JSON.stringify([]),
-            targetRegions: JSON.stringify([]),
+            type: actorType,
+            origin,
+            description,
+            motivation,
+            firstSeen,
+            stixId,
+            aliases: JSON.stringify(allAliases),
+            sophistication: meta["cfr-suspected-state-sponsor"] ? "nation-state" : "intermediate",
+            targetSectors: JSON.stringify(targetSectors),
+            targetRegions: JSON.stringify(targetRegions),
             techniques: JSON.stringify([]),
             tools: JSON.stringify([]),
             malware: JSON.stringify([]),
             activityTimeline: JSON.stringify([]),
             dataSource: "malpedia",
-            confidence: 70,
+            confidence: Math.min(confidence, 100),
           });
           r.groupsIngested++;
         }
       } catch (err: any) {
-        r.errors.push(`${name}: ${err.message}`);
+        r.errors.push(`${displayName}: ${err.message}`);
       }
     }
 
     await db.insert(threatIntelUpdates).values({
       sweepType: "manual",
       status: "completed",
-      groupsScanned: names.length,
+      groupsScanned: entries.length,
       updatesApplied: r.groupsIngested + r.groupsUpdated,
-      summary: `Malpedia: ${r.groupsIngested} new, ${r.groupsUpdated} cross-referenced`,
-      details: JSON.stringify({ source: "malpedia", totalActors: names.length }),
+      summary: `Malpedia: ${r.groupsIngested} new, ${r.groupsUpdated} enriched/cross-referenced`,
+      details: JSON.stringify({ source: "malpedia", totalActors: entries.length }),
       durationMs: Date.now() - start,
     });
   } catch (err: any) {
