@@ -406,7 +406,7 @@ export default function CampaignDetail() {
                               <td className="px-4 py-3 font-medium">{ability.abilityName}</td>
                               <td className="px-4 py-3">
                                 <span className={`px-2 py-1 text-xs ${abilityStatus.bg} ${abilityStatus.text}`}>
-                                  {ability.status.toUpperCase()}
+                                  {(ability.status || 'pending').toUpperCase()}
                                 </span>
                               </td>
                               <td className="px-4 py-3">

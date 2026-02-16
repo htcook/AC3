@@ -1710,10 +1710,20 @@
 - [x] OperationMonitor.tsx: Cleaned up MOCK_OPERATION naming (still uses defaults for initial state)
 - [ ] RuleValidator.tsx: Keep SAMPLE_RULES as examples but label them clearly
 - [ ] CampaignDetail.tsx: Remove hardcoded APT29_VCD_ABILITIES array (use DB)
-- [ ] Dashboard.tsx: Remove hardcoded Top Threat Actors array (use DB query)
+- [x] Dashboard.tsx: Replaced hardcoded Top Threat Actors with real DB query (threatIntel.list + iocFeed.stats + calderaProxy.getKevCatalog)
 - [ ] Campaigns.tsx: Remove OPERATION_METADATA mock object
 
 ## Database Cleanup — Mock/Test Scans
 - [x] Identify and remove mock/test domain intel scans not initiated by real users (312 test scans deleted)
 - [x] Identify and remove mock/test discovered assets from non-user scans (92 assets deleted)
 - [x] Identify and remove any other test data in DB tables — 207 engagements, 437 reports, 374 monitors, 214 monitor changes, 414 pipelines, 135 activity logs, 88 orphaned campaign_engagements deleted
+
+## Priority Fixes — Audit Follow-up
+- [x] Replace Dashboard hardcoded TOP_ACTORS with real DB query (top threat actors by threat level)
+- [x] Add null guards to GoPhish page (filteredCampaigns null guard added)
+- [x] Add null guards to ThreatCatalog page (already well-guarded, verified)
+- [x] CampaignDetail: APT29_VCD_ABILITIES is a functional template (writes to DB on click), not mock display data. Fixed ability.status null guard.
+
+## Production .map() Crash Error
+- [x] Investigate and fix production crash: comprehensive sweep of all .map() calls across 44 pages
+- [x] Add defensive null guards: ThreatActorCatalogDetail events/iocs, CampaignDetail status, GoPhish filteredCampaigns. All other .map() calls verified safe.

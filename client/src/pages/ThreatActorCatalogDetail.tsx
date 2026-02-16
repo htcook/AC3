@@ -123,7 +123,9 @@ export default function ThreatActorCatalogDetail() {
     );
   }
 
-  const { actor, events, iocs, ransomwareProfile } = data;
+  const { actor, events: rawEvents, iocs: rawIocs, ransomwareProfile } = data;
+  const events = rawEvents || [];
+  const iocs = rawIocs || [];
   const typeConf = TYPE_CONFIG[actor.type || "unknown"] || TYPE_CONFIG.unknown;
   const TypeIcon = typeConf.icon;
   const aliases: string[] = Array.isArray(actor.aliases) ? actor.aliases : [];

@@ -308,8 +308,8 @@ function CampaignsPanel({ campaigns, templates, landingPages, groups, sendingPro
 
   // Filter campaigns by engagement
   const filteredCampaigns = useMemo(() => {
-    if (!campaigns || !engagementFilter) return campaigns;
-    if (!campaignLinks) return campaigns;
+    if (!Array.isArray(campaigns) || !engagementFilter) return campaigns || [];
+    if (!Array.isArray(campaignLinks)) return campaigns;
     const linkedCampaignIds = new Set(
       campaignLinks
         .filter((link: any) => link.engagementId === engagementFilter)
