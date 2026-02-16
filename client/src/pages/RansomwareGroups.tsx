@@ -1,5 +1,6 @@
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
+import { safeUpper } from "@/lib/utils-safe";
 import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -179,9 +180,9 @@ export default function RansomwareGroups() {
                       </div>
                       <div className="flex items-center gap-2 mb-3 flex-wrap">
                         <span className={`text-[10px] px-2 py-0.5 ${trendConf.color} tracking-wider`}>{trendConf.label}</span>
-                        <span className={`text-[10px] px-2 py-0.5 border tracking-wider ${threatClass}`}>{(g.threatLevel || "MEDIUM").toUpperCase()}</span>
+                        <span className={`text-[10px] px-2 py-0.5 border tracking-wider ${threatClass}`}>{safeUpper(g.threatLevel, "MEDIUM")}</span>
                         {g.extortionModel && g.extortionModel !== "unknown" && (
-                          <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">{g.extortionModel.toUpperCase()} EXTORTION</span>
+                          <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">{safeUpper(g.extortionModel)} EXTORTION</span>
                         )}
                         {g.affiliateProgram && <span className="text-[10px] px-2 py-0.5 bg-purple-500/10 text-purple-400 tracking-wider">RAAS</span>}
                       </div>

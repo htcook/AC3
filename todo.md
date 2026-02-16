@@ -1615,3 +1615,25 @@
 
 ## Bug Fixes - Domain Scan
 - [x] Fix "Database not available" error when running domain scans (added getDbRequired with 3-retry logic)
+
+## Defensive toUpperCase Guards
+- [x] Add safe string helper (safeUpper) for all .toUpperCase() calls on dynamic data
+- [x] Fix ThreatActorCatalogDetail.tsx - sophistication, motivation, origin, threatLevel, etc.
+- [x] Fix RansomwareGroupDetail.tsx - extortionModel, threatLevel, etc.
+- [x] Fix RansomwareGroups.tsx - extortionModel, threatLevel, etc.
+- [x] Fix DarkwebIntel.tsx - eventType, severity, status, etc.
+- [x] Audit all remaining pages for unsafe .toUpperCase() calls
+
+## P0 Design System - CSS Variables & Typography
+- [x] Add Inter and JetBrains Mono fonts via Google Fonts CDN
+- [x] Update index.css with comprehensive CSS variables (colors, spacing, shadows)
+- [x] Update font-display and font-mono references throughout
+- [x] Ensure dark theme consistency with new design tokens
+
+## SpicyThreatIntel API Bridge for Darkweb Data
+- [x] Create shared darkweb-types.ts data model
+- [x] Build SpicyThreatIntel connector in server/lib/
+- [x] Add darkweb data ingestion procedures (darkweb-bridge router with 13 endpoints)
+- [ ] Create darkweb credential leak, forum chatter, and breach alert schemas
+- [ ] Wire DarkwebIntel page to use real data from the bridge
+- [ ] Add sync button for darkweb sources

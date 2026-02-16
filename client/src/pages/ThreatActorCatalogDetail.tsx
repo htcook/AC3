@@ -1,5 +1,6 @@
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
+import { safeUpper } from "@/lib/utils-safe";
 import { useParams, Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -164,20 +165,20 @@ export default function ThreatActorCatalogDetail() {
               </span>
               {actor.origin && (
                 <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">
-                  {actor.origin.toUpperCase()}
+                  {safeUpper(actor.origin)}
                 </span>
               )}
               <span className={`text-[10px] px-2 py-0.5 border tracking-wider ${threatLevelClass}`}>
-                {(actor.threatLevel || "MEDIUM").toUpperCase()} THREAT
+                {safeUpper(actor.threatLevel, "MEDIUM")} THREAT
               </span>
               {actor.sophistication && (
                 <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">
-                  {actor.sophistication.toUpperCase()}
+                  {safeUpper(actor.sophistication)}
                 </span>
               )}
               {actor.motivation && (
                 <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">
-                  {actor.motivation.toUpperCase()}
+                  {safeUpper(actor.motivation)}
                 </span>
               )}
             </div>
@@ -338,11 +339,11 @@ export default function ThreatActorCatalogDetail() {
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground">EXTORTION MODEL</span>
-                    <p className="text-xs font-display text-muted-foreground mt-1">{(ransomwareProfile.extortionModel || "unknown").toUpperCase()}</p>
+                    <p className="text-xs font-display text-muted-foreground mt-1">{safeUpper(ransomwareProfile.extortionModel)}</p>
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground">TREND</span>
-                    <p className="text-xs font-display text-muted-foreground mt-1">{(ransomwareProfile.trend || "unknown").toUpperCase()}</p>
+                    <p className="text-xs font-display text-muted-foreground mt-1">{safeUpper(ransomwareProfile.trend)}</p>
                   </div>
                 </div>
                 {ransomwareProfile.topSectors?.length > 0 && (
@@ -464,10 +465,10 @@ export default function ThreatActorCatalogDetail() {
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] px-2 py-0.5 ${evtColor} tracking-wider`}>
-                          {evt.eventType?.replace(/_/g, " ").toUpperCase()}
+                          {safeUpper(evt.eventType?.replace(/_/g, " "))}
                         </span>
                         <span className={`text-[10px] px-2 py-0.5 border ${THREAT_LEVEL_COLORS[evt.severity || "medium"]} tracking-wider`}>
-                          {(evt.severity || "medium").toUpperCase()}
+                          {safeUpper(evt.severity, "MEDIUM")}
                         </span>
                       </div>
                       <span className="text-[10px] text-muted-foreground">
@@ -512,7 +513,7 @@ export default function ThreatActorCatalogDetail() {
                   <div key={ioc.id} className="grid grid-cols-12 gap-4 px-4 py-2.5 text-xs hover:bg-accent/5 transition-colors">
                     <div className="col-span-2">
                       <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground">
-                        {ioc.type?.toUpperCase()}
+                        {safeUpper(ioc.type)}
                       </span>
                     </div>
                     <div className="col-span-4 font-mono text-foreground truncate">{ioc.value}</div>

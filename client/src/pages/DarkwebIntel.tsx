@@ -1,5 +1,6 @@
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
+import { safeUpper } from "@/lib/utils-safe";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
@@ -131,7 +132,7 @@ export default function DarkwebIntel() {
                   className={`px-2 py-1 text-[10px] font-display tracking-wider border transition-colors ${
                     eventTypeFilter === t ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
                       : "bg-card border-border text-muted-foreground hover:text-foreground"}`}>
-                  {t === "all" ? "ALL" : t.replace(/_/g, " ").toUpperCase()}
+                  {t === "all" ? "ALL" : safeUpper(t.replace(/_/g, " "))}
                 </button>
               ))}
             </div>
@@ -161,7 +162,7 @@ export default function DarkwebIntel() {
                       <div className="flex items-start justify-between mb-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-[10px] px-2 py-0.5 ${evtColor} tracking-wider`}>
-                            {evt.eventType?.replace(/_/g, " ").toUpperCase()}
+                            {safeUpper(evt.eventType?.replace(/_/g, " "))}
                           </span>
                           {evt.actorName && (
                             <Link href={`/threat-catalog/${evt.actorId}`} className={`text-[10px] ${actorColor} hover:underline`}>
@@ -254,7 +255,7 @@ export default function DarkwebIntel() {
                           s.status === "completed" ? "text-green-400 bg-green-500/10"
                             : s.status === "failed" ? "text-red-400 bg-red-500/10"
                             : "text-yellow-400 bg-yellow-500/10"}`}>
-                          {s.status?.toUpperCase()}
+                          {safeUpper(s.status)}
                         </span>
                         <span className="text-muted-foreground ml-2">{s.sweepType}</span>
                       </div>

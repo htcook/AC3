@@ -1,5 +1,6 @@
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
+import { safeUpper } from "@/lib/utils-safe";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -309,12 +310,12 @@ export default function ThreatCatalog() {
                         </span>
                         {actor.origin && (
                           <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">
-                            {actor.origin.toUpperCase()}
+                            {safeUpper(actor.origin)}
                           </span>
                         )}
                         {actor.threatLevel && (
                           <span className={`text-[10px] px-2 py-0.5 border tracking-wider ${threatLevelClass}`}>
-                            {actor.threatLevel.toUpperCase()}
+                            {safeUpper(actor.threatLevel, "MEDIUM")}
                           </span>
                         )}
                         {actor.confidence != null && (

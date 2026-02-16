@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -41,79 +41,122 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Extended design tokens */
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-card-elevated: var(--card-elevated);
+  --color-border-active: var(--border-active);
+  --color-muted-dim: var(--muted-dim);
 }
 
-/* AceofCloud Brutalist Theme - Navy Blue & Teal Accents */
+/* ═══════════════════════════════════════════════════════════════════
+   AceC3 Design System — Military-Grade Cyber Operations Theme
+   Color palette: #0A0E14 base, #00E5CC primary accent
+   Typography: Inter (UI) + JetBrains Mono (code/technical)
+   ═══════════════════════════════════════════════════════════════════ */
+
 :root {
-  --primary: oklch(0.55 0.15 195);
-  --primary-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(0.55 0.15 195);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --chart-1: oklch(0.55 0.15 195);
-  --chart-2: oklch(0.35 0.12 250);
-  --chart-3: oklch(0.5 0 0);
-  --chart-4: oklch(0.3 0 0);
-  --chart-5: oklch(0.7 0 0);
-  --radius: 0.25rem;
-  --background: oklch(0.15 0.03 250);
-  --foreground: oklch(1 0 0);
-  --card: oklch(0.18 0.03 250);
+  /* Core palette — derived from AceC3 Design Guide */
+  --background: oklch(0.12 0.02 240);       /* #0A0E14 */
+  --foreground: oklch(1 0 0);               /* #FFFFFF */
+  --card: oklch(0.16 0.02 240);             /* #111820 */
   --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.18 0.03 250);
+  --card-elevated: oklch(0.20 0.02 240);    /* #1A2230 */
+  --popover: oklch(0.16 0.02 240);
   --popover-foreground: oklch(1 0 0);
-  --secondary: oklch(0.22 0.03 250);
+
+  /* Primary accent — Teal/Cyan */
+  --primary: oklch(0.82 0.16 180);          /* #00E5CC */
+  --primary-foreground: oklch(0.12 0.02 240); /* Dark text on primary */
+
+  /* Secondary */
+  --secondary: oklch(0.20 0.02 240);
   --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.25 0.02 250);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.55 0.15 195);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.55 0.22 29);
+
+  /* Muted hierarchy */
+  --muted: oklch(0.22 0.015 240);
+  --muted-foreground: oklch(0.62 0.03 230); /* #8899AA */
+  --muted-dim: oklch(0.45 0.03 230);        /* #556677 */
+
+  /* Accent */
+  --accent: oklch(0.82 0.16 180);
+  --accent-foreground: oklch(0.12 0.02 240);
+
+  /* Semantic colors */
+  --destructive: oklch(0.60 0.24 25);       /* #FF4444 */
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.30 0.03 250);
-  --input: oklch(0.20 0.03 250);
-  --ring: oklch(0.55 0.15 195);
-  --sidebar: oklch(0.12 0.03 250);
+  --warning: oklch(0.78 0.18 80);           /* #FFAA00 */
+  --success: oklch(0.72 0.20 155);          /* #00CC66 */
+  --info: oklch(0.82 0.16 180);             /* Same as primary */
+
+  /* Borders */
+  --border: oklch(0.22 0.02 240);           /* #1E2A3A */
+  --border-active: oklch(0.30 0.03 240);    /* #2A3A4E */
+  --input: oklch(0.18 0.02 240);
+  --ring: oklch(0.82 0.16 180);
+
+  /* Chart palette */
+  --chart-1: oklch(0.82 0.16 180);          /* Teal */
+  --chart-2: oklch(0.60 0.24 25);           /* Red */
+  --chart-3: oklch(0.78 0.18 80);           /* Amber */
+  --chart-4: oklch(0.72 0.20 155);          /* Green */
+  --chart-5: oklch(0.65 0.18 280);          /* Purple */
+
+  /* Sidebar */
+  --sidebar: oklch(0.10 0.02 240);
   --sidebar-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.20 0.03 250);
+  --sidebar-primary: oklch(0.82 0.16 180);
+  --sidebar-primary-foreground: oklch(0.12 0.02 240);
+  --sidebar-accent: oklch(0.18 0.02 240);
   --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.30 0.03 250);
-  --sidebar-ring: oklch(0.55 0.15 195);
+  --sidebar-border: oklch(0.22 0.02 240);
+  --sidebar-ring: oklch(0.82 0.16 180);
+
+  /* Radius — sharp brutalist edges */
+  --radius: 0.25rem;
 }
 
-/* Dark mode inherits the same AceofCloud theme */
+/* Dark mode — identical to root (always-dark theme) */
 .dark {
-  --primary: oklch(0.55 0.15 195);
-  --primary-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(0.55 0.15 195);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --background: oklch(0.15 0.03 250);
+  --background: oklch(0.12 0.02 240);
   --foreground: oklch(1 0 0);
-  --card: oklch(0.18 0.03 250);
+  --card: oklch(0.16 0.02 240);
   --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.18 0.03 250);
+  --card-elevated: oklch(0.20 0.02 240);
+  --popover: oklch(0.16 0.02 240);
   --popover-foreground: oklch(1 0 0);
-  --secondary: oklch(0.22 0.03 250);
+  --primary: oklch(0.82 0.16 180);
+  --primary-foreground: oklch(0.12 0.02 240);
+  --secondary: oklch(0.20 0.02 240);
   --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.25 0.02 250);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.55 0.15 195);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.55 0.22 29);
+  --muted: oklch(0.22 0.015 240);
+  --muted-foreground: oklch(0.62 0.03 230);
+  --muted-dim: oklch(0.45 0.03 230);
+  --accent: oklch(0.82 0.16 180);
+  --accent-foreground: oklch(0.12 0.02 240);
+  --destructive: oklch(0.60 0.24 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.30 0.03 250);
-  --input: oklch(0.20 0.03 250);
-  --ring: oklch(0.55 0.15 195);
-  --chart-1: oklch(0.55 0.15 195);
-  --chart-2: oklch(0.35 0.12 250);
-  --chart-3: oklch(0.5 0 0);
-  --chart-4: oklch(0.3 0 0);
-  --chart-5: oklch(0.7 0 0);
-  --sidebar: oklch(0.12 0.03 250);
+  --warning: oklch(0.78 0.18 80);
+  --success: oklch(0.72 0.20 155);
+  --info: oklch(0.82 0.16 180);
+  --border: oklch(0.22 0.02 240);
+  --border-active: oklch(0.30 0.03 240);
+  --input: oklch(0.18 0.02 240);
+  --ring: oklch(0.82 0.16 180);
+  --chart-1: oklch(0.82 0.16 180);
+  --chart-2: oklch(0.60 0.24 25);
+  --chart-3: oklch(0.78 0.18 80);
+  --chart-4: oklch(0.72 0.20 155);
+  --chart-5: oklch(0.65 0.18 280);
+  --sidebar: oklch(0.10 0.02 240);
   --sidebar-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.20 0.03 250);
+  --sidebar-primary: oklch(0.82 0.16 180);
+  --sidebar-primary-foreground: oklch(0.12 0.02 240);
+  --sidebar-accent: oklch(0.18 0.02 240);
   --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.30 0.03 250);
-  --sidebar-ring: oklch(0.55 0.15 195);
+  --sidebar-border: oklch(0.22 0.02 240);
+  --sidebar-ring: oklch(0.82 0.16 180);
 }
 
 @layer base {
@@ -135,60 +178,123 @@
   input[type="radio"]:not(:disabled) {
     @apply cursor-pointer;
   }
-  
-  /* Brutalist Typography */
+
+  /* AceC3 Typography Hierarchy */
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Bebas Neue', 'Impact', 'Arial Black', sans-serif;
-    letter-spacing: 0.05em;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
-  
-  /* Custom Selection - AceofCloud Teal */
+
+  h1 { font-weight: 800; letter-spacing: 0.05em; }
+  h2 { font-weight: 700; letter-spacing: 0.04em; }
+  h3 { font-weight: 600; letter-spacing: 0.03em; }
+
+  /* Code & technical elements */
+  code, pre, kbd, samp, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', monospace;
+  }
+
+  /* Custom Selection — AceC3 Teal */
   ::selection {
-    background: oklch(0.55 0.15 195);
-    color: white;
+    background: oklch(0.82 0.16 180);
+    color: oklch(0.12 0.02 240);
   }
 }
 
-/* Brutalist Utilities */
+/* AceC3 Utilities */
 @layer utilities {
+  /* Display font — Inter Bold/Extra-Bold for headings and stats */
   .font-display {
-    font-family: 'Bebas Neue', 'Impact', 'Arial Black', sans-serif;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.04em;
   }
-  
+
+  /* Code font — JetBrains Mono for technical data */
+  .font-code {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  /* Section header pattern from design guide */
+  .section-header {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--primary);
+  }
+
   .brutalist-divider {
     @apply w-full h-1 bg-primary;
   }
-  
+
   .brutalist-divider-thin {
     @apply w-full h-0.5 bg-primary;
   }
-  
+
   .stat-value {
-    font-family: 'Bebas Neue', 'Impact', 'Arial Black', sans-serif;
-    @apply text-6xl md:text-8xl text-white leading-none tracking-tight;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    @apply text-6xl md:text-8xl text-white leading-none;
   }
-  
+
   .stat-label {
     @apply text-muted-foreground uppercase tracking-widest text-xs;
   }
-  
+
+  /* Status indicators with design guide colors */
   .status-online {
     @apply text-emerald-400;
   }
-  
+
   .status-offline {
     @apply text-red-500;
   }
-  
+
   .status-warning {
     @apply text-amber-400;
   }
-  
-  /* AceofCloud accent gradient */
-  .aceofcloud-gradient {
-    background: linear-gradient(135deg, oklch(0.35 0.12 250) 0%, oklch(0.55 0.15 195) 100%);
+
+  /* Live pulsing indicator */
+  .status-live::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: oklch(0.72 0.20 155);
+    margin-right: 6px;
+    animation: pulse-dot 2s ease-in-out infinite;
   }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(0.72 0.20 155 / 0.7); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 6px oklch(0.72 0.20 155 / 0); }
+  }
+
+  /* AceC3 accent gradient */
+  .aceofcloud-gradient {
+    background: linear-gradient(135deg, oklch(0.12 0.02 240) 0%, oklch(0.20 0.04 200) 50%, oklch(0.82 0.16 180 / 0.15) 100%);
+  }
+
+  /* Card hover elevation */
+  .card-hover {
+    transition: background-color 150ms ease, border-color 150ms ease;
+  }
+  .card-hover:hover {
+    background-color: var(--card-elevated);
+    border-color: var(--border-active);
+  }
+
+  /* Severity badge colors */
+  .severity-critical { @apply text-red-500 bg-red-500/10 border-red-500/30; }
+  .severity-high { @apply text-orange-400 bg-orange-500/10 border-orange-500/30; }
+  .severity-elevated { @apply text-primary bg-primary/10 border-primary/30; }
+  .severity-low { @apply text-muted-foreground bg-muted/50 border-border; }
 }
 
 @layer components {

@@ -129,3 +129,77 @@ export interface IntelligenceEnrichment {
   kevMatches: CISAKEVEntry[];
   riskElevation: string;           // LLM-generated summary of how darkweb intel affects risk
 }
+
+// ─── SpicyThreatIntel API Types ──────────────────────────────────────────
+
+/** ThreatFox IOC from SpicyThreatIntel API */
+export interface ThreatFoxIOC {
+  id: string;
+  iocType: 'ip' | 'domain' | 'url' | 'hash' | 'email';
+  iocValue: string;
+  malware?: string;
+  malwareAlias?: string;
+  threatType?: string;
+  confidenceLevel: number;
+  firstSeen?: string;
+  lastSeen?: string;
+  tags: string[];
+  reporter?: string;
+  reference?: string;
+}
+
+/** OTX Pulse from SpicyThreatIntel API */
+export interface OTXPulse {
+  pulseId: string;
+  pulseName: string;
+  description?: string;
+  indicators: { type: string; indicator: string; title?: string }[];
+  tags: string[];
+  adversary?: string;
+  targetedCountries: string[];
+  created?: string;
+  modified?: string;
+  references: string[];
+}
+
+/** Malware Bazaar entry from SpicyThreatIntel API */
+export interface MalwareBazaarEntry {
+  sha256Hash: string;
+  fileType?: string;
+  fileSize?: number;
+  signature?: string;
+  tags: string[];
+  deliveryMethod?: string;
+  firstSeen?: string;
+  reporter?: string;
+}
+
+/** Adaptive keyword from SpicyThreatIntel API */
+export interface AdaptiveKeyword {
+  keyword: string;
+  category: string;
+  hitCount: number;
+  lastHitAt?: string;
+  trending: boolean;
+}
+
+/** Escalation alert from SpicyThreatIntel API */
+export interface EscalationAlert {
+  id: string;
+  alertType: 'keyword_spike' | 'new_victim' | 'new_actor' | 'infrastructure_change' | 'zero_day';
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  domain?: string;
+  actorName?: string;
+  createdAt: string;
+  acknowledged: boolean;
+}
+
+/** SpicyThreatIntel bridge configuration */
+export interface SpicyTIPBridgeConfig {
+  baseUrl: string;
+  apiKey?: string;
+  timeout?: number;
+  retryAttempts?: number;
+}

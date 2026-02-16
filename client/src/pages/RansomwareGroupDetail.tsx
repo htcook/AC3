@@ -1,5 +1,6 @@
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
+import { safeUpper } from "@/lib/utils-safe";
 import { useParams, Link } from "wouter";
 import {
   ArrowLeft, Skull, TrendingUp, TrendingDown, Minus, Flame,
@@ -83,9 +84,9 @@ export default function RansomwareGroupDetail() {
             </div>
             <div className="flex items-center gap-2 flex-wrap mb-3">
               <span className={`text-[10px] px-2 py-0.5 ${trendConf.color} tracking-wider`}>{trendConf.label}</span>
-              <span className={`text-[10px] px-2 py-0.5 border tracking-wider ${threatClass}`}>{(group.threatLevel || "MEDIUM").toUpperCase()}</span>
+              <span className={`text-[10px] px-2 py-0.5 border tracking-wider ${threatClass}`}>{safeUpper(group.threatLevel, "MEDIUM")}</span>
               {group.extortionModel && group.extortionModel !== "unknown" && (
-                <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">{group.extortionModel.toUpperCase()} EXTORTION</span>
+                <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">{safeUpper(group.extortionModel)} EXTORTION</span>
               )}
               {group.affiliateProgram && <span className="text-[10px] px-2 py-0.5 bg-purple-500/10 text-purple-400 tracking-wider">RAAS AFFILIATE</span>}
               {group.ransomwareFamily && <span className="text-[10px] px-2 py-0.5 bg-amber-500/10 text-amber-400 tracking-wider">{group.ransomwareFamily}</span>}
