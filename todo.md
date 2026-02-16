@@ -1817,3 +1817,27 @@
 - [x] Run API connectivity test (5/5 passing with new creds)
 - [x] Remove all hardcoded ADMIN123 from codebase (server/_core/index.ts now uses ENV vars)
 - [x] Verify 0 TS errors after changes
+
+## SSL/TLS + Nginx Reverse Proxy + Mail Server SSH
+- [x] Install nginx and certbot on app server
+- [x] Obtain Let's Encrypt SSL certs for caldera.aceofcloud.io (expires May 17, 2026)
+- [x] Obtain Let's Encrypt SSL certs for gophish.aceofcloud.io (expires May 17, 2026)
+- [x] Obtain Let's Encrypt SSL certs for app.aceofcloud.io (expires May 17, 2026)
+- [x] Configure nginx reverse proxy for Caldera (port 8888) with SSL termination
+- [x] Configure nginx reverse proxy for GoPhish (port 3333) with SSL termination
+- [x] Test HTTPS access to caldera.aceofcloud.io (401 = auth required, working)
+- [x] Test HTTPS access to gophish.aceofcloud.io (307 redirect to login, working)
+- [x] Add sandbox SSH public key to mail server via DigitalOcean console
+- [x] Configure rsyslog forwarding on mail server to log sink
+- [x] Verify all 4 droplets forwarding logs to centralized log sink
+
+## DNS Propagation & Final Verification
+- [x] Verify DNS A records propagated for all subdomains
+- [x] Fix DNS records with correct IPs from DigitalOcean API (bastion: 64.23.180.12, logsink: 147.182.225.110)
+- [x] Update dashboard CALDERA_BASE_URL to https://caldera.aceofcloud.io
+- [x] Update dashboard GOPHISH_BASE_URL to https://137.184.7.224:3333 (mail server with 130 templates)
+- [x] Rotate Caldera API key from ADMIN123 to kmpJNkws7KXEdyIc2K8FYAGdMoRgrZ4c3hvJ1F9SI94
+- [x] Open GoPhish port 3333 on mail server cloud firewall for dashboard access
+- [x] Update nginx GoPhish proxy to route to mail server GoPhish via VPC
+- [x] Run full test suite (36 files, 621 tests passing)
+- [x] Save checkpoint for publishing

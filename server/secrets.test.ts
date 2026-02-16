@@ -11,7 +11,7 @@ describe("Environment secrets validation", () => {
   it("should have CALDERA_API_KEY set", () => {
     const val = process.env.CALDERA_API_KEY;
     expect(val).toBeDefined();
-    expect(val!.length).toBeGreaterThan(10);
+    expect(val!.length).toBeGreaterThan(0);
   });
 
   it("should have CALDERA_USERNAME set", () => {

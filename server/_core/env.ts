@@ -10,7 +10,7 @@ export const ENV = {
   // Caldera - resolve to remote server if env points to localhost
   calderaBaseUrl: (process.env.CALDERA_BASE_URL && !process.env.CALDERA_BASE_URL.includes('127.0.0.1') && !process.env.CALDERA_BASE_URL.includes('localhost'))
     ? process.env.CALDERA_BASE_URL
-    : "http://137.184.7.224:8888",
+    : "https://caldera.aceofcloud.io",
   calderaApiKey: process.env.CALDERA_API_KEY ?? "",
   calderaUsername: process.env.CALDERA_USERNAME ?? "red",
   calderaPassword: process.env.CALDERA_PASSWORD ?? "",
