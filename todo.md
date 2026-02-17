@@ -1958,3 +1958,4 @@
 - [x] Fix: Login page branding updated from "Caldera Command" to "Ace C3"
 - [ ] Debug: Login still not advancing on desktop production (both passwords) — need to test on production domain directly
 - [x] Fix: Login redirect loop — switched from window.location.href to setLocation() for client-side navigation, added session.fetch() to confirm cookie before redirect
+- [x] Fix: Login says successful but does not redirect to dashboard on production — reverted to window.location.href with 300ms delay (setLocation races with cookie persistence)

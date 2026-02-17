@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { useLocation, useSearch } from "wouter";
+import { useSearch } from "wouter";
 import { Cloud, Lock, User, Shield, AlertTriangle } from "lucide-react";
 
 const REDIRECT_MAP: Record<string, { label: string; url: string }> = {
@@ -14,7 +14,6 @@ const REDIRECT_MAP: Record<string, { label: string; url: string }> = {
 };
 
 export default function Login() {
-  const [, setLocation] = useLocation();
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const redirectTarget = params.get("redirect") || "";
@@ -25,22 +24,19 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const utils = trpc.useUtils();
-  
-  // Check if already authenticated - if so, redirect immediately
+  // Check if already authenticated — if so, redirect immediately via full page load
+  // This ensures the cookie is sent on the redirect request
   const { data: session, isLoading: sessionLoading } = trpc.calderaAuth.session.useQuery();
-  
+
   useEffect(() => {
     if (!sessionLoading && session?.authenticated) {
       if (redirectTarget && redirectInfo) {
-        // Already logged in, redirect to the external target service
         window.location.href = redirectInfo.url;
       } else {
-        // Use client-side navigation to preserve React Query cache
-        setLocation("/dashboard");
+        window.location.href = "/dashboard";
       }
     }
-  }, [sessionLoading, session, redirectTarget, redirectInfo, setLocation]);
+  }, [sessionLoading, session, redirectTarget, redirectInfo]);
 
   const loginMutation = trpc.calderaAuth.login.useMutation({
     onSuccess: (data: { success: boolean; message?: string }) => {
@@ -50,27 +46,20 @@ export default function Login() {
             ? `Authenticating with ${redirectInfo.label}...`
             : "Welcome to Ace C3",
         });
-        // Invalidate the session cache and refetch to confirm the cookie is set,
-        // then navigate using client-side routing (preserves React Query cache).
-        // window.location.href causes a full page reload which loses the cache
-        // and can race with cookie persistence on mobile/desktop.
-        utils.calderaAuth.session.invalidate().then(() => {
-          return utils.calderaAuth.session.fetch();
-        }).then((freshSession) => {
-          console.log('[Login] Session after login:', freshSession);
-          if (redirectTarget && redirectInfo) {
-            window.location.href = redirectInfo.url;
-          } else {
-            setLocation("/dashboard");
-          }
-        }).catch(() => {
-          // Fallback: even if refetch fails, try navigating
-          if (redirectTarget && redirectInfo) {
-            window.location.href = redirectInfo.url;
-          } else {
-            setLocation("/dashboard");
-          }
-        });
+
+        // Use window.location.href for a full page reload after login.
+        // This guarantees the browser sends the freshly-set cookie on the
+        // next request. Client-side navigation (setLocation) can race with
+        // cookie persistence and cause ProtectedRoute to see stale auth state.
+        const target = (redirectTarget && redirectInfo)
+          ? redirectInfo.url
+          : "/dashboard";
+
+        // Small delay to let the browser commit the Set-Cookie header
+        // before the navigation triggers a new request cycle
+        setTimeout(() => {
+          window.location.href = target;
+        }, 300);
       } else {
         toast.error("Login failed", {
           description: data.message || "Invalid credentials",
@@ -79,8 +68,7 @@ export default function Login() {
       }
     },
     onError: (error: any) => {
-      console.error('[Login] Mutation error:', error?.message, error);
-      console.error('[Login] Full error object:', JSON.stringify(error, null, 2));
+      console.error('[Login] Mutation error:', error?.message);
       toast.error("Login failed", {
         description: error?.message || "Unable to authenticate. Please try again.",
       });
@@ -94,14 +82,6 @@ export default function Login() {
       toast.error("Please enter both username and password");
       return;
     }
-    // Debug: log what the browser is actually sending
-    console.log('[Login] Submitting:', {
-      username,
-      passwordLen: password.length,
-      passwordFirst: password.charAt(0),
-      passwordLast: password.charAt(password.length - 1),
-      passwordChars: Array.from(password).map((c, i) => `${i}:${c.charCodeAt(0)}`).join(','),
-    });
     setIsLoading(true);
     loginMutation.mutate({ username, password, rememberMe });
   };
