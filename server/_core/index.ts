@@ -33,6 +33,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Trust proxy headers (X-Forwarded-Proto, X-Forwarded-Host) so Express
+  // correctly identifies HTTPS connections behind Manus/CNAME reverse proxies.
+  // Without this, req.protocol returns 'http' and Secure cookies may not be set.
+  app.set('trust proxy', 1);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

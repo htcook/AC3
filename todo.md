@@ -1959,3 +1959,9 @@
 - [ ] Debug: Login still not advancing on desktop production (both passwords) — need to test on production domain directly
 - [x] Fix: Login redirect loop — switched from window.location.href to setLocation() for client-side navigation, added session.fetch() to confirm cookie before redirect
 - [x] Fix: Login says successful but does not redirect to dashboard on production — reverted to window.location.href with 300ms delay (setLocation races with cookie persistence)
+
+## Login Loop on aceofcloud.io (Feb 17 #3)
+- [x] Fix: Login succeeds but page reloads to /login — removed explicit domain='.aceofcloud.io' from cookie (let browser default to exact host)
+- [x] Added trust proxy to Express so req.protocol reads HTTPS correctly behind CNAME proxy
+- [x] Verify cookie domain, path, secure, sameSite settings for aceofcloud.io (no Domain attr, SameSite=Lax, Secure=true)
+- [x] Test login flow end-to-end via curl (session reads back authenticated=true)

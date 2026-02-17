@@ -19,27 +19,24 @@ const CALDERA_SESSION_COOKIE = 'caldera_session';
 // Helper to get cookie options for Caldera session
 function getCalderaCookieOptions(req: any, rememberMe = false) {
   const host = req.hostname || req.headers?.host || '';
-  // For aceofcloud.io subdomains, use cross-subdomain cookie
-  // For other environments (manus.space, localhost), omit domain to use current host
-  const isAceOfCloud = host.includes('aceofcloud.io');
   const isLocalhost = host.includes('localhost');
   const isManusPreview = host.includes('manus.space') || host.includes('manus.computer') || host.includes('manusvm.computer');
   
-  // Use 'none' only for Manus preview iframe contexts (cross-origin)
-  // Use 'lax' for aceofcloud.io direct access — more reliable for same-site navigation
-  // 'lax' sends cookies on top-level navigations (link clicks, form submits, window.location)
-  const sameSite = isLocalhost ? 'lax' as const
-    : isManusPreview ? 'none' as const
-    : 'lax' as const;
+  // Use 'none' + secure for Manus preview iframe contexts (cross-origin)
+  // Use 'lax' for everything else — works for top-level navigations (window.location.href)
+  // IMPORTANT: Do NOT set explicit domain — let the browser default to the exact host.
+  // Setting domain='.aceofcloud.io' can cause issues when served through a CNAME proxy.
+  const sameSite = isManusPreview ? 'none' as const : 'lax' as const;
   
-  return {
+  const opts = {
     path: '/',
     httpOnly: true,
     secure: !isLocalhost,
     sameSite,
     maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 days or 24 hours
-    ...(isAceOfCloud ? { domain: '.aceofcloud.io' } : {}),
   };
+  console.log(`[Auth Cookie] host=${host}, sameSite=${sameSite}, secure=${opts.secure}, maxAge=${opts.maxAge}`);
+  return opts;
 }
 
 // JWT secret for Caldera sessions (use env var in production)
