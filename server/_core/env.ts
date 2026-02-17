@@ -1,17 +1,18 @@
 // ─── Resolve GoPhish URL ────────────────────────────────────────────────────
-// The platform env may inject stale values pointing to the app server (134.199.213.248)
-// which has an empty GoPhish instance. The real GoPhish with 130 templates is on the
-// mail server (137.184.7.224:3333). Override any URL that doesn't point there.
+// GoPhish runs on the mail server (137.184.7.224:3333) but is proxied through
+// nginx on the app server at https://gophish.aceofcloud.io. The HTTPS proxy is
+// the only reliable path from the Manus production server, since direct IP:port
+// connections may be blocked by firewalls or self-signed cert issues.
 function resolveGophishUrl(): string {
   const env = process.env.GOPHISH_BASE_URL;
-  // Only accept if it explicitly points to the mail server
-  if (env && env.includes("137.184.7.224")) return env;
-  return "https://137.184.7.224:3333";
+  // Accept if it points to the HTTPS domain proxy or the mail server directly
+  if (env && (env.includes("gophish.aceofcloud.io") || env.includes("137.184.7.224"))) return env;
+  return "https://gophish.aceofcloud.io";
 }
 
 // ─── Resolve Caldera URL ────────────────────────────────────────────────────
-// The platform env may inject http://134.199.213.248:8888 which is behind a firewall.
-// The correct path is through the nginx HTTPS reverse proxy on the app server.
+// Caldera runs on the app server (134.199.213.248:8888) and is proxied through
+// nginx at https://caldera.aceofcloud.io. The HTTPS proxy is the reliable path.
 function resolveCalderaUrl(): string {
   const env = process.env.CALDERA_BASE_URL;
   // Accept if it's the HTTPS domain proxy

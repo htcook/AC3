@@ -1860,3 +1860,12 @@
 - [x] Update all 'VIA SPICYTIP' labels to 'LOCAL DB'
 - [x] Fix Dashboard.tsx hardcoded IP from mail server to app server (134.199.213.248)
 - [x] Clean up 50 test IOC entries (test-*.example.com) from database
+
+## GoPhish Production URL Fix
+- [x] BUG: GoPhish templates and landing pages not loading on AceofCloud.io production URL
+- [x] Diagnose production vs dev server GoPhish connectivity difference (nginx proxied to localhost:3333 instead of mail server)
+- [x] Fix GoPhish API connectivity for production deployment (nginx now proxies to 10.124.0.2:3333 via VPC)
+- [x] Updated GOPHISH_BASE_URL secret to https://gophish.aceofcloud.io
+- [x] Updated env.ts to accept HTTPS domain proxy URL
+- [x] Verify templates and landing pages load (138 templates, 7 landing pages confirmed)
+- [x] All 36 test files, 621 tests passing
