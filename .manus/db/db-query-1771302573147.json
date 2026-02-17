@@ -1,0 +1,38 @@
+{
+  "query": "SELECT id, actorId, name, actorType, dataSource FROM threat_actors WHERE LOWER(name) LIKE '%aceofcloud%' OR LOWER(actorId) LIKE '%aceofcloud%' OR LOWER(name) LIKE '%ace of cloud%' OR LOWER(actorId) LIKE '%ace-of-cloud%' OR LOWER(aliases) LIKE '%aceofcloud%' OR LOWER(description) LIKE '%aceofcloud%'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, actorId, name, actorType, dataSource FROM threat_actors WHERE LOWER(name) LIKE '%aceofcloud%' OR LOWER(actorId) LIKE '%aceofcloud%' OR LOWER(name) LIKE '%ace of cloud%' OR LOWER(actorId) LIKE '%ace-of-cloud%' OR LOWER(aliases) LIKE '%aceofcloud%' OR LOWER(description) LIKE '%aceofcloud%'",
+  "rows": [
+    {
+      "id": "30234",
+      "actorId": "aceofcloud-idp-compromise-apt29-profile",
+      "name": "AceofCloud IDP Compromise - APT29 Profile",
+      "actorType": "apt",
+      "dataSource": "caldera"
+    },
+    {
+      "id": "60002",
+      "actorId": "auto-chain-aceofcloud-purple-team-idp-compromise-2026-mlm038w8",
+      "name": "auto-chain-aceofcloud-purple-team---idp-compromise-2026-mlm038w8",
+      "actorType": "unknown",
+      "dataSource": "caldera"
+    },
+    {
+      "id": "60004",
+      "actorId": "auto-chain-aceofcloud-purple-team-idp-compromise-2026-mlm039ua",
+      "name": "auto-chain-aceofcloud-purple-team---idp-compromise-2026-mlm039ua",
+      "actorType": "unknown",
+      "dataSource": "caldera"
+    },
+    {
+      "id": "120001",
+      "actorId": "aceofcloud_idp_compromise_apt29_profile",
+      "name": "AceOfCloud (APT29)",
+      "actorType": "apt",
+      "dataSource": "llm_enriched"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tactorId\tname\tactorType\tdataSource\n30234\taceofcloud-idp-compromise-apt29-profile\tAceofCloud IDP Compromise - APT29 Profile\tapt\tcaldera\n60002\tauto-chain-aceofcloud-purple-team-idp-compromise-2026-mlm038w8\tauto-chain-aceofcloud-purple-team---idp-compromise-2026-mlm038w8\tunknown\tcaldera\n60004\tauto-chain-aceofcloud-purple-team-idp-compromise-2026-mlm039ua\tauto-chain-aceofcloud-purple-team---idp-compromise-2026-mlm039ua\tunknown\tcaldera\n120001\taceofcloud_idp_compromise_apt29_profile\tAceOfCloud (APT29)\tapt\tllm_enriched\n",
+  "stderr": "",
+  "execution_time_ms": 103
+}

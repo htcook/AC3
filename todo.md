@@ -1911,3 +1911,4 @@
 - [x] Fix abuse.ch 401 auth — updated code to support ABUSECH_API_KEY env var
 - [x] Run vulnerability feeds (1718 unified entries from KEV + NVD)
 - [x] Verify updated data counts: 1,658 threat actors, 318 ransomware groups, 129 events, 4,311 IOCs, 1,718 vulns
+- [x] Remove AceofCloud test entries from threat_actors table (deleted 4 Caldera test artifacts: IDs 30234, 60002, 60004, 120001)

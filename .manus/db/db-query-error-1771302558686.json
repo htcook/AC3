@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, actorId, name, type, dataSource FROM threat_actors WHERE LOWER(name) LIKE '%aceofcloud%' OR LOWER(actorId) LIKE '%aceofcloud%' OR LOWER(name) LIKE '%ace of cloud%' OR LOWER(actorId) LIKE '%ace-of-cloud%' OR LOWER(aliases) LIKE '%aceofcloud%' OR LOWER(description) LIKE '%aceofcloud%'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, actorId, name, type, dataSource FROM threat_actors WHERE LOWER(name) LIKE '%aceofcloud%' OR LOWER(actorId) LIKE '%aceofcloud%' OR LOWER(name) LIKE '%ace of cloud%' OR LOWER(actorId) LIKE '%ace-of-cloud%' OR LOWER(aliases) LIKE '%aceofcloud%' OR LOWER(description) LIKE '%aceofcloud%'",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'type' in 'field list'"
+  ]
+}
