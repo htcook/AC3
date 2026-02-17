@@ -1150,6 +1150,245 @@ function CampaignCard({ campaign, onDelete, onComplete, onClone, campaignLinks }
   );
 }
 
+// Exported reusable GoPhish Manager content for embedding in other pages
+export function GoPhishManagerContent() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'templates' | 'pages' | 'groups' | 'smtp'>('overview');
+  const [selectedEngagementId, setSelectedEngagementId] = useState<number | null>(null);
+
+  const utils = trpc.useUtils();
+
+  // Fetch engagements for filtering
+  const { data: engagements } = trpc.engagements.list.useQuery();
+  const { data: campaignLinks } = trpc.campaignEngagements.listAll.useQuery();
+
+  // Fetch GoPhish data
+  const { data: status, refetch: refetchStatus } = trpc.gophishProxy.getStatus.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: campaigns, refetch: refetchCampaigns } = trpc.gophishProxy.getCampaigns.useQuery(undefined, { enabled: activeTab === 'campaigns' || activeTab === 'overview' });
+  const { data: templates, refetch: refetchTemplates } = trpc.gophishProxy.getTemplates.useQuery(undefined, { enabled: activeTab === 'templates' || activeTab === 'overview' || activeTab === 'campaigns' });
+  const { data: landingPages, refetch: refetchPages } = trpc.gophishProxy.getLandingPages.useQuery(undefined, { enabled: activeTab === 'pages' || activeTab === 'overview' || activeTab === 'campaigns' });
+  const { data: groups, refetch: refetchGroups } = trpc.gophishProxy.getGroups.useQuery(undefined, { enabled: activeTab === 'groups' || activeTab === 'overview' || activeTab === 'campaigns' });
+  const { data: sendingProfiles, refetch: refetchSmtp } = trpc.gophishProxy.getSendingProfiles.useQuery(undefined, { enabled: activeTab === 'smtp' || activeTab === 'overview' || activeTab === 'campaigns' });
+  const { data: calderaHealth } = trpc.calderaProxy.checkHealth.useQuery();
+
+  // Mutations
+  const createTemplate = trpc.gophishProxy.createTemplate.useMutation({ onSuccess: () => { refetchTemplates(); refetchStatus(); toast.success("Template created"); } });
+  const updateTemplate = trpc.gophishProxy.updateTemplate.useMutation({ onSuccess: () => { refetchTemplates(); toast.success("Template updated"); } });
+  const deleteTemplate = trpc.gophishProxy.deleteTemplate.useMutation({ onSuccess: () => { refetchTemplates(); refetchStatus(); toast.success("Template deleted"); } });
+  const createPage = trpc.gophishProxy.createLandingPage.useMutation({ onSuccess: () => { refetchPages(); refetchStatus(); toast.success("Landing page created"); } });
+  const updatePage = trpc.gophishProxy.updateLandingPage.useMutation({ onSuccess: () => { refetchPages(); toast.success("Landing page updated"); } });
+  const deletePage = trpc.gophishProxy.deleteLandingPage.useMutation({ onSuccess: () => { refetchPages(); refetchStatus(); toast.success("Landing page deleted"); } });
+  const createGroup = trpc.gophishProxy.createGroup.useMutation({ onSuccess: () => { refetchGroups(); refetchStatus(); toast.success("Group created"); } });
+  const updateGroup = trpc.gophishProxy.updateGroup.useMutation({ onSuccess: () => { refetchGroups(); toast.success("Group updated"); } });
+  const deleteGroup = trpc.gophishProxy.deleteGroup.useMutation({ onSuccess: () => { refetchGroups(); refetchStatus(); toast.success("Group deleted"); } });
+  const createSmtp = trpc.gophishProxy.createSendingProfile.useMutation({ onSuccess: () => { refetchSmtp(); refetchStatus(); toast.success("Sending profile created"); } });
+  const updateSmtp = trpc.gophishProxy.updateSendingProfile.useMutation({ onSuccess: () => { refetchSmtp(); toast.success("Sending profile updated"); } });
+  const deleteSmtp = trpc.gophishProxy.deleteSendingProfile.useMutation({ onSuccess: () => { refetchSmtp(); refetchStatus(); toast.success("Sending profile deleted"); } });
+  const launchCampaign = trpc.gophishProxy.launchCampaign.useMutation({ onSuccess: () => { refetchCampaigns(); refetchStatus(); toast.success("Campaign launched!"); } });
+  const deleteCampaign = trpc.gophishProxy.deleteCampaign.useMutation({ onSuccess: () => { refetchCampaigns(); refetchStatus(); toast.success("Campaign deleted"); } });
+  const completeCampaign = trpc.gophishProxy.completeCampaign.useMutation({ onSuccess: () => { refetchCampaigns(); toast.success("Campaign completed"); } });
+
+  const handleRefresh = () => {
+    refetchStatus(); refetchCampaigns(); refetchTemplates(); refetchPages(); refetchGroups(); refetchSmtp();
+    toast.success("Refreshing all GoPhish data...");
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card/80 border border-border rounded-lg p-4">
+        <div className="flex items-center gap-3">
+          <Fish className="w-5 h-5 text-orange-500" />
+          <div>
+            <h2 className="font-display text-lg tracking-wider">GOPHISH MANAGER</h2>
+            <p className="text-xs text-muted-foreground">Phishing Campaign Management & Caldera Integration</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className={`flex items-center gap-2 px-2 py-1 text-xs font-display tracking-wider ${status?.online ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-red-500/20 text-red-400 border border-red-500/50'} rounded`}>
+            <div className={`w-2 h-2 rounded-full ${status?.online ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            {status?.online ? 'ONLINE' : 'OFFLINE'}
+          </div>
+          <Button variant="outline" size="sm" className="font-display tracking-wider" onClick={handleRefresh}>
+            <RefreshCw className="w-4 h-4" /><span className="ml-1">REFRESH</span>
+          </Button>
+          <Link href="/campaign-wizard">
+            <Button size="sm" className="font-display tracking-wider bg-red-600 hover:bg-red-700 text-white">
+              <Rocket className="w-4 h-4" /><span className="ml-1">LAUNCH WIZARD</span>
+            </Button>
+          </Link>
+          <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
+            <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
+              <ExternalLink className="w-4 h-4" /><span className="ml-1">OPEN GOPHISH</span>
+            </Button>
+          </a>
+        </div>
+      </div>
+
+      {/* Sub-tab Navigation */}
+      <div className="flex gap-1 sm:gap-2 border-b border-border pb-2 overflow-x-auto scrollbar-none">
+        {[
+          { id: 'overview', label: 'OVERVIEW', icon: <BarChart3 className="w-4 h-4" /> },
+          { id: 'campaigns', label: 'CAMPAIGNS', icon: <Send className="w-4 h-4" /> },
+          { id: 'templates', label: 'EMAIL TEMPLATES', icon: <Mail className="w-4 h-4" /> },
+          { id: 'pages', label: 'LANDING PAGES', icon: <Globe className="w-4 h-4" /> },
+          { id: 'groups', label: 'TARGET GROUPS', icon: <UserPlus className="w-4 h-4" /> },
+          { id: 'smtp', label: 'SENDING PROFILES', icon: <Send className="w-4 h-4" /> },
+        ].map(tab => (
+          <Button
+            key={tab.id}
+            variant={activeTab === tab.id ? 'default' : 'ghost'}
+            size="sm"
+            className={`font-display tracking-wider whitespace-nowrap ${activeTab === tab.id ? 'bg-orange-500 hover:bg-orange-600 text-black' : ''}`}
+            onClick={() => setActiveTab(tab.id as any)}
+          >
+            {tab.icon}
+            <span className="ml-1 sm:ml-2 text-xs sm:text-sm">{tab.label}</span>
+          </Button>
+        ))}
+      </div>
+
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <StatusCard label="CAMPAIGNS" value={status?.campaigns ?? 0} icon={<Send className="w-5 h-5" />} color="orange" />
+            <StatusCard label="TEMPLATES" value={status?.templates ?? 0} icon={<Mail className="w-5 h-5" />} color="blue" />
+            <StatusCard label="LANDING PAGES" value={status?.landingPages ?? 0} icon={<Globe className="w-5 h-5" />} color="green" />
+            <StatusCard label="TARGET GROUPS" value={status?.groups ?? 0} icon={<UserPlus className="w-5 h-5" />} color="purple" />
+            <StatusCard label="SMTP PROFILES" value={status?.sendingProfiles ?? 0} icon={<Send className="w-5 h-5" />} color="cyan" />
+            <StatusCard label="CALDERA LINK" value={calderaHealth ? 'ACTIVE' : 'DOWN'} icon={<Zap className="w-5 h-5" />} color={calderaHealth ? 'emerald' : 'red'} />
+          </div>
+
+          {/* Integration Status */}
+          <div className="bg-card border-2 border-border p-6 rounded-lg">
+            <h2 className="font-display text-xl tracking-wider mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-500" />
+              CALDERA-GOPHISH INTEGRATION
+            </h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <h3 className="font-display text-sm tracking-wider text-muted-foreground">INTEGRATION BRIDGE</h3>
+                <div className="bg-background/50 border border-border p-4 space-y-2 rounded">
+                  <div className="flex items-center justify-between"><span className="text-sm">Bridge Service</span><span className="text-xs font-display tracking-wider text-green-400 bg-green-500/20 px-2 py-0.5 rounded">RUNNING</span></div>
+                  <div className="flex items-center justify-between"><span className="text-sm">Auto-trigger on Credential Capture</span><span className="text-xs font-display tracking-wider text-green-400 bg-green-500/20 px-2 py-0.5 rounded">ENABLED</span></div>
+                  <div className="flex items-center justify-between"><span className="text-sm">Monitoring Interval</span><span className="text-xs font-display tracking-wider text-blue-400">30 SECONDS</span></div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <h3 className="font-display text-sm tracking-wider text-muted-foreground">WORKFLOW</h3>
+                <div className="bg-background/50 border border-border p-4 space-y-3 rounded">
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-500/20 flex items-center justify-center text-orange-500 font-display text-xs rounded">1</div><span className="text-sm">GoPhish sends phishing email</span></div>
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-yellow-500/20 flex items-center justify-center text-yellow-500 font-display text-xs rounded">2</div><span className="text-sm">Target clicks link / submits credentials</span></div>
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-red-500/20 flex items-center justify-center text-red-500 font-display text-xs rounded">3</div><span className="text-sm">Bridge detects event & triggers Caldera</span></div>
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-display text-xs rounded">4</div><span className="text-sm">Caldera launches post-exploitation operation</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Button className="h-20 font-display tracking-wider bg-blue-600 hover:bg-blue-700" onClick={() => setActiveTab('templates')}>
+              <div className="text-center"><Mail className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE TEMPLATE</span></div>
+            </Button>
+            <Button className="h-20 font-display tracking-wider bg-green-600 hover:bg-green-700" onClick={() => setActiveTab('pages')}>
+              <div className="text-center"><Globe className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE LANDING PAGE</span></div>
+            </Button>
+            <Button className="h-20 font-display tracking-wider bg-purple-600 hover:bg-purple-700" onClick={() => setActiveTab('groups')}>
+              <div className="text-center"><UserPlus className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE TARGET GROUP</span></div>
+            </Button>
+            <Button className="h-20 font-display tracking-wider bg-orange-600 hover:bg-orange-700" onClick={() => setActiveTab('campaigns')}>
+              <div className="text-center"><Send className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">LAUNCH CAMPAIGN</span></div>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Engagement Filter Bar */}
+      {(activeTab === 'campaigns' || activeTab === 'overview') && engagements && engagements.length > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-card border border-border rounded">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs font-display tracking-wider text-muted-foreground">FILTER BY ENGAGEMENT:</span>
+          <select
+            value={selectedEngagementId ?? ''}
+            onChange={(e) => setSelectedEngagementId(e.target.value ? Number(e.target.value) : null)}
+            className="bg-background border border-border px-3 py-1.5 text-xs focus:outline-none focus:border-primary rounded"
+          >
+            <option value="">All Campaigns</option>
+            {engagements.map((eng: any) => (
+              <option key={eng.id} value={eng.id}>{eng.name} ({eng.customerName})</option>
+            ))}
+          </select>
+          {selectedEngagementId && (
+            <button onClick={() => setSelectedEngagementId(null)} className="text-xs text-primary hover:text-primary/80 font-display tracking-wider">CLEAR FILTER</button>
+          )}
+        </div>
+      )}
+
+      {/* Campaigns Tab */}
+      {activeTab === 'campaigns' && (
+        <CampaignsPanel
+          campaigns={campaigns}
+          templates={templates}
+          landingPages={landingPages}
+          groups={groups}
+          sendingProfiles={sendingProfiles}
+          onLaunch={(data: any) => launchCampaign.mutate(data)}
+          onDelete={(id: number) => { if (confirm('Delete this campaign?')) deleteCampaign.mutate({ id }); }}
+          onComplete={(id: number) => { if (confirm('Mark this campaign as complete?')) completeCampaign.mutate({ id }); }}
+          isLaunching={launchCampaign.isPending}
+          engagementFilter={selectedEngagementId}
+          campaignLinks={campaignLinks}
+        />
+      )}
+
+      {/* Templates Tab */}
+      {activeTab === 'templates' && (
+        <TemplatesPanel
+          templates={templates}
+          onCreate={(data: any) => createTemplate.mutate(data)}
+          onUpdate={(data: any) => updateTemplate.mutate(data)}
+          onDelete={(id: number) => { if (confirm('Delete this template?')) deleteTemplate.mutate({ id }); }}
+          isCreating={createTemplate.isPending}
+        />
+      )}
+
+      {/* Landing Pages Tab */}
+      {activeTab === 'pages' && (
+        <LandingPagesPanel
+          pages={landingPages}
+          onCreate={(data: any) => createPage.mutate(data)}
+          onUpdate={(data: any) => updatePage.mutate(data)}
+          onDelete={(id: number) => { if (confirm('Delete this landing page?')) deletePage.mutate({ id }); }}
+          isCreating={createPage.isPending}
+        />
+      )}
+
+      {/* Target Groups Tab */}
+      {activeTab === 'groups' && (
+        <GroupsPanel
+          groups={groups}
+          onCreate={(data: any) => createGroup.mutate(data)}
+          onUpdate={(data: any) => updateGroup.mutate(data)}
+          onDelete={(id: number) => { if (confirm('Delete this group?')) deleteGroup.mutate({ id }); }}
+          isCreating={createGroup.isPending}
+        />
+      )}
+
+      {/* Sending Profiles Tab */}
+      {activeTab === 'smtp' && (
+        <SmtpPanel
+          profiles={sendingProfiles}
+          onCreate={(data: any) => createSmtp.mutate(data)}
+          onUpdate={(data: any) => updateSmtp.mutate(data)}
+          onDelete={(id: number) => { if (confirm('Delete this sending profile?')) deleteSmtp.mutate({ id }); }}
+          isCreating={createSmtp.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
 function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
     <div className="bg-card border-2 border-dashed border-border p-12 text-center">

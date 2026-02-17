@@ -20,6 +20,7 @@ import {
   ArrowRight, Rocket, X, Save, MousePointer, ShieldAlert, Brain,
   Database, Layers, Download, ShieldCheck, ArrowLeft, Printer
 } from "lucide-react";
+import { GoPhishManagerContent } from "./GoPhish";
 
 // ─── Priority badge colors ───
 function priorityBadge(priority: string) {
@@ -1576,6 +1577,9 @@ export default function PhishingOperations() {
           <TabsTrigger value="arsenal" className="flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5" /> Arsenal
           </TabsTrigger>
+          <TabsTrigger value="gophish-manager" className="flex items-center gap-1.5">
+            <Fish className="w-3.5 h-3.5" /> GoPhish Manager
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="intel-feed">
@@ -1589,6 +1593,9 @@ export default function PhishingOperations() {
         </TabsContent>
         <TabsContent value="arsenal">
           <ArsenalTab />
+        </TabsContent>
+        <TabsContent value="gophish-manager">
+          <GoPhishManagerContent />
         </TabsContent>
       </Tabs>
     </div>

@@ -1894,3 +1894,8 @@
 - [x] Fix homepage title: expand from 23 chars to 52 chars (Ace C3 — Offensive Security & Cyber Campaign Command)
 - [x] Add meta description (158 chars) for homepage
 - [x] Add keywords meta tag for homepage (13 keywords)
+- [x] Set up aceofcloud.io redirect to dashboard.aceofcloud.io (301 redirect instead of proxy)
+- [x] Add GoPhish management page as embedded interface in Phishing Ops page (GoPhish Manager tab with Overview, Campaigns, Templates, Landing Pages, Groups, SMTP sub-tabs)
+- [x] Set up aceofcloud.io redirect on mail server (137.184.7.224) to dashboard.aceofcloud.io
+- [x] Redirect aceofcloud.io to dashboard.aceofcloud.io (301 redirect via nginx on mail server)
+- [x] Ensure caldera.aceofcloud.io still provides direct Caldera UI access (verified 200 OK)
