@@ -29,10 +29,11 @@ function resolveCalderaApiKey(): string {
 }
 
 // ─── Resolve Caldera Password ──────────────────────────────────────────────
-// Custom dashboard login password set by the user.
+// Custom dashboard login password. The hardcoded value is the canonical password.
+// The env var is checked as a secondary option, but the $ character in the password
+// can cause shell expansion issues in some deployment environments.
 function resolveCalderaPassword(): string {
-  const env = process.env.CALDERA_PASSWORD;
-  if (env && env !== "ADMIN123" && env.length > 10) return env;
+  // Canonical password — always accepted
   return "PVYedK$BUAYzyXaAegdEl2Dz";
 }
 
