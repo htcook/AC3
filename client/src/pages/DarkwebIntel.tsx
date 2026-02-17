@@ -119,17 +119,19 @@ export default function DarkwebIntel() {
                 <span className={`flex items-center gap-1 px-2 py-0.5 text-[10px] tracking-wider border ${
                   bridgeHealth.reachable
                     ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+                    : (bridgeHealth as any).hasFallback
+                    ? "text-cyan-400 bg-cyan-500/10 border-cyan-500/30"
                     : bridgeHealth.configured
                     ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
                     : "text-red-400 bg-red-500/10 border-red-500/30"
                 }`}>
-                  {bridgeHealth.reachable ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                  {bridgeHealth.reachable ? "BRIDGE LIVE" : bridgeHealth.configured ? "BRIDGE OFFLINE" : "BRIDGE NOT CONFIGURED"}
+                  {bridgeHealth.reachable ? <Wifi className="w-3 h-3" /> : (bridgeHealth as any).hasFallback ? <Radio className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                  {bridgeHealth.reachable ? "BRIDGE LIVE" : (bridgeHealth as any).hasFallback ? "DIRECT FEEDS ACTIVE" : bridgeHealth.configured ? "BRIDGE OFFLINE" : "BRIDGE NOT CONFIGURED"}
                 </span>
               )}
             </div>
             <p className="text-muted-foreground text-sm">
-              Live darkweb intelligence from SpicyThreatIntel, threat event feed, MITRE ATT&CK coverage, and IOC corroboration
+              Live darkweb intelligence from local threat database, event feed, MITRE ATT&CK coverage, and IOC corroboration
             </p>
           </div>
           <div className="flex gap-2">
@@ -311,7 +313,7 @@ export default function DarkwebIntel() {
               <div className="space-y-3">
                 <h2 className="text-sm font-display tracking-wider flex items-center gap-2">
                   <Skull className="w-4 h-4 text-cyan-400" /> RANSOMWARE VICTIM EVENTS
-                  <span className="text-[10px] text-muted-foreground">via SpicyTIP</span>
+                  <span className="text-[10px] text-muted-foreground">LOCAL DB</span>
                 </h2>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                   {recentVictimEvents.data.slice(0, 25).map((evt: any, i: number) => (
@@ -344,7 +346,7 @@ export default function DarkwebIntel() {
               <button onClick={() => toggleSection("iocs")} className="flex items-center justify-between w-full">
                 <h2 className="text-sm font-display tracking-wider flex items-center gap-2">
                   <Bug className="w-4 h-4 text-purple-400" /> THREATFOX IOCs ({threatFoxIOCs?.data?.length ?? 0})
-                  <span className="text-[10px] text-muted-foreground">via SpicyTIP</span>
+                  <span className="text-[10px] text-muted-foreground">{threatFoxIOCs?.source === 'local_database' ? 'LOCAL DB' : 'DIRECT FEED'}</span>
                 </h2>
                 {expandedSections.iocs ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
               </button>
@@ -354,7 +356,7 @@ export default function DarkwebIntel() {
                 ) : !threatFoxIOCs || threatFoxIOCs.data.length === 0 ? (
                   <div className="bg-card border border-border p-6 text-center">
                     <Bug className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">No ThreatFox IOCs available. Check bridge connectivity.</p>
+                    <p className="text-xs text-muted-foreground">No ThreatFox IOCs available. Fetching from direct feed...</p>
                   </div>
                 ) : (
                   <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
@@ -494,7 +496,7 @@ export default function DarkwebIntel() {
               <div className="bg-card border border-border p-4">
                 <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-amber-400" /> ACTIVITY RATINGS
-                  <span className="text-[10px] text-muted-foreground/60">SpicyTIP</span>
+                  <span className="text-[10px] text-muted-foreground/60">LOCAL DB</span>
                 </h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {activityRatings.data.slice(0, 15).map((r: any, i: number) => (
@@ -518,13 +520,13 @@ export default function DarkwebIntel() {
               <div className="bg-card border border-border p-4">
                 <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
                   <Skull className="w-4 h-4 text-red-400" /> VICTIM STATS BY GROUP
-                  <span className="text-[10px] text-muted-foreground/60">SpicyTIP</span>
+                  <span className="text-[10px] text-muted-foreground/60">LOCAL DB</span>
                 </h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {ransomwareVictimStats.data.slice(0, 15).map((g: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-xs">
                       <span className="text-amber-400 truncate">{g.groupName}</span>
-                      <span className="text-muted-foreground">{g.victimCount} victims</span>
+                      <span className="text-muted-foreground">{g.totalVictims ?? g.victimCount ?? 0} victims</span>
                     </div>
                   ))}
                 </div>

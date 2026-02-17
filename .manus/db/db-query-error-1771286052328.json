@@ -1,0 +1,12 @@
+{
+  "query": "SELECT COUNT(*) as test_count FROM ioc_feeds WHERE iocValue LIKE '%test-%' OR iocValue LIKE '%.example.com'; SELECT COUNT(*) as total_count FROM ioc_feeds; SELECT feed_source, COUNT(*) as cnt FROM ioc_feeds GROUP BY feed_source;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as test_count FROM ioc_feeds WHERE iocValue LIKE '%test-%' OR iocValue LIKE '%.example.com'; SELECT COUNT(*) as total_count FROM ioc_feeds; SELECT feed_source, COUNT(*) as cnt FROM ioc_feeds GROUP BY feed_source;",
+  "returncode": 1,
+  "logs": [
+    "test_count",
+    "50",
+    "total_count",
+    "3350",
+    "ERROR 1054 (42S22) at line 1: Unknown column 'feed_source' in 'group statement'"
+  ]
+}

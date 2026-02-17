@@ -1841,3 +1841,22 @@
 - [x] Update nginx GoPhish proxy to route to mail server GoPhish via VPC
 - [x] Run full test suite (36 files, 621 tests passing)
 - [x] Save checkpoint for publishing
+
+## GoPhish Templates & Dashboard Data Verification
+- [x] Diagnose GoPhish templates not loading on dashboard (GOPHISH_BASE_URL pointed to wrong server)
+- [x] Fix GoPhish templates to display on the phishing dashboard (hardcoded correct URL in env.ts)
+- [x] Verify darkweb dashboard has data present (1653 actors, 565 techniques, 100 events)
+- [x] Verify all other dashboards have data present (Dashboard, Darkweb, Phishing Ops, Threat Catalog, IOC Feed, Vuln Intel all confirmed)
+- [x] BUG: Dashboard showing 0 for all GoPhish stats — FIXED (130 templates, 7 pages now showing)
+- [x] BUG: Dashboard showing 0 for all Caldera stats — FIXED (29 adversaries, 1893 abilities now showing)
+- [x] BUG: OpenAI/LLM API key error — CONFIRMED WORKING (uses Forge LLM, not OpenAI)
+- [x] Fix SpicyTIP bridge URL normalization (missing https:// prefix)
+- [x] Fetch IOCs from local database (3,300 CISA KEV entries) instead of external APIs
+- [x] Wire ransomware groups (318 groups) into darkweb intel page from local DB
+- [x] Wire threat group events (112 events) into darkweb intel page from local DB
+- [x] Wire threat actors (1,653 actors) into darkweb intel page from local DB
+- [x] Update darkweb intel page IOC sections to use local DB feeds
+- [x] Remove SpicyTIP bridge dependency for IOC data
+- [x] Update all 'VIA SPICYTIP' labels to 'LOCAL DB'
+- [x] Fix Dashboard.tsx hardcoded IP from mail server to app server (134.199.213.248)
+- [x] Clean up 50 test IOC entries (test-*.example.com) from database

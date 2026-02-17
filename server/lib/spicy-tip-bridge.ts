@@ -33,7 +33,13 @@ interface RansomwareVictimStats {
 // ─── Configuration ───────────────────────────────────────────────────────
 
 function getBridgeConfig(): SpicyTIPBridgeConfig {
-  const baseUrl = process.env.SPICY_TIP_BASE_URL || "";
+  let baseUrl = (process.env.SPICY_TIP_BASE_URL || "").trim();
+  // Normalize: ensure protocol prefix
+  if (baseUrl && !baseUrl.startsWith("http")) {
+    baseUrl = `https://${baseUrl}`;
+  }
+  // Remove trailing slash
+  baseUrl = baseUrl.replace(/\/+$/, "");
   const apiKey = process.env.SPICY_TIP_API_KEY || "";
   return {
     baseUrl,

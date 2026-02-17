@@ -16,7 +16,7 @@ import AppShell from "@/components/AppShell";
 const DEFAULT_SERVER = {
   id: 1,
   name: "Caldera Production",
-  ipAddress: "137.184.7.224",
+  ipAddress: "134.199.213.248",
   httpsUrl: "https://dashboard.aceofcloud.io",
   httpUrl: "https://caldera.aceofcloud.io",
   region: "San Francisco (sfo3)",
