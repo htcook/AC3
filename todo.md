@@ -1899,3 +1899,4 @@
 - [x] Set up aceofcloud.io redirect on mail server (137.184.7.224) to dashboard.aceofcloud.io
 - [x] Redirect aceofcloud.io to dashboard.aceofcloud.io (301 redirect via nginx on mail server)
 - [x] Ensure caldera.aceofcloud.io still provides direct Caldera UI access (verified 200 OK)
+- [x] Remove empty email templates from GoPhish (deleted 138 test templates with placeholder HTML, 38 real templates preserved)
