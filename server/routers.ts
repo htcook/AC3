@@ -4174,10 +4174,12 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
     // Fetch from abuse.ch URLhaus
     fetchAbuseCh: protectedProcedure.mutation(async () => {
       try {
-        const response = await fetch('https://urlhaus-api.abuse.ch/v1/urls/recent/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'limit=100',
+        const apiKey = process.env.ABUSECH_API_KEY || '';
+        const headers: Record<string, string> = {};
+        if (apiKey) headers['Auth-Key'] = apiKey;
+        const response = await fetch('https://urlhaus-api.abuse.ch/v1/urls/recent/limit/100/', {
+          method: 'GET',
+          headers,
         });
         if (!response.ok) throw new Error(`abuse.ch fetch failed: ${response.status}`);
         const data = await response.json() as any;
@@ -4286,8 +4288,11 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
       
       // abuse.ch URLhaus
       try {
-        const response = await fetch('https://urlhaus-api.abuse.ch/v1/urls/recent/', {
-          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'limit=100',
+        const urlhausHeaders: Record<string, string> = {};
+        const urlhausKey = process.env.ABUSECH_API_KEY || '';
+        if (urlhausKey) urlhausHeaders['Auth-Key'] = urlhausKey;
+        const response = await fetch('https://urlhaus-api.abuse.ch/v1/urls/recent/limit/100/', {
+          method: 'GET', headers: urlhausHeaders,
         });
         if (response.ok) {
           const data = await response.json() as any;

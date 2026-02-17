@@ -55,10 +55,9 @@ async function fetchAbuseCh(): Promise<{ source: string; fetched: number; error?
     const apiKey = process.env.ABUSECH_API_KEY || "";
     const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
     if (apiKey) headers["Auth-Key"] = apiKey;
-    const response = await fetch("https://urlhaus-api.abuse.ch/v1/urls/recent/", {
-      method: "POST",
+    const response = await fetch("https://urlhaus-api.abuse.ch/v1/urls/recent/limit/100/", {
+      method: "GET",
       headers,
-      body: "limit=100",
     });
     if (!response.ok) {
       if (response.status === 401) return { source: "abusech_urlhaus", fetched: 0, error: "Auth required — set ABUSECH_API_KEY (register at auth.abuse.ch)" };
