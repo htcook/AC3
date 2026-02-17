@@ -28,6 +28,14 @@ function resolveCalderaApiKey(): string {
   return "kmpJNkws7KXEdyIc2K8FYAGdMoRgrZ4c3hvJ1F9SI94";
 }
 
+// ─── Resolve Caldera Password ──────────────────────────────────────────────
+// Custom dashboard login password set by the user.
+function resolveCalderaPassword(): string {
+  const env = process.env.CALDERA_PASSWORD;
+  if (env && env !== "ADMIN123" && env.length > 10) return env;
+  return "PVYedK$BUAYzyXaAegdEl2Dz";
+}
+
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
@@ -41,7 +49,7 @@ export const ENV = {
   calderaBaseUrl: resolveCalderaUrl(),
   calderaApiKey: resolveCalderaApiKey(),
   calderaUsername: process.env.CALDERA_USERNAME ?? "red",
-  calderaPassword: process.env.CALDERA_PASSWORD ?? "",
+  calderaPassword: resolveCalderaPassword(),
   // GoPhish
   gophishBaseUrl: resolveGophishUrl(),
   gophishApiKey: process.env.GOPHISH_API_KEY ?? "",

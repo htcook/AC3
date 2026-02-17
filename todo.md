@@ -1869,3 +1869,10 @@
 - [x] Updated env.ts to accept HTTPS domain proxy URL
 - [x] Verify templates and landing pages load (138 templates, 7 landing pages confirmed)
 - [x] All 36 test files, 621 tests passing
+
+## Auth & Template Loading Fixes
+- [x] BUG: Authentication failed when previewing the site (CALDERA_PASSWORD was ADMIN123, now resolved to correct password)
+- [x] BUG: GoPhish template loading — dev server confirmed working (140 templates via gophish.aceofcloud.io proxy)
+- [x] Diagnose auth flow and fix login issue (added resolveCalderaPassword() fallback in env.ts)
+- [x] Set custom dashboard password: PVYedK$BUAYzyXaAegdEl2Dz
+- [x] Change dashboard login password to user-specified custom password (PVYedK$BUAYzyXaAegdEl2Dz)
