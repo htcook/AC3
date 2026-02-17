@@ -1878,5 +1878,14 @@
 - [x] Change dashboard login password to user-specified custom password (PVYedK$BUAYzyXaAegdEl2Dz)
 - [x] BUG: Login fails on dev preview with saved credentials (fixed: sameSite cookie from 'lax' to 'none' for iframe compatibility)
 - [x] Fix login authentication - user cannot log in with red / PVYedK$BUAYzyXaAegdEl2Dz (root cause: Manus preview panel iframe blocks third-party cookies with sameSite=lax)
-- [ ] Fix GoPhish template loading on production site
+- [x] Fix GoPhish template loading on production site (was broken Dashboard links, not GoPhish itself)
 - [x] Fix login on published manus.space site - hardcoded canonical password directly in login procedure + ADMIN123 legacy fallback
+- [x] Fix GoPhish template loading on production manus.space site (broken links in Dashboard.tsx: /template-library→/templates, /abilities→/abilities-library, /ioc-feeds→/ioc-feed)
+- [x] Update DigitalOcean production (aceofcloud.io) - set up as Manus custom domain via CNAME
+
+## Custom Domain Setup - dashboard.aceofcloud.io
+- [x] Remove nginx reverse proxy for dashboard.aceofcloud.io from app server
+- [x] Set up dashboard.aceofcloud.io as Manus custom domain
+- [x] Update Namecheap DNS: change A record to CNAME pointing to cname.manus.space
+- [ ] Verify dashboard.aceofcloud.io login works after publishing fix
+- [x] Fix login redirect: removed session.invalidate() AJAX call, use immediate window.location.href redirect instead

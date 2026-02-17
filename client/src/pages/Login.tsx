@@ -41,24 +41,21 @@ export default function Login() {
   }, [sessionLoading, session, redirectTarget, redirectInfo]);
 
   const loginMutation = trpc.calderaAuth.login.useMutation({
-    onSuccess: async (data: { success: boolean; message?: string }) => {
+    onSuccess: (data: { success: boolean; message?: string }) => {
       if (data.success) {
         toast.success("Login successful", {
           description: redirectInfo
             ? `Authenticating with ${redirectInfo.label}...`
             : "Welcome to Cyber Campaign Command Platform",
         });
-        // Invalidate the session query to force a refetch
-        await utils.calderaAuth.session.invalidate();
-        // Small delay to ensure cookie is set
-        setTimeout(() => {
-          if (redirectTarget && redirectInfo) {
-            // Redirect to the target service - nginx auth_request will now pass
-            window.location.href = redirectInfo.url;
-          } else {
-            window.location.href = "/dashboard";
-          }
-        }, 100);
+        // Redirect immediately via full page navigation
+        // This ensures the cookie is sent with the next page request
+        // Do NOT use session.invalidate() as the cookie may not be available for AJAX calls yet
+        if (redirectTarget && redirectInfo) {
+          window.location.href = redirectInfo.url;
+        } else {
+          window.location.href = "/dashboard";
+        }
       } else {
         toast.error("Login failed", {
           description: data.message || "Invalid credentials",

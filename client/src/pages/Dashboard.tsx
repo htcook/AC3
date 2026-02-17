@@ -448,11 +448,11 @@ export default function Dashboard() {
         <section>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             <MiniStat value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-primary" href="/adversaries" />
-            <MiniStat value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-primary" href="/abilities" />
+            <MiniStat value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-primary" href="/abilities-library" />
             <MiniStat value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-primary" href="/operations/monitor" />
             <MiniStat value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-primary" href="/agents" />
             <MiniStat value={gophish.totalCampaigns.toString()} label="CAMPAIGNS" color="text-emerald-400" href="/phishing-ops" />
-            <MiniStat value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-400" href="/template-library" />
+            <MiniStat value={gophish.totalTemplates.toString()} label="TEMPLATES" color="text-emerald-400" href="/templates" />
             <MiniStat value={`${clickRate}%`} label="CLICK RATE" color="text-yellow-400" href="/phishing-ops" />
             <MiniStat value={`${submitRate}%`} label="SUBMIT RATE" color="text-red-400" href="/phishing-ops" />
           </div>
@@ -630,11 +630,11 @@ export default function Dashboard() {
             <ToolCard icon={<Scan />} label="Domain Intel" desc="DNS, WHOIS, SPF/DKIM" href="/domain-intel" />
             <ToolCard icon={<Shield />} label="Rule Validator" desc="Sigma/YARA/Suricata" href="/rule-validator" />
             <ToolCard icon={<BarChart3 />} label="Coverage Matrix" desc="Detection gap analysis" href="/detection-coverage" />
-            <ToolCard icon={<Layers />} label="Abilities Library" desc="6,340+ attack abilities" href="/abilities" />
-            <ToolCard icon={<FileText />} label="Template Library" desc="26 phishing templates" href="/template-library" />
+            <ToolCard icon={<Layers />} label="Abilities Library" desc="6,340+ attack abilities" href="/abilities-library" />
+            <ToolCard icon={<FileText />} label="Template Library" desc="26 phishing templates" href="/templates" />
             <ToolCard icon={<Globe />} label="Page Builder" desc="Visual landing pages" href="/landing-page-builder" />
-            <ToolCard icon={<ShieldAlert />} label="IOC Feeds" desc="CISA KEV, OTX, abuse.ch" href="/ioc-feeds" />
-            <ToolCard icon={<Terminal />} label="Offensive Tools" desc="Kali + Metasploit catalog" href="/offensive-tools" />
+            <ToolCard icon={<ShieldAlert />} label="IOC Feeds" desc="CISA KEV, OTX, abuse.ch" href="/ioc-feed" />
+            <ToolCard icon={<Terminal />} label="Offensive Tools" desc="Kali + Metasploit catalog" href="/infra-reference" />
           </div>
         </section>
 
