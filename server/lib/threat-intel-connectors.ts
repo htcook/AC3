@@ -225,7 +225,7 @@ export async function ingestMitreAttack(): Promise<IngestionResult> {
             description: desc.length > (existing[0].description || "").length ? desc : existing[0].description,
             aliases: JSON.stringify(g.aliases || []),
             techniques: JSON.stringify(techs),
-            targetSectors: JSON.stringify(sectors.length > 0 ? sectors : JSON.parse(existing[0].targetSectors as string || "[]")),
+            targetSectors: JSON.stringify(sectors.length > 0 ? sectors : (Array.isArray(existing[0].targetSectors) ? existing[0].targetSectors : JSON.parse(existing[0].targetSectors as string || "[]"))),
             origin: nation || existing[0].origin,
             stixId: g.id,
             lastActive: g.modified.slice(0, 10),
@@ -652,8 +652,11 @@ export async function ingestCalderaAdversaries(): Promise<IngestionResult> {
           if (!(existing[0].dataSource || "").includes("caldera")) {
             updates.dataSource = `${existing[0].dataSource || ""},caldera`.replace(/^,/, "");
           }
-          // Merge techniques
-          const existTechs: any[] = JSON.parse(existing[0].techniques as string || "[]");
+          // Merge techniques — Drizzle may return a parsed array or a JSON string
+          const rawTechs = existing[0].techniques;
+          const existTechs: any[] = Array.isArray(rawTechs) ? rawTechs
+            : typeof rawTechs === "string" ? JSON.parse(rawTechs || "[]")
+            : [];
           const existIds = new Set(existTechs.map((t: any) => typeof t === "string" ? t : t.id));
           const newTechs = techs.filter(t => !existIds.has(t.id));
           if (newTechs.length > 0) {
@@ -763,7 +766,8 @@ export async function ensureActorInCatalog(actorName: string, metadata?: {
 
   if (existing.length > 0) {
     if (metadata?.ttps) {
-      const existTechs: any[] = JSON.parse(existing[0].techniques as string || "[]");
+      const rawTechs = existing[0].techniques;
+      const existTechs: any[] = Array.isArray(rawTechs) ? rawTechs : typeof rawTechs === "string" ? JSON.parse(rawTechs || "[]") : [];
       const existIds = new Set(existTechs.map((t: any) => typeof t === "string" ? t : t.id));
       const newTtps = (metadata.ttps || []).filter(t => !existIds.has(t));
       if (newTtps.length > 0) {

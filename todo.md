@@ -1900,3 +1900,14 @@
 - [x] Redirect aceofcloud.io to dashboard.aceofcloud.io (301 redirect via nginx on mail server)
 - [x] Ensure caldera.aceofcloud.io still provides direct Caldera UI access (verified 200 OK)
 - [x] Remove empty email templates from GoPhish (deleted 138 test templates with placeholder HTML, 38 real templates preserved)
+
+## Data Feed Refresh
+- [x] Audit existing data feed procedures and database schema
+- [x] Run CISA KEV catalog feed update (500 KEV entries + 1518 vuln catalog entries)
+- [x] Run ransomware groups feed update (318 groups updated via Ransomware.live)
+- [x] Run threat actor/groups feed update (172 MITRE ATT&CK, 941 Malpedia, 29 Caldera updated)
+- [x] Run IOC and darkweb intelligence feeds (500 CISA KEV IOCs; abuse.ch requires API key)
+- [x] Fix Caldera JSON parsing errors (Drizzle returns parsed arrays, not strings)
+- [x] Fix abuse.ch 401 auth — updated code to support ABUSECH_API_KEY env var
+- [x] Run vulnerability feeds (1718 unified entries from KEV + NVD)
+- [x] Verify updated data counts: 1,658 threat actors, 318 ransomware groups, 129 events, 4,311 IOCs, 1,718 vulns

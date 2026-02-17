@@ -52,12 +52,18 @@ async function fetchCisaKev(): Promise<{ source: string; fetched: number; error?
 /** Fetch abuse.ch URLhaus recent malicious URLs */
 async function fetchAbuseCh(): Promise<{ source: string; fetched: number; error?: string }> {
   try {
+    const apiKey = process.env.ABUSECH_API_KEY || "";
+    const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+    if (apiKey) headers["Auth-Key"] = apiKey;
     const response = await fetch("https://urlhaus-api.abuse.ch/v1/urls/recent/", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers,
       body: "limit=100",
     });
-    if (!response.ok) return { source: "abusech_urlhaus", fetched: 0, error: `HTTP ${response.status}` };
+    if (!response.ok) {
+      if (response.status === 401) return { source: "abusech_urlhaus", fetched: 0, error: "Auth required — set ABUSECH_API_KEY (register at auth.abuse.ch)" };
+      return { source: "abusech_urlhaus", fetched: 0, error: `HTTP ${response.status}` };
+    }
     const data = (await response.json()) as any;
     const urls = data.urls || [];
 
@@ -85,12 +91,18 @@ async function fetchAbuseCh(): Promise<{ source: string; fetched: number; error?
 /** Fetch abuse.ch ThreatFox IOCs from last 7 days */
 async function fetchThreatFox(): Promise<{ source: string; fetched: number; error?: string }> {
   try {
+    const apiKey = process.env.ABUSECH_API_KEY || "";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) headers["Auth-Key"] = apiKey;
     const response = await fetch("https://threatfox-api.abuse.ch/api/v1/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ query: "get_iocs", days: 7 }),
     });
-    if (!response.ok) return { source: "abusech_threatfox", fetched: 0, error: `HTTP ${response.status}` };
+    if (!response.ok) {
+      if (response.status === 401) return { source: "abusech_threatfox", fetched: 0, error: "Auth required — set ABUSECH_API_KEY (register at auth.abuse.ch)" };
+      return { source: "abusech_threatfox", fetched: 0, error: `HTTP ${response.status}` };
+    }
     const data = (await response.json()) as any;
     const iocs = Array.isArray(data.data) ? data.data.slice(0, 200) : [];
 

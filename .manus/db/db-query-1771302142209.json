@@ -1,0 +1,30 @@
+{
+  "query": "SELECT 'threat_actors' as tbl, COUNT(*) as cnt FROM threat_actors UNION ALL SELECT 'ransomware_groups', COUNT(*) FROM ransomware_groups UNION ALL SELECT 'threat_group_events', COUNT(*) FROM threat_group_events UNION ALL SELECT 'ioc_feeds', COUNT(*) FROM ioc_feeds UNION ALL SELECT 'threat_intel_updates', COUNT(*) FROM threat_intel_updates",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT 'threat_actors' as tbl, COUNT(*) as cnt FROM threat_actors UNION ALL SELECT 'ransomware_groups', COUNT(*) FROM ransomware_groups UNION ALL SELECT 'threat_group_events', COUNT(*) FROM threat_group_events UNION ALL SELECT 'ioc_feeds', COUNT(*) FROM ioc_feeds UNION ALL SELECT 'threat_intel_updates', COUNT(*) FROM threat_intel_updates",
+  "rows": [
+    {
+      "tbl": "threat_group_events",
+      "cnt": "129"
+    },
+    {
+      "tbl": "ransomware_groups",
+      "cnt": "318"
+    },
+    {
+      "tbl": "threat_intel_updates",
+      "cnt": "27"
+    },
+    {
+      "tbl": "threat_actors",
+      "cnt": "1658"
+    },
+    {
+      "tbl": "ioc_feeds",
+      "cnt": "4311"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nthreat_group_events\t129\nransomware_groups\t318\nthreat_intel_updates\t27\nthreat_actors\t1658\nioc_feeds\t4311\n",
+  "stderr": "",
+  "execution_time_ms": 65
+}
