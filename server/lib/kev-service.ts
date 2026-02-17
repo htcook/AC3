@@ -324,7 +324,7 @@ export function matchTechnologiesAgainstKev(
               knownRansomware: kev.knownRansomwareCampaignUse === "Known",
               matchType: vendorMatch && productMatch ? "product" : vendorMatch ? "vendor" : "product",
               matchedOn: tech,
-              severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 25 : 15,
+              severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 12 : 8,
               suggestedTechniques: mapKevToTechniques(kev),
             });
           }
@@ -355,7 +355,7 @@ export function matchTechnologiesAgainstKev(
           knownRansomware: kev.knownRansomwareCampaignUse === "Known",
           matchType: "technology",
           matchedOn: tech,
-          severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 20 : 10,
+          severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 10 : 6,
           suggestedTechniques: mapKevToTechniques(kev),
         });
       }
@@ -395,7 +395,7 @@ export function matchCvesAgainstKev(
         knownRansomware: kev.knownRansomwareCampaignUse === "Known",
         matchType: "cve" as const,
         matchedOn: cve,
-        severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 30 : 20,
+        severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 15 : 10,
         suggestedTechniques: mapKevToTechniques(kev),
       };
     });
@@ -438,7 +438,7 @@ export function matchActorTtpsAgainstKev(
           knownRansomware: kev.knownRansomwareCampaignUse === "Known",
           matchType: "cve" as const,
           matchedOn: cve,
-          severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 30 : 20,
+          severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 15 : 10,
           suggestedTechniques: mapKevToTechniques(kev),
         };
       });
@@ -499,8 +499,8 @@ export function calculateKevRiskBoost(kevMatches: KevMatch[]): {
 
   const ransomwareMatches = kevMatches.filter(m => m.knownRansomware);
   const maxBoost = Math.min(
-    kevMatches.reduce((sum, m) => sum + m.severityBoost, 0),
-    40 // Cap at 40 points
+    kevMatches.reduce((sum, m) => sum + Math.min(m.severityBoost, 8), 0),
+    20 // Cap at 20 points (was 40) — KEV boost is informational, not a score multiplier
   );
 
   return {

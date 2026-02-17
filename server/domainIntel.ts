@@ -404,13 +404,20 @@ Return JSON with this exact structure:
       "carverScores": { "criticality": 8, "accessibility": 7, ... },
       "shockScores": { "scope": 6, "handling": 7, ... },
       "cvssEstimate": 7.5,
-      "contextIndicators": { "exposure": 0.8, "recognizability": 0.7, "confidence": 0.75 },
-      "suggestedTier": "tier1_high",
+      "contextIndicators": { "exposure": 0.6, "recognizability": 0.5, "confidence": 0.4 },
+      "suggestedTier": "tier2_medium",
       "postureFindings": [...],
       "testVectors": [...]
     }
   ]
 }
+
+SCORING CALIBRATION (CRITICAL):
+- Most assets should score in the 3-6 range for CARVER/SHOCK. Only mission-critical assets (primary auth, payment, core DB) warrant 7+.
+- CVSS estimates should reflect LIKELY vulnerabilities, not worst-case. A standard web server with no known CVEs is CVSS 3-4, not 7.
+- Confidence should be LOW (0.3-0.5) when you have no version info or confirmed vulnerabilities. Only use 0.7+ with specific evidence.
+- A typical scan should produce a MIX of tiers: ~10-20% tier0/tier1, ~40-50% tier2, ~30-40% tier3. If most assets are tier0/tier1, your scores are inflated.
+- CDNs, static sites, and informational pages are LOW risk (tier3). APIs and SSO are MEDIUM unless specific vulns are known.
 
 Be thorough and realistic. Score based on the specific sector (${org.sector}) and client type (${org.clientType}).${fpCalibrationBlock}`;
 
@@ -566,37 +573,70 @@ function computeMissionImpact(carver: CarverScores, shock: ShockScores): number 
   return (carverScore + shockScore) / 2;
 }
 
+/**
+ * Compute hybrid risk using Impact × Likelihood model.
+ *
+ * IMPACT (0-1): Derived from CARVER/SHOCK mission impact.
+ *   - Represents "how bad would it be if this asset were compromised?"
+ *   - A critical asset with no vulnerabilities has HIGH impact but LOW risk.
+ *
+ * LIKELIHOOD (0-1): Derived from CVSS estimate + exposure + recognizability.
+ *   - Represents "how likely is this asset to be exploited?"
+ *   - CVSS is the primary driver; exposure and recognizability are modifiers.
+ *   - Confidence dampens likelihood: low-confidence LLM assessments reduce likelihood.
+ *
+ * RISK = sqrt(Impact × Likelihood) × 100
+ *   - Geometric mean ensures both dimensions must be elevated for high risk.
+ *   - A critical asset (impact=0.9) with no vulns (likelihood=0.1) → score ≈ 30 (low).
+ *   - A low-importance asset (impact=0.3) with confirmed CVEs (likelihood=0.9) → score ≈ 52 (medium).
+ *   - A critical asset with confirmed CVEs (impact=0.9, likelihood=0.9) → score ≈ 90 (critical).
+ */
 function computeHybridRisk(
   cvss: number,
   missionImpact: number,
   ctx: { exposure: number; recognizability: number; confidence: number }
 ): { score: number; band: string } {
-  const alpha = 0.4; // 40% CVSS, 60% mission impact
-  const cvssNorm = cvss / 10;
-  const missionNorm = missionImpact / 10;
-  const blended = alpha * cvssNorm + (1 - alpha) * missionNorm;
+  // IMPACT: normalized mission impact from CARVER+SHOCK (0-1)
+  const impact = clamp(missionImpact / 10, 0, 1);
 
-  // Context multiplier
-  let multiplier = 1.0;
-  multiplier += (ctx.exposure - 0.5) * 0.3;
-  multiplier += (ctx.recognizability - 0.5) * 0.15;
-  multiplier = clamp(multiplier, 0.7, 1.4);
+  // LIKELIHOOD: primarily CVSS, modified by exposure and recognizability
+  const cvssNorm = clamp(cvss / 10, 0, 1);
+  let likelihoodBase = cvssNorm;
+  // Exposure and recognizability shift likelihood by up to ±10%
+  likelihoodBase += (ctx.exposure - 0.5) * 0.2;
+  likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+  likelihoodBase = clamp(likelihoodBase, 0, 1);
 
-  // Confidence-based dampening: low-confidence findings get reduced scores
-  // At confidence 1.0: no dampening. At confidence 0.3: 30% reduction
-  const confidenceDampening = 0.7 + (ctx.confidence * 0.3);
+  // Confidence dampening: low-confidence assessments reduce likelihood
+  // At confidence 1.0: no dampening. At confidence 0.3: ~47% reduction
+  const confidenceDampening = 0.55 + (ctx.confidence * 0.45);
+  const likelihood = clamp(likelihoodBase * confidenceDampening, 0, 1);
 
-  const score = clamp(100 * blended * multiplier * confidenceDampening, 0, 100);
-  const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
+  // RISK = geometric mean of impact and likelihood, scaled to 0-100
+  const score = clamp(Math.round(Math.sqrt(impact * likelihood) * 100), 0, 100);
+  const band = riskBand(score);
 
   return { score, band };
 }
 
-function inferTier(riskScore: number): string {
-  if (riskScore >= 85) return "tier0_critical";
-  if (riskScore >= 70) return "tier1_high";
-  if (riskScore >= 40) return "tier2_medium";
+/** Centralized band thresholds — Critical raised to 90 to prevent over-classification */
+function riskBand(score: number): string {
+  if (score >= 90) return "critical";  // was 85 — only truly severe findings
+  if (score >= 70) return "high";
+  if (score >= 40) return "medium";
+  return "low";
+}
+
+/** Centralized tier thresholds — aligned with riskBand */
+function riskTier(score: number): string {
+  if (score >= 90) return "tier0_critical";
+  if (score >= 70) return "tier1_high";
+  if (score >= 40) return "tier2_medium";
   return "tier3_low";
+}
+
+function inferTier(riskScore: number): string {
+  return riskTier(riskScore);
 }
 
 /**
@@ -606,8 +646,7 @@ function inferTier(riskScore: number): string {
 function computeAssetCriticality(missionImpact: number): { score: number; band: string } {
   // missionImpact is 0-10, normalize to 0-100
   const score = clamp(Math.round(missionImpact * 10), 0, 100);
-  const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
-  return { score, band };
+  return { score, band: riskBand(score) };
 }
 
 /**
@@ -634,8 +673,7 @@ function computeVulnRisk(findings: PostureFinding[]): { score: number; band: str
   const avgWeighted = weightedSum / actionable.length;
   const maxNorm = (maxSeverity / 10) * 100;
   const score = clamp(Math.round(maxNorm * 0.6 + avgWeighted * 0.4), 0, 100);
-  const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
-  return { score, band };
+  return { score, band: riskBand(score) };
 }
 
 function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
@@ -1044,10 +1082,11 @@ export async function runDomainIntelPipeline(
             assetTechs.some(t => t.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(t.toLowerCase()))
           );
           if (assetKevMatches.length > 0) {
-            const assetBoost = Math.min(assetKevMatches.reduce((s, m) => s + m.severityBoost, 0), 30);
+            // Cap per-asset KEV boost at 15 (was 30) to prevent moderate assets from jumping to Critical
+            const assetBoost = Math.min(assetKevMatches.reduce((s, m) => s + Math.min(m.severityBoost, 8), 0), 15);
             a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
-            a.riskBand = a.hybridRiskScore >= 85 ? "critical" : a.hybridRiskScore >= 70 ? "high" : a.hybridRiskScore >= 40 ? "medium" : "low";
-            a.suggestedTier = a.hybridRiskScore >= 85 ? "tier0_critical" : a.hybridRiskScore >= 70 ? "tier1_high" : a.hybridRiskScore >= 40 ? "tier2_medium" : "tier3_low";
+            a.riskBand = riskBand(a.hybridRiskScore);
+            a.suggestedTier = riskTier(a.hybridRiskScore);
             // Add KEV posture findings with full evidence and corroboration
             assetKevMatches.forEach(m => {
               // Check if we have a detected version for this technology
@@ -1219,15 +1258,13 @@ export async function runDomainIntelPipeline(
     summaries = await generateSummaries(analyses, campaigns, org);
   }
 
-  // Compute overall risk (with KEV boost)
+  // Compute overall risk — KEV boost is already baked into per-asset hybridRiskScores,
+  // so we no longer add an additional overall KEV boost (was double-counting)
   const riskScores = analyses.map(a => a.hybridRiskScore);
-  let overallRisk = riskScores.length > 0
+  const overallRisk = riskScores.length > 0
     ? Math.round(riskScores.reduce((s, v) => s + v, 0) / riskScores.length)
     : 0;
-  if (kevEnrichment) {
-    overallRisk = Math.min(100, overallRisk + Math.round(kevEnrichment.riskBoost / 3));
-  }
-  const overallBand = overallRisk >= 85 ? "critical" : overallRisk >= 70 ? "high" : overallRisk >= 40 ? "medium" : "low";
+  const overallBand = riskBand(overallRisk);
 
   // Stage 6: Post-scan FP auto-flagging — mark findings that match known FP hashes
   if (fpHashes && fpHashes.size > 0) {

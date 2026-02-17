@@ -1965,3 +1965,13 @@
 - [x] Added trust proxy to Express so req.protocol reads HTTPS correctly behind CNAME proxy
 - [x] Verify cookie domain, path, secure, sameSite settings for aceofcloud.io (no Domain attr, SameSite=Lax, Secure=true)
 - [x] Test login flow end-to-end via curl (session reads back authenticated=true)
+
+## Risk Rating Inflation — Everything Shows Critical (Feb 17)
+- [x] Audit risk scoring pipeline (computeHybridRisk, vulnRiskScore, assetCriticalityScore)
+- [x] Identify why all assets/scans show Critical risk rating — Impact×Likelihood model restructure
+- [x] Recalibrate scoring to produce proportional ratings (Low/Medium/High/Critical)
+- [x] Write tests for corrected scoring logic (37 tests passing)
+- [x] Verify with existing scan data (8 scenarios validated)
+- [x] Restructure computeHybridRisk: CARVER/BIA criticality feeds Impact only, not full risk score
+- [x] Risk = Impact × Likelihood model: Likelihood from CVSS + posture findings + KEV, Impact from CARVER/SHOCK
+- [x] Update tests for new Impact × Likelihood scoring model (37 tests passing)
