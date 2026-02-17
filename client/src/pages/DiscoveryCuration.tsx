@@ -622,8 +622,20 @@ function AssetRow({ asset, isSelected, isExpanded, isExcludedView, onToggleSelec
           </div>
         )}
 
-        {/* Separated Criticality & Vuln Risk */}
+        {/* Impact & Likelihood (new) + Criticality & Vuln Risk */}
         <div className="hidden lg:flex shrink-0 gap-2">
+          <div className="w-12 text-center" title="Impact: How bad if this asset were compromised (from CARVER/SHOCK)">
+            <div className="text-[9px] tracking-widest text-sky-400/70">IMP</div>
+            <div className={`font-display text-sm ${(asset.impactScore || 0) >= 70 ? 'text-sky-400' : (asset.impactScore || 0) >= 40 ? 'text-sky-300' : 'text-slate-400'}`}>
+              {asset.impactScore || 0}
+            </div>
+          </div>
+          <div className="w-12 text-center" title="Likelihood: How likely this asset is to be exploited (from CVSS + exposure)">
+            <div className="text-[9px] tracking-widest text-amber-400/70">LKH</div>
+            <div className={`font-display text-sm ${(asset.likelihoodScore || 0) >= 70 ? 'text-amber-400' : (asset.likelihoodScore || 0) >= 40 ? 'text-amber-300' : 'text-slate-400'}`}>
+              {asset.likelihoodScore || 0}
+            </div>
+          </div>
           <div className="w-12 text-center">
             <div className="text-[9px] tracking-widest text-purple-400/70">CRIT</div>
             <div className={`font-display text-sm ${(asset.assetCriticalityScore || 0) >= 70 ? 'text-purple-400' : 'text-slate-400'}`}>

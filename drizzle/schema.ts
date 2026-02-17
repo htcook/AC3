@@ -494,6 +494,15 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
   hybridRiskScore: int("hybridRiskScore"), // 0-100
   riskBand: varchar("riskBand", { length: 32 }), // critical/high/medium/low
   cvssEstimate: int("cvssEstimate"), // 0-10 scaled
+  // Impact × Likelihood decomposition
+  impactScore: int("impactScore"), // 0-100, from CARVER/SHOCK mission impact
+  likelihoodScore: int("likelihoodScore"), // 0-100, from CVSS + exposure + recognizability
+  // Asset criticality (BIA-derived)
+  assetCriticalityScore: int("assetCriticalityScore"), // 0-100
+  assetCriticalityBand: varchar("assetCriticalityBand", { length: 32 }), // critical/high/medium/low
+  // Vulnerability risk (scan-confirmed findings only)
+  vulnRiskScore: int("vulnRiskScore"), // 0-100
+  vulnRiskBand: varchar("vulnRiskBand", { length: 32 }), // critical/high/medium/low
   // Context indicators
   contextIndicators: json("contextIndicators"), // { exposure, recognizability, confidence }
   // Posture findings

@@ -1975,3 +1975,13 @@
 - [x] Restructure computeHybridRisk: CARVER/BIA criticality feeds Impact only, not full risk score
 - [x] Risk = Impact × Likelihood model: Likelihood from CVSS + posture findings + KEV, Impact from CARVER/SHOCK
 - [x] Update tests for new Impact × Likelihood scoring model (37 tests passing)
+
+## Impact & Likelihood Columns + Scan Verification (Feb 17)
+- [x] Add impactScore and likelihoodScore to AssetAnalysis interface and computeHybridRisk return
+- [x] Add impactScore, likelihoodScore, assetCriticalityScore, assetCriticalityBand, vulnRiskScore, vulnRiskBand columns to DB schema (migrations 0022, 0023)
+- [x] Persist all 6 new fields in pipeline asset record mapping (routers.ts)
+- [x] Add IMP and LKH columns to DiscoveryCuration asset rows
+- [x] Add Impact/Likelihood to DomainIntelResults heatmap and list view panels
+- [x] Re-run 3 scans on aceofcloud.com (570090, 570091, 570092) — all 6 columns populated
+- [x] Risk distribution verified: Critical 11, High 8, Medium 9, Low 1 (scan 570092)
+- [x] Impact range: 34-93, Likelihood range: 38-91 — proportional and intuitive

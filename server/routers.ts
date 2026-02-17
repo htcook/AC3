@@ -3486,6 +3486,12 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               recommendedAttackChain: null,
               confidence: a.confidence,
               confidenceExplanation: a.contextIndicators,
+              impactScore: a.impactScore || 0,
+              likelihoodScore: a.likelihoodScore || 0,
+              assetCriticalityScore: a.assetCriticalityScore || 0,
+              assetCriticalityBand: a.assetCriticalityBand || 'low',
+              vulnRiskScore: a.vulnRiskScore || 0,
+              vulnRiskBand: a.vulnRiskBand || 'low',
             }));
 
             if (assetRecords.length > 0) {
@@ -3610,6 +3616,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               assetCriticalityBand: a.assetCriticalityBand || 'low',
               vulnRiskScore: a.vulnRiskScore || 0,
               vulnRiskBand: a.vulnRiskBand || 'low',
+              impactScore: a.impactScore || 0,
+              likelihoodScore: a.likelihoodScore || 0,
             }));
 
             // Run campaign design

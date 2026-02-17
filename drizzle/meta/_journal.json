@@ -155,6 +155,20 @@
       "when": 1771343047581,
       "tag": "0021_sad_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1771363281353,
+      "tag": "0022_long_sandman",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1771363533652,
+      "tag": "0023_even_earthquake",
+      "breakpoints": true
     }
   ]
 }

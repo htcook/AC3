@@ -495,7 +495,21 @@ export default function DomainIntelResults() {
                           <Activity className="h-3 w-3" /> Risk Composition
                         </p>
                         <div className="space-y-2">
+                          {/* Impact × Likelihood — the two dimensions that compose the risk score */}
                           <div className="flex justify-between text-[11px]">
+                            <span className="text-sky-400 font-medium">Impact (CARVER/SHOCK)</span>
+                            <span className={`font-bold ${(asset.impactScore || 0) >= 70 ? 'text-sky-400' : (asset.impactScore || 0) >= 40 ? 'text-sky-300' : 'text-slate-400'}`}>{asset.impactScore || 0}/100</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-amber-400 font-medium">Likelihood (CVSS+Exposure)</span>
+                            <span className={`font-bold ${(asset.likelihoodScore || 0) >= 70 ? 'text-amber-400' : (asset.likelihoodScore || 0) >= 40 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.likelihoodScore || 0}/100</span>
+                          </div>
+                          <div className="flex justify-between text-[11px] pt-1 border-t border-border">
+                            <span className="text-muted-foreground">Hybrid Risk Score</span>
+                            <span className={`font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}/100</span>
+                          </div>
+                          <div className="text-[9px] text-muted-foreground italic">Risk = √(Impact × Likelihood)</div>
+                          <div className="flex justify-between text-[11px] pt-1 border-t border-border/50">
                             <span className="text-muted-foreground">Mission Impact</span>
                             <span className="font-bold">{((asset.missionImpactScore || 0) / 10).toFixed(1)}/10</span>
                           </div>
@@ -506,10 +520,6 @@ export default function DomainIntelResults() {
                           <div className="flex justify-between text-[11px]">
                             <span className="text-muted-foreground">Confidence</span>
                             <span className="font-bold">{asset.confidence || 0}%</span>
-                          </div>
-                          <div className="flex justify-between text-[11px] pt-1 border-t border-border">
-                            <span className="text-muted-foreground">Hybrid Risk Score</span>
-                            <span className={`font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}/100</span>
                           </div>
                           <div className="flex justify-between text-[11px]">
                             <span className="text-muted-foreground">Asset Criticality</span>
@@ -695,6 +705,8 @@ export default function DomainIntelResults() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <Badge className={`${RISK_COLORS[band]} text-xs`}>{band}</Badge>
+                    <Badge variant="outline" className={`text-[10px] ${(asset.impactScore || 0) >= 70 ? 'text-sky-400 border-sky-500/40' : (asset.impactScore || 0) >= 40 ? 'text-sky-300 border-sky-500/30' : 'text-slate-400 border-slate-500/40'}`}>IMP: {asset.impactScore || 0}</Badge>
+                    <Badge variant="outline" className={`text-[10px] ${(asset.likelihoodScore || 0) >= 70 ? 'text-amber-400 border-amber-500/40' : (asset.likelihoodScore || 0) >= 40 ? 'text-amber-300 border-amber-500/30' : 'text-slate-400 border-slate-500/40'}`}>LKH: {asset.likelihoodScore || 0}</Badge>
                     <Badge variant="outline" className={`text-[10px] ${
                       (asset.assetCriticalityBand || 'low') === 'critical' ? 'text-purple-400 border-purple-500/40' :
                       (asset.assetCriticalityBand || 'low') === 'high' ? 'text-blue-400 border-blue-500/40' :
@@ -740,7 +752,15 @@ export default function DomainIntelResults() {
                             </div>
                           ))}
                         </div>
-                        <div className="mt-3 flex gap-4 text-xs">
+                        <div className="mt-3 flex gap-4 text-xs flex-wrap">
+                          <div>
+                            <span className="text-sky-400 font-medium">Impact:</span>{" "}
+                            <span className="font-bold">{asset.impactScore || 0}/100</span>
+                          </div>
+                          <div>
+                            <span className="text-amber-400 font-medium">Likelihood:</span>{" "}
+                            <span className="font-bold">{asset.likelihoodScore || 0}/100</span>
+                          </div>
                           <div>
                             <span className="text-muted-foreground">Mission Impact:</span>{" "}
                             <span className="font-bold">{(asset.missionImpactScore || 0) / 10}/10</span>
@@ -753,6 +773,7 @@ export default function DomainIntelResults() {
                             <span className="text-muted-foreground">Confidence:</span>{" "}
                             <span className="font-bold">{asset.confidence || 0}%</span>
                           </div>
+                          <div className="w-full text-[9px] text-muted-foreground italic">Risk = √(Impact × Likelihood)</div>
                         </div>
                       </div>
                     </div>

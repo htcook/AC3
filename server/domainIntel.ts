@@ -162,6 +162,9 @@ export interface AssetAnalysis {
   assetCriticalityBand: string;  // "critical" | "high" | "medium" | "low" — asset importance only
   vulnRiskScore: number;         // 0-100, derived from confirmed/probable scan findings only
   vulnRiskBand: string;          // "critical" | "high" | "medium" | "low" — scan-confirmed weakness only
+  // Impact × Likelihood decomposition (for analyst transparency)
+  impactScore: number;           // 0-100, normalized from CARVER/SHOCK mission impact
+  likelihoodScore: number;       // 0-100, derived from CVSS + exposure + recognizability, dampened by confidence
 }
 
 export interface KevEnrichment {
@@ -521,6 +524,9 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
         // vulnRiskScore will be 0 at this stage — recalculated after vuln feed enrichment
         vulnRiskScore: 0,
         vulnRiskBand: "low",
+        // Impact × Likelihood decomposition
+        impactScore: hybrid.impactScore,
+        likelihoodScore: hybrid.likelihoodScore,
       };
     });
   } catch (err) {
@@ -595,7 +601,7 @@ function computeHybridRisk(
   cvss: number,
   missionImpact: number,
   ctx: { exposure: number; recognizability: number; confidence: number }
-): { score: number; band: string } {
+): { score: number; band: string; impactScore: number; likelihoodScore: number } {
   // IMPACT: normalized mission impact from CARVER+SHOCK (0-1)
   const impact = clamp(missionImpact / 10, 0, 1);
 
@@ -616,7 +622,7 @@ function computeHybridRisk(
   const score = clamp(Math.round(Math.sqrt(impact * likelihood) * 100), 0, 100);
   const band = riskBand(score);
 
-  return { score, band };
+  return { score, band, impactScore: Math.round(impact * 100), likelihoodScore: Math.round(likelihood * 100) };
 }
 
 /** Centralized band thresholds — Critical raised to 90 to prevent over-classification */
@@ -699,6 +705,8 @@ function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
     assetCriticalityBand: criticality.band,
     vulnRiskScore: 0,
     vulnRiskBand: "low",
+    impactScore: hybrid.impactScore,
+    likelihoodScore: hybrid.likelihoodScore,
   };
 }
 
