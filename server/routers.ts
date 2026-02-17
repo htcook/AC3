@@ -17,7 +17,7 @@ import { phishingOpsRouter } from "./routers/phishing-ops";
 const CALDERA_SESSION_COOKIE = 'caldera_session';
 
 // Helper to get cookie options for Caldera session
-function getCalderaCookieOptions(req: any) {
+function getCalderaCookieOptions(req: any, rememberMe = false) {
   const host = req.hostname || req.headers?.host || '';
   // For aceofcloud.io subdomains, use cross-subdomain cookie
   // For other environments (manus.space, localhost), omit domain to use current host
@@ -31,7 +31,7 @@ function getCalderaCookieOptions(req: any) {
     // Use 'none' to allow cookies in cross-origin iframe contexts (Manus preview panel)
     // 'lax' blocks cookies in third-party iframe contexts in modern browsers
     sameSite: isLocalhost ? 'lax' as const : 'none' as const,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 days or 24 hours
     ...(isAceOfCloud ? { domain: '.aceofcloud.io' } : {}),
   };
 }
@@ -2179,6 +2179,7 @@ export const appRouter = router({
       .input(z.object({
         username: z.string().min(1),
         password: z.string().min(1),
+        rememberMe: z.boolean().optional().default(false),
       }))
       .mutation(async ({ input, ctx }) => {
         const validUsernames = ['red', 'blue', 'admin'];
@@ -2197,12 +2198,13 @@ export const appRouter = router({
         // Helper to create session and return success
         const createSession = (username: string, mode: string) => {
           const role = (username === 'admin' || username === 'red') ? 'admin' : 'user';
+          const jwtExpiry = input.rememberMe ? '7d' : '24h';
           const token = jwt.sign(
             { username, role, loginTime: Date.now() },
             CALDERA_JWT_SECRET,
-            { expiresIn: '24h' }
+            { expiresIn: jwtExpiry }
           );
-          ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCalderaCookieOptions(ctx.req));
+          ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCalderaCookieOptions(ctx.req, input.rememberMe));
           console.log(`[Auth] Login successful for ${username} (${mode})`);
           return { success: true, message: `Login successful`, user: { username, role } };
         };

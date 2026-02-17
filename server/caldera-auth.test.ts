@@ -108,6 +108,52 @@ describe("calderaAuth.login", () => {
   });
 });
 
+describe("calderaAuth.login rememberMe", () => {
+  it("sets 24h cookie maxAge when rememberMe is false (default)", async () => {
+    const { ctx, cookies } = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await caller.calderaAuth.login({
+      username: "admin",
+      password: "PVYedK$BUAYzyXaAegdEl2Dz",
+    });
+
+    const cookie = cookies["caldera_session"];
+    expect(cookie).toBeDefined();
+    expect(cookie.options.maxAge).toBe(24 * 60 * 60 * 1000); // 24 hours
+  });
+
+  it("sets 7-day cookie maxAge when rememberMe is true", async () => {
+    const { ctx, cookies } = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await caller.calderaAuth.login({
+      username: "admin",
+      password: "PVYedK$BUAYzyXaAegdEl2Dz",
+      rememberMe: true,
+    });
+
+    const cookie = cookies["caldera_session"];
+    expect(cookie).toBeDefined();
+    expect(cookie.options.maxAge).toBe(7 * 24 * 60 * 60 * 1000); // 7 days
+  });
+
+  it("sets 24h cookie maxAge when rememberMe is explicitly false", async () => {
+    const { ctx, cookies } = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await caller.calderaAuth.login({
+      username: "red",
+      password: "ADMIN123",
+      rememberMe: false,
+    });
+
+    const cookie = cookies["caldera_session"];
+    expect(cookie).toBeDefined();
+    expect(cookie.options.maxAge).toBe(24 * 60 * 60 * 1000); // 24 hours
+  });
+});
+
 describe("calderaAuth.session", () => {
   it("returns unauthenticated when no cookie present", async () => {
     const { ctx } = createPublicContext();

@@ -22,6 +22,7 @@ export default function Login() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const utils = trpc.useUtils();
@@ -82,7 +83,7 @@ export default function Login() {
       return;
     }
     setIsLoading(true);
-    loginMutation.mutate({ username, password });
+    loginMutation.mutate({ username, password, rememberMe });
   };
 
   return (
@@ -161,6 +162,20 @@ export default function Login() {
                     disabled={isLoading}
                   />
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={isLoading}
+                  className="h-4 w-4 rounded border-border bg-background/50 text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer accent-primary"
+                />
+                <Label htmlFor="rememberMe" className="text-sm text-muted-foreground cursor-pointer select-none">
+                  Remember me for 7 days
+                </Label>
               </div>
 
               <Button

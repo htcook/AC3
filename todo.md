@@ -1939,3 +1939,8 @@
 - [x] Audit OAuth callback, session cookie, and redirect logic — root cause: dual auth system conflict
 - [x] Fix DashboardLayout — confirmed it's not used in any route; no blocking issue
 - [x] Verify complex password env var — updated from ADMIN123 to PVYedK$BUAYzyXaAegdEl2Dz, all 7 auth tests pass
+
+## Remember Me Feature
+- [x] Add rememberMe parameter to calderaAuth.login mutation (extend cookie from 24h to 7 days)
+- [x] Add Remember Me checkbox to Login.tsx UI
+- [x] Update tests for remember me functionality (3 new tests, all 10 pass)
