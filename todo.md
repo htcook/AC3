@@ -1944,3 +1944,15 @@
 - [x] Add rememberMe parameter to calderaAuth.login mutation (extend cookie from 24h to 7 days)
 - [x] Add Remember Me checkbox to Login.tsx UI
 - [x] Update tests for remember me functionality (3 new tests, all 10 pass)
+
+## Data Feed Refresh (Feb 17 #2)
+- [ ] Run full threat intel catalog sync (MITRE ATT&CK, Ransomware.live, Malpedia, Caldera)
+- [ ] Run IOC feeds (CISA KEV)
+- [ ] Run vulnerability feeds (KEV, NVD, Project Zero)
+- [ ] Run darkweb feeds (access brokers, IO campaigns)
+- [ ] Verify updated data counts
+
+## Login Bug — Desktop (Feb 17)
+- [x] Fix: red / complex password — server accepts it (confirmed via curl); SameSite changed from 'none' to 'lax' for aceofcloud.io
+- [x] Fix: ADMIN123 login — added session cache invalidation + 500ms delay + SameSite=lax for aceofcloud.io
+- [x] Fix: Login page branding updated from "Caldera Command" to "Ace C3"

@@ -23,14 +23,20 @@ function getCalderaCookieOptions(req: any, rememberMe = false) {
   // For other environments (manus.space, localhost), omit domain to use current host
   const isAceOfCloud = host.includes('aceofcloud.io');
   const isLocalhost = host.includes('localhost');
+  const isManusPreview = host.includes('manus.space') || host.includes('manus.computer') || host.includes('manusvm.computer');
+  
+  // Use 'none' only for Manus preview iframe contexts (cross-origin)
+  // Use 'lax' for aceofcloud.io direct access — more reliable for same-site navigation
+  // 'lax' sends cookies on top-level navigations (link clicks, form submits, window.location)
+  const sameSite = isLocalhost ? 'lax' as const
+    : isManusPreview ? 'none' as const
+    : 'lax' as const;
+  
   return {
     path: '/',
     httpOnly: true,
-    // Must be secure:true when sameSite is 'none' (required for cross-origin iframe contexts)
     secure: !isLocalhost,
-    // Use 'none' to allow cookies in cross-origin iframe contexts (Manus preview panel)
-    // 'lax' blocks cookies in third-party iframe contexts in modern browsers
-    sameSite: isLocalhost ? 'lax' as const : 'none' as const,
+    sameSite,
     maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 7 days or 24 hours
     ...(isAceOfCloud ? { domain: '.aceofcloud.io' } : {}),
   };

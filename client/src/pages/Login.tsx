@@ -47,19 +47,22 @@ export default function Login() {
         toast.success("Login successful", {
           description: redirectInfo
             ? `Authenticating with ${redirectInfo.label}...`
-            : "Welcome to Cyber Campaign Command Platform",
+            : "Welcome to Ace C3",
         });
-        // Small delay before redirect to ensure the Set-Cookie header is fully
-        // committed by the browser. Mobile Safari in particular can race between
-        // cookie persistence and navigation, causing the session cookie to be
-        // missing on the next page load.
-        setTimeout(() => {
-          if (redirectTarget && redirectInfo) {
-            window.location.href = redirectInfo.url;
-          } else {
-            window.location.href = "/dashboard";
-          }
-        }, 300);
+        // Invalidate the session query so ProtectedRoute sees the new auth state,
+        // then redirect. Using a delay + window.location.href ensures the
+        // Set-Cookie header is fully committed by the browser before navigating.
+        // Mobile Safari in particular can race between cookie persistence and
+        // navigation.
+        utils.calderaAuth.session.invalidate().then(() => {
+          setTimeout(() => {
+            if (redirectTarget && redirectInfo) {
+              window.location.href = redirectInfo.url;
+            } else {
+              window.location.href = "/dashboard";
+            }
+          }, 500);
+        });
       } else {
         toast.error("Login failed", {
           description: data.message || "Invalid credentials",
@@ -99,9 +102,9 @@ export default function Login() {
             <span className="font-display text-2xl tracking-wider text-foreground">ACE OF CLOUD</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-tight text-foreground mb-2">
-            CALDERA <span className="text-primary">COMMAND</span>
+            ACE <span className="text-primary">C3</span>
           </h1>
-          <p className="text-muted-foreground">Unified Access Portal</p>
+          <p className="text-muted-foreground">Cyber Campaign Command Platform</p>
         </div>
 
         {/* Redirect notice */}
@@ -123,7 +126,7 @@ export default function Login() {
             </div>
             <CardTitle className="font-display text-xl tracking-wide">AUTHENTICATION REQUIRED</CardTitle>
             <CardDescription>
-              Enter your credentials to access the Command Center and all connected services
+              Enter your credentials to access Ace C3 and all connected services
             </CardDescription>
           </CardHeader>
           <CardContent>
