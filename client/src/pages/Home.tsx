@@ -88,69 +88,7 @@ function AnimatedStat({ value, label, suffix = "" }: { value: number; label: str
   );
 }
 
-function DomainSearchHero() {
-  const [domain, setDomain] = useState("");
-  const [, navigate] = useLocation();
-  const [isHovered, setIsHovered] = useState(false);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleaned = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    if (cleaned) {
-      navigate(`/domain-intel?domain=${encodeURIComponent(cleaned)}`);
-    }
-  };
-
-  return (
-    <section className="py-16 bg-gradient-to-b from-background to-card/30">
-      <div className="container max-w-3xl text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 border border-cyan-500/40 text-cyan-400 text-xs font-display tracking-widest mb-6">
-          <Radar className="w-3 h-3" />
-          DOMAIN INTELLIGENCE
-        </div>
-        <h2 className="text-3xl sm:text-4xl font-display tracking-tight mb-3">
-          SCAN ANY DOMAIN
-        </h2>
-        <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-          Launch an AI-powered reconnaissance pipeline with active DNS verification,
-          banner fingerprinting, vulnerability correlation, and threat actor matching.
-        </p>
-        <form onSubmit={handleSearch} className="relative max-w-xl mx-auto">
-          <div
-            className={`flex items-center border-2 transition-all duration-300 bg-card ${
-              isHovered || domain ? "border-cyan-500/60 shadow-[0_0_20px_rgba(6,182,212,0.15)]" : "border-border"
-            }`}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
-            <Globe className="w-5 h-5 text-muted-foreground ml-4 flex-shrink-0" />
-            <input
-              type="text"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="Enter a domain (e.g., example.com)"
-              className="flex-1 bg-transparent border-none outline-none px-4 py-4 text-lg font-mono placeholder:text-muted-foreground/50"
-            />
-            <button
-              type="submit"
-              disabled={!domain.trim()}
-              className="flex items-center gap-2 px-6 py-4 bg-cyan-500 hover:bg-cyan-400 disabled:bg-muted disabled:text-muted-foreground text-black font-display tracking-wider text-sm transition-colors"
-            >
-              <Search className="w-4 h-4" />
-              SCAN
-            </button>
-          </div>
-        </form>
-        <div className="flex items-center justify-center gap-6 mt-6 text-[11px] text-muted-foreground font-display tracking-wider">
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> DNS VERIFICATION</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> BANNER DETECTION</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> CVE CORRELATION</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> THREAT MATCHING</span>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 export default function Home() {
   const [showUpdates, setShowUpdates] = useState(true);
@@ -272,11 +210,6 @@ export default function Home() {
           }} />
         </div>
       </section>
-
-      <div className="w-full h-px bg-primary" />
-
-      {/* Domain Search — Front & Center */}
-      <DomainSearchHero />
 
       <div className="w-full h-px bg-primary" />
 

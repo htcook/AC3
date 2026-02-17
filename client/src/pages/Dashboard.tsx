@@ -8,7 +8,7 @@ import {
   Fish, Mail, MousePointerClick, Eye, FileWarning, Send, Globe, Shield,
   Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert,
   Rocket, Building2, ArrowRight, Layers, BarChart3, Play, Pause,
-  CheckCircle2, XCircle, Loader2, Plus, History
+  CheckCircle2, XCircle, Loader2, Plus, History, Radar
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import AppShell from "@/components/AppShell";
@@ -226,6 +226,51 @@ export default function Dashboard() {
       </header>
 
       <div className="p-4 sm:p-6 space-y-6">
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* DOMAIN SCAN — Quick scan bar                                    */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <section className="bg-gradient-to-r from-cyan-950/40 via-card to-card border-2 border-cyan-500/30 p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Radar className="w-5 h-5 text-cyan-400" />
+            <h2 className="font-display text-lg tracking-wider text-cyan-400">DOMAIN INTELLIGENCE</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Launch an AI-powered reconnaissance pipeline with active DNS verification,
+            banner fingerprinting, vulnerability correlation, and threat actor matching.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const val = (e.currentTarget.elements.namedItem('quickDomain') as HTMLInputElement)?.value?.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+              if (val) navigate(`/domain-intel?domain=${encodeURIComponent(val)}`);
+            }}
+            className="flex items-center gap-0 max-w-2xl"
+          >
+            <div className="relative flex-1">
+              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500/60" />
+              <input
+                name="quickDomain"
+                type="text"
+                placeholder="Enter a domain (e.g., example.com)"
+                className="w-full pl-11 pr-4 py-3.5 bg-background/80 border-2 border-cyan-500/30 border-r-0 text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:border-cyan-500 transition-colors"
+              />
+            </div>
+            <button
+              type="submit"
+              className="flex items-center gap-2 px-6 py-3.5 bg-cyan-500 hover:bg-cyan-400 text-black font-display tracking-wider text-sm transition-colors border-2 border-cyan-500 hover:border-cyan-400"
+            >
+              <Search className="w-4 h-4" />
+              SCAN
+            </button>
+          </form>
+          <div className="flex items-center gap-4 sm:gap-6 mt-4 text-[10px] text-muted-foreground font-display tracking-wider flex-wrap">
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> DNS VERIFICATION</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> BANNER DETECTION</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> CVE CORRELATION</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> THREAT MATCHING</span>
+          </div>
+        </section>
 
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* START ENGAGEMENT — Hero Section                                */}
