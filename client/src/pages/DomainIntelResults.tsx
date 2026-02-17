@@ -511,6 +511,18 @@ export default function DomainIntelResults() {
                             <span className="text-muted-foreground">Hybrid Risk Score</span>
                             <span className={`font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}/100</span>
                           </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-muted-foreground">Asset Criticality</span>
+                            <span className={`font-bold ${(asset.assetCriticalityBand || 'low') === 'critical' ? 'text-purple-400' : (asset.assetCriticalityBand || 'low') === 'high' ? 'text-blue-400' : (asset.assetCriticalityBand || 'low') === 'medium' ? 'text-cyan-400' : 'text-slate-400'}`}>
+                              {asset.assetCriticalityScore || 0}/100 ({(asset.assetCriticalityBand || 'low').toUpperCase()})
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-muted-foreground">Vuln Risk (Scan-Confirmed)</span>
+                            <span className={`font-bold ${(asset.vulnRiskBand || 'low') === 'critical' ? 'text-red-400' : (asset.vulnRiskBand || 'low') === 'high' ? 'text-orange-400' : (asset.vulnRiskBand || 'low') === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                              {asset.vulnRiskScore || 0}/100 ({(asset.vulnRiskBand || 'low').toUpperCase()})
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -683,7 +695,17 @@ export default function DomainIntelResults() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <Badge className={`${RISK_COLORS[band]} text-xs`}>{band}</Badge>
-                    <Badge variant="outline" className="text-[10px]">{asset.suggestedTier?.replace("_", " ")}</Badge>
+                    <Badge variant="outline" className={`text-[10px] ${
+                      (asset.assetCriticalityBand || 'low') === 'critical' ? 'text-purple-400 border-purple-500/40' :
+                      (asset.assetCriticalityBand || 'low') === 'high' ? 'text-blue-400 border-blue-500/40' :
+                      'text-slate-400 border-slate-500/40'
+                    }`}>CRIT: {asset.assetCriticalityScore || 0}</Badge>
+                    <Badge variant="outline" className={`text-[10px] ${
+                      (asset.vulnRiskBand || 'low') === 'critical' ? 'text-red-400 border-red-500/40' :
+                      (asset.vulnRiskBand || 'low') === 'high' ? 'text-orange-400 border-orange-500/40' :
+                      (asset.vulnRiskBand || 'low') === 'medium' ? 'text-yellow-400 border-yellow-500/40' :
+                      'text-emerald-400 border-emerald-500/40'
+                    }`}>VULN: {asset.vulnRiskScore || 0}</Badge>
                     {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </div>
                 </div>
@@ -1745,11 +1767,11 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       icon: Radar,
       category: "Risk Scoring",
       status: "completed",
-      description: "Combined CVSS scores (40%) + Mission Impact (35%) + Context indicators (25%) into a single 0-100 hybrid risk score per asset.",
-      outputs: `Overall risk score: ${scan.overallRiskScore || 'N/A'} (${scan.overallRiskBand || 'N/A'})`,
-      attribution: 'Deterministic formula — same inputs always produce the same score.',
-      fpRisk: "N/A — composite score.",
-      verifyCmd: "Compare sub-scores in the Assets tab",
+      description: "Combined CVSS scores (40%) + Mission Impact (60%) into a hybrid risk score. Now also provides separated Asset Criticality (CARVER+SHOCK, mission importance) and Vulnerability Risk (confirmed/probable scan findings only) scores.",
+      outputs: `Overall risk: ${scan.overallRiskScore || 'N/A'} (${scan.overallRiskBand || 'N/A'}). Asset criticality and vuln risk are now separated — high criticality does NOT imply high vulnerability risk.`,
+      attribution: 'Deterministic formula — same inputs always produce the same score. Vuln risk only counts confirmed/probable findings.',
+      fpRisk: "N/A — composite score. Vuln risk requires scan evidence.",
+      verifyCmd: "Compare CRIT vs VULN scores in the Assets tab",
     },
     {
       id: "threat_actors",

@@ -1038,3 +1038,122 @@ export const phishingDrafts = mysqlTable("phishing_drafts", {
 });
 export type PhishingDraft = typeof phishingDrafts.$inferSelect;
 export type InsertPhishingDraft = typeof phishingDrafts.$inferInsert;
+
+
+// ─── Access Broker Listings ────────────────────────────────────────────
+/**
+ * Tracks Initial Access Broker (IAB) marketplace listings.
+ * IABs sell compromised network access on darkweb forums (Exploit, XSS, RAMP, BreachForums).
+ * Each row represents a known listing or broker profile.
+ */
+export const accessBrokerListings = mysqlTable("access_broker_listings", {
+  id: int("id").autoincrement().primaryKey(),
+  brokerId: varchar("brokerId", { length: 128 }).notNull(), // unique slug e.g. "exotic-lily"
+  brokerName: varchar("brokerName", { length: 255 }).notNull(),
+  aliases: json("aliases"), // string[]
+  // Listing details
+  listingType: mysqlEnum("listingType", [
+    "vpn_access", "rdp_access", "citrix_access", "webshell",
+    "domain_admin", "cloud_access", "email_access", "database_access",
+    "zero_day", "exploit_kit", "credential_dump", "other"
+  ]).default("other").notNull(),
+  accessType: varchar("accessType", { length: 128 }), // VPN, RDP, Citrix, webshell, etc.
+  // Victim / target info
+  victimSector: varchar("victimSector", { length: 128 }),
+  victimCountry: varchar("victimCountry", { length: 128 }),
+  victimRevenue: varchar("victimRevenue", { length: 64 }), // e.g. "$50M-$100M"
+  victimEmployeeCount: varchar("victimEmployeeCount", { length: 64 }),
+  // Pricing
+  askingPrice: varchar("askingPrice", { length: 64 }), // e.g. "$5,000", "auction"
+  currency: varchar("currency", { length: 16 }).default("USD"),
+  // Forum / marketplace
+  forumSource: varchar("forumSource", { length: 128 }), // exploit.in, xss.is, ramp, breachforums
+  forumPostUrl: text("forumPostUrl"),
+  // Broker profile
+  brokerReputation: mysqlEnum("brokerReputation", ["established", "rising", "new", "unknown"]).default("unknown"),
+  totalListings: int("totalListings").default(0),
+  successfulSales: int("successfulSales").default(0),
+  activeForums: json("activeForums"), // string[] — forums they operate on
+  // Linked threat actors
+  linkedActorIds: json("linkedActorIds"), // string[] — FK to threat_actors.actorId
+  linkedRansomwareGroups: json("linkedRansomwareGroups"), // string[] — known ransomware buyers
+  // Technical details
+  accessLevel: mysqlEnum("accessLevel", ["domain_admin", "local_admin", "user", "service_account", "unknown"]).default("unknown"),
+  persistenceMechanism: varchar("persistenceMechanism", { length: 255 }),
+  mitreTechniques: json("mitreTechniques"), // string[] — T-codes used for initial access
+  // Status
+  status: mysqlEnum("iabStatus", ["active", "sold", "expired", "removed", "law_enforcement"]).default("active"),
+  // Timeline
+  firstSeen: varchar("iabFirstSeen", { length: 32 }),
+  lastActive: varchar("iabLastActive", { length: 32 }),
+  postedAt: timestamp("postedAt"),
+  // Metadata
+  dataSource: varchar("iabDataSource", { length: 128 }), // osint, darkweb_monitor, llm_enriched, manual
+  confidence: int("iabConfidence").default(75), // 0-100
+  description: text("iabDescription"),
+  rawData: json("iabRawData"),
+  createdAt: timestamp("iabCreatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("iabUpdatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AccessBrokerListing = typeof accessBrokerListings.$inferSelect;
+export type InsertAccessBrokerListing = typeof accessBrokerListings.$inferInsert;
+
+
+// ─── Information Operations Campaigns ──────────────────────────────────
+/**
+ * Tracks information operations (IO) / influence campaigns by nation-state
+ * and non-state actors. Sources include DFRLab FIAT, EUvsDisinfo,
+ * Stanford IO Archive, and LLM-enriched OSINT.
+ */
+export const infoOpsCampaigns = mysqlTable("info_ops_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: varchar("ioCampaignId", { length: 128 }).notNull().unique(), // unique slug
+  campaignName: varchar("ioCampaignName", { length: 255 }).notNull(),
+  aliases: json("ioAliases"), // string[]
+  // Attribution
+  attributedTo: varchar("attributedTo", { length: 255 }), // country or group
+  sponsorState: varchar("sponsorState", { length: 128 }), // Russia, China, Iran, etc.
+  operatorGroup: varchar("operatorGroup", { length: 255 }), // IRA, Ghostwriter, DRAGONBRIDGE, etc.
+  linkedActorIds: json("ioLinkedActorIds"), // string[] — FK to threat_actors.actorId
+  // Campaign details
+  operationType: mysqlEnum("operationType", [
+    "disinformation", "influence", "hack_and_leak", "astroturfing",
+    "election_interference", "propaganda", "cyber_espionage_io",
+    "economic_coercion", "diplomatic_pressure", "other"
+  ]).default("other").notNull(),
+  status: mysqlEnum("ioStatus", ["active", "disrupted", "dormant", "attributed", "ongoing"]).default("active"),
+  // Targeting
+  targetCountries: json("ioTargetCountries"), // string[]
+  targetAudiences: json("targetAudiences"), // string[] — e.g. "military personnel", "voters", "diaspora"
+  targetPlatforms: json("ioTargetPlatforms"), // string[] — Twitter/X, Facebook, Telegram, Reddit, etc.
+  targetNarratives: json("targetNarratives"), // string[] — key narratives pushed
+  // Scale & impact
+  estimatedReach: varchar("estimatedReach", { length: 128 }), // e.g. "millions", "10K-50K accounts"
+  accountsIdentified: int("accountsIdentified").default(0),
+  contentPiecesIdentified: int("contentPiecesIdentified").default(0),
+  platformActionsTaken: json("platformActionsTaken"), // { platform, action, date }[]
+  // Techniques
+  techniques: json("ioTechniques"), // string[] — e.g. "bot networks", "fake news sites", "deepfakes"
+  // Cyber component (if hybrid)
+  cyberComponent: boolean("cyberComponent").default(false),
+  linkedCyberOps: json("linkedCyberOps"), // string[] — related APT campaigns
+  mitreTechniques: json("ioMitreTechniques"), // string[] — MITRE ATT&CK techniques if applicable
+  // Evidence & sources
+  primarySource: varchar("primarySource", { length: 255 }), // DFRLab, Stanford IO, EUvsDisinfo, etc.
+  sourceUrls: json("sourceUrls"), // string[]
+  reportTitle: varchar("reportTitle", { length: 512 }),
+  // Timeline
+  startDate: varchar("ioStartDate", { length: 32 }),
+  endDate: varchar("ioEndDate", { length: 32 }),
+  discoveredDate: varchar("discoveredDate", { length: 32 }),
+  // Metadata
+  threatLevel: mysqlEnum("ioThreatLevel", ["critical", "high", "medium", "low"]).default("medium"),
+  confidence: int("ioConfidence").default(75), // 0-100
+  description: text("ioDescription"),
+  dataSource: varchar("ioDataSource", { length: 128 }), // dfrlab_fiat, euvsdisinf, stanford_io, llm_enriched, manual
+  lastEnriched: timestamp("ioLastEnriched"),
+  createdAt: timestamp("ioCreatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("ioUpdatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InfoOpsCampaign = typeof infoOpsCampaigns.$inferSelect;
+export type InsertInfoOpsCampaign = typeof infoOpsCampaigns.$inferInsert;

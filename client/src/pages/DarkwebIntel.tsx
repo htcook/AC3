@@ -8,6 +8,7 @@ import {
   Activity, TrendingUp, Search, ExternalLink, Radio,
   Database, Loader2, RefreshCw, Crosshair, FileText,
   Zap, Bug, Key, Tag, Wifi, WifiOff, ChevronDown, ChevronUp,
+  ShieldAlert, Megaphone, DollarSign, Users, Network,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,6 +53,7 @@ export default function DarkwebIntel() {
   const [limit, setLimit] = useState(100);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     alerts: true, iocs: true, kev: true, otx: false, malware: false, keywords: false,
+    iabs: true, infoOps: true,
   });
 
   const toggleSection = (key: string) =>
@@ -77,6 +79,20 @@ export default function DarkwebIntel() {
   const { data: malwareBazaar, isLoading: malwareLoading } = trpc.darkwebBridge.malwareBazaar.useQuery({});
   const { data: adaptiveKeywords } = trpc.darkwebBridge.adaptiveKeywords.useQuery();
   const { data: recentVictimEvents } = trpc.darkwebBridge.recentVictimEvents.useQuery({});
+
+  // ─── Access Broker & Info Ops queries ──────────────────────────────────
+  const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebBridge.accessBrokers.useQuery({});
+  const { data: iosCampaigns, isLoading: iosLoading, refetch: refetchIOs } = trpc.darkwebBridge.infoOpsCampaigns.useQuery({});
+  const syncDarkwebFeeds = trpc.darkwebBridge.syncDarkwebFeeds.useMutation({
+    onSuccess: (result) => {
+      toast.success("Darkweb Feeds Synced", {
+        description: `IABs: ${result.accessBrokers.inserted} new / ${result.accessBrokers.updated} updated (${result.accessBrokers.total} total). IO Campaigns: ${result.infoOps.inserted} new / ${result.infoOps.updated} updated (${result.infoOps.total} total).`,
+      });
+      refetchIABs();
+      refetchIOs();
+    },
+    onError: (err) => toast.error("Feed Sync Failed", { description: err.message }),
+  });
 
   // ─── Mutations ─────────────────────────────────────────────────────────
   const monitoringSweep = trpc.threatIntel.runMonitoringSweep.useMutation({
@@ -487,6 +503,203 @@ export default function DarkwebIntel() {
               )}
             </div>
           </div>
+
+            {/* ─── Access Brokers (IABs) ──────────────────────────────── */}
+            <div className="bg-card border border-border p-4">
+              <button onClick={() => toggleSection("iabs")} className="flex items-center justify-between w-full">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-orange-400" /> INITIAL ACCESS BROKERS
+                  <span className="text-[10px] text-muted-foreground/60">({accessBrokers?.length ?? 0})</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); syncDarkwebFeeds.mutate(); }}
+                    disabled={syncDarkwebFeeds.isPending}
+                    className="ml-2 p-1 hover:bg-muted/50 rounded transition-colors"
+                    title="Sync IAB & IO feeds"
+                  >
+                    {syncDarkwebFeeds.isPending ? <Loader2 className="w-3 h-3 animate-spin text-orange-400" /> : <RefreshCw className="w-3 h-3 text-muted-foreground" />}
+                  </button>
+                </h3>
+                {expandedSections.iabs ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {expandedSections.iabs && (
+                <div className="mt-3 space-y-2 max-h-[500px] overflow-y-auto">
+                  {iabsLoading ? (
+                    <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                  ) : !accessBrokers || accessBrokers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-4 text-center">No access brokers loaded. Click sync to populate.</p>
+                  ) : (
+                    accessBrokers.map((iab: any) => (
+                      <div key={iab.id} className="border border-orange-500/20 bg-orange-500/5 p-3 space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-display text-orange-400 tracking-wide">{safeUpper(iab.brokerName)}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 border ${
+                                iab.status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10"
+                                : iab.status === "law_enforcement" ? "text-blue-400 border-blue-500/30 bg-blue-500/10"
+                                : "text-muted-foreground border-border bg-muted/30"
+                              }`}>{safeUpper(iab.status?.replace(/_/g, " ") || "UNKNOWN")}</span>
+                            </div>
+                            {iab.aliases && (iab.aliases as string[]).length > 0 && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">AKA: {(iab.aliases as string[]).join(", ")}</p>
+                            )}
+                          </div>
+                          <span className={`text-[9px] px-1.5 py-0.5 border ${
+                            iab.brokerReputation === "established" ? "text-red-400 border-red-500/30 bg-red-500/10"
+                            : iab.brokerReputation === "rising" ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                            : "text-muted-foreground border-border"
+                          }`}>{safeUpper(iab.brokerReputation || "UNKNOWN")}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{iab.description}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                            <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "—"}
+                          </span>
+                          {iab.forumSource && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                              <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
+                            </span>
+                          )}
+                          {iab.victimSector && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                              <Crosshair className="w-2.5 h-2.5 inline mr-1" />{iab.victimSector}
+                            </span>
+                          )}
+                          {iab.confidence != null && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                              CONF: {iab.confidence}%
+                            </span>
+                          )}
+                        </div>
+                        {iab.linkedRansomwareGroups && (iab.linkedRansomwareGroups as string[]).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-[9px] text-muted-foreground">LINKED:</span>
+                            {(iab.linkedRansomwareGroups as string[]).map((g: string) => (
+                              <span key={g} className="text-[9px] px-1 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{g}</span>
+                            ))}
+                          </div>
+                        )}
+                        {iab.mitreTechniques && (iab.mitreTechniques as string[]).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {(iab.mitreTechniques as string[]).slice(0, 5).map((t: string) => (
+                              <span key={t} className="text-[9px] px-1 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono">{t}</span>
+                            ))}
+                            {(iab.mitreTechniques as string[]).length > 5 && (
+                              <span className="text-[9px] text-muted-foreground">+{(iab.mitreTechniques as string[]).length - 5} more</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ─── Information Operations Campaigns ─────────────────────── */}
+            <div className="bg-card border border-border p-4">
+              <button onClick={() => toggleSection("infoOps")} className="flex items-center justify-between w-full">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-pink-400" /> INFORMATION OPERATIONS
+                  <span className="text-[10px] text-muted-foreground/60">({iosCampaigns?.length ?? 0})</span>
+                </h3>
+                {expandedSections.infoOps ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {expandedSections.infoOps && (
+                <div className="mt-3 space-y-2 max-h-[500px] overflow-y-auto">
+                  {iosLoading ? (
+                    <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                  ) : !iosCampaigns || iosCampaigns.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-4 text-center">No IO campaigns loaded. Click sync to populate.</p>
+                  ) : (
+                    iosCampaigns.map((io: any) => (
+                      <div key={io.id} className="border border-pink-500/20 bg-pink-500/5 p-3 space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-display text-pink-400 tracking-wide">{safeUpper(io.campaignName)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-muted-foreground">{io.operatorGroup}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                {io.sponsorState}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`text-[9px] px-1.5 py-0.5 border ${
+                              io.status === "active" || io.status === "ongoing" ? "text-red-400 border-red-500/30 bg-red-500/10"
+                              : io.status === "disrupted" ? "text-green-400 border-green-500/30 bg-green-500/10"
+                              : io.status === "attributed" ? "text-blue-400 border-blue-500/30 bg-blue-500/10"
+                              : "text-muted-foreground border-border bg-muted/30"
+                            }`}>{safeUpper(io.status || "UNKNOWN")}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 border ${
+                              SEVERITY_COLORS[io.threatLevel] || "text-muted-foreground border-border"
+                            }`}>{safeUpper(io.threatLevel || "MEDIUM")}</span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{io.description}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                            {io.operationType?.replace(/_/g, " ") || "influence"}
+                          </span>
+                          {io.cyberComponent && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">
+                              <Zap className="w-2.5 h-2.5 inline mr-1" />CYBER COMPONENT
+                            </span>
+                          )}
+                          {io.primarySource && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                              <FileText className="w-2.5 h-2.5 inline mr-1" />{io.primarySource}
+                            </span>
+                          )}
+                          {io.confidence != null && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                              CONF: {io.confidence}%
+                            </span>
+                          )}
+                        </div>
+                        {io.targetCountries && (io.targetCountries as string[]).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-[9px] text-muted-foreground">TARGETS:</span>
+                            {(io.targetCountries as string[]).map((c: string) => (
+                              <span key={c} className="text-[9px] px-1 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400">{c}</span>
+                            ))}
+                          </div>
+                        )}
+                        {io.targetPlatforms && (io.targetPlatforms as string[]).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-[9px] text-muted-foreground">PLATFORMS:</span>
+                            {(io.targetPlatforms as string[]).slice(0, 5).map((p: string) => (
+                              <span key={p} className="text-[9px] px-1 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400">{p}</span>
+                            ))}
+                          </div>
+                        )}
+                        {io.targetNarratives && (io.targetNarratives as string[]).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-[9px] text-muted-foreground">NARRATIVES:</span>
+                            {(io.targetNarratives as string[]).slice(0, 4).map((n: string) => (
+                              <span key={n} className="text-[9px] px-1 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400">{n}</span>
+                            ))}
+                            {(io.targetNarratives as string[]).length > 4 && (
+                              <span className="text-[9px] text-muted-foreground">+{(io.targetNarratives as string[]).length - 4} more</span>
+                            )}
+                          </div>
+                        )}
+                        {io.techniques && (io.techniques as string[]).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-[9px] text-muted-foreground">TECHNIQUES:</span>
+                            {(io.techniques as string[]).slice(0, 4).map((t: string) => (
+                              <span key={t} className="text-[9px] px-1 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
 
           {/* ─── Sidebar (1/3) ───────────────────────────────────────────── */}
           <div className="space-y-6">

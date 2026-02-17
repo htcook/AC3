@@ -16,6 +16,8 @@ import {
   threatGroupEvents,
   threatActors,
   threatActorIocs,
+  accessBrokerListings,
+  infoOpsCampaigns,
 } from "../../drizzle/schema";
 import { desc, eq, sql, and, like } from "drizzle-orm";
 
@@ -509,6 +511,89 @@ export const darkwebBridgeRouter = router({
 
       return { matches, source: "local_database", fetchedAt: new Date().toISOString() };
     }),
+
+  /**
+   * Access Broker Listings — list all known IABs.
+   */
+  accessBrokers: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(50),
+      status: z.enum(["active", "sold", "expired", "removed", "law_enforcement", "all"]).default("all"),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const limit = input?.limit ?? 50;
+      const status = input?.status ?? "all";
+      const conditions = status !== "all"
+        ? [eq(accessBrokerListings.status, status as any)]
+        : [];
+      const rows = conditions.length > 0
+        ? await db.select().from(accessBrokerListings).where(and(...conditions)).limit(limit)
+        : await db.select().from(accessBrokerListings).limit(limit);
+      return rows;
+    }),
+
+  /**
+   * Access Broker detail by brokerId.
+   */
+  accessBrokerDetail: protectedProcedure
+    .input(z.object({ brokerId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const rows = await db.select().from(accessBrokerListings)
+        .where(eq(accessBrokerListings.brokerId, input.brokerId))
+        .limit(1);
+      return rows[0] || null;
+    }),
+
+  /**
+   * Information Operations Campaigns — list all known IO campaigns.
+   */
+  infoOpsCampaigns: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(50),
+      sponsorState: z.string().optional(),
+      status: z.enum(["active", "disrupted", "dormant", "attributed", "ongoing", "all"]).default("all"),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const limit = input?.limit ?? 50;
+      const status = input?.status ?? "all";
+      const sponsorState = input?.sponsorState;
+      const conditions: any[] = [];
+      if (status !== "all") conditions.push(eq(infoOpsCampaigns.status, status as any));
+      if (sponsorState) conditions.push(eq(infoOpsCampaigns.sponsorState, sponsorState));
+      const rows = conditions.length > 0
+        ? await db.select().from(infoOpsCampaigns).where(and(...conditions)).limit(limit)
+        : await db.select().from(infoOpsCampaigns).limit(limit);
+      return rows;
+    }),
+
+  /**
+   * Info Ops Campaign detail by campaignId.
+   */
+  infoOpsCampaignDetail: protectedProcedure
+    .input(z.object({ campaignId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const rows = await db.select().from(infoOpsCampaigns)
+        .where(eq(infoOpsCampaigns.campaignId, input.campaignId))
+        .limit(1);
+      return rows[0] || null;
+    }),
+
+  /**
+   * Sync darkweb feeds — IABs + IO campaigns.
+   */
+  syncDarkwebFeeds: protectedProcedure.mutation(async () => {
+    const { syncAllDarkwebFeeds } = await import("../lib/darkweb-feeds");
+    const result = await syncAllDarkwebFeeds();
+    return result;
+  }),
 
   /**
    * Full sync — triggers the existing IOC sync + threat intel connectors.

@@ -148,6 +148,13 @@
       "when": 1771265508853,
       "tag": "0020_glamorous_tigra",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1771343047581,
+      "tag": "0021_sad_lockjaw",
+      "breakpoints": true
     }
   ]
 }

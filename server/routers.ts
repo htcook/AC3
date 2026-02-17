@@ -3583,6 +3583,10 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               postureFindings: a.postureFindings || [],
               testVectors: a.testVectors || [],
               confidence: a.confidence || 0,
+              assetCriticalityScore: a.assetCriticalityScore || 0,
+              assetCriticalityBand: a.assetCriticalityBand || 'low',
+              vulnRiskScore: a.vulnRiskScore || 0,
+              vulnRiskBand: a.vulnRiskBand || 'low',
             }));
 
             // Run campaign design

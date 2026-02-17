@@ -622,6 +622,22 @@ function AssetRow({ asset, isSelected, isExpanded, isExcludedView, onToggleSelec
           </div>
         )}
 
+        {/* Separated Criticality & Vuln Risk */}
+        <div className="hidden lg:flex shrink-0 gap-2">
+          <div className="w-12 text-center">
+            <div className="text-[9px] tracking-widest text-purple-400/70">CRIT</div>
+            <div className={`font-display text-sm ${(asset.assetCriticalityScore || 0) >= 70 ? 'text-purple-400' : 'text-slate-400'}`}>
+              {asset.assetCriticalityScore || 0}
+            </div>
+          </div>
+          <div className="w-12 text-center">
+            <div className="text-[9px] tracking-widest text-muted-foreground">VULN</div>
+            <div className={`font-display text-sm ${(asset.vulnRiskScore || 0) >= 70 ? 'text-red-400' : (asset.vulnRiskScore || 0) >= 40 ? 'text-yellow-400' : 'text-emerald-400'}`}>
+              {asset.vulnRiskScore || 0}
+            </div>
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
           {isExcludedView ? (

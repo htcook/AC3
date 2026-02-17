@@ -1914,3 +1914,21 @@
 - [x] Remove AceofCloud test entries from threat_actors table (deleted 4 Caldera test artifacts: IDs 30234, 60002, 60004, 120001)
 - [x] Remove DomainSearchHero from public Home.tsx (unauthenticated scan entry point)
 - [x] Add a standalone domain scan section to the authenticated Dashboard.tsx
+
+## Darkweb Data Feeds — Access Brokers & Info Ops
+- [x] Audit current darkweb intel infrastructure and DB schema
+- [x] Research open-source feeds for IABs and IO groups
+- [x] Add database schema for access_broker_listings and info_ops_campaigns tables (migration 0021)
+- [x] Implement data feed connectors for IAB sources (15 known IABs with OSINT profiles)
+- [x] Implement data feed connectors for IO/influence operations sources (12 known IO campaigns)
+- [x] Wire up tRPC procedures for new feed data (accessBrokers, accessBrokerDetail, infoOpsCampaigns, infoOpsCampaignDetail, syncDarkwebFeeds)
+- [x] Add Dashboard UI sections for access brokers and IO groups (DarkwebIntel.tsx)
+- [x] Run initial data sync and verify ingestion (15 IABs, 12 IO campaigns, 27 new threat_actors)
+
+## Risk Rating Separation & F5 False Positives
+- [x] Audit where asset criticality ratings are conflated with vulnerability risk ratings (computeHybridRisk blends CARVER criticality with CVSS into single score)
+- [x] Separate asset criticality (importance of asset) from scan-confirmed vulnerability risk (assetCriticalityScore/Band + vulnRiskScore/Band)
+- [x] Ensure High/Critical criticality assets are NOT auto-marked as High/Critical risk without confirmed scan findings
+- [x] Investigate source of BigIP F5 false positive findings (/F5/i regex too broad in dns-banner-verify.ts line 80)
+- [x] Fix F5 BigIP false positive detection logic (removed /F5/i broad match, removed X-Cnection weak signal, tightened to BIG-IP/BigIP/BIGipServer cookie/Server header only)
+- [x] Write tests for the corrected risk scoring logic (17 new tests, all 60 pass)

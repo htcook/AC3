@@ -571,3 +571,198 @@ describe("Corroboration Tiers - Summary Counts", () => {
     expect(potential.length).toBe(4); // 3 explicit + 1 undefined
   });
 });
+
+// ─── NEW: Separated Criticality vs Vulnerability Risk Tests ─────────
+
+import { extractTechnologiesFromHeaders } from "./lib/dns-banner-verify";
+
+function computeAssetCriticality(missionImpact: number) {
+  const score = Math.max(0, Math.min(100, Math.round(missionImpact * 10)));
+  const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
+  return { score, band };
+}
+
+function computeVulnRisk(findings: Array<{ severity: number; corroborationTier: string }>) {
+  const actionable = findings.filter(f => f.corroborationTier === "confirmed" || f.corroborationTier === "probable");
+  if (actionable.length === 0) return { score: 0, band: "low" };
+
+  let maxSeverity = 0;
+  let weightedSum = 0;
+  for (const f of actionable) {
+    const weight = f.corroborationTier === "confirmed" ? 1.0 : 0.6;
+    const findingScore = (f.severity / 10) * 100 * weight;
+    weightedSum += findingScore;
+    if (f.severity > maxSeverity) maxSeverity = f.severity;
+  }
+
+  const avgWeighted = weightedSum / actionable.length;
+  const maxNorm = (maxSeverity / 10) * 100;
+  const score = Math.max(0, Math.min(100, Math.round(maxNorm * 0.6 + avgWeighted * 0.4)));
+  const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
+  return { score, band };
+}
+
+describe("Separated Scoring - Asset Criticality", () => {
+  it("high-criticality asset with no vulns should have high criticality but zero vuln risk", () => {
+    const mission = 8.5; // High CARVER+SHOCK
+    const crit = computeAssetCriticality(mission);
+    const vuln = computeVulnRisk([]); // No findings at all
+
+    expect(crit.score).toBe(85);
+    expect(crit.band).toBe("critical");
+    expect(vuln.score).toBe(0);
+    expect(vuln.band).toBe("low");
+  });
+
+  it("low-criticality asset with confirmed vulns should have low criticality but high vuln risk", () => {
+    const mission = 2.5; // Low CARVER+SHOCK
+    const crit = computeAssetCriticality(mission);
+    const vuln = computeVulnRisk([
+      { severity: 9, corroborationTier: "confirmed" },
+      { severity: 7, corroborationTier: "confirmed" },
+    ]);
+
+    expect(crit.score).toBe(25);
+    expect(crit.band).toBe("low");
+    expect(vuln.score).toBeGreaterThanOrEqual(70);
+    expect(["high", "critical"]).toContain(vuln.band);
+  });
+
+  it("medium-criticality asset with only potential findings should have zero vuln risk", () => {
+    const mission = 5.0;
+    const crit = computeAssetCriticality(mission);
+    const vuln = computeVulnRisk([
+      { severity: 8, corroborationTier: "potential" },
+      { severity: 7, corroborationTier: "potential" },
+    ]);
+
+    expect(crit.score).toBe(50);
+    expect(crit.band).toBe("medium");
+    expect(vuln.score).toBe(0);
+    expect(vuln.band).toBe("low");
+  });
+});
+
+describe("Separated Scoring - Vulnerability Risk", () => {
+  it("probable findings should contribute with reduced weight (0.6x)", () => {
+    const confirmedOnly = computeVulnRisk([
+      { severity: 6, corroborationTier: "confirmed" },
+    ]);
+    const probableOnly = computeVulnRisk([
+      { severity: 6, corroborationTier: "probable" },
+    ]);
+
+    // Probable should produce a lower score than confirmed at same severity
+    expect(probableOnly.score).toBeLessThan(confirmedOnly.score);
+  });
+
+  it("mixed confirmed + probable should score higher than probable alone", () => {
+    const mixed = computeVulnRisk([
+      { severity: 8, corroborationTier: "confirmed" },
+      { severity: 6, corroborationTier: "probable" },
+    ]);
+    const probableOnly = computeVulnRisk([
+      { severity: 6, corroborationTier: "probable" },
+    ]);
+
+    expect(mixed.score).toBeGreaterThan(probableOnly.score);
+  });
+
+  it("no actionable findings should always return score 0 band low", () => {
+    const result = computeVulnRisk([
+      { severity: 10, corroborationTier: "potential" },
+    ]);
+    expect(result.score).toBe(0);
+    expect(result.band).toBe("low");
+  });
+
+  it("single confirmed critical finding should produce critical vuln risk", () => {
+    const result = computeVulnRisk([
+      { severity: 10, corroborationTier: "confirmed" },
+    ]);
+    expect(result.score).toBe(100);
+    expect(result.band).toBe("critical");
+  });
+});
+
+// ─── NEW: F5 BIG-IP False Positive Fix Tests ────────────────────────
+
+describe("F5 BIG-IP Detection - False Positive Fix", () => {
+  it("should NOT detect F5 from generic headers containing 'f5' substring", () => {
+    const headers: Record<string, string> = {
+      "server": "nginx/1.21.0",
+      "x-powered-by": "Express",
+      "x-request-id": "abc123f5def456",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeUndefined();
+  });
+
+  it("should NOT detect F5 from Cloudflare cf-ray headers", () => {
+    const headers: Record<string, string> = {
+      "server": "cloudflare",
+      "cf-ray": "8f5abc123-IAD",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeUndefined();
+  });
+
+  it("should NOT detect F5 from X-Cnection header (removed as too weak)", () => {
+    const headers: Record<string, string> = {
+      "server": "Apache/2.4",
+      "x-cnection": "close",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeUndefined();
+  });
+
+  it("should detect F5 from BIG-IP in server header", () => {
+    const headers: Record<string, string> = {
+      "server": "BIG-IP",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeDefined();
+  });
+
+  it("should detect F5 from BigIP in server header", () => {
+    const headers: Record<string, string> = {
+      "server": "BigIP",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeDefined();
+  });
+
+  it("should detect F5 from BIGipServer cookie", () => {
+    const headers: Record<string, string> = {
+      "server": "nginx",
+      "set-cookie": "BIGipServerpool_web=123456.789.0000; path=/",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeDefined();
+  });
+
+  it("should detect F5 from standalone 'F5' in Server header", () => {
+    const headers: Record<string, string> = {
+      "server": "F5 HTTPD",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeDefined();
+  });
+
+  it("should NOT detect F5 from 'F5' in non-Server headers", () => {
+    const headers: Record<string, string> = {
+      "server": "Apache/2.4",
+      "x-custom": "F5 load balancer info",
+    };
+    const techs = extractTechnologiesFromHeaders(headers);
+    const f5 = techs.find(t => t.name === "F5 BIG-IP");
+    expect(f5).toBeUndefined();
+  });
+});

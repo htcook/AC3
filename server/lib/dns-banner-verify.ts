@@ -77,7 +77,7 @@ const TECH_PATTERNS: TechPattern[] = [
   { name: "Netlify", patterns: [/Netlify/i] },
   { name: "Microsoft Exchange", patterns: [/Microsoft-HTTPAPI\/([\d.]+)/i, /X-OWA-Version:\s*([\d.]+)/i, /X-FEServer/i] },
   { name: "Citrix", patterns: [/Citrix/i, /NetScaler/i] },
-  { name: "F5 BIG-IP", patterns: [/BIG-IP/i, /BigIP/i, /F5/i, /X-Cnection/i, /Set-Cookie:.*BIGipServer/i] },
+  { name: "F5 BIG-IP", patterns: [/BIG-IP/i, /BigIP/i, /Set-Cookie:.*BIGipServer/i, /Server:.*\bF5\b/i] },
   { name: "Palo Alto", patterns: [/PanOS/i, /Palo Alto/i] },
   { name: "Fortinet", patterns: [/FortiGate/i, /Fortinet/i, /FortiOS/i] },
   { name: "SonicWall", patterns: [/SonicWALL/i, /SonicOS/i] },

@@ -157,6 +157,11 @@ export interface AssetAnalysis {
   postureFindings: PostureFinding[];
   testVectors: TestVector[];
   confidence: number;
+  // Separated scores: asset criticality vs vulnerability risk
+  assetCriticalityScore: number; // 0-100, derived from CARVER+SHOCK (how important the asset is)
+  assetCriticalityBand: string;  // "critical" | "high" | "medium" | "low" — asset importance only
+  vulnRiskScore: number;         // 0-100, derived from confirmed/probable scan findings only
+  vulnRiskBand: string;          // "critical" | "high" | "medium" | "low" — scan-confirmed weakness only
 }
 
 export interface KevEnrichment {
@@ -503,6 +508,12 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
           riskSignal: { severity: v.riskSignal?.severity || 5, likelihood: v.riskSignal?.likelihood || 5 },
         })),
         confidence: Math.round(ctx.confidence * 100),
+        // Separated scores — computed after postureFindings are built
+        assetCriticalityScore: computeAssetCriticality(missionImpact).score,
+        assetCriticalityBand: computeAssetCriticality(missionImpact).band,
+        // vulnRiskScore will be 0 at this stage — recalculated after vuln feed enrichment
+        vulnRiskScore: 0,
+        vulnRiskBand: "low",
       };
     });
   } catch (err) {
@@ -588,11 +599,51 @@ function inferTier(riskScore: number): string {
   return "tier3_low";
 }
 
+/**
+ * Compute asset criticality score from CARVER+SHOCK only (no vulnerability data).
+ * This represents how IMPORTANT the asset is to the mission, not how vulnerable it is.
+ */
+function computeAssetCriticality(missionImpact: number): { score: number; band: string } {
+  // missionImpact is 0-10, normalize to 0-100
+  const score = clamp(Math.round(missionImpact * 10), 0, 100);
+  const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
+  return { score, band };
+}
+
+/**
+ * Compute vulnerability risk score from CONFIRMED scan findings only.
+ * Only confirmed and probable posture findings contribute. Potential (LLM-inferred) do NOT.
+ * An asset with high criticality but no confirmed vulns gets vulnRiskScore = 0.
+ */
+function computeVulnRisk(findings: PostureFinding[]): { score: number; band: string } {
+  // Only count confirmed and probable findings
+  const actionable = findings.filter(f => f.corroborationTier === "confirmed" || f.corroborationTier === "probable");
+  if (actionable.length === 0) return { score: 0, band: "low" };
+
+  // Weight: confirmed findings count more than probable
+  let maxSeverity = 0;
+  let weightedSum = 0;
+  for (const f of actionable) {
+    const weight = f.corroborationTier === "confirmed" ? 1.0 : 0.6;
+    const findingScore = (f.severity / 10) * 100 * weight;
+    weightedSum += findingScore;
+    if (f.severity > maxSeverity) maxSeverity = f.severity;
+  }
+
+  // Score: blend of max severity and average weighted severity
+  const avgWeighted = weightedSum / actionable.length;
+  const maxNorm = (maxSeverity / 10) * 100;
+  const score = clamp(Math.round(maxNorm * 0.6 + avgWeighted * 0.4), 0, 100);
+  const band = score >= 85 ? "critical" : score >= 70 ? "high" : score >= 40 ? "medium" : "low";
+  return { score, band };
+}
+
 function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
   const carver = normalizeCarver({});
   const shock = normalizeShock({});
   const mission = computeMissionImpact(carver, shock);
   const hybrid = computeHybridRisk(3, mission, { exposure: 0.3, recognizability: 0.3, confidence: 0.2 });
+  const criticality = computeAssetCriticality(mission);
   return {
     asset,
     carverScores: carver,
@@ -606,6 +657,10 @@ function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
     postureFindings: [],
     testVectors: [],
     confidence: 40,
+    assetCriticalityScore: criticality.score,
+    assetCriticalityBand: criticality.band,
+    vulnRiskScore: 0,
+    vulnRiskBand: "low",
   };
 }
 
@@ -1140,6 +1195,14 @@ export async function runDomainIntelPipeline(
   } catch (err: any) {
     console.error(`[DomainIntel] Vuln feed enrichment failed (non-fatal): ${err.message}`);
   }
+
+  // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV) are in place
+  for (const a of analyses) {
+    const vulnRisk = computeVulnRisk(a.postureFindings);
+    a.vulnRiskScore = vulnRisk.score;
+    a.vulnRiskBand = vulnRisk.band;
+  }
+  console.log(`[DomainIntel] Separated scores computed: criticality (CARVER+SHOCK) vs vulnRisk (confirmed/probable findings only)`);
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
   // If skipEngagement is true, skip campaign design and generate scan-only summaries
