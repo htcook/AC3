@@ -1956,3 +1956,4 @@
 - [x] Fix: red / complex password — server accepts it (confirmed via curl); SameSite changed from 'none' to 'lax' for aceofcloud.io
 - [x] Fix: ADMIN123 login — added session cache invalidation + 500ms delay + SameSite=lax for aceofcloud.io
 - [x] Fix: Login page branding updated from "Caldera Command" to "Ace C3"
+- [ ] Debug: Login still not advancing on desktop production (both passwords) — need to test on production domain directly

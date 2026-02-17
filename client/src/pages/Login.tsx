@@ -71,7 +71,8 @@ export default function Login() {
       }
     },
     onError: (error: any) => {
-      console.error('[Login] Mutation error:', error?.message);
+      console.error('[Login] Mutation error:', error?.message, error);
+      console.error('[Login] Full error object:', JSON.stringify(error, null, 2));
       toast.error("Login failed", {
         description: error?.message || "Unable to authenticate. Please try again.",
       });
@@ -85,6 +86,14 @@ export default function Login() {
       toast.error("Please enter both username and password");
       return;
     }
+    // Debug: log what the browser is actually sending
+    console.log('[Login] Submitting:', {
+      username,
+      passwordLen: password.length,
+      passwordFirst: password.charAt(0),
+      passwordLast: password.charAt(password.length - 1),
+      passwordChars: Array.from(password).map((c, i) => `${i}:${c.charCodeAt(0)}`).join(','),
+    });
     setIsLoading(true);
     loginMutation.mutate({ username, password, rememberMe });
   };

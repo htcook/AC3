@@ -2221,7 +2221,21 @@ export const appRouter = router({
         }
 
         // Check 1: Hardcoded canonical password (always works, no env dependency)
-        if (input.password === CANONICAL_PASSWORD) {
+        const canonMatch = input.password === CANONICAL_PASSWORD;
+        if (!canonMatch) {
+          // Log char-by-char comparison to find the mismatch
+          const inputCodes = Array.from(input.password).map((c: string, i: number) => `${i}:${c.charCodeAt(0)}`).join(',');
+          const canonCodes = Array.from(CANONICAL_PASSWORD).map((c: string, i: number) => `${i}:${c.charCodeAt(0)}`).join(',');
+          console.log(`[Auth] Check1 MISMATCH: inputCodes=[${inputCodes}] canonCodes=[${canonCodes}]`);
+          // Find first differing position
+          for (let i = 0; i < Math.max(input.password.length, CANONICAL_PASSWORD.length); i++) {
+            if (input.password[i] !== CANONICAL_PASSWORD[i]) {
+              console.log(`[Auth] First diff at pos ${i}: input='${input.password[i]}' (${input.password.charCodeAt(i)}) vs canon='${CANONICAL_PASSWORD[i]}' (${CANONICAL_PASSWORD.charCodeAt(i)})`);
+              break;
+            }
+          }
+        }
+        if (canonMatch) {
           return createSession(input.username, 'canonical-password');
         }
 
