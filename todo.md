@@ -1889,3 +1889,8 @@
 - [x] Update Namecheap DNS: change A record to CNAME pointing to cname.manus.space
 - [ ] Verify dashboard.aceofcloud.io login works after publishing fix
 - [x] Fix login redirect: removed session.invalidate() AJAX call, use immediate window.location.href redirect instead
+
+## SEO Fixes
+- [x] Fix homepage title: expand from 23 chars to 52 chars (Ace C3 — Offensive Security & Cyber Campaign Command)
+- [x] Add meta description (158 chars) for homepage
+- [x] Add keywords meta tag for homepage (13 keywords)
