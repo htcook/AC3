@@ -48,14 +48,17 @@ export default function Login() {
             ? `Authenticating with ${redirectInfo.label}...`
             : "Welcome to Cyber Campaign Command Platform",
         });
-        // Redirect immediately via full page navigation
-        // This ensures the cookie is sent with the next page request
-        // Do NOT use session.invalidate() as the cookie may not be available for AJAX calls yet
-        if (redirectTarget && redirectInfo) {
-          window.location.href = redirectInfo.url;
-        } else {
-          window.location.href = "/dashboard";
-        }
+        // Small delay before redirect to ensure the Set-Cookie header is fully
+        // committed by the browser. Mobile Safari in particular can race between
+        // cookie persistence and navigation, causing the session cookie to be
+        // missing on the next page load.
+        setTimeout(() => {
+          if (redirectTarget && redirectInfo) {
+            window.location.href = redirectInfo.url;
+          } else {
+            window.location.href = "/dashboard";
+          }
+        }, 300);
       } else {
         toast.error("Login failed", {
           description: data.message || "Invalid credentials",

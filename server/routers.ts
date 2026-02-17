@@ -2187,8 +2187,12 @@ export const appRouter = router({
         const envPassword = ENV.calderaPassword;
         const calderaApiKey = ENV.calderaApiKey;
 
-        // Log diagnostic info (password lengths only, not values)
-        console.log(`[Auth] Login attempt: user=${input.username}, inputLen=${input.password.length}, canonLen=${CANONICAL_PASSWORD.length}, envLen=${envPassword?.length || 0}`);
+        // Log diagnostic info (password lengths and char hints, not full values)
+        const inputFirst = input.password.charAt(0);
+        const inputLast = input.password.charAt(input.password.length - 1);
+        const canonFirst = CANONICAL_PASSWORD.charAt(0);
+        const canonLast = CANONICAL_PASSWORD.charAt(CANONICAL_PASSWORD.length - 1);
+        console.log(`[Auth] Login attempt: user=${input.username}, inputLen=${input.password.length}, canonLen=${CANONICAL_PASSWORD.length}, envLen=${envPassword?.length || 0}, inputHint=${inputFirst}...${inputLast}, canonHint=${canonFirst}...${canonLast}`);
 
         // Helper to create session and return success
         const createSession = (username: string, mode: string) => {

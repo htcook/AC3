@@ -1932,3 +1932,10 @@
 - [x] Investigate source of BigIP F5 false positive findings (/F5/i regex too broad in dns-banner-verify.ts line 80)
 - [x] Fix F5 BigIP false positive detection logic (removed /F5/i broad match, removed X-Cnection weak signal, tightened to BIG-IP/BigIP/BIGipServer cookie/Server header only)
 - [x] Write tests for the corrected risk scoring logic (17 new tests, all 60 pass)
+
+## Login Issues (Mobile)
+- [x] Fix: ADMIN123 login succeeds but doesn't advance — fixed global error handler redirect (Manus OAuth → /login) and added 300ms cookie commit delay
+- [x] Fix: Complex password fails authentication — updated CALDERA_PASSWORD env var to complex password, added diagnostic logging
+- [x] Audit OAuth callback, session cookie, and redirect logic — root cause: dual auth system conflict
+- [x] Fix DashboardLayout — confirmed it's not used in any route; no blocking issue
+- [x] Verify complex password env var — updated from ADMIN123 to PVYedK$BUAYzyXaAegdEl2Dz, all 7 auth tests pass
