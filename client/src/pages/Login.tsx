@@ -33,13 +33,14 @@ export default function Login() {
   useEffect(() => {
     if (!sessionLoading && session?.authenticated) {
       if (redirectTarget && redirectInfo) {
-        // Already logged in, redirect to the target service
+        // Already logged in, redirect to the external target service
         window.location.href = redirectInfo.url;
       } else {
-        window.location.href = "/dashboard";
+        // Use client-side navigation to preserve React Query cache
+        setLocation("/dashboard");
       }
     }
-  }, [sessionLoading, session, redirectTarget, redirectInfo]);
+  }, [sessionLoading, session, redirectTarget, redirectInfo, setLocation]);
 
   const loginMutation = trpc.calderaAuth.login.useMutation({
     onSuccess: (data: { success: boolean; message?: string }) => {
@@ -49,19 +50,26 @@ export default function Login() {
             ? `Authenticating with ${redirectInfo.label}...`
             : "Welcome to Ace C3",
         });
-        // Invalidate the session query so ProtectedRoute sees the new auth state,
-        // then redirect. Using a delay + window.location.href ensures the
-        // Set-Cookie header is fully committed by the browser before navigating.
-        // Mobile Safari in particular can race between cookie persistence and
-        // navigation.
+        // Invalidate the session cache and refetch to confirm the cookie is set,
+        // then navigate using client-side routing (preserves React Query cache).
+        // window.location.href causes a full page reload which loses the cache
+        // and can race with cookie persistence on mobile/desktop.
         utils.calderaAuth.session.invalidate().then(() => {
-          setTimeout(() => {
-            if (redirectTarget && redirectInfo) {
-              window.location.href = redirectInfo.url;
-            } else {
-              window.location.href = "/dashboard";
-            }
-          }, 500);
+          return utils.calderaAuth.session.fetch();
+        }).then((freshSession) => {
+          console.log('[Login] Session after login:', freshSession);
+          if (redirectTarget && redirectInfo) {
+            window.location.href = redirectInfo.url;
+          } else {
+            setLocation("/dashboard");
+          }
+        }).catch(() => {
+          // Fallback: even if refetch fails, try navigating
+          if (redirectTarget && redirectInfo) {
+            window.location.href = redirectInfo.url;
+          } else {
+            setLocation("/dashboard");
+          }
         });
       } else {
         toast.error("Login failed", {

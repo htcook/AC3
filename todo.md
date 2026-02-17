@@ -1957,3 +1957,4 @@
 - [x] Fix: ADMIN123 login — added session cache invalidation + 500ms delay + SameSite=lax for aceofcloud.io
 - [x] Fix: Login page branding updated from "Caldera Command" to "Ace C3"
 - [ ] Debug: Login still not advancing on desktop production (both passwords) — need to test on production domain directly
+- [x] Fix: Login redirect loop — switched from window.location.href to setLocation() for client-side navigation, added session.fetch() to confirm cookie before redirect
