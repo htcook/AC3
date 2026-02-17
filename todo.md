@@ -1876,3 +1876,6 @@
 - [x] Diagnose auth flow and fix login issue (added resolveCalderaPassword() fallback in env.ts)
 - [x] Set custom dashboard password: PVYedK$BUAYzyXaAegdEl2Dz
 - [x] Change dashboard login password to user-specified custom password (PVYedK$BUAYzyXaAegdEl2Dz)
+- [x] BUG: Login fails on dev preview with saved credentials (fixed: sameSite cookie from 'lax' to 'none' for iframe compatibility)
+- [x] Fix login authentication - user cannot log in with red / PVYedK$BUAYzyXaAegdEl2Dz (root cause: Manus preview panel iframe blocks third-party cookies with sameSite=lax)
+- [ ] Fix GoPhish template loading on production site

@@ -66,9 +66,10 @@ export default function Login() {
         setIsLoading(false);
       }
     },
-    onError: (error: { message?: string }) => {
+    onError: (error: any) => {
+      console.error('[Login] Mutation error:', error?.message);
       toast.error("Login failed", {
-        description: error.message || "Unable to authenticate",
+        description: error?.message || "Unable to authenticate. Please try again.",
       });
       setIsLoading(false);
     },
