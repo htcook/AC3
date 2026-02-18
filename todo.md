@@ -2026,3 +2026,14 @@
 - [x] KEV boost only applies for confirmed version matches (not product-family-only)
 - [x] Update tests for confirmed-only scoring model (45 risk scoring tests passing)
 - [x] Full test suite: 652 tests passing across 42 files, 0 TS errors
+
+## Shodan Integration (Feb 18)
+- [x] Update SHODAN_API_KEY to new key (4 API tests passing)
+- [x] Audit existing Shodan connector in passive recon module (basic host search exists, needs DNS domain + host detail + verification)
+- [x] Enhance Shodan connector for domain scanning (DNS lookups, host search, open ports, services, banners)
+- [x] Add Shodan asset verification stage to pipeline (cross-reference findings from crt.sh, DNS, Dehashed)
+- [x] Shodan verification upgrades finding confidence (potential → probable/confirmed)
+- [x] Build Shodan KEV/CVE verification service — use banner version data to confirm or deny potential KEV/zero-day matches
+- [x] Wire Shodan verification into post-KEV enrichment stage: confirmed version match → risk score activates; unconfirmed → stays as Potential Weakness
+- [x] Write tests for Shodan integration (29 tests passing)
+- [x] Validate pipeline integration (0 TS errors, all tests green)

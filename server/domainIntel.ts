@@ -12,6 +12,7 @@
 import { invokeLLM } from "./_core/llm";
 import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
 import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/passive/index";
+import { enrichAssetsWithShodanData, verifyCvesWithShodanData, createShodanPostureFindings } from "./lib/shodan-verifier";
 import { ENV } from "./_core/env";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -1071,6 +1072,18 @@ export async function runDomainIntelPipeline(
       if (nsRecords.length > 0) parts.push(`Nameservers: ${nsRecords.join(', ')}`);
       if (mxRecords.length > 0) parts.push(`Mail servers: ${mxRecords.join(', ')}`);
 
+      // Add Shodan-specific service/version/CVE data for LLM context
+      const shodanObs = passiveRecon.allObservations.filter(o => o.source === 'shodan' && o.assetType === 'ip');
+      if (shodanObs.length > 0) {
+        const shodanServices = shodanObs
+          .filter(o => o.evidence?.product)
+          .map(o => `${o.name || o.ip} — ${o.evidence?.product}${o.evidence?.version ? '/' + o.evidence.version : ''} on port ${o.evidence?.port}/${o.evidence?.transport || 'tcp'}${o.evidence?.vulns?.length > 0 ? ` [CVEs: ${o.evidence.vulns.slice(0, 3).join(', ')}]` : ''}`)
+          .slice(0, 20);
+        if (shodanServices.length > 0) {
+          parts.push(`Shodan service banners (${shodanServices.length}): ${shodanServices.join('; ')}`);
+        }
+      }
+
       // Add risk signals
       if (passiveRecon.riskSignals.length > 0) {
         parts.push(`\nRisk signals detected (${passiveRecon.riskSignals.length}):`);
@@ -1099,6 +1112,20 @@ export async function runDomainIntelPipeline(
   } catch (err: any) {
     console.error(`[DomainIntel] DNS/banner verification failed (non-fatal): ${err.message}`);
     verifiedAssets = rawAssets;
+  }
+
+  // Stage 1.7: Shodan Banner Enrichment — populate technologyVersions from Shodan data
+  // This runs BEFORE analysis so that KEV/CVE matching has real version data to work with
+  if (passiveRecon) {
+    try {
+      const shodanObs = passiveRecon.allObservations.filter(o => o.source === 'shodan');
+      if (shodanObs.length > 0) {
+        const shodanEnrichment = enrichAssetsWithShodanData(verifiedAssets, shodanObs);
+        console.log(`[DomainIntel] ${shodanEnrichment.summary}`);
+      }
+    } catch (err: any) {
+      console.error(`[DomainIntel] Shodan enrichment failed (non-fatal): ${err.message}`);
+    }
   }
 
   // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk) — with FP calibration
@@ -1300,7 +1327,29 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Vuln feed enrichment failed (non-fatal): ${err.message}`);
   }
 
-  // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV) are in place
+  // Stage 3.7: Shodan CVE Verification — upgrade probable findings to confirmed using Shodan banner data
+  if (passiveRecon) {
+    try {
+      const shodanObs = passiveRecon.allObservations.filter(o => o.source === 'shodan');
+      if (shodanObs.length > 0) {
+        // First: add Shodan-detected CVEs as new confirmed posture findings
+        const shodanFindings = createShodanPostureFindings(analyses, shodanObs);
+        if (shodanFindings.findingsAdded > 0) {
+          console.log(`[DomainIntel] ${shodanFindings.summary}`);
+        }
+
+        // Second: verify existing KEV/vuln feed findings against Shodan data
+        const shodanVerification = verifyCvesWithShodanData(analyses, shodanObs);
+        if (shodanVerification.upgraded > 0) {
+          console.log(`[DomainIntel] ${shodanVerification.summary}`);
+        }
+      }
+    } catch (err: any) {
+      console.error(`[DomainIntel] Shodan CVE verification failed (non-fatal): ${err.message}`);
+    }
+  }
+
+  // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan) are in place
   for (const a of analyses) {
     const vulnRisk = computeVulnRisk(a.postureFindings);
     a.vulnRiskScore = vulnRisk.score;
