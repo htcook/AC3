@@ -65,4 +65,10 @@ export const ENV = {
   GREYNOISE_API_KEY: process.env.GREYNOISE_API_KEY ?? "",
   // DigitalOcean — domain purchasing
   DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
+  // Metasploit MSGRPC
+  MSF_RPC_HOST: process.env.MSF_RPC_HOST ?? "",
+  MSF_RPC_PORT: parseInt(process.env.MSF_RPC_PORT ?? "55553", 10),
+  MSF_RPC_USER: process.env.MSF_RPC_USER ?? "msf",
+  MSF_RPC_PASS: process.env.MSF_RPC_PASS ?? "",
+  MSF_RPC_SSL: process.env.MSF_RPC_SSL === "true",
 };

@@ -56,6 +56,8 @@ import DarkwebIntel from "./pages/DarkwebIntel";
 import ThreatIntelHub from "./pages/ThreatIntelHub";
 import CampaignArchetypes from "./pages/CampaignArchetypes";
 import PhishingExploitCatalog from "./pages/PhishingExploitCatalog";
+import ExploitArsenal from "./pages/ExploitArsenal";
+import MsfServers from "./pages/MsfServers";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -246,6 +248,12 @@ function Router() {
       </Route>
       <Route path="/phishing-exploit-catalog">
         <ProtectedRoute component={PhishingExploitCatalog} />
+      </Route>
+      <Route path="/exploit-arsenal">
+        <ProtectedRoute component={ExploitArsenal} />
+      </Route>
+      <Route path="/msf-servers">
+        <ProtectedRoute component={MsfServers} />
       </Route>
       <Route path="/campaign-archetypes">
         <ProtectedRoute component={CampaignArchetypes} />

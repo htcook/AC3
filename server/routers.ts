@@ -12,6 +12,7 @@ import { threatIntelRouter } from "./routers/threat-intel";
 import { darkwebBridgeRouter } from "./routers/darkweb-bridge";
 import { campaignArchetypeRouter } from "./routers/campaign-archetypes";
 import { phishingOpsRouter } from "./routers/phishing-ops";
+import { metasploitCatalogRouter } from "./routers/metasploit-catalog";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -106,6 +107,7 @@ export const appRouter = router({
   darkwebBridge: darkwebBridgeRouter,
   campaignArchetypes: campaignArchetypeRouter,
   phishingOps: phishingOpsRouter,
+  metasploit: metasploitCatalogRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

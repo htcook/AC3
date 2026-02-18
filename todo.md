@@ -2261,3 +2261,31 @@
 - [x] Added typosquat tab to PhishingOperations page
 - [x] Auto-recommend typosquats in engagement pipeline when target not spoofable
 - [x] Write tests for typosquat generation, purchasing, and integration (11 typosquat + 3 vuln-feed filtering tests)
+
+## Unified Exploit Catalog with Caldera Ability Sync (Feb 18)
+- [x] Audit all current exploit data sources (phishing exploits, exploit-matcher, vuln-feeds, Metasploit)
+- [x] Design unified exploit catalog schema with Caldera ability fields (tactic, technique, executor, command, cleanup, payload)
+- [x] Merge phishing exploits into unified catalog with full enrichment
+- [x] Merge CVE-linked exploits (Metasploit, ExploitDB, PoC) into unified catalog
+- [x] Add Caldera ability metadata: executor type, platform, command templates, cleanup commands
+- [x] Build enrichment pipeline to auto-generate Caldera ability payloads from exploit entries
+- [x] Build one-click sync-to-Caldera endpoint that creates abilities via Caldera API
+- [x] Update Arsenal/Exploit catalog UI to show unified view with sync controls (ExploitArsenal page)
+- [x] Add bulk sync capability for multiple exploits at once (Sync All to Caldera button)
+- [x] Write tests for enrichment pipeline and Caldera sync (17 tests passing)
+
+## Metasploit MSGRPC Integration & Unified Exploit Catalog (Feb 18)
+- [x] Build Metasploit DigitalOcean droplet provisioning (Docker-based MSF install, MSGRPC auto-config)
+- [x] Add MSF server to DB schema (metasploitServers, exploitJobs, unifiedExploitCatalog tables)
+- [x] Build Metasploit MSGRPC API client service (auth, session mgmt, module execution)
+- [x] Build Caldera agent stager payload generator (Sandcat/Manx for Windows/Linux/macOS + MSF resource scripts)
+- [x] Create unified exploit catalog DB table with initial-access + post-access tiers
+- [x] Build enrichment pipeline to merge phishing exploits + CVE exploits into unified catalog
+- [x] Build automated exploit execution pipeline (select module → configure → fire → monitor)
+- [x] Add safety controls: scope-lock, approval workflow, audit logging, kill switch (dry run, job logging, session stop)
+- [x] Build exploit session monitoring (active sessions, agent callbacks, shell access)
+- [x] Build unified exploit catalog UI (ExploitArsenal page) + Metasploit server management (MsfServers page)
+- [x] Wire Metasploit exploit success → Caldera agent deployment → post-exploitation chain (autoExploit endpoint)
+- [x] Write tests for provisioning, MSGRPC service, stager generation, and exploit pipeline (17 tests passing)
+- [x] Added Exploit Arsenal and MSF Servers to sidebar navigation
+- [x] Added routes in App.tsx for /exploit-arsenal and /msf-servers

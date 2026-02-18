@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1169,3 +1169,141 @@ export const infoOpsCampaigns = mysqlTable("info_ops_campaigns", {
 });
 export type InfoOpsCampaign = typeof infoOpsCampaigns.$inferSelect;
 export type InsertInfoOpsCampaign = typeof infoOpsCampaigns.$inferInsert;
+
+
+/**
+ * Metasploit server instances managed via DigitalOcean
+ */
+export const metasploitServers = mysqlTable("metasploit_servers", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  dropletId: varchar("dropletId", { length: 64 }),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  region: varchar("region", { length: 32 }).default("nyc1"),
+  dropletSize: varchar("dropletSize", { length: 32 }).default("s-2vcpu-4gb"),
+  // MSGRPC connection
+  rpcPort: int("rpcPort").default(55553),
+  rpcUser: varchar("rpcUser", { length: 64 }).default("msf"),
+  rpcPass: text("rpcPass"),
+  rpcSsl: boolean("rpcSsl").default(true),
+  rpcToken: text("rpcToken"), // Session token from auth
+  // Status
+  status: mysqlEnum("msfStatus", ["provisioning", "installing", "online", "offline", "error", "destroying"]).default("provisioning").notNull(),
+  statusMessage: text("msfStatusMessage"),
+  lastHealthCheck: timestamp("msfLastHealthCheck"),
+  // Metasploit info
+  msfVersion: varchar("msfVersion", { length: 64 }),
+  moduleCount: int("moduleCount"),
+  activeSessionCount: int("activeSessionCount").default(0),
+  // Lifecycle
+  autoDestroy: boolean("autoDestroy").default(false), // Destroy after engagement
+  engagementId: int("engagementId"), // Link to engagement if scoped
+  createdAt: timestamp("msfCreatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("msfUpdatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MetasploitServer = typeof metasploitServers.$inferSelect;
+export type InsertMetasploitServer = typeof metasploitServers.$inferInsert;
+
+/**
+ * Exploit execution jobs — tracks each exploit attempt
+ */
+export const exploitJobs = mysqlTable("exploit_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  msfServerId: int("msfServerId").notNull(),
+  // Target
+  targetIp: varchar("targetIp", { length: 45 }).notNull(),
+  targetPort: int("targetPort"),
+  targetDomain: varchar("targetDomain", { length: 255 }),
+  scanId: int("exploitScanId"), // Link to domain intel scan
+  // Exploit details
+  exploitModule: varchar("exploitModule", { length: 512 }).notNull(), // e.g. "exploit/windows/http/exchange_proxyshell_rce"
+  payloadModule: varchar("payloadModule", { length: 512 }), // e.g. "windows/x64/meterpreter/reverse_https"
+  cveId: varchar("exploitCveId", { length: 32 }),
+  options: json("exploitOptions"), // { RHOSTS, RPORT, LHOST, LPORT, ... }
+  // Caldera integration
+  calderaStagerUrl: text("calderaStagerUrl"), // URL for Caldera agent callback
+  calderaAgentPaw: varchar("calderaAgentPaw", { length: 64 }), // Agent ID once connected
+  // Execution
+  status: mysqlEnum("exploitJobStatus", ["pending", "approved", "running", "success", "failed", "aborted", "timeout"]).default("pending").notNull(),
+  msfJobId: int("msfJobId"), // Metasploit job ID
+  msfSessionId: int("msfSessionId"), // Metasploit session ID if successful
+  sessionType: varchar("sessionType", { length: 32 }), // "meterpreter", "shell", "caldera_agent"
+  // Results
+  result: text("exploitResult"),
+  errorMessage: text("exploitErrorMessage"),
+  startedAt: timestamp("exploitStartedAt"),
+  completedAt: timestamp("exploitCompletedAt"),
+  // Safety
+  approvedBy: varchar("approvedBy", { length: 255 }),
+  approvedAt: timestamp("approvedAt"),
+  scopeVerified: boolean("scopeVerified").default(false),
+  // Audit
+  createdAt: timestamp("exploitJobCreatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("exploitJobUpdatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ExploitJob = typeof exploitJobs.$inferSelect;
+export type InsertExploitJob = typeof exploitJobs.$inferInsert;
+
+/**
+ * Unified exploit catalog — merges phishing exploits, CVE exploits, and custom payloads
+ * into a single catalog with Caldera ability metadata for sync
+ */
+export const unifiedExploitCatalog = mysqlTable("unified_exploit_catalog", {
+  id: int("id").autoincrement().primaryKey(),
+  // Identity
+  catalogId: varchar("catalogId", { length: 128 }).notNull().unique(), // e.g. "msf:exploit/windows/http/...", "phish:cred-bitb-sso", "edb:12345"
+  name: varchar("exploitName", { length: 512 }).notNull(),
+  description: text("exploitDescription"),
+  // Classification
+  tier: mysqlEnum("tier", ["initial_access", "post_access"]).notNull(), // Pre-agent vs post-agent
+  category: varchar("exploitCategory", { length: 64 }).notNull(), // "rce", "credential_harvesting", "privesc", "lateral_movement", etc.
+  source: varchar("exploitSource", { length: 32 }).notNull(), // "metasploit", "exploitdb", "phishing_library", "custom", "caldera_stockpile"
+  // CVE & vulnerability mapping
+  cveIds: json("exploitCveIds"), // string[]
+  cvssScore: double("exploitCvssScore"),
+  severity: varchar("exploitSeverity", { length: 16 }), // critical, high, medium, low
+  // MITRE ATT&CK mapping
+  mitreId: varchar("exploitMitreId", { length: 32 }),
+  mitreName: varchar("exploitMitreName", { length: 255 }),
+  mitreTactic: varchar("exploitMitreTactic", { length: 64 }),
+  // Exploit metadata
+  platform: varchar("exploitPlatform", { length: 64 }), // "windows", "linux", "multi", "web"
+  exploitType: varchar("exploitType", { length: 32 }), // "remote", "local", "webapps", "dos", "phishing"
+  reliability: varchar("exploitReliability", { length: 16 }), // excellent, great, good, normal, average, low
+  difficulty: varchar("exploitDifficulty", { length: 16 }), // basic, intermediate, advanced, expert
+  effectiveness: int("exploitEffectiveness"), // 1-10
+  // Source-specific references
+  msfModule: varchar("msfModule", { length: 512 }), // Metasploit module path
+  msfRank: int("msfRank"), // Metasploit ranking
+  edbId: varchar("edbId", { length: 32 }), // ExploitDB ID
+  edbUrl: varchar("edbUrl", { length: 512 }),
+  phishingExploitId: varchar("phishingExploitId", { length: 64 }), // ID from phishing-exploits.ts
+  // Caldera ability payload (ready for sync)
+  calderaAbilityId: varchar("calderaAbilityId", { length: 128 }),
+  calderaAbilityPayload: json("calderaAbilityPayload"), // Full CalderaAbilityPayload JSON
+  calderaSynced: boolean("calderaSynced").default(false),
+  calderaSyncedAt: timestamp("calderaSyncedAt"),
+  // Agent stager config (for initial_access tier)
+  agentStagerType: varchar("agentStagerType", { length: 32 }), // "sandcat", "manx", "custom"
+  agentStagerCommand: text("agentStagerCommand"), // Shell command to deploy agent
+  agentStagerPayload: text("agentStagerPayload"), // Encoded payload bytes or download URL
+  agentCallbackUrl: text("agentCallbackUrl"), // Caldera C2 callback URL
+  // Injectable code (for phishing exploits)
+  landingPageCode: text("landingPageCode"),
+  emailTemplateCode: text("emailTemplateCode"),
+  // Tags and detection
+  tags: json("exploitTags"), // string[]
+  detectionIndicators: json("exploitDetectionIndicators"), // string[]
+  prerequisites: json("exploitPrerequisites"), // string[]
+  // Status
+  verified: boolean("exploitVerified").default(false),
+  lastVerifiedAt: timestamp("exploitLastVerifiedAt"),
+  enabled: boolean("exploitEnabled").default(true),
+  // Metadata
+  author: varchar("exploitAuthor", { length: 255 }),
+  datePublished: varchar("exploitDatePublished", { length: 32 }),
+  createdAt: timestamp("catalogCreatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("catalogUpdatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type UnifiedExploit = typeof unifiedExploitCatalog.$inferSelect;
+export type InsertUnifiedExploit = typeof unifiedExploitCatalog.$inferInsert;

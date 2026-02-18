@@ -28,6 +28,8 @@ import {
   ArrowLeftRight,
   Database,
   AlertTriangle,
+  Crosshair,
+  Server,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
@@ -42,6 +44,8 @@ const NAV_ITEMS = [
   { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
   { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
   { href: "/phishing-exploit-catalog", icon: Shield, label: "EXPLOIT CATALOG" },
+  { href: "/exploit-arsenal", icon: Crosshair, label: "EXPLOIT ARSENAL" },
+  { href: "/msf-servers", icon: Server, label: "MSF SERVERS" },
   { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
   { href: "/team", icon: Users, label: "TEAM" },
   { href: "/activity", icon: FileText, label: "ACTIVITY" },
