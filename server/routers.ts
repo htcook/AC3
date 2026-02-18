@@ -1631,7 +1631,13 @@ export const appRouter = router({
         send_by_date: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        return fetchGophishAPI('/api/campaigns/', 'POST', input);
+        const result = await fetchGophishAPI('/api/campaigns/', 'POST', input);
+        // Emit campaign launched event
+        try {
+          const { emitCampaignEvent } = await import('./lib/ws-event-hub');
+          emitCampaignEvent({ campaignId: (result as any)?.id || 0, eventType: 'launched' });
+        } catch { /* non-critical */ }
+        return result;
       }),
 
     deleteCampaign: protectedProcedure
@@ -3824,6 +3830,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 pipelineOutput: result,
               });
               console.log(`[DomainIntel] Scan-only completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+              try { const { emitReconComplete } = await import('./lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); } catch {}
             } else {
               // Full engagement: run threat actor matching + campaign design
               let threatActorMatches = null;
@@ -3867,6 +3874,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               });
 
               console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+              try { const { emitReconComplete, emitSystemNotification } = await import('./lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitSystemNotification({ title: 'Domain Intel Complete', message: `Scan of ${pipelineInput.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' }); } catch {}
             }
           } catch (err: any) {
             console.error(`[DomainIntel] Pipeline failed for scan ${scanId}:`, err.message);
@@ -4805,11 +4813,15 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         
         const stepLog = (pipeline.stepLog as any[]) || [];
         const riskSummary: Record<string, any> = {};
+
+        // Import WebSocket event emitters for real-time updates
+        const { emitPipelineStep, emitReconComplete, emitSystemNotification } = await import('./lib/ws-event-hub');
         
         try {
           // Step 1: Domain Intel Scan
           stepLog[0] = { ...stepLog[0], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 1, stepLog });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 1, stepName: 'Domain Intel Scan', status: 'running' });
           
           const { runDomainIntelPipeline } = await import('./domainIntel');
           const domains = pipeline.targetDomains as string[];
@@ -4825,35 +4837,44 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           });
           riskSummary.domainIntel = { totalAssets: scanResult.totalAssets, totalFindings: scanResult.totalFindings };
           stepLog[0] = { ...stepLog[0], status: 'complete', timestamp: Date.now() };
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 1, stepName: 'Domain Intel Scan', status: 'complete' });
+          emitReconComplete({ scanId: 0, domain: domains[0] || '', findings: scanResult.totalFindings || 0 });
           
           // Step 2: Risk Assessment
           stepLog[1] = { ...stepLog[1], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 2, stepLog });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 2, stepName: 'Risk Assessment', status: 'running' });
           riskSummary.riskAssessment = {
             overallRisk: scanResult.overallRiskBand || 'medium',
             overallScore: scanResult.overallRiskScore,
             topAssets: (scanResult.assets || []).slice(0, 10).map((a: any) => ({ name: a.hostname, risk: a.hybridRiskScore })),
           };
           stepLog[1] = { ...stepLog[1], status: 'complete', timestamp: Date.now() };
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 2, stepName: 'Risk Assessment', status: 'complete' });
           
           // Step 3: Campaign Recommendations
           stepLog[2] = { ...stepLog[2], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 3, stepLog, riskSummary });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 3, stepName: 'Campaign Recommendations', status: 'running' });
           riskSummary.campaignRecommendations = scanResult.campaignRecommendations || [];
           stepLog[2] = { ...stepLog[2], status: 'complete', timestamp: Date.now() };
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 3, stepName: 'Campaign Recommendations', status: 'complete' });
           
           // Step 4: Create Caldera Operation (ready state)
           stepLog[3] = { ...stepLog[3], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 4, stepLog });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 4, stepName: 'Create Caldera Operation', status: 'running' });
           riskSummary.calderaOperation = {
             status: 'ready',
             recommendedAbilities: (scanResult.campaignRecommendations || []).flatMap((c: any) => c.calderaAbilities || []),
           };
           stepLog[3] = { ...stepLog[3], status: 'complete', timestamp: Date.now() };
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 4, stepName: 'Create Caldera Operation', status: 'complete' });
           
           // Step 5: Auto-Materialize Phishing Drafts from scan recommendations
           stepLog[4] = { ...stepLog[4], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 5, stepLog });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 5, stepName: 'Create GoPhish Campaign', status: 'running' });
           
           // First, we need a domain intel scan record. The pipeline ran runDomainIntelPipeline
           // directly, so we need to find or create the scan record.
@@ -5069,6 +5090,7 @@ Make the phishing content highly realistic and tailored to the target domain and
             recommendedTemplates: campaignRecs.flatMap((c: any) => c.gophishTemplates || []),
           };
           stepLog[4] = { ...stepLog[4], status: 'complete', timestamp: Date.now() };
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 5, stepName: 'Create GoPhish Campaign', status: 'complete' });
 
           // Step 5b: Auto-recommend typosquat domains if target is not spoofable
           try {
@@ -5114,6 +5136,7 @@ Make the phishing content highly realistic and tailored to the target domain and
           // Step 6: Create Engagement
           stepLog[5] = { ...stepLog[5], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 6, stepLog });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 6, stepName: 'Create Engagement', status: 'running' });
           const engagementId = await db.createEngagement({
             name: pipeline.name || 'Auto-Generated Engagement',
             customerName: domains[0] || 'Auto',
@@ -5124,6 +5147,7 @@ Make the phishing content highly realistic and tailored to the target domain and
           });
           riskSummary.engagement = { id: engagementId };
           stepLog[5] = { ...stepLog[5], status: 'complete', timestamp: Date.now() };
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 6, stepName: 'Create Engagement', status: 'complete' });
           
           await db.updateEngagementPipeline(input.pipelineId, {
             status: 'completed',
@@ -5133,6 +5157,10 @@ Make the phishing content highly realistic and tailored to the target domain and
             completedAt: new Date(),
           });
           
+          // Emit pipeline finished event
+          emitPipelineStep({ pipelineId: input.pipelineId, step: -1, stepName: 'Pipeline Complete', status: 'complete', engagementId: Number(engagementId) });
+          emitSystemNotification({ title: 'Engagement Pipeline Complete', message: `Pipeline "${pipeline.name}" completed successfully. Engagement #${engagementId} created.`, severity: 'info' });
+
           return { success: true, engagementId: Number(engagementId), riskSummary };
         } catch (err: any) {
           const failedStep = stepLog.findIndex((s: any) => s.status === 'running');

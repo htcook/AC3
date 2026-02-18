@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { useTimelineEvents, type WsEvent } from "@/hooks/useWebSocket";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -134,7 +135,62 @@ export default function EngagementTimeline() {
     { enabled: !!summaryEngagementId }
   );
 
-  const events = timelineQuery.data?.events || [];
+  // Real-time WebSocket events
+  const { events: wsEvents, status: wsStatus, isConnected, clearEvents: clearWsEvents } = useTimelineEvents(selectedEngagement);
+
+  // Convert WS events to timeline events for live display
+  const liveEvents = useMemo(() => {
+    return wsEvents.map((ws: WsEvent, i: number): TimelineEvent => {
+      const phaseMap: Record<string, KillChainPhase> = {
+        'exploit:fired': 'exploitation', 'exploit:result': 'exploitation', 'exploit:progress': 'exploitation', 'exploit:session_opened': 'exploitation',
+        'agent:deployed': 'installation', 'agent:checkin': 'command_control', 'agent:lost': 'command_control',
+        'operation:started': 'actions_on_objectives', 'operation:step_complete': 'actions_on_objectives', 'operation:finished': 'actions_on_objectives',
+        'recon:started': 'reconnaissance', 'recon:complete': 'reconnaissance', 'recon:finding': 'reconnaissance',
+        'campaign:launched': 'delivery', 'campaign:email_sent': 'delivery', 'campaign:email_opened': 'delivery', 'campaign:link_clicked': 'delivery', 'campaign:creds_submitted': 'delivery',
+        'pipeline:started': 'reconnaissance', 'pipeline:step_complete': 'weaponization', 'pipeline:finished': 'weaponization',
+        'domain:scan_complete': 'reconnaissance', 'domain:typosquat_purchased': 'weaponization',
+        'msf:server_provisioned': 'weaponization', 'msf:server_ready': 'weaponization', 'msf:server_destroyed': 'weaponization',
+        'system:notification': 'reconnaissance', 'system:alert': 'reconnaissance',
+      };
+      return {
+        id: `live-${i}-${ws.timestamp}`,
+        engagementId: ws.engagementId ?? null,
+        timestamp: ws.timestamp,
+        phase: phaseMap[ws.type] || 'reconnaissance',
+        source: ws.type.split(':')[0],
+        severity: ws.data?.severity || 'info',
+        title: ws.data?.title || ws.type.replace(/[:.]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        description: ws.data?.message || ws.data?.description || JSON.stringify(ws.data).slice(0, 200),
+        icon: ws.type.includes('exploit') ? 'Zap' : ws.type.includes('agent') ? 'Bot' : ws.type.includes('recon') ? 'Search' : ws.type.includes('campaign') ? 'Mail' : 'Activity',
+        color: ws.type.includes('exploit') ? 'orange' : ws.type.includes('agent') ? 'red' : ws.type.includes('recon') ? 'cyan' : ws.type.includes('campaign') ? 'emerald' : 'violet',
+        sourceRecordId: ws.data?.jobId || ws.data?.scanId || ws.data?.campaignId || 0,
+        status: ws.data?.success === false ? 'failed' : ws.data?.success === true ? 'success' : 'info',
+        details: ws.data,
+      };
+    });
+  }, [wsEvents]);
+
+  const allEvents = useMemo(() => {
+    const historical = timelineQuery.data?.events || [];
+    // Merge live events at the top, dedup by timestamp proximity
+    const merged = [...liveEvents, ...historical];
+    const seen = new Set<string>();
+    return merged.filter(e => {
+      const key = `${e.phase}-${e.source}-${Math.floor(e.timestamp / 1000)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [liveEvents, timelineQuery.data?.events]);
+
+  // Auto-refetch when new WS events arrive
+  useEffect(() => {
+    if (wsEvents.length > 0) {
+      timelineQuery.refetch();
+    }
+  }, [wsEvents.length]);
+
+  const events = allEvents;
   const stats = timelineQuery.data?.stats;
   const engagementsList = engagementsQuery.data || [];
 
@@ -168,11 +224,22 @@ export default function EngagementTimeline() {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Engagement Timeline</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Unified kill chain visualization showing the complete engagement lifecycle from initial
-          reconnaissance through exploitation to post-compromise actions. Events are aggregated
-          from OSINT scans, phishing campaigns, Metasploit exploits, and Caldera operations.
-        </p>
+        <div className="flex items-center gap-3 mt-1">
+          <p className="text-sm text-muted-foreground">
+            Unified kill chain visualization — events from OSINT, phishing, Metasploit, and Caldera.
+          </p>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : wsStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="text-xs text-muted-foreground">
+              {isConnected ? 'Live' : wsStatus === 'connecting' ? 'Connecting...' : 'Offline'}
+            </span>
+            {liveEvents.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-emerald-500/20 text-emerald-400">
+                {liveEvents.length} new
+              </Badge>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Kill Chain Progress Bar */}

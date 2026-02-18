@@ -2302,3 +2302,19 @@
 - [x] Add timeline filtering by engagement, phase, source, severity, date range, target domain
 - [x] Wire into sidebar navigation (KILL CHAIN) and App.tsx routing (/engagement-timeline)
 - [x] Write tests for timeline aggregation service (20 tests passing)
+
+## Real-Time WebSocket Event Streaming (Feb 18)
+- [x] Audit server infrastructure (Express + Vite proxy) for WebSocket compatibility — http.createServer already available, ws can attach directly
+- [x] Build WebSocket server with event broadcasting and channel/room management (ws-event-hub.ts)
+- [x] Define event types: 28 event types across exploit, agent, operation, recon, campaign, pipeline, MSF, and sy- [x] Wire event emitters into MSF exploit execution pipeline (exploit fired, result, agent deployed)
+- [x] Wire event emitters into engagement pipeline (all 6 steps: running + complete events)
+- [x] Wire event emitters into GoPhish campaign launch events
+- [x] Wire event emitters into domain intel scan completion (recon complete, system notification)
+- [x] Wire event emitters into MSF server provisioning lifecycleubscription
+- [x] Build frontend useWebSocket React hook with auto-reconnect, channel subscriptions, and toast notifications
+- [x] Wire live events into Kill Chain Timeline (merge WS events with historical, live indicator + event count badge)
+- [x] Wire live events into Dashboard (auto-refresh stats, LIVE status dot in header)
+- [x] Wire live events into Exploit Arsenal (auto-refresh on exploit completion)
+- [x] Wire live events into MSF Servers (auto-refresh on provisioning events)
+- [x] Add WebSocket connection status indicator (connected/reconnecting/offline) to Timeline + Dashboard
+- [x] Write tests for WebSocket server and event broadcasting (22 tests passing)

@@ -13,6 +13,7 @@ import {
 import ZeroDayFeed from "@/components/ZeroDayFeed";
 import { useState, useEffect, useMemo } from "react";
 import AppShell from "@/components/AppShell";
+import { useDashboardEvents } from "@/hooks/useWebSocket";
 
 const DEFAULT_SERVER = {
   id: 1,
@@ -160,6 +161,17 @@ export default function Dashboard() {
   const clickRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.clicked / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
   const submitRate = gophish.emailMetrics.sent > 0 ? ((gophish.emailMetrics.submitted / gophish.emailMetrics.sent) * 100).toFixed(1) : '0';
 
+  // Real-time WebSocket events for dashboard
+  const { events: wsEvents, isConnected: wsConnected, eventCounts } = useDashboardEvents();
+
+  // Auto-refresh stats when WS events arrive
+  useEffect(() => {
+    if (wsEvents.length > 0) {
+      refetchStats();
+      refetchGophish();
+    }
+  }, [wsEvents.length]);
+
   const refreshAll = () => {
     refetchStats();
     refetchGophish();
@@ -217,6 +229,8 @@ export default function Dashboard() {
               <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">CALDERA</span>
               <div className={`w-2.5 h-2.5 rounded-full ml-2 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
               <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">GOPHISH</span>
+              <div className={`w-2.5 h-2.5 rounded-full ml-2 ${wsConnected ? 'bg-cyan-500 animate-pulse' : 'bg-gray-500'}`} />
+              <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">LIVE</span>
             </div>
             <Button variant="outline" size="sm" className="font-display tracking-wider text-xs" onClick={refreshAll}>
               <RefreshCw className="w-3.5 h-3.5 mr-1" />

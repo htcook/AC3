@@ -10,6 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
 import { serveStatic, setupVite } from "./vite";
+import { eventHub } from "../lib/ws-event-hub";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -280,6 +281,9 @@ async function startServer() {
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
+
+  // Attach WebSocket event hub to the HTTP server
+  eventHub.attach(server);
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

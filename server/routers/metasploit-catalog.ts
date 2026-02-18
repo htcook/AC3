@@ -21,7 +21,12 @@ export const metasploitCatalogRouter = router({
       const { provisionMsfDroplet } = await import("../lib/msf-provisioner");
       const doToken = ENV.DIGITALOCEAN_ACCESS_TOKEN;
       if (!doToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "DigitalOcean access token not configured" });
-      return provisionMsfDroplet({ name: input.name, region: input.region, size: input.size });
+      const result = await provisionMsfDroplet({ name: input.name, region: input.region, size: input.size });
+      try {
+        const { emitMsfServerEvent } = await import("../lib/ws-event-hub");
+        emitMsfServerEvent({ serverId: (result as any)?.serverId || 0, status: 'provisioning', name: input.name });
+      } catch { /* non-critical */ }
+      return result;
     }),
 
   listServers: protectedProcedure.query(async () => {
@@ -243,6 +248,11 @@ export const metasploitCatalogRouter = router({
       const client = MsfClient.fromServerConfig(server);
       if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
 
+      const { emitExploitFired, emitExploitResult } = await import("../lib/ws-event-hub");
+
+      // Emit exploit fired event
+      emitExploitFired({ jobId: job.id, module: input.moduleName, targetIp: input.targetHost, targetPort: input.targetPort || 0, engagementId: input.engagementId });
+
       try {
         await client.ensureAuth();
         const result = await client.executeModule("exploit", input.moduleName, moduleOptions);
@@ -256,11 +266,18 @@ export const metasploitCatalogRouter = router({
           })
           .where(eq(exploitJobs.id, job.id));
 
+        // Emit exploit running event
+        emitExploitResult({ jobId: job.id, module: input.moduleName, targetIp: input.targetHost, success: true, sessionId: undefined, engagementId: input.engagementId });
+
         return { jobId: job.id, msfJobId: result.job_id, status: "running", module: input.moduleName, target: `${input.targetHost}:${input.targetPort || "auto"}` };
       } catch (err: any) {
         await dbConn.update(exploitJobs)
           .set({ status: "failed", errorMessage: err.message, completedAt: new Date() })
           .where(eq(exploitJobs.id, job.id));
+
+        // Emit exploit failed event
+        emitExploitResult({ jobId: job.id, module: input.moduleName, targetIp: input.targetHost, success: false, error: err.message, engagementId: input.engagementId });
+
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Exploit execution failed: ${err.message}` });
       }
     }),
@@ -403,6 +420,11 @@ export const metasploitCatalogRouter = router({
       const client = MsfClientClass.fromServerConfig(server);
       if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
 
+      const { emitExploitFired, emitExploitResult, emitAgentDeployed } = await import("../lib/ws-event-hub");
+
+      // Emit exploit fired event
+      emitExploitFired({ jobId: job.id, module: entry.msfModule, targetIp: input.targetHost, targetPort: input.targetPort || 0, engagementId: input.engagementId });
+
       try {
         await client.ensureAuth();
         const moduleOptions: Record<string, string> = { RHOSTS: input.targetHost, ...(input.targetPort ? { RPORT: String(input.targetPort) } : {}) };
@@ -443,6 +465,9 @@ export const metasploitCatalogRouter = router({
                 await dbConn.update(exploitJobs)
                   .set({ sessionType: "caldera_agent", msfSessionId: parseInt(sessionId) || null, calderaStagerUrl: stager.callbackUrl, completedAt: new Date(), status: "success" })
                   .where(eq(exploitJobs.id, job.id));
+
+                // Emit agent deployed event
+                emitAgentDeployed({ paw: `msf_${sessionId}`, host: input.targetHost, platform, executors: [stager.type], engagementId: input.engagementId });
               }
             }
           } catch (agentErr: any) {
@@ -463,6 +488,10 @@ export const metasploitCatalogRouter = router({
         await dbConn.update(exploitJobs)
           .set({ status: "failed", errorMessage: err.message, completedAt: new Date() })
           .where(eq(exploitJobs.id, job.id));
+
+        // Emit exploit failed event
+        emitExploitResult({ jobId: job.id, module: entry.msfModule, targetIp: input.targetHost, success: false, error: err.message, engagementId: input.engagementId });
+
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Auto-exploit failed: ${err.message}` });
       }
     }),

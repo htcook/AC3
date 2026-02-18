@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import AppShell from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,15 @@ import {
   Server, Plus, RefreshCw, Trash2, Activity, CheckCircle2, XCircle, Clock,
   Loader2, Terminal, Globe, Shield, Cpu, HardDrive, AlertTriangle, Power, Zap
 } from "lucide-react";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function MsfServers() {
+  // Real-time MSF server events
+  const { events: wsEvents, isConnected: wsConnected } = useWebSocket({
+    channels: ['msf'],
+    showToasts: true,
+  });
+
   const [provisionOpen, setProvisionOpen] = useState(false);
   const [serverName, setServerName] = useState("msf-server-01");
   const [region, setRegion] = useState("nyc1");
@@ -19,6 +26,13 @@ export default function MsfServers() {
   const [confirmDestroyId, setConfirmDestroyId] = useState<number | null>(null);
 
   const serversQuery = trpc.metasploit.listServers.useQuery();
+
+  // Auto-refetch when MSF server events arrive
+  useEffect(() => {
+    if (wsEvents.length > 0) {
+      serversQuery.refetch();
+    }
+  }, [wsEvents.length]);
 
   const provisionMut = trpc.metasploit.provisionServer.useMutation({
     onSuccess: (data: any) => {
