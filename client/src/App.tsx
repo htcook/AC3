@@ -117,7 +117,7 @@ function Router() {
         <ProtectedRoute component={Activity} />
       </Route>
       <Route path="/campaigns">
-        <ProtectedRoute component={Campaigns} />
+        {() => { window.location.href = '/engagements'; return null; }}
       </Route>
       <Route path="/campaigns/:id">
         {(params) => <ProtectedRoute component={() => <CampaignDetail />} />}

@@ -13,6 +13,7 @@ import { invokeLLM } from "./_core/llm";
 import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
 import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/passive/index";
 import { enrichAssetsWithShodanData, verifyCvesWithShodanData, createShodanPostureFindings } from "./lib/shodan-verifier";
+import { matchExploitsToFindings, type ExploitMatch } from "./lib/exploit-matcher";
 import { ENV } from "./_core/env";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -190,6 +191,13 @@ export interface PipelineResult {
   kevEnrichment?: KevEnrichment;
   passiveRecon?: PassiveReconResult;
   breachData?: BreachDataSummary;
+  exploitMatches?: {
+    matches: ExploitMatch[];
+    totalMetasploit: number;
+    totalExploitDb: number;
+    totalCalderaAbilities: number;
+    remoteAccessCount: number;
+  };
 }
 
 export interface BreachDataSummary {
@@ -1349,6 +1357,26 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  // Stage 3.8: Exploit Matching — match confirmed CVEs against Metasploit/ExploitDB
+  let exploitMatchResult: PipelineResult['exploitMatches'] | undefined;
+  try {
+    // Collect all confirmed/probable posture findings with CVE IDs
+    const allFindings = analyses.flatMap(a => a.postureFindings.map(f => ({
+      title: f.title,
+      cveIds: f.cveIds,
+      corroborationTier: f.corroborationTier,
+      severity: f.severity,
+      description: f.evidenceDetail,
+    })));
+    const findingsWithCves = allFindings.filter(f => f.cveIds && f.cveIds.length > 0);
+    if (findingsWithCves.length > 0) {
+      exploitMatchResult = await matchExploitsToFindings(findingsWithCves);
+      console.log(`[DomainIntel] Exploit matching: ${exploitMatchResult.matches.length} CVEs matched → ${exploitMatchResult.totalMetasploit} MSF modules, ${exploitMatchResult.totalExploitDb} EDB entries, ${exploitMatchResult.totalCalderaAbilities} Caldera abilities, ${exploitMatchResult.remoteAccessCount} remote access`);
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] Exploit matching failed (non-fatal): ${err.message}`);
+  }
+
   // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan) are in place
   for (const a of analyses) {
     const vulnRisk = computeVulnRisk(a.postureFindings);
@@ -1471,5 +1499,6 @@ export async function runDomainIntelPipeline(
     kevEnrichment,
     passiveRecon,
     breachData,
+    exploitMatches: exploitMatchResult,
   };
 }

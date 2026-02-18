@@ -160,6 +160,35 @@ export default function DomainIntelResults() {
     },
   });
   const [engagementRunning, setEngagementRunning] = useState(false);
+  const [exploitDeploying, setExploitDeploying] = useState(false);
+
+  const deployExploitsMutation = trpc.domainIntel.deployExploits.useMutation({
+    onSuccess: (result) => {
+      setExploitDeploying(false);
+      if (result.success) {
+        toast.success(`Deployed ${result.deployed?.length || 0} exploit abilities to Caldera`);
+      } else {
+        toast.error(result.error || 'Failed to deploy exploits');
+      }
+    },
+    onError: (err) => {
+      setExploitDeploying(false);
+      toast.error(`Deploy failed: ${err.message}`);
+    },
+  });
+
+  const createAdversaryMutation = trpc.domainIntel.createExploitAdversary.useMutation({
+    onSuccess: (result: any) => {
+      if (result.success) {
+        toast.success(`Created adversary profile "${result.adversary?.name || 'exploit-adversary'}" in Caldera`);
+      } else {
+        toast.error(result.error || 'Failed to create adversary');
+      }
+    },
+    onError: (err) => {
+      toast.error(`Failed: ${err.message}`);
+    },
+  });
 
   // Poll for engagement completion
   const engagementPoll = trpc.domainIntel.getScanStatus.useQuery(
@@ -210,6 +239,7 @@ export default function DomainIntelResults() {
   const llmThreatAnalysis = pipeline?.llmThreatActorAnalysis as any;
   const breachData = pipeline?.breachData as any;
   const dehashedResult = pipeline?.passiveRecon?.connectorResults?.find((r: any) => r.connector === 'dehashed') as any;
+  const exploitMatches = pipeline?.exploitMatches as any;
 
   // Sort assets by risk score descending
   const sortedAssets = [...assets].sort((a: any, b: any) => (b.hybridRiskScore || 0) - (a.hybridRiskScore || 0));
@@ -589,6 +619,7 @@ export default function DomainIntelResults() {
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{f.corroborationTier === 'confirmed' ? 'CONFIRMED' : 'PROBABLE'}</Badge>
                                       {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                      {(() => { const t = (f.title || '').toLowerCase(); return (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection')) ? <Badge className="text-[9px] px-1 py-0 bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">REMOTE ACCESS</Badge> : null; })()}
                                       <span className="font-medium">{f.title}</span>
                                       <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
                                     </div>
@@ -618,11 +649,11 @@ export default function DomainIntelResults() {
                               </CollapsibleTrigger>
                               <CollapsibleContent className="mt-1.5 space-y-1.5 max-h-36 overflow-y-auto">
                                 {potentialFindings.slice(0, 5).map((f: any, i: number) => (
-                                  <div key={`pot-${i}`} className="p-2 rounded border text-xs bg-purple-500/5 border-purple-500/20 opacity-75">
+                                  <div key={`pot-${i}`} className="p-2 rounded border text-xs bg-purple-500/5 border-purple-500/20 opacity-60">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <Badge className="text-[9px] px-1 py-0 text-purple-400 bg-purple-500/20 border-purple-500/40">POTENTIAL</Badge>
-                                      <span className="font-medium">{f.title}</span>
-                                      <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
+                                      <span className="font-medium text-muted-foreground">{f.title}</span>
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground/60 border-muted-foreground/30 ml-auto">NOT RATED</Badge>
                                     </div>
                                   </div>
                                 ))}
@@ -835,6 +866,7 @@ export default function DomainIntelResults() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                                   <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{tierLabel}</Badge>
+                                  {(() => { const t = (f.title || '').toLowerCase(); return (f.corroborationTier !== 'potential' && (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection'))) ? <Badge className="text-[9px] px-1 py-0 bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">REMOTE ACCESS</Badge> : null; })()}
                                   <p className="text-sm font-medium">{f.title}</p>
                                 </div>
                                 {f.cveIds?.length > 0 && (
@@ -858,9 +890,15 @@ export default function DomainIntelResults() {
                               <div className="flex gap-1 shrink-0 flex-wrap">
                                 {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
                                 {f.exploitAvailable && !f.kevListed && <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">Exploit</Badge>}
-                                <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10{f.corroborationTier === "probable" ? " (cap)" : ""}</Badge>
-                                {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
-                                <Badge variant="outline" className="text-[10px]">Likely: {f.likelihood}/10</Badge>
+                                {f.corroborationTier === 'potential' ? (
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground/60 border-muted-foreground/30">NOT RATED</Badge>
+                                ) : (
+                                  <>
+                                    <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10{f.corroborationTier === "probable" ? " (cap)" : ""}</Badge>
+                                    {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
+                                    <Badge variant="outline" className="text-[10px]">Likely: {f.likelihood}/10</Badge>
+                                  </>
+                                )}
                               </div>
                             </div>
                             {f.recommendedControls && f.recommendedControls.length > 0 && (
@@ -974,20 +1012,45 @@ export default function DomainIntelResults() {
                 </Card>
               )}
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(threatActorMatches.topMatches || []).map((actor: any, idx: number) => {
                   const llmMatch = llmThreatAnalysis?.enhancedMatches?.find((m: any) => m.actorId === actor.actorId || m.name === actor.name);
+                  // Cross-reference with exploit matches
+                  const actorTechIds = (actor.relevantTechniques || []).map((t: any) => t.id);
+                  const matchedExploitTechs = exploitMatches?.matches?.filter((em: any) =>
+                    em.techniques?.some((t: string) => actorTechIds.includes(t))
+                  ) || [];
+                  // Kill chain phases from actor's techniques
+                  const killChainPhases = ['Reconnaissance', 'Weaponization', 'Delivery', 'Exploitation', 'Installation', 'C2', 'Actions'];
+                  const actorTactics = (actor.relevantTechniques || []).map((t: any) => t.tactic?.toLowerCase() || '');
+                  const phaseMapping: Record<string, string[]> = {
+                    'Reconnaissance': ['reconnaissance', 'discovery'],
+                    'Weaponization': ['resource-development'],
+                    'Delivery': ['initial-access'],
+                    'Exploitation': ['execution', 'privilege-escalation'],
+                    'Installation': ['persistence', 'defense-evasion'],
+                    'C2': ['command-and-control', 'lateral-movement'],
+                    'Actions': ['collection', 'exfiltration', 'impact'],
+                  };
+                  const activePhases = killChainPhases.filter(phase =>
+                    phaseMapping[phase]?.some(tactic => actorTactics.includes(tactic))
+                  );
+                  // Sophistication level
+                  const sophistication = actor.matchScore >= 70 ? 'Advanced' : actor.matchScore >= 40 ? 'Moderate' : 'Basic';
+                  const sophColor = sophistication === 'Advanced' ? 'text-red-400 bg-red-500/10' : sophistication === 'Moderate' ? 'text-amber-400 bg-amber-500/10' : 'text-green-400 bg-green-500/10';
+
                   return (
-                    <Card key={actor.actorId} className="bg-card/50 hover:bg-card/80 transition-colors">
-                      <CardContent className="p-4">
+                    <Card key={actor.actorId} className="bg-card/50 hover:bg-card/80 transition-colors border-l-2" style={{ borderLeftColor: actor.matchScore >= 70 ? '#ef4444' : actor.matchScore >= 50 ? '#f97316' : actor.matchScore >= 30 ? '#eab308' : '#22c55e' }}>
+                      <CardContent className="p-4 space-y-3">
+                        {/* Header Row */}
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/20 text-red-400 font-bold text-sm">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-500/20 text-red-400 font-bold text-lg">
                               {idx + 1}
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold cursor-pointer hover:text-primary" onClick={() => navigate(`/threat-actors/${actor.actorId}`)}>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-base cursor-pointer hover:text-primary" onClick={() => navigate(`/threat-actors/${actor.actorId}`)}>
                                   {actor.name}
                                 </span>
                                 <Badge variant="outline" className={`text-[10px] ${
@@ -1001,14 +1064,32 @@ export default function DomainIntelResults() {
                                     <Globe className="w-3 h-3 mr-1" />{actor.origin}
                                   </Badge>
                                 )}
-                                <Badge className={`text-[10px] ${
-                                  actor.matchScore >= 70 ? 'bg-red-500/20 text-red-400' :
-                                  actor.matchScore >= 50 ? 'bg-orange-500/20 text-orange-400' :
-                                  actor.matchScore >= 30 ? 'bg-yellow-500/20 text-yellow-400' :
-                                  'bg-green-500/20 text-green-400'
-                                }`}>
-                                  Match: {actor.matchScore}%
+                                <Badge className={`text-[10px] ${sophColor}`}>
+                                  <Radar className="w-3 h-3 mr-1" />{sophistication}
                                 </Badge>
+                                <Badge className={`text-[10px] font-bold ${
+                                  actor.matchScore >= 70 ? 'bg-red-500/20 text-red-400 border border-red-500/40' :
+                                  actor.matchScore >= 50 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' :
+                                  actor.matchScore >= 30 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' :
+                                  'bg-green-500/20 text-green-400 border border-green-500/40'
+                                }`}>
+                                  {actor.matchScore}% Match
+                                </Badge>
+                              </div>
+                              {/* Confidence Breakdown */}
+                              <div className="flex gap-3 mt-1.5">
+                                {actor.sectorScore != null && (
+                                  <span className="text-[10px] text-muted-foreground">Sector: <span className="text-cyan-400 font-medium">{actor.sectorScore}%</span></span>
+                                )}
+                                {actor.techScore != null && (
+                                  <span className="text-[10px] text-muted-foreground">Tech: <span className="text-purple-400 font-medium">{actor.techScore}%</span></span>
+                                )}
+                                {actor.regionScore != null && (
+                                  <span className="text-[10px] text-muted-foreground">Region: <span className="text-amber-400 font-medium">{actor.regionScore}%</span></span>
+                                )}
+                                {actor.recencyScore != null && (
+                                  <span className="text-[10px] text-muted-foreground">Recency: <span className="text-green-400 font-medium">{actor.recencyScore}%</span></span>
+                                )}
                               </div>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {actor.matchReasons?.map((reason: string, i: number) => (
@@ -1019,40 +1100,90 @@ export default function DomainIntelResults() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 shrink-0">
                             <Button size="sm" variant="outline" onClick={() => navigate(`/threat-actors/${actor.actorId}`)}>
-                              <Eye className="w-3 h-3 mr-1" /> View
+                              <Eye className="w-3 h-3 mr-1" /> Intel
                             </Button>
-                            <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => navigate(`/threat-actors/${actor.actorId}`)}>
-                              <Crosshair className="w-3 h-3 mr-1" /> Simulate
+                            <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => {
+                              toast.info('Deploying adversary profile to Caldera...');
+                              navigate(`/threat-actors/${actor.actorId}`);
+                            }}>
+                              <Crosshair className="w-3 h-3 mr-1" /> Deploy Campaign
                             </Button>
                           </div>
                         </div>
 
+                        {/* Kill Chain Visualization */}
+                        <div className="bg-background/50 rounded-lg p-3">
+                          <div className="text-[10px] text-muted-foreground mb-2 font-medium flex items-center gap-1">
+                            <Activity className="w-3 h-3" /> CYBER KILL CHAIN COVERAGE
+                          </div>
+                          <div className="flex gap-0.5">
+                            {killChainPhases.map((phase) => {
+                              const isActive = activePhases.includes(phase);
+                              return (
+                                <div key={phase} className="flex-1 text-center">
+                                  <div className={`h-2 rounded-sm transition-all ${
+                                    isActive ? 'bg-red-500 shadow-sm shadow-red-500/30' : 'bg-muted/30'
+                                  }`} />
+                                  <div className={`text-[9px] mt-1 ${isActive ? 'text-red-400 font-medium' : 'text-muted-foreground/50'}`}>
+                                    {phase}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-1.5">
+                            {activePhases.length}/{killChainPhases.length} phases covered — {activePhases.length >= 5 ? 'Full lifecycle threat' : activePhases.length >= 3 ? 'Multi-phase capability' : 'Targeted capability'}
+                          </div>
+                        </div>
+
+                        {/* AI Analysis */}
                         {llmMatch && (
-                          <div className="mt-3 pl-11 space-y-2">
+                          <div className="space-y-2 bg-purple-500/5 rounded-lg p-3">
                             <div className="text-xs">
-                              <span className="text-purple-400 font-medium">AI Rationale:</span>{" "}
+                              <span className="text-purple-400 font-medium flex items-center gap-1 mb-1"><Brain className="w-3 h-3" /> AI Rationale</span>
                               <span className="text-muted-foreground">{llmMatch.llmRationale}</span>
                             </div>
                             {llmMatch.attackScenario && (
                               <div className="text-xs">
-                                <span className="text-orange-400 font-medium">Attack Scenario:</span>{" "}
+                                <span className="text-orange-400 font-medium flex items-center gap-1 mb-1"><Target className="w-3 h-3" /> Predicted Attack Scenario</span>
                                 <span className="text-muted-foreground">{llmMatch.attackScenario}</span>
                               </div>
                             )}
                           </div>
                         )}
 
+                        {/* Exploit Cross-Reference */}
+                        {matchedExploitTechs.length > 0 && (
+                          <div className="bg-red-500/5 rounded-lg p-3">
+                            <div className="text-[10px] text-red-400 font-medium mb-2 flex items-center gap-1">
+                              <Bug className="w-3 h-3" /> {matchedExploitTechs.length} EXPLOIT{matchedExploitTechs.length > 1 ? 'S' : ''} AVAILABLE FOR THIS ACTOR'S TECHNIQUES
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {matchedExploitTechs.slice(0, 4).map((em: any, i: number) => (
+                                <Badge key={i} className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20">
+                                  <Zap className="w-2.5 h-2.5 mr-1" />
+                                  {em.cveId}: {em.metasploitCount || 0} MSF + {em.exploitDbCount || 0} EDB
+                                </Badge>
+                              ))}
+                              {matchedExploitTechs.length > 4 && (
+                                <Badge className="text-[10px] bg-red-500/10 text-red-300">+{matchedExploitTechs.length - 4} more</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Techniques */}
                         {actor.relevantTechniques?.length > 0 && (
-                          <div className="mt-2 pl-11 flex flex-wrap gap-1">
-                            {actor.relevantTechniques.slice(0, 6).map((t: any, i: number) => (
+                          <div className="flex flex-wrap gap-1">
+                            {actor.relevantTechniques.slice(0, 8).map((t: any, i: number) => (
                               <Badge key={i} variant="secondary" className="text-[10px]">
                                 {t.id}: {t.name}
                               </Badge>
                             ))}
-                            {actor.relevantTechniques.length > 6 && (
-                              <Badge variant="secondary" className="text-[10px]">+{actor.relevantTechniques.length - 6} more</Badge>
+                            {actor.relevantTechniques.length > 8 && (
+                              <Badge variant="secondary" className="text-[10px]">+{actor.relevantTechniques.length - 8} more</Badge>
                             )}
                           </div>
                         )}
@@ -1076,6 +1207,134 @@ export default function DomainIntelResults() {
         </TabsContent>
 
         <TabsContent value="campaigns" className="space-y-4">
+          {/* Exploit Arsenal */}
+          {exploitMatches && exploitMatches.matches && exploitMatches.matches.length > 0 && (
+            <Card className="border-red-500/30 bg-red-500/5">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Bug className="h-4 w-4 text-red-400" />
+                    Exploit Arsenal
+                    <Badge className="bg-red-500/20 text-red-400 text-[10px]">{exploitMatches.matches.length} CVEs matched</Badge>
+                    {exploitMatches.remoteAccessCount > 0 && (
+                      <Badge className="bg-orange-500/20 text-orange-400 text-[10px] animate-pulse">
+                        <Zap className="h-3 w-3 mr-1" />
+                        {exploitMatches.remoteAccessCount} Remote Access
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      disabled={exploitDeploying || deployExploitsMutation.isPending}
+                      onClick={() => {
+                        setExploitDeploying(true);
+                        deployExploitsMutation.mutate({ scanId });
+                      }}
+                    >
+                      {exploitDeploying ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Target className="h-3 w-3 mr-1" />}
+                      Deploy All to Caldera
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                      disabled={createAdversaryMutation.isPending}
+                      onClick={() => createAdversaryMutation.mutate({ scanId })}
+                    >
+                      {createAdversaryMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Skull className="h-3 w-3 mr-1" />}
+                      Create Adversary Profile
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-2">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-red-400">{exploitMatches.totalMetasploit}</div>
+                    <div className="text-[10px] text-muted-foreground">Metasploit Modules</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-amber-400">{exploitMatches.totalExploitDb}</div>
+                    <div className="text-[10px] text-muted-foreground">ExploitDB Entries</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-purple-400">{exploitMatches.totalCalderaAbilities}</div>
+                    <div className="text-[10px] text-muted-foreground">Caldera Abilities</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+                {exploitMatches.matches.map((m: any) => (
+                  <div key={m.cveId} className={`p-3 rounded-lg border ${m.isRemoteAccess ? 'border-orange-500/40 bg-orange-500/5' : 'border-border/50 bg-card/50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge className={m.isRemoteAccess ? 'bg-orange-500/20 text-orange-400' : 'bg-red-500/20 text-red-400'} >
+                          {m.cveId}
+                        </Badge>
+                        {m.isRemoteAccess && (
+                          <Badge className="bg-orange-500/30 text-orange-300 text-[10px] animate-pulse">
+                            <Zap className="h-3 w-3 mr-0.5" /> REMOTE ACCESS
+                          </Badge>
+                        )}
+                        {m.corroborationTier && (
+                          <Badge variant="outline" className="text-[10px]">{m.corroborationTier}</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {m.metasploitModules?.length > 0 && (
+                          <Badge className="bg-red-500/20 text-red-400 text-[10px]">
+                            <Target className="h-3 w-3 mr-0.5" /> {m.metasploitModules.length} MSF
+                          </Badge>
+                        )}
+                        {m.exploitDbEntries?.length > 0 && (
+                          <Badge className="bg-amber-500/20 text-amber-400 text-[10px]">
+                            <Database className="h-3 w-3 mr-0.5" /> {m.exploitDbEntries.length} EDB
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    {/* Metasploit modules */}
+                    {m.metasploitModules?.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {m.metasploitModules.slice(0, 3).map((mod: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <span className="text-red-400 font-mono">{mod.modulePath}</span>
+                            <Badge variant="outline" className="text-[10px]">{mod.moduleType}</Badge>
+                            {mod.rank && <Badge variant="secondary" className="text-[10px]">{mod.rank}</Badge>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* ExploitDB entries */}
+                    {m.exploitDbEntries?.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        {m.exploitDbEntries.slice(0, 2).map((edb: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <a href={edb.url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline font-mono">
+                              EDB-{edb.edbId}
+                            </a>
+                            <span className="text-muted-foreground truncate max-w-[300px]">{edb.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Caldera abilities */}
+                    {m.calderaAbilities?.length > 0 && (
+                      <div className="mt-1 flex gap-1 flex-wrap">
+                        {m.calderaAbilities.map((ab: any, i: number) => (
+                          <Badge key={i} className="bg-purple-500/20 text-purple-400 text-[10px]">
+                            <Shield className="h-3 w-3 mr-0.5" /> {ab.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           {campaigns.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center text-muted-foreground">
@@ -1610,6 +1869,7 @@ export default function DomainIntelResults() {
                                     <AlertTriangle className={`h-4 w-4 shrink-0 ${
                                       f.severity >= 8 ? "text-red-400" : f.severity >= 6 ? "text-orange-400" : f.severity >= 4 ? "text-yellow-400" : "text-emerald-400"
                                     }`} />
+                                    {(() => { const t = (f.title || '').toLowerCase(); return (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection')) ? <Badge className="text-[10px] bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse"><ExternalLink className="h-3 w-3 mr-0.5" /> REMOTE ACCESS</Badge> : null; })()}
                                     <p className="font-semibold text-sm">{f.title}</p>
                                   </div>
 
@@ -1656,6 +1916,20 @@ export default function DomainIntelResults() {
                                   <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10{tier === "probable" ? " (capped)" : ""}</Badge>
                                   {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
                                   <Badge variant="outline" className="text-[10px]">Likelihood: {f.likelihood}/10</Badge>
+                                  {(() => {
+                                    const isRemoteUnauth = f.cveIds?.some((cve: string) => {
+                                      const t = (f.title || '').toLowerCase();
+                                      return t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('server-side request') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('remote execution') || t.includes('command injection') || t.includes('sql injection');
+                                    }) || (() => {
+                                      const t = (f.title || '').toLowerCase();
+                                      return t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('server-side request') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('remote execution') || t.includes('command injection') || t.includes('sql injection');
+                                    })();
+                                    return isRemoteUnauth ? (
+                                      <Badge className="text-[10px] bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">
+                                        <ExternalLink className="h-3 w-3 mr-0.5" /> REMOTE ACCESS
+                                      </Badge>
+                                    ) : null;
+                                  })()}
                                 </div>
                               </div>
 
@@ -1858,8 +2132,8 @@ export default function DomainIntelResults() {
                                   )}
                                 </div>
                                 <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
-                                  <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10</Badge>
-                                  <Badge variant="outline" className="text-[10px]">Likelihood: {f.likelihood}/10</Badge>
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground/60 border-muted-foreground/30">NOT RATED</Badge>
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground/50 border-muted-foreground/20">Advisory Only</Badge>
                                 </div>
                               </div>
                               <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px]">

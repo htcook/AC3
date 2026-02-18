@@ -2046,3 +2046,50 @@
 - [x] Move potential vuln matches behind collapsible "Potential Matches" hyperlink in all 3 display locations
 - [x] Only display confirmed/probable findings by default in heatmap, assets tab, and findings tab
 - [x] Write tests for F5 fix and findings display logic (12 tests passing, 0 TS errors)
+
+## Potential Risk Rating Fix (Feb 18 #2)
+- [x] Ensure potential findings contribute zero to risk scores (backend already correct — computeVulnRisk only counts confirmed/probable)
+- [x] Visually separate potential findings: NOT RATED / Advisory Only badge replaces severity/likelihood scores
+- [x] Verify no potential-only assets show inflated risk ratings (confirmed via scoring engine audit)
+
+## Highlight Remote Unauthenticated Access Vulnerabilities
+- [x] Identify RCE, auth bypass, SSRF, default creds, command injection, SQL injection CVEs via keyword matching
+- [x] Add pulsing REMOTE ACCESS badge (orange) with Zap icon for remote unauth access findings
+- [x] Badge displayed in all 3 finding locations (heatmap, assets tab, findings tab)
+
+## Merge Engagement Manager + Campaign Manager
+- [x] Consolidated Campaign Manager (Caldera operations) into Engagement Manager as "Operations" tab
+- [x] Title set to "ENGAGEMENT MANAGER"
+- [x] Removed separate "Campaign Manager" sidebar entry, updated nav to single "Engagement Manager"
+- [x] All campaign functionality (operations list, status, controls) accessible from Engagement Manager
+
+## External Attack Vectors Before Phishing
+- [x] Restructured engagement workflow phases: OSINT → External Attack Surface → Caldera Operations → Phishing (only if external access not achieved) → Post-Exploitation → Reporting
+- [x] External attack surface assessment is Phase 2, phishing is Phase 4 (conditional)
+- [x] Phase badges and descriptions reflect new ordering in Engagement Manager
+
+## Enhance Matched APT Groups & Campaign Details
+- [x] Enhanced APT actor cards with: kill chain visualization (7-phase coverage bar), sophistication badges, confidence breakdown (Sector/Tech/Region/Recency scores)
+- [x] Added exploit cross-reference: shows how many Metasploit/ExploitDB exploits match each actor's techniques
+- [x] Added "Deploy Campaign" button for one-click Caldera adversary creation from matched APT
+- [x] Kill chain coverage assessment (Full lifecycle / Multi-phase / Targeted capability)
+- [x] AI Rationale and Predicted Attack Scenario displayed in styled cards
+
+## Exploit Matching & Caldera Ability Ingestion (Feb 18)
+- [x] Built exploit-matcher.ts service: maps confirmed CVEs to Metasploit modules + ExploitDB entries
+- [x] Queries TTP knowledge engine (4,370 Metasploit modules) and ExploitDB CSV for CVE-to-exploit mappings
+- [x] Built Caldera ability ingestion: deployExploitsToCaldera() creates abilities, createExploitAdversary() creates adversary profiles
+- [x] Wired into pipeline as Stage 3.8 (after Shodan verification, before campaign recommendations)
+- [x] Added Exploit Arsenal section to Campaigns tab with Deploy All / Create Adversary buttons
+- [x] Remote access exploits highlighted with pulsing REMOTE ACCESS badge
+- [x] Added tRPC procedures: deployExploits, createExploitAdversary
+- [x] 29 Shodan verifier tests + 12 KEV F5 tests passing
+
+## Phishing Exploit Library & GoPhish Enhancement
+- [x] Researched 15 phishing exploits across 6 categories (credential harvesting, payload delivery, landing page, email evasion, MFA bypass, post-credential)
+- [x] Built phishing-exploits.ts: 15 exploits with injectable code, MITRE mappings, detection indicators, config options
+- [x] Integrated into LLM template generation: matched exploits injected into prompt, exploit code injected into landing pages
+- [x] Added evasion techniques: homoglyph domains, zero-width chars, HTML smuggling, AMP URL abuse, sandbox detection
+- [x] Added 3 tRPC procedures: listPhishingExploits, matchExploitsForScan, enhanceDraftWithExploits
+- [x] Added phishingExploits + exploitEnhancedLandingPage columns to phishingDrafts schema
+- [x] 19 phishing exploit tests passing, 0 TS errors

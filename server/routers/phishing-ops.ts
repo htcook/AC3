@@ -1232,4 +1232,112 @@ Be thorough and specific about compliance impact. Map the phishing campaign resu
 
       return report;
     }),
+
+  // ─── Phishing Exploit Library ──────────────────────────────────────
+
+  /** List all available phishing exploits with optional category filter */
+  listPhishingExploits: protectedProcedure
+    .input(z.object({
+      category: z.string().optional(),
+      target: z.enum(['email', 'landing_page', 'both']).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { PHISHING_EXPLOITS } = await import('../lib/phishing-exploits');
+      let exploits = [...PHISHING_EXPLOITS];
+      if (input?.category) {
+        exploits = exploits.filter(e => e.category === input.category);
+      }
+      if (input?.target) {
+        exploits = exploits.filter(e => e.target === input.target || e.target === 'both');
+      }
+      return exploits.map(e => ({
+        id: e.id,
+        name: e.name,
+        category: e.category,
+        description: e.description,
+        mitreId: e.mitreId,
+        mitreName: e.mitreName,
+        target: e.target,
+        difficulty: e.difficulty,
+        effectiveness: e.effectiveness,
+        enablesRemoteAccess: e.enablesRemoteAccess,
+        detectionIndicators: e.detectionIndicators,
+        prerequisites: e.prerequisites,
+        hasInjectableCode: !!e.landingPageCode,
+      }));
+    }),
+
+  /** Match phishing exploits to a specific scan's intelligence */
+  matchExploitsForScan: protectedProcedure
+    .input(z.object({ scanId: z.number() }))
+    .query(async ({ input }) => {
+      const { matchPhishingExploits } = await import('../lib/phishing-exploits');
+      const db = await requireDb();
+      const [scan] = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, input.scanId)).limit(1);
+      if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+      const pipelineOut = scan.pipelineOutput as any;
+      const technologies = (pipelineOut?.discoveredAssets || []).flatMap((a: any) => Object.keys(a.technologyVersions || {}));
+      const hasWebmail = technologies.some((t: string) => /exchange|owa|outlook|webmail|zimbra/i.test(t));
+      const usesSSO = technologies.some((t: string) => /azure|okta|saml|oauth|adfs/i.test(t));
+      const idpProvider = technologies.some((t: string) => /azure|microsoft|office365/i.test(t)) ? 'microsoft' :
+        technologies.some((t: string) => /google|gsuite|workspace/i.test(t)) ? 'google' :
+        technologies.some((t: string) => /okta/i.test(t)) ? 'okta' : undefined;
+      const confirmedCves = (pipelineOut?.postureFindings || []).filter((f: any) => f.corroborationTier === 'confirmed').map((f: any) => f.cveId).filter(Boolean);
+      const matches = matchPhishingExploits({
+        sector: scan.sector || 'technology',
+        technologies,
+        hasWebmail,
+        usesMfa: true,
+        usesSSO,
+        idpProvider,
+        confirmedCves,
+      });
+      return matches.map(m => ({
+        exploit: {
+          id: m.exploit.id,
+          name: m.exploit.name,
+          category: m.exploit.category,
+          description: m.exploit.description,
+          mitreId: m.exploit.mitreId,
+          mitreName: m.exploit.mitreName,
+          target: m.exploit.target,
+          difficulty: m.exploit.difficulty,
+          effectiveness: m.exploit.effectiveness,
+          enablesRemoteAccess: m.exploit.enablesRemoteAccess,
+          detectionIndicators: m.exploit.detectionIndicators,
+        },
+        relevanceScore: m.relevanceScore,
+        matchReason: m.matchReason,
+      }));
+    }),
+
+  /** Enhance a draft's landing page with selected exploit injections */
+  enhanceDraftWithExploits: protectedProcedure
+    .input(z.object({
+      draftId: z.number(),
+      exploitIds: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      const { enhanceLandingPage, PHISHING_EXPLOITS } = await import('../lib/phishing-exploits');
+      const db = await requireDb();
+      const [draft] = await db.select().from(phishingDrafts).where(eq(phishingDrafts.id, input.draftId)).limit(1);
+      if (!draft) throw new TRPCError({ code: 'NOT_FOUND', message: 'Draft not found' });
+      if (!draft.landingPageHtml) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Draft has no landing page HTML' });
+      
+      const validIds = input.exploitIds.filter(id => PHISHING_EXPLOITS.some(e => e.id === id));
+      if (validIds.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No valid exploit IDs' });
+      
+      const enhanced = enhanceLandingPage(draft.landingPageHtml, validIds);
+      const exploitMeta = validIds.map(id => {
+        const e = PHISHING_EXPLOITS.find(ex => ex.id === id)!;
+        return { id: e.id, name: e.name, category: e.category, mitreId: e.mitreId, enablesRemoteAccess: e.enablesRemoteAccess };
+      });
+      
+      await db.update(phishingDrafts).set({
+        exploitEnhancedLandingPage: enhanced,
+        phishingExploits: [...(draft.phishingExploits as any[] || []), ...exploitMeta],
+      }).where(eq(phishingDrafts.id, input.draftId));
+      
+      return { success: true, enhancedHtml: enhanced, exploitsApplied: exploitMeta.length };
+    }),
 });

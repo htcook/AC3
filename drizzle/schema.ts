@@ -1027,6 +1027,9 @@ export const phishingDrafts = mysqlTable("phishing_drafts", {
   threatActorName: varchar("threatActorName", { length: 255 }),
   matchRationale: text("matchRationale"),
 
+  // Phishing Exploit Enhancements
+  phishingExploits: json("phishingExploits"), // Array of matched exploit IDs from phishing-exploits.ts
+  exploitEnhancedLandingPage: text("exploitEnhancedLandingPage"), // Landing page HTML with injected exploit code
   // GoPhish Resource IDs (populated after deployment)
   gophishTemplateId: int("gophishTemplateId"),
   gophishPageId: int("gophishPageId"),

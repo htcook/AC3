@@ -169,6 +169,13 @@
       "when": 1771363533652,
       "tag": "0023_even_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1771395483742,
+      "tag": "0024_nervous_flatman",
+      "breakpoints": true
     }
   ]
 }

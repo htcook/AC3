@@ -33,9 +33,8 @@ import { useState, useEffect, ReactNode } from "react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
-  { href: "/engagements", icon: Briefcase, label: "ENGAGEMENTS" },
+  { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
   { href: "/agents", icon: Cpu, label: "AGENTS" },
-  { href: "/campaigns", icon: Zap, label: "CAMPAIGNS" },
   { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
   { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
   { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },

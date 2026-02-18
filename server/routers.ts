@@ -3968,6 +3968,90 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           tierComparison: { scanA: tierCountA, scanB: tierCountB },
         };
       }),
+
+    // Deploy matched exploits as Caldera abilities
+    deployExploits: protectedProcedure
+      .input(z.object({
+        scanId: z.number(),
+        cveIds: z.array(z.string()).optional(), // Optional: deploy specific CVEs only
+      }))
+      .mutation(async ({ input }) => {
+        const { deployExploitsToCaldera, createExploitAdversary, matchExploitsToFindings } = await import('./lib/exploit-matcher');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan || !scan.pipelineOutput) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found or no results' });
+
+        const results = scan.pipelineOutput as any;
+        const exploitData = results.exploitMatches;
+        if (!exploitData || !exploitData.matches || exploitData.matches.length === 0) {
+          // Try to match on the fly from posture findings
+          const allFindings = (results.assets || []).flatMap((a: any) => (a.postureFindings || []).map((f: any) => ({
+            title: f.title,
+            cveIds: f.cveIds,
+            corroborationTier: f.corroborationTier,
+            severity: f.severity,
+            description: f.evidenceDetail,
+          })));
+          const findingsWithCves = allFindings.filter((f: any) => f.cveIds && f.cveIds.length > 0);
+          if (findingsWithCves.length === 0) {
+            return { success: false, error: 'No CVE-backed findings to match', deployed: [], failed: [] };
+          }
+          const freshMatches = await matchExploitsToFindings(findingsWithCves);
+          if (freshMatches.matches.length === 0) {
+            return { success: false, error: 'No exploits found for confirmed CVEs', deployed: [], failed: [] };
+          }
+
+          let matchesToDeploy = freshMatches.matches;
+          if (input.cveIds && input.cveIds.length > 0) {
+            matchesToDeploy = matchesToDeploy.filter(m => input.cveIds!.includes(m.cveId));
+          }
+
+          const deployResult = await deployExploitsToCaldera(matchesToDeploy);
+          return { success: true, ...deployResult };
+        }
+
+        let matchesToDeploy = exploitData.matches;
+        if (input.cveIds && input.cveIds.length > 0) {
+          matchesToDeploy = matchesToDeploy.filter((m: any) => input.cveIds!.includes(m.cveId));
+        }
+
+        const deployResult = await deployExploitsToCaldera(matchesToDeploy);
+        return { success: true, ...deployResult };
+      }),
+
+    // Create a Caldera adversary from matched exploits
+    createExploitAdversary: protectedProcedure
+      .input(z.object({
+        scanId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createExploitAdversary, matchExploitsToFindings } = await import('./lib/exploit-matcher');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan || !scan.pipelineOutput) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found or no results' });
+
+        const results = scan.pipelineOutput as any;
+        let matches = results.exploitMatches?.matches;
+
+        if (!matches || matches.length === 0) {
+          // Try to match on the fly
+          const allFindings = (results.assets || []).flatMap((a: any) => (a.postureFindings || []).map((f: any) => ({
+            title: f.title,
+            cveIds: f.cveIds,
+            corroborationTier: f.corroborationTier,
+            severity: f.severity,
+            description: f.evidenceDetail,
+          })));
+          const findingsWithCves = allFindings.filter((f: any) => f.cveIds && f.cveIds.length > 0);
+          const freshMatches = await matchExploitsToFindings(findingsWithCves);
+          matches = freshMatches.matches;
+        }
+
+        if (!matches || matches.length === 0) {
+          return { success: false, error: 'No exploit matches available' };
+        }
+
+        const domain = results.orgProfile?.primaryDomain || scan.primaryDomain || 'unknown';
+        return createExploitAdversary(domain, matches);
+      }),
   }),
 
   // ─── Threat Actor Database ──────────────────────────────────────────
@@ -4480,9 +4564,31 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           
           if (latestScan && campaignRecs.length > 0) {
             const { invokeLLM } = await import('./_core/llm');
+            const { matchPhishingExploits, enhanceLandingPage, PHISHING_EXPLOITS } = await import('./lib/phishing-exploits');
             const pipelineOut = latestScan.pipelineOutput as any;
             const actorMatches = pipelineOut?.threatActorMatches;
             const topActor = actorMatches?.topMatches?.[0];
+            
+            // Match phishing exploits based on scan intelligence
+            const technologies = (pipelineOut?.discoveredAssets || []).flatMap((a: any) => Object.keys(a.technologyVersions || {}));
+            const hasWebmail = technologies.some((t: string) => /exchange|owa|outlook|webmail|zimbra/i.test(t));
+            const usesMfa = true; // Assume MFA for modern orgs
+            const usesSSO = technologies.some((t: string) => /azure|okta|saml|oauth|adfs/i.test(t));
+            const idpProvider = technologies.some((t: string) => /azure|microsoft|office365/i.test(t)) ? 'microsoft' :
+              technologies.some((t: string) => /google|gsuite|workspace/i.test(t)) ? 'google' :
+              technologies.some((t: string) => /okta/i.test(t)) ? 'okta' : undefined;
+            const confirmedCves = (pipelineOut?.postureFindings || []).filter((f: any) => f.corroborationTier === 'confirmed').map((f: any) => f.cveId).filter(Boolean);
+            
+            const matchedExploits = matchPhishingExploits({
+              sector: latestScan.sector || 'technology',
+              technologies,
+              hasWebmail,
+              usesMfa,
+              usesSSO,
+              idpProvider,
+              confirmedCves,
+            });
+            console.log(`[Pipeline] Matched ${matchedExploits.length} phishing exploits for campaign enhancement`);
             
             // Auto-materialize up to 3 top-priority recommendations using LLM
             const topRecs = campaignRecs.slice(0, 3);
@@ -4523,17 +4629,20 @@ MITRE TACTICS: ${JSON.stringify(rec.mitreTactics || [])}
 MATCHED THREAT ACTOR: ${topActor ? `${topActor.actorName} (confidence: ${topActor.confidence}%)` : 'None'}
 GOPHISH TEMPLATE SUGGESTIONS: ${JSON.stringify(rec.gophishTemplates || [])}
 
+MATCHED PHISHING EXPLOITS (use these techniques to enhance the campaign):
+${matchedExploits.slice(0, 5).map((m: any) => `- ${m.exploit.name} (${m.exploit.category}, ${m.exploit.mitreId}): ${m.exploit.description.slice(0, 150)}... [Relevance: ${m.relevanceScore}%]`).join('\n')}
+
 Generate a JSON object with these fields:
 {
   "templateSubject": "Realistic email subject line",
-  "templateHtml": "Full HTML email body with GoPhish variables: {{.FirstName}}, {{.LastName}}, {{.Email}}, {{.TrackingURL}}, {{.URL}}, {{.From}}. Must look like a legitimate business email. Include proper HTML structure with inline CSS.",
+  "templateHtml": "Full HTML email body with GoPhish variables: {{.FirstName}}, {{.LastName}}, {{.Email}}, {{.TrackingURL}}, {{.URL}}, {{.From}}. Must look like a legitimate business email. Include proper HTML structure with inline CSS. Incorporate evasion techniques from matched exploits where applicable (e.g., QR codes, zero-width chars, redirect chain URL patterns).",
   "templateText": "Plain text version of the email",
-  "landingPageHtml": "HTML for a credential capture landing page that mimics the target domain's login page. Include form fields for email and password. Use GoPhish action URL.",
+  "landingPageHtml": "HTML for a credential capture landing page. Use the most relevant matched exploit technique (e.g., BITB SSO popup for SSO targets, progressive MFA capture for MFA targets, ClickFix for payload delivery). Include form fields that POST credentials. Make it look like the target's real login page.",
   "landingPageRedirectUrl": "https://${domains[0]}",
   "smtpProfileName": "Ace C3 - ${domains[0]} Profile"
 }
 
-Make the phishing content highly realistic and tailored to the target domain and sector. Use professional language and branding cues from the target organization.`;
+Make the phishing content highly realistic and tailored to the target domain and sector. Use professional language and branding cues from the target organization. Leverage the matched phishing exploit techniques to maximize effectiveness.`;
 
                   const llmResponse = await invokeLLM({
                     messages: [
@@ -4566,6 +4675,27 @@ Make the phishing content highly realistic and tailored to the target domain and
                     generatedContent = JSON.parse(rawContent);
                   }
                   console.log(`[Pipeline] LLM materialized recommendation ${i}: ${campaignName}`);
+                  
+                  // Enhance landing page with injectable exploit code
+                  if (generatedContent.landingPageHtml && matchedExploits.length > 0) {
+                    const topExploitIds = matchedExploits
+                      .filter((m: any) => m.exploit.target === 'landing_page' || m.exploit.target === 'both')
+                      .slice(0, 3)
+                      .map((m: any) => m.exploit.id);
+                    if (topExploitIds.length > 0) {
+                      generatedContent.exploitEnhancedLandingPage = enhanceLandingPage(generatedContent.landingPageHtml, topExploitIds);
+                      generatedContent.phishingExploits = matchedExploits.slice(0, 8).map((m: any) => ({
+                        id: m.exploit.id,
+                        name: m.exploit.name,
+                        category: m.exploit.category,
+                        mitreId: m.exploit.mitreId,
+                        relevanceScore: m.relevanceScore,
+                        matchReason: m.matchReason,
+                        enablesRemoteAccess: m.exploit.enablesRemoteAccess,
+                      }));
+                      console.log(`[Pipeline] Enhanced landing page with ${topExploitIds.length} exploit injections`);
+                    }
+                  }
                 } catch (llmErr: any) {
                   console.warn(`[Pipeline] LLM materialization failed for rec ${i}, using fallback:`, llmErr.message);
                   // Fallback to basic template
@@ -4607,6 +4737,8 @@ Make the phishing content highly realistic and tailored to the target domain and
                   matchRationale: topActor
                     ? `Matched with ${topActor.confidence}% confidence. LLM-materialized by engagement pipeline.`
                     : 'LLM-materialized by engagement pipeline',
+                  phishingExploits: generatedContent.phishingExploits || null,
+                  exploitEnhancedLandingPage: generatedContent.exploitEnhancedLandingPage || null,
                   createdBy: null,
                 }).$returningId();
                 materializedDraftIds.push(draftResult.id);
