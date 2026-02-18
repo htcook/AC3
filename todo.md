@@ -2102,3 +2102,33 @@
 - [x] Updated hero, stats bar, 6 pillars, benefit cards, engagement workflow (6-phase external-first), architecture, operations center modules, and about section
 - [x] AceofCloud branding maintained throughout
 - [x] Platform updates popup already present on homepage
+
+## Phishing Exploit Catalog Page (Feb 18)
+- [x] Create PhishingExploitCatalog.tsx page with browse/preview/toggle functionality
+- [x] Add sidebar navigation entry for Phishing Exploit Catalog
+- [x] Display all 15 exploit techniques with category grouping
+- [x] Add code preview panel with syntax highlighting for injectable code
+- [x] Add toggle switches to enable/disable individual exploits for template generation
+- [x] Add MITRE ATT&CK technique mapping display
+- [x] Add difficulty/effectiveness/detection risk indicators
+- [x] Wire toggles to persist preferences for template generation
+
+## Comprehensive Threat Intelligence Dashboard (Feb 18)
+- [x] Build ThreatIntelDashboard.tsx as the main threat intel hub
+- [x] Add ransomware groups catalog with profiles, TTPs, and recent activity
+- [x] Add darkweb monitoring feed (IOCs, leaked credentials, threat chatter)
+- [x] Add master threat catalog aggregating all threat data sources
+- [x] Add sidebar navigation entry for Threat Intelligence
+- [x] Wire to existing threat actor matcher, KEV service, and vuln feeds
+
+## Live Scan Verification (Feb 18)
+- [x] Run live domain intel scan on aceofcloud.com (26 assets, 908 findings, 5 campaigns)
+- [x] Verify Shodan verification stage works end-to-end
+- [x] Verify exploit matching produces results (175 CVEs matched, 189 MSF modules, 175 Caldera abilities)
+- [x] Verify APT matching with kill chains displays correctly (Adversaries tab ready, needs re-scan for data)
+- [x] Verify confirmed vs potential finding separation works (0 confirmed, 837 probable, 71 potential)
+
+## Test Suite Fixes (Feb 18)
+- [x] Fix phishing-ops procedure count test (17 → 20, 3 new procedures added)
+- [x] Fix SpicyTIP bridge timeout tests (5s → 30s timeout for external API calls)
+- [x] All 716 tests passing across 46 test files, 0 TypeScript errors

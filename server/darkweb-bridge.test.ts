@@ -38,7 +38,7 @@ describe("SpicyTIP Bridge", () => {
     }
   });
 
-  it("should fetch activity ratings (or null/fallback if unreachable)", async () => {
+  it("should fetch activity ratings (or null/fallback if unreachable)", { timeout: 30000 }, async () => {
     const data = await getActivityRatings();
     if (data !== null && Array.isArray(data)) {
       expect(Array.isArray(data)).toBe(true);
@@ -47,7 +47,7 @@ describe("SpicyTIP Bridge", () => {
     }
   });
 
-  it("should fetch ThreatFox IOCs (or null/fallback if unreachable)", async () => {
+  it("should fetch ThreatFox IOCs (or null/fallback if unreachable)", { timeout: 30000 }, async () => {
     const data = await getThreatFoxIOCs({ limit: 5 });
     if (data !== null && Array.isArray(data)) {
       expect(Array.isArray(data)).toBe(true);

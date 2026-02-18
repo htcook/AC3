@@ -53,7 +53,9 @@ import ThreatCatalog from "./pages/ThreatCatalog";
 import ThreatActorCatalogDetail from "./pages/ThreatActorCatalogDetail";
 // RansomwareGroups merged into ThreatCatalog as a filter
 import DarkwebIntel from "./pages/DarkwebIntel";
+import ThreatIntelHub from "./pages/ThreatIntelHub";
 import CampaignArchetypes from "./pages/CampaignArchetypes";
+import PhishingExploitCatalog from "./pages/PhishingExploitCatalog";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -224,6 +226,9 @@ function Router() {
       <Route path="/vuln-intel">
         <ProtectedRoute component={KevDashboard} />
       </Route>
+      <Route path="/threat-intel-hub">
+        <ProtectedRoute component={ThreatIntelHub} />
+      </Route>
       <Route path="/threat-catalog">
         <ProtectedRoute component={ThreatCatalog} />
       </Route>
@@ -238,6 +243,9 @@ function Router() {
       </Route>
       <Route path="/darkweb-intel">
         <ProtectedRoute component={DarkwebIntel} />
+      </Route>
+      <Route path="/phishing-exploit-catalog">
+        <ProtectedRoute component={PhishingExploitCatalog} />
       </Route>
       <Route path="/campaign-archetypes">
         <ProtectedRoute component={CampaignArchetypes} />

@@ -142,11 +142,11 @@ describe("Phishing Operations Router", () => {
       expect(routerObj).toHaveProperty("bulkCleanup");
     });
 
-    it("should have exactly 17 procedures", async () => {
+    it("should have exactly 20 procedures", async () => {
       const mod = await import("./routers/phishing-ops");
       const routerObj = mod.phishingOpsRouter as any;
       const keys = Object.keys(routerObj);
-      expect(keys.length).toBe(17);
+      expect(keys.length).toBe(20);
     });
 
     it("should have the generateReport procedure", async () => {

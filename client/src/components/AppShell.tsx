@@ -41,6 +41,7 @@ const NAV_ITEMS = [
   { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
   { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
   { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
+  { href: "/phishing-exploit-catalog", icon: Shield, label: "EXPLOIT CATALOG" },
   { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
   { href: "/team", icon: Users, label: "TEAM" },
   { href: "/activity", icon: FileText, label: "ACTIVITY" },
@@ -56,6 +57,7 @@ const OSINT_ITEMS = [
 ];
 
 const THREAT_INTEL_ITEMS = [
+  { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
   { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
   { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
   { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
