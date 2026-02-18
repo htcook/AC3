@@ -2037,3 +2037,12 @@
 - [x] Wire Shodan verification into post-KEV enrichment stage: confirmed version match → risk score activates; unconfirmed → stays as Potential Weakness
 - [x] Write tests for Shodan integration (29 tests passing)
 - [x] Validate pipeline integration (0 TS errors, all tests green)
+
+## F5 BIG-IP Investigation & Confirmed vs Potential UI (Feb 18)
+- [x] Investigate why F5 BIG-IP findings appear in AceofCloud scans (Root cause: KEV service mapped nginx vendor to "f5", causing all F5 BIG-IP CVEs to match nginx assets)
+- [x] Check if AWS uses F5 infrastructure on AceofCloud IPs (No — AWS uses its own ELB/CloudFront, not F5 BIG-IP)
+- [x] Check discovered assets list for F5-associated IPs (No F5 BIG-IP detected on any AceofCloud asset)
+- [x] Fix KEV service: separate nginx from F5 BIG-IP vendor mapping (nginx→["nginx"], f5 big-ip→["f5"])
+- [x] Move potential vuln matches behind collapsible "Potential Matches" hyperlink in all 3 display locations
+- [x] Only display confirmed/probable findings by default in heatmap, assets tab, and findings tab
+- [x] Write tests for F5 fix and findings display logic (12 tests passing, 0 TS errors)

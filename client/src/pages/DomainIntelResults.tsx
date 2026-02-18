@@ -567,47 +567,74 @@ export default function DomainIntelResults() {
                     )}
 
                     {/* Finding Summary */}
-                    {findings.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" /> Posture Findings ({findings.length})
-                        </p>
-                        <div className="flex gap-2 mb-2 flex-wrap">
-                          {kevFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{kevFindings.length} KEV-listed</Badge>}
-                          {confirmedFindings.length > 0 && <Badge className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40">{confirmedFindings.length} Confirmed</Badge>}
-                          {probableFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-400 border-yellow-500/40">{probableFindings.length} Probable</Badge>}
-                          {potentialFindings.length > 0 && <Badge className="text-[10px] bg-purple-500/20 text-purple-400 border-purple-500/40">{potentialFindings.length} Potential</Badge>}
-                        </div>
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                          {[...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed), ...probableFindings.slice(0, 5)].slice(0, 8).map((f: any, i: number) => {
-                            const tierColor = f.corroborationTier === 'confirmed' ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/40'
-                              : f.corroborationTier === 'probable' ? 'text-yellow-400 bg-yellow-500/20 border-yellow-500/40'
-                              : 'text-purple-400 bg-purple-500/20 border-purple-500/40';
-                            return (
-                              <div key={i} className={`p-2 rounded border text-xs ${f.kevListed ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/20 border-border'}`}>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{f.corroborationTier === 'confirmed' ? 'CONFIRMED' : f.corroborationTier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}</Badge>
-                                  {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
-                                  <span className="font-medium">{f.title}</span>
-                                  <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
-                                </div>
-                                {f.cveIds?.length > 0 && (
-                                  <div className="flex gap-1 mt-0.5 flex-wrap">
-                                    {f.cveIds.slice(0, 3).map((cve: string) => (
-                                      <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
-                                        className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
-                                    ))}
+                    {findings.length > 0 && (() => {
+                      const confirmedAndProbable = [...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed), ...probableFindings];
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Confirmed Findings ({confirmedAndProbable.length})
+                          </p>
+                          <div className="flex gap-2 mb-2 flex-wrap">
+                            {kevFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{kevFindings.length} KEV-listed</Badge>}
+                            {confirmedFindings.length > 0 && <Badge className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40">{confirmedFindings.length} Confirmed</Badge>}
+                            {probableFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-400 border-yellow-500/40">{probableFindings.length} Probable</Badge>}
+                          </div>
+                          {confirmedAndProbable.length > 0 ? (
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                              {confirmedAndProbable.slice(0, 8).map((f: any, i: number) => {
+                                const tierColor = f.corroborationTier === 'confirmed' ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/40'
+                                  : 'text-yellow-400 bg-yellow-500/20 border-yellow-500/40';
+                                return (
+                                  <div key={i} className={`p-2 rounded border text-xs ${f.kevListed ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/20 border-border'}`}>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{f.corroborationTier === 'confirmed' ? 'CONFIRMED' : 'PROBABLE'}</Badge>
+                                      {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                      <span className="font-medium">{f.title}</span>
+                                      <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
+                                    </div>
+                                    {f.cveIds?.length > 0 && (
+                                      <div className="flex gap-1 mt-0.5 flex-wrap">
+                                        {f.cveIds.slice(0, 3).map((cve: string) => (
+                                          <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                            className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
+                                );
+                              })}
+                              {confirmedAndProbable.length > 8 && (
+                                <p className="text-[10px] text-muted-foreground text-center pt-1">+ {confirmedAndProbable.length - 8} more — see Assets tab for full details</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">No confirmed or probable findings for this asset.</p>
+                          )}
+                          {potentialFindings.length > 0 && (
+                            <Collapsible className="mt-2">
+                              <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-purple-400 hover:text-purple-300 transition-colors cursor-pointer">
+                                <ChevronDown className="h-3 w-3" />
+                                <span className="underline decoration-dotted">Potential Matches ({potentialFindings.length})</span>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-1.5 space-y-1.5 max-h-36 overflow-y-auto">
+                                {potentialFindings.slice(0, 5).map((f: any, i: number) => (
+                                  <div key={`pot-${i}`} className="p-2 rounded border text-xs bg-purple-500/5 border-purple-500/20 opacity-75">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge className="text-[9px] px-1 py-0 text-purple-400 bg-purple-500/20 border-purple-500/40">POTENTIAL</Badge>
+                                      <span className="font-medium">{f.title}</span>
+                                      <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {potentialFindings.length > 5 && (
+                                  <p className="text-[10px] text-muted-foreground text-center">+ {potentialFindings.length - 5} more potential matches</p>
                                 )}
-                              </div>
-                            );
-                          })}
-                          {findings.length > 8 && (
-                            <p className="text-[10px] text-muted-foreground text-center pt-1">+ {findings.length - 8} more findings — see Assets tab for full details</p>
+                              </CollapsibleContent>
+                            </Collapsible>
                           )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Test Vectors Preview */}
                     {vectors.length > 0 && (
@@ -793,63 +820,83 @@ export default function DomainIntelResults() {
                       </div>
                     </div>
 
-                    {/* Posture Findings */}
-                    {findings.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-2">Posture Findings ({findings.length})</p>
-                        <div className="space-y-2">
-                          {findings.map((f: any, i: number) => {
-                            const tierColor = f.corroborationTier === "confirmed" ? "text-emerald-400 bg-emerald-500/20 border-emerald-500/40"
-                              : f.corroborationTier === "probable" ? "text-yellow-400 bg-yellow-500/20 border-yellow-500/40"
-                              : "text-purple-400 bg-purple-500/20 border-purple-500/40";
-                            const tierLabel = f.corroborationTier === "confirmed" ? "CONFIRMED" : f.corroborationTier === "probable" ? "PROBABLE" : "POTENTIAL";
-                            return (
-                              <div key={i} className={`p-2 rounded border ${f.kevListed ? "bg-red-500/5 border-red-500/30" : f.corroborationTier === "potential" ? "bg-muted/20 border-purple-500/20 opacity-75" : "bg-muted/30 border-border"}`}>
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                                      <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{tierLabel}</Badge>
-                                      <p className="text-sm font-medium">{f.title}</p>
-                                    </div>
-                                    {f.cveIds?.length > 0 && (
-                                      <div className="flex gap-1 mt-0.5 flex-wrap">
-                                        {f.cveIds.map((cve: string) => (
-                                          <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
-                                            className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {f.detectedVersion && (
-                                      <p className="text-[10px] text-emerald-400 font-mono mt-0.5">Version: {f.detectedVersion} {f.versionMatchConfirmed ? "✔ matched" : ""}</p>
-                                    )}
-                                    {!f.detectedVersion && f.corroborationTier === "probable" && (
-                                      <p className="text-[10px] text-yellow-400 mt-0.5">Version unconfirmed — severity capped</p>
-                                    )}
-                                    {f.evidenceDetail && (
-                                      <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">{f.evidenceDetail}</p>
-                                    )}
-                                  </div>
-                                  <div className="flex gap-1 shrink-0 flex-wrap">
-                                    {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
-                                    {f.exploitAvailable && !f.kevListed && <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">Exploit</Badge>}
-                                    <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10{f.corroborationTier === "probable" ? " (cap)" : ""}</Badge>
-                                    {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
-                                    <Badge variant="outline" className="text-[10px]">Likely: {f.likelihood}/10</Badge>
-                                  </div>
+                    {/* Posture Findings — Confirmed & Probable shown, Potential behind collapsible */}
+                    {findings.length > 0 && (() => {
+                      const confirmedAndProbableFindings = findings.filter((f: any) => f.corroborationTier === 'confirmed' || f.corroborationTier === 'probable');
+                      const potentialOnlyFindings = findings.filter((f: any) => !f.corroborationTier || f.corroborationTier === 'potential');
+                      const renderFinding = (f: any, i: number) => {
+                        const tierColor = f.corroborationTier === "confirmed" ? "text-emerald-400 bg-emerald-500/20 border-emerald-500/40"
+                          : f.corroborationTier === "probable" ? "text-yellow-400 bg-yellow-500/20 border-yellow-500/40"
+                          : "text-purple-400 bg-purple-500/20 border-purple-500/40";
+                        const tierLabel = f.corroborationTier === "confirmed" ? "CONFIRMED" : f.corroborationTier === "probable" ? "PROBABLE" : "POTENTIAL";
+                        return (
+                          <div key={i} className={`p-2 rounded border ${f.kevListed ? "bg-red-500/5 border-red-500/30" : f.corroborationTier === "potential" ? "bg-muted/20 border-purple-500/20 opacity-75" : "bg-muted/30 border-border"}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                  <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{tierLabel}</Badge>
+                                  <p className="text-sm font-medium">{f.title}</p>
                                 </div>
-                                {f.recommendedControls && f.recommendedControls.length > 0 && (
-                                  <div className="mt-1 flex gap-1 flex-wrap">
-                                    {f.recommendedControls.map((c: string, j: number) => (
-                                      <Badge key={j} variant="secondary" className="text-[10px]">{c}</Badge>
+                                {f.cveIds?.length > 0 && (
+                                  <div className="flex gap-1 mt-0.5 flex-wrap">
+                                    {f.cveIds.map((cve: string) => (
+                                      <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                        className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
                                     ))}
                                   </div>
                                 )}
+                                {f.detectedVersion && (
+                                  <p className="text-[10px] text-emerald-400 font-mono mt-0.5">Version: {f.detectedVersion} {f.versionMatchConfirmed ? "✔ matched" : ""}</p>
+                                )}
+                                {!f.detectedVersion && f.corroborationTier === "probable" && (
+                                  <p className="text-[10px] text-yellow-400 mt-0.5">Version unconfirmed — severity capped</p>
+                                )}
+                                {f.evidenceDetail && (
+                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">{f.evidenceDetail}</p>
+                                )}
                               </div>
-                            );
-                          })}
+                              <div className="flex gap-1 shrink-0 flex-wrap">
+                                {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                {f.exploitAvailable && !f.kevListed && <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">Exploit</Badge>}
+                                <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10{f.corroborationTier === "probable" ? " (cap)" : ""}</Badge>
+                                {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
+                                <Badge variant="outline" className="text-[10px]">Likely: {f.likelihood}/10</Badge>
+                              </div>
+                            </div>
+                            {f.recommendedControls && f.recommendedControls.length > 0 && (
+                              <div className="mt-1 flex gap-1 flex-wrap">
+                                {f.recommendedControls.map((c: string, j: number) => (
+                                  <Badge key={j} variant="secondary" className="text-[10px]">{c}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      };
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Confirmed Findings ({confirmedAndProbableFindings.length})</p>
+                          {confirmedAndProbableFindings.length > 0 ? (
+                            <div className="space-y-2">
+                              {confirmedAndProbableFindings.map(renderFinding)}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground">No confirmed or probable findings for this asset.</p>
+                          )}
+                          {potentialOnlyFindings.length > 0 && (
+                            <Collapsible className="mt-3">
+                              <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-purple-400 hover:text-purple-300 transition-colors cursor-pointer">
+                                <ChevronDown className="h-3 w-3" />
+                                <span className="underline decoration-dotted">Potential Matches ({potentialOnlyFindings.length})</span>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-2 space-y-2">
+                                {potentialOnlyFindings.map(renderFinding)}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Test Vectors */}
                     {vectors.length > 0 && (
@@ -1502,8 +1549,8 @@ export default function DomainIntelResults() {
                   </Card>
                 </div>
 
-                {/* Findings list grouped by tier */}
-                {[{ tier: "confirmed", items: confirmed }, { tier: "probable", items: probable }, { tier: "potential", items: potential }].map(({ tier, items }) => {
+                {/* Confirmed & Probable findings shown by default */}
+                {[{ tier: "confirmed", items: confirmed }, { tier: "probable", items: probable }].map(({ tier, items }) => {
                   if (items.length === 0) return null;
                   const info = tierLabels[tier];
                   return (
@@ -1736,6 +1783,131 @@ export default function DomainIntelResults() {
                     </div>
                   );
                 })}
+
+                {/* Potential Matches — hidden behind collapsible hyperlink */}
+                {potential.length > 0 && (
+                  <Collapsible className="mt-4">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 transition-colors cursor-pointer group">
+                      <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                      <span className="underline decoration-dotted underline-offset-4">Potential Matches ({potential.length})</span>
+                      <span className="text-[10px] text-muted-foreground no-underline ml-1">LLM-inferred, advisory only — not confirmed by CVE or version data</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-3 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm">{tierLabels.potential.icon}</span>
+                        <Badge className={`text-[10px] ${tierLabels.potential.color}`}>{tierLabels.potential.label}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{tierLabels.potential.desc}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">({potential.length} finding{potential.length !== 1 ? "s" : ""})</span>
+                      </div>
+                      {potential.map((f: any, i: number) => {
+                        const confidencePct = Math.round((f.confidence || 0) * 100);
+                        const findingKey = `${f.title}|${f.assetHostname || f.assetRef || ''}|${f.category || ''}`;
+                        const isFP = fpHashes.has(findingKey) || f.previouslyMarkedFP || f.fpAutoFlagged;
+                        const info = tierLabels.potential;
+                        return (
+                          <Card key={`potential-${i}`} className={`${isFP ? "border-amber-500/40 opacity-60" : "border-purple-500/20 opacity-75"}`}>
+                            <CardContent className="p-4">
+                              {isFP && (
+                                <div className="flex items-center gap-2 mb-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                                  <Flag className="h-4 w-4 text-amber-400 shrink-0" />
+                                  <span className="text-[11px] text-amber-400 font-medium">Previously marked as False Positive by analyst</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="ml-auto h-6 px-2 text-[10px] text-emerald-400 hover:text-emerald-300"
+                                    onClick={() => {
+                                      const assetMatch = assets.find((a: any) => {
+                                        const hostname = a.asset?.hostname || a.hostname;
+                                        return hostname === f.assetHostname || hostname === f.assetRef;
+                                      });
+                                      const fpRecord = (fpQuery.data || []).find((fp: any) => fp.findingHash === findingKey && fp.status === 'false_positive');
+                                      if (fpRecord) {
+                                        reinstateMutation.mutate({
+                                          fpId: fpRecord.id,
+                                          reason: 'Reinstated by analyst \u2014 finding is valid',
+                                        });
+                                      } else {
+                                        toast.info('Could not find the FP record to reinstate.');
+                                      }
+                                    }}
+                                    disabled={reinstateMutation.isPending}
+                                  >
+                                    <Undo2 className="h-3 w-3 mr-1" /> Reinstate
+                                  </Button>
+                                </div>
+                              )}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <Badge className={`text-[9px] px-1.5 py-0 ${info.color}`}>{info.label}</Badge>
+                                    <AlertTriangle className={`h-4 w-4 shrink-0 ${
+                                      f.severity >= 8 ? "text-red-400" : f.severity >= 6 ? "text-orange-400" : f.severity >= 4 ? "text-yellow-400" : "text-emerald-400"
+                                    }`} />
+                                    <p className="font-semibold text-sm">{f.title}</p>
+                                  </div>
+                                  {f.cveIds?.length > 0 && (
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <Bug className="h-3 w-3 text-cyan-400" />
+                                      {f.cveIds.map((cve: string) => (
+                                        <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                          className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">
+                                          {cve}
+                                        </a>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
+                                  <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10</Badge>
+                                  <Badge variant="outline" className="text-[10px]">Likelihood: {f.likelihood}/10</Badge>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px]">
+                                <div className="flex items-center gap-1">
+                                  <Server className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Affected assets:</span>
+                                  {(f.affectedAssets || [f.assetHostname || f.assetRef]).map((h: string, j: number) => (
+                                    <span key={j} className="font-mono text-foreground bg-muted/50 px-1 rounded">{h}</span>
+                                  ))}
+                                </div>
+                                <span className="text-muted-foreground">
+                                  Confidence: <span className={confidencePct >= 80 ? "text-emerald-400" : confidencePct >= 50 ? "text-yellow-400" : "text-red-400"}>{confidencePct}%</span>
+                                </span>
+                              </div>
+                              {!isFP && (
+                                <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">
+                                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <MessageSquare className="h-3 w-3" />
+                                    Is this finding incorrect? Help the LLM learn.
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-3 text-[11px] text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+                                    onClick={() => {
+                                      const assetMatch = assets.find((a: any) => {
+                                        const hostname = a.asset?.hostname || a.hostname;
+                                        return hostname === f.assetHostname || hostname === f.assetRef;
+                                      });
+                                      setFpTarget({
+                                        finding: f,
+                                        assetId: assetMatch?.id || 0,
+                                        findingIndex: i,
+                                      });
+                                      setFpDialogOpen(true);
+                                    }}
+                                  >
+                                    <Flag className="h-3 w-3 mr-1" /> Mark as False Positive
+                                  </Button>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
               </>
             );
           })()}

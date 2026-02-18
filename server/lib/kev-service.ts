@@ -142,7 +142,9 @@ export function getKevStats(catalog: KevCatalog): KevStats {
 const TECH_TO_KEV_PATTERNS: Record<string, { vendors: string[]; products: string[] }> = {
   // Web servers
   "apache": { vendors: ["apache"], products: ["http server", "httpd", "tomcat", "struts", "log4j"] },
-  "nginx": { vendors: ["nginx", "f5"], products: ["nginx"] },
+  "nginx": { vendors: ["nginx"], products: ["nginx"] },
+  "f5 big-ip": { vendors: ["f5"], products: ["big-ip", "big ip", "tmui", "traffic management"] },
+  "big-ip": { vendors: ["f5"], products: ["big-ip", "big ip", "tmui", "traffic management"] },
   "iis": { vendors: ["microsoft"], products: ["internet information services", "iis"] },
   // CMS
   "wordpress": { vendors: ["wordpress"], products: ["wordpress"] },
