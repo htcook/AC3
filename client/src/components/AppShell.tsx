@@ -30,12 +30,14 @@ import {
   AlertTriangle,
   Crosshair,
   Server,
+  Clock,
 } from "lucide-react";
 import { useState, useEffect, ReactNode } from "react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
   { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
+  { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
   { href: "/agents", icon: Cpu, label: "AGENTS" },
   { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
   { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },

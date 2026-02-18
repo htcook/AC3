@@ -2289,3 +2289,16 @@
 - [x] Write tests for provisioning, MSGRPC service, stager generation, and exploit pipeline (17 tests passing)
 - [x] Added Exploit Arsenal and MSF Servers to sidebar navigation
 - [x] Added routes in App.tsx for /exploit-arsenal and /msf-servers
+
+## Unified Engagement Timeline - Kill Chain Visualization (Feb 18)
+- [x] Audit all engagement data sources (OSINT recon, domain intel, phishing ops, MSF exploits, Caldera operations)
+- [x] Design timeline data model that aggregates events across all kill chain phases
+- [x] Build backend timeline aggregation service merging events from all sources
+- [x] Build timeline router endpoints (getTimeline, getGlobalStats, getEngagementSummary, listEngagementsWithStats)
+- [x] Build unified timeline UI with MITRE ATT&CK kill chain phase visualization
+- [x] Add phase-by-phase drill-down (click phases to filter, grouped by date)
+- [x] Add event detail modals for each timeline entry
+- [x] Add engagement-level summary stats (success rates, time-to-compromise, coverage)
+- [x] Add timeline filtering by engagement, phase, source, severity, date range, target domain
+- [x] Wire into sidebar navigation (KILL CHAIN) and App.tsx routing (/engagement-timeline)
+- [x] Write tests for timeline aggregation service (20 tests passing)
