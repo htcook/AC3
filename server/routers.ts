@@ -1402,6 +1402,13 @@ export const appRouter = router({
         return getVulnFeedStats();
       }),
 
+    getVulnTrendData: protectedProcedure
+      .input(z.object({ days: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const { getVulnTrendData } = await import('./lib/vuln-feeds');
+        return getVulnTrendData(input?.days || 7);
+      }),
+
     getRecentZeroDays: protectedProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ input }) => {

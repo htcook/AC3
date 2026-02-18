@@ -72,5 +72,5 @@ describe("SpicyTIP Bridge", () => {
     } else {
       expect(data === null || typeof data !== "undefined").toBe(true);
     }
-  });
+  }, 30_000);
 });

@@ -56,14 +56,23 @@ function feedHealthIcon(status: string) {
 }
 
 export default function KevDashboard() {
-  const [activeTab, setActiveTab] = useState("overview");
-  const [searchQuery, setSearchQuery] = useState("");
+  // Read URL search parameter on mount to support deep-linking from ticker/other pages
+  const [activeTab, setActiveTab] = useState(() => {
+    const p = new URLSearchParams(window.location.search).get("search");
+    return p ? "search" : "overview";
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return new URLSearchParams(window.location.search).get("search") || "";
+  });
   const [severityFilter, setSeverityFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [expandedCve, setExpandedCve] = useState<string | null>(null);
   const [kevVendorFilter, setKevVendorFilter] = useState("");
   const [kevRansomwareOnly, setKevRansomwareOnly] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [searchInput, setSearchInput] = useState(() => {
+    return new URLSearchParams(window.location.search).get("search") || "";
+  });
 
   // Trigger sync mutation
   const triggerSync = trpc.calderaProxy.triggerSync.useMutation();
@@ -85,7 +94,6 @@ export default function KevDashboard() {
     trpc.calderaProxy.getKevCatalog.useQuery();
 
   // Search
-  const [searchInput, setSearchInput] = useState("");
   const { data: searchResults, isLoading: searchLoading } =
     trpc.calderaProxy.searchVulnerabilities.useQuery(
       {

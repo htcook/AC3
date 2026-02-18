@@ -2152,3 +2152,19 @@
 - [x] Add expandable CVE details with description, source badges, NVD/KEV/FULL INTEL links
 - [x] Add auto-refresh capability and pause-on-hover ticker
 - [x] Write 9 unit tests for vuln feed data endpoints
+
+## Wire Ticker Items to Vuln Intel Detail Pages (Feb 18)
+- [x] Make each CVE in the scrolling ticker clickable (window.location.href navigation)
+- [x] Navigate to Vuln Intel page filtered to that specific CVE (/vuln-intel?search=CVE-XXXX)
+- [x] Make CVE entries in expanded details link to Vuln Intel with FULL INTEL button
+- [x] Ensure smooth navigation with URL query parameter for CVE filter
+- [x] Fix searchVulnerabilities null-safety crash on undefined fields
+- [x] Fix KevDashboard deep-linking with lazy useState initializers
+
+## Add Trending CVEs Sparkline (Feb 18)
+- [x] Create TrendingSparkline component with pure SVG stacked area chart
+- [x] Add sparkline visualization between stats bar and feed health sections
+- [x] Show daily breakdown (critical, high, medium, low) over past 7 days
+- [x] Add getVulnTrendData backend endpoint to aggregate CVE publish dates by day/severity
+- [x] Add trend direction indicator (+20% trending up) with color coding
+- [x] Write 8 unit tests for trend data endpoint

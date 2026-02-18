@@ -657,6 +657,46 @@ export async function getVulnFeedStats(): Promise<VulnFeedStats> {
 }
 
 /**
+ * Get 7-day trend data for CVEs by severity (for sparkline visualization)
+ */
+export interface DayTrend {
+  date: string;        // YYYY-MM-DD
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+}
+
+export async function getVulnTrendData(days: number = 7): Promise<DayTrend[]> {
+  const map = await buildUnifiedMap();
+  const entries = Array.from(map.values());
+  const now = new Date();
+  const result: DayTrend[] = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    result.push({ date: dateStr, critical: 0, high: 0, medium: 0, low: 0, total: 0 });
+  }
+
+  for (const entry of entries) {
+    const pubDate = (entry.datePublished || entry.dateAdded || "").slice(0, 10);
+    const bucket = result.find(r => r.date === pubDate);
+    if (bucket) {
+      bucket.total++;
+      if (entry.severity === "critical") bucket.critical++;
+      else if (entry.severity === "high") bucket.high++;
+      else if (entry.severity === "medium") bucket.medium++;
+      else if (entry.severity === "low") bucket.low++;
+    }
+  }
+
+  return result;
+}
+
+/**
  * Get recent 0-day entries (confirmed in-the-wild exploitation)
  */
 export async function getRecentZeroDays(limit: number = 50): Promise<VulnEntry[]> {
@@ -859,11 +899,11 @@ export async function searchVulnerabilities(
   // Text search
   if (query) {
     results = results.filter(e =>
-      e.cveId.toLowerCase().includes(queryLower) ||
-      e.title.toLowerCase().includes(queryLower) ||
-      e.description.toLowerCase().includes(queryLower) ||
-      e.vendor.toLowerCase().includes(queryLower) ||
-      e.product.toLowerCase().includes(queryLower)
+      (e.cveId || "").toLowerCase().includes(queryLower) ||
+      (e.title || "").toLowerCase().includes(queryLower) ||
+      (e.description || "").toLowerCase().includes(queryLower) ||
+      (e.vendor || "").toLowerCase().includes(queryLower) ||
+      (e.product || "").toLowerCase().includes(queryLower)
     );
   }
 

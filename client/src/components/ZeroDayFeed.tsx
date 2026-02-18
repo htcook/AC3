@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import TrendingSparkline from "@/components/TrendingSparkline";
 
 type FeedTab = "zero_day" | "weaponized" | "kev";
 
@@ -174,20 +175,33 @@ export default function ZeroDayFeed() {
         role="marquee"
         aria-label="Live vulnerability feed ticker"
       >
-        <div className="absolute left-0 top-0 h-full w-8 bg-gradient-to-r from-card to-transparent z-10" />
-        <div className="absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-card to-transparent z-10" />
+        <div className="absolute left-0 top-0 h-full w-8 bg-gradient-to-r from-card to-transparent z-10 pointer-events-none" />
+        <div className="absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-card to-transparent z-10 pointer-events-none" />
         <div className="absolute left-0 top-0 h-full flex items-center px-2 z-20 bg-red-500/20 border-r border-red-500/40">
           <Flame className="w-3.5 h-3.5 text-red-500 animate-pulse" />
         </div>
         <div
-          className={`flex items-center h-full gap-6 pl-10 whitespace-nowrap ${isPaused ? "" : "animate-ticker"}`}
+          className={`flex items-center h-full gap-6 pl-10 whitespace-nowrap relative z-[5] ${isPaused ? "" : "animate-ticker"}`}
           style={{ animationPlayState: isPaused ? "paused" : "running" }}
         >
           {tickerItems.length > 0 ? (
             [...tickerItems, ...tickerItems].map((item, i) => {
               const sev = SEVERITY_CONFIG[item.severity] || SEVERITY_CONFIG.unknown;
               return (
-                <span key={`${item.cveId}-${i}`} className="flex items-center gap-2 text-xs shrink-0">
+                <span
+                  key={`${item.cveId}-${i}`}
+                  className="flex items-center gap-2 text-xs shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.location.href = `/vuln-intel?search=${encodeURIComponent(item.cveId)}`;
+                  }}
+                  role="link"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") window.location.href = `/vuln-intel?search=${encodeURIComponent(item.cveId)}`;
+                  }}
+                  aria-label={`View details for ${item.cveId}`}
+                >
                   <span className={`px-1.5 py-0.5 text-[9px] font-display tracking-wider ${sev.bg} ${sev.color} ${sev.border} border`}>
                     {item.type}
                   </span>
@@ -229,6 +243,9 @@ export default function ZeroDayFeed() {
           <div className="text-[9px] tracking-widest text-muted-foreground">RANSOMWARE LINKED</div>
         </div>
       </div>
+
+      {/* ── Trending CVEs Sparkline ── */}
+      <TrendingSparkline />
 
       {/* ── Feed Health ── */}
       {stats?.feedHealth && (
