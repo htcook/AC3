@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import TrendingSparkline from "@/components/TrendingSparkline";
+import CveDetailModal from "@/components/CveDetailModal";
 
 type FeedTab = "zero_day" | "weaponized" | "kev";
 
@@ -57,6 +58,8 @@ export default function ZeroDayFeed() {
   const [isPaused, setIsPaused] = useState(false);
   const [expandedCve, setExpandedCve] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [selectedCveId, setSelectedCveId] = useState<string | null>(null);
+  const [cveModalOpen, setCveModalOpen] = useState(false);
   const tickerRef = useRef<HTMLDivElement>(null);
 
   // Data queries
@@ -193,12 +196,13 @@ export default function ZeroDayFeed() {
                   className="flex items-center gap-2 text-xs shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.location.href = `/vuln-intel?search=${encodeURIComponent(item.cveId)}`;
+                    setSelectedCveId(item.cveId);
+                    setCveModalOpen(true);
                   }}
                   role="link"
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") window.location.href = `/vuln-intel?search=${encodeURIComponent(item.cveId)}`;
+                    if (e.key === "Enter") { setSelectedCveId(item.cveId); setCveModalOpen(true); }
                   }}
                   aria-label={`View details for ${item.cveId}`}
                 >
@@ -321,10 +325,13 @@ export default function ZeroDayFeed() {
               <div
                 key={vuln.cveId}
                 className={`bg-card border ${sev.border} transition-all hover:bg-secondary/20 cursor-pointer`}
-                onClick={() => setExpandedCve(isExpanded ? null : vuln.cveId)}
+                onClick={() => {
+                  setSelectedCveId(vuln.cveId);
+                  setCveModalOpen(true);
+                }}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && setExpandedCve(isExpanded ? null : vuln.cveId)}
+                onKeyDown={(e) => { if (e.key === "Enter") { setSelectedCveId(vuln.cveId); setCveModalOpen(true); } }}
               >
                 <div className="flex items-center gap-3 px-3 py-2.5">
                   {/* Severity indicator */}
@@ -429,6 +436,13 @@ export default function ZeroDayFeed() {
           })
         )}
       </div>
+
+      {/* ── CVE Detail Modal ── */}
+      <CveDetailModal
+        open={cveModalOpen}
+        onOpenChange={setCveModalOpen}
+        cveId={selectedCveId}
+      />
 
       {/* ── View All Link ── */}
       <div className="flex items-center justify-between pt-1">

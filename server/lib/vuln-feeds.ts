@@ -701,8 +701,9 @@ export async function getVulnTrendData(days: number = 7): Promise<DayTrend[]> {
  */
 export async function getRecentZeroDays(limit: number = 50): Promise<VulnEntry[]> {
   const map = await buildUnifiedMap();
+  const cutoff = Date.now() - 120 * 24 * 60 * 60 * 1000; // 120 days ago
   return Array.from(map.values())
-    .filter(e => e.inTheWild)
+    .filter(e => e.inTheWild && new Date(e.datePublished).getTime() >= cutoff)
     .sort((a, b) => new Date(b.datePublished).getTime() - new Date(a.datePublished).getTime())
     .slice(0, limit);
 }
@@ -712,8 +713,9 @@ export async function getRecentZeroDays(limit: number = 50): Promise<VulnEntry[]
  */
 export async function getWeaponizedCves(limit: number = 50): Promise<VulnEntry[]> {
   const map = await buildUnifiedMap();
+  const cutoff = Date.now() - 120 * 24 * 60 * 60 * 1000; // 120 days ago
   return Array.from(map.values())
-    .filter(e => e.exploitAvailable && !e.kevListed) // Exclude KEV (shown separately)
+    .filter(e => e.exploitAvailable && !e.kevListed && new Date(e.datePublished).getTime() >= cutoff)
     .sort((a, b) => new Date(b.datePublished).getTime() - new Date(a.datePublished).getTime())
     .slice(0, limit);
 }

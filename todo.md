@@ -2219,3 +2219,45 @@
 - [x] Added InternetDB, BinaryEdge, GreyNoise to DomainIntelResults.tsx METHODS array
 - [x] Connectors show "No Results" / "Not executed" on pre-existing scans (correct behavior)
 - [x] New scans will execute all three connectors and display results in Methods tab
+
+## Active Escalation Alerts Click-Through Details (Feb 18)
+- [x] Examine current alert component and data structure
+- [x] Build detail modal/panel showing threat actor profile, TTPs, and history
+- [x] Show victim details (organization, sector, country, size)
+- [x] Show dates (attack date, leak date, deadline, last updated)
+- [x] Show leak location (darkweb URL, paste site, forum, data dump)
+- [x] Show related intelligence (IOCs, associated campaigns, MITRE techniques)
+- [x] Make each alert card clickable to open the detail view
+- [ ] Write tests and verify in browser
+
+## Verify CVE Ticker (Feb 18)
+- [x] Check CVE ticker is rendering and scrolling on the Dashboard
+- [x] Verify ticker items are clickable — now open CveDetailModal instead of navigating away
+- [x] Fix any issues found — ticker items now open rich CVE detail modal
+
+## 0-Day Feed: Filter to Last 120 Days (Feb 18)
+- [x] Filter getRecentZeroDays to only return CVEs from last 120 days
+- [x] Order results by published date descending (most recent first)
+- [x] Remove stale/outdated CVEs from the feed display (120-day cutoff applied)
+
+## CVE Click-Through Detail View (Feb 18)
+- [x] Build CVE detail modal/panel with enriched data
+- [x] Add exploit matching data (Metasploit modules, PoC availability)
+- [x] Add IOC data linked to CVE (via exploit-matcher integration)
+- [x] Add affected products and versions
+- [x] Add CISA KEV status and ransomware usage
+- [x] Add threat actor associations (from local DB)
+- [x] Wire click-through from 0-day feed CVE entries and ticker
+
+## Typosquat Domain Purchasing & GoPhish Auto-Integration (Feb 18)
+- [x] Build typosquat domain generation engine (top 10 most effective variants per target)
+- [x] Integrate typosquat identification into domain scanning pipeline
+- [x] Check target domain mail setup (SPF/DKIM/DMARC) for spoofing feasibility
+- [x] Build domain availability checking via DigitalOcean Domains API
+- [x] Build domain purchasing flow with registrar links + DigitalOcean DNS config
+- [x] Create UI for selecting and purchasing typosquat domains (TyposquatManager component)
+- [x] Auto-configure DNS records (MX, SPF, DMARC) on purchased domains via DigitalOcean API
+- [x] Auto-integrate purchased typosquat domains into GoPhish sending profiles
+- [x] Added typosquat tab to PhishingOperations page
+- [x] Auto-recommend typosquats in engagement pipeline when target not spoofable
+- [x] Write tests for typosquat generation, purchasing, and integration (11 typosquat + 3 vuln-feed filtering tests)

@@ -22,6 +22,7 @@ import {
   Database, Layers, Download, ShieldCheck, ArrowLeft, Printer
 } from "lucide-react";
 import { GoPhishManagerContent } from "./GoPhish";
+import TyposquatManagerComponent from "@/components/TyposquatManager";
 
 // ─── Priority badge colors ───
 function priorityBadge(priority: string) {
@@ -1582,6 +1583,9 @@ export default function PhishingOperations() {
           <TabsTrigger value="gophish-manager" className="flex items-center gap-1.5">
             <Fish className="w-3.5 h-3.5" /> GoPhish Manager
           </TabsTrigger>
+          <TabsTrigger value="typosquat" className="flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5" /> Typosquat Domains
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="intel-feed">
@@ -1598,6 +1602,9 @@ export default function PhishingOperations() {
         </TabsContent>
         <TabsContent value="gophish-manager">
           <GoPhishManagerContent />
+        </TabsContent>
+        <TabsContent value="typosquat">
+          <TyposquatManagerComponent />
         </TabsContent>
       </Tabs>
     </div>

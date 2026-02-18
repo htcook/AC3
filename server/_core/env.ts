@@ -63,4 +63,6 @@ export const ENV = {
   DEHASHED_API_KEY: process.env.DEHASHED_API_KEY ?? "",
   BINARYEDGE_API_KEY: process.env.BINARYEDGE_API_KEY ?? "",
   GREYNOISE_API_KEY: process.env.GREYNOISE_API_KEY ?? "",
+  // DigitalOcean — domain purchasing
+  DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
 };

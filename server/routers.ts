@@ -1423,6 +1423,60 @@ export const appRouter = router({
         return getWeaponizedCves(input?.limit || 50);
       }),
 
+    getCveDetail: protectedProcedure
+      .input(z.object({ cveId: z.string() }))
+      .query(async ({ input }) => {
+        const { searchVulnerabilities } = await import('./lib/vuln-feeds');
+        const results = await searchVulnerabilities(input.cveId, {}, 1);
+        const vuln = results.find(r => r.cveId === input.cveId) || results[0] || null;
+        if (!vuln) return null;
+
+        // Enrich with exploit matching
+        let exploitMatches: any = null;
+        try {
+          const { matchExploitsToFindings } = await import('./lib/exploit-matcher');
+          const matches = await matchExploitsToFindings([{
+            title: vuln.title || vuln.cveId,
+            cveIds: [vuln.cveId],
+            severity: vuln.cvssScore || 7,
+            corroborationTier: 'confirmed',
+          }]);
+          if (matches.matches.length > 0) {
+            exploitMatches = matches.matches[0];
+          }
+        } catch (e) {
+          // Exploit matching is optional enrichment
+        }
+
+        // Check for threat actor associations from local DB
+        let associatedActors: any[] = [];
+        try {
+          const dbConn = await (await import('./db')).getDb();
+          if (dbConn) {
+            const { threatActors } = await import('../drizzle/schema');
+            const { sql } = await import('drizzle-orm');
+            const actors = await dbConn.select({
+              actorId: threatActors.actorId,
+              name: threatActors.name,
+              type: threatActors.type,
+              origin: threatActors.origin,
+              threatLevel: threatActors.threatLevel,
+            }).from(threatActors)
+              .where(sql`JSON_CONTAINS(${threatActors.techniques}, JSON_QUOTE(${input.cveId}))`)
+              .limit(10);
+            associatedActors = actors;
+          }
+        } catch (e) {
+          // Actor association is optional enrichment
+        }
+
+        return {
+          ...vuln,
+          exploitMatches,
+          associatedActors,
+        };
+      }),
+
     searchVulnerabilities: protectedProcedure
       .input(z.object({
         query: z.string(),
@@ -2776,6 +2830,253 @@ Respond in JSON format as an array of 3 campaign objects.`;
         const { id, ...updates } = input;
         await db.updateTyposquatDomain(id, updates as any);
         return { success: true };
+      }),
+  }),
+
+  // ==================== TYPOSQUAT DOMAIN PURCHASING & GOPHISH INTEGRATION ====================
+  typosquat: router({
+    // Generate top-10 most effective typosquat variants for a target domain
+    generateVariants: protectedProcedure
+      .input(z.object({
+        targetDomain: z.string().min(3),
+        engagementId: z.number().optional(),
+        maxVariants: z.number().min(5).max(30).default(10),
+        checkAvailability: z.boolean().default(true),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { generateTyposquatVariants } = await import('./lib/typosquat');
+        const result = await generateTyposquatVariants(input.targetDomain, {
+          checkAvailability: input.checkAvailability,
+          maxVariants: input.maxVariants,
+          includeAllTechniques: false,
+        });
+
+        // If engagement provided, store recommended variants in DB
+        if (input.engagementId) {
+          const reconRecords = await db.getDomainReconByEngagement(input.engagementId);
+          const reconId = reconRecords?.[0]?.id;
+          if (reconId) {
+            for (const v of result.recommendedVariants) {
+              try {
+                await db.bulkCreateTyposquatDomains([{
+                  engagementId: input.engagementId,
+                  reconId,
+                  originalDomain: input.targetDomain,
+                  permutedDomain: v.domain,
+                  permutationType: v.technique,
+                  isRegistered: v.available === false,
+                  dnsResolved: v.available === false,
+                  status: 'recommended',
+                }]);
+              } catch { /* duplicate */ }
+            }
+          }
+        }
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'typosquat_variants_generated',
+          details: `Generated ${result.recommendedVariants.length} typosquat variants for ${input.targetDomain}. Spoofability: ${result.spoofabilityScore}/100`,
+        });
+
+        return result;
+      }),
+
+    // Configure a purchased domain's DNS via DigitalOcean
+    configureDns: protectedProcedure
+      .input(z.object({
+        domain: z.string().min(3),
+        typosquatId: z.number(),
+        mailServerIp: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { configureDomainForEmail, addDomainToDO } = await import('./lib/typosquat');
+        try {
+          const config = await configureDomainForEmail(
+            input.domain,
+            input.mailServerIp || '137.184.7.224'
+          );
+
+          // Update typosquat record
+          await db.updateTyposquatDomain(input.typosquatId, {
+            status: 'configured',
+            notes: `DNS configured via DigitalOcean. MX: mail.${input.domain}, SPF: ${config.spfRecord}`,
+          } as any);
+
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'typosquat_dns_configured',
+            details: `Configured DNS for ${input.domain} via DigitalOcean (MX, SPF, DMARC)`,
+          });
+
+          return {
+            success: true,
+            config,
+            nameservers: ['ns1.digitalocean.com', 'ns2.digitalocean.com', 'ns3.digitalocean.com'],
+            instructions: `Domain DNS configured. Update nameservers at your registrar to: ns1.digitalocean.com, ns2.digitalocean.com, ns3.digitalocean.com`,
+          };
+        } catch (err: any) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `DNS configuration failed: ${err.message}` });
+        }
+      }),
+
+    // Auto-create GoPhish sending profile for a purchased typosquat domain
+    createSendingProfile: protectedProcedure
+      .input(z.object({
+        domain: z.string().min(3),
+        typosquatId: z.number(),
+        fromName: z.string().default('IT Support'),
+        fromAddress: z.string().optional(),
+        smtpHost: z.string().default('137.184.7.224'),
+        smtpPort: z.number().default(25),
+        engagementId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const fromAddr = input.fromAddress || `noreply@${input.domain}`;
+        const profileName = `Ace C3 - ${input.domain}`;
+
+        // Create sending profile in GoPhish
+        const profile = await fetchGophishAPI('/api/smtp/', 'POST', {
+          name: profileName,
+          from_address: `${input.fromName} <${fromAddr}>`,
+          host: `${input.smtpHost}:${input.smtpPort}`,
+          ignore_cert_errors: true,
+          interface_type: 'SMTP',
+        });
+
+        // Update typosquat record to 'in_use'
+        await db.updateTyposquatDomain(input.typosquatId, {
+          status: 'in_use',
+          notes: `GoPhish sending profile created: ${profileName} (ID: ${profile?.id || 'unknown'})`,
+        } as any);
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'typosquat_gophish_profile_created',
+          details: `Created GoPhish sending profile '${profileName}' for ${input.domain}`,
+        });
+
+        return {
+          success: true,
+          profileId: profile?.id,
+          profileName,
+          fromAddress: fromAddr,
+          smtpHost: input.smtpHost,
+          smtpPort: input.smtpPort,
+        };
+      }),
+
+    // Full auto-integration: configure DNS + create GoPhish profile in one step
+    autoIntegrate: protectedProcedure
+      .input(z.object({
+        domain: z.string().min(3),
+        typosquatId: z.number(),
+        engagementId: z.number().optional(),
+        fromName: z.string().default('IT Support'),
+        mailServerIp: z.string().default('137.184.7.224'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const steps: Array<{ step: string; status: 'success' | 'failed' | 'skipped'; detail: string }> = [];
+
+        // Step 1: Configure DNS via DigitalOcean
+        let dnsConfig: any = null;
+        try {
+          const { configureDomainForEmail } = await import('./lib/typosquat');
+          dnsConfig = await configureDomainForEmail(input.domain, input.mailServerIp);
+          steps.push({ step: 'Configure DNS', status: 'success', detail: `MX, SPF, DMARC records created for ${input.domain}` });
+        } catch (err: any) {
+          steps.push({ step: 'Configure DNS', status: 'failed', detail: err.message });
+        }
+
+        // Step 2: Create GoPhish sending profile
+        let profileResult: any = null;
+        try {
+          const fromAddr = `noreply@${input.domain}`;
+          const profileName = `Ace C3 - ${input.domain}`;
+          profileResult = await fetchGophishAPI('/api/smtp/', 'POST', {
+            name: profileName,
+            from_address: `${input.fromName} <${fromAddr}>`,
+            host: `${input.mailServerIp}:25`,
+            ignore_cert_errors: true,
+            interface_type: 'SMTP',
+          });
+          steps.push({ step: 'Create GoPhish Sending Profile', status: 'success', detail: `Profile '${profileName}' created (ID: ${profileResult?.id})` });
+        } catch (err: any) {
+          steps.push({ step: 'Create GoPhish Sending Profile', status: 'failed', detail: err.message });
+        }
+
+        // Step 3: Update typosquat record
+        const allSuccess = steps.every(s => s.status === 'success');
+        await db.updateTyposquatDomain(input.typosquatId, {
+          status: allSuccess ? 'in_use' : 'purchased',
+          notes: steps.map(s => `[${s.status.toUpperCase()}] ${s.step}: ${s.detail}`).join('\n'),
+        } as any);
+        steps.push({ step: 'Update Records', status: 'success', detail: `Typosquat domain status updated to ${allSuccess ? 'in_use' : 'purchased'}` });
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'typosquat_auto_integrated',
+          details: `Auto-integrated ${input.domain}: ${steps.filter(s => s.status === 'success').length}/${steps.length} steps succeeded`,
+        });
+
+        return {
+          success: allSuccess,
+          domain: input.domain,
+          steps,
+          dnsConfig,
+          gophishProfile: profileResult ? {
+            id: profileResult.id,
+            name: profileResult.name,
+            fromAddress: profileResult.from_address,
+          } : null,
+          nameservers: dnsConfig ? ['ns1.digitalocean.com', 'ns2.digitalocean.com', 'ns3.digitalocean.com'] : null,
+        };
+      }),
+
+    // Mark a domain as purchased (manual step after buying at registrar)
+    markPurchased: protectedProcedure
+      .input(z.object({
+        typosquatId: z.number(),
+        registrar: z.string().default('manual'),
+        annualCost: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.updateTyposquatDomain(input.typosquatId, {
+          status: 'purchased',
+          registrar: input.registrar,
+          annualCost: input.annualCost,
+          purchaseDate: new Date(),
+        } as any);
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'typosquat_purchased',
+          details: `Marked typosquat domain ID ${input.typosquatId} as purchased via ${input.registrar}`,
+        });
+
+        return { success: true };
+      }),
+
+    // List managed DigitalOcean domains
+    listDODomains: protectedProcedure.query(async () => {
+      try {
+        const { listDODomains } = await import('./lib/typosquat');
+        return await listDODomains();
+      } catch (err: any) {
+        return [];
+      }
+    }),
+
+    // Get DNS records for a managed domain
+    getDnsRecords: protectedProcedure
+      .input(z.object({ domain: z.string().min(3) }))
+      .query(async ({ input }) => {
+        try {
+          const { getDomainRecords } = await import('./lib/typosquat');
+          return await getDomainRecords(input.domain);
+        } catch (err: any) {
+          return [];
+        }
       }),
   }),
 
@@ -4764,6 +5065,47 @@ Make the phishing content highly realistic and tailored to the target domain and
             recommendedTemplates: campaignRecs.flatMap((c: any) => c.gophishTemplates || []),
           };
           stepLog[4] = { ...stepLog[4], status: 'complete', timestamp: Date.now() };
+
+          // Step 5b: Auto-recommend typosquat domains if target is not spoofable
+          try {
+            // Check the most recent OSINT recon for spoofability
+            const { domainRecon } = await import('../drizzle/schema');
+            const [latestRecon] = await drizzleDb.select().from(domainRecon)
+              .where(eqOp(domainRecon.domain, domains[0] || ''))
+              .orderBy(descOp(domainRecon.createdAt))
+              .limit(1);
+
+            if (latestRecon && !latestRecon.spoofable && (latestRecon.spoofScore ?? 0) < 50) {
+              // Target has strong email security — recommend typosquat domains
+              const { generateTyposquatVariants } = await import('./lib/typosquat');
+              const typosquatResult = await generateTyposquatVariants(domains[0], {
+                checkAvailability: true,
+                maxVariants: 10,
+                includeAllTechniques: false,
+              });
+
+              riskSummary.typosquatRecommendation = {
+                needed: true,
+                reason: `Target domain has strong email security (spoof score: ${latestRecon.spoofScore}/100). Typosquat domains recommended for phishing.`,
+                variants: typosquatResult.recommendedVariants.slice(0, 5).map((v: any) => ({
+                  domain: v.domain,
+                  technique: v.technique,
+                  effectiveness: v.effectiveness,
+                  available: v.available,
+                })),
+                totalGenerated: typosquatResult.recommendedVariants.length,
+              };
+              console.log(`[Pipeline] Target not spoofable (score: ${latestRecon.spoofScore}). Generated ${typosquatResult.recommendedVariants.length} typosquat recommendations.`);
+            } else {
+              riskSummary.typosquatRecommendation = {
+                needed: false,
+                reason: 'Target domain is spoofable — direct email spoofing is viable.',
+              };
+            }
+          } catch (typoErr: any) {
+            console.error('[Pipeline] Typosquat recommendation failed:', typoErr.message);
+            riskSummary.typosquatRecommendation = { needed: false, reason: 'Check failed', error: typoErr.message };
+          }
           
           // Step 6: Create Engagement
           stepLog[5] = { ...stepLog[5], status: 'running', timestamp: Date.now() };

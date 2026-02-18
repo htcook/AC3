@@ -21,6 +21,17 @@ import {
 } from "../../drizzle/schema";
 import { desc, eq, sql, and, like } from "drizzle-orm";
 
+// JSON parsing helper for columns that may be strings or already-parsed
+function safeParseJson(val: unknown): any[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try { const parsed = JSON.parse(val); return Array.isArray(parsed) ? parsed : []; }
+    catch { return []; }
+  }
+  if (val && typeof val === 'object') return [val];
+  return [];
+}
+
 // Optional SpicyTIP bridge imports (used as fallback only)
 import {
   checkBridgeHealth,
@@ -445,6 +456,8 @@ export const darkwebBridgeRouter = router({
         .limit(input?.limit || 25);
 
       const data = events.map((e) => ({
+        id: e.id,
+        actorId: e.actorId,
         severity: e.severity || "high",
         title: e.title,
         description: e.description,
@@ -584,6 +597,164 @@ export const darkwebBridgeRouter = router({
         .where(eq(infoOpsCampaigns.campaignId, input.campaignId))
         .limit(1);
       return rows[0] || null;
+    }),
+
+  /**
+   * Alert detail — full enrichment for a single escalation alert.
+   * Returns the event, full threat actor profile, related events, IOCs, and techniques.
+   */
+  alertDetail: protectedProcedure
+    .input(z.object({ eventId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      // 1. Get the event itself with actor join
+      const events = await db
+        .select({
+          id: threatGroupEvents.id,
+          actorId: threatGroupEvents.actorId,
+          eventType: threatGroupEvents.eventType,
+          title: threatGroupEvents.title,
+          description: threatGroupEvents.description,
+          severity: threatGroupEvents.severity,
+          victimName: threatGroupEvents.victimName,
+          victimSector: threatGroupEvents.victimSector,
+          victimCountry: threatGroupEvents.victimCountry,
+          mitreTechniques: threatGroupEvents.mitreTechniques,
+          iocs: threatGroupEvents.iocs,
+          source: threatGroupEvents.source,
+          sourceUrl: threatGroupEvents.sourceUrl,
+          confidence: threatGroupEvents.confidence,
+          eventDate: threatGroupEvents.eventDate,
+          discoveredAt: threatGroupEvents.discoveredAt,
+          createdAt: threatGroupEvents.createdAt,
+        })
+        .from(threatGroupEvents)
+        .where(eq(threatGroupEvents.id, input.eventId))
+        .limit(1);
+
+      if (!events.length) return null;
+      const event = events[0];
+
+      // 2. Get the full threat actor profile
+      const actors = await db
+        .select()
+        .from(threatActors)
+        .where(eq(threatActors.actorId, event.actorId))
+        .limit(1);
+      const actor = actors[0] || null;
+
+      // 3. Get related events by the same actor (last 10)
+      const relatedEvents = await db
+        .select({
+          id: threatGroupEvents.id,
+          eventType: threatGroupEvents.eventType,
+          title: threatGroupEvents.title,
+          severity: threatGroupEvents.severity,
+          victimName: threatGroupEvents.victimName,
+          victimSector: threatGroupEvents.victimSector,
+          victimCountry: threatGroupEvents.victimCountry,
+          eventDate: threatGroupEvents.eventDate,
+          source: threatGroupEvents.source,
+        })
+        .from(threatGroupEvents)
+        .where(and(
+          eq(threatGroupEvents.actorId, event.actorId),
+          sql`${threatGroupEvents.id} != ${input.eventId}`
+        ))
+        .orderBy(desc(threatGroupEvents.eventDate))
+        .limit(10);
+
+      // 4. Get IOCs linked to this actor
+      const actorIocs = await db
+        .select()
+        .from(threatActorIocs)
+        .where(eq(threatActorIocs.actorId, event.actorId))
+        .limit(20);
+
+      // 5. Check if actor is also a ransomware group
+      let ransomwareProfile = null;
+      if (actor) {
+        const rwGroups = await db
+          .select()
+          .from(ransomwareGroups)
+          .where(sql`${ransomwareGroups.groupName} = ${actor.name} OR ${ransomwareGroups.calderaActorId} = ${actor.actorId}`)
+          .limit(1);
+        ransomwareProfile = rwGroups[0] || null;
+      }
+
+      // 6. Check for access broker listings mentioning this actor
+      let brokerListings: any[] = [];
+      if (actor) {
+        brokerListings = await db
+          .select({
+            brokerId: accessBrokerListings.brokerId,
+            brokerName: accessBrokerListings.brokerName,
+            victimSector: accessBrokerListings.victimSector,
+            victimCountry: accessBrokerListings.victimCountry,
+            accessType: accessBrokerListings.accessType,
+            askingPrice: accessBrokerListings.askingPrice,
+            status: accessBrokerListings.status,
+          })
+          .from(accessBrokerListings)
+          .where(sql`JSON_CONTAINS(${accessBrokerListings.linkedActorIds}, JSON_QUOTE(${actor.actorId}))`)
+          .limit(5);
+      }
+
+      return {
+        event: {
+          ...event,
+          mitreTechniques: safeParseJson(event.mitreTechniques),
+          iocs: safeParseJson(event.iocs),
+        },
+        actor: actor ? {
+          actorId: actor.actorId,
+          name: actor.name,
+          aliases: safeParseJson(actor.aliases),
+          type: actor.type,
+          origin: actor.origin,
+          description: actor.description,
+          motivation: actor.motivation,
+          firstSeen: actor.firstSeen,
+          lastActive: actor.lastActive,
+          threatLevel: actor.threatLevel,
+          sophistication: actor.sophistication,
+          targetSectors: safeParseJson(actor.targetSectors),
+          targetRegions: safeParseJson(actor.targetRegions),
+          techniques: safeParseJson(actor.techniques),
+          tools: safeParseJson(actor.tools),
+          malware: safeParseJson(actor.malware),
+          activityTimeline: safeParseJson(actor.activityTimeline),
+          confidence: actor.confidence,
+          dataSource: actor.dataSource,
+        } : null,
+        relatedEvents,
+        actorIocs: actorIocs.map(ioc => ({
+          type: ioc.type,
+          value: ioc.value,
+          description: ioc.description,
+          firstSeen: ioc.firstSeen,
+          lastSeen: ioc.lastSeen,
+          confidence: ioc.confidence,
+          source: ioc.source,
+        })),
+        ransomwareProfile: ransomwareProfile ? {
+          groupName: ransomwareProfile.groupName,
+          activityScore: ransomwareProfile.activityScore,
+          trend: ransomwareProfile.trend,
+          threatLevel: ransomwareProfile.threatLevel,
+          victims7d: ransomwareProfile.victims7d,
+          victims30d: ransomwareProfile.victims30d,
+          totalVictims: ransomwareProfile.totalVictims,
+          topSectors: ransomwareProfile.topSectors,
+          topCountries: ransomwareProfile.topCountries,
+          ransomwareFamily: ransomwareProfile.ransomwareFamily,
+          extortionModel: ransomwareProfile.extortionModel,
+          knownInfrastructure: safeParseJson(ransomwareProfile.knownInfrastructure),
+        } : null,
+        brokerListings,
+      };
     }),
 
   /**

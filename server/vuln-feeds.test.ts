@@ -591,3 +591,49 @@ describe('Chain builder vulnSteps parameter', () => {
     expect(typeof step.context).toBe('string');
   });
 });
+
+
+// ─── 0-Day Feed 120-Day Filtering Tests ───
+
+describe('0-Day Feed 120-Day Filtering', () => {
+  it('getRecentZeroDays should return only entries within 120 days', async () => {
+    const { getRecentZeroDays } = await import('./lib/vuln-feeds');
+    const entries = await getRecentZeroDays();
+
+    const now = Date.now();
+    const cutoff = now - (120 * 24 * 60 * 60 * 1000);
+
+    for (const entry of entries) {
+      if (entry.published) {
+        const pubDate = new Date(entry.published).getTime();
+        expect(pubDate).toBeGreaterThanOrEqual(cutoff);
+      }
+    }
+  }, 60000);
+
+  it('getRecentZeroDays should return entries sorted by date descending', async () => {
+    const { getRecentZeroDays } = await import('./lib/vuln-feeds');
+    const entries = await getRecentZeroDays();
+
+    for (let i = 1; i < entries.length; i++) {
+      const prevDate = new Date(entries[i - 1].published || 0).getTime();
+      const currDate = new Date(entries[i].published || 0).getTime();
+      expect(prevDate).toBeGreaterThanOrEqual(currDate);
+    }
+  }, 30000);
+
+  it('getWeaponizedCves should return entries within 120 days', async () => {
+    const { getWeaponizedCves } = await import('./lib/vuln-feeds');
+    const entries = await getWeaponizedCves();
+
+    const now = Date.now();
+    const cutoff = now - (120 * 24 * 60 * 60 * 1000);
+
+    for (const entry of entries) {
+      if (entry.published) {
+        const pubDate = new Date(entry.published).getTime();
+        expect(pubDate).toBeGreaterThanOrEqual(cutoff);
+      }
+    }
+  }, 30000);
+});

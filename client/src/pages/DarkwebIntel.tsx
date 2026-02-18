@@ -3,11 +3,12 @@ import { trpc } from "@/lib/trpc";
 import { safeUpper } from "@/lib/utils-safe";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
+import AlertDetailModal from "@/components/AlertDetailModal";
 import {
   AlertTriangle, Eye, Globe2, Shield, Skull, Clock,
   Activity, TrendingUp, Search, ExternalLink, Radio,
   Database, Loader2, RefreshCw, Crosshair, FileText,
-  Zap, Bug, Key, Tag, Wifi, WifiOff, ChevronDown, ChevronUp,
+  Zap, Bug, Key, Tag, Wifi, WifiOff, ChevronDown, ChevronUp, ChevronRight,
   ShieldAlert, Megaphone, DollarSign, Users, Network,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -55,6 +56,9 @@ export default function DarkwebIntel() {
     alerts: true, iocs: true, kev: true, otx: false, malware: false, keywords: false,
     iabs: true, infoOps: true,
   });
+
+  const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
 
   const toggleSection = (key: string) =>
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -226,24 +230,58 @@ export default function DarkwebIntel() {
               {expandedSections.alerts ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
             </button>
             {expandedSections.alerts && (
-              <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+              <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
                 {escalationAlerts.data.map((alert: any, i: number) => (
-                  <div key={i} className={`flex items-start gap-3 p-2 border ${SEVERITY_COLORS[alert.severity] || "text-gray-400 bg-gray-500/10 border-gray-500/30"}`}>
+                  <div
+                    key={alert.id || i}
+                    className={`flex items-start gap-3 p-3 border cursor-pointer transition-all hover:brightness-110 ${SEVERITY_COLORS[alert.severity] || "text-gray-400 bg-gray-500/10 border-gray-500/30"}`}
+                    onClick={() => { if (alert.id) { setSelectedAlertId(alert.id); setAlertModalOpen(true); } }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" && alert.id) { setSelectedAlertId(alert.id); setAlertModalOpen(true); } }}
+                  >
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <span className="text-[10px] tracking-wider">{safeUpper(alert.severity)}</span>
-                        {alert.timestamp && <span className="text-[10px] text-muted-foreground">{new Date(alert.timestamp).toLocaleString()}</span>}
+                        {alert.eventType && (
+                          <span className="text-[9px] px-1 py-0.5 bg-muted/50 border border-border/50 text-muted-foreground">
+                            {safeUpper(alert.eventType.replace(/_/g, " "))}
+                          </span>
+                        )}
+                        {alert.actorName && (
+                          <span className="text-[10px] text-red-400 font-display">{alert.actorName}</span>
+                        )}
+                        {(alert.eventDate || alert.timestamp) && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(alert.eventDate || alert.timestamp).toLocaleDateString()}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs">{alert.title || alert.message || "Alert"}</p>
+                      <p className="text-xs font-medium">{alert.title || alert.message || "Alert"}</p>
                       {alert.description && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{alert.description}</p>}
+                      {(alert.victimName || alert.victimSector || alert.victimCountry) && (
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                          {alert.victimName && <span>Victim: {alert.victimName}</span>}
+                          {alert.victimSector && <span>· {alert.victimSector}</span>}
+                          {alert.victimCountry && <span>· {alert.victimCountry}</span>}
+                        </div>
+                      )}
                     </div>
+                    <ChevronRight className="w-4 h-4 shrink-0 mt-1 text-muted-foreground" />
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
+
+        {/* Alert Detail Modal */}
+        <AlertDetailModal
+          open={alertModalOpen}
+          onOpenChange={setAlertModalOpen}
+          eventId={selectedAlertId}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* ─── Main Content (2/3) ──────────────────────────────────────── */}
