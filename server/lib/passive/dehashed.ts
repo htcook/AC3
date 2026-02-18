@@ -1,19 +1,15 @@
 /**
- * Dehashed — Breach Intelligence & Domain Mapping Connector
+ * Dehashed — Breach Intelligence & Domain Mapping Connector (v4 API)
  * 
- * Queries the Dehashed v2 API for breach records matching the target domain.
+ * Queries the Dehashed v2/v4 API for breach records matching the target domain.
  * Extracts subdomains from email addresses, discovers credential exposures,
  * maps IP addresses, and identifies breach database sources.
  * 
- * Method: POST to Dehashed Search API v2 with domain query
+ * Auth: Dehashed-Api-Key header (v4 format — old Basic Auth is deprecated)
+ * Method: POST https://api.dehashed.com/v2/search
  * Data Source: 15B+ breach records aggregated from public and private data wells
  * Attribution: Each observation references the Dehashed breach database source
  * Requires: DEHASHED_API_KEY (credit-based, limited-use token)
- * 
- * v2 API changes from v1:
- * - POST with JSON body instead of GET with query params
- * - `Dehashed-Api-Key` header instead of Basic Auth
- * - Response fields (email, username, password, etc.) are arrays, not strings
  * 
  * Intelligence produced:
  * - Subdomain discovery from email domains in breach records
@@ -30,8 +26,8 @@ function makeAssetId(domain: string, name: string, source: string): string {
   return createHash("sha256").update(`${domain}|${name}|${source}`).digest("hex").slice(0, 20);
 }
 
-/** v2 API returns arrays for most fields */
-interface DehashedEntryV2 {
+/** v4 API returns arrays for most fields */
+interface DehashedEntryV4 {
   id?: string;
   email?: string[];
   ip_address?: string[];
@@ -41,32 +37,36 @@ interface DehashedEntryV2 {
   name?: string[];
   phone?: string[];
   address?: string[];
-  vin?: string[];
+  company?: string[];
+  url?: string[];
+  social?: string[];
+  cryptocurrency_address?: string[];
   database_name?: string;
-  domain?: string;
+  raw_record?: { le_only?: boolean; unstructured?: boolean };
+  dob?: string[];
+  license_plate?: string[];
+  domain?: string[];
 }
 
-interface DehashedResponseV2 {
+interface DehashedResponseV4 {
   balance?: number;
-  entries?: DehashedEntryV2[];
+  entries?: DehashedEntryV4[] | null;
   total?: number;
   took?: string;
   error?: string;
 }
 
-/** Safely get the first non-empty string from a v2 array field */
-function first(arr?: string[]): string | undefined {
-  if (!arr || arr.length === 0) return undefined;
-  return arr.find(s => s && s.trim().length > 0);
-}
-
-/** Get all non-empty strings from a v2 array field */
-function allNonEmpty(arr?: string[]): string[] {
-  if (!arr) return [];
-  return arr.filter(s => s && s.trim().length > 0);
-}
-
 const DEHASHED_SEARCH_URL = "https://api.dehashed.com/v2/search";
+
+/** Helper to get first string from a v4 array field */
+function first(arr?: string[]): string | undefined {
+  return arr && arr.length > 0 ? arr[0] : undefined;
+}
+
+/** Helper to check if any element in array is non-empty */
+function hasValue(arr?: string[]): boolean {
+  return !!arr && arr.some(v => v && v.trim().length > 0);
+}
 
 export const dehashedConnector: PassiveConnector = {
   name: "dehashed",
@@ -99,7 +99,9 @@ export const dehashedConnector: PassiveConnector = {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
 
-      let data: DehashedResponseV2;
+      const size = Math.min(maxResults, 10000);
+
+      let data: DehashedResponseV4;
       try {
         const res = await fetch(DEHASHED_SEARCH_URL, {
           method: "POST",
@@ -110,20 +112,19 @@ export const dehashedConnector: PassiveConnector = {
           body: JSON.stringify({
             query: `domain:${domain}`,
             page: 1,
-            size: Math.min(maxResults, 10000),
-            wildcard: false,
-            regex: false,
+            size,
             de_dupe: true,
           }),
           signal: controller.signal,
         });
 
         if (res.status === 401 || res.status === 403) {
+          const body = await res.text().catch(() => "");
           return {
             connector: "dehashed",
             domain,
             observations: [],
-            errors: ["Dehashed API key is invalid or expired"],
+            errors: [`Dehashed API credentials invalid (${res.status}): ${body} — check DEHASHED_API_KEY. The old v1 Basic Auth API is deprecated; use the v4 API key from app.dehashed.com/documentation/api`],
             durationMs: Date.now() - start,
             rateLimited: false,
           };
@@ -133,9 +134,19 @@ export const dehashedConnector: PassiveConnector = {
             connector: "dehashed",
             domain,
             observations: [],
-            errors: ["Dehashed rate limit exceeded — insufficient API credits"],
+            errors: ["Dehashed rate limit exceeded — max 10 requests/second"],
             durationMs: Date.now() - start,
             rateLimited: true,
+          };
+        }
+        if (res.status === 402) {
+          return {
+            connector: "dehashed",
+            domain,
+            observations: [],
+            errors: ["Dehashed API credits exhausted — purchase more at dehashed.com"],
+            durationMs: Date.now() - start,
+            rateLimited: false,
           };
         }
         if (res.status === 400) {
@@ -183,8 +194,8 @@ export const dehashedConnector: PassiveConnector = {
       for (const entry of entries) {
         const dbName = entry.database_name || "unknown";
         breachEmailCounts.set(dbName, (breachEmailCounts.get(dbName) || 0) + 1);
-        const hasPassword = allNonEmpty(entry.password).length > 0;
-        const hasHash = allNonEmpty(entry.hashed_password).length > 0;
+        const hasPassword = hasValue(entry.password);
+        const hasHash = hasValue(entry.hashed_password);
         if (hasPassword || hasHash) {
           breachCredCounts.set(dbName, (breachCredCounts.get(dbName) || 0) + 1);
         }
@@ -193,11 +204,12 @@ export const dehashedConnector: PassiveConnector = {
       // Second pass: extract observations
       for (const entry of entries) {
         // ─── Subdomain discovery from email addresses ───────────
-        const emails = allNonEmpty(entry.email);
+        const emails = entry.email || [];
         for (const email of emails) {
+          if (!email) continue;
           const emailDomain = email.split("@")[1]?.toLowerCase();
           if (emailDomain && (emailDomain === domain || emailDomain.endsWith(`.${domain}`))) {
-            if (!seenSubdomains.has(emailDomain) && emailDomain !== domain) {
+            if (!seenSubdomains.has(emailDomain) && emailDomain !== domain.toLowerCase()) {
               seenSubdomains.add(emailDomain);
               observations.push({
                 assetId: makeAssetId(domain, emailDomain, "dehashed_subdomain"),
@@ -224,11 +236,12 @@ export const dehashedConnector: PassiveConnector = {
         }
 
         // ─── IP address mapping from breach records ─────────────
-        const ips = allNonEmpty(entry.ip_address);
-        for (const ip of ips) {
-          if (!seenIPs.has(ip)) {
+        const ips = entry.ip_address || [];
+        for (const rawIp of ips) {
+          if (!rawIp) continue;
+          const ip = rawIp.trim();
+          if (ip.length > 0 && !seenIPs.has(ip)) {
             seenIPs.add(ip);
-            const firstEmail = first(entry.email);
             observations.push({
               assetId: makeAssetId(domain, ip, "dehashed_ip"),
               domain,
@@ -241,7 +254,9 @@ export const dehashedConnector: PassiveConnector = {
               evidence: {
                 discovery_method: "breach_ip_association",
                 database_name: entry.database_name,
-                associated_email: firstEmail ? firstEmail.replace(/^[^@]+/, "***@") + firstEmail.split("@")[1] : undefined,
+                associated_email: first(entry.email)
+                  ? first(entry.email)!.replace(/^[^@]+/, "***@") + (first(entry.email)!.split("@")[1] || "")
+                  : undefined,
               },
               attribution: {
                 provider: "Dehashed (Breach Intelligence)",
@@ -277,7 +292,9 @@ export const dehashedConnector: PassiveConnector = {
               total_records: emailCount,
               credentials_exposed: credCount,
               has_passwords: credCount > 0,
-              has_hashed_passwords: entries.some(e => e.database_name === dbName && allNonEmpty(e.hashed_password).length > 0),
+              has_hashed_passwords: entries.some(e =>
+                e.database_name === dbName && hasValue(e.hashed_password)
+              ),
             },
             attribution: {
               provider: "Dehashed (Breach Intelligence)",

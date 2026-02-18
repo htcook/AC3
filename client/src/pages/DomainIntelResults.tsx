@@ -208,6 +208,8 @@ export default function DomainIntelResults() {
   const campaigns = (scan.campaignRecommendations || []) as any[];
   const threatActorMatches = pipeline?.threatActorMatches as any;
   const llmThreatAnalysis = pipeline?.llmThreatActorAnalysis as any;
+  const breachData = pipeline?.breachData as any;
+  const dehashedResult = pipeline?.passiveRecon?.connectorResults?.find((r: any) => r.connector === 'dehashed') as any;
 
   // Sort assets by risk score descending
   const sortedAssets = [...assets].sort((a: any, b: any) => (b.hybridRiskScore || 0) - (a.hybridRiskScore || 0));
@@ -296,7 +298,7 @@ export default function DomainIntelResults() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className={`grid grid-cols-2 ${breachData ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-3`}>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold">{assets.length}</p>
@@ -328,24 +330,37 @@ export default function DomainIntelResults() {
             </div>
           </CardContent>
         </Card>
+        {breachData && (
+          <Card className="border-red-500/20">
+            <CardContent className="p-4 text-center">
+              <p className="text-3xl font-bold text-red-400">{breachData.totalExposures?.toLocaleString() || 0}</p>
+              <p className="text-xs text-muted-foreground mt-1">Breach Exposures</p>
+              {breachData.credentialPairs > 0 && (
+                <p className="text-[10px] text-red-400/80 mt-0.5">{breachData.credentialPairs} credentials</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
         {scan.status === 'scan_complete' ? (
-          <TabsList className="grid grid-cols-6 w-full max-w-3xl">
+          <TabsList className="grid grid-cols-7 w-full max-w-4xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
+            <TabsTrigger value="breaches">Breaches</TabsTrigger>
             <TabsTrigger value="corroboration">Corroboration</TabsTrigger>
             <TabsTrigger value="findings">Findings</TabsTrigger>
             <TabsTrigger value="methods">Methods</TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className="grid grid-cols-9 w-full max-w-6xl">
+          <TabsList className="grid grid-cols-10 w-full max-w-6xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
+            <TabsTrigger value="breaches">Breaches</TabsTrigger>
             <TabsTrigger value="adversaries">Adversaries</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="threat-model">Threat Model</TabsTrigger>
@@ -1243,6 +1258,177 @@ export default function DomainIntelResults() {
         {/* Vulnerability Intelligence Tab */}
         <TabsContent value="vulns" className="space-y-4">
           <VulnIntelSection scanId={scanId} />
+        </TabsContent>
+
+        {/* Breach Intelligence Tab */}
+        <TabsContent value="breaches" className="space-y-4">
+          {breachData ? (
+            <>
+              {/* Breach Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <Card className="border-red-500/30 bg-red-500/5">
+                  <CardContent className="p-4 text-center">
+                    <p className="text-3xl font-bold text-red-400">{breachData.totalExposures?.toLocaleString() || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Total Exposures</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-orange-500/30 bg-orange-500/5">
+                  <CardContent className="p-4 text-center">
+                    <p className="text-3xl font-bold text-orange-400">{breachData.credentialPairs || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Credentials Exposed</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-yellow-500/30 bg-yellow-500/5">
+                  <CardContent className="p-4 text-center">
+                    <p className="text-3xl font-bold text-yellow-400">{breachData.uniqueBreachSources || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Breach Sources</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-cyan-500/30 bg-cyan-500/5">
+                  <CardContent className="p-4 text-center">
+                    <p className="text-3xl font-bold text-cyan-400">{breachData.subdomainsDiscovered || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Subdomains Found</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-purple-500/30 bg-purple-500/5">
+                  <CardContent className="p-4 text-center">
+                    <p className="text-3xl font-bold text-purple-400">{breachData.ipsDiscovered || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">IPs Discovered</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Breach Sources Table */}
+              {breachData.breachSources?.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Database className="h-4 w-4 text-red-400" />
+                      Breach Database Sources
+                    </CardTitle>
+                    <CardDescription>Databases where {scan.primaryDomain} credentials and records were found</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {breachData.breachSources.map((source: string, i: number) => {
+                        const breachObs = dehashedResult?.observations?.find((o: any) => o.name === source && o.tags?.includes('breach_database'));
+                        const records = breachObs?.evidence?.total_records || '—';
+                        const creds = breachObs?.evidence?.credentials_exposed || 0;
+                        const hasPasswords = breachObs?.evidence?.has_passwords;
+                        const hasHashes = breachObs?.evidence?.has_hashed_passwords;
+                        return (
+                          <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${creds > 0 ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                              <div>
+                                <p className="font-mono text-sm font-medium">{source}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {records} records
+                                  {creds > 0 && <span className="text-red-400 ml-2">{creds} credentials exposed</span>}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {hasPasswords && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">Plaintext</Badge>}
+                              {hasHashes && <Badge variant="outline" className="text-orange-400 border-orange-500/40 text-[10px]">Hashed</Badge>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Dehashed Observations Detail */}
+              {dehashedResult?.observations?.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Fingerprint className="h-4 w-4 text-purple-400" />
+                      Breach-Derived Intelligence
+                    </CardTitle>
+                    <CardDescription>Subdomains, IPs, and email patterns discovered from breach records</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Subdomains from breaches */}
+                      {(() => {
+                        const subs = dehashedResult.observations.filter((o: any) => o.assetType === 'subdomain');
+                        if (subs.length === 0) return null;
+                        return (
+                          <div>
+                            <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                              <Globe className="h-3.5 w-3.5 text-cyan-400" />
+                              Subdomains Discovered ({subs.length})
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {subs.map((s: any, i: number) => (
+                                <Badge key={i} variant="outline" className="text-cyan-400 border-cyan-500/40 font-mono text-xs">
+                                  {s.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* IPs from breaches */}
+                      {(() => {
+                        const ips = dehashedResult.observations.filter((o: any) => o.assetType === 'ip');
+                        if (ips.length === 0) return null;
+                        return (
+                          <div>
+                            <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                              <Network className="h-3.5 w-3.5 text-orange-400" />
+                              IP Addresses Associated ({ips.length})
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {ips.map((ip: any, i: number) => (
+                                <Badge key={i} variant="outline" className="text-orange-400 border-orange-500/40 font-mono text-xs">
+                                  {ip.name}
+                                  {ip.evidence?.database_name && (
+                                    <span className="text-muted-foreground ml-1">({ip.evidence.database_name})</span>
+                                  )}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Attribution */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-3.5 w-3.5" />
+                      <span>Data sourced from <a href="https://dehashed.com" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Dehashed</a> — 15B+ breach records</span>
+                    </div>
+                    <span>Queried: {breachData.queriedAt ? new Date(breachData.queriedAt).toLocaleString() : '—'}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Database className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                <p className="text-lg font-semibold">No Breach Data Available</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {dehashedResult?.errors?.length > 0 ? (
+                    <span className="text-yellow-400">{dehashedResult.errors[0]}</span>
+                  ) : (
+                    'Dehashed breach intelligence will be available on the next scan. Ensure DEHASHED_API_KEY and DEHASHED_EMAIL are configured.'
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Scan Methods Tab */}

@@ -1999,3 +1999,19 @@
 - [ ] Run IOC feeds sync
 - [ ] Run Caldera adversary sync
 - [ ] Verify updated data counts across all feeds
+
+## Dehashed API Integration (Feb 17)
+- [x] Research Dehashed API endpoints and authentication method (v1 Basic Auth: email:api_key)
+- [x] Build Dehashed service module (breach search by domain, subdomain discovery)
+- [x] Rewrote passive/dehashed.ts connector from v2 POST to v1 GET with Basic Auth
+- [x] Integrate Dehashed into domain intel scan pipeline (breach data extracted from passive recon observations)
+- [x] Add Breach Intelligence tab to scan results UI (exposures, credentials, breach sources, subdomains, IPs)
+- [x] Add breach summary card to Overview tab
+- [x] Write tests for Dehashed integration (8 tests passing)
+- [x] Added DEHASHED_EMAIL secret for Basic Auth
+- [x] Remove empty/test scan reports from database (339 → 5 real scans, then removed pre-recalibration scans)
+- [x] Updated DEHASHED_API_KEY to v4 key from app.dehashed.com dashboard
+- [x] Rewrote dehashed connector + service for v4 POST API (Dehashed-Api-Key header, array-format responses)
+- [x] Clean up temp test scripts
+- [x] 10 Dehashed tests passing (8 integration + 2 key validation)
+- [x] Save checkpoint with Dehashed v4 integration + DB cleanup + all tests passing (644/644)

@@ -208,12 +208,13 @@ describe("Dehashed Connector", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
+      text: async () => "Unauthorized",
     });
 
     const result = await dehashedConnector.collect("example.com", { apiKey: "bad-key" });
     expect(result.observations).toHaveLength(0);
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain("invalid");
+    expect(result.errors[0]).toContain("Dehashed");
     expect(result.rateLimited).toBe(false);
   });
 
@@ -225,6 +226,7 @@ describe("Dehashed Connector", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 429,
+      text: async () => "Rate limited",
     });
 
     const result = await dehashedConnector.collect("example.com", { apiKey: "test-key" });
@@ -241,12 +243,13 @@ describe("Dehashed Connector", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 403,
+      text: async () => "Forbidden",
     });
 
     const result = await dehashedConnector.collect("example.com", { apiKey: "expired-key" });
     expect(result.observations).toHaveLength(0);
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain("invalid");
+    expect(result.errors[0]).toContain("Dehashed");
   });
 
   // ─── Error Handling: Network Error ────────────────────────────────

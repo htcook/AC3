@@ -188,6 +188,20 @@ export interface PipelineResult {
   totalFindings: number;
   kevEnrichment?: KevEnrichment;
   passiveRecon?: PassiveReconResult;
+  breachData?: BreachDataSummary;
+}
+
+export interface BreachDataSummary {
+  totalExposures: number;
+  uniqueEmails: number;
+  uniqueBreachSources: number;
+  breachSources: string[];
+  passwordsExposed: number;
+  hashedPasswordsExposed: number;
+  credentialPairs: number;
+  subdomainsDiscovered: number;
+  ipsDiscovered: number;
+  queriedAt: string;
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────
@@ -1304,6 +1318,34 @@ export async function runDomainIntelPipeline(
 
   const totalFindings = analyses.reduce((s, a) => s + a.postureFindings.length, 0);
 
+  // Extract breach data summary from Dehashed passive recon observations
+  let breachData: BreachDataSummary | undefined;
+  if (passiveRecon) {
+    const dehashedResult = passiveRecon.connectorResults.find(r => r.connector === 'dehashed');
+    if (dehashedResult && dehashedResult.observations.length > 0) {
+      const summaryObs = dehashedResult.observations.find(o => o.tags.includes('breach_summary'));
+      const breachObs = dehashedResult.observations.filter(o => o.tags.includes('breach_database'));
+      const subdomainObs = dehashedResult.observations.filter(o => o.assetType === 'subdomain');
+      const ipObs = dehashedResult.observations.filter(o => o.assetType === 'ip');
+
+      if (summaryObs?.evidence) {
+        breachData = {
+          totalExposures: summaryObs.evidence.total_records || 0,
+          uniqueEmails: breachObs.reduce((s, o) => s + (o.evidence?.total_records || 0), 0),
+          uniqueBreachSources: summaryObs.evidence.unique_breaches || breachObs.length,
+          breachSources: summaryObs.evidence.breach_databases || breachObs.map(o => o.name || 'unknown'),
+          passwordsExposed: summaryObs.evidence.credentials_exposed || 0,
+          hashedPasswordsExposed: breachObs.reduce((s, o) => o.evidence?.has_hashed_passwords ? s + 1 : s, 0),
+          credentialPairs: summaryObs.evidence.credentials_exposed || 0,
+          subdomainsDiscovered: summaryObs.evidence.unique_subdomains_found || subdomainObs.length,
+          ipsDiscovered: summaryObs.evidence.unique_ips_found || ipObs.length,
+          queriedAt: new Date().toISOString(),
+        };
+        console.log(`[DomainIntel] Breach data: ${breachData.totalExposures} exposures across ${breachData.uniqueBreachSources} breach sources, ${breachData.credentialPairs} credentials exposed`);
+      }
+    }
+  }
+
   return {
     orgProfile: org,
     assets: analyses,
@@ -1316,5 +1358,6 @@ export async function runDomainIntelPipeline(
     totalFindings,
     kevEnrichment,
     passiveRecon,
+    breachData,
   };
 }
