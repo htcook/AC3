@@ -2202,3 +2202,20 @@
 - [x] Add allowedNetlocs for all scan modes (internetdb.shodan.io, api.binaryedge.io, api.greynoise.io)
 - [x] Write 11 integration tests (signal classifier, passive guard, pipeline wiring, ENV keys)
 - [x] All 777 tests pass across 50 test files, 0 TypeScript errors
+
+## Bug Fix: Probable Findings Leaking into Main Findings Section (Feb 18)
+- [x] Investigate probable findings appearing in the main vuln/findings section
+- [x] Fix Overview tab Finding Summary — separated confirmed (0) from probable (837) with distinct sections
+- [x] Fix Assets tab — probable findings now behind collapsible per asset, not mixed with confirmed
+- [x] Fix Findings tab — three-tier separation: Confirmed (main), Probable (collapsible, muted), Potential (collapsible, purple)
+- [x] Probable findings use muted yellow-400/60 AlertTriangle icon, "Sev: X/10 (capped)" badge, "Version not detected" warning
+- [x] Potential findings use muted purple-400/60 AlertTriangle icon, NOT RATED/Advisory Only badges
+- [x] Neither probable nor potential findings raise severity color coding (no red/orange icons)
+
+## Bug Fix: New Passive Feeds Not Appearing During Scans (Feb 18)
+- [x] Verified all three connectors wired into passive recon orchestrator (index.ts)
+- [x] Added InternetDB, BinaryEdge, GreyNoise to DomainIntel.tsx scan progress display
+- [x] Added InternetDB, BinaryEdge, GreyNoise to SCAN_METHODS metadata array
+- [x] Added InternetDB, BinaryEdge, GreyNoise to DomainIntelResults.tsx METHODS array
+- [x] Connectors show "No Results" / "Not executed" on pre-existing scans (correct behavior)
+- [x] New scans will execute all three connectors and display results in Methods tab

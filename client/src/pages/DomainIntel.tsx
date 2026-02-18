@@ -129,6 +129,36 @@ const SCAN_METHODS = [
     falsePositiveRisk: "Low — DNS data is factual, but historical records may reference decommissioned infrastructure.",
   },
   {
+    id: "passive_asm_internetdb",
+    name: "Shodan InternetDB Fast-Path",
+    icon: Radar,
+    category: "Passive Data Collection",
+    description: "Queries Shodan's free InternetDB API (internetdb.shodan.io) for instant IP enrichment without consuming API credits. Returns open ports, CVEs, CPEs, hostnames, and tags for any IP address. Runs first in the pipeline as a fast-path before the full Shodan API.",
+    outputs: "Open ports, CVE IDs, CPE strings, reverse hostnames, Shodan tags",
+    attribution: "Data from Shodan InternetDB (internetdb.shodan.io). Free tier, no API key required. Verify at: https://internetdb.shodan.io/<IP>",
+    falsePositiveRisk: "Low — based on real Shodan scan data, updated regularly.",
+  },
+  {
+    id: "passive_asm_binaryedge",
+    name: "BinaryEdge Host Intelligence",
+    icon: Scan,
+    category: "Passive Data Collection",
+    description: "Queries BinaryEdge's internet-wide scanning database for independent validation of open ports, service banners, and CVEs. Provides a second opinion beyond Shodan for multi-source corroboration. Scans ~3,500 ports vs Shodan's ~1,500.",
+    outputs: "Open ports, service banners, CVE associations, subdomain discovery",
+    attribution: "Data from BinaryEdge (binaryedge.io). Verify at: https://app.binaryedge.io/services/query",
+    falsePositiveRisk: "Low — based on real scan data from an independent source.",
+  },
+  {
+    id: "passive_asm_greynoise",
+    name: "GreyNoise Threat Pressure Context",
+    icon: Radio,
+    category: "Passive Data Collection",
+    description: "Queries GreyNoise to classify IPs as benign, malicious, or unknown based on internet-wide noise monitoring. Identifies assets under active attack, IPs being mass-scanned, and known threat actor infrastructure. Provides unique threat pressure context unavailable from other sources.",
+    outputs: "IP classification (benign/malicious/unknown), noise status, actor labels, CVE exploitation activity, last seen dates",
+    attribution: "Data from GreyNoise (greynoise.io). Verify at: https://viz.greynoise.io/ip/<IP>",
+    falsePositiveRisk: "Low — GreyNoise monitors actual internet traffic. Malicious classifications are based on observed behavior.",
+  },
+  {
     id: "passive_asm_dehashed",
     name: "Dehashed Breach Intelligence",
     icon: Lock,
@@ -565,7 +595,7 @@ export default function DomainIntel() {
             <div className="w-full max-w-sm space-y-2">
               <Progress value={Math.max(5, (pipelineStage / 5) * 100)} className="h-2" />
               <p className="text-xs text-muted-foreground text-center">
-                {scanStatusQuery.data?.status === "passive_recon" ? "Stage 0.5: Passive reconnaissance — querying crt.sh, Shodan, Wayback, RDAP, Dehashed..." :
+                {scanStatusQuery.data?.status === "passive_recon" ? "Stage 0.5: Passive reconnaissance — querying InternetDB, crt.sh, Shodan, BinaryEdge, GreyNoise, Wayback, RDAP..." :
                  scanStatusQuery.data?.status === "discovering" ? "Stage 1: LLM discovery enriched with passive recon data..." :
                  scanStatusQuery.data?.status === "analyzing" ? "Stage 2: BIA scoring + asset classification..." :
                  scanStatusQuery.data?.status === "scoring" ? "Stage 3: Vuln feeds + KEV enrichment + risk computation..." :

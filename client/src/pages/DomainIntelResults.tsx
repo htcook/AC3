@@ -613,26 +613,22 @@ export default function DomainIntelResults() {
 
                     {/* Finding Summary */}
                     {findings.length > 0 && (() => {
-                      const confirmedAndProbable = [...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed), ...probableFindings];
+                      const confirmedOnly = [...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed)];
                       return (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Confirmed Findings ({confirmedAndProbable.length})
+                            <AlertTriangle className="h-3 w-3" /> Confirmed Findings ({confirmedOnly.length})
                           </p>
                           <div className="flex gap-2 mb-2 flex-wrap">
                             {kevFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{kevFindings.length} KEV-listed</Badge>}
                             {confirmedFindings.length > 0 && <Badge className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40">{confirmedFindings.length} Confirmed</Badge>}
-                            {probableFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-400 border-yellow-500/40">{probableFindings.length} Probable</Badge>}
                           </div>
-                          {confirmedAndProbable.length > 0 ? (
+                          {confirmedOnly.length > 0 ? (
                             <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                              {confirmedAndProbable.slice(0, 8).map((f: any, i: number) => {
-                                const tierColor = f.corroborationTier === 'confirmed' ? 'text-emerald-400 bg-emerald-500/20 border-emerald-500/40'
-                                  : 'text-yellow-400 bg-yellow-500/20 border-yellow-500/40';
-                                return (
+                              {confirmedOnly.slice(0, 8).map((f: any, i: number) => (
                                   <div key={i} className={`p-2 rounded border text-xs ${f.kevListed ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/20 border-border'}`}>
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      <Badge className={`text-[9px] px-1 py-0 ${tierColor}`}>{f.corroborationTier === 'confirmed' ? 'CONFIRMED' : 'PROBABLE'}</Badge>
+                                      <Badge className="text-[9px] px-1 py-0 text-emerald-400 bg-emerald-500/20 border-emerald-500/40">CONFIRMED</Badge>
                                       {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
                                       {(() => { const t = (f.title || '').toLowerCase(); return (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection')) ? <Badge className="text-[9px] px-1 py-0 bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">REMOTE ACCESS</Badge> : null; })()}
                                       <span className="font-medium">{f.title}</span>
@@ -647,14 +643,37 @@ export default function DomainIntelResults() {
                                       </div>
                                     )}
                                   </div>
-                                );
-                              })}
-                              {confirmedAndProbable.length > 8 && (
-                                <p className="text-[10px] text-muted-foreground text-center pt-1">+ {confirmedAndProbable.length - 8} more — see Assets tab for full details</p>
+                              ))}
+                              {confirmedOnly.length > 8 && (
+                                <p className="text-[10px] text-muted-foreground text-center pt-1">+ {confirmedOnly.length - 8} more — see Findings tab for full details</p>
                               )}
                             </div>
                           ) : (
-                            <p className="text-[10px] text-muted-foreground">No confirmed or probable findings for this asset.</p>
+                            <p className="text-[10px] text-muted-foreground">No confirmed findings for this asset.</p>
+                          )}
+                          {/* Probable findings in their own collapsible */}
+                          {probableFindings.length > 0 && (
+                            <Collapsible className="mt-2">
+                              <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-yellow-400 hover:text-yellow-300 transition-colors cursor-pointer">
+                                <ChevronDown className="h-3 w-3" />
+                                <span className="underline decoration-dotted">Probable Matches ({probableFindings.length})</span>
+                                <span className="text-[9px] text-muted-foreground no-underline ml-1">version unconfirmed</span>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-1.5 space-y-1.5 max-h-36 overflow-y-auto">
+                                {probableFindings.slice(0, 5).map((f: any, i: number) => (
+                                  <div key={`prob-${i}`} className="p-2 rounded border text-xs bg-yellow-500/5 border-yellow-500/20 opacity-70">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge className="text-[9px] px-1 py-0 text-yellow-400 bg-yellow-500/20 border-yellow-500/40">PROBABLE</Badge>
+                                      <span className="font-medium">{f.title}</span>
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground/60 border-muted-foreground/30 ml-auto">Sev: {f.severity}/10 (capped)</Badge>
+                                    </div>
+                                  </div>
+                                ))}
+                                {probableFindings.length > 5 && (
+                                  <p className="text-[10px] text-muted-foreground text-center">+ {probableFindings.length - 5} more probable matches</p>
+                                )}
+                              </CollapsibleContent>
+                            </Collapsible>
                           )}
                           {potentialFindings.length > 0 && (
                             <Collapsible className="mt-2">
@@ -866,9 +885,10 @@ export default function DomainIntelResults() {
                       </div>
                     </div>
 
-                    {/* Posture Findings — Confirmed & Probable shown, Potential behind collapsible */}
+                    {/* Posture Findings — Confirmed shown, Probable & Potential behind collapsibles */}
                     {findings.length > 0 && (() => {
-                      const confirmedAndProbableFindings = findings.filter((f: any) => f.corroborationTier === 'confirmed' || f.corroborationTier === 'probable');
+                      const confirmedOnlyFindings = findings.filter((f: any) => f.corroborationTier === 'confirmed');
+                      const probableOnlyFindings = findings.filter((f: any) => f.corroborationTier === 'probable');
                       const potentialOnlyFindings = findings.filter((f: any) => !f.corroborationTier || f.corroborationTier === 'potential');
                       const renderFinding = (f: any, i: number) => {
                         const tierColor = f.corroborationTier === "confirmed" ? "text-emerald-400 bg-emerald-500/20 border-emerald-500/40"
@@ -928,13 +948,25 @@ export default function DomainIntelResults() {
                       };
                       return (
                         <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-2">Confirmed Findings ({confirmedAndProbableFindings.length})</p>
-                          {confirmedAndProbableFindings.length > 0 ? (
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Confirmed Findings ({confirmedOnlyFindings.length})</p>
+                          {confirmedOnlyFindings.length > 0 ? (
                             <div className="space-y-2">
-                              {confirmedAndProbableFindings.map(renderFinding)}
+                              {confirmedOnlyFindings.map(renderFinding)}
                             </div>
                           ) : (
-                            <p className="text-[11px] text-muted-foreground">No confirmed or probable findings for this asset.</p>
+                            <p className="text-[11px] text-muted-foreground">No confirmed findings for this asset.</p>
+                          )}
+                          {probableOnlyFindings.length > 0 && (
+                            <Collapsible className="mt-3">
+                              <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-yellow-400 hover:text-yellow-300 transition-colors cursor-pointer">
+                                <ChevronDown className="h-3 w-3" />
+                                <span className="underline decoration-dotted">Probable Matches ({probableOnlyFindings.length})</span>
+                                <span className="text-[9px] text-muted-foreground no-underline ml-1">version unconfirmed</span>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-2 space-y-2">
+                                {probableOnlyFindings.map(renderFinding)}
+                              </CollapsibleContent>
+                            </Collapsible>
                           )}
                           {potentialOnlyFindings.length > 0 && (
                             <Collapsible className="mt-3">
@@ -1848,25 +1880,24 @@ export default function DomainIntelResults() {
                   </Card>
                 </div>
 
-                {/* Confirmed & Probable findings shown by default */}
-                {[{ tier: "confirmed", items: confirmed }, { tier: "probable", items: probable }].map(({ tier, items }) => {
-                  if (items.length === 0) return null;
-                  const info = tierLabels[tier];
+                {/* Confirmed findings shown by default */}
+                {(() => {
+                  if (confirmed.length === 0) return null;
+                  const info = tierLabels["confirmed"];
                   return (
-                    <div key={tier} className="space-y-2">
+                    <div className="space-y-2">
                       <div className="flex items-center gap-2 mt-2 mb-1">
                         <span className="text-sm">{info.icon}</span>
                         <Badge className={`text-[10px] ${info.color}`}>{info.label}</Badge>
                         <span className="text-[10px] text-muted-foreground">{info.desc}</span>
-                        <span className="text-[10px] text-muted-foreground ml-auto">({items.length} finding{items.length !== 1 ? "s" : ""})</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">({confirmed.length} finding{confirmed.length !== 1 ? "s" : ""})</span>
                       </div>
-                      {items.map((f: any, i: number) => {
+                      {confirmed.map((f: any, i: number) => {
                         const confidencePct = Math.round((f.confidence || 0) * 100);
-                        // Generate a simple hash for FP matching
                         const findingKey = `${f.title}|${f.assetHostname || f.assetRef || ''}|${f.category || ''}`;
                         const isFP = fpHashes.has(findingKey) || f.previouslyMarkedFP || f.fpAutoFlagged;
                         return (
-                          <Card key={`${tier}-${i}`} className={`${isFP ? "border-amber-500/40 opacity-60" : f.kevListed ? "border-red-500/40" : tier === "potential" ? "border-purple-500/20 opacity-75" : ""}`}>
+                          <Card key={`confirmed-${i}`} className={`${isFP ? "border-amber-500/40 opacity-60" : f.kevListed ? "border-red-500/40" : ""}`}>
                             <CardContent className="p-4">
                               {/* FP Auto-flag Banner */}
                               {isFP && (
@@ -1905,7 +1936,7 @@ export default function DomainIntelResults() {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                    <Badge className={`text-[9px] px-1.5 py-0 ${info.color}`}>{info.label}</Badge>
+                                    <Badge className="text-[9px] px-1.5 py-0 text-emerald-400 bg-emerald-500/20 border-emerald-500/40">CONFIRMED</Badge>
                                     <AlertTriangle className={`h-4 w-4 shrink-0 ${
                                       f.severity >= 8 ? "text-red-400" : f.severity >= 6 ? "text-orange-400" : f.severity >= 4 ? "text-yellow-400" : "text-emerald-400"
                                     }`} />
@@ -1953,7 +1984,7 @@ export default function DomainIntelResults() {
                                       <Zap className="h-3 w-3 mr-0.5" /> Exploit
                                     </Badge>
                                   )}
-                                  <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10{tier === "probable" ? " (capped)" : ""}</Badge>
+                                  <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10</Badge>
                                   {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
                                   <Badge variant="outline" className="text-[10px]">Likelihood: {f.likelihood}/10</Badge>
                                   {(() => {
@@ -2096,7 +2127,98 @@ export default function DomainIntelResults() {
                       })}
                     </div>
                   );
-                })}
+                })()}
+
+                {/* Probable Matches — behind collapsible */}
+                {probable.length > 0 && (
+                  <Collapsible className="mt-4">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-yellow-400 hover:text-yellow-300 transition-colors cursor-pointer group">
+                      <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                      <span className="underline decoration-dotted underline-offset-4">Probable Matches ({probable.length})</span>
+                      <span className="text-[10px] text-muted-foreground no-underline ml-1">Product detected, version unconfirmed — severity capped</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-3 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm">{tierLabels.probable.icon}</span>
+                        <Badge className={`text-[10px] ${tierLabels.probable.color}`}>{tierLabels.probable.label}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{tierLabels.probable.desc}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">({probable.length} finding{probable.length !== 1 ? "s" : ""})</span>
+                      </div>
+                      {probable.map((f: any, i: number) => {
+                        const confidencePct = Math.round((f.confidence || 0) * 100);
+                        const findingKey = `${f.title}|${f.assetHostname || f.assetRef || ''}|${f.category || ''}`;
+                        const isFP = fpHashes.has(findingKey) || f.previouslyMarkedFP || f.fpAutoFlagged;
+                        const pInfo = tierLabels.probable;
+                        return (
+                          <Card key={`probable-${i}`} className={`${isFP ? "border-amber-500/40 opacity-60" : "border-yellow-500/20 opacity-80"}`}>
+                            <CardContent className="p-4">
+                              {isFP && (
+                                <div className="flex items-center gap-2 mb-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                                  <Flag className="h-4 w-4 text-amber-400 shrink-0" />
+                                  <span className="text-[11px] text-amber-400 font-medium">Previously marked as False Positive</span>
+                                </div>
+                              )}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <Badge className={`text-[9px] px-1.5 py-0 ${pInfo.color}`}>{pInfo.label}</Badge>
+                                    <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-400/60" />
+                                    <p className="font-semibold text-sm">{f.title}</p>
+                                  </div>
+                                  {f.cveIds?.length > 0 && (
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <Bug className="h-3 w-3 text-cyan-400" />
+                                      {f.cveIds.map((cve: string) => (
+                                        <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                          className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <AlertTriangle className="h-3 w-3 text-yellow-400" />
+                                    <span className="text-[11px] text-yellow-400">Version not detected — product-family match only (severity capped)</span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
+                                  {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50"><Skull className="h-3 w-3 mr-0.5" /> KEV</Badge>}
+                                  <Badge variant="outline" className="text-[10px] text-yellow-400/70 border-yellow-500/30">Sev: {f.severity}/10 (capped)</Badge>
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground/60">Likelihood: {f.likelihood}/10</Badge>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px]">
+                                <div className="flex items-center gap-1">
+                                  <Server className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Affected:</span>
+                                  {(f.affectedAssets || [f.assetHostname || f.assetRef]).map((h: string, j: number) => (
+                                    <span key={j} className="font-mono text-foreground bg-muted/50 px-1 rounded">{h}</span>
+                                  ))}
+                                </div>
+                                <span className="text-muted-foreground">
+                                  Confidence: <span className={confidencePct >= 80 ? "text-emerald-400" : confidencePct >= 50 ? "text-yellow-400" : "text-red-400"}>{confidencePct}%</span>
+                                </span>
+                              </div>
+                              {!isFP && (
+                                <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">
+                                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <MessageSquare className="h-3 w-3" /> Is this finding incorrect?
+                                  </span>
+                                  <Button variant="outline" size="sm" className="h-7 px-3 text-[11px] text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+                                    onClick={() => {
+                                      const assetMatch = assets.find((a: any) => { const hostname = a.asset?.hostname || a.hostname; return hostname === f.assetHostname || hostname === f.assetRef; });
+                                      setFpTarget({ finding: f, assetId: assetMatch?.id || 0, findingIndex: i });
+                                      setFpDialogOpen(true);
+                                    }}>
+                                    <Flag className="h-3 w-3 mr-1" /> Mark as False Positive
+                                  </Button>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
 
                 {/* Potential Matches — hidden behind collapsible hyperlink */}
                 {potential.length > 0 && (
@@ -2154,9 +2276,7 @@ export default function DomainIntelResults() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                                     <Badge className={`text-[9px] px-1.5 py-0 ${info.color}`}>{info.label}</Badge>
-                                    <AlertTriangle className={`h-4 w-4 shrink-0 ${
-                                      f.severity >= 8 ? "text-red-400" : f.severity >= 6 ? "text-orange-400" : f.severity >= 4 ? "text-yellow-400" : "text-emerald-400"
-                                    }`} />
+                                    <AlertTriangle className="h-4 w-4 shrink-0 text-purple-400/50" />
                                     <p className="font-semibold text-sm">{f.title}</p>
                                   </div>
                                   {f.cveIds?.length > 0 && (
@@ -2392,6 +2512,77 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       attribution: 'Findings labeled "Header Detected" — version extracted from HTTP response headers.',
       fpRisk: "Low — headers come directly from the server (but can be spoofed).",
       verifyCmd: "curl -I https://<hostname>",
+    },
+    {
+      id: "internetdb_enrichment",
+      name: "Shodan InternetDB Fast-Path",
+      icon: Radar,
+      category: "Passive Data Collection",
+      status: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "no_results";
+        const c = pr.connectorResults.find((r: any) => r.connector === "shodan_internetdb");
+        return c && c.observations?.length > 0 ? "completed" : "no_results";
+      })(),
+      description: "Queried Shodan's free InternetDB API for instant IP enrichment — open ports, CVEs, CPEs, hostnames, and tags — without consuming API credits.",
+      outputs: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "Not executed";
+        const c = pr.connectorResults.find((r: any) => r.connector === "shodan_internetdb");
+        if (!c) return "Not executed";
+        return `${c.observations?.length || 0} observations from InternetDB`;
+      })(),
+      attribution: 'Data from Shodan InternetDB (internetdb.shodan.io). Free, no API key required.',
+      fpRisk: "Low — based on real Shodan scan data.",
+      verifyCmd: "curl https://internetdb.shodan.io/<IP>",
+    },
+    {
+      id: "binaryedge_enrichment",
+      name: "BinaryEdge Host Intelligence",
+      icon: Scan,
+      category: "Passive Data Collection",
+      status: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "no_results";
+        const c = pr.connectorResults.find((r: any) => r.connector === "binaryedge");
+        return c && c.observations?.length > 0 ? "completed" : "no_results";
+      })(),
+      description: "Queried BinaryEdge's internet-wide scanning database for independent validation of open ports, service banners, and CVEs. Provides multi-source corroboration with ~3,500 port coverage.",
+      outputs: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "Not executed";
+        const c = pr.connectorResults.find((r: any) => r.connector === "binaryedge");
+        if (!c) return "Not executed";
+        if (c.errors?.some((e: string) => e.includes("Skipped"))) return "Skipped — no API key configured";
+        return `${c.observations?.length || 0} observations from BinaryEdge`;
+      })(),
+      attribution: 'Data from BinaryEdge (binaryedge.io). Independent scanning source.',
+      fpRisk: "Low — based on real scan data from an independent source.",
+      verifyCmd: "Visit https://app.binaryedge.io/services/query",
+    },
+    {
+      id: "greynoise_enrichment",
+      name: "GreyNoise Threat Pressure Context",
+      icon: Radio,
+      category: "Passive Data Collection",
+      status: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "no_results";
+        const c = pr.connectorResults.find((r: any) => r.connector === "greynoise");
+        return c && c.observations?.length > 0 ? "completed" : "no_results";
+      })(),
+      description: "Queried GreyNoise to classify IPs as benign, malicious, or unknown. Identifies assets under active attack and IPs being mass-scanned. Provides unique threat pressure context.",
+      outputs: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "Not executed";
+        const c = pr.connectorResults.find((r: any) => r.connector === "greynoise");
+        if (!c) return "Not executed";
+        if (c.errors?.some((e: string) => e.includes("Skipped"))) return "Skipped — no API key or DNS resolution required";
+        return `${c.observations?.length || 0} observations from GreyNoise`;
+      })(),
+      attribution: 'Data from GreyNoise (greynoise.io). Verify at: https://viz.greynoise.io/ip/<IP>',
+      fpRisk: "Low — classifications based on observed internet traffic behavior.",
+      verifyCmd: "Visit https://viz.greynoise.io/ip/<IP>",
     },
     {
       id: "dehashed_breach",
