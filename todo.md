@@ -2318,3 +2318,13 @@
 - [x] Wire live events into MSF Servers (auto-refresh on provisioning events)
 - [x] Add WebSocket connection status indicator (connected/reconnecting/offline) to Timeline + Dashboard
 - [x] Write tests for WebSocket server and event broadcasting (22 tests passing)
+
+## Homepage Redesign - Customer-Facing Simplification (Feb 18)
+- [x] Audit current homepage design and branding — 855 lines, heavily technical, needs customer-first rewrite
+- [x] Simplify hero section with clear non-technical value proposition
+- [x] Add customer-facing benefits section (why Ace C3 stands out) — comparison cards vs other tools
+- [x] Add industry/use-case targeting section — 6 primary + 6 secondary industries
+- [x] Move technical details (modules, capabilities) below the fold
+- [x] Review overall design consistency and polish
+- [x] Ensure mobile responsiveness — responsive grid layouts throughout
+- [x] Test and verify — 0 TypeScript errors
