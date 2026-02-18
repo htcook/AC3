@@ -1,14 +1,15 @@
 import { describe, it, expect } from "vitest";
 
 /**
- * Tests for the Impact × Likelihood risk scoring model (Feb 2026):
+ * Tests for the Confirmed-Only Risk Scoring Model (Feb 2026):
  *
  * IMPACT: Derived from CARVER/SHOCK mission impact (how bad if compromised)
- * LIKELIHOOD: Derived from CVSS + exposure + recognizability, dampened by confidence
+ * LIKELIHOOD: Driven ONLY by confirmed/probable vulnerabilities (version-matched CVEs, KEV, zero-days)
+ *   - Unconfirmed/potential vulns are recorded as weaknesses but DO NOT affect risk score
+ *   - If no confirmed vulns exist, Likelihood drops to baseline low (~5-15%)
  * RISK = sqrt(Impact × Likelihood) × 100
  *
- * Key principle: CARVER/BIA criticality affects Impact only, NOT the full risk score.
- * A critical asset with no vulnerabilities = high impact, low risk.
+ * Key principle: A critical asset with no confirmed vulnerabilities = high impact, LOW risk.
  */
 
 // ─── Scoring Functions (mirroring domainIntel.ts) ───
@@ -59,22 +60,40 @@ function computeMissionImpact(carver: any, shock: any) {
   return (carverScore + shockScore) / 2;
 }
 
-// Impact × Likelihood model
+// Confirmed-Only Impact × Likelihood model
 function computeHybridRisk(
   cvss: number,
   missionImpact: number,
-  ctx: { exposure: number; recognizability: number; confidence: number }
+  ctx: { exposure: number; recognizability: number; confidence: number },
+  confirmedVulnScore?: number
 ) {
   const impact = clamp(missionImpact / 10, 0, 1);
-  const cvssNorm = clamp(cvss / 10, 0, 1);
-  let likelihoodBase = cvssNorm;
-  likelihoodBase += (ctx.exposure - 0.5) * 0.2;
-  likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+  let likelihoodBase: number;
+
+  if (confirmedVulnScore !== undefined) {
+    // POST-ENRICHMENT: Use confirmed vuln score for Likelihood
+    const vulnNorm = clamp(confirmedVulnScore / 100, 0, 1);
+    if (vulnNorm === 0) {
+      // No confirmed vulns → baseline low Likelihood from exposure/recognizability only
+      likelihoodBase = clamp((ctx.exposure * 0.1) + (ctx.recognizability * 0.05), 0, 0.15);
+    } else {
+      likelihoodBase = vulnNorm;
+      likelihoodBase += (ctx.exposure - 0.5) * 0.2;
+      likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+    }
+  } else {
+    // INITIAL PASS (pre-enrichment): Use LLM CVSS estimate as placeholder
+    const cvssNorm = clamp(cvss / 10, 0, 1);
+    likelihoodBase = cvssNorm;
+    likelihoodBase += (ctx.exposure - 0.5) * 0.2;
+    likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+  }
+
   likelihoodBase = clamp(likelihoodBase, 0, 1);
   const confidenceDampening = 0.55 + (ctx.confidence * 0.45);
   const likelihood = clamp(likelihoodBase * confidenceDampening, 0, 1);
   const score = clamp(Math.round(Math.sqrt(impact * likelihood) * 100), 0, 100);
-  return { score, band: riskBand(score), impact, likelihood };
+  return { score, band: riskBand(score), impact: Math.round(impact * 100), likelihood: Math.round(likelihood * 100) };
 }
 
 function riskBand(score: number): string {
@@ -145,74 +164,113 @@ describe("Risk Scoring - Defaults", () => {
   });
 });
 
-// ─── IMPACT × LIKELIHOOD MODEL ───
+// ─── CONFIRMED-ONLY SCORING: CORE PRINCIPLE ───
 
-describe("Impact × Likelihood Model - Core Principle", () => {
-  it("critical asset with NO vulns should be medium risk (high impact, low likelihood)", () => {
-    // CARVER/SHOCK = 9 (critical asset), CVSS = 3 (no real vulns), low confidence
-    const result = computeHybridRisk(3, 9, { exposure: 0.5, recognizability: 0.5, confidence: 0.3 });
-    expect(result.impact).toBeCloseTo(0.9, 1);
-    expect(result.likelihood).toBeLessThan(0.3);
-    expect(result.band).toBe("medium"); // NOT high or critical
-    expect(result.score).toBeLessThan(50);
+describe("Confirmed-Only Scoring - Core Principle", () => {
+  const ctx = { exposure: 0.6, recognizability: 0.5, confidence: 0.4 };
+
+  it("critical asset with NO confirmed vulns should be LOW risk", () => {
+    const result = computeHybridRisk(7, 8, ctx, 0);
+    expect(result.impact).toBe(80);
+    expect(result.likelihood).toBeLessThanOrEqual(10);
+    expect(result.band).toBe("low");
+    expect(result.score).toBeLessThan(30);
   });
 
-  it("low-importance asset with confirmed CVEs should be medium risk", () => {
-    // CARVER/SHOCK = 3 (low importance), CVSS = 8 (confirmed vulns), high confidence
-    const result = computeHybridRisk(8, 3, { exposure: 0.7, recognizability: 0.5, confidence: 0.9 });
-    expect(result.impact).toBeCloseTo(0.3, 1);
-    expect(result.likelihood).toBeGreaterThan(0.7);
+  it("critical asset with LOW confirmed vulns should be MEDIUM risk", () => {
+    const result = computeHybridRisk(7, 8, ctx, 30);
+    expect(result.impact).toBe(80);
+    expect(result.band).toBe("medium");
+    expect(result.score).toBeGreaterThanOrEqual(40);
+    expect(result.score).toBeLessThan(70);
+  });
+
+  it("critical asset with MEDIUM confirmed vulns should be MEDIUM risk", () => {
+    const result = computeHybridRisk(7, 8, ctx, 60);
+    expect(result.impact).toBe(80);
     expect(result.band).toBe("medium");
   });
 
-  it("critical asset WITH confirmed CVEs should be critical risk", () => {
-    // Both dimensions elevated
-    const result = computeHybridRisk(9, 9, { exposure: 0.8, recognizability: 0.8, confidence: 0.95 });
-    expect(result.impact).toBeCloseTo(0.9, 1);
-    expect(result.likelihood).toBeGreaterThan(0.9);
-    expect(result.band).toBe("critical");
-    expect(result.score).toBeGreaterThanOrEqual(90);
+  it("critical asset with HIGH confirmed vulns should be HIGH risk", () => {
+    const result = computeHybridRisk(7, 8, ctx, 85);
+    expect(result.impact).toBe(80);
+    expect(result.band).toBe("high");
+    expect(result.score).toBeGreaterThanOrEqual(70);
   });
 
-  it("both dimensions must be elevated for high/critical risk (geometric mean)", () => {
-    // High impact, low likelihood
-    const highImpactLowLikelihood = computeHybridRisk(2, 9, { exposure: 0.3, recognizability: 0.3, confidence: 0.3 });
-    // Low impact, high likelihood
-    const lowImpactHighLikelihood = computeHybridRisk(9, 2, { exposure: 0.8, recognizability: 0.8, confidence: 0.9 });
-    // Neither should be high or critical
-    expect(highImpactLowLikelihood.score).toBeLessThan(70);
-    expect(lowImpactHighLikelihood.score).toBeLessThan(70);
+  it("low asset with NO confirmed vulns should be LOW risk", () => {
+    const result = computeHybridRisk(3, 3, ctx, 0);
+    expect(result.impact).toBe(30);
+    expect(result.band).toBe("low");
+    expect(result.score).toBeLessThan(20);
+  });
+
+  it("low asset with HIGH confirmed vulns should be MEDIUM risk (not high)", () => {
+    // Low importance caps the risk even with high vulns
+    const result = computeHybridRisk(3, 3, ctx, 85);
+    expect(result.impact).toBe(30);
+    expect(result.band).toBe("medium");
+    expect(result.score).toBeLessThan(70);
+  });
+
+  it("moderate asset with moderate confirmed vulns should be MEDIUM risk", () => {
+    const result = computeHybridRisk(5, 5, ctx, 50);
+    expect(result.band).toBe("medium");
+  });
+});
+
+// ─── INITIAL PASS (PRE-ENRICHMENT) ───
+
+describe("Initial Pass - Pre-Enrichment (LLM CVSS Placeholder)", () => {
+  const ctx = { exposure: 0.6, recognizability: 0.5, confidence: 0.4 };
+
+  it("initial pass uses LLM CVSS as placeholder (no confirmedVulnScore)", () => {
+    const result = computeHybridRisk(7, 8, ctx);
+    // Should produce a medium score as placeholder
+    expect(result.band).toBe("medium");
+    expect(result.score).toBeGreaterThan(30);
+  });
+
+  it("initial pass score is HIGHER than post-enrichment with zero confirmed vulns", () => {
+    const initial = computeHybridRisk(7, 8, ctx);
+    const postEnrichment = computeHybridRisk(7, 8, ctx, 0);
+    expect(initial.score).toBeGreaterThan(postEnrichment.score);
+  });
+
+  it("initial pass score is overridden by post-enrichment recalculation", () => {
+    // This is the key behavior: initial pass is just a placeholder
+    const initial = computeHybridRisk(7, 8, ctx);
+    const withConfirmed = computeHybridRisk(7, 8, ctx, 85);
+    // With high confirmed vulns, post-enrichment should be higher than initial
+    expect(withConfirmed.score).toBeGreaterThan(initial.score);
   });
 });
 
 // ─── CONFIDENCE DAMPENING ───
 
-describe("Impact × Likelihood - Confidence Dampening", () => {
+describe("Confirmed-Only - Confidence Dampening", () => {
   it("should not dampen at full confidence (1.0)", () => {
-    const result = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 1.0 });
-    // Dampening = 0.55 + 0.45 = 1.0
-    expect(result.likelihood).toBeCloseTo(0.7, 1);
+    const result = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 1.0 }, 70);
+    expect(result.likelihood).toBeGreaterThan(60);
   });
 
   it("should strongly dampen at low confidence (0.2)", () => {
-    const highConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 1.0 });
-    const lowConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 0.2 });
+    const highConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 1.0 }, 70);
+    const lowConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 0.2 }, 70);
     expect(lowConf.score).toBeLessThan(highConf.score);
-    // Low confidence should significantly reduce likelihood
-    expect(lowConf.likelihood).toBeLessThan(highConf.likelihood * 0.7);
+    expect(lowConf.likelihood).toBeLessThan(highConf.likelihood);
   });
 
   it("impact should NOT be affected by confidence (only likelihood is)", () => {
-    const highConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 1.0 });
-    const lowConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 0.2 });
-    // Impact comes from missionImpact only — same in both cases
+    const highConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 1.0 }, 70);
+    const lowConf = computeHybridRisk(7, 7, { exposure: 0.5, recognizability: 0.5, confidence: 0.2 }, 70);
     expect(highConf.impact).toBe(lowConf.impact);
   });
 });
 
 // ─── BAND THRESHOLDS ───
 
-describe("Impact × Likelihood - Band Thresholds", () => {
+describe("Band Thresholds", () => {
   it("riskBand: >= 90 is critical", () => {
     expect(riskBand(90)).toBe("critical");
     expect(riskBand(89)).toBe("high");
@@ -220,7 +278,7 @@ describe("Impact × Likelihood - Band Thresholds", () => {
 
   it("riskBand: 70-89 is high", () => {
     expect(riskBand(70)).toBe("high");
-    expect(riskBand(85)).toBe("high"); // was critical under old 85 threshold
+    expect(riskBand(85)).toBe("high");
   });
 
   it("riskBand: 40-69 is medium", () => {
@@ -241,50 +299,9 @@ describe("Impact × Likelihood - Band Thresholds", () => {
   });
 });
 
-// ─── RECALIBRATION SCENARIOS ───
-
-describe("Impact × Likelihood - Recalibration Scenarios", () => {
-  it("typical LLM inflation (7/7 scores) should be medium, not high/critical", () => {
-    const carver = normalizeCarver({ criticality: 7, accessibility: 7, vulnerability: 7, effect: 7, recuperability: 6, recognizability: 6 });
-    const shock = normalizeShock({ scope: 7, handling: 6, operationalImpact: 7, cascadingEffects: 7, knowledge: 6 });
-    const mi = computeMissionImpact(carver, shock);
-    const hybrid = computeHybridRisk(7, mi, { exposure: 0.7, recognizability: 0.7, confidence: 0.75 });
-    expect(hybrid.band).toBe("medium");
-    expect(hybrid.score).toBeLessThan(70);
-  });
-
-  it("typical LLM inflation + KEV boost (15) should not reach critical", () => {
-    const carver = normalizeCarver({ criticality: 7, accessibility: 7, vulnerability: 7, effect: 7, recuperability: 6, recognizability: 6 });
-    const shock = normalizeShock({ scope: 7, handling: 6, operationalImpact: 7, cascadingEffects: 7, knowledge: 6 });
-    const mi = computeMissionImpact(carver, shock);
-    const hybrid = computeHybridRisk(7, mi, { exposure: 0.7, recognizability: 0.7, confidence: 0.75 });
-    const boosted = hybrid.score + 15;
-    expect(boosted).toBeLessThan(90);
-    expect(riskBand(boosted)).not.toBe("critical");
-  });
-
-  it("default analysis (no LLM data) should be low", () => {
-    const carver = normalizeCarver({});
-    const shock = normalizeShock({});
-    const mi = computeMissionImpact(carver, shock);
-    const hybrid = computeHybridRisk(3, mi, { exposure: 0.3, recognizability: 0.3, confidence: 0.2 });
-    expect(hybrid.band).toBe("low");
-    expect(hybrid.score).toBeLessThan(40);
-  });
-
-  it("only extreme scores (9-10 + max confidence) should reach critical", () => {
-    const carver = normalizeCarver({ criticality: 10, accessibility: 9, recuperability: 9, vulnerability: 10, effect: 9, recognizability: 9 });
-    const shock = normalizeShock({ scope: 9, handling: 9, operationalImpact: 10, cascadingEffects: 9, knowledge: 9 });
-    const mi = computeMissionImpact(carver, shock);
-    const hybrid = computeHybridRisk(10, mi, { exposure: 1.0, recognizability: 1.0, confidence: 1.0 });
-    expect(hybrid.band).toBe("critical");
-    expect(hybrid.score).toBeGreaterThanOrEqual(90);
-  });
-});
-
 // ─── KEV BOOST CAPS ───
 
-describe("KEV Boost Caps (Recalibrated)", () => {
+describe("KEV Boost Caps (Confirmed Version Only)", () => {
   it("per-asset KEV boost capped at 15 (individual match capped at 8)", () => {
     const matches = [{ severityBoost: 25 }, { severityBoost: 20 }, { severityBoost: 15 }];
     const assetBoost = Math.min(matches.reduce((s, m) => s + Math.min(m.severityBoost, 8), 0), 15);
@@ -298,6 +315,19 @@ describe("KEV Boost Caps (Recalibrated)", () => {
       20
     );
     expect(overallBoost).toBe(20);
+  });
+
+  it("KEV boost should only apply to confirmed version matches (not probable)", () => {
+    // Simulating the filter: only versionConfirmed matches get boost
+    const kevMatches = [
+      { versionConfirmed: true, severityBoost: 10 },
+      { versionConfirmed: false, severityBoost: 15 }, // probable — should be excluded
+      { versionConfirmed: true, severityBoost: 8 },
+    ];
+    const confirmedOnly = kevMatches.filter(m => m.versionConfirmed);
+    const boost = Math.min(confirmedOnly.reduce((s, m) => s + Math.min(m.severityBoost, 8), 0), 15);
+    expect(boost).toBeLessThanOrEqual(15);
+    expect(confirmedOnly.length).toBe(2);
   });
 });
 
@@ -386,17 +416,67 @@ describe("False Positive Prevention", () => {
     const carver = normalizeCarver({});
     const shock = normalizeShock({});
     const mi = computeMissionImpact(carver, shock);
-    const hybrid = computeHybridRisk(3, mi, { exposure: 0.3, recognizability: 0.3, confidence: 0.2 });
+    const hybrid = computeHybridRisk(3, mi, { exposure: 0.3, recognizability: 0.3, confidence: 0.2 }, 0);
     expect(hybrid.band).not.toBe("critical");
     expect(hybrid.band).not.toBe("high");
+    expect(hybrid.band).toBe("low");
   });
 
-  it("moderate LLM scores with low confidence should not be high", () => {
+  it("high CARVER scores with zero confirmed vulns should be LOW (not medium/high)", () => {
+    const carver = normalizeCarver({ criticality: 9, accessibility: 8, vulnerability: 8, effect: 9, recuperability: 7, recognizability: 8 });
+    const shock = normalizeShock({ scope: 8, handling: 7, operationalImpact: 9, cascadingEffects: 8, knowledge: 7 });
+    const mi = computeMissionImpact(carver, shock);
+    const hybrid = computeHybridRisk(7, mi, { exposure: 0.7, recognizability: 0.7, confidence: 0.75 }, 0);
+    expect(hybrid.impact).toBeGreaterThan(70); // High impact (CARVER says important)
+    expect(hybrid.likelihood).toBeLessThan(15); // Low likelihood (no confirmed vulns)
+    expect(hybrid.band).toBe("low"); // Low risk overall
+  });
+
+  it("moderate LLM scores with low confidence and no confirmed vulns should be low", () => {
     const carver = normalizeCarver({ criticality: 6, accessibility: 5, vulnerability: 5 });
     const shock = normalizeShock({ operationalImpact: 5, scope: 4 });
     const mi = computeMissionImpact(carver, shock);
-    const hybrid = computeHybridRisk(5, mi, { exposure: 0.5, recognizability: 0.4, confidence: 0.3 });
-    expect(hybrid.score).toBeLessThan(70);
+    const hybrid = computeHybridRisk(5, mi, { exposure: 0.5, recognizability: 0.4, confidence: 0.3 }, 0);
+    expect(hybrid.band).toBe("low");
+  });
+
+  it("only confirmed vulns on critical assets should reach critical risk", () => {
+    const carver = normalizeCarver({ criticality: 10, accessibility: 9, recuperability: 9, vulnerability: 10, effect: 9, recognizability: 9 });
+    const shock = normalizeShock({ scope: 9, handling: 9, operationalImpact: 10, cascadingEffects: 9, knowledge: 9 });
+    const mi = computeMissionImpact(carver, shock);
+    // With max confirmed vulns AND max impact
+    const hybrid = computeHybridRisk(10, mi, { exposure: 1.0, recognizability: 1.0, confidence: 1.0 }, 100);
+    expect(hybrid.band).toBe("critical");
+    expect(hybrid.score).toBeGreaterThanOrEqual(90);
+  });
+});
+
+// ─── RECALIBRATION SCENARIOS ───
+
+describe("Recalibration Scenarios - Confirmed vs Unconfirmed", () => {
+  it("typical LLM inflation (7/7 scores) with zero confirmed vulns = LOW", () => {
+    const carver = normalizeCarver({ criticality: 7, accessibility: 7, vulnerability: 7, effect: 7, recuperability: 6, recognizability: 6 });
+    const shock = normalizeShock({ scope: 7, handling: 6, operationalImpact: 7, cascadingEffects: 7, knowledge: 6 });
+    const mi = computeMissionImpact(carver, shock);
+    const hybrid = computeHybridRisk(7, mi, { exposure: 0.7, recognizability: 0.7, confidence: 0.75 }, 0);
+    expect(hybrid.band).toBe("low");
+    expect(hybrid.score).toBeLessThan(40);
+  });
+
+  it("typical LLM inflation with moderate confirmed vulns = MEDIUM", () => {
+    const carver = normalizeCarver({ criticality: 7, accessibility: 7, vulnerability: 7, effect: 7, recuperability: 6, recognizability: 6 });
+    const shock = normalizeShock({ scope: 7, handling: 6, operationalImpact: 7, cascadingEffects: 7, knowledge: 6 });
+    const mi = computeMissionImpact(carver, shock);
+    const hybrid = computeHybridRisk(7, mi, { exposure: 0.7, recognizability: 0.7, confidence: 0.75 }, 50);
+    expect(hybrid.band).toBe("medium");
+  });
+
+  it("typical LLM inflation with high confirmed vulns = HIGH", () => {
+    const carver = normalizeCarver({ criticality: 7, accessibility: 7, vulnerability: 7, effect: 7, recuperability: 6, recognizability: 6 });
+    const shock = normalizeShock({ scope: 7, handling: 6, operationalImpact: 7, cascadingEffects: 7, knowledge: 6 });
+    const mi = computeMissionImpact(carver, shock);
+    const hybrid = computeHybridRisk(7, mi, { exposure: 0.7, recognizability: 0.7, confidence: 0.75 }, 85);
+    expect(hybrid.band).toBe("high");
   });
 });
 

@@ -2015,3 +2015,14 @@
 - [x] Clean up temp test scripts
 - [x] 10 Dehashed tests passing (8 integration + 2 key validation)
 - [x] Save checkpoint with Dehashed v4 integration + DB cleanup + all tests passing (644/644)
+
+## Confirmed-Only Vuln Risk Scoring (Feb 18)
+- [x] Audit scoring pipeline — LLM cvssEstimate (always 5-8) was inflating Likelihood for all assets regardless of confirmed vulns
+- [x] Restructure Likelihood to only use confirmed vulns (version-matched CVEs, KEV with version overlap, zero-days matching detected versions)
+- [x] Unconfirmed/potential vulns stay in records as "Potential Weaknesses" but contribute zero to risk score
+- [x] If no confirmed vulns exist, asset gets baseline low Likelihood (~5-15%), Impact stays from CARVER/BIA
+- [x] Update LLM prompt to separate confirmed vs potential findings with strict evidence rules
+- [x] Update computeHybridRisk to accept confirmedVulnScore parameter — post-enrichment recalculation replaces LLM placeholder
+- [x] KEV boost only applies for confirmed version matches (not product-family-only)
+- [x] Update tests for confirmed-only scoring model (45 risk scoring tests passing)
+- [x] Full test suite: 652 tests passing across 42 files, 0 TS errors

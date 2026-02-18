@@ -409,7 +409,14 @@ For EACH asset, provide:
 5. Suggested Tier: tier0_critical, tier1_high, tier2_medium, tier3_low
 
 6. Posture Findings: Security weaknesses identified (array of objects with id, category, title, severity 0-10, likelihood 0-10, confidence 0-1, recommendedControls[], cveIds[] (known CVE IDs if applicable - MUST be real CVE IDs like CVE-2024-XXXXX, do NOT invent fake CVE IDs))
-   IMPORTANT: Only assign severity >= 7 if you have specific evidence (known CVE, known misconfiguration pattern). Generic or theoretical risks should be severity 3-5. Only assign likelihood >= 7 if the vulnerability is known to be actively exploited.
+   
+   CRITICAL EVIDENCE RULES FOR POSTURE FINDINGS:
+   - CONFIRMED findings: You have specific version info AND a matching real CVE. Severity can be 7-10. Likelihood can be 7-10.
+   - PROBABLE findings: You know the technology family but NOT the version. Severity capped at 6. Likelihood capped at 6.
+   - POTENTIAL findings: No version, no CVE — purely inferred from asset type. Severity capped at 5. Likelihood capped at 5.
+   - ONLY confirmed findings with version-matched CVEs will drive the final risk rating. Potential findings are recorded as weaknesses but DO NOT affect the risk score.
+   - Generic or theoretical risks (e.g., "web server might have XSS") are POTENTIAL — severity 3-5 max.
+   - Do NOT inflate findings. If you cannot confirm a specific vulnerability, mark it as potential.
 
 7. Test Vectors: Suggested attack vectors (array of objects with id, vectorType, hypothesis, suggestedEmulation {technique, tactic}, expectedTelemetry[], riskSignal {severity, likelihood})
 
@@ -430,11 +437,12 @@ Return JSON with this exact structure:
 }
 
 SCORING CALIBRATION (CRITICAL):
-- Most assets should score in the 3-6 range for CARVER/SHOCK. Only mission-critical assets (primary auth, payment, core DB) warrant 7+.
-- CVSS estimates should reflect LIKELY vulnerabilities, not worst-case. A standard web server with no known CVEs is CVSS 3-4, not 7.
-- Confidence should be LOW (0.3-0.5) when you have no version info or confirmed vulnerabilities. Only use 0.7+ with specific evidence.
-- A typical scan should produce a MIX of tiers: ~10-20% tier0/tier1, ~40-50% tier2, ~30-40% tier3. If most assets are tier0/tier1, your scores are inflated.
-- CDNs, static sites, and informational pages are LOW risk (tier3). APIs and SSO are MEDIUM unless specific vulns are known.
+- CARVER/SHOCK scores drive IMPACT (how bad if compromised), NOT the final risk rating. Score 3-6 for most assets. Only mission-critical assets (primary auth, payment, core DB) warrant 7+.
+- CVSS estimate is a PLACEHOLDER only — it will be overridden by confirmed vulnerability data from KEV/NVD feeds. Set it conservatively: 2-3 for assets with no known vulns, 4-5 for assets with probable vulns, 7+ ONLY if you can cite a specific real CVE with version evidence.
+- Confidence should be LOW (0.2-0.4) when you have no version info or confirmed vulnerabilities. Only use 0.6+ with specific version evidence. Only use 0.8+ with confirmed CVE + version match.
+- The final risk score = sqrt(Impact × Likelihood). Likelihood is driven ONLY by confirmed/probable vulnerabilities. An asset with high CARVER scores but no confirmed vulns will correctly score LOW risk.
+- A typical scan should produce: ~5-10% critical (confirmed CVEs on critical assets), ~15-25% high, ~40-50% medium, ~20-30% low. If most assets are critical/high, your scores are inflated.
+- CDNs, static sites, and informational pages are LOW risk (tier3). APIs and SSO are MEDIUM unless specific vulns are confirmed.
 
 Be thorough and realistic. Score based on the specific sector (${org.sector}) and client type (${org.clientType}).${fpCalibrationBlock}`;
 
@@ -600,31 +608,54 @@ function computeMissionImpact(carver: CarverScores, shock: ShockScores): number 
  *   - Represents "how bad would it be if this asset were compromised?"
  *   - A critical asset with no vulnerabilities has HIGH impact but LOW risk.
  *
- * LIKELIHOOD (0-1): Derived from CVSS estimate + exposure + recognizability.
- *   - Represents "how likely is this asset to be exploited?"
- *   - CVSS is the primary driver; exposure and recognizability are modifiers.
- *   - Confidence dampens likelihood: low-confidence LLM assessments reduce likelihood.
+ * LIKELIHOOD (0-1): Driven by CONFIRMED vulnerability evidence.
+ *   - If confirmedVulnScore is provided (0-100 from computeVulnRisk), it becomes the primary driver.
+ *   - If no confirmed vulns (confirmedVulnScore = 0 or not provided), Likelihood falls to a
+ *     baseline from exposure + recognizability only (~5-15%), ensuring unconfirmed assets stay low-risk.
+ *   - Exposure and recognizability are minor modifiers (±10%).
+ *   - Confidence dampens likelihood: low-confidence assessments reduce likelihood.
  *
  * RISK = sqrt(Impact × Likelihood) × 100
  *   - Geometric mean ensures both dimensions must be elevated for high risk.
- *   - A critical asset (impact=0.9) with no vulns (likelihood=0.1) → score ≈ 30 (low).
- *   - A low-importance asset (impact=0.3) with confirmed CVEs (likelihood=0.9) → score ≈ 52 (medium).
+ *   - A critical asset with no confirmed vulns (impact=0.9, likelihood=0.1) → score ≈ 30 (low).
+ *   - A low-importance asset with confirmed CVEs (impact=0.3, likelihood=0.9) → score ≈ 52 (medium).
  *   - A critical asset with confirmed CVEs (impact=0.9, likelihood=0.9) → score ≈ 90 (critical).
  */
 function computeHybridRisk(
   cvss: number,
   missionImpact: number,
-  ctx: { exposure: number; recognizability: number; confidence: number }
+  ctx: { exposure: number; recognizability: number; confidence: number },
+  confirmedVulnScore?: number // 0-100 from computeVulnRisk; undefined = use LLM CVSS (initial pass)
 ): { score: number; band: string; impactScore: number; likelihoodScore: number } {
   // IMPACT: normalized mission impact from CARVER+SHOCK (0-1)
   const impact = clamp(missionImpact / 10, 0, 1);
 
-  // LIKELIHOOD: primarily CVSS, modified by exposure and recognizability
-  const cvssNorm = clamp(cvss / 10, 0, 1);
-  let likelihoodBase = cvssNorm;
-  // Exposure and recognizability shift likelihood by up to ±10%
-  likelihoodBase += (ctx.exposure - 0.5) * 0.2;
-  likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+  // LIKELIHOOD: driven by confirmed vulnerability evidence
+  let likelihoodBase: number;
+
+  if (confirmedVulnScore !== undefined) {
+    // POST-ENRICHMENT: Use actual confirmed vuln score as the primary Likelihood driver.
+    // confirmedVulnScore is 0-100; normalize to 0-1.
+    // If 0 (no confirmed vulns), Likelihood falls to baseline from exposure/recognizability only.
+    const vulnNorm = clamp(confirmedVulnScore / 100, 0, 1);
+    if (vulnNorm === 0) {
+      // No confirmed vulns — baseline Likelihood from exposure + recognizability only (very low)
+      likelihoodBase = clamp((ctx.exposure * 0.1) + (ctx.recognizability * 0.05), 0, 0.15);
+    } else {
+      // Confirmed vulns drive Likelihood
+      likelihoodBase = vulnNorm;
+      // Exposure and recognizability shift likelihood by up to ±10%
+      likelihoodBase += (ctx.exposure - 0.5) * 0.2;
+      likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+    }
+  } else {
+    // INITIAL PASS (pre-enrichment): Use LLM CVSS estimate as a placeholder.
+    // This will be overwritten after vuln feed enrichment with confirmed data.
+    const cvssNorm = clamp(cvss / 10, 0, 1);
+    likelihoodBase = cvssNorm;
+    likelihoodBase += (ctx.exposure - 0.5) * 0.2;
+    likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+  }
   likelihoodBase = clamp(likelihoodBase, 0, 1);
 
   // Confidence dampening: low-confidence assessments reduce likelihood
@@ -1097,18 +1128,30 @@ export async function runDomainIntelPipeline(
           summary: boost.summary,
           chainSteps,
         };
-        // Boost risk scores for assets with KEV-matched technologies
+        // KEV findings are added to postureFindings below. The hybridRiskScore boost is
+        // ONLY applied for version-confirmed KEV matches. Without version confirmation,
+        // the KEV finding is "probable" and contributes to vulnRiskScore (which drives
+        // Likelihood in the post-enrichment recalculation) but does NOT get an extra boost.
         analyses.forEach(a => {
           const assetTechs = (a.asset.technologies || []).map(t => t.toLowerCase());
           const assetKevMatches = kevMatches.filter(m =>
             assetTechs.some(t => t.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(t.toLowerCase()))
           );
           if (assetKevMatches.length > 0) {
-            // Cap per-asset KEV boost at 15 (was 30) to prevent moderate assets from jumping to Critical
-            const assetBoost = Math.min(assetKevMatches.reduce((s, m) => s + Math.min(m.severityBoost, 8), 0), 15);
-            a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
-            a.riskBand = riskBand(a.hybridRiskScore);
-            a.suggestedTier = riskTier(a.hybridRiskScore);
+            // Only boost for version-confirmed KEV matches
+            const versions = a.asset.technologyVersions || {};
+            const confirmedKevMatches = assetKevMatches.filter(m => {
+              return Object.entries(versions).some(
+                ([tech]) => tech.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(tech.toLowerCase())
+              );
+            });
+            if (confirmedKevMatches.length > 0) {
+              // Cap per-asset KEV boost at 15 — only for version-confirmed matches
+              const assetBoost = Math.min(confirmedKevMatches.reduce((s, m) => s + Math.min(m.severityBoost, 8), 0), 15);
+              a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
+              a.riskBand = riskBand(a.hybridRiskScore);
+              a.suggestedTier = riskTier(a.hybridRiskScore);
+            }
             // Add KEV posture findings with full evidence and corroboration
             assetKevMatches.forEach(m => {
               // Check if we have a detected version for this technology
@@ -1264,6 +1307,26 @@ export async function runDomainIntelPipeline(
     a.vulnRiskBand = vulnRisk.band;
   }
   console.log(`[DomainIntel] Separated scores computed: criticality (CARVER+SHOCK) vs vulnRisk (confirmed/probable findings only)`);
+
+  // POST-ENRICHMENT: Recalculate hybridRiskScore using CONFIRMED vuln data instead of LLM CVSS estimates.
+  // This is the critical step: unconfirmed/potential vulns no longer inflate the risk score.
+  // Only confirmed (version-matched CVEs, KEV with version overlap, zero-days) and probable (CVE product-family match) drive Likelihood.
+  // Assets with zero confirmed/probable vulns get a baseline low Likelihood (~5-15%).
+  for (const a of analyses) {
+    const missionImpact = computeMissionImpact(a.carverScores, a.shockScores);
+    const hybrid = computeHybridRisk(
+      a.cvssEstimate,
+      missionImpact,
+      a.contextIndicators,
+      a.vulnRiskScore // Pass the CONFIRMED vuln score — this overrides the LLM CVSS for Likelihood
+    );
+    a.hybridRiskScore = hybrid.score;
+    a.riskBand = hybrid.band;
+    a.suggestedTier = riskTier(hybrid.score);
+    a.impactScore = hybrid.impactScore;
+    a.likelihoodScore = hybrid.likelihoodScore;
+  }
+  console.log(`[DomainIntel] Hybrid risk recalculated using confirmed vuln data (unconfirmed vulns excluded from scoring)`);
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
   // If skipEngagement is true, skip campaign design and generate scan-only summaries
