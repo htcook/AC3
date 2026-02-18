@@ -1057,6 +1057,8 @@ export async function runDomainIntelPipeline(
         urlscan: ENV.URLSCAN_API_KEY || undefined,
         securitytrails: ENV.SECURITYTRAILS_API_KEY || undefined,
         dehashed: ENV.DEHASHED_API_KEY || undefined,
+        binaryedge: ENV.BINARYEDGE_API_KEY || undefined,
+        greynoise: ENV.GREYNOISE_API_KEY || undefined,
       },
       timeout: 30000,
       maxConcurrent: 5,

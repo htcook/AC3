@@ -20,16 +20,19 @@ import type { ScanMode, PassivePolicyConfig, PassiveConnector } from "./types";
 const STRICT_PASSIVE_CONNECTORS = new Set([
   "crtsh",
   "shodan",
+  "shodan_internetdb",  // Free fast-path — queries pre-scanned database only
   "censys",
   "wayback",
   "urlscan",
   "securitytrails",
   "dehashed",
+  "binaryedge",         // Queries pre-scanned database only
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)
 const DNS_RESOLUTION_CONNECTORS = new Set([
-  "ripestat",  // Resolves domain to IP before querying RIPEstat
+  "ripestat",    // Resolves domain to IP before querying RIPEstat
+  "greynoise",   // Resolves domain to IP before querying GreyNoise
 ]);
 
 // Connectors that query registration databases (touch RDAP/WHOIS servers)
@@ -55,6 +58,8 @@ export function getDefaultPolicy(scanMode: ScanMode): PassivePolicyConfig {
           "urlscan.io",
           "api.securitytrails.com",
           "api.dehashed.com",
+          "internetdb.shodan.io",
+          "api.binaryedge.io",
         ]),
       };
     case "standard":
@@ -72,6 +77,9 @@ export function getDefaultPolicy(scanMode: ScanMode): PassivePolicyConfig {
           "api.dehashed.com",
           "rdap.org",
           "stat.ripe.net",
+          "internetdb.shodan.io",
+          "api.binaryedge.io",
+          "api.greynoise.io",
         ]),
       };
     case "active":
@@ -145,6 +153,8 @@ export function getScanModeDescription(scanMode: ScanMode): {
           "urlscan.io community scan database search",
           "SecurityTrails DNS intelligence API",
           "Dehashed breach intelligence & domain mapping",
+          "Shodan InternetDB fast-path CVE/port enrichment",
+          "BinaryEdge internet-wide scan database query",
         ],
         restrictions: [
           "No DNS resolution against target nameservers",
@@ -158,11 +168,12 @@ export function getScanModeDescription(scanMode: ScanMode): {
         label: "Standard",
         description: "Queries third-party databases plus DNS resolution and registration lookups. Minimal footprint on target infrastructure.",
         techniques: [
-          "All strict passive techniques (including Dehashed breach intelligence)",
+          "All strict passive techniques (including Dehashed, BinaryEdge, Shodan InternetDB)",
           "DNS A/AAAA/MX/NS/TXT record resolution",
           "RDAP domain registration lookup",
           "RIPEstat ASN and prefix analysis",
           "Well-known endpoint checks (security.txt, robots.txt)",
+          "GreyNoise threat pressure analysis (IP classification & active attack detection)",
         ],
         restrictions: [
           "No active port scanning",
@@ -180,6 +191,7 @@ export function getScanModeDescription(scanMode: ScanMode): {
           "Service version identification",
           "TLS certificate inspection",
           "LLM-powered asset discovery",
+          "GreyNoise full context (tags, CVEs, actor attribution)",
         ],
         restrictions: [
           "No destructive actions",

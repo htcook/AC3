@@ -2168,3 +2168,37 @@
 - [x] Add getVulnTrendData backend endpoint to aggregate CVE publish dates by day/severity
 - [x] Add trend direction indicator (+20% trending up) with color coding
 - [x] Write 8 unit tests for trend data endpoint
+
+## Shodan InternetDB Fast-Path Enrichment (Feb 18)
+- [x] Create shodan-internetdb.ts connector (free API, no key needed)
+- [x] Query internetdb.shodan.io/{ip} for every resolved IP
+- [x] Extract open ports, CVEs, CPEs, hostnames, and tags
+- [x] Integrate as pre-enrichment step before full Shodan API call
+- [x] Write 5 unit tests (metadata, CVE obs, 404 handling, attribution, tag names)
+
+## BinaryEdge Passive Connector (Feb 18)
+- [x] Create binaryedge.ts connector following PassiveConnector interface
+- [x] Query BinaryEdge host API for service banners, CVEs, subdomains
+- [x] Extract open ports, service banners, CVE data
+- [x] Add BINARYEDGE_API_KEY to ENV
+- [x] Integrate into passive recon stage (strict_passive compatible)
+- [x] Write 5 unit tests (metadata, skip without key, API call, rate limiting, attribution)
+
+## GreyNoise Threat Context Connector (Feb 18)
+- [x] Create greynoise.ts connector following PassiveConnector interface
+- [x] Query GreyNoise Community + Enterprise APIs for IP classification
+- [x] Tag assets under active attack with UNDER_ACTIVE_ATTACK signal
+- [x] Tag noise/mass-scanning IPs with internet_noise signal
+- [x] Add GREYNOISE_API_KEY to ENV
+- [x] Integrate into passive recon stage (standard+ mode, requires DNS)
+- [x] Write 6 unit tests (metadata, skip without key, malicious, noise, attribution, rate limiting)
+
+## Pipeline & UI Integration (Feb 18)
+- [x] Wire all three connectors into passive recon orchestrator (12 total connectors)
+- [x] Add InternetDB + BinaryEdge to strict_passive allowed set
+- [x] Add GreyNoise to DNS_RESOLUTION_CONNECTORS set
+- [x] Update passive-guard scan mode descriptions for all three
+- [x] Add 7 signal classifier rules (greynoise_malicious, greynoise_noise, greynoise_cve_exploit, binaryedge_cve, binaryedge_exposed_service, internetdb_cve)
+- [x] Add allowedNetlocs for all scan modes (internetdb.shodan.io, api.binaryedge.io, api.greynoise.io)
+- [x] Write 11 integration tests (signal classifier, passive guard, pipeline wiring, ENV keys)
+- [x] All 777 tests pass across 50 test files, 0 TypeScript errors

@@ -219,6 +219,101 @@ const SIGNAL_RULES: SignalRule[] = [
     rationale: (obs) => `Subdomain ${obs.name} discovered through email addresses found in breach records. This subdomain may host services with compromised user accounts.`,
   },
 
+  // ─── GreyNoise: Active Attack Detection ────────────────────────
+  {
+    id: "greynoise_malicious",
+    name: "IP Under Active Attack (GreyNoise)",
+    severity: "critical",
+    confidence: 0.95,
+    match: (obs) => {
+      return obs.source === "greynoise" && obs.tags.includes("UNDER_ACTIVE_ATTACK");
+    },
+    rationale: (obs) => {
+      const actor = obs.evidence?.actor || "unknown";
+      const cves = obs.evidence?.cves_exploited || [];
+      const cveStr = cves.length > 0 ? ` CVEs being exploited: ${cves.join(", ")}.` : "";
+      return `GreyNoise classifies ${obs.ip || obs.name} as MALICIOUS — this IP is being actively targeted by threat actors${actor !== "unknown" ? ` (actor: ${actor})` : ""}.${cveStr} Immediate investigation recommended.`;
+    },
+  },
+
+  // ─── GreyNoise: Mass Scanning Target ──────────────────────────
+  {
+    id: "greynoise_noise",
+    name: "IP Targeted by Mass Scanning (GreyNoise)",
+    severity: "medium",
+    confidence: 0.85,
+    match: (obs) => {
+      return obs.source === "greynoise" && obs.tags.includes("internet_noise") &&
+             !obs.tags.includes("UNDER_ACTIVE_ATTACK");
+    },
+    rationale: (obs) => `GreyNoise detects mass-scanning activity targeting ${obs.ip || obs.name}. While this is common internet background noise, it indicates the IP is visible to automated scanners.`,
+  },
+
+  // ─── GreyNoise: Active CVE Exploitation ───────────────────────
+  {
+    id: "greynoise_cve_exploit",
+    name: "CVE Actively Exploited Against IP (GreyNoise)",
+    severity: "critical",
+    confidence: 0.95,
+    match: (obs) => {
+      return obs.source === "greynoise" && obs.tags.includes("actively_exploited") &&
+             obs.tags.some(t => t.startsWith("cve:"));
+    },
+    rationale: (obs) => {
+      const cve = obs.tags.find(t => t.startsWith("cve:"))?.split(":")[1] || "unknown";
+      return `GreyNoise sensor network confirms ${cve} is being actively exploited against ${obs.ip || obs.name}. This is ground-truth exploitation data from passive traffic analysis.`;
+    },
+  },
+
+  // ─── BinaryEdge: CVE Detected ─────────────────────────────────
+  {
+    id: "binaryedge_cve",
+    name: "CVE Detected by BinaryEdge",
+    severity: "high",
+    confidence: 0.85,
+    match: (obs) => {
+      return obs.source === "binaryedge" && obs.tags.includes("binaryedge_cve") &&
+             obs.tags.some(t => t.startsWith("cve:"));
+    },
+    rationale: (obs) => {
+      const cve = obs.tags.find(t => t.startsWith("cve:"))?.split(":")[1] || "unknown";
+      return `BinaryEdge independently confirms ${cve} on ${obs.ip || obs.name}. Cross-validated with Shodan data for higher confidence.`;
+    },
+  },
+
+  // ─── BinaryEdge: Exposed Service ──────────────────────────────
+  {
+    id: "binaryedge_exposed_service",
+    name: "Exposed Service (BinaryEdge Independent Validation)",
+    severity: "medium",
+    confidence: 0.8,
+    match: (obs) => {
+      return obs.source === "binaryedge" && obs.assetType === "ip" &&
+             obs.tags.includes("binaryedge_host") &&
+             (obs.evidence?.open_ports?.length || 0) > 5;
+    },
+    rationale: (obs) => {
+      const ports = obs.evidence?.open_ports || [];
+      return `BinaryEdge detects ${ports.length} open ports on ${obs.ip || obs.name}: ${ports.slice(0, 10).join(", ")}${ports.length > 10 ? "..." : ""}. Large attack surface independently confirmed.`;
+    },
+  },
+
+  // ─── Shodan InternetDB: Fast CVE Match ────────────────────────
+  {
+    id: "internetdb_cve",
+    name: "CVE Detected by Shodan InternetDB (Free)",
+    severity: "high",
+    confidence: 0.8,
+    match: (obs) => {
+      return obs.source === "shodan_internetdb" && obs.tags.includes("internetdb_cve") &&
+             obs.tags.some(t => t.startsWith("cve:"));
+    },
+    rationale: (obs) => {
+      const cve = obs.tags.find(t => t.startsWith("cve:"))?.split(":")[1] || "unknown";
+      return `Shodan InternetDB (free fast-path) detects ${cve} on ${obs.ip || obs.name}. This is pre-computed data from Shodan's internet-wide scanning.`;
+    },
+  },
+
   // ─── Open Remote Access Ports ──────────────────────────────────
   {
     id: "open_remote_access",

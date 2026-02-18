@@ -61,4 +61,6 @@ export const ENV = {
   URLSCAN_API_KEY: process.env.URLSCAN_API_KEY ?? "",
   SECURITYTRAILS_API_KEY: process.env.SECURITYTRAILS_API_KEY ?? "",
   DEHASHED_API_KEY: process.env.DEHASHED_API_KEY ?? "",
+  BINARYEDGE_API_KEY: process.env.BINARYEDGE_API_KEY ?? "",
+  GREYNOISE_API_KEY: process.env.GREYNOISE_API_KEY ?? "",
 };

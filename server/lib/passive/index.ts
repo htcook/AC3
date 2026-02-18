@@ -16,11 +16,15 @@ import { rdapConnector } from "./rdap";
 import { ripestatConnector } from "./ripestat";
 import { securitytrailsConnector } from "./securitytrails";
 import { dehashedConnector } from "./dehashed";
+import { shodanInternetDBConnector } from "./shodan-internetdb";
+import { binaryedgeConnector } from "./binaryedge";
+import { greynoiseConnector } from "./greynoise";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 
 // All available connectors
 const ALL_CONNECTORS: PassiveConnector[] = [
+  shodanInternetDBConnector,  // Free fast-path — runs first for instant CVE/port data
   crtshConnector,
   shodanConnector,
   waybackConnector,
@@ -30,6 +34,8 @@ const ALL_CONNECTORS: PassiveConnector[] = [
   ripestatConnector,
   securitytrailsConnector,
   dehashedConnector,
+  binaryedgeConnector,        // Independent validation source
+  greynoiseConnector,         // Threat pressure context
 ];
 
 export interface PassiveReconConfig {
@@ -41,6 +47,8 @@ export interface PassiveReconConfig {
     urlscan?: string;
     securitytrails?: string;
     dehashed?: string;
+    binaryedge?: string;
+    greynoise?: string;
   };
   timeout?: number;
   maxConcurrent?: number;
@@ -89,6 +97,8 @@ export async function runPassiveRecon(
       case "urlscan": cfg.apiKey = apiKeys.urlscan; break;
       case "securitytrails": cfg.apiKey = apiKeys.securitytrails; break;
       case "dehashed": cfg.apiKey = apiKeys.dehashed; break;
+      case "binaryedge": cfg.apiKey = apiKeys.binaryedge; break;
+      case "greynoise": cfg.apiKey = apiKeys.greynoise; break;
     }
     connectorConfigs.set(connector.name, cfg);
   }
