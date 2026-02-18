@@ -1,3 +1,4 @@
+import AppShell from "@/components/AppShell";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
@@ -1518,6 +1519,7 @@ export default function PhishingOperations() {
   const [activeTab, setActiveTab] = useState("intel-feed");
 
   return (
+    <AppShell>
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
@@ -1599,5 +1601,6 @@ export default function PhishingOperations() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }

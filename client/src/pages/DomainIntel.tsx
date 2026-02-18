@@ -1,3 +1,4 @@
+import AppShell from "@/components/AppShell";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
@@ -440,6 +441,7 @@ export default function DomainIntel() {
   const PIPELINE_STAGES = scanOnly ? SCAN_STAGES : [...SCAN_STAGES, ...ENGAGEMENT_STAGES];
 
   return (
+    <AppShell>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -1046,5 +1048,6 @@ export default function DomainIntel() {
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

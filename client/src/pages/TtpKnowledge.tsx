@@ -1,3 +1,4 @@
+import AppShell from "@/components/AppShell";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,7 @@ export default function TtpKnowledge() {
   const tacticStats = stats.data?.byTactic || [];
 
   return (
+    <AppShell>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -556,5 +558,6 @@ export default function TtpKnowledge() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }

@@ -1,3 +1,4 @@
+import AppShell from "@/components/AppShell";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { safeUpper } from "@/lib/utils-safe";
@@ -81,6 +82,7 @@ export default function CampaignArchetypes() {
   }, [archetypes, search, categoryFilter]);
 
   return (
+    <AppShell>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -510,5 +512,6 @@ export default function CampaignArchetypes() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }

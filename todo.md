@@ -2093,3 +2093,12 @@
 - [x] Added 3 tRPC procedures: listPhishingExploits, matchExploitsForScan, enhanceDraftWithExploits
 - [x] Added phishingExploits + exploitEnhancedLandingPage columns to phishingDrafts schema
 - [x] 19 phishing exploit tests passing, 0 TS errors
+
+## Navigation Bar Consistency & Homepage Rewrite (Feb 18)
+- [x] Audited all pages: found 10 authenticated pages missing AppShell sidebar navigation
+- [x] Added AppShell to all 10 pages (CampaignArchetypes, CampaignExecution, DomainIntel, DomainIntelResults, KevDashboard, PhishingOperations, RuleValidator, ScanComparison, TemplateGenerator, TtpKnowledge)
+- [x] Verified consistent navigation across all authenticated routes (0 TS errors)
+- [x] Rewrote homepage with customer-focused descriptions of all current platform abilities
+- [x] Updated hero, stats bar, 6 pillars, benefit cards, engagement workflow (6-phase external-first), architecture, operations center modules, and about section
+- [x] AceofCloud branding maintained throughout
+- [x] Platform updates popup already present on homepage

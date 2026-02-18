@@ -1,3 +1,4 @@
+import AppShell from "@/components/AppShell";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useParams, useLocation } from "wouter";
@@ -252,6 +253,7 @@ export default function DomainIntelResults() {
   });
 
   return (
+    <AppShell>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
@@ -2291,6 +2293,7 @@ export default function DomainIntelResults() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }
 

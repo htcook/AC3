@@ -1,3 +1,4 @@
+import AppShell from "@/components/AppShell";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -269,6 +270,7 @@ export default function RuleValidator() {
   };
 
   return (
+    <AppShell>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -571,6 +573,7 @@ export default function RuleValidator() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }
 
