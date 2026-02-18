@@ -178,6 +178,19 @@ export default function DomainIntelResults() {
     },
   });
 
+  const [matchingRunning, setMatchingRunning] = useState(false);
+  const matchThreatActorsMutation = trpc.domainIntel.matchThreatActors.useMutation({
+    onSuccess: () => {
+      toast.success('Threat actor matching complete — refreshing results...');
+      setMatchingRunning(false);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(`Matching failed: ${err.message}`);
+      setMatchingRunning(false);
+    },
+  });
+
   const createAdversaryMutation = trpc.domainIntel.createExploitAdversary.useMutation({
     onSuccess: (result: any) => {
       if (result.success) {
@@ -1200,9 +1213,34 @@ export default function DomainIntelResults() {
               <CardContent className="p-8 text-center">
                 <Shield className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <h3 className="text-lg font-semibold">Threat Actor Matching</h3>
-                <p className="text-muted-foreground text-sm mt-1">
-                  Threat actor matching was not available for this scan. Re-run the scan to generate matches.
+                <p className="text-muted-foreground text-sm mt-1 mb-4">
+                  Threat actor matching was not available for this scan. Click below to run matching now.
                 </p>
+                <div className="flex gap-3 justify-center">
+                  <Button
+                    variant="outline"
+                    className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                    disabled={matchingRunning || matchThreatActorsMutation.isPending}
+                    onClick={() => {
+                      setMatchingRunning(true);
+                      matchThreatActorsMutation.mutate({ scanId, useLLM: false });
+                    }}
+                  >
+                    {matchingRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Crosshair className="h-4 w-4 mr-2" />}
+                    Run Threat Actor Matching
+                  </Button>
+                  <Button
+                    className="bg-purple-600 hover:bg-purple-700"
+                    disabled={matchingRunning || matchThreatActorsMutation.isPending}
+                    onClick={() => {
+                      setMatchingRunning(true);
+                      matchThreatActorsMutation.mutate({ scanId, useLLM: true });
+                    }}
+                  >
+                    {matchingRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Brain className="h-4 w-4 mr-2" />}
+                    Run with AI Enhancement
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

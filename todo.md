@@ -2132,3 +2132,23 @@
 - [x] Fix phishing-ops procedure count test (17 → 20, 3 new procedures added)
 - [x] Fix SpicyTIP bridge timeout tests (5s → 30s timeout for external API calls)
 - [x] All 716 tests passing across 46 test files, 0 TypeScript errors
+
+## Fix Adversaries Tab — Threat Actor Matching Bug (Feb 18)
+- [x] Diagnose actorTechniques.map is not a function error in pipeline Stage 4 (JSON columns returned as strings, not arrays)
+- [x] Fix the data structure issue — added safeParseJsonArray helper for techniques/targetSectors/targetRegions
+- [x] Verify threat actor matching populates the Adversaries tab (20 actors matched at 92% for aceofcloud.com)
+- [x] Confirm kill chain visualization, exploit cross-reference, and confidence breakdown display
+- [x] Add "Run Threat Actor Matching" and "Run with AI Enhancement" buttons to empty Adversaries tab
+- [x] Write 17 unit tests for safeParseJsonArray and technique overlap calculation
+
+## 0-Day Feed Dashboard Widget (Feb 18)
+- [x] Build ZeroDayFeed component with scrolling ticker, stats bar, feed health, tab selector, CVE list
+- [x] Integrate CISA KEV data (1,524 Known Exploited Vulnerabilities)
+- [x] Integrate NVD recent CVEs (200 from last 30 days)
+- [x] Add Project Zero / emerging threat data feed
+- [x] Add to Dashboard page as collapsible section with Flame icon
+- [x] Include severity indicators (color-coded), IN THE WILD/KEV/RANSOMWARE badges
+- [x] Add severity filter (ALL/CRITICAL/HIGH/MEDIUM) and tab switching (0-DAY/WEAPONIZED/CISA KEV)
+- [x] Add expandable CVE details with description, source badges, NVD/KEV/FULL INTEL links
+- [x] Add auto-refresh capability and pause-on-hover ticker
+- [x] Write 9 unit tests for vuln feed data endpoints

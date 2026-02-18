@@ -8,8 +8,9 @@ import {
   Fish, Mail, MousePointerClick, Eye, FileWarning, Send, Globe, Shield,
   Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert,
   Rocket, Building2, ArrowRight, Layers, BarChart3, Play, Pause,
-  CheckCircle2, XCircle, Loader2, Plus, History, Radar
+  CheckCircle2, XCircle, Loader2, Plus, History, Radar, Flame
 } from "lucide-react";
+import ZeroDayFeed from "@/components/ZeroDayFeed";
 import { useState, useEffect, useMemo } from "react";
 import AppShell from "@/components/AppShell";
 
@@ -60,6 +61,7 @@ export default function Dashboard() {
     caldera: true,
     gophish: false,
     threats: false,
+    vulnFeed: false,
     operations: false,
   });
 
@@ -664,6 +666,19 @@ export default function Dashboard() {
               </Button>
             </Link>
           </div>
+        </CollapsibleSection>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* 0-DAY VULNERABILITY FEED — Live threat intelligence             */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="0-DAY VULNERABILITY FEED"
+          expanded={expandedSections.vulnFeed}
+          onToggle={() => toggleSection('vulnFeed')}
+          icon={<Flame className="w-4 h-4 text-red-500" />}
+          badge={<span className="text-xs text-muted-foreground">Live CVE tracking · CISA KEV · Exploit DB · NVD</span>}
+        >
+          <ZeroDayFeed />
         </CollapsibleSection>
 
         {/* ═══════════════════════════════════════════════════════════════ */}

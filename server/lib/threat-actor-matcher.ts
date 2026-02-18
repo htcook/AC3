@@ -18,6 +18,24 @@
 import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 
+/**
+ * Safely parse a JSON column that may be stored as a string or already parsed.
+ * MySQL JSON columns sometimes come back as raw strings from Drizzle.
+ */
+function safeParseJsonArray<T>(value: unknown): T[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export interface MatchedThreatActor {
   actorId: string;
   name: string;
@@ -212,7 +230,7 @@ export async function matchThreatActors(params: {
     
     // 1. Sector alignment (weight: 30)
     const sectorScore = sectorMatch(
-      (actor.targetSectors as string[]) || [],
+      safeParseJsonArray<string>(actor.targetSectors),
       params.sector
     );
     totalScore += sectorScore * 30;
@@ -222,7 +240,7 @@ export async function matchThreatActors(params: {
     }
     
     // 2. Technology overlap (weight: 25)
-    const techniques = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+    const techniques = safeParseJsonArray<{ id: string; name: string; tactic: string }>(actor.techniques);
     const { score: techScore, matchedTechniques } = techOverlap(techniques, techList);
     totalScore += techScore * 25;
     maxPossible += 25;
@@ -256,7 +274,7 @@ export async function matchThreatActors(params: {
     
     // 6. Region alignment (weight: 5)
     if (params.region) {
-      const targetRegions = (actor.targetRegions as string[]) || [];
+      const targetRegions = safeParseJsonArray<string>(actor.targetRegions);
       const regionMatch = targetRegions.some(r => 
         r.toLowerCase().includes(params.region!.toLowerCase()) || 
         params.region!.toLowerCase().includes(r.toLowerCase())

@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, name, JSON_TYPE(techniques) as tech_type, LEFT(CAST(techniques AS CHAR), 300) as tech_sample FROM threat_actors WHERE techniques IS NOT NULL LIMIT 3",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, name, JSON_TYPE(techniques) as tech_type, LEFT(CAST(techniques AS CHAR), 300) as tech_sample FROM threat_actors WHERE techniques IS NOT NULL LIMIT 3",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Axiom",
+      "tech_type": "STRING",
+      "tech_sample": "\"[{\\\"id\\\":\\\"T1001.002\\\",\\\"name\\\":\\\"Steganography\\\",\\\"tactic\\\":\\\"command-and-control\\\"},{\\\"id\\\":\\\"T1005\\\",\\\"name\\\":\\\"Data from Local System\\\",\\\"tactic\\\":\\\"collection\\\"},{\\\"id\\\":\\\"T1560\\\",\\\"name\\\":\\\"Archive Collected Data\\\",\\\"tactic\\\":\\\"collection\\\"},{\\\"id\\\":\\\"T1584.005\\\",\\\"name\\\":\\\"Botnet\\\",\\\"tactic\\"
+    },
+    {
+      "id": "2",
+      "name": "Moafee",
+      "tech_type": "STRING",
+      "tech_sample": "\"[{\\\"id\\\":\\\"T1027.001\\\",\\\"name\\\":\\\"Binary Padding\\\",\\\"tactic\\\":\\\"defense-evasion\\\"}]\""
+    },
+    {
+      "id": "3",
+      "name": "Cleaver",
+      "tech_type": "STRING",
+      "tech_sample": "\"[{\\\"id\\\":\\\"T1003.001\\\",\\\"name\\\":\\\"LSASS Memory\\\",\\\"tactic\\\":\\\"credential-access\\\"},{\\\"id\\\":\\\"T1557.002\\\",\\\"name\\\":\\\"ARP Cache Poisoning\\\",\\\"tactic\\\":\\\"credential-access\\\"},{\\\"id\\\":\\\"T1588.002\\\",\\\"name\\\":\\\"Tool\\\",\\\"tactic\\\":\\\"resource-development\\\"},{\\\"id\\\":\\\"T1587.001\\\",\\\"name\\\":\\\"Malware\\\",\\\"tacti"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\ttech_type\ttech_sample\n1\tAxiom\tSTRING\t\"[{\\\"id\\\":\\\"T1001.002\\\",\\\"name\\\":\\\"Steganography\\\",\\\"tactic\\\":\\\"command-and-control\\\"},{\\\"id\\\":\\\"T1005\\\",\\\"name\\\":\\\"Data from Local System\\\",\\\"tactic\\\":\\\"collection\\\"},{\\\"id\\\":\\\"T1560\\\",\\\"name\\\":\\\"Archive Collected Data\\\",\\\"tactic\\\":\\\"collection\\\"},{\\\"id\\\":\\\"T1584.005\\\",\\\"name\\\":\\\"Botnet\\\",\\\"tactic\\\n2\tMoafee\tSTRING\t\"[{\\\"id\\\":\\\"T1027.001\\\",\\\"name\\\":\\\"Binary Padding\\\",\\\"tactic\\\":\\\"defense-evasion\\\"}]\"\n3\tCleaver\tSTRING\t\"[{\\\"id\\\":\\\"T1003.001\\\",\\\"name\\\":\\\"LSASS Memory\\\",\\\"tactic\\\":\\\"credential-access\\\"},{\\\"id\\\":\\\"T1557.002\\\",\\\"name\\\":\\\"ARP Cache Poisoning\\\",\\\"tactic\\\":\\\"credential-access\\\"},{\\\"id\\\":\\\"T1588.002\\\",\\\"name\\\":\\\"Tool\\\",\\\"tactic\\\":\\\"resource-development\\\"},{\\\"id\\\":\\\"T1587.001\\\",\\\"name\\\":\\\"Malware\\\",\\\"tacti\n",
+  "stderr": "",
+  "execution_time_ms": 362
+}
