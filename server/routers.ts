@@ -3896,6 +3896,74 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                   errors: cr.errors,
                 })),
               } : undefined,
+              // Discovered subdomains — deduplicated from all passive recon connectors
+              discoveredSubdomains: (() => {
+                if (!result.passiveRecon?.allObservations) return [];
+                const seen = new Set<string>();
+                return result.passiveRecon.allObservations
+                  .filter(o => o.assetType === 'subdomain' && o.name)
+                  .filter(o => {
+                    const key = o.name!.toLowerCase();
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  })
+                  .map(o => ({
+                    name: o.name!,
+                    ip: o.ip || null,
+                    source: o.source,
+                    firstSeen: o.firstSeen || null,
+                    lastSeen: o.lastSeen || null,
+                    tags: o.tags?.filter(t => t.startsWith('port:') || t.startsWith('product:') || t.startsWith('version:')) || [],
+                  }))
+                  .slice(0, 500);
+              })(),
+              // Open ports & services — extracted from all IP observations
+              discoveredPorts: (() => {
+                if (!result.passiveRecon?.allObservations) return [];
+                const portMap = new Map<string, { ip: string; port: number; transport: string; product: string; version: string; hostname: string; source: string; vulns: string[]; cpes: string[] }>();
+                for (const obs of result.passiveRecon.allObservations) {
+                  if (obs.assetType !== 'ip' || !obs.ip) continue;
+                  const evidence = obs.evidence as any;
+                  // Extract from tags for Shodan observations
+                  const portTags = (obs.tags || []).filter(t => t.startsWith('port:'));
+                  if (evidence?.port) {
+                    const key = `${obs.ip}:${evidence.port}`;
+                    if (!portMap.has(key)) {
+                      portMap.set(key, {
+                        ip: obs.ip,
+                        port: evidence.port,
+                        transport: evidence.transport || 'tcp',
+                        product: evidence.product || '',
+                        version: evidence.version || '',
+                        hostname: obs.name || obs.ip,
+                        source: obs.source,
+                        vulns: (evidence.vulns || []).slice(0, 10),
+                        cpes: (evidence.cpes || []).slice(0, 5),
+                      });
+                    }
+                  } else if (evidence?.ports && Array.isArray(evidence.ports)) {
+                    // InternetDB-style: multiple ports in one observation
+                    for (const p of evidence.ports) {
+                      const key = `${obs.ip}:${p}`;
+                      if (!portMap.has(key)) {
+                        portMap.set(key, {
+                          ip: obs.ip,
+                          port: p,
+                          transport: 'tcp',
+                          product: '',
+                          version: '',
+                          hostname: obs.name || obs.ip,
+                          source: obs.source,
+                          vulns: (evidence.vulns || []).slice(0, 10),
+                          cpes: (evidence.cpes || []).slice(0, 5),
+                        });
+                      }
+                    }
+                  }
+                }
+                return Array.from(portMap.values()).slice(0, 500);
+              })(),
               // Asset summaries only — full data is in discovered_assets table
               assetSummaries: result.assets.map(a => ({
                 assetId: a.asset.assetId,

@@ -2646,3 +2646,15 @@
 - [x] Fix: Added explicit disabled button CSS rules in index.css @layer base (opacity: 0.5, pointer-events: none, cursor: not-allowed)
 - [x] Verified fix in browser: disabled button now clearly dimmed (opacity 0.5), enabled button fully bright (opacity 1)
 - [x] Write 9 tests for disabled button styling (all passing)
+
+## Enhancement: Subdomain Discovery & Port/Service Scanning ✅ COMPLETE
+- [x] Investigate current scan pipeline for subdomain discovery gaps
+- [x] Store full subdomain list in pipelineOutput (deduplicated, up to 500, with source/IP/tags)
+- [x] Store full port/service data in pipelineOutput (deduplicated by IP:port, up to 500, with product/version/CVEs)
+- [x] Add Subdomains tab to DomainIntelResults (stats, search, source filter, CSV export, full table)
+- [x] Add Ports & Services tab to DomainIntelResults (stats, IP summary cards, search, protocol filter, sort, CSV export, full table with CVE badges)
+- [x] Add DNS Records section to expanded asset detail view
+- [x] Add Open Ports & Services section to expanded asset detail view (per-asset port table)
+- [x] Color-code ports: red for high-risk (FTP/Telnet/RDP/VNC), green for secure (SSH/HTTPS), blue for standard
+- [x] Write 24 tests for subdomain/port extraction logic (all passing)
+- [x] Full test suite: 1,122 tests passing across 67 files

@@ -179,6 +179,11 @@ export default function DomainIntelResults() {
   });
 
   const [matchingRunning, setMatchingRunning] = useState(false);
+  const [subSearch, setSubSearch] = useState('');
+  const [subSourceFilter, setSubSourceFilter] = useState('all');
+  const [portSearch, setPortSearch] = useState('');
+  const [portProtocolFilter, setPortProtocolFilter] = useState('all');
+  const [portSortBy, setPortSortBy] = useState<'port' | 'ip' | 'product'>('port');
   const matchThreatActorsMutation = trpc.domainIntel.matchThreatActors.useMutation({
     onSuccess: () => {
       toast.success('Threat actor matching complete — refreshing results...');
@@ -391,9 +396,11 @@ export default function DomainIntelResults() {
       {/* Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
         {scan.status === 'scan_complete' ? (
-          <TabsList className="grid grid-cols-7 w-full max-w-4xl">
+          <TabsList className="flex flex-wrap gap-1 w-full max-w-5xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
+            <TabsTrigger value="subdomains">Subdomains</TabsTrigger>
+            <TabsTrigger value="ports">Ports & Services</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
             <TabsTrigger value="breaches">Breaches</TabsTrigger>
             <TabsTrigger value="corroboration">Corroboration</TabsTrigger>
@@ -401,9 +408,11 @@ export default function DomainIntelResults() {
             <TabsTrigger value="methods">Methods</TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className="grid grid-cols-10 w-full max-w-6xl">
+          <TabsList className="flex flex-wrap gap-1 w-full max-w-6xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
+            <TabsTrigger value="subdomains">Subdomains</TabsTrigger>
+            <TabsTrigger value="ports">Ports & Services</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
             <TabsTrigger value="breaches">Breaches</TabsTrigger>
             <TabsTrigger value="adversaries">Adversaries</TabsTrigger>
@@ -983,6 +992,89 @@ export default function DomainIntelResults() {
                       );
                     })()}
 
+                    {/* DNS Records */}
+                    {asset.dnsRecords && Object.keys(asset.dnsRecords).some((k: string) => (asset.dnsRecords as any)[k]?.length > 0) && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                          <Globe className="h-3 w-3" /> DNS Records
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {Object.entries(asset.dnsRecords as Record<string, string[]>).filter(([, v]) => v && v.length > 0).map(([type, records]) => (
+                            <div key={type} className="p-2 rounded bg-muted/20 border border-border">
+                              <p className="text-[10px] font-medium text-sky-400 mb-1">{type} Records</p>
+                              <div className="space-y-0.5">
+                                {(records as string[]).map((r: string, ri: number) => (
+                                  <p key={ri} className="text-[10px] font-mono text-muted-foreground truncate">{r}</p>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Open Ports & Services on this asset */}
+                    {(() => {
+                      const assetPorts = (pipeline?.discoveredPorts || []).filter((p: any) => {
+                        const hostname = asset.hostname?.toLowerCase();
+                        return p.hostname?.toLowerCase() === hostname || p.ip === asset.resolvedIps?.[0];
+                      });
+                      if (assetPorts.length === 0) return null;
+                      const commonPorts: Record<number, string> = {
+                        21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS', 80: 'HTTP',
+                        110: 'POP3', 143: 'IMAP', 443: 'HTTPS', 445: 'SMB', 993: 'IMAPS',
+                        995: 'POP3S', 3306: 'MySQL', 3389: 'RDP', 5432: 'PostgreSQL',
+                        5900: 'VNC', 6379: 'Redis', 8080: 'HTTP-Alt', 8443: 'HTTPS-Alt',
+                        9200: 'Elasticsearch', 27017: 'MongoDB',
+                      };
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                            <Network className="h-3 w-3" /> Open Ports & Services ({assetPorts.length})
+                          </p>
+                          <div className="border rounded-lg overflow-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-muted/50">
+                                <tr>
+                                  <th className="text-left px-2 py-1.5 font-medium">Port</th>
+                                  <th className="text-left px-2 py-1.5 font-medium">Protocol</th>
+                                  <th className="text-left px-2 py-1.5 font-medium">Service</th>
+                                  <th className="text-left px-2 py-1.5 font-medium">Version</th>
+                                  <th className="text-left px-2 py-1.5 font-medium">CVEs</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {assetPorts.sort((a: any, b: any) => a.port - b.port).map((p: any, pi: number) => (
+                                  <tr key={pi} className={`${p.vulns?.length > 0 ? 'bg-red-500/5' : ''}`}>
+                                    <td className="px-2 py-1.5 font-mono">
+                                      <Badge variant="outline" className={`text-[10px] ${
+                                        [21, 23, 3389, 5900].includes(p.port) ? 'text-red-400 border-red-500/40' :
+                                        [22, 443, 993, 995].includes(p.port) ? 'text-emerald-400 border-emerald-500/40' :
+                                        'text-sky-400 border-sky-500/40'
+                                      }`}>
+                                        {p.port}{commonPorts[p.port] ? ` (${commonPorts[p.port]})` : ''}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-2 py-1.5 text-muted-foreground uppercase">{p.transport}</td>
+                                    <td className="px-2 py-1.5">{p.product || <span className="text-muted-foreground italic">unknown</span>}</td>
+                                    <td className="px-2 py-1.5 font-mono text-muted-foreground">{p.version || '—'}</td>
+                                    <td className="px-2 py-1.5">
+                                      <div className="flex flex-wrap gap-1">
+                                        {(p.vulns || []).slice(0, 3).map((v: string, vi: number) => (
+                                          <Badge key={vi} variant="destructive" className="text-[10px]">{v}</Badge>
+                                        ))}
+                                        {(p.vulns || []).length > 3 && <Badge variant="destructive" className="text-[10px]">+{p.vulns.length - 3}</Badge>}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Test Vectors */}
                     {vectors.length > 0 && (
                       <div>
@@ -1008,6 +1100,356 @@ export default function DomainIntelResults() {
               </Card>
             );
           })}
+        </TabsContent>
+
+        {/* Subdomains Tab */}
+        <TabsContent value="subdomains" className="space-y-4">
+          {(() => {
+            const subdomains = (pipeline?.discoveredSubdomains || []) as any[];
+            // Also extract subdomains from assets
+            const assetSubdomains = assets.filter((a: any) => a.assetType === 'subdomain' || (a.hostname && a.hostname !== scan.primaryDomain));
+            // Merge: pipeline subdomains + asset subdomains (deduplicated)
+            const allSubdomainMap = new Map<string, any>();
+            for (const s of subdomains) {
+              allSubdomainMap.set(s.name.toLowerCase(), s);
+            }
+            for (const a of assetSubdomains) {
+              const key = (a as any).hostname?.toLowerCase();
+              if (key && !allSubdomainMap.has(key)) {
+                allSubdomainMap.set(key, {
+                  name: (a as any).hostname,
+                  ip: (a as any).resolvedIps?.[0] || null,
+                  source: 'asset_discovery',
+                  tags: ((a as any).tags || []).filter((t: string) => t.startsWith('port:') || t.startsWith('product:')),
+                });
+              }
+            }
+            const allSubdomains = Array.from(allSubdomainMap.values());
+            // subSearch and subSourceFilter are declared at component level
+            const sources = Array.from(new Set(allSubdomains.map(s => s.source)));
+            const filtered = allSubdomains.filter(s => {
+              if (subSearch && !s.name.toLowerCase().includes(subSearch.toLowerCase())) return false;
+              if (subSourceFilter !== 'all' && s.source !== subSourceFilter) return false;
+              return true;
+            });
+
+            return (
+              <>
+                <Card className="bg-card/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Globe className="h-5 w-5 text-purple-400" />
+                      Discovered Subdomains ({allSubdomains.length})
+                    </CardTitle>
+                    <CardDescription>
+                      All subdomains discovered across passive recon connectors (crt.sh, Shodan, SecurityTrails, Censys, URLScan, Wayback, Dehashed)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-purple-400">{allSubdomains.length}</p>
+                        <p className="text-xs text-muted-foreground">Total Subdomains</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-emerald-400">{allSubdomains.filter(s => s.ip).length}</p>
+                        <p className="text-xs text-muted-foreground">With Resolved IPs</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-sky-400">{sources.length}</p>
+                        <p className="text-xs text-muted-foreground">Discovery Sources</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-amber-400">{allSubdomains.filter(s => s.tags?.some((t: string) => t.startsWith('port:'))).length}</p>
+                        <p className="text-xs text-muted-foreground">With Open Ports</p>
+                      </div>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <input
+                          type="text"
+                          placeholder="Search subdomains..."
+                          value={subSearch}
+                          onChange={(e) => setSubSearch(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                        />
+                      </div>
+                      <select
+                        value={subSourceFilter}
+                        onChange={(e) => setSubSourceFilter(e.target.value)}
+                        className="px-3 py-2 text-sm rounded-md border border-border bg-background"
+                      >
+                        <option value="all">All Sources</option>
+                        {sources.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const csv = ['Subdomain,IP,Source,Tags'];
+                          allSubdomains.forEach(s => csv.push(`${s.name},${s.ip || ''},${s.source},"${(s.tags || []).join('; ')}"`));
+                          const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url; a.download = `${scan.primaryDomain}_subdomains.csv`; a.click();
+                          URL.revokeObjectURL(url);
+                          toast.success(`Exported ${allSubdomains.length} subdomains`);
+                        }}
+                      >
+                        <FileText className="h-3 w-3 mr-1" /> Export CSV
+                      </Button>
+                    </div>
+
+                    {/* Subdomain Table */}
+                    <div className="border rounded-lg overflow-auto max-h-[600px]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium">Subdomain</th>
+                            <th className="text-left px-3 py-2 font-medium">IP Address</th>
+                            <th className="text-left px-3 py-2 font-medium">Source</th>
+                            <th className="text-left px-3 py-2 font-medium">Tags</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {filtered.length === 0 ? (
+                            <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">No subdomains found matching your filters</td></tr>
+                          ) : filtered.map((s: any, i: number) => (
+                            <tr key={i} className="hover:bg-muted/20">
+                              <td className="px-3 py-2 font-mono text-xs">{s.name}</td>
+                              <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{s.ip || '—'}</td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className="text-[10px]">{s.source}</Badge>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1">
+                                  {(s.tags || []).slice(0, 3).map((t: string, j: number) => (
+                                    <Badge key={j} variant="secondary" className="text-[10px]">{t}</Badge>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {filtered.length < allSubdomains.length && (
+                      <p className="text-xs text-muted-foreground">Showing {filtered.length} of {allSubdomains.length} subdomains</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
+        </TabsContent>
+
+        {/* Ports & Services Tab */}
+        <TabsContent value="ports" className="space-y-4">
+          {(() => {
+            const ports = (pipeline?.discoveredPorts || []) as any[];
+            // Also extract port info from asset DNS records and technologies
+            // portSearch, portProtocolFilter, portSortBy are declared at component level
+
+            // Group by IP for summary
+            const ipGroups = new Map<string, any[]>();
+            for (const p of ports) {
+              const existing = ipGroups.get(p.ip) || [];
+              existing.push(p);
+              ipGroups.set(p.ip, existing);
+            }
+
+            const allVulns = new Set<string>();
+            ports.forEach(p => (p.vulns || []).forEach((v: string) => allVulns.add(v)));
+
+            const filtered = ports.filter(p => {
+              if (portSearch) {
+                const q = portSearch.toLowerCase();
+                if (!p.ip.includes(q) && !p.hostname.toLowerCase().includes(q) && !String(p.port).includes(q) && !p.product.toLowerCase().includes(q)) return false;
+              }
+              if (portProtocolFilter !== 'all' && p.transport !== portProtocolFilter) return false;
+              return true;
+            }).sort((a: any, b: any) => {
+              if (portSortBy === 'port') return a.port - b.port;
+              if (portSortBy === 'ip') return a.ip.localeCompare(b.ip);
+              return a.product.localeCompare(b.product);
+            });
+
+            const commonPorts: Record<number, string> = {
+              21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS', 80: 'HTTP',
+              110: 'POP3', 143: 'IMAP', 443: 'HTTPS', 445: 'SMB', 993: 'IMAPS',
+              995: 'POP3S', 1433: 'MSSQL', 1521: 'Oracle', 3306: 'MySQL',
+              3389: 'RDP', 5432: 'PostgreSQL', 5900: 'VNC', 6379: 'Redis',
+              8080: 'HTTP-Alt', 8443: 'HTTPS-Alt', 9200: 'Elasticsearch', 27017: 'MongoDB',
+            };
+
+            return (
+              <>
+                <Card className="bg-card/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Network className="h-5 w-5 text-sky-400" />
+                      Open Ports & Services ({ports.length})
+                    </CardTitle>
+                    <CardDescription>
+                      All open ports and running services identified across discovered assets via Shodan, InternetDB, and banner verification
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-sky-400">{ports.length}</p>
+                        <p className="text-xs text-muted-foreground">Open Ports</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-purple-400">{ipGroups.size}</p>
+                        <p className="text-xs text-muted-foreground">Unique IPs</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-emerald-400">{ports.filter(p => p.product).length}</p>
+                        <p className="text-xs text-muted-foreground">Identified Services</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-amber-400">{ports.filter(p => p.version).length}</p>
+                        <p className="text-xs text-muted-foreground">With Versions</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-red-400">{allVulns.size}</p>
+                        <p className="text-xs text-muted-foreground">Associated CVEs</p>
+                      </div>
+                    </div>
+
+                    {/* IP Summary Cards */}
+                    {ipGroups.size > 0 && ipGroups.size <= 20 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {Array.from(ipGroups.entries()).map(([ip, ipPorts]) => (
+                          <div key={ip} className="p-3 rounded-lg border border-border bg-muted/20">
+                            <p className="font-mono text-xs font-semibold">{ip}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{ipPorts[0]?.hostname !== ip ? ipPorts[0]?.hostname : ''}</p>
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {ipPorts.sort((a: any, b: any) => a.port - b.port).map((p: any) => (
+                                <Badge key={p.port} variant={p.vulns?.length > 0 ? 'destructive' : 'secondary'} className="text-[10px]">
+                                  {p.port}{p.product ? `/${p.product}` : commonPorts[p.port] ? `/${commonPorts[p.port]}` : ''}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Filters */}
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <input
+                          type="text"
+                          placeholder="Search by IP, hostname, port, or service..."
+                          value={portSearch}
+                          onChange={(e) => setPortSearch(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                        />
+                      </div>
+                      <select
+                        value={portProtocolFilter}
+                        onChange={(e) => setPortProtocolFilter(e.target.value)}
+                        className="px-3 py-2 text-sm rounded-md border border-border bg-background"
+                      >
+                        <option value="all">All Protocols</option>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                      </select>
+                      <select
+                        value={portSortBy}
+                        onChange={(e) => setPortSortBy(e.target.value as any)}
+                        className="px-3 py-2 text-sm rounded-md border border-border bg-background"
+                      >
+                        <option value="port">Sort by Port</option>
+                        <option value="ip">Sort by IP</option>
+                        <option value="product">Sort by Service</option>
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const csv = ['IP,Port,Transport,Service,Version,Hostname,Source,CVEs'];
+                          ports.forEach(p => csv.push(`${p.ip},${p.port},${p.transport},${p.product},${p.version},${p.hostname},${p.source},"${(p.vulns || []).join('; ')}"`));
+                          const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url; a.download = `${scan.primaryDomain}_ports.csv`; a.click();
+                          URL.revokeObjectURL(url);
+                          toast.success(`Exported ${ports.length} port entries`);
+                        }}
+                      >
+                        <FileText className="h-3 w-3 mr-1" /> Export CSV
+                      </Button>
+                    </div>
+
+                    {/* Port Table */}
+                    <div className="border rounded-lg overflow-auto max-h-[600px]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium">IP Address</th>
+                            <th className="text-left px-3 py-2 font-medium">Port</th>
+                            <th className="text-left px-3 py-2 font-medium">Protocol</th>
+                            <th className="text-left px-3 py-2 font-medium">Service</th>
+                            <th className="text-left px-3 py-2 font-medium">Version</th>
+                            <th className="text-left px-3 py-2 font-medium">Hostname</th>
+                            <th className="text-left px-3 py-2 font-medium">CVEs</th>
+                            <th className="text-left px-3 py-2 font-medium">Source</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {filtered.length === 0 ? (
+                            <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                              {ports.length === 0 ? 'No port data available. Port scanning requires Shodan API key or InternetDB data.' : 'No ports matching your filters'}
+                            </td></tr>
+                          ) : filtered.map((p: any, i: number) => (
+                            <tr key={i} className={`hover:bg-muted/20 ${p.vulns?.length > 0 ? 'bg-red-500/5' : ''}`}>
+                              <td className="px-3 py-2 font-mono text-xs">{p.ip}</td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className={`font-mono text-[10px] ${
+                                  [21, 23, 3389, 5900].includes(p.port) ? 'text-red-400 border-red-500/40' :
+                                  [22, 443, 993, 995].includes(p.port) ? 'text-emerald-400 border-emerald-500/40' :
+                                  'text-sky-400 border-sky-500/40'
+                                }`}>
+                                  {p.port}{commonPorts[p.port] ? ` (${commonPorts[p.port]})` : ''}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 text-xs text-muted-foreground uppercase">{p.transport}</td>
+                              <td className="px-3 py-2 text-xs">{p.product || <span className="text-muted-foreground italic">unknown</span>}</td>
+                              <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{p.version || '—'}</td>
+                              <td className="px-3 py-2 font-mono text-xs text-muted-foreground truncate max-w-[200px]">{p.hostname}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1">
+                                  {(p.vulns || []).slice(0, 3).map((v: string, j: number) => (
+                                    <Badge key={j} variant="destructive" className="text-[10px]">{v}</Badge>
+                                  ))}
+                                  {(p.vulns || []).length > 3 && (
+                                    <Badge variant="destructive" className="text-[10px]">+{p.vulns.length - 3}</Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className="text-[10px]">{p.source}</Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {filtered.length < ports.length && (
+                      <p className="text-xs text-muted-foreground">Showing {filtered.length} of {ports.length} port entries</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
         </TabsContent>
 
         {/* Campaigns Tab */}
