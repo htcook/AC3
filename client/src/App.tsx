@@ -55,7 +55,7 @@ import ThreatActorCatalogDetail from "./pages/ThreatActorCatalogDetail";
 import DarkwebIntel from "./pages/DarkwebIntel";
 import ThreatIntelHub from "./pages/ThreatIntelHub";
 import CampaignArchetypes from "./pages/CampaignArchetypes";
-import PhishingExploitCatalog from "./pages/PhishingExploitCatalog";
+// PhishingExploitCatalog merged into ExploitArsenal (now Exploit Catalog)
 import ExploitArsenal from "./pages/ExploitArsenal";
 import MsfServers from "./pages/MsfServers";
 import EngagementTimeline from "./pages/EngagementTimeline";
@@ -248,9 +248,12 @@ function Router() {
         <ProtectedRoute component={DarkwebIntel} />
       </Route>
       <Route path="/phishing-exploit-catalog">
-        <ProtectedRoute component={PhishingExploitCatalog} />
+        <Redirect to="/exploit-catalog" />
       </Route>
       <Route path="/exploit-arsenal">
+        <Redirect to="/exploit-catalog" />
+      </Route>
+      <Route path="/exploit-catalog">
         <ProtectedRoute component={ExploitArsenal} />
       </Route>
       <Route path="/msf-servers">

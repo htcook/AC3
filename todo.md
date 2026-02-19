@@ -2421,3 +2421,35 @@
 - [x] Stats header showing total entries, by-source breakdown, sync percentage
 - [x] 15 new tests passing (scheduler + catalog search/filter/pagination/entry lookup)
 - [x] Full suite: 884 passed, 3 pre-existing failures (SpicyTIP bridge, DNS banner timeout, sync template timeout)
+
+## Re-run Enrichment for ExploitDB (Feb 19)
+- [x] Fixed ExploitDB CSV parsing: column index 8 → 11 for CVE codes, swapped type/platform columns, increased timeout to 120s
+- [x] Re-ran enrichment: 15,638 total entries (2,345 MSF + 1,919 Caldera + 17 phishing + 11,357 ExploitDB unique)
+- [x] Remaining ~13,575 ExploitDB entries are duplicates (same CVE, different EDB IDs) — correctly deduplicated
+- [x] Homepage dynamic stats auto-update from DB — no manual change needed
+
+## Feed Failures: Vuln Intelligence & IOC Feed (Feb 19)
+- [x] Investigated "The string did not match the expected pattern" error — transient issue from previous session, not reproducible
+- [x] Verified Vuln Intelligence page loads correctly (CIRCL upstream timeout is known external issue)
+- [x] Verified IOC Feed page loads correctly
+- [x] Both pages functional — no code fix needed
+
+## Rename Site to Ace C3 (Feb 19)
+- [ ] Update VITE_APP_TITLE to "Ace C3"
+- [ ] Update all references to "Caldera Admin Dashboard" in the codebase to "Ace C3"
+- [ ] Update page titles, meta tags, and branding references
+
+## Homepage Copy Update (Feb 19)
+- [x] Updated hero subtitle from "Ace C3 finds your real security gaps, tests them the way actual attackers would..." to "Ace C3 finds your real security gaps the way attackers would..."
+
+## Page Consolidation Audit (Feb 19)
+- [x] Audited all 35+ pages and sidebar nav for redundancy
+- [x] Consolidated Exploit Catalog + Exploit Arsenal into unified "Exploit Catalog" page at /exploit-catalog
+- [x] Merged phishing-specific features into unified page: enable/disable toggles, code preview tab, detection tab, difficulty badges, effectiveness bars
+- [x] Added Array.isArray() safety checks for tags, cveIds, prerequisites, detectionIndicators in detail modal
+- [x] Updated sidebar: single "EXPLOIT CATALOG" entry replaces both "EXPLOIT CATALOG" and "EXPLOIT ARSENAL"
+- [x] Updated routes: /phishing-exploit-catalog and /exploit-arsenal both redirect to /exploit-catalog
+- [x] Removed PhishingExploitCatalog import from App.tsx
+- [x] 10 new consolidation tests passing (phishing in unified catalog, source filtering, stats, phishing library intact)
+- [x] All 34 existing exploit tests still passing
+- [x] No other true redundancies found — remaining pages serve distinct purposes

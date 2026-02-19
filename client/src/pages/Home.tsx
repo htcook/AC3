@@ -165,7 +165,7 @@ export default function Home() {
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
-              Ace C3 finds your real security gaps, tests them the way actual attackers would,
+              Ace C3 finds your real security gaps the way attackers would,
               and shows you exactly what to fix — all from one platform.
             </p>
 

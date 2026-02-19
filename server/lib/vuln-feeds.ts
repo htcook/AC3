@@ -371,7 +371,7 @@ async function fetchExploitDb(): Promise<ExploitDbEntry[]> {
   try {
     const res = await fetch(EXPLOITDB_CSV_URL, {
       headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(120000), // 2 min — CSV is ~10MB
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
@@ -379,13 +379,16 @@ async function fetchExploitDb(): Promise<ExploitDbEntry[]> {
     const entries: ExploitDbEntry[] = [];
     const lines = text.split("\n").slice(1); // skip header
 
-    // CSV columns: id,file,description,date_published,author,platform,type,port,codes
+    // CSV columns (0-indexed): 0=id, 1=file, 2=description, 3=date_published,
+    // 4=author, 5=type, 6=platform, 7=port, 8=date_added, 9=date_updated,
+    // 10=verified, 11=codes, 12=tags, 13=aliases, 14=screenshot_url,
+    // 15=application_url, 16=source_url
     for (const line of lines) {
       if (!line.trim()) continue;
       const fields = parseCSVLine(line);
-      if (fields.length < 9) continue;
+      if (fields.length < 12) continue;
 
-      const codes = (fields[8] || "").trim();
+      const codes = (fields[11] || "").trim();
       const cveIds = codes.split(";")
         .map(c => c.trim())
         .filter(c => c.startsWith("CVE-"));
@@ -397,8 +400,8 @@ async function fetchExploitDb(): Promise<ExploitDbEntry[]> {
         description: (fields[2] || "").trim(),
         datePublished: (fields[3] || "").trim(),
         author: (fields[4] || "").trim(),
-        platform: (fields[5] || "").trim(),
-        type: (fields[6] || "").trim(),
+        platform: (fields[6] || "").trim(),
+        type: (fields[5] || "").trim(),
         cveIds,
       });
     }
