@@ -156,7 +156,7 @@ export default function Home() {
             </p>
 
             <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-10">
-              Used by red teams, penetration testers, and security teams at enterprises,
+              Built for red teams, penetration testers, and security teams at enterprises,
               government agencies, and managed service providers.
             </p>
 
@@ -356,7 +356,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <h2 className="text-4xl sm:text-5xl font-display mb-4">WHO IT'S FOR</h2>
             <p className="text-lg text-muted-foreground">
-              Built for teams that need to prove security works — not just check compliance boxes.
+              Designed for teams that need to prove security works — not just check compliance boxes.
             </p>
           </div>
 
@@ -364,10 +364,10 @@ export default function Home() {
             {[
               { icon: Crosshair, title: "Red Teams", desc: "Run full adversary emulation engagements with real exploits and APT-based attack chains from a single command center." },
               { icon: Shield, title: "Penetration Testers", desc: "Scope engagements, execute verified attacks, launch phishing campaigns, and deliver professional reports — all in one workflow." },
-              { icon: ShieldCheck, title: "Purple Teams", desc: "Execute attacks and immediately measure what your defenses caught. Auto-generate detection rules from the TTPs you tested." },
+              { icon: ShieldCheck, title: "Purple Teams", desc: "Execute attacks and immediately measure what your defenses catch. Auto-generate detection rules from the TTPs you test." },
               { icon: Server, title: "Managed Service Providers", desc: "Scale offensive assessments across multiple clients with per-engagement tracking, automated pipelines, and branded reporting." },
               { icon: Building2, title: "Enterprise Security", desc: "Test employee awareness and infrastructure resilience with controlled attack simulations mapped to your industry's threat landscape." },
-              { icon: Landmark, title: "Government & Defense", desc: "Demonstrate compliance with FedRAMP, CMMC, and NIST frameworks through evidence-based security testing and audit-ready reports." },
+              { icon: Landmark, title: "Government & Defense", desc: "Support compliance with FedRAMP, CMMC, and NIST frameworks through evidence-based security testing and audit-ready reports." },
             ].map((item) => (
               <div key={item.title} className="p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/30">
                 <item.icon className="w-7 h-7 text-primary mb-4" />
@@ -380,7 +380,7 @@ export default function Home() {
           {/* Additional sectors */}
           <div className="mt-8 max-w-5xl mx-auto">
             <div className="border border-border/50 p-6">
-              <h3 className="font-display text-xs tracking-[0.25em] text-muted-foreground mb-4">ALSO SERVING</h3>
+              <h3 className="font-display text-xs tracking-[0.25em] text-muted-foreground mb-4">ALSO DESIGNED FOR</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 {[
                   { icon: Stethoscope, label: "Healthcare" },

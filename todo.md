@@ -2350,3 +2350,10 @@
 - [x] Fix: Add error persistence to startEngagement catch block
 - [x] Write 12 new pipeline resilience tests (stuck detection, retry validation, output trimming, batch logic)
 - [x] 0 TypeScript errors, 862 tests passing across 55 test files
+
+## Homepage False Claims Fix (Feb 18)
+- [x] "Used by red teams..." → "Built for red teams..." (hero subtitle)
+- [x] "Built for teams that need to prove..." → "Designed for teams that need to prove..." (WHO IT'S FOR heading)
+- [x] "Demonstrate compliance" → "Support compliance" (Government & Defense card)
+- [x] "what your defenses caught" → "what your defenses catch" (Purple Teams card — present tense, not past)
+- [x] "ALSO SERVING" → "ALSO DESIGNED FOR" (industry sectors bar)
