@@ -1,0 +1,19 @@
+{
+  "query": "SELECT COUNT(*) as total FROM engagements; SELECT id, name, status FROM engagements LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as total FROM engagements; SELECT id, name, status FROM engagements LIMIT 10",
+  "rows": [
+    {
+      "total": "1"
+    },
+    {
+      "total": "id\tname\tstatus"
+    },
+    {
+      "total": "90089\tAceofCloud - Identity Provider Compromise Assessment\tplanning"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n1\nid\tname\tstatus\n90089\tAceofCloud - Identity Provider Compromise Assessment\tplanning\n",
+  "stderr": "",
+  "execution_time_ms": 394
+}

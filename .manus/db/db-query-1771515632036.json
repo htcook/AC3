@@ -1,0 +1,130 @@
+{
+  "query": "SELECT name, COUNT(*) as cnt FROM engagements GROUP BY name ORDER BY cnt DESC LIMIT 30",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT name, COUNT(*) as cnt FROM engagements GROUP BY name ORDER BY cnt DESC LIMIT 30",
+  "rows": [
+    {
+      "name": "Test Engagement for Linking",
+      "cnt": "34"
+    },
+    {
+      "name": "Report Get Test 1771282341598",
+      "cnt": "1"
+    },
+    {
+      "name": "Client Type Test 1771287295549",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Results Test 1771282393797",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Results Test 1771433715759",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Report Filter 1771282342363",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Report Filter 1771442183302",
+      "cnt": "1"
+    },
+    {
+      "name": "Client Type Test 1771270722535",
+      "cnt": "1"
+    },
+    {
+      "name": "Report Get Test 1771357744092",
+      "cnt": "1"
+    },
+    {
+      "name": "Report Test Engagement 1771469425488",
+      "cnt": "1"
+    },
+    {
+      "name": "Results Test Engagement 1771290979845",
+      "cnt": "1"
+    },
+    {
+      "name": "Results Test Engagement 1771343635757",
+      "cnt": "1"
+    },
+    {
+      "name": "Report List Test 1771286982310",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Report Get 1771459646173",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Results Test 1771344161776",
+      "cnt": "1"
+    },
+    {
+      "name": "Report List Test 1771288539045",
+      "cnt": "1"
+    },
+    {
+      "name": "Report List Test 1771282341691",
+      "cnt": "1"
+    },
+    {
+      "name": "Client Type Test 1771383830763",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Report Get 1771383835964",
+      "cnt": "1"
+    },
+    {
+      "name": "Report Test Engagement 1771383829256",
+      "cnt": "1"
+    },
+    {
+      "name": "Results Test Engagement 1771383836453",
+      "cnt": "1"
+    },
+    {
+      "name": "Client Type Test 1771363834022",
+      "cnt": "1"
+    },
+    {
+      "name": "Report Get Test 1771433543124",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Results Test 1771344100123",
+      "cnt": "1"
+    },
+    {
+      "name": "Report Test Engagement 1771297974739",
+      "cnt": "1"
+    },
+    {
+      "name": "Report List Test 1771442177978",
+      "cnt": "1"
+    },
+    {
+      "name": "Results Test Engagement 1771288542635",
+      "cnt": "1"
+    },
+    {
+      "name": "tRPC Report Get 1771433713984",
+      "cnt": "1"
+    },
+    {
+      "name": "Report Type Test 1771433710410",
+      "cnt": "1"
+    },
+    {
+      "name": "Report Test Engagement 1771282341547",
+      "cnt": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "name\tcnt\nTest Engagement for Linking\t34\nReport Get Test 1771282341598\t1\nClient Type Test 1771287295549\t1\ntRPC Results Test 1771282393797\t1\ntRPC Results Test 1771433715759\t1\ntRPC Report Filter 1771282342363\t1\ntRPC Report Filter 1771442183302\t1\nClient Type Test 1771270722535\t1\nReport Get Test 1771357744092\t1\nReport Test Engagement 1771469425488\t1\nResults Test Engagement 1771290979845\t1\nResults Test Engagement 1771343635757\t1\nReport List Test 1771286982310\t1\ntRPC Report Get 1771459646173\t1\ntRPC Results Test 1771344161776\t1\nReport List Test 1771288539045\t1\nReport List Test 1771282341691\t1\nClient Type Test 1771383830763\t1\ntRPC Report Get 1771383835964\t1\nReport Test Engagement 1771383829256\t1\nResults Test Engagement 1771383836453\t1\nClient Type Test 1771363834022\t1\nReport Get Test 1771433543124\t1\ntRPC Results Test 1771344100123\t1\nReport Test Engagement 1771297974739\t1\nReport List Test 1771442177978\t1\nResults Test Engagement 1771288542635\t1\ntRPC Report Get 1771433713984\t1\nReport Type Test 1771433710410\t1\nReport Test Engagement 1771282341547\t1\n",
+  "stderr": "",
+  "execution_time_ms": 361
+}

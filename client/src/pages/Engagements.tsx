@@ -85,6 +85,8 @@ export default function Engagements() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -164,6 +166,41 @@ export default function Engagements() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const bulkDeleteMutation = trpc.engagements.bulkDelete.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Deleted ${data.deleted} engagement(s) and related records`);
+      setSelectedIds(new Set());
+      setBulkMode(false);
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllFiltered() {
+    setSelectedIds(new Set(filteredEngagements.map((e: any) => e.id)));
+  }
+
+  function deselectAll() {
+    setSelectedIds(new Set());
+  }
+
+  function handleBulkDelete() {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (confirm(`Delete ${count} engagement(s) and all their related reports and campaign links? This cannot be undone.`)) {
+      bulkDeleteMutation.mutate({ ids: Array.from(selectedIds) });
+    }
+  }
 
   function resetForm() {
     setFormData({
@@ -462,6 +499,44 @@ export default function Engagements() {
             </div>
           )}
 
+          {/* Bulk Actions Bar */}
+          <div className="flex items-center gap-3 mb-4">
+            <Button
+              variant={bulkMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setBulkMode(!bulkMode); if (bulkMode) setSelectedIds(new Set()); }}
+              className="font-display tracking-wider"
+            >
+              {bulkMode ? <X className="w-3.5 h-3.5 mr-1" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
+              {bulkMode ? 'EXIT BULK MODE' : 'BULK DELETE'}
+            </Button>
+            {bulkMode && (
+              <>
+                <Button variant="outline" size="sm" onClick={selectAllFiltered} className="font-display tracking-wider text-xs">
+                  SELECT ALL ({filteredEngagements.length})
+                </Button>
+                <Button variant="outline" size="sm" onClick={deselectAll} className="font-display tracking-wider text-xs">
+                  DESELECT ALL
+                </Button>
+                <span className="text-xs text-muted-foreground font-display tracking-wider">
+                  {selectedIds.size} SELECTED
+                </span>
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleteMutation.isPending}
+                    className="font-display tracking-wider text-destructive hover:text-destructive border-destructive/50 hover:border-destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                    {bulkDeleteMutation.isPending ? 'DELETING...' : `DELETE ${selectedIds.size} SELECTED`}
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Stats Summary */}
           <div className="grid grid-cols-2 md:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
             {STATUS_OPTIONS.map(s => {
@@ -498,9 +573,18 @@ export default function Engagements() {
                 const typeConfig = getTypeConfig(engagement.engagementType);
                 const statusConfig = getStatusConfig(engagement.status);
                 return (
-                  <div key={engagement.id} className="bg-card border border-border p-5 hover:border-primary/30 transition-colors group">
+                  <div key={engagement.id} className={`bg-card border p-5 hover:border-primary/30 transition-colors group ${selectedIds.has(engagement.id) ? 'border-destructive/60 bg-destructive/5' : 'border-border'}`}>
                     <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 flex items-start gap-3">
+                        {bulkMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(engagement.id)}
+                            onChange={() => toggleSelect(engagement.id)}
+                            className="mt-1.5 w-4 h-4 accent-red-500 cursor-pointer shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2">
                           <h3 className="font-display text-lg tracking-wider truncate">{engagement.name}</h3>
                           <span className={`text-xs px-2 py-0.5 ${typeConfig.color} font-display tracking-wider`}>
@@ -549,6 +633,7 @@ export default function Engagements() {
                             </button>
                           ) : null;
                         })()}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2 flex-wrap sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Link href={`/campaign-wizard`}>

@@ -2506,6 +2506,18 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+
+    bulkDelete: adminProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1).max(500) }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await db.bulkDeleteEngagements(input.ids);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagements_bulk_deleted',
+          details: `Bulk deleted ${input.ids.length} engagements`,
+        });
+        return { success: true, deleted: result?.deleted ?? 0 };
+      }),
   }),
 
   // ==================== OSINT RECON ====================

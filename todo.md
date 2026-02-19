@@ -2499,3 +2499,13 @@
 - /infrastructure → /infra-reference
 - /apt-library → /threat-catalog
 - /kev-catalog → /vuln-intel (renders correctly, URL stays at /kev-catalog)
+
+## Clean Up Test Engagement Data (Feb 19)
+- [x] Audited database: 376 total engagements, 375 test records, 1 real engagement (id=90089)
+- [x] Purged 375 test engagements, 782 test reports, 68 test campaign links from database
+- [x] Added bulk-delete UI: BULK DELETE button toggles bulk mode with SELECT ALL / DESELECT ALL / DELETE SELECTED
+- [x] Added bulkDeleteEngagements db helper that cascades to reports and campaign links
+- [x] Added bulkDelete tRPC procedure (admin-only, max 500 IDs, with activity logging)
+- [x] Checkbox selection per engagement, red highlight on selected, confirmation dialog
+- [x] Verified Engagement Manager shows only the real engagement (ENGAGEMENTS (1))
+- [x] 9 bulk delete tests passing (db helper, input validation, activity logging)

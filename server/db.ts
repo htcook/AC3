@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray, like, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
@@ -413,7 +413,20 @@ export async function updateEngagement(id: number, updates: Partial<InsertEngage
 export async function deleteEngagement(id: number) {
   const db = await getDb();
   if (!db) return;
+  // Clean up related records first
+  await db.delete(engagementReports).where(eq(engagementReports.engagementId, id));
+  await db.delete(campaignEngagements).where(eq(campaignEngagements.engagementId, id));
   await db.delete(engagements).where(eq(engagements.id, id));
+}
+
+export async function bulkDeleteEngagements(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return { deleted: 0 };
+  // Clean up related records first
+  await db.delete(engagementReports).where(inArray(engagementReports.engagementId, ids));
+  await db.delete(campaignEngagements).where(inArray(campaignEngagements.engagementId, ids));
+  const result = await db.delete(engagements).where(inArray(engagements.id, ids));
+  return { deleted: result[0].affectedRows };
 }
 
 // Campaign-Engagement linking operations
@@ -766,7 +779,7 @@ import {
   engagementPipelines, InsertEngagementPipeline,
   iocSyncLogs, InsertIocSyncLog
 } from "../drizzle/schema";
-import { like, and, inArray, sql } from "drizzle-orm";
+// drizzle-orm operators imported at top of file
 
 export async function listThreatActors(filters?: {
   type?: string;
