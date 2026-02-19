@@ -37,6 +37,11 @@ import {
   GraduationCap,
   Settings,
   FileJson,
+  GitBranch,
+  Eye,
+  Webhook,
+  BookMarked,
+  Archive,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -70,6 +75,9 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
       { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
       { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
+      { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
+      { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
+      { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
     ],
   },
   {
@@ -132,6 +140,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/team", icon: Users, label: "TEAM" },
       { href: "/activity", icon: FileText, label: "ACTIVITY" },
+      { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
+      { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
     ],
   },
 ];

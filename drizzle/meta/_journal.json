@@ -190,6 +190,13 @@
       "when": 1771533776096,
       "tag": "0026_broad_kate_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1771538574655,
+      "tag": "0027_yummy_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

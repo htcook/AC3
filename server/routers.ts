@@ -16,6 +16,11 @@ import { metasploitCatalogRouter } from "./routers/metasploit-catalog";
 import { engagementTimelineRouter } from "./routers/engagement-timeline";
 import { stixExportRouter } from "./routers/stix-export";
 import { clientPortalRouter } from "./routers/client-portal";
+import { emulationPlaybooksRouter } from "./routers/emulation-playbooks";
+import { evidenceRouter } from "./routers/evidence";
+import { attackPathsRouter } from "./routers/attack-paths";
+import { purpleTeamRouter } from "./routers/purple-team";
+import { webhooksRouter } from "./routers/webhooks";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -114,6 +119,11 @@ export const appRouter = router({
   engagementTimeline: engagementTimelineRouter,
   stixExport: stixExportRouter,
   clientPortal: clientPortalRouter,
+  emulationPlaybooks: emulationPlaybooksRouter,
+  evidence: evidenceRouter,
+  attackPaths: attackPathsRouter,
+  purpleTeam: purpleTeamRouter,
+  webhooks: webhooksRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

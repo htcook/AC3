@@ -1349,3 +1349,187 @@ export const engagementShares = mysqlTable("engagement_shares", {
 
 export type EngagementShare = typeof engagementShares.$inferSelect;
 export type InsertEngagementShare = typeof engagementShares.$inferInsert;
+
+// ─── Adversary Emulation Playbooks ───
+export const emulationPlaybooks = mysqlTable("emulation_playbooks", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  actorId: varchar("actorId", { length: 128 }),
+  actorName: varchar("actorName", { length: 255 }),
+  status: varchar("status", { length: 32 }).default("draft").notNull(),
+  difficulty: varchar("difficulty", { length: 32 }),
+  estimatedDuration: int("estimatedDuration"),
+  targetPlatforms: json("targetPlatforms"),
+  phases: json("phases"),
+  tacticsUsed: json("tacticsUsed"),
+  techniquesUsed: json("techniquesUsed"),
+  totalAbilities: int("totalAbilities"),
+  calderaAdversaryId: varchar("calderaAdversaryId", { length: 128 }),
+  calderaDeployedAt: timestamp("calderaDeployedAt"),
+  tags: json("tags"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type EmulationPlaybook = typeof emulationPlaybooks.$inferSelect;
+export type InsertEmulationPlaybook = typeof emulationPlaybooks.$inferInsert;
+
+export const playbookExecutions = mysqlTable("playbook_executions", {
+  id: int("id").primaryKey().autoincrement(),
+  playbookId: int("playbookId"),
+  playbookName: varchar("playbookName", { length: 255 }),
+  calderaOperationId: varchar("calderaOperationId", { length: 128 }),
+  calderaOperationName: varchar("calderaOperationName", { length: 255 }),
+  execStatus: varchar("execStatus", { length: 32 }).default("pending").notNull(),
+  targetGroup: varchar("targetGroup", { length: 128 }),
+  targetAgentCount: int("targetAgentCount"),
+  abilitiesTotal: int("abilitiesTotal"),
+  abilitiesSucceeded: int("abilitiesSucceeded"),
+  abilitiesFailed: int("abilitiesFailed"),
+  abilitiesSkipped: int("abilitiesSkipped"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  launchedBy: varchar("launchedBy", { length: 128 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PlaybookExecution = typeof playbookExecutions.$inferSelect;
+
+// ─── Evidence Collection & Chain of Custody ───
+export const evidenceItems = mysqlTable("evidence_items", {
+  id: int("id").primaryKey().autoincrement(),
+  evidenceId: varchar("evidenceId", { length: 64 }).notNull().unique(),
+  engagementId: varchar("engagementId", { length: 128 }),
+  operationId: varchar("operationId", { length: 128 }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 64 }).notNull(),
+  category: varchar("category", { length: 64 }),
+  fileUrl: text("fileUrl"),
+  fileKey: varchar("fileKey", { length: 512 }),
+  fileName: varchar("fileName", { length: 255 }),
+  fileSize: int("fileSize"),
+  mimeType: varchar("mimeType", { length: 128 }),
+  sha256Hash: varchar("sha256Hash", { length: 128 }),
+  md5Hash: varchar("md5Hash", { length: 64 }),
+  tags: json("tags"),
+  metadata: json("metadata"),
+  classification: varchar("classification", { length: 32 }).default("confidential"),
+  collectedBy: varchar("collectedBy", { length: 255 }),
+  collectedAt: timestamp("collectedAt"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type EvidenceItem = typeof evidenceItems.$inferSelect;
+
+export const evidenceChainOfCustody = mysqlTable("evidence_chain_of_custody", {
+  id: int("id").primaryKey().autoincrement(),
+  evidenceId: varchar("evidenceId", { length: 64 }).notNull(),
+  action: varchar("action", { length: 64 }).notNull(),
+  performedBy: varchar("performedBy", { length: 128 }).notNull(),
+  performedAt: timestamp("performedAt").defaultNow().notNull(),
+  details: text("details"),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  userAgent: varchar("userAgent", { length: 255 }),
+  integrityHash: varchar("integrityHash", { length: 128 }),
+  previousHash: varchar("previousHash", { length: 128 }),
+});
+
+// ─── Attack Path Visualization ───
+export const attackPaths = mysqlTable("attack_paths", {
+  id: int("id").primaryKey().autoincrement(),
+  pathId: varchar("pathId", { length: 64 }).notNull().unique(),
+  engagementId: varchar("engagementId", { length: 128 }),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  nodes: json("nodes"),
+  edges: json("edges"),
+  riskScore: int("riskScore"),
+  status: varchar("status", { length: 32 }).default("draft"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AttackPath = typeof attackPaths.$inferSelect;
+
+// ─── Purple Team / Detection Tests ───
+export const detectionTests = mysqlTable("detection_tests", {
+  id: int("id").primaryKey().autoincrement(),
+  testId: varchar("testId", { length: 64 }).notNull().unique(),
+  engagementId: varchar("engagementId", { length: 128 }),
+  techniqueId: varchar("techniqueId", { length: 32 }).notNull(),
+  techniqueName: varchar("techniqueName", { length: 255 }),
+  tactic: varchar("tactic", { length: 64 }),
+  abilityId: varchar("abilityId", { length: 128 }),
+  abilityName: varchar("abilityName", { length: 255 }),
+  executedAt: timestamp("executedAt"),
+  executionResult: varchar("executionResult", { length: 32 }).default("pending"),
+  detected: boolean("detected").default(false),
+  detectionTime: int("detectionTime"),
+  detectionSource: varchar("detectionSource", { length: 255 }),
+  detectionRule: varchar("detectionRule", { length: 255 }),
+  alertSeverity: varchar("alertSeverity", { length: 32 }),
+  isGap: boolean("isGap").default(false),
+  gapSeverity: varchar("gapSeverity", { length: 32 }),
+  recommendation: text("recommendation"),
+  mitigationStatus: varchar("mitigationStatus", { length: 32 }).default("open"),
+  notes: text("notes"),
+  evidence: json("evidence"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DetectionTest = typeof detectionTests.$inferSelect;
+
+// ─── Webhook & SIEM Integration ───
+export const webhookEndpoints = mysqlTable("webhook_endpoints", {
+  id: int("id").primaryKey().autoincrement(),
+  webhookId: varchar("webhookId", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  url: text("url").notNull(),
+  secret: varchar("secret", { length: 255 }),
+  events: json("events"),
+  format: varchar("format", { length: 32 }).default("json"),
+  headers: json("headers"),
+  enabled: boolean("enabled").default(true),
+  lastTriggered: timestamp("lastTriggered"),
+  failCount: int("failCount").default(0),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type WebhookEndpoint = typeof webhookEndpoints.$inferSelect;
+
+export const webhookDeliveries = mysqlTable("webhook_deliveries", {
+  id: int("id").primaryKey().autoincrement(),
+  webhookId: varchar("webhookId", { length: 64 }).notNull(),
+  event: varchar("event", { length: 128 }).notNull(),
+  payload: json("payload"),
+  responseStatus: int("responseStatus"),
+  responseBody: text("responseBody"),
+  success: boolean("success").default(false),
+  deliveredAt: timestamp("deliveredAt").defaultNow().notNull(),
+});
+
+// ─── Threat-Informed Defense Scoring ───
+export const defenseScores = mysqlTable("defense_scores", {
+  id: int("id").primaryKey().autoincrement(),
+  scoreId: varchar("score_id", { length: 64 }).notNull().unique(),
+  organizationName: varchar("organization_name", { length: 255 }).notNull(),
+  threatActorId: int("threat_actor_id"),
+  threatActorName: varchar("threat_actor_name", { length: 255 }),
+  overallScore: int("overall_score"),
+  detectionScore: int("detection_score"),
+  vulnerabilityScore: int("vulnerability_score"),
+  surfaceScore: int("surface_score"),
+  responseScore: int("response_score"),
+  breakdown: json("breakdown"),
+  recommendations: json("recommendations"),
+  engagementId: varchar("engagement_id", { length: 128 }),
+  createdBy: varchar("created_by", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DefenseScore = typeof defenseScores.$inferSelect;

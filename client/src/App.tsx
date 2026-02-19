@@ -62,6 +62,11 @@ import EngagementTimeline from "./pages/EngagementTimeline";
 import StixExport from "./pages/StixExport";
 import ClientPortal from "./pages/ClientPortal";
 import Login from "./pages/Login";
+import EmulationPlaybooks from "./pages/EmulationPlaybooks";
+import EvidenceCollection from "./pages/EvidenceCollection";
+import AttackPaths from "./pages/AttackPaths";
+import PurpleTeam from "./pages/PurpleTeam";
+import Webhooks from "./pages/Webhooks";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -284,6 +289,21 @@ function Router() {
       </Route>
       <Route path="/engagements/:id/recon">
         {() => <ProtectedRoute component={OsintRecon} />}
+      </Route>
+      <Route path="/emulation-playbooks">
+        <ProtectedRoute component={EmulationPlaybooks} />
+      </Route>
+      <Route path="/evidence">
+        <ProtectedRoute component={EvidenceCollection} />
+      </Route>
+      <Route path="/attack-paths">
+        <ProtectedRoute component={AttackPaths} />
+      </Route>
+      <Route path="/purple-team">
+        <ProtectedRoute component={PurpleTeam} />
+      </Route>
+      <Route path="/webhooks">
+        <ProtectedRoute component={Webhooks} />
       </Route>
       <Route path="/portal/:token" component={ClientPortal} />
       <Route path="/404" component={NotFound} />

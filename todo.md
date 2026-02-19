@@ -2692,3 +2692,60 @@
 - [x] Register /portal/:token public route (no auth required)
 - [x] Write 38 tests for Client Portal (all passing)
 - [x] Full test suite: 1,196 tests passing across 69 files
+
+## Enhancement #5: Adversary Emulation Playbooks ✅ COMPLETE
+- [x] Create emulation_playbooks database table (name, actorId, phases, tactics, techniques, calderaAdversaryId, etc.)
+- [x] Create playbook_executions database table (playbookId, operationId, status, results, etc.)
+- [x] Build emulation-playbooks tRPC router (list, get, create, delete, generateFromActor, deployToCaldera, stats)
+- [x] Auto-generate playbooks from threat actor TTPs with kill chain phase mapping
+- [x] Deploy playbooks to Caldera as adversary profiles with atomic ordering
+- [x] Build EmulationPlaybooks UI page with search, filters, stats cards, create/generate dialogs
+- [x] Display kill chain phases, techniques, and deployment status
+- [x] Add sidebar navigation entry under Offensive Ops section
+- [x] Write 4 tests for emulation playbooks router (all passing)
+
+## Enhancement #6: Evidence Collection ✅ COMPLETE
+- [x] Create evidence_items database table (evidenceId, title, type, classification, fileUrl, sha256Hash, etc.)
+- [x] Create evidence_chain_of_custody database table (evidenceId, action, performedBy, integrityHash, etc.)
+- [x] Build evidence tRPC router (list, get, create, update, delete, uploadFile, verifyHash, getCustodyLog, stats)
+- [x] SHA-256 hash computation for file integrity verification
+- [x] Chain of custody logging for all evidence actions
+- [x] Build EvidenceCollection UI page with search, type/classification filters, stats cards
+- [x] Display evidence details with custody log timeline and hash verification
+- [x] Add sidebar navigation entry under Offensive Ops section
+- [x] Write 4 tests for evidence router (all passing)
+
+## Enhancement #7: Attack Path Visualization ✅ COMPLETE
+- [x] Create attack_paths database table (pathId, nodes, edges, riskScore, status, etc.)
+- [x] Build attack-paths tRPC router (list, get, create, update, delete, generateFromScan, stats)
+- [x] Auto-generate attack paths from domain intelligence scan results
+- [x] Node types: entry, asset, vulnerability, technique, objective, pivot
+- [x] Edge types: exploits, leads_to, enables, requires, lateral_move
+- [x] Build AttackPaths UI page with interactive graph visualization (SVG-based)
+- [x] Display node details panel with risk scores and findings
+- [x] Add sidebar navigation entry under Intelligence section
+- [x] Write 5 tests for attack paths router (all passing)
+
+## Enhancement #8: Purple Team / Detection Tests ✅ COMPLETE
+- [x] Create detection_tests database table (testId, techniqueId, tactic, detected, isGap, detectionSource, etc.)
+- [x] Create defense_scores database table (scoreId, organizationName, overallScore, detectionScore, etc.)
+- [x] Build purple-team tRPC router (listTests, createTest, deleteTest, coverageMatrix, createScore, stats)
+- [x] MITRE ATT&CK coverage matrix with tactic-based grouping
+- [x] Detection gap analysis with severity classification
+- [x] Build PurpleTeam UI page with coverage heatmap, gap analysis, and defense scoring
+- [x] Display detection test results with gap indicators and recommendations
+- [x] Add sidebar navigation entry under Offensive Ops section
+- [x] Write 5 tests for purple team router (all passing)
+
+## Enhancement #9: Webhooks & Integrations ✅ COMPLETE
+- [x] Create webhook_endpoints database table (webhookId, name, url, secret, events, format, headers, etc.)
+- [x] Create webhook_deliveries database table (webhookId, event, payload, responseStatus, success, etc.)
+- [x] Build webhooks tRPC router (list, get, create, update, delete, test, deliveries, availableEvents, stats)
+- [x] HMAC-SHA256 signature generation for webhook payloads
+- [x] Support JSON, CEF, LEEF output formats
+- [x] 11 event types (scan, finding, engagement, playbook, evidence, detection, alert)
+- [x] Build Webhooks UI page with endpoint management, event selection, delivery history
+- [x] Test webhook functionality with live HTTP delivery
+- [x] Add sidebar navigation entry under System section
+- [x] Write 7 tests for webhooks router (all passing)
+- [x] Full test suite: 24 new tests passing for all 5 enhancement features
