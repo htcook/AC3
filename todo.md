@@ -2335,3 +2335,18 @@
 - [x] Fix KEV enrichment: per-asset matchTechnologiesAgainstKev using only THAT asset's technologies, with dedup via existingCves set
 - [x] Fix Vuln Feed enrichment: per-asset matchTechnologiesAgainstAllFeeds with cache (same tech set reuses results), per-asset techVulnMap scoped to asset's own technologies
 - [x] 0 TypeScript errors, 850 tests passing across 54 test files (up from 828)
+
+## Pipeline Failure Investigation (Feb 18)
+- [x] Check recent scan records in DB for failed/stuck scans
+- [x] Trace pipeline code for crash points (unhandled errors, missing null guards)
+- [x] Identify specific stage(s) where scans fail
+- [x] Root cause: scan 750019 (databank.com) stuck at 'scoring' with 0 assets — pipeline crashed mid-run or server restarted
+- [x] Root cause: scan 750020 (aceofcloud.com) 'failed' with 30 assets stored but totalAssets=0, pipelineOutput=null — oversized pipelineOutput JSON (15-20MB) caused DB write failure
+- [x] Fix: Trim pipelineOutput before storing — strip passiveRecon.allObservations, limit exploitMatches to 30, KEV matches to 50, connector results to summaries only
+- [x] Fix: Batch asset inserts in chunks of 5 with fallback to individual inserts on failure
+- [x] Fix: Persist error details (message, stack, timestamp) in pipelineOutput when catch block fires
+- [x] Fix: Add stuck scan detection in getScanStatus (15-min threshold for in-progress statuses)
+- [x] Fix: Add retryScan endpoint — cleans up orphaned assets, resets scan, re-runs pipeline
+- [x] Fix: Add error persistence to startEngagement catch block
+- [x] Write 12 new pipeline resilience tests (stuck detection, retry validation, output trimming, batch logic)
+- [x] 0 TypeScript errors, 862 tests passing across 55 test files

@@ -746,6 +746,11 @@ export async function bulkIncludeDiscoveredAssets(assetIds: number[]) {
   }
 }
 
+export async function deleteDiscoveredAssetsByScan(scanId: number) {
+  const db = await getDbRequired();
+  await db.delete(discoveredAssets).where(eq(discoveredAssets.scanId, scanId));
+}
+
 export async function getDomainIntelScansByEngagement(engagementId: number) {
   const db = await getDb();
   if (!db) return [];
