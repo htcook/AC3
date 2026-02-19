@@ -5,7 +5,7 @@ import {
   Shield, Skull, AlertTriangle, Globe2, Database, TrendingUp,
   ChevronRight, ChevronDown, ChevronUp, Activity, Zap, Eye,
   Target, Crosshair, Clock, RefreshCw, Loader2, ExternalLink,
-  BarChart3, Users, Lock, Megaphone, Key, Bug, FileText, Layers
+  BarChart3, Users, Lock, Megaphone, Key, Bug, FileText, Layers, FileJson
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -75,6 +75,12 @@ export default function ThreatIntelHub() {
               {(syncAll.isPending || syncCatalog.isPending) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               SYNC ALL FEEDS
             </button>
+            <Link href="/stix-export">
+              <button className="flex items-center gap-2 px-3 py-2 text-xs font-display tracking-wider border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+                <FileJson className="w-3.5 h-3.5" />
+                STIX EXPORT
+              </button>
+            </Link>
           </div>
         </div>
 

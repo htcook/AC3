@@ -36,6 +36,7 @@ import {
   Search,
   GraduationCap,
   Settings,
+  FileJson,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -97,6 +98,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
       { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
       { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
+      { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
     ],
   },
   {

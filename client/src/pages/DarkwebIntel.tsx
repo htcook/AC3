@@ -9,7 +9,7 @@ import {
   Activity, TrendingUp, Search, ExternalLink, Radio,
   Database, Loader2, RefreshCw, Crosshair, FileText,
   Zap, Bug, Key, Tag, Wifi, WifiOff, ChevronDown, ChevronUp, ChevronRight,
-  ShieldAlert, Megaphone, DollarSign, Users, Network,
+  ShieldAlert, Megaphone, DollarSign, Users, Network, FileJson,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -171,6 +171,12 @@ export default function DarkwebIntel() {
               {monitoringSweep.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radio className="w-3 h-3" />}
               RUN LLM SWEEP
             </button>
+            <Link href="/stix-export">
+              <button className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-display tracking-wider hover:bg-cyan-500/20 transition-colors">
+                <FileJson className="w-3 h-3" />
+                STIX EXPORT
+              </button>
+            </Link>
           </div>
         </div>
 

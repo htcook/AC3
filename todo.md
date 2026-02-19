@@ -2570,11 +2570,11 @@
 - [x] Write 55 mobile responsiveness tests (all passing)
 - [x] Run full test suite: 1,039 tests passing across 64 files
 
-### 3. STIX/TAXII Export — Medium Effort
-- [ ] Build STIX 2.1 bundle generator from threat intel data
-- [ ] Add STIX export endpoints for threat actors, IOCs, campaigns
-- [ ] Add TAXII server endpoint for automated intel sharing
-- [ ] Add export buttons to Threat Catalog, IOC Feed, and Darkweb Intel pages
+### 3. STIX/TAXII Export — Medium Effort ✅ COMPLETE
+- [x] Build STIX 2.1 bundle generator from threat intel data
+- [x] Add STIX export endpoints for threat actors, IOCs, campaigns
+- [x] Add TAXII 2.1 compatible server endpoints for automated intel sharing
+- [x] Add export buttons to Threat Catalog, IOC Feed, Darkweb Intel, Exploit Arsenal, and Threat Intel Hub pages
 
 ### 4. Client Portal — Medium Effort
 - [ ] Build client-facing engagement report view (read-only, white-labeled)
@@ -2618,3 +2618,24 @@
 - [ ] Add tenant isolation for all data queries
 - [ ] Add tenant management UI (create, configure, invite users)
 - [ ] Add per-tenant branding and configuration
+
+## Enhancement #3: STIX/TAXII Export Implementation ✅ COMPLETE
+- [x] Research STIX 2.1 bundle format and object types
+- [x] Examine existing threat intel data structures (threat actors, IOCs, vulnerabilities)
+- [x] Build STIX 2.1 bundle generator service (server/lib/stix-generator.ts — 710 lines)
+- [x] Generate STIX Intrusion Set objects from threat actor profiles (with aliases, TTPs, malware, tools, relationships)
+- [x] Generate STIX Indicator objects from IOC feed data (IPv4, domain, URL, hash, email patterns)
+- [x] Generate STIX Vulnerability objects from KEV/vuln intel data (CVE references, NVD links)
+- [x] Generate STIX Campaign objects from engagement/campaign data (objectives, scope, dates)
+- [x] Generate STIX Malware objects from darkweb intel (malware families, tool objects)
+- [x] Generate STIX Relationship objects linking entities (uses, targets relationships)
+- [x] Add tRPC export endpoints for STIX bundles (5 collection types + stats + preview)
+- [x] Add TAXII 2.1 compatible REST endpoints (discovery, API root, collections, objects)
+- [x] Add STIX export button to Threat Catalog page
+- [x] Add STIX export button to IOC Feed page
+- [x] Add STIX export button to Darkweb Intel page
+- [x] Add STIX export button to Exploit Arsenal page
+- [x] Add STIX export button to Threat Intel Hub page
+- [x] Create STIX Export management page with collection browser, stats, JSON preview, download
+- [x] Write 50 tests for STIX bundle generation (all passing)
+- [x] Full test suite: 1,089 tests passing across 65 files

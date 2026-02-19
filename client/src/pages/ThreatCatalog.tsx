@@ -17,6 +17,7 @@ import {
   Target,
   Download,
   Loader2,
+  FileJson,
   Crosshair,
   Radio,
   Zap,
@@ -157,6 +158,12 @@ export default function ThreatCatalog() {
               {syncing && syncSource === "all" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
               SYNC ALL SOURCES
             </button>
+            <Link href="/stix-export">
+              <button className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-display tracking-wider hover:bg-emerald-500/20 transition-colors">
+                <FileJson className="w-3 h-3" />
+                STIX EXPORT
+              </button>
+            </Link>
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import AppShell from "@/components/AppShell";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import { trpc } from "@/lib/trpc";
 import {
   AlertTriangle, RefreshCw, Search, Shield, Globe, Bug, Clock,
   ExternalLink, Copy, Filter, Download, Zap, Database, Activity,
-  ChevronDown, ChevronRight, Radio,
+  ChevronDown, ChevronRight, Radio, FileJson,
 } from "lucide-react";
 
 const SEVERITY_CONFIG: Record<string, { color: string; bg: string }> = {
@@ -124,6 +125,12 @@ export default function IOCFeed() {
               <Download className={`w-4 h-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
               Fetch All Sources
             </Button>
+            <Link href="/stix-export">
+              <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+                <FileJson className="w-4 h-4 mr-1" />
+                STIX Export
+              </Button>
+            </Link>
           </div>
         </div>
 

@@ -59,6 +59,7 @@ import CampaignArchetypes from "./pages/CampaignArchetypes";
 import ExploitArsenal from "./pages/ExploitArsenal";
 import MsfServers from "./pages/MsfServers";
 import EngagementTimeline from "./pages/EngagementTimeline";
+import StixExport from "./pages/StixExport";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -264,6 +265,9 @@ function Router() {
       </Route>
       <Route path="/engagement-timeline">
         <ProtectedRoute component={EngagementTimeline} />
+      </Route>
+      <Route path="/stix-export">
+        <ProtectedRoute component={StixExport} />
       </Route>
       <Route path="/campaign-archetypes">
         <ProtectedRoute component={CampaignArchetypes} />
