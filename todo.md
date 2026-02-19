@@ -2328,3 +2328,10 @@
 - [x] Review overall design consistency and polish
 - [x] Ensure mobile responsiveness — responsive grid layouts throughout
 - [x] Test and verify — 0 TypeScript errors
+
+## Bug Fix: Same Vulnerabilities Listed on All Assets (Feb 18)
+- [x] Traced domain intel scan pipeline to find where vulns are assigned to assets
+- [x] Identified root cause: KEV enrichment (Stage 3.5) collected ALL techs from ALL assets into one flat list, matched against KEV, then distributed findings back using loose substring matching — generic tech names like "apache", "php", "nginx" matched broadly across assets. Vuln Feed enrichment (Stage 3.6) had same issue with global techVulnMap.
+- [x] Fix KEV enrichment: per-asset matchTechnologiesAgainstKev using only THAT asset's technologies, with dedup via existingCves set
+- [x] Fix Vuln Feed enrichment: per-asset matchTechnologiesAgainstAllFeeds with cache (same tech set reuses results), per-asset techVulnMap scoped to asset's own technologies
+- [x] 0 TypeScript errors, 850 tests passing across 54 test files (up from 828)

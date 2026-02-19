@@ -1169,11 +1169,18 @@ export async function runDomainIntelPipeline(
         // ONLY applied for version-confirmed KEV matches. Without version confirmation,
         // the KEV finding is "probable" and contributes to vulnRiskScore (which drives
         // Likelihood in the post-enrichment recalculation) but does NOT get an extra boost.
+        //
+        // FIX: Per-asset KEV matching. We run matchTechnologiesAgainstKev per-asset
+        // using only THAT asset's technologies, so findings are never cross-contaminated.
+        // We also build a per-asset seen set to avoid duplicate CVEs on the same asset.
         analyses.forEach(a => {
-          const assetTechs = (a.asset.technologies || []).map(t => t.toLowerCase());
-          const assetKevMatches = kevMatches.filter(m =>
-            assetTechs.some(t => t.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(t.toLowerCase()))
-          );
+          const assetTechs = (a.asset.technologies || []).filter(Boolean);
+          if (assetTechs.length === 0) return;
+          // Run KEV matching using ONLY this asset's own technologies
+          const assetKevMatches = matchTechnologiesAgainstKev(assetTechs, kevCatalog);
+          // Deduplicate: skip CVEs already present as posture findings on this asset
+          const existingCves = new Set(a.postureFindings.flatMap(f => f.cveIds || []));
+          const uniqueAssetKevMatches = assetKevMatches.filter(m => !existingCves.has(m.cveID));
           if (assetKevMatches.length > 0) {
             // Only boost for version-confirmed KEV matches
             const versions = a.asset.technologyVersions || {};
@@ -1190,7 +1197,8 @@ export async function runDomainIntelPipeline(
               a.suggestedTier = riskTier(a.hybridRiskScore);
             }
             // Add KEV posture findings with full evidence and corroboration
-            assetKevMatches.forEach(m => {
+            // Use uniqueAssetKevMatches to skip CVEs already present on this asset
+            uniqueAssetKevMatches.forEach(m => {
               // Check if we have a detected version for this technology
               const versions = a.asset.technologyVersions || {};
               const detectedVersion = Object.entries(versions).find(
@@ -1215,7 +1223,7 @@ export async function runDomainIntelPipeline(
               if (m.knownRansomware) evidenceChain.push(`Ransomware association confirmed`);
 
               a.postureFindings.push({
-                id: `kev-${m.cveID}`,
+                id: `kev-${m.cveID}-${a.asset.assetId}`,
                 assetRef: a.asset.assetId,
                 assetHostname: a.asset.hostname,
                 category: "CISA KEV",
@@ -1249,90 +1257,109 @@ export async function runDomainIntelPipeline(
   }
 
   // Stage 3.6: Vuln Feed Enrichment — add real CVE IDs from all feeds
+  // FIX: Per-asset vuln feed matching. We run matchTechnologiesAgainstAllFeeds per-asset
+  // using only THAT asset's technologies, so findings are never cross-contaminated.
+  // Previously, a global tech pool caused the same CVEs to appear on every asset.
   try {
     const { matchTechnologiesAgainstAllFeeds } = await import("./lib/vuln-feeds");
-    const allTechnologies = analyses.flatMap(a => a.asset.technologies || []);
-    const uniqueTechs = Array.from(new Set(allTechnologies.filter(Boolean)));
-    if (uniqueTechs.length > 0) {
-      const vulnResult = await matchTechnologiesAgainstAllFeeds(uniqueTechs);
-      // Build a map of technology -> vuln matches for quick lookup
+    // Cache vuln feed results per technology to avoid redundant API calls
+    const vulnFeedCache = new Map<string, Awaited<ReturnType<typeof matchTechnologiesAgainstAllFeeds>>>();
+    let totalVulnsFound = 0;
+    let totalTechsMatched = 0;
+
+    // Enrich each asset's posture findings with real CVE data — PER ASSET
+    for (const a of analyses) {
+      const assetTechs = (a.asset.technologies || []).filter(Boolean);
+      if (assetTechs.length === 0) continue;
+
+      // Get unique techs for this asset only
+      const uniqueAssetTechs = Array.from(new Set(assetTechs));
+      const cacheKey = uniqueAssetTechs.sort().join('|').toLowerCase();
+
+      // Check cache first — if another asset has the exact same tech set, reuse results
+      let vulnResult = vulnFeedCache.get(cacheKey);
+      if (!vulnResult) {
+        vulnResult = await matchTechnologiesAgainstAllFeeds(uniqueAssetTechs);
+        vulnFeedCache.set(cacheKey, vulnResult);
+      }
+
+      // Build a tech->vuln map for THIS asset's results
       const techVulnMap = new Map<string, typeof vulnResult.matches[0]>();
       for (const match of vulnResult.matches) {
         techVulnMap.set(match.technology.toLowerCase(), match);
       }
 
-      // Enrich each asset's posture findings with real CVE data
-      analyses.forEach(a => {
-        const assetTechs = (a.asset.technologies || []).map(t => t.toLowerCase());
-        for (const techLower of assetTechs) {
-          const vulnMatch = techVulnMap.get(techLower);
-          if (!vulnMatch) continue;
+      const assetTechsLower = assetTechs.map(t => t.toLowerCase());
+      for (const techLower of assetTechsLower) {
+        const vulnMatch = techVulnMap.get(techLower);
+        if (!vulnMatch) continue;
 
-          // Add vuln-feed-backed findings for the top CVEs
-          const topVulns = vulnMatch.vulns.slice(0, 5); // Top 5 by CVSS
-          for (const vuln of topVulns) {
-            // Skip if we already have a KEV finding for this CVE
-            if (a.postureFindings.some(f => f.cveIds?.includes(vuln.cveId))) continue;
+        // Add vuln-feed-backed findings for the top CVEs
+        const topVulns = vulnMatch.vulns.slice(0, 5); // Top 5 by CVSS
+        for (const vuln of topVulns) {
+          // Skip if we already have a KEV finding for this CVE
+          if (a.postureFindings.some(f => f.cveIds?.includes(vuln.cveId))) continue;
 
-            // Determine corroboration tier based on version evidence
-            const versions = a.asset.technologyVersions || {};
-            const detectedVersion = Object.entries(versions).find(
-              ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
-            )?.[1] || undefined;
-            // With version: confirmed. Without: probable (we have a real CVE, just no version confirmation)
-            const tier: CorroborationTier = detectedVersion ? "confirmed" : "probable";
-            const severityCap = tier === "confirmed" ? 10 : 6;
-            const rawSeverity = vuln.cvssScore ? Math.round(vuln.cvssScore) : 5;
-            const cappedSeverity = Math.min(rawSeverity, severityCap);
-            const evidenceChain: string[] = [
-              `Technology "${vulnMatch.technology}" detected on asset "${a.asset.hostname}"`,
-              `${vuln.cveId} affects ${vuln.vendor} ${vuln.product} (CVSS: ${vuln.cvssScore || "N/A"})`,
-              `Sources: ${vuln.sources.join(", ")}`,
-            ];
-            if (detectedVersion) {
-              evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED`);
-            } else {
-              evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
-            }
-            if (vuln.kevListed) evidenceChain.push(`Listed on CISA KEV — actively exploited in the wild`);
-            if (vuln.exploitAvailable) evidenceChain.push(`Public exploit available`);
-            if (vuln.inTheWild) evidenceChain.push(`Confirmed 0-day exploitation in the wild`);
-
-            a.postureFindings.push({
-              id: `vf-${vuln.cveId}-${a.asset.assetId}`,
-              assetRef: a.asset.assetId,
-              assetHostname: a.asset.hostname,
-              category: vuln.kevListed ? "CISA KEV" : vuln.inTheWild ? "0-Day" : vuln.exploitAvailable ? "Exploitable CVE" : "Known CVE",
-              title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"} (${vuln.vendor} ${vuln.product})`,
-              severity: cappedSeverity,
-              likelihood: detectedVersion
-                ? (vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 5)
-                : Math.min(vuln.kevListed ? 6 : vuln.inTheWild ? 5 : vuln.exploitAvailable ? 4 : 3, 6),
-              confidence: detectedVersion ? (vuln.cvssScore ? 0.9 : 0.75) : (vuln.cvssScore ? 0.6 : 0.4),
-              recommendedControls: [
-                vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
-                `Monitor for exploitation of ${vuln.cveId}`,
-                ...(!detectedVersion ? [`Verify ${vuln.vendor} ${vuln.product} version on ${a.asset.hostname} to confirm vulnerability`] : []),
-              ],
-              cveIds: [vuln.cveId],
-              kevListed: vuln.kevListed,
-              exploitAvailable: vuln.exploitAvailable,
-              cvssScore: vuln.cvssScore || undefined,
-              affectedAssets: [a.asset.hostname],
-              evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
-              evidenceDetail: detectedVersion
-                ? `CONFIRMED: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
-                : `PROBABLE: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but version not confirmed. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
-              corroborationTier: tier,
-              detectedVersion,
-              versionMatchConfirmed: !!detectedVersion,
-              evidenceChain,
-            });
+          // Determine corroboration tier based on version evidence
+          const versions = a.asset.technologyVersions || {};
+          const detectedVersion = Object.entries(versions).find(
+            ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
+          )?.[1] || undefined;
+          // With version: confirmed. Without: probable (we have a real CVE, just no version confirmation)
+          const tier: CorroborationTier = detectedVersion ? "confirmed" : "probable";
+          const severityCap = tier === "confirmed" ? 10 : 6;
+          const rawSeverity = vuln.cvssScore ? Math.round(vuln.cvssScore) : 5;
+          const cappedSeverity = Math.min(rawSeverity, severityCap);
+          const evidenceChain: string[] = [
+            `Technology "${vulnMatch.technology}" detected on asset "${a.asset.hostname}"`,
+            `${vuln.cveId} affects ${vuln.vendor} ${vuln.product} (CVSS: ${vuln.cvssScore || "N/A"})`,
+            `Sources: ${vuln.sources.join(", ")}`,
+          ];
+          if (detectedVersion) {
+            evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED`);
+          } else {
+            evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
           }
+          if (vuln.kevListed) evidenceChain.push(`Listed on CISA KEV — actively exploited in the wild`);
+          if (vuln.exploitAvailable) evidenceChain.push(`Public exploit available`);
+          if (vuln.inTheWild) evidenceChain.push(`Confirmed 0-day exploitation in the wild`);
+
+          a.postureFindings.push({
+            id: `vf-${vuln.cveId}-${a.asset.assetId}`,
+            assetRef: a.asset.assetId,
+            assetHostname: a.asset.hostname,
+            category: vuln.kevListed ? "CISA KEV" : vuln.inTheWild ? "0-Day" : vuln.exploitAvailable ? "Exploitable CVE" : "Known CVE",
+            title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"} (${vuln.vendor} ${vuln.product})`,
+            severity: cappedSeverity,
+            likelihood: detectedVersion
+              ? (vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 5)
+              : Math.min(vuln.kevListed ? 6 : vuln.inTheWild ? 5 : vuln.exploitAvailable ? 4 : 3, 6),
+            confidence: detectedVersion ? (vuln.cvssScore ? 0.9 : 0.75) : (vuln.cvssScore ? 0.6 : 0.4),
+            recommendedControls: [
+              vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
+              `Monitor for exploitation of ${vuln.cveId}`,
+              ...(!detectedVersion ? [`Verify ${vuln.vendor} ${vuln.product} version on ${a.asset.hostname} to confirm vulnerability`] : []),
+            ],
+            cveIds: [vuln.cveId],
+            kevListed: vuln.kevListed,
+            exploitAvailable: vuln.exploitAvailable,
+            cvssScore: vuln.cvssScore || undefined,
+            affectedAssets: [a.asset.hostname],
+            evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
+            evidenceDetail: detectedVersion
+              ? `CONFIRMED: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
+              : `PROBABLE: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but version not confirmed. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
+            corroborationTier: tier,
+            detectedVersion,
+            versionMatchConfirmed: !!detectedVersion,
+            evidenceChain,
+          });
         }
-      });
-      console.log(`[DomainIntel] Vuln feed enrichment: ${vulnResult.totalVulns} vulns across ${vulnResult.matches.length} technologies`);
+      }
+      totalVulnsFound += vulnResult.totalVulns;
+      totalTechsMatched += vulnResult.matches.length;
     }
+    console.log(`[DomainIntel] Vuln feed enrichment: ${totalVulnsFound} vulns across ${totalTechsMatched} technologies (per-asset matching)`);
   } catch (err: any) {
     console.error(`[DomainIntel] Vuln feed enrichment failed (non-fatal): ${err.message}`);
   }
