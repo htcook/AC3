@@ -15,8 +15,10 @@ import {
   Globe, Search, Shield, Target, Plus, X,
   Loader2, CheckCircle2, AlertTriangle, Zap, Building2, Server, Cloud,
   Network, FileText, Brain, Crosshair, ChevronDown, ChevronUp,
-  Eye, Fingerprint, Bug, Database, Radio, Radar, Scan, Info, Lock
+  Eye, Fingerprint, Bug, Database, Radio, Radar, Scan, Info, Lock,
+  RotateCcw, Trash2
 } from "lucide-react";
+import { toast } from "sonner";
 
 const CLIENT_TYPES = [
   { value: "msp", label: "MSP / Managed Service Provider", icon: Server },
@@ -355,10 +357,38 @@ export default function DomainIntel() {
     }
   );
 
+  // Retry scan mutation
+  const retryScan = trpc.domainIntel.retryScan.useMutation({
+    onSuccess: (data) => {
+      toast.success("Scan retry started");
+      setScanId(data.scanId);
+      setIsRunning(true);
+      setIsComplete(false);
+      setIsScanComplete(false);
+      setPipelineStage(0);
+      setPipelineError(null);
+      scansQuery.refetch();
+    },
+    onError: (err) => {
+      toast.error(`Retry failed: ${err.message}`);
+    },
+  });
+
+  // Delete scan mutation
+  const deleteScan = trpc.domainIntel.deleteScan.useMutation({
+    onSuccess: () => {
+      toast.success("Scan deleted");
+      scansQuery.refetch();
+    },
+    onError: (err) => {
+      toast.error(`Delete failed: ${err.message}`);
+    },
+  });
+
   // React to scan status changes
   useEffect(() => {
     if (!scanStatusQuery.data || !isRunning) return;
-    const { status } = scanStatusQuery.data;
+    const { status, isStuck } = scanStatusQuery.data;
     const stageMap: Record<string, number> = {
       passive_recon: 0.5,
       discovering: 1,
@@ -372,7 +402,10 @@ export default function DomainIntel() {
     const stageNum = stageMap[status] ?? 0;
     if (stageNum > 0) setPipelineStage(stageNum);
 
-    if (status === "scan_complete") {
+    if (isStuck) {
+      setPipelineError("Pipeline appears stuck (no progress for 15+ minutes). You can retry the scan.");
+      setIsRunning(false);
+    } else if (status === "scan_complete") {
       setIsRunning(false);
       setIsScanComplete(true);
       setIsComplete(false);
@@ -388,6 +421,15 @@ export default function DomainIntel() {
 
   // Past scans
   const scansQuery = trpc.domainIntel.listScans.useQuery();
+
+  // Helper: detect stuck scans in the list (in-progress > 15 min)
+  const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
+  const isScanStuck = (scan: any) => {
+    const inProgressStatuses = ['passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
+    return inProgressStatuses.includes(scan.status)
+      && scan.updatedAt
+      && (Date.now() - new Date(scan.updatedAt).getTime() > STUCK_THRESHOLD_MS);
+  };
 
   const addDomain = () => {
     const d = newDomain.trim().toLowerCase();
@@ -929,6 +971,18 @@ export default function DomainIntel() {
                         <AlertTriangle className="h-4 w-4" />
                         {pipelineError || startScan.error?.message}
                       </p>
+                      {pipelineError && scanId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+                          onClick={() => retryScan.mutate({ scanId })}
+                          disabled={retryScan.isPending}
+                        >
+                          {retryScan.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RotateCcw className="h-3 w-3 mr-1" />}
+                          Retry Scan
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 )}
@@ -1024,7 +1078,7 @@ export default function DomainIntel() {
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Recent Scans</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {scansQuery.data.slice(0, 6).map((scan: any) => {
+            {scansQuery.data.slice(0, 12).map((scan: any) => {
               const output = scan.pipelineOutput as any;
               const riskScore = output?.riskScore || scan.overallRiskScore || 0;
               const assetCount = output?.assets?.length || scan.totalAssets || 0;
@@ -1032,11 +1086,14 @@ export default function DomainIntel() {
               const confirmedCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'confirmed').length || 0;
               const probableCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'probable').length || 0;
               const potentialCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'potential').length || 0;
+              const stuck = isScanStuck(scan);
+              const canRetry = stuck || scan.status === 'failed';
+              const displayStatus = stuck ? 'stuck' : scan.status === 'scan_complete' ? 'scan complete' : scan.status;
               return (
                 <Card
                   key={scan.id}
-                  className="cursor-pointer hover:border-purple-500/50 transition-all"
-                  onClick={() => navigate(`/domain-intel/${scan.id}`)}
+                  className={`cursor-pointer hover:border-purple-500/50 transition-all ${stuck ? 'border-orange-500/40' : canRetry ? 'border-destructive/40' : ''}`}
+                  onClick={() => !canRetry && navigate(`/domain-intel/${scan.id}`)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -1049,12 +1106,13 @@ export default function DomainIntel() {
                       <Badge variant={
                         scan.status === "completed" ? "default" :
                         scan.status === "scan_complete" ? "default" :
-                        scan.status === "failed" ? "destructive" : "secondary"
+                        canRetry ? "destructive" : "secondary"
                       } className={
                         scan.status === "completed" ? "bg-emerald-500/20 text-emerald-400" :
-                        scan.status === "scan_complete" ? "bg-cyan-500/20 text-cyan-400" : ""
+                        scan.status === "scan_complete" ? "bg-cyan-500/20 text-cyan-400" :
+                        stuck ? "bg-orange-500/20 text-orange-400" : ""
                       }>
-                        {scan.status === "scan_complete" ? "scan complete" : scan.status}
+                        {displayStatus}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -1068,7 +1126,31 @@ export default function DomainIntel() {
                       <span className="text-[10px] text-muted-foreground">
                         {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
                       </span>
-                      <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
+                      {canRetry ? (
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10"
+                            onClick={(e) => { e.stopPropagation(); retryScan.mutate({ scanId: scan.id }); }}
+                            disabled={retryScan.isPending}
+                          >
+                            {retryScan.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                            <span className="ml-1 text-[10px]">Retry</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            onClick={(e) => { e.stopPropagation(); if (confirm('Delete this scan?')) deleteScan.mutate({ scanId: scan.id }); }}
+                            disabled={deleteScan.isPending}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

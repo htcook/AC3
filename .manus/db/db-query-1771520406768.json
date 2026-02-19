@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets, totalFindings, overallRiskScore, overallRiskBand FROM domain_intel_scans WHERE primaryDomain LIKE '%lexisnexis%' ORDER BY id DESC LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets, totalFindings, overallRiskScore, overallRiskBand FROM domain_intel_scans WHERE primaryDomain LIKE '%lexisnexis%' ORDER BY id DESC LIMIT 1;",
+  "rows": [
+    {
+      "id": "810001",
+      "primaryDomain": "risk.lexisnexis.com",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "overallRiskBand": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\ttotalFindings\toverallRiskScore\toverallRiskBand\n810001\trisk.lexisnexis.com\tpassive_recon\t0\t0\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 337
+}

@@ -2509,3 +2509,15 @@
 - [x] Checkbox selection per engagement, red highlight on selected, confirmation dialog
 - [x] Verified Engagement Manager shows only the real engagement (ENGAGEMENTS (1))
 - [x] 9 bulk delete tests passing (db helper, input validation, activity logging)
+
+## Pipeline Failure: risk.lexisnexis.com Scan (Feb 19)
+- [x] Reproduced: scan stuck at `passive_recon` status — background pipeline task died mid-execution (server restart during scan)
+- [x] Root cause: setImmediate background task interrupted; no automatic recovery mechanism; frontend didn't detect stuck scans in the scan list
+- [x] Added stuck scan detection to frontend (>15 min no progress → show "stuck" badge)
+- [x] Added Retry button for stuck/failed scans in the scan list cards
+- [x] Added Delete button (trash icon) for stuck/failed scans
+- [x] Added `deleteScan` tRPC procedure + `deleteDomainIntelScan` db helper
+- [x] Frontend `isStuck` flag from `getScanStatus` now stops the running progress UI and shows retry option
+- [x] Purged 221 test scans + 13 mixed_hosting test scans from database (18 real scans remain)
+- [x] Retried risk.lexisnexis.com scan — completed successfully: 30 assets, 993 findings, risk score 32
+- [x] 26 new pipeline tests passing (stuck detection, status display, stage mapping, db helpers)

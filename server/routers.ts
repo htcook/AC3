@@ -4323,6 +4323,19 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         return { scanId: input.scanId, message: 'Scan retry started' };
       }),
 
+    // Delete a scan and its assets
+    deleteScan: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .mutation(async ({ input }) => {
+        // Delete discovered assets first
+        try {
+          await db.deleteDiscoveredAssetsByScan(input.scanId);
+        } catch { /* ignore if no assets */ }
+        // Delete the scan record
+        await db.deleteDomainIntelScan(input.scanId);
+        return { success: true };
+      }),
+
     // List all scans
     listScans: protectedProcedure.query(async () => {
       return db.getDomainIntelScans();
