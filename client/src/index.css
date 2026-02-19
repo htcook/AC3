@@ -179,6 +179,16 @@
     @apply cursor-pointer;
   }
 
+  /* Fix: Tailwind 4 not generating disabled: variants — explicit disabled button styles */
+  button:disabled,
+  [type="button"]:disabled,
+  [type="submit"]:disabled,
+  [type="reset"]:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: not-allowed;
+  }
+
   /* AceC3 Typography Hierarchy */
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;

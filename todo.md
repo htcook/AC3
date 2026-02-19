@@ -2639,3 +2639,10 @@
 - [x] Create STIX Export management page with collection browser, stats, JSON preview, download
 - [x] Write 50 tests for STIX bundle generation (all passing)
 - [x] Full test suite: 1,089 tests passing across 65 files
+
+## Bug Fix: Domain Scan Button Not Enabling ✅ COMPLETE
+- [x] Investigate why scan button stays disabled when all required fields are entered
+- [x] Root cause: Tailwind CSS 4 not generating disabled:opacity-50 CSS rules — button looks identical enabled vs disabled
+- [x] Fix: Added explicit disabled button CSS rules in index.css @layer base (opacity: 0.5, pointer-events: none, cursor: not-allowed)
+- [x] Verified fix in browser: disabled button now clearly dimmed (opacity 0.5), enabled button fully bright (opacity 1)
+- [x] Write 9 tests for disabled button styling (all passing)
