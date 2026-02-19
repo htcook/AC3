@@ -308,6 +308,14 @@ async function startServer() {
     }).catch((err) => {
       console.warn("[Vuln Feed Sync] Failed to initialize scheduled sync:", err);
     });
+
+    // Initialize Exploit Catalog enrichment scheduler (weekly)
+    import("../lib/enrichment-scheduler").then(({ startScheduler }) => {
+      startScheduler(); // 7-day interval, safe to call multiple times
+      console.log("[Enrichment] Weekly enrichment scheduler initialized");
+    }).catch((err) => {
+      console.warn("[Enrichment] Failed to initialize enrichment scheduler:", err);
+    });
   });
 }
 

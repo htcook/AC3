@@ -2398,3 +2398,26 @@
 - [x] 5-minute staleTime cache to avoid excessive API calls
 - [x] 10 new tests passing (catalog stats, search, filtering, threat actor count, entry lookup)
 - [x] Full suite: 868 passed, 4 pre-existing external API timeouts (not related)
+
+## Scheduled Enrichment Pipeline (Feb 18)
+- [x] Created `exploitCatalog.runEnrichment` admin-only tRPC endpoint to manually trigger pipeline
+- [x] Created `enrichment-scheduler.ts` with `startScheduler()` (weekly interval, auto-starts on server boot)
+- [x] Added `exploitCatalog.enrichmentStatus` endpoint showing last run, next scheduled, running state
+- [x] Concurrent run prevention: `isEnrichmentRunning()` check, CONFLICT error if already running
+- [x] Registered scheduler in `server/_core/index.ts` alongside IOC sync, Caldera sync, and Vuln Feed sync
+- [x] 6 scheduler tests passing (status shape, start/stop, idempotency)
+
+## Exploit Catalog Browser Page (Feb 18)
+- [x] Rewired existing /exploit-arsenal page to use new `exploitCatalog.*` endpoints (was using old empty `metasploit.*` endpoints)
+- [x] Search bar with full-text search across name, description, catalogId
+- [x] Filter by tier (initial_access / post_access)
+- [x] Filter by source (metasploit / caldera_stockpile / phishing_library / exploitdb)
+- [x] Filter by category and platform
+- [x] Paginated results (50 per page) with total count and page navigation
+- [x] Detail dialog showing full entry info, CVEs, MITRE ATT&CK, effectiveness score
+- [x] Deploy-to-Caldera button (individual + bulk "Sync All")
+- [x] Caldera sync status badge per entry
+- [x] Enrichment status panel showing last run, next scheduled, and manual trigger button
+- [x] Stats header showing total entries, by-source breakdown, sync percentage
+- [x] 15 new tests passing (scheduler + catalog search/filter/pagination/entry lookup)
+- [x] Full suite: 884 passed, 3 pre-existing failures (SpicyTIP bridge, DNS banner timeout, sync template timeout)
