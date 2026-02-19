@@ -5585,5 +5585,43 @@ Make the phishing content highly realistic and tailored to the target domain and
         return getKaliToolsCatalog();
       }),
   }),
+
+  // ─── Dynamic Platform Stats (public, for homepage) ──────────────────
+  platformStats: router({
+    getHomepageStats: publicProcedure.query(async () => {
+      const { getCatalogStats } = await import('./lib/exploit-catalog');
+      const catalogStats = await getCatalogStats();
+
+      // Threat actors count from DB
+      const threatActorCount = await db.getThreatActorCount();
+
+      // Caldera abilities count (from catalog or live API)
+      const calderaAbilities = catalogStats.bySource['caldera_stockpile'] || 0;
+
+      // Metasploit modules count (from catalog)
+      const metasploitModules = catalogStats.bySource['metasploit'] || 0;
+
+      // Phishing exploits count (from catalog)
+      const phishingExploits = catalogStats.bySource['phishing_library'] || 0;
+
+      // Platform modules count (hardcoded — these are UI sections, not DB entries)
+      const platformModules = 29;
+
+      return {
+        exploitCatalogTotal: catalogStats.total,
+        metasploitModules,
+        calderaAbilities,
+        threatActors: threatActorCount,
+        phishingExploits,
+        platformModules,
+        byTier: catalogStats.byTier,
+        bySource: catalogStats.bySource,
+        byCategory: catalogStats.byCategory,
+        calderaSynced: catalogStats.calderaSynced,
+        withStagers: catalogStats.withStagers,
+        lastUpdated: Date.now(),
+      };
+    }),
+  }),
 });
 export type AppRouter = typeof appRouter;

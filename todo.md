@@ -2382,3 +2382,19 @@
 - [x] Verified: 5 rule validation formats (Sigma, YARA, Suricata, SPL, KQL) is correct in features list
 - [x] Verified: 29 modules in Operations Center is correct
 - [x] All old inflated numbers (4,370 / 1,940 / 50+ / 492+) confirmed removed
+
+## Populate Unified Exploit Catalog (Feb 18)
+- [x] Investigated existing exploit catalog schema and ingestion code (exploit-catalog.ts)
+- [x] Ran enrichment pipeline: 4,281 entries added (2,345 Metasploit + 1,919 Caldera + 17 phishing), 0 errors
+- [x] ExploitDB returned 0 CVE-mapped entries (feed may be rate-limited; can re-run later)
+- [x] Verified catalog populated correctly with getCatalogStats()
+
+## Dynamic Stats API Endpoint (Feb 18)
+- [x] Created `platformStats.getHomepageStats` public tRPC endpoint returning live counts from DB
+- [x] Added `getThreatActorCount()` helper to db.ts
+- [x] Wired homepage AnimatedStat components to use `trpc.platformStats.getHomepageStats.useQuery()`
+- [x] Added fallback to static values while API loads (useMemo with nullish coalescing)
+- [x] Replaced 11 hardcoded stat references with dynamic template literals throughout homepage
+- [x] 5-minute staleTime cache to avoid excessive API calls
+- [x] 10 new tests passing (catalog stats, search, filtering, threat actor count, entry lookup)
+- [x] Full suite: 868 passed, 4 pre-existing external API timeouts (not related)

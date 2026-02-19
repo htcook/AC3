@@ -851,6 +851,13 @@ export async function getThreatActorStats() {
   return { total: Number(total.count), byType, byOrigin, byThreatLevel };
 }
 
+export async function getThreatActorCount(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const [result] = await db.select({ count: sql<number>`COUNT(*)` }).from(threatActors);
+  return Number(result.count);
+}
+
 // ─── Threat Actor Abilities ──────────────────────────────────────────────
 export async function listThreatActorAbilities(actorId: string) {
   const db = await getDb();
