@@ -61,23 +61,26 @@ export default function Engagements() {
     const params = new URLSearchParams(window.location.search);
     const fromIntel = params.get('fromIntel');
     if (fromIntel) {
-      fetch(`/api/trpc/domainIntel.getScan?input=${encodeURIComponent(JSON.stringify({ id: Number(fromIntel) }))}`, { credentials: 'include' })
+      fetch(`/api/trpc/domainIntel.getScan?input=${encodeURIComponent(JSON.stringify({ json: { id: Number(fromIntel) } }))}`, { credentials: 'include' })
         .then(r => r.json())
         .then((res: any) => {
-          const scan = res?.result?.data?.scan;
+          const scan = res?.result?.data?.json?.scan || res?.result?.data?.scan;
           if (scan) {
+            const customerName = scan.customerName || scan.orgProfile?.customerName || '';
             setFormData(prev => ({
               ...prev,
-              name: `${scan.customerName || scan.primaryDomain} - Intel-Driven Engagement`,
-              customerName: scan.customerName || '',
+              name: `${customerName || scan.primaryDomain} - Intel-Driven Engagement`,
+              customerName: customerName,
               targetDomain: scan.primaryDomain || '',
-              description: `Auto-generated from Domain Intel scan. Risk: ${scan.overallRiskBand} (${scan.overallRiskScore}/100). ${scan.totalAssets || 0} assets discovered.`,
+              description: `Auto-generated from Domain Intel scan. Risk: ${scan.overallRiskBand || 'Unknown'} (${scan.overallRiskScore || 0}/100). ${scan.totalAssets || 0} assets discovered.`,
               engagementType: 'red_team' as EngagementType,
             }));
             setShowCreateForm(true);
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.error('[Engagements] Failed to fetch scan for fromIntel:', err);
+        });
     }
   }, []);
 

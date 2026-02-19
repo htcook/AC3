@@ -106,6 +106,9 @@ function Router() {
       <Route path="/engagements">
         <ProtectedRoute component={Engagements} />
       </Route>
+      <Route path="/engagements/new">
+        <ProtectedRoute component={Engagements} />
+      </Route>
       <Route path="/credentials">
         <Redirect to="/infra-reference" />
       </Route>

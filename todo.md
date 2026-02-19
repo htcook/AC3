@@ -2534,3 +2534,12 @@
 - [x] Verified cron job initializes on server startup: "[ScanRecovery] Cron job active"
 - [x] 23 tests passing (config, retry tracking, scheduler lifecycle, findStuckScans, runRecoveryCheck, exports)
 - [x] Live test: found 1 stuck scan (pbs.org, stuck 2206min) and auto-initiated recovery
+
+## Scan-to-Engagement Handoff Testing (Feb 19)
+- [x] Traced full code path: DomainIntelResults → /engagements/new?fromIntel=&campaign= → Engagements.tsx fromIntel useEffect → tRPC getScan → form pre-population
+- [x] Fixed: /engagements/new route was missing from App.tsx → added route
+- [x] Fixed: tRPC fetch used wrong format (missing Superjson `json` wrapper) → fixed to `{ json: { id } }` and correct response path `result.data.json`
+- [x] Tested end-to-end: button click → navigation → form auto-opens with pre-populated fields (name, customer, type, domain, description with risk score)
+- [x] Verified engagement creation: ENGAGEMENTS count went from 1 to 2 after clicking CREATE ENGAGEMENT
+- [x] Tested from DomainIntelResults page: Campaigns tab → expand campaign → Create Engagement from This Campaign → correct navigation
+- [x] 12 handoff tests passing (route config, fromIntel handling, Superjson format, form pre-population, campaign ID mapping, error handling)
