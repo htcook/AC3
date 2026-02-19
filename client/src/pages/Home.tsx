@@ -19,7 +19,7 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Kill Chain Timeline", desc: "Unified engagement timeline visualizing the complete kill chain from OSINT recon through MSF exploitation to Caldera post-exploitation with real-time WebSocket event streaming." },
   { date: "Feb 2026", title: "Real-Time Event Streaming", desc: "WebSocket-powered live updates across all pages. Exploit results, agent deployments, and pipeline progress appear instantly without page refresh." },
   { date: "Feb 2026", title: "Typosquat Domain Purchasing", desc: "Auto-identify top-10 typosquat domains per target, check availability, purchase via registrar, configure DNS, and auto-create GoPhish sending profiles." },
-  { date: "Feb 2026", title: "Exploit Arsenal & Caldera Ingestion", desc: "Automatic CVE-to-exploit matching from Metasploit (4,370+ modules) and ExploitDB. One-click deployment to Caldera as abilities with adversary profile creation." },
+  { date: "Feb 2026", title: "Exploit Arsenal & Caldera Ingestion", desc: "Automatic CVE-to-exploit matching from Metasploit (2,600+ modules) and ExploitDB. One-click deployment to Caldera as abilities with adversary profile creation." },
   { date: "Feb 2026", title: "Phishing Exploit Library", desc: "15 advanced phishing techniques (BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse) auto-injected into GoPhish templates based on target intelligence." },
   { date: "Feb 2026", title: "Shodan KEV/CVE Verification", desc: "Real-time banner verification via Shodan confirms or denies vulnerability matches. Only confirmed exploits drive risk scores." },
 ];
@@ -259,7 +259,7 @@ export default function Home() {
                   step: "2",
                   icon: Bug,
                   title: "Match Vulnerabilities to Exploits",
-                  desc: "Confirmed vulnerabilities are automatically matched to real exploit code from a library of 4,370+ modules. You see exactly which weaknesses have working attacks available."
+                  desc: "Confirmed vulnerabilities are automatically matched to real exploit code from Metasploit and ExploitDB. You see exactly which weaknesses have working attacks available."
                 },
                 {
                   step: "3",
@@ -340,10 +340,10 @@ export default function Home() {
       <section className="py-16 bg-card/50">
         <div className="container">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <AnimatedStat value={4370} label="EXPLOIT MODULES" suffix="+" />
-            <AnimatedStat value={492} label="THREAT ACTORS" suffix="+" />
-            <AnimatedStat value={1940} label="CALDERA ABILITIES" suffix="+" />
-            <AnimatedStat value={50} label="INTEGRATED MODULES" suffix="+" />
+            <AnimatedStat value={2617} label="METASPLOIT MODULES" suffix="+" />
+            <AnimatedStat value={1694} label="THREAT ACTORS" suffix="+" />
+            <AnimatedStat value={1919} label="CALDERA ABILITIES" suffix="" />
+            <AnimatedStat value={29} label="PLATFORM MODULES" suffix="" />
           </div>
         </div>
       </section>
@@ -451,7 +451,7 @@ export default function Home() {
               icon={<Target className="w-7 h-7" />}
               number="01"
               title="ADVERSARY EMULATION"
-              description="Match confirmed vulnerabilities to 4,370+ Metasploit modules and ExploitDB entries, deploy them as Caldera abilities, and execute real attack chains using APT adversary profiles."
+              description="Match confirmed vulnerabilities to 2,600+ Metasploit modules and ExploitDB entries, deploy them as Caldera abilities, and execute real attack chains using APT adversary profiles."
               features={[
                 "Automatic CVE-to-exploit matching: Metasploit + ExploitDB",
                 "One-click exploit deployment to Caldera as abilities",
@@ -502,7 +502,7 @@ export default function Home() {
               icon={<Brain className="w-7 h-7" />}
               number="04"
               title="THREAT & VULN INTELLIGENCE"
-              description="492+ threat actor profiles with kill chain visualization, exploit cross-referencing, and one-click campaign deployment. Five vulnerability feeds with Shodan verification."
+              description="1,694 threat actor profiles with kill chain visualization, exploit cross-referencing, and one-click campaign deployment. Five vulnerability feeds with Shodan verification."
               features={[
                 "APT matching with kill chain and confidence breakdown",
                 "Exploit cross-reference: which techniques have exploits",
@@ -560,7 +560,7 @@ export default function Home() {
           <div className="mb-16">
             <h2 className="text-4xl sm:text-5xl font-display mb-4">OPERATIONS CENTER</h2>
             <p className="text-lg text-muted-foreground max-w-3xl">
-              50+ integrated modules organized across six operational domains.
+              29 integrated modules organized across six operational domains.
               Every module connects to live backend APIs.
             </p>
           </div>
@@ -597,10 +597,10 @@ export default function Home() {
               title="EXPLOIT & EMULATION"
               color="text-orange-400"
               modules={[
-                { icon: Bug, name: "Exploit Arsenal", desc: "Unified catalog: 4,370+ Metasploit modules + ExploitDB + phishing exploits" },
+                { icon: Bug, name: "Exploit Arsenal", desc: "Unified catalog: 2,600+ Metasploit modules + ExploitDB + phishing exploits" },
                 { icon: Server, name: "Metasploit Servers", desc: "One-click DigitalOcean provisioning with auto-MSGRPC configuration" },
-                { icon: Layers, name: "Abilities Library", desc: "1,940+ Caldera abilities organized by MITRE ATT&CK tactic" },
-                { icon: Shield, name: "Threat Actors", desc: "492+ actor profiles with kill chains and campaign deployment" },
+                { icon: Layers, name: "Abilities Library", desc: "1,919 Caldera abilities organized by MITRE ATT&CK tactic" },
+                { icon: Shield, name: "Threat Actors", desc: "1,694 actor profiles with kill chains and campaign deployment" },
                 { icon: Brain, name: "TTP Knowledge", desc: "MITRE ATT&CK technique encyclopedia with Kali tool mapping" },
               ]}
             />
@@ -686,7 +686,7 @@ export default function Home() {
               items={[
                 "Adversary emulation engine",
                 "Metasploit auto-provisioning via DigitalOcean",
-                "4,370+ exploit module matching",
+                "2,600+ exploit module matching",
                 "CVE-to-exploit auto-deployment",
                 "Agent stager payload generation",
               ]}

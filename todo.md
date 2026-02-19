@@ -2357,3 +2357,10 @@
 - [x] "Demonstrate compliance" → "Support compliance" (Government & Defense card)
 - [x] "what your defenses caught" → "what your defenses catch" (Purple Teams card — present tense, not past)
 - [x] "ALSO SERVING" → "ALSO DESIGNED FOR" (industry sectors bar)
+
+## Homepage Stats Verification (Feb 18)
+- [x] Verify "4,370+ EXPLOIT MODULES" — WRONG. Metasploit has 2,617 exploit modules (6,151 total modules). ExploitDB has 46,963 entries (27,286 with CVEs). Unified exploit catalog DB table is empty (0 rows). Changed to "2,617+ METASPLOIT MODULES"
+- [x] Verify "492+ THREAT ACTORS" — WRONG. DB has 1,694 threat actors. Caldera has 33 adversaries. Changed to "1,694 THREAT ACTORS"
+- [x] Verify "1,940+ CALDERA ABILITIES" — SLIGHTLY OFF. Caldera API returns 1,919 abilities. Changed to "1,919 CALDERA ABILITIES" (no + suffix)
+- [x] Verify "50+ INTEGRATED MODULES" — WRONG. Only 29 modules listed in Operations Center. Changed to "29 PLATFORM MODULES" (no + suffix)
+- [x] Fixed all 11 references to old stats across the homepage (stats bar, pillar cards, operations center, architecture section, changelog)
