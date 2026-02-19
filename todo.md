@@ -2364,3 +2364,21 @@
 - [x] Verify "1,940+ CALDERA ABILITIES" — SLIGHTLY OFF. Caldera API returns 1,919 abilities. Changed to "1,919 CALDERA ABILITIES" (no + suffix)
 - [x] Verify "50+ INTEGRATED MODULES" — WRONG. Only 29 modules listed in Operations Center. Changed to "29 PLATFORM MODULES" (no + suffix)
 - [x] Fixed all 11 references to old stats across the homepage (stats bar, pillar cards, operations center, architecture section, changelog)
+
+## SSL Certificate Issue on www.aceofcloud.io (Feb 18)
+- [x] Diagnosed: Certificate is SELF-SIGNED (not from a trusted CA)
+- [x] CN = 137.184.7.224 (IP address, not domain name)
+- [x] SAN includes: 137.184.7.224, aceofcloud.io, *.aceofcloud.io, localhost
+- [x] Wildcard *.aceofcloud.io covers www.aceofcloud.io but self-signed = browser warning regardless
+- [x] Valid: Feb 13 2026 – Feb 12 2029 (not expired)
+- [ ] FIX NEEDED: Replace self-signed cert with Let's Encrypt (Certbot) on server 137.184.7.224 — infrastructure change, not app code
+
+## Homepage Descriptions Mismatch Fix (Feb 18)
+- [x] Audit all homepage section descriptions against verified stats
+- [x] Fixed "15 phishing techniques" → "17 phishing techniques" (verified: 17 in PHISHING_EXPLOITS array)
+- [x] Fixed "492+ threat actor profiles" → "1,694 threat actor profiles" in pillar card and module section
+- [x] Fixed pillar card description from "15 advanced phishing exploit techniques" → "17 phishing exploit techniques"
+- [x] Fixed "Validate against 5 SIEM formats" → "Validate against 4 SIEM formats (Sigma, Splunk SPL, KQL, Suricata)" in pillar description
+- [x] Verified: 5 rule validation formats (Sigma, YARA, Suricata, SPL, KQL) is correct in features list
+- [x] Verified: 29 modules in Operations Center is correct
+- [x] All old inflated numbers (4,370 / 1,940 / 50+ / 492+) confirmed removed

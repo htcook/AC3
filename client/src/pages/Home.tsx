@@ -20,7 +20,7 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Real-Time Event Streaming", desc: "WebSocket-powered live updates across all pages. Exploit results, agent deployments, and pipeline progress appear instantly without page refresh." },
   { date: "Feb 2026", title: "Typosquat Domain Purchasing", desc: "Auto-identify top-10 typosquat domains per target, check availability, purchase via registrar, configure DNS, and auto-create GoPhish sending profiles." },
   { date: "Feb 2026", title: "Exploit Arsenal & Caldera Ingestion", desc: "Automatic CVE-to-exploit matching from Metasploit (2,600+ modules) and ExploitDB. One-click deployment to Caldera as abilities with adversary profile creation." },
-  { date: "Feb 2026", title: "Phishing Exploit Library", desc: "15 advanced phishing techniques (BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse) auto-injected into GoPhish templates based on target intelligence." },
+  { date: "Feb 2026", title: "Phishing Exploit Library", desc: "17 advanced phishing techniques (BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing) auto-injected into GoPhish templates based on target intelligence." },
   { date: "Feb 2026", title: "Shodan KEV/CVE Verification", desc: "Real-time banner verification via Shodan confirms or denies vulnerability matches. Only confirmed exploits drive risk scores." },
 ];
 
@@ -468,9 +468,9 @@ export default function Home() {
               icon={<Zap className="w-7 h-7" />}
               number="02"
               title="SOCIAL ENGINEERING"
-              description="15 advanced phishing exploit techniques — BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse — auto-injected into GoPhish campaigns based on target intelligence."
+              description="17 phishing exploit techniques — BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing — auto-injected into GoPhish campaigns based on target intelligence."
               features={[
-                "15 phishing exploit techniques auto-matched to targets",
+                "17 phishing exploit techniques auto-matched to targets",
                 "BITB fake SSO, AiTM proxy, HTML smuggling, MFA bypass",
                 "Typosquat domain purchasing with auto DNS configuration",
                 "AI-powered template generation from threat actor TTPs",
@@ -519,7 +519,7 @@ export default function Home() {
               icon={<ShieldCheck className="w-7 h-7" />}
               number="05"
               title="DETECTION ENGINEERING"
-              description="Auto-generate detection rules from executed TTPs. Validate against 5 SIEM formats, measure which techniques your defenses caught, and deliver coverage gap analysis."
+              description="Auto-generate detection rules from executed TTPs. Validate against 4 SIEM formats (Sigma, Splunk SPL, KQL, Suricata), measure which techniques your defenses caught, and deliver coverage gap analysis."
               features={[
                 "Auto-generate Sigma, YARA, and Suricata rules",
                 "Validate in 5 formats: Sigma, YARA, Suricata, SPL, KQL",
@@ -658,7 +658,7 @@ export default function Home() {
               { step: "01", title: "RECON", desc: "Shodan-verified domain intel with DNS/banner confirmation and evidence-based risk scoring", icon: Radar },
               { step: "02", title: "EXPLOIT", desc: "Match confirmed vulns to Metasploit/ExploitDB and deploy to Caldera with agent stagers", icon: Target },
               { step: "03", title: "OPERATE", desc: "Run Caldera operations with exploit-backed abilities and APT adversary profiles", icon: Crosshair },
-              { step: "04", title: "PHISH", desc: "If external access not achieved: launch exploit-enhanced phishing with 15 techniques", icon: Zap },
+              { step: "04", title: "PHISH", desc: "If external access not achieved: launch exploit-enhanced phishing with 17 techniques", icon: Zap },
               { step: "05", title: "DETECT", desc: "Auto-generate detection rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
               { step: "06", title: "REPORT", desc: "Deliver branded reports with confirmed findings, exploit references, and remediation", icon: FileText },
             ].map((item) => (
@@ -695,7 +695,7 @@ export default function Home() {
               icon={<Target className="w-6 h-6" />}
               title="GOPHISH + EXPLOIT LIBRARY"
               items={[
-                "15 phishing exploit techniques",
+                "17 phishing exploit techniques",
                 "BITB, AiTM, HTML smuggling, MFA bypass",
                 "Typosquat domain purchasing + DNS config",
                 "Intelligence-matched exploit injection",
