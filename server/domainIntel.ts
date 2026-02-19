@@ -634,7 +634,8 @@ function computeHybridRisk(
   cvss: number,
   missionImpact: number,
   ctx: { exposure: number; recognizability: number; confidence: number },
-  confirmedVulnScore?: number // 0-100 from computeVulnRisk; undefined = use LLM CVSS (initial pass)
+  confirmedVulnScore?: number, // 0-100 from computeVulnRisk; undefined = use LLM CVSS (initial pass)
+  portLikelihoodBoost?: number // 0-0.3 from computePortRisk; boosts likelihood for high-risk exposed ports
 ): { score: number; band: string; impactScore: number; likelihoodScore: number } {
   // IMPACT: normalized mission impact from CARVER+SHOCK (0-1)
   const impact = clamp(missionImpact / 10, 0, 1);
@@ -667,6 +668,11 @@ function computeHybridRisk(
   }
   likelihoodBase = clamp(likelihoodBase, 0, 1);
 
+  // Port exposure boost: high-risk exposed ports increase attack surface likelihood
+  if (portLikelihoodBoost && portLikelihoodBoost > 0) {
+    likelihoodBase = clamp(likelihoodBase + portLikelihoodBoost, 0, 1);
+  }
+
   // Confidence dampening: low-confidence assessments reduce likelihood
   // At confidence 1.0: no dampening. At confidence 0.3: ~47% reduction
   const confidenceDampening = 0.55 + (ctx.confidence * 0.45);
@@ -677,6 +683,339 @@ function computeHybridRisk(
   const band = riskBand(score);
 
   return { score, band, impactScore: Math.round(impact * 100), likelihoodScore: Math.round(likelihood * 100) };
+}
+
+// ─── Port-Based Risk Scoring ─────────────────────────────────────────
+
+/** High-risk ports that significantly increase attack surface when exposed to the internet */
+const HIGH_RISK_PORTS: Record<number, { service: string; severity: number; category: string; rationale: string }> = {
+  21:   { service: 'FTP', severity: 8, category: 'remote_access', rationale: 'FTP transmits credentials in cleartext and is frequently targeted by automated scanners' },
+  23:   { service: 'Telnet', severity: 9, category: 'remote_access', rationale: 'Telnet transmits all data including credentials in cleartext — critical exposure' },
+  25:   { service: 'SMTP', severity: 5, category: 'mail', rationale: 'Open SMTP relay can be abused for spam/phishing if misconfigured' },
+  135:  { service: 'MS-RPC', severity: 7, category: 'windows', rationale: 'MS-RPC endpoint mapper is commonly exploited in Windows attacks' },
+  139:  { service: 'NetBIOS', severity: 7, category: 'windows', rationale: 'NetBIOS session service exposes Windows file sharing and is frequently targeted' },
+  445:  { service: 'SMB', severity: 8, category: 'windows', rationale: 'SMB is the primary vector for ransomware propagation (WannaCry, EternalBlue)' },
+  1433: { service: 'MSSQL', severity: 8, category: 'database', rationale: 'Exposed MSSQL server allows direct database attack attempts' },
+  1521: { service: 'Oracle DB', severity: 8, category: 'database', rationale: 'Exposed Oracle database listener allows direct database attack attempts' },
+  3306: { service: 'MySQL', severity: 8, category: 'database', rationale: 'Exposed MySQL server allows direct database attack and credential brute-force' },
+  3389: { service: 'RDP', severity: 9, category: 'remote_access', rationale: 'RDP is the #1 initial access vector for ransomware — BlueKeep, brute-force, credential stuffing' },
+  5432: { service: 'PostgreSQL', severity: 7, category: 'database', rationale: 'Exposed PostgreSQL allows direct database attack attempts' },
+  5900: { service: 'VNC', severity: 9, category: 'remote_access', rationale: 'VNC often lacks strong authentication and transmits screen data — critical exposure' },
+  5901: { service: 'VNC', severity: 9, category: 'remote_access', rationale: 'VNC display :1 — same critical exposure as port 5900' },
+  6379: { service: 'Redis', severity: 8, category: 'database', rationale: 'Redis often runs without authentication — allows arbitrary command execution' },
+  8080: { service: 'HTTP-Alt', severity: 4, category: 'web', rationale: 'Alternative HTTP port may expose admin panels or development servers' },
+  8443: { service: 'HTTPS-Alt', severity: 3, category: 'web', rationale: 'Alternative HTTPS port — lower risk but may expose management interfaces' },
+  9200: { service: 'Elasticsearch', severity: 8, category: 'database', rationale: 'Exposed Elasticsearch allows data exfiltration and cluster manipulation' },
+  11211: { service: 'Memcached', severity: 7, category: 'database', rationale: 'Exposed Memcached can be used for DDoS amplification and data leakage' },
+  27017: { service: 'MongoDB', severity: 8, category: 'database', rationale: 'MongoDB often runs without auth — #1 target for database ransomware' },
+};
+
+/** Medium-risk ports that moderately increase attack surface */
+const MEDIUM_RISK_PORTS: Record<number, { service: string; severity: number; category: string; rationale: string }> = {
+  22:   { service: 'SSH', severity: 3, category: 'remote_access', rationale: 'SSH is generally secure but exposed to brute-force attempts' },
+  53:   { service: 'DNS', severity: 4, category: 'infrastructure', rationale: 'Open DNS resolver can be used for DDoS amplification' },
+  110:  { service: 'POP3', severity: 5, category: 'mail', rationale: 'POP3 transmits credentials in cleartext' },
+  143:  { service: 'IMAP', severity: 5, category: 'mail', rationale: 'IMAP transmits credentials in cleartext' },
+  161:  { service: 'SNMP', severity: 6, category: 'management', rationale: 'SNMP v1/v2c uses community strings — information disclosure risk' },
+  389:  { service: 'LDAP', severity: 6, category: 'directory', rationale: 'Exposed LDAP can leak directory information and user accounts' },
+  636:  { service: 'LDAPS', severity: 4, category: 'directory', rationale: 'LDAPS is encrypted but still exposes directory services' },
+  993:  { service: 'IMAPS', severity: 3, category: 'mail', rationale: 'Encrypted IMAP — lower risk but still exposes mail service' },
+  995:  { service: 'POP3S', severity: 3, category: 'mail', rationale: 'Encrypted POP3 — lower risk but still exposes mail service' },
+  2049: { service: 'NFS', severity: 7, category: 'file_sharing', rationale: 'NFS can expose file systems if misconfigured' },
+  5060: { service: 'SIP', severity: 5, category: 'voip', rationale: 'SIP can be exploited for toll fraud and eavesdropping' },
+  8888: { service: 'HTTP-Alt', severity: 4, category: 'web', rationale: 'Alternative HTTP port may expose development or admin interfaces' },
+};
+
+export interface PortRiskResult {
+  /** Overall port exposure score 0-100 */
+  portExposureScore: number;
+  /** Risk band for port exposure */
+  portExposureBand: string;
+  /** Number of high-risk ports found */
+  highRiskPortCount: number;
+  /** Number of medium-risk ports found */
+  mediumRiskPortCount: number;
+  /** Total open ports found */
+  totalOpenPorts: number;
+  /** Detailed port findings for posture report */
+  portFindings: Array<{
+    port: number;
+    service: string;
+    severity: number;
+    category: string;
+    rationale: string;
+    ip?: string;
+    riskLevel: 'high' | 'medium' | 'low';
+  }>;
+  /** CARVER accessibility boost (0-3 points) */
+  accessibilityBoost: number;
+  /** Likelihood boost (0-0.3) for computeHybridRisk */
+  likelihoodBoost: number;
+}
+
+/**
+ * Compute port-based risk scoring for an asset by matching its hostname/IP
+ * against passive recon observations that contain port data.
+ * 
+ * High-risk ports (RDP, Telnet, FTP, VNC, SMB, exposed databases) significantly
+ * elevate risk because they represent direct attack vectors.
+ */
+export function computePortRisk(
+  asset: DiscoveredAssetRaw,
+  passiveObservations: Array<{ name?: string; ip?: string; tags: string[]; evidence: Record<string, any> }>
+): PortRiskResult {
+  // Collect all open ports for this asset from passive recon data
+  const assetPorts = new Map<number, { ip?: string; service?: string; source?: string }>();
+  
+  const assetHostname = asset.hostname?.toLowerCase() || '';
+  const assetIps = new Set<string>();
+  
+  // Extract IPs from DNS records if available
+  if (asset.dnsRecords) {
+    for (const [type, records] of Object.entries(asset.dnsRecords)) {
+      if (type === 'A' || type === 'AAAA') {
+        const arr = Array.isArray(records) ? records : [records];
+        for (const r of arr) {
+          if (typeof r === 'string') assetIps.add(r);
+          else if (r?.address) assetIps.add(r.address);
+        }
+      }
+    }
+  }
+  
+  for (const obs of passiveObservations) {
+    // Match observation to asset by hostname or IP
+    const obsName = (obs.name || '').toLowerCase();
+    const obsIp = obs.ip || '';
+    const isMatch = (
+      (assetHostname && (obsName.includes(assetHostname) || assetHostname.includes(obsName.split(' ')[0]))) ||
+      (obsIp && assetIps.has(obsIp)) ||
+      (obsIp && assetHostname.includes(obsIp))
+    );
+    
+    if (!isMatch) continue;
+    
+    // Extract ports from evidence
+    if (obs.evidence?.ports && Array.isArray(obs.evidence.ports)) {
+      for (const p of obs.evidence.ports) {
+        if (typeof p === 'number' && !assetPorts.has(p)) {
+          assetPorts.set(p, { ip: obsIp || undefined });
+        }
+      }
+    }
+    if (obs.evidence?.all_ports && Array.isArray(obs.evidence.all_ports)) {
+      for (const p of obs.evidence.all_ports) {
+        if (typeof p === 'number' && !assetPorts.has(p)) {
+          assetPorts.set(p, { ip: obsIp || undefined });
+        }
+      }
+    }
+    // Single port from Shodan host detail
+    if (obs.evidence?.port && typeof obs.evidence.port === 'number') {
+      const p = obs.evidence.port;
+      if (!assetPorts.has(p)) {
+        assetPorts.set(p, {
+          ip: obsIp || undefined,
+          service: obs.evidence.product || undefined,
+        });
+      }
+    }
+    // Extract ports from tags (port:80, port:443, etc.)
+    for (const tag of obs.tags) {
+      const portMatch = tag.match(/^port:(\d+)$/);
+      if (portMatch) {
+        const p = parseInt(portMatch[1], 10);
+        if (!assetPorts.has(p)) {
+          assetPorts.set(p, { ip: obsIp || undefined });
+        }
+      }
+    }
+  }
+  
+  if (assetPorts.size === 0) {
+    return {
+      portExposureScore: 0,
+      portExposureBand: 'low',
+      highRiskPortCount: 0,
+      mediumRiskPortCount: 0,
+      totalOpenPorts: 0,
+      portFindings: [],
+      accessibilityBoost: 0,
+      likelihoodBoost: 0,
+    };
+  }
+  
+  // Classify each port
+  const portFindings: PortRiskResult['portFindings'] = [];
+  let highRiskCount = 0;
+  let mediumRiskCount = 0;
+  let maxSeverity = 0;
+  let severitySum = 0;
+  
+  for (const [port, info] of Array.from(assetPorts.entries())) {
+    const highRisk = HIGH_RISK_PORTS[port];
+    const medRisk = MEDIUM_RISK_PORTS[port];
+    
+    if (highRisk) {
+      highRiskCount++;
+      portFindings.push({ port, ...highRisk, ip: info.ip, riskLevel: 'high' });
+      maxSeverity = Math.max(maxSeverity, highRisk.severity);
+      severitySum += highRisk.severity;
+    } else if (medRisk) {
+      mediumRiskCount++;
+      portFindings.push({ port, ...medRisk, ip: info.ip, riskLevel: 'medium' });
+      maxSeverity = Math.max(maxSeverity, medRisk.severity);
+      severitySum += medRisk.severity;
+    } else {
+      // Unknown port — low risk but still counts as exposure
+      portFindings.push({
+        port,
+        service: info.service || `Port ${port}`,
+        severity: 2,
+        category: 'unknown',
+        rationale: `Open port ${port} detected — service unknown`,
+        ip: info.ip,
+        riskLevel: 'low',
+      });
+      severitySum += 2;
+    }
+  }
+  
+  // Sort findings by severity descending
+  portFindings.sort((a, b) => b.severity - a.severity);
+  
+  // Compute port exposure score (0-100)
+  // Weighted: max severity (60%) + average severity (20%) + port count factor (20%)
+  const avgSeverity = portFindings.length > 0 ? severitySum / portFindings.length : 0;
+  const portCountFactor = Math.min(assetPorts.size / 10, 1) * 10; // 0-10, caps at 10 ports
+  const portExposureScore = clamp(
+    Math.round((maxSeverity / 10) * 60 + (avgSeverity / 10) * 20 + portCountFactor * 2),
+    0, 100
+  );
+  
+  // CARVER accessibility boost: high-risk ports make the asset more accessible to attackers
+  // 0 = no boost, up to 3 points for multiple high-risk ports
+  const accessibilityBoost = clamp(
+    highRiskCount >= 3 ? 3 :
+    highRiskCount >= 2 ? 2 :
+    highRiskCount >= 1 ? 1.5 :
+    mediumRiskCount >= 3 ? 1 :
+    mediumRiskCount >= 1 ? 0.5 : 0,
+    0, 3
+  );
+  
+  // Likelihood boost: high-risk ports increase attack surface exposure
+  // This is added to the exposure component in computeHybridRisk
+  // Max 0.3 for critical port exposure (RDP + SMB + DB exposed)
+  const likelihoodBoost = clamp(
+    highRiskCount >= 3 ? 0.3 :
+    highRiskCount >= 2 ? 0.2 :
+    highRiskCount >= 1 ? 0.15 :
+    mediumRiskCount >= 3 ? 0.1 :
+    mediumRiskCount >= 1 ? 0.05 : 0,
+    0, 0.3
+  );
+  
+  return {
+    portExposureScore,
+    portExposureBand: riskBand(portExposureScore),
+    highRiskPortCount: highRiskCount,
+    mediumRiskPortCount: mediumRiskCount,
+    totalOpenPorts: assetPorts.size,
+    portFindings,
+    accessibilityBoost,
+    likelihoodBoost,
+  };
+}
+
+/**
+ * Generate posture findings from high-risk exposed ports.
+ * These are "confirmed" findings because port exposure is directly observed
+ * from passive reconnaissance data (Shodan, InternetDB, Censys).
+ */
+export function generatePortPostureFindings(
+  asset: DiscoveredAssetRaw,
+  portRisk: PortRiskResult
+): PostureFinding[] {
+  const findings: PostureFinding[] = [];
+  
+  // Only generate findings for high-risk and significant medium-risk ports
+  const significantPorts = portRisk.portFindings.filter(
+    f => f.riskLevel === 'high' || (f.riskLevel === 'medium' && f.severity >= 5)
+  );
+  
+  for (const pf of significantPorts) {
+    const findingId = `port-${asset.assetId}-${pf.port}`;
+    const isHighRisk = pf.riskLevel === 'high';
+    
+    findings.push({
+      id: findingId,
+      assetRef: asset.assetId,
+      assetHostname: asset.hostname,
+      category: 'network_exposure',
+      title: `${pf.service} (port ${pf.port}) exposed to internet`,
+      severity: pf.severity,
+      likelihood: isHighRisk ? 8 : 5,
+      confidence: 1.0, // Directly observed from passive recon
+      recommendedControls: [
+        `Restrict ${pf.service} access via firewall rules or security groups`,
+        isHighRisk ? `Move ${pf.service} behind VPN or bastion host` : `Review necessity of ${pf.service} exposure`,
+        `Implement network segmentation to isolate ${pf.service}`,
+        ...(pf.category === 'database' ? ['Ensure strong authentication is configured', 'Enable encryption in transit'] : []),
+        ...(pf.category === 'remote_access' ? ['Enable multi-factor authentication', 'Implement account lockout policies'] : []),
+      ],
+      cveIds: [],
+      kevListed: false,
+      exploitAvailable: isHighRisk, // High-risk ports have well-known exploit tooling
+      affectedAssets: [asset.hostname],
+      evidenceBasis: 'passive_recon' as any,
+      evidenceDetail: `Port ${pf.port}/${pf.service} detected open via passive reconnaissance (Shodan/InternetDB/Censys). ${pf.rationale}`,
+      corroborationTier: 'confirmed' as CorroborationTier, // Directly observed = confirmed
+      evidenceChain: [
+        `Passive reconnaissance detected port ${pf.port} (${pf.service}) open on ${asset.hostname}${pf.ip ? ` (${pf.ip})` : ''}`,
+        `Service identified as ${pf.service} in category: ${pf.category}`,
+        pf.rationale,
+        `Finding corroboration: CONFIRMED — directly observed from internet-wide scan data`,
+      ],
+    });
+  }
+  
+  // If multiple high-risk ports are exposed, add a compound finding
+  const highRiskPorts = portRisk.portFindings.filter(f => f.riskLevel === 'high');
+  if (highRiskPorts.length >= 2) {
+    findings.push({
+      id: `port-compound-${asset.assetId}`,
+      assetRef: asset.assetId,
+      assetHostname: asset.hostname,
+      category: 'network_exposure',
+      title: `Multiple high-risk services exposed (${highRiskPorts.map(p => p.service).join(', ')})`,
+      severity: Math.min(10, Math.max(...highRiskPorts.map(p => p.severity)) + 1),
+      likelihood: 9,
+      confidence: 1.0,
+      recommendedControls: [
+        'Conduct immediate network exposure audit',
+        'Implement defense-in-depth with network segmentation',
+        'Deploy host-based firewall rules on all exposed assets',
+        'Move all management services behind VPN',
+        'Enable comprehensive logging and monitoring on all exposed ports',
+      ],
+      cveIds: [],
+      kevListed: false,
+      exploitAvailable: true,
+      affectedAssets: [asset.hostname],
+      evidenceBasis: 'passive_recon' as any,
+      evidenceDetail: `${highRiskPorts.length} high-risk ports exposed simultaneously: ${highRiskPorts.map(p => `${p.port}/${p.service}`).join(', ')}. Combined exposure dramatically increases attack surface.`,
+      corroborationTier: 'confirmed' as CorroborationTier,
+      evidenceChain: [
+        `${highRiskPorts.length} high-risk services detected exposed on ${asset.hostname}`,
+        ...highRiskPorts.map(p => `Port ${p.port} (${p.service}): ${p.rationale}`),
+        'Combined exposure creates compound risk — attackers can pivot between services',
+        'Finding corroboration: CONFIRMED — all ports directly observed from passive reconnaissance',
+      ],
+    });
+  }
+  
+  return findings;
 }
 
 /** Centralized band thresholds — Critical raised to 90 to prevent over-classification */
@@ -1406,7 +1745,44 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Exploit matching failed (non-fatal): ${err.message}`);
   }
 
-  // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan) are in place
+  // Stage 3.85: Port-Based Risk Scoring — analyze exposed ports and generate findings
+  let portRiskStats = { totalAssetsWithPorts: 0, totalHighRiskPorts: 0, totalPortFindings: 0 };
+  if (passiveRecon) {
+    try {
+      const allObs = passiveRecon.allObservations;
+      for (const a of analyses) {
+        const portRisk = computePortRisk(a.asset, allObs);
+        if (portRisk.totalOpenPorts > 0) {
+          portRiskStats.totalAssetsWithPorts++;
+          portRiskStats.totalHighRiskPorts += portRisk.highRiskPortCount;
+          
+          // Boost CARVER accessibility score based on exposed ports
+          if (portRisk.accessibilityBoost > 0) {
+            a.carverScores = {
+              ...a.carverScores,
+              accessibility: clamp(a.carverScores.accessibility + portRisk.accessibilityBoost, 0, 10),
+            };
+          }
+          
+          // Generate confirmed posture findings for high-risk ports
+          const portFindings = generatePortPostureFindings(a.asset, portRisk);
+          if (portFindings.length > 0) {
+            a.postureFindings.push(...portFindings);
+            portRiskStats.totalPortFindings += portFindings.length;
+          }
+          
+          // Store port risk data on the analysis for use in hybrid risk recalculation
+          (a as any)._portLikelihoodBoost = portRisk.likelihoodBoost;
+          (a as any)._portExposureScore = portRisk.portExposureScore;
+        }
+      }
+      console.log(`[DomainIntel] Port risk scoring: ${portRiskStats.totalAssetsWithPorts} assets with open ports, ${portRiskStats.totalHighRiskPorts} high-risk ports, ${portRiskStats.totalPortFindings} port findings generated`);
+    } catch (err: any) {
+      console.error(`[DomainIntel] Port risk scoring failed (non-fatal): ${err.message}`);
+    }
+  }
+
+  // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan + PORT) are in place
   for (const a of analyses) {
     const vulnRisk = computeVulnRisk(a.postureFindings);
     a.vulnRiskScore = vulnRisk.score;
@@ -1414,25 +1790,31 @@ export async function runDomainIntelPipeline(
   }
   console.log(`[DomainIntel] Separated scores computed: criticality (CARVER+SHOCK) vs vulnRisk (confirmed/probable findings only)`);
 
-  // POST-ENRICHMENT: Recalculate hybridRiskScore using CONFIRMED vuln data instead of LLM CVSS estimates.
+  // POST-ENRICHMENT: Recalculate hybridRiskScore using CONFIRMED vuln data + port exposure boost.
   // This is the critical step: unconfirmed/potential vulns no longer inflate the risk score.
   // Only confirmed (version-matched CVEs, KEV with version overlap, zero-days) and probable (CVE product-family match) drive Likelihood.
+  // Port exposure boost adds to likelihood for assets with high-risk exposed ports (RDP, Telnet, FTP, VNC, SMB, databases).
   // Assets with zero confirmed/probable vulns get a baseline low Likelihood (~5-15%).
   for (const a of analyses) {
     const missionImpact = computeMissionImpact(a.carverScores, a.shockScores);
+    const portBoost = (a as any)._portLikelihoodBoost || 0;
     const hybrid = computeHybridRisk(
       a.cvssEstimate,
       missionImpact,
       a.contextIndicators,
-      a.vulnRiskScore // Pass the CONFIRMED vuln score — this overrides the LLM CVSS for Likelihood
+      a.vulnRiskScore, // Pass the CONFIRMED vuln score — this overrides the LLM CVSS for Likelihood
+      portBoost // Port exposure boost — high-risk ports increase likelihood
     );
     a.hybridRiskScore = hybrid.score;
     a.riskBand = hybrid.band;
     a.suggestedTier = riskTier(hybrid.score);
     a.impactScore = hybrid.impactScore;
     a.likelihoodScore = hybrid.likelihoodScore;
+    // Clean up temporary port data
+    delete (a as any)._portLikelihoodBoost;
+    delete (a as any)._portExposureScore;
   }
-  console.log(`[DomainIntel] Hybrid risk recalculated using confirmed vuln data (unconfirmed vulns excluded from scoring)`);
+  console.log(`[DomainIntel] Hybrid risk recalculated using confirmed vuln data + port exposure (unconfirmed vulns excluded from scoring)`);
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
   // If skipEngagement is true, skip campaign design and generate scan-only summaries

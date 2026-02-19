@@ -14,6 +14,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Scan, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
+import ShareLinkManager from "@/components/ShareLinkManager";
 
 const ENGAGEMENT_TYPES = [
   { value: 'red_team', label: 'Red Team', color: 'text-red-400 bg-red-500/10' },
@@ -778,7 +779,10 @@ export default function Engagements() {
 
                     {/* Expanded campaign links */}
                     {expandedEngagement === engagement.id && (
-                      <div className="mt-3 pt-3 border-t border-border">
+                      <div className="mt-3 pt-3 border-t border-border space-y-4">
+                        {/* Client Portal Share Links */}
+                        <ShareLinkManager engagementId={engagement.id} />
+
                         <h4 className="text-xs font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
                           <Send className="w-3.5 h-3.5" /> LINKED CAMPAIGNS
                         </h4>

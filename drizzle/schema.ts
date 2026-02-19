@@ -1307,3 +1307,45 @@ export const unifiedExploitCatalog = mysqlTable("unified_exploit_catalog", {
 });
 export type UnifiedExploit = typeof unifiedExploitCatalog.$inferSelect;
 export type InsertUnifiedExploit = typeof unifiedExploitCatalog.$inferInsert;
+
+
+/**
+ * Client Portal Share Tokens — enables read-only, white-labeled engagement report access
+ * 
+ * Each token grants access to a specific engagement's data (findings, risk scores,
+ * executive summary, recommendations) without requiring authentication.
+ * Tokens can be time-limited, password-protected, and branded.
+ */
+export const engagementShares = mysqlTable("engagement_shares", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagementId").notNull(),
+  // Share token (unique, URL-safe)
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  // Access controls
+  expiresAt: timestamp("expiresAt"),
+  accessPassword: varchar("accessPassword", { length: 255 }), // optional bcrypt hash
+  maxViews: int("maxViews"), // null = unlimited
+  viewCount: int("viewCount").default(0).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  // What to include
+  includeSections: json("includeSections"), // string[] of section IDs to show
+  includeFindings: boolean("includeFindings").default(true).notNull(),
+  includeRiskScores: boolean("includeRiskScores").default(true).notNull(),
+  includeRecommendations: boolean("includeRecommendations").default(true).notNull(),
+  includeExecutiveSummary: boolean("includeExecutiveSummary").default(true).notNull(),
+  includeAssets: boolean("includeAssets").default(true).notNull(),
+  includeCompliance: boolean("includeCompliance").default(false).notNull(),
+  // Branding
+  clientName: varchar("clientName", { length: 255 }),
+  clientLogo: text("clientLogo"), // URL to client logo
+  brandingColor: varchar("brandingColor", { length: 32 }),
+  customMessage: text("customMessage"), // welcome message for client
+  // Metadata
+  createdBy: int("createdBy"),
+  lastAccessedAt: timestamp("lastAccessedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EngagementShare = typeof engagementShares.$inferSelect;
+export type InsertEngagementShare = typeof engagementShares.$inferInsert;

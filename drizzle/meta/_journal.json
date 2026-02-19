@@ -183,6 +183,13 @@
       "when": 1771451644463,
       "tag": "0025_little_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1771533776096,
+      "tag": "0026_broad_kate_bishop",
+      "breakpoints": true
     }
   ]
 }

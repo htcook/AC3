@@ -1353,3 +1353,62 @@ export async function batchCheckFalsePositives(hashes: string[]): Promise<Set<st
     ));
   return new Set(results.map(r => r.hash));
 }
+
+// ─── Client Portal Share Tokens ───────────────────────────────────────────────
+import { engagementShares, InsertEngagementShare, EngagementShare } from "../drizzle/schema";
+import crypto from "crypto";
+
+/** Generate a cryptographically secure URL-safe share token */
+function generateShareToken(): string {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+export async function createEngagementShare(share: Omit<InsertEngagementShare, "token">): Promise<EngagementShare | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const token = generateShareToken();
+  const result = await db.insert(engagementShares).values({ ...share, token });
+  const insertId = result[0].insertId;
+  const [created] = await db.select().from(engagementShares).where(eq(engagementShares.id, insertId));
+  return created;
+}
+
+export async function getEngagementShareByToken(token: string): Promise<EngagementShare | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [share] = await db.select().from(engagementShares).where(eq(engagementShares.token, token));
+  return share;
+}
+
+export async function getEngagementSharesByEngagement(engagementId: number): Promise<EngagementShare[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(engagementShares).where(eq(engagementShares.engagementId, engagementId)).orderBy(desc(engagementShares.createdAt));
+}
+
+export async function updateEngagementShare(id: number, updates: Partial<InsertEngagementShare>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(engagementShares).set(updates).where(eq(engagementShares.id, id));
+}
+
+export async function deleteEngagementShare(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(engagementShares).where(eq(engagementShares.id, id));
+}
+
+export async function incrementShareViewCount(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(engagementShares).set({
+    viewCount: sql`${engagementShares.viewCount} + 1`,
+    lastAccessedAt: new Date(),
+  }).where(eq(engagementShares.id, id));
+}
+
+export async function getAllEngagementShares(): Promise<EngagementShare[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(engagementShares).orderBy(desc(engagementShares.createdAt));
+}

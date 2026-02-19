@@ -2658,3 +2658,37 @@
 - [x] Color-code ports: red for high-risk (FTP/Telnet/RDP/VNC), green for secure (SSH/HTTPS), blue for standard
 - [x] Write 24 tests for subdomain/port extraction logic (all passing)
 - [x] Full test suite: 1,122 tests passing across 67 files
+
+## Live Domain Scan Verification ✅ COMPLETE
+- [x] Run a live domain scan against aceofcloud.com (25 assets, 2472 findings, risk 58)
+- [x] Verify Subdomains tab populates with real data (25 subdomains from 3 sources)
+- [x] Verify Ports & Services tab populates with real port/service data (10 open ports, 5 IPs)
+- [x] Verify search, filter, sort, and CSV export all functional
+- [x] No issues found during live testing
+
+## Port-Based Risk Scoring Enhancement ✅ COMPLETE
+- [x] Define 19 high-risk ports (RDP, Telnet, FTP, VNC, SMB, databases, Elasticsearch, etc.) with severity/category/rationale
+- [x] Define 12 medium-risk ports (SSH, SNMP, LDAP, NFS, SIP, mail protocols, etc.)
+- [x] Build computePortRisk function (hostname + IP matching, port deduplication, severity scoring)
+- [x] Integrate into CARVER accessibility score (0-3 point boost based on port severity)
+- [x] Integrate into likelihood calculation in computeHybridRisk (0-0.3 boost)
+- [x] Generate confirmed posture findings for high-risk exposed ports
+- [x] Generate compound findings for multiple high-risk ports on same asset
+- [x] Integrate into pipeline Stage 3.85 (runs before final risk recalculation)
+- [x] Write 36 tests for port risk scoring (all passing)
+
+## Enhancement #4: Client Portal ✅ COMPLETE
+- [x] Create engagement_shares database table (token, expiry, password hash, branding, section toggles, view count)
+- [x] Create server endpoints: createShare, listShares, listAllShares, updateShare, deleteShare, accessReport
+- [x] Build read-only white-labeled engagement report page (ClientPortal.tsx)
+- [x] Add password gate with SHA-256 hash verification
+- [x] Display executive summary, findings by severity, assets, risk scores, recommendations tabs
+- [x] Add risk distribution banner with severity breakdown
+- [x] Build ShareLinkManager component with create dialog, link list, copy URL, revoke
+- [x] Add branding controls (client name, color, logo, custom message)
+- [x] Add section visibility toggles (summary, findings, assets, risk, recommendations, compliance)
+- [x] Add link expiration (1-365 days) and max view controls
+- [x] Integrate ShareLinkManager into Engagements page (expanded engagement section)
+- [x] Register /portal/:token public route (no auth required)
+- [x] Write 38 tests for Client Portal (all passing)
+- [x] Full test suite: 1,196 tests passing across 69 files

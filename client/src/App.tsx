@@ -60,6 +60,7 @@ import ExploitArsenal from "./pages/ExploitArsenal";
 import MsfServers from "./pages/MsfServers";
 import EngagementTimeline from "./pages/EngagementTimeline";
 import StixExport from "./pages/StixExport";
+import ClientPortal from "./pages/ClientPortal";
 import Login from "./pages/Login";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -284,6 +285,7 @@ function Router() {
       <Route path="/engagements/:id/recon">
         {() => <ProtectedRoute component={OsintRecon} />}
       </Route>
+      <Route path="/portal/:token" component={ClientPortal} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

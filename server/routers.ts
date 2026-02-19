@@ -15,6 +15,7 @@ import { phishingOpsRouter } from "./routers/phishing-ops";
 import { metasploitCatalogRouter } from "./routers/metasploit-catalog";
 import { engagementTimelineRouter } from "./routers/engagement-timeline";
 import { stixExportRouter } from "./routers/stix-export";
+import { clientPortalRouter } from "./routers/client-portal";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -112,6 +113,7 @@ export const appRouter = router({
   metasploit: metasploitCatalogRouter,
   engagementTimeline: engagementTimelineRouter,
   stixExport: stixExportRouter,
+  clientPortal: clientPortalRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
