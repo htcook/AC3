@@ -4336,6 +4336,12 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         return { success: true };
       }),
 
+    // Get scan recovery scheduler status
+    recoveryStatus: protectedProcedure.query(async () => {
+      const { getScanRecoveryStatus } = await import('./lib/scan-recovery');
+      return getScanRecoveryStatus();
+    }),
+
     // List all scans
     listScans: protectedProcedure.query(async () => {
       return db.getDomainIntelScans();

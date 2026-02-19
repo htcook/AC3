@@ -316,6 +316,13 @@ async function startServer() {
     }).catch((err) => {
       console.warn("[Enrichment] Failed to initialize enrichment scheduler:", err);
     });
+
+    // Initialize Scan Recovery cron job (every 5 minutes)
+    import("../lib/scan-recovery").then(({ initScanRecoverySchedule }) => {
+      initScanRecoverySchedule();
+    }).catch((err) => {
+      console.warn("[ScanRecovery] Failed to initialize scan recovery scheduler:", err);
+    });
   });
 }
 

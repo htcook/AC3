@@ -2521,3 +2521,16 @@
 - [x] Purged 221 test scans + 13 mixed_hosting test scans from database (18 real scans remain)
 - [x] Retried risk.lexisnexis.com scan — completed successfully: 30 assets, 993 findings, risk score 32
 - [x] 26 new pipeline tests passing (stuck detection, status display, stage mapping, db helpers)
+
+## Automatic Stuck Scan Recovery Cron Job (Feb 19)
+- [x] Audited existing cron infrastructure: node-cron for IOC/Caldera/VulnFeed sync, setInterval for enrichment
+- [x] Created server/lib/scan-recovery.ts with cron-based stuck scan detection (every 5 minutes)
+- [x] 15-minute stuck threshold, max 3 auto-retries per scan, rate-limited to 1 recovery per cycle
+- [x] Auto-retry resets scan, cleans up orphaned assets, re-runs full pipeline in background
+- [x] Scans exceeding max retries are marked as permanently failed with autoRecoveryExhausted flag
+- [x] Recovery actions logged to console with scan ID, domain, attempt count, and outcome
+- [x] Added recoveryStatus tRPC endpoint for monitoring (active, lastCheckAt, totalRecoveries, config)
+- [x] Registered cron job in server/_core/index.ts alongside other scheduled tasks
+- [x] Verified cron job initializes on server startup: "[ScanRecovery] Cron job active"
+- [x] 23 tests passing (config, retry tracking, scheduler lifecycle, findStuckScans, runRecoveryCheck, exports)
+- [x] Live test: found 1 stuck scan (pbs.org, stuck 2206min) and auto-initiated recovery
