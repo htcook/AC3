@@ -30,57 +30,140 @@ import {
   AlertTriangle,
   Crosshair,
   Server,
-  Clock,
+  ChevronDown,
+  ChevronRight,
+  Swords,
+  Search,
+  GraduationCap,
+  Settings,
 } from "lucide-react";
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
-  { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
-  { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
-  { href: "/agents", icon: Cpu, label: "AGENTS" },
-  { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
-  { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
-  { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
-  { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
-  { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
-  { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
-  { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
-  { href: "/msf-servers", icon: Server, label: "MSF SERVERS" },
-  { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
-  { href: "/team", icon: Users, label: "TEAM" },
-  { href: "/activity", icon: FileText, label: "ACTIVITY" },
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+interface NavItemDef {
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}
+
+interface NavGroup {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItemDef[];
+}
+
+// ─── Navigation Structure ──────────────────────────────────────────────────────
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "operations",
+    label: "OPERATIONS",
+    icon: Swords,
+    items: [
+      { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
+      { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
+      { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
+      { href: "/agents", icon: Cpu, label: "AGENTS" },
+      { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
+      { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
+      { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
+    ],
+  },
+  {
+    id: "phishing",
+    label: "PHISHING & EXPLOITS",
+    icon: Zap,
+    items: [
+      { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
+      { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
+      { href: "/msf-servers", icon: Server, label: "MSF SERVERS" },
+      { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
+      { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
+      { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
+      { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
+    ],
+  },
+  {
+    id: "intelligence",
+    label: "INTELLIGENCE",
+    icon: Search,
+    items: [
+      { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
+      { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
+      { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
+      { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
+      { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
+      { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+      { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
+    ],
+  },
+  {
+    id: "knowledge",
+    label: "KNOWLEDGE BASE",
+    icon: GraduationCap,
+    items: [
+      { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
+      { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
+      { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
+      { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
+      { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
+    ],
+  },
+  {
+    id: "reports",
+    label: "REPORTS & GUIDES",
+    icon: BarChart3,
+    items: [
+      { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
+      { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
+      { href: "/guide/gophish", icon: BookOpen, label: "GOPHISH GUIDE" },
+      { href: "/guide/caldera", icon: BookOpen, label: "CALDERA GUIDE" },
+      { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
+    ],
+  },
+  {
+    id: "admin",
+    label: "ADMIN",
+    icon: Settings,
+    items: [
+      { href: "/team", icon: Users, label: "TEAM" },
+      { href: "/activity", icon: FileText, label: "ACTIVITY" },
+    ],
+  },
 ];
 
-const OSINT_ITEMS = [
-  { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
-  { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
-  { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
-  { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
-  { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
-  { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
-];
+// ─── Storage Key ───────────────────────────────────────────────────────────────
 
-const THREAT_INTEL_ITEMS = [
-  { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
-  { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
-  { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
-  { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
-  { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
-  { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
-  { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
-  { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
-];
+const SIDEBAR_STATE_KEY = "ace-c3-sidebar-groups";
 
-const GUIDE_ITEMS = [
-  { href: "/guide/gophish", icon: BookOpen, label: "GOPHISH GUIDE" },
-  { href: "/guide/caldera", icon: BookOpen, label: "CALDERA GUIDE" },
-  { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
-];
+function loadExpandedGroups(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem(SIDEBAR_STATE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return {};
+}
 
-const REPORT_ITEMS = [
-  { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
-];
+function saveExpandedGroups(state: Record<string, boolean>) {
+  try {
+    localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+// ─── Find which group contains a path ──────────────────────────────────────────
+
+function findGroupForPath(path: string): string | null {
+  for (const group of NAV_GROUPS) {
+    if (group.items.some((item) => path === item.href || path.startsWith(item.href + "/"))) {
+      return group.id;
+    }
+  }
+  return null;
+}
+
+// ─── NavItem Component ─────────────────────────────────────────────────────────
 
 function NavItem({
   href,
@@ -98,18 +181,78 @@ function NavItem({
   return (
     <Link href={href} onClick={onClick}>
       <div
-        className={`flex items-center gap-3 px-4 py-3 font-display tracking-wider text-sm transition-colors min-h-[44px] ${
+        className={`flex items-center gap-3 pl-8 pr-4 py-2.5 font-display tracking-wider text-xs transition-colors min-h-[38px] ${
           active
             ? "bg-primary/20 text-primary border-l-2 border-primary"
-            : "hover:bg-secondary"
+            : "hover:bg-secondary text-muted-foreground hover:text-foreground"
         }`}
       >
-        <Icon className="w-4 h-4 shrink-0" />
+        <Icon className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate">{label}</span>
       </div>
     </Link>
   );
 }
+
+// ─── NavGroupSection Component ─────────────────────────────────────────────────
+
+function NavGroupSection({
+  group,
+  expanded,
+  onToggle,
+  currentPath,
+  onNavClick,
+}: {
+  group: NavGroup;
+  expanded: boolean;
+  onToggle: () => void;
+  currentPath: string;
+  onNavClick: () => void;
+}) {
+  const GroupIcon = group.icon;
+  const hasActiveItem = group.items.some(
+    (item) => currentPath === item.href || currentPath.startsWith(item.href + "/")
+  );
+
+  return (
+    <div className="mb-0.5">
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 font-display tracking-wider text-xs transition-colors min-h-[40px] group ${
+          hasActiveItem && !expanded
+            ? "text-primary"
+            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+        }`}
+      >
+        <GroupIcon className="w-4 h-4 shrink-0" />
+        <span className="flex-1 text-left truncate">{group.label}</span>
+        {expanded ? (
+          <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
+        )}
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        {group.items.map((item) => (
+          <NavItem
+            key={item.href}
+            href={item.href}
+            icon={item.icon}
+            label={item.label}
+            active={currentPath === item.href || currentPath.startsWith(item.href + "/")}
+            onClick={onNavClick}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── AppShell Component ────────────────────────────────────────────────────────
 
 interface AppShellProps {
   children: ReactNode;
@@ -130,6 +273,36 @@ export default function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [location] = useLocation();
   const currentPath = activePath || location;
+
+  // Expanded groups state — initialize from localStorage + auto-expand active group
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const stored = loadExpandedGroups();
+    const activeGroup = findGroupForPath(currentPath);
+    if (activeGroup) {
+      stored[activeGroup] = true;
+    }
+    return stored;
+  });
+
+  // Auto-expand the group containing the active page when route changes
+  useEffect(() => {
+    const activeGroup = findGroupForPath(currentPath);
+    if (activeGroup && !expandedGroups[activeGroup]) {
+      setExpandedGroups((prev) => {
+        const next = { ...prev, [activeGroup]: true };
+        saveExpandedGroups(next);
+        return next;
+      });
+    }
+  }, [currentPath]);
+
+  const toggleGroup = useCallback((groupId: string) => {
+    setExpandedGroups((prev) => {
+      const next = { ...prev, [groupId]: !prev[groupId] };
+      saveExpandedGroups(next);
+      return next;
+    });
+  }, []);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -159,6 +332,25 @@ export default function AppShell({
 
   const closeSidebar = () => setSidebarOpen(false);
 
+  // Expand/collapse all helper
+  const allExpanded = useMemo(
+    () => NAV_GROUPS.every((g) => expandedGroups[g.id]),
+    [expandedGroups]
+  );
+
+  const toggleAll = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    const targetValue = !allExpanded;
+    NAV_GROUPS.forEach((g) => {
+      newState[g.id] = targetValue;
+    });
+    // Always keep the active group expanded
+    const activeGroup = findGroupForPath(currentPath);
+    if (activeGroup) newState[activeGroup] = true;
+    setExpandedGroups(newState);
+    saveExpandedGroups(newState);
+  }, [allExpanded, currentPath]);
+
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       {/* Mobile backdrop */}
@@ -178,16 +370,15 @@ export default function AppShell({
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-4 sm:p-6 border-b border-border sticky top-0 bg-card z-10">
+          <div className="p-4 sm:p-5 border-b border-border sticky top-0 bg-card z-10">
             <div className="flex items-center justify-between">
               <Link href="/" className="flex items-center gap-3" onClick={closeSidebar}>
                 <Cloud className="w-7 h-7 sm:w-8 sm:h-8 text-primary shrink-0" />
                 <div className="flex flex-col min-w-0">
                   <span className="font-display text-lg sm:text-xl tracking-wider truncate">
-                    ACE OF CLOUD
+                    ACE C3
                   </span>
                   <span className="text-[10px] sm:text-xs text-muted-foreground tracking-widest truncate">
-                    C3 —{" "}
                     <span className="text-primary/70">CYBER CAMPAIGN COMMAND</span>
                   </span>
                 </div>
@@ -204,81 +395,27 @@ export default function AppShell({
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-3 sm:p-4 space-y-1 overflow-y-auto">
-            {NAV_ITEMS.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-                active={currentPath === item.href || currentPath.startsWith(item.href + "/")}
-                onClick={closeSidebar}
+          <nav className="flex-1 py-2 overflow-y-auto">
+            {/* Expand/Collapse All */}
+            <div className="px-4 py-1.5 flex justify-end">
+              <button
+                onClick={toggleAll}
+                className="text-[10px] text-muted-foreground hover:text-foreground font-display tracking-wider transition-colors"
+              >
+                {allExpanded ? "COLLAPSE ALL" : "EXPAND ALL"}
+              </button>
+            </div>
+
+            {NAV_GROUPS.map((group) => (
+              <NavGroupSection
+                key={group.id}
+                group={group}
+                expanded={!!expandedGroups[group.id]}
+                onToggle={() => toggleGroup(group.id)}
+                currentPath={currentPath}
+                onNavClick={closeSidebar}
               />
             ))}
-
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">
-                OSINT & CAMPAIGNS
-              </p>
-              {OSINT_ITEMS.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  active={currentPath === item.href || currentPath.startsWith(item.href + "/")}
-                  onClick={closeSidebar}
-                />
-              ))}
-            </div>
-
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">
-                THREAT INTEL
-              </p>
-              {THREAT_INTEL_ITEMS.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  active={currentPath === item.href}
-                  onClick={closeSidebar}
-                />
-              ))}
-            </div>
-
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">
-                GUIDES
-              </p>
-              {GUIDE_ITEMS.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  active={currentPath === item.href}
-                  onClick={closeSidebar}
-                />
-              ))}
-            </div>
-
-            <div className="border-t border-border my-3 pt-3">
-              <p className="text-xs text-muted-foreground tracking-wider px-4 mb-2">
-                REPORTS
-              </p>
-              {REPORT_ITEMS.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  active={currentPath === item.href}
-                  onClick={closeSidebar}
-                />
-              ))}
-            </div>
           </nav>
 
           {/* User Info */}
@@ -321,7 +458,7 @@ export default function AppShell({
             <div className="flex items-center gap-2 min-w-0 flex-1 justify-center">
               <Cloud className="w-5 h-5 text-primary shrink-0" />
               <span className="font-display text-sm tracking-wider truncate">
-                C3 PLATFORM
+                ACE C3
               </span>
             </div>
             {headerActions ? (

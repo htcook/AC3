@@ -2453,3 +2453,20 @@
 - [x] 10 new consolidation tests passing (phishing in unified catalog, source filtering, stats, phishing library intact)
 - [x] All 34 existing exploit tests still passing
 - [x] No other true redundancies found — remaining pages serve distinct purposes
+
+## Rename Site to Ace C3 (Feb 19) - Implementation
+- [x] Updated HTML title to "Ace C3 — Cyber Campaign Command"
+- [x] Updated meta description to Ace C3 branding
+- [x] Updated AppShell sidebar header from "ACE OF CLOUD" to "ACE C3"
+- [x] Updated mobile header from "C3 PLATFORM" to "ACE C3"
+- [x] No remaining "Caldera Admin Dashboard" references in codebase (only in todo.md history)
+
+## Sidebar Reorganization into Collapsible Groups (Feb 19)
+- [x] Designed 6 grouped sidebar sections: OPERATIONS, PHISHING & EXPLOITS, INTELLIGENCE, KNOWLEDGE BASE, REPORTS & GUIDES, ADMIN
+- [x] Implemented collapsible/expandable NavGroupSection component with chevron indicators
+- [x] Auto-expand group containing the active page on route change
+- [x] Persist expanded/collapsed state in localStorage (ace-c3-sidebar-groups key)
+- [x] Added EXPAND ALL / COLLAPSE ALL toggle button
+- [x] Ensured mobile responsiveness (sidebar overlay, close on route change, escape key)
+- [x] 17 sidebar navigation structure tests passing
+- [x] All 27 consolidation + sidebar tests passing
