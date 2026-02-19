@@ -503,7 +503,7 @@ export default function Engagements() {
           )}
 
           {/* Bulk Actions Bar */}
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
             <Button
               variant={bulkMode ? "default" : "outline"}
               size="sm"
@@ -541,7 +541,7 @@ export default function Engagements() {
           </div>
 
           {/* Stats Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-6">
             {STATUS_OPTIONS.map(s => {
               const count = engagements?.filter((e: any) => e.status === s.value).length || 0;
               return (
@@ -577,7 +577,7 @@ export default function Engagements() {
                 const statusConfig = getStatusConfig(engagement.status);
                 return (
                   <div key={engagement.id} className={`bg-card border p-5 hover:border-primary/30 transition-colors group ${selectedIds.has(engagement.id) ? 'border-destructive/60 bg-destructive/5' : 'border-border'}`}>
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex-1 min-w-0 flex items-start gap-3">
                         {bulkMode && (
                           <input
@@ -588,7 +588,7 @@ export default function Engagements() {
                           />
                         )}
                         <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
                           <h3 className="font-display text-lg tracking-wider truncate">{engagement.name}</h3>
                           <span className={`text-xs px-2 py-0.5 ${typeConfig.color} font-display tracking-wider`}>
                             {typeConfig.label.toUpperCase()}
@@ -597,7 +597,7 @@ export default function Engagements() {
                             {statusConfig.label.toUpperCase()}
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
                           <span className="flex items-center gap-1">
                             <Users className="w-3.5 h-3.5" />
                             {engagement.customerName}
@@ -638,7 +638,7 @@ export default function Engagements() {
                         })()}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap sm:opacity-0 sm:group-hover:opacity-100 transition-opacity mt-2 sm:mt-0">
                         <Link href={`/campaign-wizard`}>
                           <Button
                             variant="outline"
@@ -850,7 +850,7 @@ export default function Engagements() {
       {activeTab === 'operations' && (
         <>
           {/* Operations Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
             <p className="text-sm text-muted-foreground">
               Live operations synced from Caldera — deploy exploit abilities from Domain Intel scans
             </p>
@@ -867,7 +867,7 @@ export default function Engagements() {
           </div>
 
           {/* Operations Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-6">
             <div className="bg-card border border-border p-4">
               <div className="flex items-center gap-2 text-muted-foreground mb-2">
                 <Crosshair className="w-4 h-4" />

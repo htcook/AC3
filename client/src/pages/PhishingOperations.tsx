@@ -84,7 +84,7 @@ function IntelFeedTab() {
   return (
     <div className="space-y-6">
       {/* Header stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -123,8 +123,8 @@ function IntelFeedTab() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-3">
-        <div className="flex gap-1 bg-muted rounded-lg p-1">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="flex gap-1 bg-muted rounded-lg p-1 flex-wrap">
           {(["all", "unmaterialized", "materialized"] as const).map(f => (
             <button
               key={f}
@@ -347,16 +347,16 @@ function CampaignBuilderTab() {
   if (selectedDraftId && selectedDraft) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => { setSelectedDraftId(null); setEditMode(false); }}>
               <ChevronDown className="w-3.5 h-3.5 mr-1 rotate-90" /> Back
             </Button>
-            <h3 className="text-lg font-semibold text-foreground">{selectedDraft.campaignName}</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">{selectedDraft.campaignName}</h3>
             {statusBadge(selectedDraft.status)}
             {priorityBadge(selectedDraft.priority || "medium")}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {(selectedDraft.status === "draft" || selectedDraft.status === "approved") && (
               <>
                 {editMode ? (

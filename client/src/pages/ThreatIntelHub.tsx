@@ -56,7 +56,7 @@ export default function ThreatIntelHub() {
     <AppShell>
       <div className="space-y-6 p-6">
         {/* ─── Header ─────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-display tracking-wider flex items-center gap-3">
               <Shield className="w-7 h-7 text-red-400" />
@@ -79,7 +79,7 @@ export default function ThreatIntelHub() {
         </div>
 
         {/* ─── Stats Bar ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
           {[
             { label: "THREAT ACTORS", value: totalActors, icon: Users, color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20" },
             { label: "RANSOMWARE GROUPS", value: ransomwareCount, icon: Skull, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
@@ -105,7 +105,7 @@ export default function ThreatIntelHub() {
             <h2 className="text-sm font-display tracking-wider text-red-400 flex items-center gap-2 mb-3">
               <AlertTriangle className="w-4 h-4 animate-pulse" /> ACTIVE ESCALATION ALERTS ({escalations.data.length})
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {escalations.data.slice(0, 6).map((alert: any, i: number) => (
                 <div key={i} className="border border-red-500/20 bg-card p-3">
                   <div className="flex items-center justify-between mb-1">

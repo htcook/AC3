@@ -314,7 +314,7 @@ export default function AbilitiesLibrary() {
     <AppShell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Layers className="w-7 h-7 text-cyan-400" />
@@ -341,7 +341,7 @@ export default function AbilitiesLibrary() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
           {[
             { label: 'Total Abilities', value: allAbilities.length, icon: Zap, color: 'text-cyan-400' },
             { label: 'Total IOCs', value: allIOCs.length, icon: AlertTriangle, color: 'text-red-400' },
@@ -475,7 +475,7 @@ export default function AbilitiesLibrary() {
           </TabsContent>
 
           <TabsContent value="groups" className="mt-4">
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
               {RANSOMWARE_PROFILES.map(profile => (
                 <GroupCard
                   key={profile.groupId}

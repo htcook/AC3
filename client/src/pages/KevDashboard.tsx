@@ -130,7 +130,7 @@ export default function KevDashboard() {
     <AppShell>
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Shield className="h-6 w-6 text-red-500" />
@@ -184,7 +184,7 @@ export default function KevDashboard() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
         <Card className="border-red-500/30 bg-red-500/5">
           <CardContent className="pt-3 pb-2 px-3">
             <div className="flex items-center gap-1.5">
@@ -309,7 +309,7 @@ export default function KevDashboard() {
 
       {/* Source Breakdown */}
       {feedStats && (
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
           {(["cisa_kev", "project_zero", "nvd", "circl", "exploit_db"] as const).map(src => {
             const info = sourceLabel(src);
             const count = feedStats.bySource[src] || 0;

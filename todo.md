@@ -2543,3 +2543,78 @@
 - [x] Verified engagement creation: ENGAGEMENTS count went from 1 to 2 after clicking CREATE ENGAGEMENT
 - [x] Tested from DomainIntelResults page: Campaigns tab → expand campaign → Create Engagement from This Campaign → correct navigation
 - [x] 12 handoff tests passing (route config, fromIntel handling, Superjson format, form pre-population, campaign ID mapping, error handling)
+
+## High-Impact Enhancements Implementation (Feb 19)
+
+### 1. Compliance Mapping (NIST CSF, CIS Controls, ISO 27001) — Low Effort ✅ COMPLETE
+- [x] Build compliance framework mapping service (findings → framework controls)
+- [x] Add NIST CSF 2.0 tab (25 controls, 6 categories with stats, filtering, search, export)
+- [x] Add CIS Controls v8 tab (18 controls, 3 implementation groups with stats, filtering, search, export)
+- [x] Add ISO 27001:2022 tab (20 controls, 4 themes with stats, filtering, search, export)
+- [x] Add compliance dashboard widget showing coverage by framework
+
+### 2. Mobile-Responsive Operations View — Low Effort ✅ COMPLETE
+- [x] Audit current mobile responsiveness across all 50+ pages
+- [x] Add global mobile CSS: table scroll, grid stacking, heading sizing, dialog sizing, card padding
+- [x] Create MobileTableWrapper, MobileStatGrid, MobileFilterBar, MobilePageHeader, MobileCardView components
+- [x] Create useIsMobile and useBreakpoint hooks with debounced resize
+- [x] Fix Engagements page: responsive cards, action buttons, stat grid, bulk actions, operations tab
+- [x] Fix PhishingOperations page: responsive stat grid, filter bar, draft detail header
+- [x] Fix IOCFeed page: responsive stat grid, page header
+- [x] Fix AbilitiesLibrary page: responsive stat grid, card grid
+- [x] Fix TtpKnowledge page: responsive stat grid, page header
+- [x] Fix KevDashboard page: responsive stat grid, page header
+- [x] Fix ThreatIntelHub page: responsive stat grid, page header
+- [x] Fix AgentDeploy page: responsive grid layout
+- [x] Verify AppShell mobile foundations (sidebar overlay, hamburger, scroll lock, 44px targets)
+- [x] Write 55 mobile responsiveness tests (all passing)
+- [x] Run full test suite: 1,039 tests passing across 64 files
+
+### 3. STIX/TAXII Export — Medium Effort
+- [ ] Build STIX 2.1 bundle generator from threat intel data
+- [ ] Add STIX export endpoints for threat actors, IOCs, campaigns
+- [ ] Add TAXII server endpoint for automated intel sharing
+- [ ] Add export buttons to Threat Catalog, IOC Feed, and Darkweb Intel pages
+
+### 4. Client Portal — Medium Effort
+- [ ] Build client-facing engagement report view (read-only, white-labeled)
+- [ ] Add shareable link generation for completed engagement reports
+- [ ] Add client branding customization (logo, colors)
+- [ ] Add client access management (invite, revoke)
+
+### 5. API-First Architecture with Public API Docs — Medium Effort
+- [ ] Build public REST API layer wrapping key tRPC procedures
+- [ ] Add API key management for external integrations
+- [ ] Build interactive API documentation page (Swagger/OpenAPI style)
+- [ ] Add rate limiting and usage tracking
+
+### 6. Purple Team Validation Workflows — Medium Effort
+- [ ] Add "Validate Fix" action to engagement findings
+- [ ] Build detection validation workflow (finding → detection rule → re-test)
+- [ ] Add purple team status tracking (found → reported → fixed → validated)
+- [ ] Add purple team dashboard showing fix/validate progress
+
+### 7. SIEM Integration (Splunk, Elastic, Sentinel) — High Effort
+- [ ] Build SIEM connector framework (abstract interface for multiple SIEMs)
+- [ ] Add Splunk integration (search, alert correlation)
+- [ ] Add Elastic integration (search, alert correlation)
+- [ ] Add Sentinel integration (KQL queries, incident correlation)
+- [ ] Wire detection coverage matrix to real SIEM telemetry
+
+### 8. Real-Time C2 Session Dashboard — High Effort
+- [ ] Build embedded Caldera agent interaction panel
+- [ ] Add live session monitoring (active agents, beacons, callbacks)
+- [ ] Add command execution interface within Ace C3
+- [ ] Add session recording and playback
+
+### 9. Attack Path Modeling with Graph Visualization — High Effort
+- [ ] Build attack graph data model (nodes=assets, edges=attack vectors)
+- [ ] Generate attack paths from scan findings + exploit matches
+- [ ] Build interactive graph visualization (D3.js or similar)
+- [ ] Add attack path analysis (shortest path, critical nodes, choke points)
+
+### 10. Multi-Tenant Support — Very High Effort
+- [ ] Add tenant/organization model to database schema
+- [ ] Add tenant isolation for all data queries
+- [ ] Add tenant management UI (create, configure, invite users)
+- [ ] Add per-tenant branding and configuration

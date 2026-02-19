@@ -105,7 +105,7 @@ export default function TtpKnowledge() {
     <AppShell>
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Brain className="h-7 w-7 text-purple-400" />
@@ -133,7 +133,7 @@ export default function TtpKnowledge() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
         <Card className="bg-zinc-900/50 border-zinc-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -494,7 +494,7 @@ export default function TtpKnowledge() {
                       <span className="h-2 w-2 rounded-full bg-orange-400" />
                       {category} ({tools.length})
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {tools.map((tool) => (
                         <div key={tool.name} className="bg-zinc-800/50 rounded-lg p-3 hover:bg-zinc-800 transition-colors">
                           <div className="flex items-center justify-between mb-1">

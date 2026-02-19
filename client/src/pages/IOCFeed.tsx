@@ -95,7 +95,7 @@ export default function IOCFeed() {
     <AppShell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Radio className="w-7 h-7 text-red-400 animate-pulse" />
@@ -128,7 +128,7 @@ export default function IOCFeed() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
           <Card className="border-border/50">
             <CardContent className="p-4 flex items-center gap-3">
               <Database className="w-8 h-8 text-cyan-400" />
@@ -156,7 +156,7 @@ export default function IOCFeed() {
         </div>
 
         {/* Feed Source Cards */}
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
           <FeedSourceCard
             name="CISA KEV"
             description="Known Exploited Vulnerabilities catalog — actively exploited CVEs requiring remediation"

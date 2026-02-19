@@ -365,3 +365,99 @@
 .animate-ticker:hover {
   animation-play-state: paused;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Mobile-Responsive Operations View
+   Global responsive fixes for tables, grids, stats, and data views
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Tables: horizontal scroll wrapper on mobile */
+@media (max-width: 767px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    max-width: 100vw;
+  }
+  table th,
+  table td {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+  }
+  /* Stack grid columns on small screens */
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4,
+  .grid-cols-5,
+  .grid-cols-6,
+  .grid-cols-7 {
+    grid-template-columns: 1fr !important;
+  }
+  /* Two-column grids for stat cards */
+  .grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  /* Reduce stat values on mobile */
+  .stat-value {
+    font-size: 2.5rem !important;
+  }
+  /* Reduce page title sizes */
+  h1 {
+    font-size: 1.25rem !important;
+  }
+  h2 {
+    font-size: 1rem !important;
+  }
+  /* Fix flex wrapping for filter bars */
+  .flex-wrap {
+    gap: 0.5rem;
+  }
+  /* Ensure buttons don't overflow */
+  button {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Dialog/modal full-width on mobile */
+  [role="dialog"] {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 90vh !important;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .grid-cols-4,
+  .grid-cols-5,
+  .grid-cols-6,
+  .grid-cols-7 {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  .stat-value {
+    font-size: 3.5rem !important;
+  }
+}
+
+/* Responsive card stacking */
+@media (max-width: 639px) {
+  /* Force single column for flex card layouts */
+  .flex.gap-4:not(.flex-row):not(.items-center) {
+    flex-direction: column;
+  }
+  /* Reduce padding on cards */
+  .p-6 {
+    padding: 1rem !important;
+  }
+  .p-8 {
+    padding: 1rem !important;
+  }
+  /* Truncate long text */
+  .truncate-mobile {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+}
