@@ -2749,3 +2749,8 @@
 - [x] Add sidebar navigation entry under System section
 - [x] Write 7 tests for webhooks router (all passing)
 - [x] Full test suite: 24 new tests passing for all 5 enhancement features
+
+## Preview Loading Fix (429 Rate Limit)
+- [x] Defer background startup tasks to avoid proxy rate limiting
+- [x] Increase startup delay for vuln feed sync, IOC sync, scan recovery
+- [x] Add React.lazy() to all 56 page imports to reduce initial module load

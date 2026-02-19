@@ -1,76 +1,82 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
 import { Route, Switch, Redirect, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-// Credentials merged into InfraReference
-// Adversaries merged into ThreatCatalog
-import AdversaryDetail from "./pages/AdversaryDetail";
-import Team from "./pages/Team";
-import Activity from "./pages/Activity";
-import Campaigns from "./pages/Campaigns";
-import CampaignDetail from "./pages/CampaignDetail";
-import Agents from "./pages/Agents";
-import AgentDeploy from "./pages/AgentDeploy";
-import OperationMonitor from "./pages/OperationMonitor";
-import ReportGenerator from "./pages/ReportGenerator";
-import OperationDetail from "./pages/OperationDetail";
-import GoPhish from "./pages/GoPhish";
-import PhishingOperations from "./pages/PhishingOperations";
-import GoPhishGuide from "./pages/GoPhishGuide";
-import CalderaGuide from "./pages/CalderaGuide";
-// SecurityReport merged into ReportGenerator
-// APTLibrary removed (mock data, merged into ThreatCatalog)
-import ComplianceFrameworks from "./pages/ComplianceFrameworks";
-import InfraReference from "./pages/InfraReference";
-import TemplateLibrary from "./pages/TemplateLibrary";
-import Engagements from "./pages/Engagements";
-import CampaignWizard from "./pages/CampaignWizard";
-import EngagementResults from "./pages/EngagementResults";
-import OsintRecon from "./pages/OsintRecon";
-// DomainRecon and OsintMonitor merged into DomainIntel
-import DomainIntel from "./pages/DomainIntel";
-import DomainIntelResults from "./pages/DomainIntelResults";
-import TemplateGenerator from "./pages/TemplateGenerator";
-import AbilitiesLibrary from "./pages/AbilitiesLibrary";
-import IOCFeed from "./pages/IOCFeed";
-import EngagementPipeline from "./pages/EngagementPipeline";
-// ThreatActors merged into ThreatCatalog
-import ThreatActorDetail from "./pages/ThreatActorDetail";
-import TtpKnowledge from "./pages/TtpKnowledge";
-import CampaignExecution from "./pages/CampaignExecution";
-import RuleValidator from "./pages/RuleValidator";
-import DetectionCoverage from "./pages/DetectionCoverage";
-import PostEngagementReport from "./pages/PostEngagementReport";
-import LandingPageBuilder from "./pages/LandingPageBuilder";
-import DiscoveryCuration from "./pages/DiscoveryCuration";
-import KevDashboard from "./pages/KevDashboard";
-import ScanComparison from "./pages/ScanComparison";
-import ThreatCatalog from "./pages/ThreatCatalog";
-import ThreatActorCatalogDetail from "./pages/ThreatActorCatalogDetail";
-// RansomwareGroups merged into ThreatCatalog as a filter
-import DarkwebIntel from "./pages/DarkwebIntel";
-import ThreatIntelHub from "./pages/ThreatIntelHub";
-import CampaignArchetypes from "./pages/CampaignArchetypes";
-// PhishingExploitCatalog merged into ExploitArsenal (now Exploit Catalog)
-import ExploitArsenal from "./pages/ExploitArsenal";
-import MsfServers from "./pages/MsfServers";
-import EngagementTimeline from "./pages/EngagementTimeline";
-import StixExport from "./pages/StixExport";
-import ClientPortal from "./pages/ClientPortal";
-import Login from "./pages/Login";
-import EmulationPlaybooks from "./pages/EmulationPlaybooks";
-import EvidenceCollection from "./pages/EvidenceCollection";
-import AttackPaths from "./pages/AttackPaths";
-import PurpleTeam from "./pages/PurpleTeam";
-import Webhooks from "./pages/Webhooks";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
+import { lazy, Suspense, useEffect } from "react";
 
-import { useEffect } from "react";
+// ─── Lazy-loaded pages (reduces initial bundle / HTTP requests) ──────────────
+const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./pages/Login"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const AdversaryDetail = lazy(() => import("./pages/AdversaryDetail"));
+const Team = lazy(() => import("./pages/Team"));
+const Activity = lazy(() => import("./pages/Activity"));
+const Campaigns = lazy(() => import("./pages/Campaigns"));
+const CampaignDetail = lazy(() => import("./pages/CampaignDetail"));
+const Agents = lazy(() => import("./pages/Agents"));
+const AgentDeploy = lazy(() => import("./pages/AgentDeploy"));
+const OperationMonitor = lazy(() => import("./pages/OperationMonitor"));
+const ReportGenerator = lazy(() => import("./pages/ReportGenerator"));
+const OperationDetail = lazy(() => import("./pages/OperationDetail"));
+const GoPhish = lazy(() => import("./pages/GoPhish"));
+const PhishingOperations = lazy(() => import("./pages/PhishingOperations"));
+const GoPhishGuide = lazy(() => import("./pages/GoPhishGuide"));
+const CalderaGuide = lazy(() => import("./pages/CalderaGuide"));
+const ComplianceFrameworks = lazy(() => import("./pages/ComplianceFrameworks"));
+const InfraReference = lazy(() => import("./pages/InfraReference"));
+const TemplateLibrary = lazy(() => import("./pages/TemplateLibrary"));
+const Engagements = lazy(() => import("./pages/Engagements"));
+const CampaignWizard = lazy(() => import("./pages/CampaignWizard"));
+const EngagementResults = lazy(() => import("./pages/EngagementResults"));
+const OsintRecon = lazy(() => import("./pages/OsintRecon"));
+const DomainIntel = lazy(() => import("./pages/DomainIntel"));
+const DomainIntelResults = lazy(() => import("./pages/DomainIntelResults"));
+const TemplateGenerator = lazy(() => import("./pages/TemplateGenerator"));
+const AbilitiesLibrary = lazy(() => import("./pages/AbilitiesLibrary"));
+const IOCFeed = lazy(() => import("./pages/IOCFeed"));
+const EngagementPipeline = lazy(() => import("./pages/EngagementPipeline"));
+const ThreatActorDetail = lazy(() => import("./pages/ThreatActorDetail"));
+const TtpKnowledge = lazy(() => import("./pages/TtpKnowledge"));
+const CampaignExecution = lazy(() => import("./pages/CampaignExecution"));
+const RuleValidator = lazy(() => import("./pages/RuleValidator"));
+const DetectionCoverage = lazy(() => import("./pages/DetectionCoverage"));
+const PostEngagementReport = lazy(() => import("./pages/PostEngagementReport"));
+const LandingPageBuilder = lazy(() => import("./pages/LandingPageBuilder"));
+const DiscoveryCuration = lazy(() => import("./pages/DiscoveryCuration"));
+const KevDashboard = lazy(() => import("./pages/KevDashboard"));
+const ScanComparison = lazy(() => import("./pages/ScanComparison"));
+const ThreatCatalog = lazy(() => import("./pages/ThreatCatalog"));
+const ThreatActorCatalogDetail = lazy(() => import("./pages/ThreatActorCatalogDetail"));
+const DarkwebIntel = lazy(() => import("./pages/DarkwebIntel"));
+const ThreatIntelHub = lazy(() => import("./pages/ThreatIntelHub"));
+const CampaignArchetypes = lazy(() => import("./pages/CampaignArchetypes"));
+const ExploitArsenal = lazy(() => import("./pages/ExploitArsenal"));
+const MsfServers = lazy(() => import("./pages/MsfServers"));
+const EngagementTimeline = lazy(() => import("./pages/EngagementTimeline"));
+const StixExport = lazy(() => import("./pages/StixExport"));
+const ClientPortal = lazy(() => import("./pages/ClientPortal"));
+const EmulationPlaybooks = lazy(() => import("./pages/EmulationPlaybooks"));
+const EvidenceCollection = lazy(() => import("./pages/EvidenceCollection"));
+const AttackPaths = lazy(() => import("./pages/AttackPaths"));
+const PurpleTeam = lazy(() => import("./pages/PurpleTeam"));
+const Webhooks = lazy(() => import("./pages/Webhooks"));
+
+// ─── Loading fallback ────────────────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <Skeleton className="w-16 h-16 rounded-full mx-auto" />
+        <Skeleton className="w-48 h-4 mx-auto" />
+        <p className="text-muted-foreground text-sm">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 // Protected route wrapper that requires authentication
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -104,211 +110,213 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/login" component={Login} />
-      <Route path="/dashboard">
-        <ProtectedRoute component={Dashboard} />
-      </Route>
-      <Route path="/engagements">
-        <ProtectedRoute component={Engagements} />
-      </Route>
-      <Route path="/engagements/new">
-        <ProtectedRoute component={Engagements} />
-      </Route>
-      <Route path="/credentials">
-        <Redirect to="/infra-reference" />
-      </Route>
-      <Route path="/adversaries">
-        <Redirect to="/threat-catalog" />
-      </Route>
-      <Route path="/adversaries/:id">
-        {(params) => <ProtectedRoute component={() => <AdversaryDetail />} />}
-      </Route>
-      <Route path="/team">
-        <ProtectedRoute component={Team} />
-      </Route>
-      <Route path="/activity">
-        <ProtectedRoute component={Activity} />
-      </Route>
-      <Route path="/campaigns">
-        {() => { window.location.href = '/engagements'; return null; }}
-      </Route>
-      <Route path="/campaigns/:id">
-        {(params) => <ProtectedRoute component={() => <CampaignDetail />} />}
-      </Route>
-      <Route path="/agents">
-        <ProtectedRoute component={Agents} />
-      </Route>
-      <Route path="/agents/deploy">
-        <ProtectedRoute component={AgentDeploy} />
-      </Route>
-      <Route path="/operations/monitor">
-        <ProtectedRoute component={OperationMonitor} />
-      </Route>
-      <Route path="/operations/:id">
-        {(params) => <ProtectedRoute component={() => <OperationDetail />} />}
-      </Route>
-      <Route path="/reports/generate">
-        <ProtectedRoute component={ReportGenerator} />
-      </Route>
-      <Route path="/phishing-ops">
-        <ProtectedRoute component={PhishingOperations} />
-      </Route>
-      <Route path="/gophish">
-        <Redirect to="/phishing-ops" />
-      </Route>
-      <Route path="/guide/gophish">
-        <ProtectedRoute component={GoPhishGuide} />
-      </Route>
-      <Route path="/guide/caldera">
-        <ProtectedRoute component={CalderaGuide} />
-      </Route>
-      <Route path="/reports/security">
-        <Redirect to="/reports/generate" />
-      </Route>
-      <Route path="/apt-library">
-        <Redirect to="/threat-catalog" />
-      </Route>
-      <Route path="/compliance">
-        <ProtectedRoute component={ComplianceFrameworks} />
-      </Route>
-      <Route path="/infrastructure">
-        <Redirect to="/infra-reference" />
-      </Route>
-      <Route path="/infra-reference">
-        <ProtectedRoute component={InfraReference} />
-      </Route>
-      <Route path="/templates">
-        <ProtectedRoute component={TemplateLibrary} />
-      </Route>
-      <Route path="/campaign-wizard">
-        <ProtectedRoute component={CampaignWizard} />
-      </Route>
-      <Route path="/domain-recon">
-        <Redirect to="/domain-intel" />
-      </Route>
-      <Route path="/osint-monitor">
-        <Redirect to="/domain-intel" />
-      </Route>
-      <Route path="/domain-intel">
-        <ProtectedRoute component={DomainIntel} />
-      </Route>
-      <Route path="/domain-intel/curate/:scanId">
-        {() => <ProtectedRoute component={DiscoveryCuration} />}
-      </Route>
-      <Route path="/domain-intel/:id">
-        {() => <ProtectedRoute component={DomainIntelResults} />}
-      </Route>
-      <Route path="/template-generator">
-        <ProtectedRoute component={TemplateGenerator} />
-      </Route>
-      <Route path="/abilities-library">
-        <ProtectedRoute component={AbilitiesLibrary} />
-      </Route>
-      <Route path="/ioc-feed">
-        <ProtectedRoute component={IOCFeed} />
-      </Route>
-      <Route path="/engagement-pipeline">
-        <ProtectedRoute component={EngagementPipeline} />
-      </Route>
-      <Route path="/threat-actors">
-        <Redirect to="/threat-catalog" />
-      </Route>
-      <Route path="/threat-actors/:id">
-        {() => <ProtectedRoute component={ThreatActorDetail} />}
-      </Route>
-      <Route path="/ttp-knowledge">
-        <ProtectedRoute component={TtpKnowledge} />
-      </Route>
-      <Route path="/campaign-execution">
-        <ProtectedRoute component={CampaignExecution} />
-      </Route>
-      <Route path="/rule-validator">
-        <ProtectedRoute component={RuleValidator} />
-      </Route>
-      <Route path="/detection-coverage">
-        <ProtectedRoute component={DetectionCoverage} />
-      </Route>
-      <Route path="/kev-catalog">
-        <ProtectedRoute component={KevDashboard} />
-      </Route>
-      <Route path="/scan-compare">
-        <ProtectedRoute component={ScanComparison} />
-      </Route>
-      <Route path="/vuln-intel">
-        <ProtectedRoute component={KevDashboard} />
-      </Route>
-      <Route path="/threat-intel-hub">
-        <ProtectedRoute component={ThreatIntelHub} />
-      </Route>
-      <Route path="/threat-catalog">
-        <ProtectedRoute component={ThreatCatalog} />
-      </Route>
-      <Route path="/threat-catalog/:id">
-        {() => <ProtectedRoute component={ThreatActorCatalogDetail} />}
-      </Route>
-      <Route path="/ransomware-groups">
-        <Redirect to="/threat-catalog" />
-      </Route>
-      <Route path="/ransomware-groups/:name">
-        <Redirect to="/threat-catalog" />
-      </Route>
-      <Route path="/darkweb-intel">
-        <ProtectedRoute component={DarkwebIntel} />
-      </Route>
-      <Route path="/phishing-exploit-catalog">
-        <Redirect to="/exploit-catalog" />
-      </Route>
-      <Route path="/exploit-arsenal">
-        <Redirect to="/exploit-catalog" />
-      </Route>
-      <Route path="/exploit-catalog">
-        <ProtectedRoute component={ExploitArsenal} />
-      </Route>
-      <Route path="/msf-servers">
-        <ProtectedRoute component={MsfServers} />
-      </Route>
-      <Route path="/engagement-timeline">
-        <ProtectedRoute component={EngagementTimeline} />
-      </Route>
-      <Route path="/stix-export">
-        <ProtectedRoute component={StixExport} />
-      </Route>
-      <Route path="/campaign-archetypes">
-        <ProtectedRoute component={CampaignArchetypes} />
-      </Route>
-      <Route path="/post-engagement-report">
-        <ProtectedRoute component={PostEngagementReport} />
-      </Route>
-      <Route path="/landing-page-builder">
-        <ProtectedRoute component={LandingPageBuilder} />
-      </Route>
-      <Route path="/engagements/:id/results">
-        {() => <ProtectedRoute component={EngagementResults} />}
-      </Route>
-      <Route path="/engagements/:id/recon">
-        {() => <ProtectedRoute component={OsintRecon} />}
-      </Route>
-      <Route path="/emulation-playbooks">
-        <ProtectedRoute component={EmulationPlaybooks} />
-      </Route>
-      <Route path="/evidence">
-        <ProtectedRoute component={EvidenceCollection} />
-      </Route>
-      <Route path="/attack-paths">
-        <ProtectedRoute component={AttackPaths} />
-      </Route>
-      <Route path="/purple-team">
-        <ProtectedRoute component={PurpleTeam} />
-      </Route>
-      <Route path="/webhooks">
-        <ProtectedRoute component={Webhooks} />
-      </Route>
-      <Route path="/portal/:token" component={ClientPortal} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<PageLoader />}>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/login" component={Login} />
+        <Route path="/dashboard">
+          <ProtectedRoute component={Dashboard} />
+        </Route>
+        <Route path="/engagements">
+          <ProtectedRoute component={Engagements} />
+        </Route>
+        <Route path="/engagements/new">
+          <ProtectedRoute component={Engagements} />
+        </Route>
+        <Route path="/credentials">
+          <Redirect to="/infra-reference" />
+        </Route>
+        <Route path="/adversaries">
+          <Redirect to="/threat-catalog" />
+        </Route>
+        <Route path="/adversaries/:id">
+          {(params) => <ProtectedRoute component={() => <AdversaryDetail />} />}
+        </Route>
+        <Route path="/team">
+          <ProtectedRoute component={Team} />
+        </Route>
+        <Route path="/activity">
+          <ProtectedRoute component={Activity} />
+        </Route>
+        <Route path="/campaigns">
+          {() => { window.location.href = '/engagements'; return null; }}
+        </Route>
+        <Route path="/campaigns/:id">
+          {(params) => <ProtectedRoute component={() => <CampaignDetail />} />}
+        </Route>
+        <Route path="/agents">
+          <ProtectedRoute component={Agents} />
+        </Route>
+        <Route path="/agents/deploy">
+          <ProtectedRoute component={AgentDeploy} />
+        </Route>
+        <Route path="/operations/monitor">
+          <ProtectedRoute component={OperationMonitor} />
+        </Route>
+        <Route path="/operations/:id">
+          {(params) => <ProtectedRoute component={() => <OperationDetail />} />}
+        </Route>
+        <Route path="/reports/generate">
+          <ProtectedRoute component={ReportGenerator} />
+        </Route>
+        <Route path="/phishing-ops">
+          <ProtectedRoute component={PhishingOperations} />
+        </Route>
+        <Route path="/gophish">
+          <Redirect to="/phishing-ops" />
+        </Route>
+        <Route path="/guide/gophish">
+          <ProtectedRoute component={GoPhishGuide} />
+        </Route>
+        <Route path="/guide/caldera">
+          <ProtectedRoute component={CalderaGuide} />
+        </Route>
+        <Route path="/reports/security">
+          <Redirect to="/reports/generate" />
+        </Route>
+        <Route path="/apt-library">
+          <Redirect to="/threat-catalog" />
+        </Route>
+        <Route path="/compliance">
+          <ProtectedRoute component={ComplianceFrameworks} />
+        </Route>
+        <Route path="/infrastructure">
+          <Redirect to="/infra-reference" />
+        </Route>
+        <Route path="/infra-reference">
+          <ProtectedRoute component={InfraReference} />
+        </Route>
+        <Route path="/templates">
+          <ProtectedRoute component={TemplateLibrary} />
+        </Route>
+        <Route path="/campaign-wizard">
+          <ProtectedRoute component={CampaignWizard} />
+        </Route>
+        <Route path="/domain-recon">
+          <Redirect to="/domain-intel" />
+        </Route>
+        <Route path="/osint-monitor">
+          <Redirect to="/domain-intel" />
+        </Route>
+        <Route path="/domain-intel">
+          <ProtectedRoute component={DomainIntel} />
+        </Route>
+        <Route path="/domain-intel/curate/:scanId">
+          {() => <ProtectedRoute component={DiscoveryCuration} />}
+        </Route>
+        <Route path="/domain-intel/:id">
+          {() => <ProtectedRoute component={DomainIntelResults} />}
+        </Route>
+        <Route path="/template-generator">
+          <ProtectedRoute component={TemplateGenerator} />
+        </Route>
+        <Route path="/abilities-library">
+          <ProtectedRoute component={AbilitiesLibrary} />
+        </Route>
+        <Route path="/ioc-feed">
+          <ProtectedRoute component={IOCFeed} />
+        </Route>
+        <Route path="/engagement-pipeline">
+          <ProtectedRoute component={EngagementPipeline} />
+        </Route>
+        <Route path="/threat-actors">
+          <Redirect to="/threat-catalog" />
+        </Route>
+        <Route path="/threat-actors/:id">
+          {() => <ProtectedRoute component={ThreatActorDetail} />}
+        </Route>
+        <Route path="/ttp-knowledge">
+          <ProtectedRoute component={TtpKnowledge} />
+        </Route>
+        <Route path="/campaign-execution">
+          <ProtectedRoute component={CampaignExecution} />
+        </Route>
+        <Route path="/rule-validator">
+          <ProtectedRoute component={RuleValidator} />
+        </Route>
+        <Route path="/detection-coverage">
+          <ProtectedRoute component={DetectionCoverage} />
+        </Route>
+        <Route path="/kev-catalog">
+          <ProtectedRoute component={KevDashboard} />
+        </Route>
+        <Route path="/scan-compare">
+          <ProtectedRoute component={ScanComparison} />
+        </Route>
+        <Route path="/vuln-intel">
+          <ProtectedRoute component={KevDashboard} />
+        </Route>
+        <Route path="/threat-intel-hub">
+          <ProtectedRoute component={ThreatIntelHub} />
+        </Route>
+        <Route path="/threat-catalog">
+          <ProtectedRoute component={ThreatCatalog} />
+        </Route>
+        <Route path="/threat-catalog/:id">
+          {() => <ProtectedRoute component={ThreatActorCatalogDetail} />}
+        </Route>
+        <Route path="/ransomware-groups">
+          <Redirect to="/threat-catalog" />
+        </Route>
+        <Route path="/ransomware-groups/:name">
+          <Redirect to="/threat-catalog" />
+        </Route>
+        <Route path="/darkweb-intel">
+          <ProtectedRoute component={DarkwebIntel} />
+        </Route>
+        <Route path="/phishing-exploit-catalog">
+          <Redirect to="/exploit-catalog" />
+        </Route>
+        <Route path="/exploit-arsenal">
+          <Redirect to="/exploit-catalog" />
+        </Route>
+        <Route path="/exploit-catalog">
+          <ProtectedRoute component={ExploitArsenal} />
+        </Route>
+        <Route path="/msf-servers">
+          <ProtectedRoute component={MsfServers} />
+        </Route>
+        <Route path="/engagement-timeline">
+          <ProtectedRoute component={EngagementTimeline} />
+        </Route>
+        <Route path="/stix-export">
+          <ProtectedRoute component={StixExport} />
+        </Route>
+        <Route path="/campaign-archetypes">
+          <ProtectedRoute component={CampaignArchetypes} />
+        </Route>
+        <Route path="/post-engagement-report">
+          <ProtectedRoute component={PostEngagementReport} />
+        </Route>
+        <Route path="/landing-page-builder">
+          <ProtectedRoute component={LandingPageBuilder} />
+        </Route>
+        <Route path="/engagements/:id/results">
+          {() => <ProtectedRoute component={EngagementResults} />}
+        </Route>
+        <Route path="/engagements/:id/recon">
+          {() => <ProtectedRoute component={OsintRecon} />}
+        </Route>
+        <Route path="/emulation-playbooks">
+          <ProtectedRoute component={EmulationPlaybooks} />
+        </Route>
+        <Route path="/evidence">
+          <ProtectedRoute component={EvidenceCollection} />
+        </Route>
+        <Route path="/attack-paths">
+          <ProtectedRoute component={AttackPaths} />
+        </Route>
+        <Route path="/purple-team">
+          <ProtectedRoute component={PurpleTeam} />
+        </Route>
+        <Route path="/webhooks">
+          <ProtectedRoute component={Webhooks} />
+        </Route>
+        <Route path="/portal/:token" component={ClientPortal} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

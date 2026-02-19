@@ -288,41 +288,48 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
 
-    // Initialize IOC Feed auto-sync cron job (daily at 06:00 UTC)
-    import("../lib/ioc-sync").then(({ initIocSyncSchedule }) => {
-      initIocSyncSchedule();
-    }).catch((err) => {
-      console.warn("[IOC Sync] Failed to initialize scheduled sync:", err);
-    });
+    // Defer background tasks by 2 minutes to avoid proxy rate-limiting on startup
+    const BACKGROUND_DELAY = 120_000; // 2 minutes
+    console.log(`[Background] Deferring background schedulers by ${BACKGROUND_DELAY / 1000}s to avoid rate limits...`);
+    setTimeout(() => {
+      // Initialize IOC Feed auto-sync cron job (daily at 06:00 UTC)
+      import("../lib/ioc-sync").then(({ initIocSyncSchedule }) => {
+        initIocSyncSchedule();
+      }).catch((err) => {
+        console.warn("[IOC Sync] Failed to initialize scheduled sync:", err);
+      });
 
-    // Initialize Caldera adversary sync cron job (daily at 07:00 UTC)
-    import("../lib/caldera-sync").then(({ initCalderaSyncSchedule }) => {
-      initCalderaSyncSchedule();
-    }).catch((err) => {
-      console.warn("[Caldera Sync] Failed to initialize scheduled sync:", err);
-    });
+      // Initialize Caldera adversary sync cron job (daily at 07:00 UTC)
+      import("../lib/caldera-sync").then(({ initCalderaSyncSchedule }) => {
+        initCalderaSyncSchedule();
+      }).catch((err) => {
+        console.warn("[Caldera Sync] Failed to initialize scheduled sync:", err);
+      });
 
-    // Initialize Vulnerability Feed sync cron job (daily at 05:00 UTC)
-    import("../lib/vuln-feed-sync").then(({ initVulnFeedSyncSchedule }) => {
-      initVulnFeedSyncSchedule();
-    }).catch((err) => {
-      console.warn("[Vuln Feed Sync] Failed to initialize scheduled sync:", err);
-    });
+      // Initialize Vulnerability Feed sync cron job (daily at 05:00 UTC)
+      import("../lib/vuln-feed-sync").then(({ initVulnFeedSyncSchedule }) => {
+        initVulnFeedSyncSchedule();
+      }).catch((err) => {
+        console.warn("[Vuln Feed Sync] Failed to initialize scheduled sync:", err);
+      });
 
-    // Initialize Exploit Catalog enrichment scheduler (weekly)
-    import("../lib/enrichment-scheduler").then(({ startScheduler }) => {
-      startScheduler(); // 7-day interval, safe to call multiple times
-      console.log("[Enrichment] Weekly enrichment scheduler initialized");
-    }).catch((err) => {
-      console.warn("[Enrichment] Failed to initialize enrichment scheduler:", err);
-    });
+      // Initialize Exploit Catalog enrichment scheduler (weekly)
+      import("../lib/enrichment-scheduler").then(({ startScheduler }) => {
+        startScheduler(); // 7-day interval, safe to call multiple times
+        console.log("[Enrichment] Weekly enrichment scheduler initialized");
+      }).catch((err) => {
+        console.warn("[Enrichment] Failed to initialize enrichment scheduler:", err);
+      });
 
-    // Initialize Scan Recovery cron job (every 5 minutes)
-    import("../lib/scan-recovery").then(({ initScanRecoverySchedule }) => {
-      initScanRecoverySchedule();
-    }).catch((err) => {
-      console.warn("[ScanRecovery] Failed to initialize scan recovery scheduler:", err);
-    });
+      // Initialize Scan Recovery cron job (every 5 minutes)
+      import("../lib/scan-recovery").then(({ initScanRecoverySchedule }) => {
+        initScanRecoverySchedule();
+      }).catch((err) => {
+        console.warn("[ScanRecovery] Failed to initialize scan recovery scheduler:", err);
+      });
+
+      console.log("[Background] All background schedulers initialized");
+    }, BACKGROUND_DELAY);
   });
 }
 

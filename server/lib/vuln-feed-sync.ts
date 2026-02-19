@@ -145,7 +145,7 @@ export function initVulnFeedSyncSchedule() {
 
   console.log("[Vuln Feed Sync] Scheduled daily refresh at 05:00 UTC");
 
-  // Also run an initial warm-up 30 seconds after server start
+  // Also run an initial warm-up 5 minutes after server start (deferred to avoid proxy rate limits)
   setTimeout(async () => {
     try {
       console.log("[Vuln Feed Sync] Running initial cache warm-up...");
@@ -153,7 +153,7 @@ export function initVulnFeedSyncSchedule() {
     } catch (err) {
       console.warn("[Vuln Feed Sync] Initial warm-up failed (non-fatal):", err);
     }
-  }, 30_000);
+  }, 300_000);
 
   return task;
 }
