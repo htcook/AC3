@@ -2470,3 +2470,32 @@
 - [x] Ensured mobile responsiveness (sidebar overlay, close on route change, escape key)
 - [x] 17 sidebar navigation structure tests passing
 - [x] All 27 consolidation + sidebar tests passing
+
+## Site-Wide Review & Error Audit (Feb 19)
+- [x] Visited all 33 sidebar navigation pages — all render correctly with no errors
+- [x] Tested 12 legacy redirect routes — all redirect to correct destinations
+- [x] No console errors found on any page
+- [x] No 404 pages found — initial false positives were from guessed URLs, not actual sidebar links
+- [x] No issues requiring fixes — all pages, routes, and redirects working correctly
+
+### Pages Tested (all OK):
+- OPERATIONS: Dashboard, Engagement Mgr, Kill Chain, Agents, Campaign Exec, Rule Validator, Coverage Matrix
+- PHISHING & EXPLOITS: Phishing Ops, Exploit Catalog, MSF Servers, Page Builder, Template Gen, Launch Wizard, Auto Pipeline
+- INTELLIGENCE: Vuln Intel, Threat Intel Hub, Threat Catalog, Darkweb Intel, IOC Feed, Domain Intel, Scan Compare
+- KNOWLEDGE BASE: Archetypes, Abilities, TTP Knowledge, Compliance, Infrastructure
+- REPORTS & GUIDES: Engagement Report, Report Generator, GoPhish Guide, Caldera Guide, Template Library
+- ADMIN: Team, Activity
+
+### Legacy Redirects Tested (all OK):
+- /credentials → /infra-reference
+- /adversaries → /threat-catalog
+- /gophish → /phishing-ops
+- /exploit-arsenal → /exploit-catalog
+- /phishing-exploit-catalog → /exploit-catalog
+- /ransomware-groups → /threat-catalog
+- /domain-recon → /domain-intel
+- /reports/security → /reports/generate
+- /campaigns → /engagements
+- /infrastructure → /infra-reference
+- /apt-library → /threat-catalog
+- /kev-catalog → /vuln-intel (renders correctly, URL stays at /kev-catalog)
