@@ -24,6 +24,7 @@ import {
 import { GoPhishManagerContent } from "./GoPhish";
 import TyposquatManagerComponent from "@/components/TyposquatManager";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // ─── Priority badge colors ───
 function priorityBadge(priority: string) {
   const colors: Record<string, string> = {
@@ -67,7 +68,7 @@ function IntelFeedTab() {
       toast.success(`Draft created: ${data.campaignName}`);
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   if (isLoading) {
@@ -307,7 +308,7 @@ function CampaignBuilderTab() {
       refetchDraft();
       setEditMode(false);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const deployDraft = trpc.phishingOps.deployToGophish.useMutation({
@@ -320,7 +321,7 @@ function CampaignBuilderTab() {
       refetchDraft();
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const deleteDraft = trpc.phishingOps.deleteDraft.useMutation({
@@ -329,7 +330,7 @@ function CampaignBuilderTab() {
       setSelectedDraftId(null);
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const drafts = draftsData?.drafts || [];
@@ -788,7 +789,7 @@ function ActiveCampaignsTab() {
       toast.success(`Synced ${data.synced} campaign(s)`);
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const triggerCaldera = trpc.phishingOps.triggerCaldera.useMutation({
@@ -796,7 +797,7 @@ function ActiveCampaignsTab() {
       toast.success(data.message);
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const generateReport = trpc.phishingOps.generateReport.useMutation({
@@ -804,7 +805,7 @@ function ActiveCampaignsTab() {
       setReportData(data);
       toast.success("Report generated!");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   // Filter to only launched/completed campaigns
@@ -1208,19 +1209,19 @@ function ArsenalTab() {
       setSelectedStaleTemplates([]); setSelectedStalePages([]); setSelectedStaleGroups([]);
       refetch(); refetchStale();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
   const deleteTemplate = trpc.phishingOps.deleteGophishTemplate.useMutation({
     onSuccess: () => { toast.success("Template deleted"); refetch(); },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
   const deletePage = trpc.phishingOps.deleteGophishPage.useMutation({
     onSuccess: () => { toast.success("Landing page deleted"); refetch(); },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
   const deleteGroup = trpc.phishingOps.deleteGophishGroup.useMutation({
     onSuccess: () => { toast.success("Group deleted"); refetch(); },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   if (isLoading) {

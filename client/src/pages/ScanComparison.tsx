@@ -134,7 +134,7 @@ export default function ScanComparison() {
       {comparisonError && (
         <div className="text-center py-12 text-red-400">
           <AlertTriangle className="h-8 w-8 mx-auto mb-3" />
-          <p>Error loading comparison: {comparisonError.message}</p>
+          <p>Error loading comparison. Please verify both scans are complete and try again.</p>
         </div>
       )}
 

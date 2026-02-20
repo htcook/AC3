@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import AppShell from "@/components/AppShell";
@@ -54,7 +55,7 @@ export default function PostEngagementReport() {
       setReportData(data.report);
       toast.success("Report generated successfully!");
     },
-    onError: (err) => toast.error(`Report generation failed: ${err.message}`),
+    onError: (err) => toast.error(`Report generation failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const selectedOperation = useMemo(() => {

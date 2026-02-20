@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const CLIENT_TYPES = [
   { value: "msp", label: "MSP / Managed Service Provider", icon: Server },
   { value: "enterprise", label: "Enterprise", icon: Building2 },
@@ -370,7 +371,7 @@ export default function DomainIntel() {
       scansQuery.refetch();
     },
     onError: (err) => {
-      toast.error(`Retry failed: ${err.message}`);
+      toast.error(`Retry failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 
@@ -381,7 +382,7 @@ export default function DomainIntel() {
       scansQuery.refetch();
     },
     onError: (err) => {
-      toast.error(`Delete failed: ${err.message}`);
+      toast.error(`Delete failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 
@@ -969,7 +970,7 @@ export default function DomainIntel() {
                     <CardContent className="p-3">
                       <p className="text-sm text-destructive flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4" />
-                        {pipelineError || startScan.error?.message}
+                        {pipelineError ? 'Scan pipeline encountered an error. You may retry.' : startScan.error ? sanitizeErrorForToast(startScan.error) : 'Unknown error'}
                       </p>
                       {pipelineError && scanId && (
                         <Button

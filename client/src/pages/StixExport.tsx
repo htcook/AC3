@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ export default function StixExport() {
       setShowPreview(true);
       toast.success(`STIX Bundle: ${data.stats.totalObjects} objects (${data.exportedActors} actors, ${data.exportedIocs} IOCs)`);
     },
-    onError: (err) => toast.error(`Export Failed: ${err.message}`),
+    onError: (err) => toast.error(`Export Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const exportIocs = trpc.stixExport.exportIocFeed.useMutation({
@@ -62,7 +63,7 @@ export default function StixExport() {
       setShowPreview(true);
       toast.success(`STIX Bundle: ${data.stats.totalObjects} objects from ${data.exportedEntries} feed entries`);
     },
-    onError: (err) => toast.error(`Export Failed: ${err.message}`),
+    onError: (err) => toast.error(`Export Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const exportVulns = trpc.stixExport.exportVulnerabilities.useMutation({
@@ -71,7 +72,7 @@ export default function StixExport() {
       setShowPreview(true);
       toast.success(`STIX Bundle: ${data.stats.totalObjects} objects (${data.exportedExploits} exploits, ${data.exportedKev} KEV)`);
     },
-    onError: (err) => toast.error(`Export Failed: ${err.message}`),
+    onError: (err) => toast.error(`Export Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const exportCampaigns = trpc.stixExport.exportCampaigns.useMutation({
@@ -80,7 +81,7 @@ export default function StixExport() {
       setShowPreview(true);
       toast.success(`STIX Bundle: ${data.stats.totalObjects} objects from ${data.exportedCampaigns} campaigns`);
     },
-    onError: (err) => toast.error(`Export Failed: ${err.message}`),
+    onError: (err) => toast.error(`Export Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const exportAll = trpc.stixExport.exportAll.useMutation({
@@ -89,7 +90,7 @@ export default function StixExport() {
       setShowPreview(true);
       toast.success(`Complete STIX Bundle: ${data.stats.totalObjects} objects across all collections`);
     },
-    onError: (err) => toast.error(`Export Failed: ${err.message}`),
+    onError: (err) => toast.error(`Export Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const isExporting = exportActors.isPending || exportIocs.isPending || exportVulns.isPending || exportCampaigns.isPending || exportAll.isPending;

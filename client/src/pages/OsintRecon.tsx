@@ -13,6 +13,7 @@ import {
 import { useState, useMemo } from "react";
 
 import AppShell from "@/components/AppShell";
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // Spoofability gauge component
 function SpoofGauge({ score }: { score: number }) {
   const color = score >= 60 ? 'text-red-400' : score >= 40 ? 'text-yellow-400' : 'text-green-400';
@@ -147,7 +148,7 @@ export default function OsintRecon() {
       refetchRecon();
       refetchTyposquats();
     } catch (err: any) {
-      toast.error(err.message || 'Recon failed');
+      toast.error(sanitizeErrorForToast(err));
     }
   };
 
@@ -176,7 +177,7 @@ export default function OsintRecon() {
       toast.success(`Checked ${results.length} domains: ${available} available, ${registered} registered`);
       refetchTyposquats();
     } catch (err: any) {
-      toast.error(err.message || 'Batch check failed');
+      toast.error(sanitizeErrorForToast(err));
     }
   };
 
@@ -204,7 +205,7 @@ export default function OsintRecon() {
       // Store in state for display
       setAutoCampaigns(result.campaigns || []);
     } catch (err: any) {
-      toast.error(err.message || 'Campaign design failed');
+      toast.error(sanitizeErrorForToast(err));
     }
   };
 

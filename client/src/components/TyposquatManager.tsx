@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -81,7 +82,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
       setResult(data);
       toast.success(`Generated ${data.recommendedVariants.length} typosquat variants`);
     },
-    onError: (err) => toast.error(`Generation failed: ${err.message}`),
+    onError: (err) => toast.error(`Generation failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const markPurchasedMutation = trpc.typosquat.markPurchased.useMutation();
@@ -133,7 +134,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
           setIntegrationStep("done");
         }
       } catch (err: any) {
-        toast.error(`Integration failed: ${err.message}`);
+        toast.error(`Integration failed: ${sanitizeErrorForToast(err)}`);
         setIntegrationStep("confirm");
       }
     }, 1500);

@@ -17,6 +17,7 @@ import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@/data/phishing-temp
 import TemplatePreview, { TemplatePreviewThumbnail, TemplatePreviewModal } from "@/components/TemplatePreview";
 
 import AppShell from "@/components/AppShell";
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <Activity className="w-4 h-4" />, label: "DASHBOARD" },
   { href: "/engagements", icon: <Briefcase className="w-4 h-4" />, label: "ENGAGEMENTS" },
@@ -568,7 +569,7 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
                 const failed = results.filter((r: any) => !r.success).length;
                 toast.success(`Synced: ${created} created, ${skipped} already existed${failed > 0 ? `, ${failed} failed` : ''}`);
               } catch (err: any) {
-                toast.error(err.message || 'Failed to sync templates');
+                toast.error(sanitizeErrorForToast(err));
               } finally {
                 setSyncing(false);
               }

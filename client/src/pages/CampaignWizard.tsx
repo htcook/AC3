@@ -13,6 +13,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { Radar, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // Wizard steps
 const STEPS = [
   { id: 1, title: "ENGAGEMENT", icon: <Briefcase className="w-4 h-4" />, description: "Select customer engagement" },
@@ -236,7 +237,7 @@ export default function CampaignWizard() {
       toast.success("Campaign launched successfully!");
       navigate("/phishing-ops");
     } catch (error: any) {
-      toast.error(error.message || "Failed to launch campaign");
+      toast.error(sanitizeErrorForToast(error));
     }
   };
 

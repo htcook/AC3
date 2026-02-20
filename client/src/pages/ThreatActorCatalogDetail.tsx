@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
 import { safeUpper } from "@/lib/utils-safe";
@@ -78,7 +79,7 @@ export default function ThreatActorCatalogDetail() {
       setEnriching(false);
     },
     onError: (err) => {
-      toast.error(`Enrichment failed: ${err.message}`);
+      toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`);
       setEnriching(false);
     },
   });

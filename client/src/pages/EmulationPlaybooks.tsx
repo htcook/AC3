@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,7 @@ export default function EmulationPlaybooks() {
       setNewDescription("");
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const generateMutation = trpc.emulationPlaybooks.generateFromActor.useMutation({
@@ -81,7 +82,7 @@ export default function EmulationPlaybooks() {
       setSelectedActorId(null);
       refetch();
     },
-    onError: (err) => toast.error(`Generation failed: ${err.message}`),
+    onError: (err) => toast.error(`Generation failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const launchMutation = trpc.emulationPlaybooks.launch.useMutation({
@@ -91,7 +92,7 @@ export default function EmulationPlaybooks() {
         : "Execution queued (emulation framework connection pending)");
       refetch();
     },
-    onError: (err) => toast.error(`Launch failed: ${err.message}`),
+    onError: (err) => toast.error(`Launch failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const deleteMutation = trpc.emulationPlaybooks.delete.useMutation({

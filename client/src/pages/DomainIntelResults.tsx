@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import CorroborationPanel from "@/components/CorroborationPanel";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
   high: "text-orange-400 bg-orange-500/20 border-orange-500/40",
@@ -125,7 +126,7 @@ export default function DomainIntelResults() {
       setFpReasonCustom("");
     },
     onError: (err) => {
-      toast.error(`Error: ${err.message}`);
+      toast.error(`Error: ${sanitizeErrorForToast(err)}`);
     },
   });
 
@@ -157,7 +158,7 @@ export default function DomainIntelResults() {
       setEngagementRunning(true);
     },
     onError: (err: any) => {
-      toast.error(`Failed to start engagement: ${err.message}`);
+      toast.error(`Failed to start engagement: ${sanitizeErrorForToast(err)}`);
     },
   });
   const [engagementRunning, setEngagementRunning] = useState(false);
@@ -174,7 +175,7 @@ export default function DomainIntelResults() {
     },
     onError: (err) => {
       setExploitDeploying(false);
-      toast.error(`Deploy failed: ${err.message}`);
+      toast.error(`Deploy failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 
@@ -191,7 +192,7 @@ export default function DomainIntelResults() {
       refetch();
     },
     onError: (err) => {
-      toast.error(`Matching failed: ${err.message}`);
+      toast.error(`Matching failed: ${sanitizeErrorForToast(err)}`);
       setMatchingRunning(false);
     },
   });
@@ -205,7 +206,7 @@ export default function DomainIntelResults() {
       }
     },
     onError: (err) => {
-      toast.error(`Failed: ${err.message}`);
+      toast.error(`Failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 

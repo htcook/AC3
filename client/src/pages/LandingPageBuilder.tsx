@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo, useCallback, useRef } from "react";
 import AppShell from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -541,7 +542,7 @@ export default function LandingPageBuilder() {
       });
       toast.success("Landing page exported to phishing platform!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to export");
+      toast.error(sanitizeErrorForToast(err));
     }
   };
 

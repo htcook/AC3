@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import AttackNavigator from "@/components/AttackNavigator";
 import {
   ArrowLeft,
@@ -126,12 +127,12 @@ export default function ThreatActorDetail() {
       toast.success("Threat actor enriched with latest intelligence");
       refetch();
     },
-    onError: (err) => toast.error(`Enrichment failed: ${err.message}`),
+    onError: (err) => toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const deployMutation = trpc.calderaProxy.createAdversary.useMutation({
     onSuccess: () => toast.success("Adversary profile deployed to emulation framework"),
-    onError: (err) => toast.error(`Deploy failed: ${err.message}`),
+    onError: (err) => toast.error(`Deploy failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const [activeTab, setActiveTab] = useState("overview");
@@ -154,22 +155,27 @@ export default function ThreatActorDetail() {
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
           <div className="text-center py-20 text-muted-foreground">
-            Threat actor not found: {actorId}
+            <Shield className="w-12 h-12 mx-auto mb-4 opacity-30" />
+            <p className="text-lg font-medium">Threat actor not found</p>
+            <p className="text-sm mt-2">This actor may not yet be synced to the local database.</p>
+            <Button variant="outline" className="mt-4" onClick={() => setLocation("/threat-actors")}>
+              Browse Threat Actors
+            </Button>
           </div>
         </div>
       </AppShell>
     );
   }
 
-  // Parse JSON fields safely
-  const aliases = (actor.aliases as string[]) || [];
-  const techniques = (actor.techniques as Array<{ id: string; name: string; tactic: string; score?: number; description?: string }>) || [];
-  const tools = (actor.tools as string[]) || [];
-  const malware = (actor.malware as string[]) || [];
-  const targetSectors = (actor.targetSectors as string[]) || [];
-  const targetRegions = (actor.targetRegions as string[]) || [];
-  const activityTimeline = (actor.activityTimeline as Array<{ date: string; event: string; source?: string }>) || [];
-  const calderaProfile = actor.calderaProfile as { id?: string; atomicOrdering?: string[]; objectives?: string[] } | null;
+  // Parse JSON fields safely — defensive against null/undefined/malformed data
+  const aliases = Array.isArray(actor.aliases) ? (actor.aliases as string[]) : [];
+  const techniques = Array.isArray(actor.techniques) ? (actor.techniques as Array<{ id: string; name: string; tactic: string; score?: number; description?: string }>) : [];
+  const tools = Array.isArray(actor.tools) ? (actor.tools as string[]) : [];
+  const malware = Array.isArray(actor.malware) ? (actor.malware as string[]) : [];
+  const targetSectors = Array.isArray(actor.targetSectors) ? (actor.targetSectors as string[]) : [];
+  const targetRegions = Array.isArray(actor.targetRegions) ? (actor.targetRegions as string[]) : [];
+  const activityTimeline = Array.isArray(actor.activityTimeline) ? (actor.activityTimeline as Array<{ date: string; event: string; source?: string }>) : [];
+  const calderaProfile = (actor.calderaProfile && typeof actor.calderaProfile === 'object') ? (actor.calderaProfile as { id?: string; atomicOrdering?: string[]; objectives?: string[] }) : null;
 
   // Group techniques by tactic for the heatmap
   const techniquesByTactic: Record<string, Array<{ id: string; name: string; score?: number }>> = {};
@@ -730,7 +736,7 @@ function DetectionRulesPanel({ actorId, actorName, techniques }: {
       setGeneratedRules(data);
       toast.success(`Generated ${data.totalRules} detection rules for ${actorName}`);
     },
-    onError: (err) => toast.error(`Rule generation failed: ${err.message}`),
+    onError: (err) => toast.error(`Rule generation failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const generateLLMMutation = trpc.calderaProxy.generateActorRules.useMutation({
@@ -738,7 +744,7 @@ function DetectionRulesPanel({ actorId, actorName, techniques }: {
       setGeneratedRules(data);
       toast.success(`Generated ${data.totalRules} LLM-enhanced rules for ${actorName}`);
     },
-    onError: (err) => toast.error(`LLM rule generation failed: ${err.message}`),
+    onError: (err) => toast.error(`Rule generation failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const validateMutation = trpc.calderaProxy.validateRule.useMutation({
@@ -748,7 +754,7 @@ function DetectionRulesPanel({ actorId, actorName, techniques }: {
       }
       toast.success("Rule validated successfully");
     },
-    onError: (err) => toast.error(`Validation failed: ${err.message}`),
+    onError: (err) => toast.error(`Validation failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const handleCopy = (ruleContent: string, ruleId: string) => {

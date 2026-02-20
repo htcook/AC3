@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import AppShell from "@/components/AppShell";
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -83,7 +84,7 @@ export default function CampaignExecution() {
       operations.refetch();
       if (selectedOp) opDetail.refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const buildChain = trpc.calderaProxy.buildChain.useMutation({
@@ -94,7 +95,7 @@ export default function CampaignExecution() {
       operations.refetch();
       if (selectedOp) opDetail.refetch();
     },
-    onError: (err) => toast.error(`Chain build failed: ${err.message}`),
+    onError: (err) => toast.error(`Chain build failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const autoBuildAll = trpc.calderaProxy.autoBuildAllChains.useMutation({
@@ -102,7 +103,7 @@ export default function CampaignExecution() {
       toast.success(`Built chains for ${data.totalOperations} operations`);
       operations.refetch();
     },
-    onError: (err) => toast.error(`Auto-build failed: ${err.message}`),
+    onError: (err) => toast.error(`Auto-build failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const buildWithLLM = trpc.calderaProxy.buildChainWithLLM.useMutation({
@@ -113,7 +114,7 @@ export default function CampaignExecution() {
       operations.refetch();
       if (selectedOp) opDetail.refetch();
     },
-    onError: (err) => toast.error(`LLM build failed: ${err.message}`),
+    onError: (err) => toast.error(`LLM build failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const ops = operations.data || [];

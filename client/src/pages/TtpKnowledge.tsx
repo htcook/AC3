@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { Link } from "wouter";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // Tactic color mapping
 const TACTIC_COLORS: Record<string, string> = {
   "reconnaissance": "bg-blue-500/20 text-blue-300 border-blue-500/30",
@@ -73,7 +74,7 @@ export default function TtpKnowledge() {
       stats.refetch();
       knowledge.refetch();
     },
-    onError: (err) => toast.error(`Ingestion failed: ${err.message}`),
+    onError: (err) => toast.error(`Ingestion failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const enrichMutation = trpc.ttpEngine.enrich.useMutation({
@@ -81,7 +82,7 @@ export default function TtpKnowledge() {
       toast.success(`${data.techniqueId}: ${data.action}`);
       knowledge.refetch();
     },
-    onError: (err) => toast.error(`Enrichment failed: ${err.message}`),
+    onError: (err) => toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const entries = knowledge.data?.entries || [];

@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import AppShell from "@/components/AppShell";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -53,7 +54,7 @@ export default function CampaignArchetypes() {
       toast.success(`Seeded ${data.created} new, updated ${data.updated} archetypes`);
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   // Actor population query (only runs when both slug and actorId are set)

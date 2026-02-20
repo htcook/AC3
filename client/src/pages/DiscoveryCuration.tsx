@@ -12,6 +12,7 @@ import {
 import { useState, useMemo, useCallback } from "react";
 import AppShell from "@/components/AppShell";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 type ExclusionReason = 'wrong_company' | 'outdated' | 'duplicate' | 'irrelevant' | 'false_positive' | 'custom';
 
 const EXCLUSION_REASONS: { value: ExclusionReason; label: string; desc: string }[] = [
@@ -85,7 +86,7 @@ export default function DiscoveryCuration() {
       refetchAssets();
       setExcludeDialogAssetId(null);
     },
-    onError: (err) => toast.error(`Failed: ${err.message}`),
+    onError: (err) => toast.error(`Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const includeAsset = trpc.domainIntel.includeAsset.useMutation({
@@ -93,7 +94,7 @@ export default function DiscoveryCuration() {
       toast.success('Asset restored to engagement scope');
       refetchAssets();
     },
-    onError: (err) => toast.error(`Failed: ${err.message}`),
+    onError: (err) => toast.error(`Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const bulkExclude = trpc.domainIntel.bulkExcludeAssets.useMutation({
@@ -103,7 +104,7 @@ export default function DiscoveryCuration() {
       setSelectedIds(new Set());
       setBulkExcludeOpen(false);
     },
-    onError: (err) => toast.error(`Failed: ${err.message}`),
+    onError: (err) => toast.error(`Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const bulkInclude = trpc.domainIntel.bulkIncludeAssets.useMutation({
@@ -112,7 +113,7 @@ export default function DiscoveryCuration() {
       refetchAssets();
       setSelectedIds(new Set());
     },
-    onError: (err) => toast.error(`Failed: ${err.message}`),
+    onError: (err) => toast.error(`Failed: ${sanitizeErrorForToast(err)}`),
   });
 
   // Filtered assets

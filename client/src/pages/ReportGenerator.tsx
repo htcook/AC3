@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo } from 'react';
 import { Link } from 'wouter';
 import AppShell from "@/components/AppShell";
@@ -84,7 +85,7 @@ export default function ReportGenerator() {
       refetchReports();
       toast.success('Report generated successfully!');
     } catch (err: any) {
-      toast.error(err.message || 'Report generation failed');
+      toast.error(sanitizeErrorForToast(err));
       setStep('configure');
     }
   };

@@ -114,7 +114,7 @@ export default function ClientPortal() {
           <CardContent className="pt-8 text-center">
             <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
-            <p className="text-slate-400">{error.message}</p>
+            <p className="text-slate-400">Unable to access this resource. Please verify your permissions.</p>
           </CardContent>
         </Card>
       </div>

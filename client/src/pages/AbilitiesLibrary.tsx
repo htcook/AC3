@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo } from "react";
 import AppShell from "@/components/AppShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -173,7 +174,7 @@ export default function AbilitiesLibrary() {
 
   const deployMutation = trpc.calderaProxy.deployRansomwareProfile.useMutation({
     onSuccess: (data) => toast.success(`Deployed ${data.abilitiesDeployed} abilities to the emulation framework`),
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const deployGroup = (groupId: string) => {

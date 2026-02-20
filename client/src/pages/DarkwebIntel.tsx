@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // ─── Color Maps ──────────────────────────────────────────────────────────
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
@@ -95,7 +96,7 @@ export default function DarkwebIntel() {
       refetchIABs();
       refetchIOs();
     },
-    onError: (err) => toast.error("Feed Sync Failed", { description: err.message }),
+    onError: (err) => toast.error("Feed Sync Failed", { description: sanitizeErrorForToast(err) }),
   });
 
   // ─── Mutations ─────────────────────────────────────────────────────────
@@ -111,7 +112,7 @@ export default function DarkwebIntel() {
       refetchEvents();
     },
     onError: (err) => {
-      toast.error("Sync Failed", { description: err.message });
+      toast.error("Sync Failed", { description: sanitizeErrorForToast(err) });
     },
   });
 

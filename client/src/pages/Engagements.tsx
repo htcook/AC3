@@ -16,6 +16,7 @@ import { Scan, ShieldAlert, ShieldCheck } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import ShareLinkManager from "@/components/ShareLinkManager";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const ENGAGEMENT_TYPES = [
   { value: 'red_team', label: 'Red Team', color: 'text-red-400 bg-red-500/10' },
   { value: 'phishing', label: 'Phishing', color: 'text-yellow-400 bg-yellow-500/10' },
@@ -133,11 +134,11 @@ export default function Engagements() {
 
   const unlinkMutation = trpc.campaignEngagements.unlink.useMutation({
     onSuccess: () => { toast.success('Campaign unlinked'); refetchLinks(); },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
   const linkMutation = trpc.campaignEngagements.link.useMutation({
     onSuccess: () => { toast.success('Campaign linked'); refetchLinks(); },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
   const [expandedEngagement, setExpandedEngagement] = useState<number | null>(null);
   const [linkingEngagementId, setLinkingEngagementId] = useState<number | null>(null);
@@ -150,7 +151,7 @@ export default function Engagements() {
       resetForm();
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const updateMutation = trpc.engagements.update.useMutation({
@@ -160,7 +161,7 @@ export default function Engagements() {
       resetForm();
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const deleteMutation = trpc.engagements.delete.useMutation({
@@ -168,7 +169,7 @@ export default function Engagements() {
       toast.success('Engagement deleted');
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const bulkDeleteMutation = trpc.engagements.bulkDelete.useMutation({
@@ -178,7 +179,7 @@ export default function Engagements() {
       setBulkMode(false);
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   function toggleSelect(id: number) {

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 type PhishingType = 'credential_harvest' | 'malware_delivery' | 'callback_phishing' | 'business_email_compromise' | 'mfa_fatigue';
 type Sophistication = 'basic' | 'intermediate' | 'advanced';
 
@@ -51,7 +52,7 @@ export default function TemplateGenerator() {
       toast.success("Template generated from threat intelligence.");
     },
     onError: (err) => {
-      toast.error(`Generation failed: ${err.message}`);
+      toast.error(`Generation failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 
@@ -64,7 +65,7 @@ export default function TemplateGenerator() {
       }
     },
     onError: (err) => {
-      toast.error(`Deployment failed: ${err.message}`);
+      toast.error(`Deployment failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 

@@ -15,6 +15,7 @@ import { useState, useEffect, useMemo } from "react";
 import AppShell from "@/components/AppShell";
 import { useDashboardEvents } from "@/hooks/useWebSocket";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const DEFAULT_SERVER = {
   id: 1,
   name: "Production Server",
@@ -110,7 +111,7 @@ export default function Dashboard() {
       setIsScanning(false);
       setScanProgress([]);
       setDashScanId(null);
-      toast.error(`Scan failed: ${err.message}`);
+      toast.error(`Scan failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 

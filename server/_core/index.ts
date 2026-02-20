@@ -266,6 +266,26 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      onError({ error, path }) {
+        // Log full error server-side for debugging
+        console.error(`[tRPC] ${path}:`, error.message);
+        // Sanitize error message before it reaches the client
+        // Strip internal URLs, file paths, API keys, and stack traces
+        const original = error.message;
+        let sanitized = original
+          .replace(/https?:\/\/[^\s"'`,)}\]]+/gi, '[service]')
+          .replace(/(?:\/[\w.-]+){2,}/g, '[path]')
+          .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?\b/g, '[addr]')
+          .replace(/(?:key|token|secret|password|api[_-]?key|bearer)\s*[:=]\s*['"]?[\w\-./+=]{8,}['"]?/gi, '[redacted]')
+          .replace(/(?:mysql|postgres|mongodb|redis|tidb):\/\/[^\s"']+/gi, '[database]');
+        // Map common technical errors to friendly messages
+        if (/ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|fetch failed/i.test(sanitized)) {
+          sanitized = 'Service temporarily unavailable';
+        } else if (/timeout|timed?\s*out|aborted/i.test(sanitized)) {
+          sanitized = 'Request timed out';
+        }
+        error.message = sanitized;
+      },
     })
   );
   // development mode uses Vite, production mode uses static files

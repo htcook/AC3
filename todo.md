@@ -2811,3 +2811,6 @@
 - [x] Comprehensive tests for enhanced scoring engine
 - [x] Assets with no confirmed findings should display as green in heat map and scoring displays
 - [x] Assets with no confirmed findings should display as green (innocent until proven guilty) — only escalate color as confirmed findings come in
+- [x] Fix error when adding matched threat actor to campaign from ThreatActorDetail page
+- [x] Fix crash when adding matched threat actor to campaign from ThreatActorDetail page
+- [x] Suppress error details across the stack to prevent internal asset/architecture exposure

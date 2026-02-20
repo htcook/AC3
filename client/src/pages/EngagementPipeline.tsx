@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useEffect } from "react";
 import AppShell from "@/components/AppShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,7 +73,7 @@ export default function EngagementPipeline() {
       setIsRunning(false);
       const failedStep = steps.find(s => s.status === 'running');
       if (failedStep) updateStep(failedStep.id, 'error', undefined, err.message);
-      toast.error(`Pipeline failed: ${err.message}`);
+      toast.error(`Pipeline failed: ${sanitizeErrorForToast(err)}`);
     },
   });
 
@@ -141,7 +142,7 @@ export default function EngagementPipeline() {
     } catch (err: any) {
       setIsRunning(false);
       updateStep('deploy', 'error', undefined, err.message);
-      toast.error(`Failed to create pipeline: ${err.message}`);
+      toast.error(`Failed to create pipeline: ${sanitizeErrorForToast(err)}`);
     }
   };
 

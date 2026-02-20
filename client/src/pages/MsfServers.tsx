@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 export default function MsfServers() {
   // Real-time MSF server events
   const { events: wsEvents, isConnected: wsConnected } = useWebSocket({
@@ -40,7 +41,7 @@ export default function MsfServers() {
       setProvisionOpen(false);
       serversQuery.refetch();
     },
-    onError: (err: any) => toast.error(`Provisioning failed: ${err.message}`),
+    onError: (err: any) => toast.error(`Provisioning failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const healthCheckMut = trpc.metasploit.checkServerHealth.useMutation({
@@ -52,7 +53,7 @@ export default function MsfServers() {
       }
       serversQuery.refetch();
     },
-    onError: (err: any) => toast.error(`Health check failed: ${err.message}`),
+    onError: (err: any) => toast.error(`Health check failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const destroyMut = trpc.metasploit.destroyServer.useMutation({
@@ -61,7 +62,7 @@ export default function MsfServers() {
       setConfirmDestroyId(null);
       serversQuery.refetch();
     },
-    onError: (err: any) => toast.error(`Destroy failed: ${err.message}`),
+    onError: (err: any) => toast.error(`Destroy failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const servers = serversQuery.data || [];

@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
 import { safeUpper } from "@/lib/utils-safe";
@@ -79,7 +80,7 @@ export default function ThreatCatalog() {
       setSyncSource(null);
     },
     onError: (err: any) => {
-      toast.error(`Sync failed: ${err.message}`);
+      toast.error(`Sync failed: ${sanitizeErrorForToast(err)}`);
       setSyncing(false);
       setSyncSource(null);
     },
@@ -90,7 +91,7 @@ export default function ThreatCatalog() {
       toast.success("Profile enriched via LLM");
       refetch();
     },
-    onError: (err: any) => toast.error(`Enrichment failed: ${err.message}`),
+    onError: (err: any) => toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const handleSync = (source: string) => {

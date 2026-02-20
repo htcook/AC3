@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo } from "react";
 import AppShell from "@/components/AppShell";
 import { Link } from "wouter";
@@ -44,22 +45,22 @@ export default function IOCFeed() {
 
   const fetchCisaKev = trpc.iocFeed.fetchCisaKev.useMutation({
     onSuccess: (data) => { toast.success(`Fetched ${data.fetched} known exploited vulnerabilities (KEV) entries`); refetch(); },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const fetchAbuseCh = trpc.iocFeed.fetchAbuseCh.useMutation({
     onSuccess: (data) => { toast.success(`Fetched ${data.fetched} threat intelligence feeds entries`); refetch(); },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const fetchThreatFox = trpc.iocFeed.fetchThreatFox.useMutation({
     onSuccess: (data: any) => { toast.success(`Fetched ${data.fetched} malware indicator entries`); refetch(); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const fetchAllMutation = trpc.iocFeed.fetchAll.useMutation({
     onSuccess: (data: any) => { toast.success(`Fetched from ${data.results?.length || 0} sources`); refetch(); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const isFetching = fetchCisaKev.isPending || fetchAbuseCh.isPending || fetchThreatFox.isPending || fetchAllMutation.isPending;

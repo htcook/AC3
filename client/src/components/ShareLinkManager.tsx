@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -46,7 +47,7 @@ export default function ShareLinkManager({ engagementId }: ShareLinkManagerProps
       setShowCreateDialog(false);
       resetForm();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const updateShare = trpc.clientPortal.updateShare.useMutation({
@@ -54,7 +55,7 @@ export default function ShareLinkManager({ engagementId }: ShareLinkManagerProps
       toast.success("Share link revoked");
       utils.clientPortal.listShares.invalidate({ engagementId });
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(sanitizeErrorForToast(err)),
   });
 
   function resetForm() {

@@ -1,3 +1,4 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import AppShell from "@/components/AppShell";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -218,7 +219,7 @@ export default function RuleValidator() {
           : `Rule has ${data.syntaxErrors.filter((e: any) => e.severity === "error").length} errors`
       );
     },
-    onError: (err) => toast.error(`Validation failed: ${err.message}`),
+    onError: (err) => toast.error(`Validation failed: ${sanitizeErrorForToast(err)}`),
   });
 
   const handleValidate = () => {

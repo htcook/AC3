@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import {
   Webhook, Plus, Search, Trash2, Send, CheckCircle,
   XCircle, Globe, Clock, Zap, Settings, Copy
@@ -44,7 +45,7 @@ export default function Webhooks() {
       setSelectedWebhook(data.webhookId);
       refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const updateMutation = trpc.webhooks.update.useMutation({
@@ -62,7 +63,7 @@ export default function Webhooks() {
         toast.error(`Test delivery failed (HTTP ${data.status}): ${data.body?.slice(0, 100)}`);
       }
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
   const deleteMutation = trpc.webhooks.delete.useMutation({
