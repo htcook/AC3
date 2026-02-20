@@ -21,8 +21,9 @@ import {
   Gauge, RefreshCw, Eye, Trash2, Copy, Brain, Server,
   Building2, Layers, Cpu, Network, FileSearch, Clock,
   ArrowRight, ChevronDown, ChevronUp, Info, Lock, Globe,
-  Wifi, Database, Monitor, Smartphone, HardDrive,
+  Wifi, Database, Monitor, Smartphone, HardDrive, Download,
 } from "lucide-react";
+import { exportScoringTimeline } from "@/lib/export-utils";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -511,6 +512,13 @@ export default function ScoringHub() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            toast.info('Select an asset in the Dynamic Scoring Timeline tab to export its scoring events.');
+            setActiveTab('timeline');
+          }}>
+            <Download className="w-4 h-4 mr-1" />
+            Export Timeline
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowSimulator(!showSimulator)}>
             <Gauge className="w-4 h-4 mr-1" />
             {showSimulator ? "Hide" : "Show"} Simulator
@@ -1561,6 +1569,14 @@ export default function ScoringHub() {
                     onChange={(e) => setTimelineAssetId(e.target.value ? parseInt(e.target.value) : undefined)}
                     placeholder="Asset ID"
                   />
+                  {timelineQ.data && timelineQ.data.length > 0 && (
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => {
+                      exportScoringTimeline(`asset-${timelineAssetId}`, timelineQ.data!, 'csv');
+                      toast.success(`Exported ${timelineQ.data!.length} scoring events`);
+                    }}>
+                      <Download className="w-3 h-3 mr-1" /> CSV
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>

@@ -1698,6 +1698,13 @@ export const scoringAuditLog = mysqlTable("scoring_audit_log", {
   riskBand: varchar("riskBand", { length: 32 }),
   // Weight snapshot (for reproducibility)
   weightsSnapshot: json("weightsSnapshot"), // full profile weights at time of computation
+  // Dynamic re-scoring fields
+  triggerType: varchar("triggerType", { length: 64 }), // e.g., 'kev_match', 'new_cve_discovered', 'initial_scan'
+  previousScore: double("previousScore"), // score before this event
+  delta: double("delta"), // score change (newScore - previousScore)
+  changeDescription: text("changeDescription"), // human-readable description of what changed
+  factorChanges: json("factorChanges"), // Array<{ factor, previousValue, newValue, reason }>
+  pipelinePhase: varchar("pipelinePhase", { length: 64 }), // e.g., 'kev_enrichment', 'vuln_feed', 'port_risk'
   // Metadata
   computedBy: varchar("computedBy", { length: 255 }),
   computedAt: timestamp("computedAt").defaultNow().notNull(),

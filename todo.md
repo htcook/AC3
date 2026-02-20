@@ -2814,3 +2814,26 @@
 - [x] Fix error when adding matched threat actor to campaign from ThreatActorDetail page
 - [x] Fix crash when adding matched threat actor to campaign from ThreatActorDetail page
 - [x] Suppress error details across the stack to prevent internal asset/architecture exposure
+
+## Feature: Dynamic Re-Scoring Pipeline Integration
+- [x] Generate RescoringEvents at each enrichment phase in domainIntel pipeline
+- [x] Store rescoring events in scoring_audit_log with trigger type and factor changes
+- [x] Add rescoringTimeline to PipelineResult for visualization
+- [x] Wire Scoring Hub Dynamic Timeline tab to display pipeline-generated events
+
+## Feature: Data Export Utility (CSV/PDF)
+- [x] Build client-side export utility for CSV generation
+- [x] Build client-side export utility for PDF report generation (jsPDF + autoTable)
+- [x] Add export dropdown to DomainIntelResults (assets CSV/PDF, findings CSV/PDF, threat actors CSV/PDF, executive summary PDF)
+- [x] Add export button to ScoringHub Dynamic Timeline tab
+- [x] Support CSV for data analysis and PDF for client deliverables
+
+## Feature: Auto-BIA Report Generator
+- [x] Build NIST IR 8286D-aligned BIA document generator (8 sections)
+- [x] Leverage FIPS 199 categorization and mission function mapping from scoring engine
+- [x] Include asset criticality, mission dependencies, RTO/RPO, and risk scores
+- [x] Add generateBiaReport endpoint to domainIntel router
+- [x] Add BIA Report page (/bia-report) with scan selector and collapsible sections
+- [x] Add BIA Report PDF export with cover page and FIPS 199 summary
+- [x] Add BIA Report link to sidebar navigation under Reports & Guides
+- [x] Write tests for all three features (29 tests, 3 suites, all passing)

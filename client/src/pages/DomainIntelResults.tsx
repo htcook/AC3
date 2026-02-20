@@ -12,16 +12,19 @@ import {
   ArrowLeft, Shield, Target, AlertTriangle, Brain, Globe, Server,
   ChevronDown, ChevronUp, Crosshair, Zap, FileText, ExternalLink,
   Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database,
-  TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare
+  TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare,
+  Download
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import CorroborationPanel from "@/components/CorroborationPanel";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
+import { exportScanAssets, exportFindings, exportThreatActors, exportExecutiveSummary } from "@/lib/export-utils";
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
   high: "text-orange-400 bg-orange-500/20 border-orange-500/40",
@@ -289,6 +292,76 @@ export default function DomainIntelResults() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="text-xs">
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Export Data</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {
+                exportExecutiveSummary(scan.primaryDomain, { ...scan, ...pipeline });
+                toast.success('Executive summary PDF exported');
+              }}>
+                <FileText className="h-4 w-4 mr-2" /> Executive Summary (PDF)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {
+                exportScanAssets(scan.primaryDomain, assets, 'csv');
+                toast.success(`Exported ${assets.length} assets as CSV`);
+              }}>
+                <Database className="h-4 w-4 mr-2" /> Assets (CSV)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                exportScanAssets(scan.primaryDomain, assets, 'pdf');
+                toast.success(`Exported ${assets.length} assets as PDF`);
+              }}>
+                <Database className="h-4 w-4 mr-2" /> Assets (PDF)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {
+                const allFindings = assets.flatMap((a: any) => {
+                  const findings = a.postureFindings || (a.analysis ? JSON.parse(a.analysis)?.postureFindings : []) || [];
+                  return findings;
+                });
+                exportFindings(scan.primaryDomain, allFindings, 'csv');
+                toast.success(`Exported ${allFindings.length} findings as CSV`);
+              }}>
+                <AlertTriangle className="h-4 w-4 mr-2" /> Findings (CSV)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                const allFindings = assets.flatMap((a: any) => {
+                  const findings = a.postureFindings || (a.analysis ? JSON.parse(a.analysis)?.postureFindings : []) || [];
+                  return findings;
+                });
+                exportFindings(scan.primaryDomain, allFindings, 'pdf');
+                toast.success(`Exported ${allFindings.length} findings as PDF`);
+              }}>
+                <AlertTriangle className="h-4 w-4 mr-2" /> Findings (PDF)
+              </DropdownMenuItem>
+              {threatActorMatches?.actors?.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => {
+                    exportThreatActors(scan.primaryDomain, threatActorMatches.actors, 'csv');
+                    toast.success(`Exported ${threatActorMatches.actors.length} threat actors`);
+                  }}>
+                    <Skull className="h-4 w-4 mr-2" /> Threat Actors (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    exportThreatActors(scan.primaryDomain, threatActorMatches.actors, 'pdf');
+                    toast.success(`Exported ${threatActorMatches.actors.length} threat actors`);
+                  }}>
+                    <Skull className="h-4 w-4 mr-2" /> Threat Actors (PDF)
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             size="sm"

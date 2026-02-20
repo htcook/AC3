@@ -3871,6 +3871,55 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               console.log(`[DomainIntel] Stored ${assetRecords.length} assets for scan ${scanId}`);
             }
 
+            // ─── Persist Re-Scoring Timeline to Audit Log ────────────────
+            // Write one scoring_audit_log row per timeline event so the Scoring
+            // Timeline UI can display the full evolution without re-running the pipeline.
+            if (result.rescoringTimeline && result.rescoringTimeline.length > 0) {
+              try {
+                // Build a map of assetId (string) → discovered_assets.id (int)
+                const storedAssets = await db.getDiscoveredAssetsByScan(scanId);
+                const assetIdMap = new Map<string, number>();
+                for (const sa of storedAssets) {
+                  if (sa.assetId) assetIdMap.set(sa.assetId, sa.id);
+                }
+
+                const auditEntries = result.rescoringTimeline
+                  .map(evt => {
+                    const dbAssetId = assetIdMap.get(evt.assetId);
+                    if (!dbAssetId) return null;
+                    // Find the matching analysis for full score snapshot
+                    const analysis = result.assets.find(a => a.asset.assetId === evt.assetId);
+                    return {
+                      assetId: dbAssetId,
+                      scanId,
+                      carverScores: analysis?.carverScores || null,
+                      shockScores: analysis?.shockScores || null,
+                      cvssEstimate: analysis?.cvssEstimate || null,
+                      missionImpactScore: analysis?.missionImpactScore || null,
+                      impactScore: evt.phase === 'initial_scan' ? (analysis?.impactScore || 0) : (analysis?.impactScore || 0),
+                      likelihoodScore: analysis?.likelihoodScore || 0,
+                      hybridRiskScore: evt.newScore,
+                      riskBand: evt.newBand,
+                      triggerType: evt.triggerType,
+                      previousScore: evt.previousScore,
+                      delta: evt.delta,
+                      changeDescription: evt.changeDescription,
+                      factorChanges: evt.factorChanges,
+                      pipelinePhase: evt.phase,
+                      computedBy: 'pipeline',
+                    };
+                  })
+                  .filter((e): e is NonNullable<typeof e> => e !== null);
+
+                if (auditEntries.length > 0) {
+                  await db.bulkInsertScoringAuditEntries(auditEntries);
+                  console.log(`[DomainIntel] Persisted ${auditEntries.length} re-scoring timeline events to audit log`);
+                }
+              } catch (auditErr: any) {
+                console.error(`[DomainIntel] Failed to persist re-scoring timeline (non-fatal): ${auditErr.message}`);
+              }
+            }
+
             // Trim pipelineOutput before storing to prevent oversized DB writes.
             // The full result can contain passiveRecon (1000+ observations), exploitMatches (1000+ entries),
             // and all asset postureFindings duplicated — this can exceed 15-20MB.
@@ -4806,6 +4855,68 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
 
         const domain = results.orgProfile?.primaryDomain || scan.primaryDomain || 'unknown';
         return createExploitAdversary(domain, matches);
+      }),
+
+    // ─── Auto-BIA Report Generator ─────────────────────────────────
+    generateBiaReport: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .mutation(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+
+        const assets = await db.getDiscoveredAssetsByScan(input.scanId);
+        if (!assets.length) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No assets found for this scan' });
+
+        const { generateBiaReport } = await import('./lib/bia-report-generator');
+        const orgProfile = (scan.orgProfile as any) || {};
+
+        const biaAssets = assets
+          .filter(a => !a.excluded)
+          .map(a => {
+            let analysis: any = {};
+            try { analysis = typeof a.llmClassification === 'string' ? JSON.parse(a.llmClassification) : (a.llmClassification || {}); } catch {}
+            return {
+              id: a.id,
+              hostname: a.hostname,
+              assetType: a.assetType || 'unknown',
+              missionFunction: a.missionFunction || analysis.missionFunction || 'operational_continuity',
+              essentialService: a.essentialService || analysis.essentialService || '',
+              businessImpactLevel: a.businessImpactLevel || analysis.businessImpactLevel || 'operational',
+              carverScores: (a.carverScores as any) || analysis.carverScores || { criticality: 5, accessibility: 5, recuperability: 5, vulnerability: 5, effect: 5, recognizability: 5 },
+              shockScores: (a.shockScores as any) || analysis.shockScores || { scope: 5, handling: 5, operationalImpact: 5, cascadingEffects: 5, knowledge: 5 },
+              hybridRiskScore: a.hybridRiskScore || 0,
+              riskBand: a.riskBand || 'low',
+              impactScore: a.impactScore || 0,
+              likelihoodScore: a.likelihoodScore || 0,
+              assetCriticalityScore: a.assetCriticalityScore || 0,
+              assetCriticalityBand: a.assetCriticalityBand || 'low',
+              vulnRiskScore: a.vulnRiskScore || 0,
+              vulnRiskBand: a.vulnRiskBand || 'low',
+              missionImpactScore: a.missionImpactScore || 0,
+              fips199Category: (a.fips199Category as any) || analysis.fips199Category || undefined,
+              criticalityTier: a.criticalityTier || analysis.criticalityTier || undefined,
+              missionDependencies: (a.missionDependencies as any) || analysis.missionDependencies || undefined,
+              postureFindings: (a.postureFindings as any) || analysis.postureFindings || [],
+              deviceType: a.deviceType || analysis.deviceType || undefined,
+              platformType: a.platformType || analysis.platformType || undefined,
+            };
+          });
+
+        const report = generateBiaReport(
+          {
+            customerName: orgProfile.customerName || scan.primaryDomain,
+            primaryDomain: scan.primaryDomain,
+            sector: scan.sector || orgProfile.sector || 'Unknown',
+            clientType: scan.clientType || 'enterprise',
+            criticalFunctions: (scan.criticalFunctions as string[]) || [],
+            complianceFlags: (scan.complianceFlags as string[]) || [],
+          },
+          biaAssets,
+          scan.overallRiskScore || 0,
+          scan.overallRiskBand || 'low',
+        );
+
+        return report;
       }),
   }),
 

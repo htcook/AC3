@@ -42,6 +42,7 @@ import {
   Webhook,
   BookMarked,
   Archive,
+  ClipboardCheck,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -130,6 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
       { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
+      { href: "/bia-report", icon: ClipboardCheck, label: "AUTO-BIA REPORT" },
       { href: "/guide/gophish", icon: BookOpen, label: "GOPHISH GUIDE" },
       { href: "/guide/caldera", icon: BookOpen, label: "CALDERA GUIDE" },
       { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },

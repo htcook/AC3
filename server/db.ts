@@ -1412,3 +1412,70 @@ export async function getAllEngagementShares(): Promise<EngagementShare[]> {
   if (!db) return [];
   return db.select().from(engagementShares).orderBy(desc(engagementShares.createdAt));
 }
+
+
+// ─── Scoring Audit Log Helpers ───────────────────────────────────────
+import { scoringAuditLog, ScoringAuditEntry } from "../drizzle/schema";
+
+export interface RescoringAuditEntry {
+  assetId: number;
+  scanId?: number | null;
+  profileId?: number | null;
+  carverScores?: any;
+  shockScores?: any;
+  cvssEstimate?: number | null;
+  missionImpactScore?: number | null;
+  impactScore?: number | null;
+  likelihoodScore?: number | null;
+  hybridRiskScore?: number | null;
+  riskBand?: string | null;
+  weightsSnapshot?: any;
+  computedBy?: string | null;
+  // Dynamic re-scoring fields
+  triggerType?: string | null;
+  previousScore?: number | null;
+  delta?: number | null;
+  changeDescription?: string | null;
+  factorChanges?: any;
+  pipelinePhase?: string | null;
+}
+
+export async function insertScoringAuditEntry(entry: RescoringAuditEntry): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(scoringAuditLog).values(entry);
+}
+
+export async function bulkInsertScoringAuditEntries(entries: RescoringAuditEntry[]): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  if (entries.length === 0) return;
+  // Batch insert in chunks of 20 to avoid oversized queries
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE);
+    await db.insert(scoringAuditLog).values(batch);
+  }
+}
+
+export async function getScoringTimelineByAsset(assetId: number, limit = 50): Promise<ScoringAuditEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(scoringAuditLog)
+    .where(eq(scoringAuditLog.assetId, assetId))
+    .orderBy(desc(scoringAuditLog.computedAt))
+    .limit(limit);
+}
+
+export async function getScoringTimelineByScan(scanId: number, limit = 200): Promise<ScoringAuditEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(scoringAuditLog)
+    .where(eq(scoringAuditLog.scanId, scanId))
+    .orderBy(desc(scoringAuditLog.computedAt))
+    .limit(limit);
+}

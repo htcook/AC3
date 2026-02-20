@@ -66,6 +66,7 @@ const PurpleTeam = lazy(() => import("./pages/PurpleTeam"));
 const Webhooks = lazy(() => import("./pages/Webhooks"));
 const BugBountyHub = lazy(() => import("./pages/BugBountyHub"));
 const ScoringHub = lazy(() => import("./pages/ScoringHub"));
+const BiaReport = lazy(() => import("./pages/BiaReport"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -319,6 +320,9 @@ function Router() {
         </Route>
         <Route path="/scoring">
           <ProtectedRoute component={ScoringHub} />
+        </Route>
+        <Route path="/bia-report">
+          <ProtectedRoute component={BiaReport} />
         </Route>
         <Route path="/portal/:token" component={ClientPortal} />
         <Route path="/404" component={NotFound} />

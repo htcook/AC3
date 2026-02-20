@@ -185,6 +185,21 @@ export interface KevEnrichment {
   chainSteps: Array<{ techniqueId: string; priority: number; source: "kev"; context: string }>;
 }
 
+export interface RescoringTimelineEntry {
+  assetId: string;
+  hostname: string;
+  phase: string;
+  triggerType: string;
+  previousScore: number;
+  newScore: number;
+  delta: number;
+  previousBand: string;
+  newBand: string;
+  changeDescription: string;
+  factorChanges: Array<{ factor: string; previousValue: number; newValue: number; reason: string }>;
+  timestamp: number;
+}
+
 export interface PipelineResult {
   orgProfile: OrgProfile;
   assets: AssetAnalysis[];
@@ -205,6 +220,7 @@ export interface PipelineResult {
     totalCalderaAbilities: number;
     remoteAccessCount: number;
   };
+  rescoringTimeline?: RescoringTimelineEntry[];
 }
 
 export interface BreachDataSummary {
@@ -1525,7 +1541,98 @@ export async function runDomainIntelPipeline(
     categorySummary: fpContext.categorySummary.map(c => ({ type: c.type, count: c.count })),
   } : undefined);
 
+  // ─── Dynamic Re-Scoring Timeline ────────────────────────────────
+  // Capture score snapshots before each enrichment phase so we can record
+  // exactly how each phase changes asset scores. This feeds the Scoring
+  // Timeline UI and the scoring_audit_log table.
+  const rescoringTimeline: RescoringTimelineEntry[] = [];
+
+  // Helper: snapshot current scores for all analyses
+  function snapshotScores(): Map<string, { score: number; band: string; carver: CarverScores; shock: ShockScores; impact: number; likelihood: number }> {
+    const snap = new Map<string, { score: number; band: string; carver: CarverScores; shock: ShockScores; impact: number; likelihood: number }>();
+    for (const a of analyses) {
+      snap.set(a.asset.assetId, {
+        score: a.hybridRiskScore,
+        band: a.riskBand,
+        carver: { ...a.carverScores },
+        shock: { ...a.shockScores },
+        impact: a.impactScore,
+        likelihood: a.likelihoodScore,
+      });
+    }
+    return snap;
+  }
+
+  // Helper: diff snapshots and record timeline entries
+  function recordPhaseDeltas(
+    phase: string,
+    triggerType: string,
+    before: Map<string, { score: number; band: string; carver: CarverScores; shock: ShockScores; impact: number; likelihood: number }>,
+    description: string
+  ): void {
+    for (const a of analyses) {
+      const prev = before.get(a.asset.assetId);
+      if (!prev) continue;
+      const delta = a.hybridRiskScore - prev.score;
+      // Only record if score actually changed
+      if (delta === 0 && a.riskBand === prev.band) continue;
+      const factorChanges: RescoringTimelineEntry['factorChanges'] = [];
+      // Detect CARVER changes
+      for (const k of Object.keys(prev.carver) as (keyof CarverScores)[]) {
+        if (a.carverScores[k] !== prev.carver[k]) {
+          factorChanges.push({ factor: `CARVER.${k}`, previousValue: prev.carver[k], newValue: a.carverScores[k], reason: description });
+        }
+      }
+      // Detect SHOCK changes
+      for (const k of Object.keys(prev.shock) as (keyof ShockScores)[]) {
+        if (a.shockScores[k] !== prev.shock[k]) {
+          factorChanges.push({ factor: `SHOCK.${k}`, previousValue: prev.shock[k], newValue: a.shockScores[k], reason: description });
+        }
+      }
+      // Detect impact/likelihood changes
+      if (a.impactScore !== prev.impact) {
+        factorChanges.push({ factor: 'impactScore', previousValue: prev.impact, newValue: a.impactScore, reason: description });
+      }
+      if (a.likelihoodScore !== prev.likelihood) {
+        factorChanges.push({ factor: 'likelihoodScore', previousValue: prev.likelihood, newValue: a.likelihoodScore, reason: description });
+      }
+      rescoringTimeline.push({
+        assetId: a.asset.assetId,
+        hostname: a.asset.hostname,
+        phase,
+        triggerType,
+        previousScore: prev.score,
+        newScore: a.hybridRiskScore,
+        delta,
+        previousBand: prev.band,
+        newBand: a.riskBand,
+        changeDescription: `${description}: ${a.asset.hostname} ${delta > 0 ? '+' : ''}${delta} (${prev.band} → ${a.riskBand})`,
+        factorChanges,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  // Record initial_scan baseline (the LLM-generated scores before any enrichment)
+  for (const a of analyses) {
+    rescoringTimeline.push({
+      assetId: a.asset.assetId,
+      hostname: a.asset.hostname,
+      phase: 'initial_scan',
+      triggerType: 'initial_scan',
+      previousScore: 0,
+      newScore: a.hybridRiskScore,
+      delta: a.hybridRiskScore,
+      previousBand: 'low',
+      newBand: a.riskBand,
+      changeDescription: `Initial BIA assessment: ${a.asset.hostname} scored ${a.hybridRiskScore} (${a.riskBand})`,
+      factorChanges: [],
+      timestamp: Date.now(),
+    });
+  }
+
   // Stage 3.5: CISA KEV Enrichment
+  const preKevSnapshot = snapshotScores();
   await onProgress?.('scoring');
   let kevEnrichment: KevEnrichment | undefined;
   try {
@@ -1632,6 +1739,8 @@ export async function runDomainIntelPipeline(
         console.log(`[DomainIntel] KEV enrichment: ${kevMatches.length} matches, ${chainSteps.length} chain steps, boost=${boost.riskBoost}`);
       }
     }
+    // Record KEV enrichment deltas
+    recordPhaseDeltas('kev_enrichment', 'kev_match', preKevSnapshot, 'CISA KEV catalog match');
   } catch (err: any) {
     console.error(`[DomainIntel] KEV enrichment failed (non-fatal): ${err.message}`);
   }
@@ -1743,6 +1852,8 @@ export async function runDomainIntelPipeline(
   } catch (err: any) {
     console.error(`[DomainIntel] Vuln feed enrichment failed (non-fatal): ${err.message}`);
   }
+  // Note: vuln feed findings don't change hybridRiskScore directly — they add postureFindings
+  // that are picked up in the post-enrichment recalculation below.
 
   // Stage 3.7: Shodan CVE Verification — upgrade probable findings to confirmed using Shodan banner data
   if (passiveRecon) {
@@ -1787,6 +1898,7 @@ export async function runDomainIntelPipeline(
   }
 
   // Stage 3.85: Port-Based Risk Scoring — analyze exposed ports and generate findings
+  const prePortSnapshot = snapshotScores();
   let portRiskStats = { totalAssetsWithPorts: 0, totalHighRiskPorts: 0, totalPortFindings: 0 };
   if (passiveRecon) {
     try {
@@ -1818,6 +1930,8 @@ export async function runDomainIntelPipeline(
         }
       }
       console.log(`[DomainIntel] Port risk scoring: ${portRiskStats.totalAssetsWithPorts} assets with open ports, ${portRiskStats.totalHighRiskPorts} high-risk ports, ${portRiskStats.totalPortFindings} port findings generated`);
+      // Record port risk deltas (CARVER accessibility boosts)
+      recordPhaseDeltas('port_risk', 'new_port_service', prePortSnapshot, 'Port-based risk scoring');
     } catch (err: any) {
       console.error(`[DomainIntel] Port risk scoring failed (non-fatal): ${err.message}`);
     }
@@ -1830,6 +1944,9 @@ export async function runDomainIntelPipeline(
     a.vulnRiskBand = vulnRisk.band;
   }
   console.log(`[DomainIntel] Separated scores computed: criticality (CARVER+SHOCK) vs vulnRisk (confirmed/probable findings only)`);
+
+  // Snapshot before the final recalculation
+  const preRecalcSnapshot = snapshotScores();
 
   // POST-ENRICHMENT: Recalculate hybridRiskScore using CONFIRMED vuln data + port exposure boost.
   // This is the critical step: unconfirmed/potential vulns no longer inflate the risk score.
@@ -1877,6 +1994,9 @@ export async function runDomainIntelPipeline(
     delete (a as any)._portExposureScore;
   }
   console.log(`[DomainIntel] Hybrid risk recalculated with mission function baselines + confirmed vuln data + port exposure`);
+  // Record post-enrichment recalculation deltas
+  recordPhaseDeltas('post_enrichment_recalc', 'vuln_scan_complete', preRecalcSnapshot, 'Post-enrichment recalculation with confirmed vuln data + mission baselines');
+  console.log(`[DomainIntel] Re-scoring timeline: ${rescoringTimeline.length} events recorded across ${analyses.length} assets`);
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
   // If skipEngagement is true, skip campaign design and generate scan-only summaries
@@ -1973,5 +2093,6 @@ export async function runDomainIntelPipeline(
     passiveRecon,
     breachData,
     exploitMatches: exploitMatchResult,
+    rescoringTimeline,
   };
 }
