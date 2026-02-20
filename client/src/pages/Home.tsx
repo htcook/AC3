@@ -17,7 +17,7 @@ import {
 const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Validation Coverage Metric", desc: "Real-time coverage tracking shows what percentage of critical findings have been validated with proof-of-exploit evidence. Color-coded progress bars in scan results and executive summary PDFs with quality assessment tiers." },
   { date: "Feb 2026", title: "Evidence Capture & Artifact Storage", desc: "Automated evidence collection during exploit validation — console output, session info, HTML evidence reports, and text screenshots stored in S3. Clickable artifact links embedded directly in PDF export reports." },
-  { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "Lightweight exploit validation runs real Metasploit checks against confirmed CVEs. Prioritizes KEV-listed and high-CVSS candidates, auto-rescores assets based on confirmed exploitability, and generates full audit trails." },
+  { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "LLM-driven exploit validation runs real checks against confirmed CVEs using modules built from Metasploit, ExploitDB, and other sources. Prioritizes KEV-listed and high-CVSS candidates, auto-rescores assets based on confirmed exploitability, and generates full audit trails." },
   { date: "Feb 2026", title: "Exploit Infrastructure Provisioning", desc: "One-click cloud provisioning for exploit frameworks. Auto-configures remote procedure calls, deploys agent stagers, and manages the full exploit-to-agent pipeline." },
   { date: "Feb 2026", title: "Unified Exploit Catalog", desc: "Merged phishing exploits and CVE exploits into a single catalog with adversary ability metadata. One-click sync for both initial-access and post-exploitation techniques." },
   { date: "Feb 2026", title: "Kill Chain Timeline", desc: "Unified engagement timeline visualizing the complete kill chain from OSINT recon through exploitation to post-exploitation with real-time WebSocket event streaming." },
@@ -106,7 +106,7 @@ export default function Home() {
 
   // Fallback to verified static values if API hasn't loaded yet
   const stats = useMemo(() => ({
-    metasploitModules: liveStats?.metasploitModules ?? 2617,
+    exploitModules: liveStats?.metasploitModules ?? 2617,
     threatActors: liveStats?.threatActors ?? 1694,
     calderaAbilities: liveStats?.calderaAbilities ?? 1919,
     platformModules: liveStats?.platformModules ?? 29,
@@ -288,7 +288,7 @@ export default function Home() {
                   step: "4",
                   icon: BarChart3,
                   title: "Validate, Measure & Report",
-                  desc: "Run autonomous exploit validation against confirmed CVEs with real Metasploit modules. Every exploitable finding is backed by captured evidence — console output, session data, and HTML reports stored in S3. See your Validation Coverage metric and get professional reports with proof-of-exploit artifacts."
+                  desc: "Run autonomous exploit validation against confirmed CVEs using LLM-built exploit modules sourced from Metasploit, ExploitDB, and other databases. Every exploitable finding is backed by captured evidence — console output, session data, and HTML reports stored in S3. See your Validation Coverage metric and get professional reports with proof-of-exploit artifacts."
                 },
               ].map((item) => (
                 <div key={item.step} className="flex gap-5 p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/50">
@@ -341,7 +341,7 @@ export default function Home() {
               icon={<Cloud className="w-6 h-6" />}
               title="Ace C3"
               points={[
-                "Finds vulnerabilities AND validates them with real Metasploit exploits",
+                "Finds vulnerabilities AND validates them with LLM-built exploits from multiple sources",
                 "Every exploitable finding backed by captured evidence artifacts in S3",
                 "One platform: recon, exploitation, validation, phishing, detection, reporting",
                 "Validation Coverage metric shows exactly how much is proven vs. unconfirmed",
@@ -359,7 +359,7 @@ export default function Home() {
       <section className="py-16 bg-card/50">
         <div className="container">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-            <AnimatedStat value={stats.metasploitModules} label="EXPLOIT MODULES" suffix="+" />
+            <AnimatedStat value={stats.exploitModules} label="EXPLOIT MODULES" suffix="+" />
             <AnimatedStat value={stats.threatActors} label="THREAT ACTORS" suffix="+" />
             <AnimatedStat value={stats.calderaAbilities} label="ADVERSARY ABILITIES" suffix="" />
             <AnimatedStat value={stats.platformModules} label="PLATFORM MODULES" suffix="" />
@@ -471,7 +471,7 @@ export default function Home() {
               icon={<Target className="w-7 h-7" />}
               number="01"
               title="ADVERSARY EMULATION"
-              description={`Match confirmed vulnerabilities to ${stats.metasploitModules.toLocaleString()}+ exploit modules, deploy them as adversary abilities, and execute real attack chains using APT adversary profiles.`}
+              description={`Match confirmed vulnerabilities to ${stats.exploitModules.toLocaleString()}+ LLM-built exploit modules sourced from Metasploit, ExploitDB, and other databases. Deploy as adversary abilities and execute real attack chains using APT adversary profiles.`}
               features={[
                 "Automatic CVE-to-exploit matching from multiple databases",
                 "One-click exploit deployment as adversary abilities",
@@ -539,7 +539,7 @@ export default function Home() {
               icon={<ShieldCheck className="w-7 h-7" />}
               number="05"
               title="VALIDATION & DETECTION"
-              description="Autonomous exploit validation confirms which CVEs are actually exploitable using real Metasploit modules. Evidence capture stores proof artifacts in S3. Detection engineering auto-generates rules from executed TTPs."
+              description="Autonomous exploit validation confirms which CVEs are actually exploitable using LLM-built modules from Metasploit, ExploitDB, and other sources. Evidence capture stores proof artifacts in S3. Detection engineering auto-generates rules from executed TTPs."
               features={[
                 "Autonomous Validation Engine with KEV/CVSS prioritization",
                 "Evidence capture: console output, session info, HTML reports",
@@ -617,7 +617,7 @@ export default function Home() {
               title="EXPLOIT & EMULATION"
               color="text-orange-400"
               modules={[
-                { icon: Bug, name: "Exploit Arsenal", desc: `Unified catalog: ${stats.metasploitModules.toLocaleString()}+ exploit modules from multiple databases + phishing exploits` },
+                { icon: Bug, name: "Exploit Arsenal", desc: `Unified catalog: ${stats.exploitModules.toLocaleString()}+ LLM-built exploit modules from Metasploit, ExploitDB & more + phishing exploits` },
                 { icon: Server, name: "Exploit Servers", desc: "One-click cloud provisioning with auto-configured exploit frameworks" },
                 { icon: Layers, name: "Abilities Library", desc: `${stats.calderaAbilities.toLocaleString()} adversary abilities organized by MITRE ATT&CK tactic` },
                 { icon: Shield, name: "Threat Actors", desc: `${stats.threatActors.toLocaleString()} actor profiles with kill chains and campaign deployment` },
@@ -641,7 +641,7 @@ export default function Home() {
               title="DETECTION & VALIDATION"
               color="text-green-400"
               modules={[
-                { icon: FlaskConical, name: "Validation Engine", desc: "Autonomous exploit validation with Metasploit — KEV/CVSS prioritized, auto-rescore on confirmation" },
+                { icon: FlaskConical, name: "Validation Engine", desc: "LLM-driven exploit validation from multiple sources — KEV/CVSS prioritized, auto-rescore on confirmation" },
                 { icon: Camera, name: "Evidence Capture", desc: "Automated proof collection: console output, session info, HTML reports, text screenshots stored in S3" },
                 { icon: FileCheck2, name: "Validation Coverage", desc: "Real-time coverage metric tracking validated vs. unconfirmed findings with quality assessment tiers" },
                 { icon: ShieldCheck, name: "Rule Validator", desc: "Validate Sigma, YARA, Suricata, Splunk SPL, and KQL with LLM analysis" },
@@ -711,7 +711,7 @@ export default function Home() {
               items={[
                 "Adversary emulation engine",
                 "Cloud-provisioned exploit infrastructure",
-                `${stats.metasploitModules.toLocaleString()}+ exploit module matching`,
+                `${stats.exploitModules.toLocaleString()}+ LLM-built exploit modules from multiple sources`,
                 "CVE-to-exploit auto-deployment",
                 "Agent stager payload generation",
               ]}
@@ -753,7 +753,7 @@ export default function Home() {
               icon={<FlaskConical className="w-6 h-6" />}
               title="VALIDATION & EVIDENCE ENGINE"
               items={[
-                "Autonomous Metasploit exploit validation",
+                "LLM-driven multi-source exploit validation",
                 "KEV/CVSS candidate prioritization",
                 "4 evidence artifact types captured to S3",
                 "Validation Coverage metric with quality tiers",

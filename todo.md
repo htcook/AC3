@@ -2905,3 +2905,9 @@
 - [x] Update About section to mention Validation Engine
 - [x] Update Reporting pillar card with evidence artifacts and coverage bars
 - [x] Update value prop card to PROVE IT WITH EVIDENCE
+
+## Front Page: Update Exploit Descriptions to Multi-Source LLM Approach
+- [x] Replace all Metasploit-only exploit references with multi-source LLM-driven language (Metasploit, ExploitDB, and other sources)
+- [x] Update What's New popup entries referencing Metasploit
+- [x] Update How It Works, value props, and comparison cards
+- [x] Update Pillar cards, Operations Grid, Architecture, and Engagement Workflow
