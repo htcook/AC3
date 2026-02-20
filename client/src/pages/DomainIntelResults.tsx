@@ -13,7 +13,7 @@ import {
   ChevronDown, ChevronUp, Crosshair, Zap, FileText, ExternalLink,
   Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database,
   TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare,
-  Download
+  Download, FlaskConical
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,7 +24,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import CorroborationPanel from "@/components/CorroborationPanel";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
-import { exportScanAssets, exportFindings, exportThreatActors, exportExecutiveSummary } from "@/lib/export-utils";
+import { exportScanAssets, exportFindings, exportThreatActors, exportExecutiveSummary, exportExecutiveSummaryWithValidation, exportValidationReportPdf, exportValidationResultsCsv } from "@/lib/export-utils";
+import type { ValidationResultExport, ValidationRunExport } from "@/lib/export-utils";
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
   high: "text-orange-400 bg-orange-500/20 border-orange-500/40",
@@ -153,6 +154,34 @@ export default function DomainIntelResults() {
   ];
 
   const { data, isLoading, error, refetch } = trpc.domainIntel.getScan.useQuery({ id: scanId }, { enabled: !!scanId });
+
+  // Fetch validation data for this scan
+  const validationSummary = trpc.validation.getScanValidationSummary.useQuery({ scanId }, { enabled: !!scanId });
+  const validationRun: ValidationRunExport | null = validationSummary.data?.run ? {
+    id: validationSummary.data.run.id,
+    scanId: validationSummary.data.run.scanId,
+    mode: validationSummary.data.run.mode,
+    status: validationSummary.data.run.status,
+    totalCandidates: validationSummary.data.run.totalCandidates,
+    validated: validationSummary.data.totalValidated ?? 0,
+    exploitable: validationSummary.data.exploitableCount ?? 0,
+    notVulnerable: (validationSummary.data.results || []).filter((r: any) => r.status === 'not_vulnerable').length,
+    errors: (validationSummary.data.results || []).filter((r: any) => r.status === 'error').length,
+    startedAt: validationSummary.data.run.startedAt instanceof Date ? validationSummary.data.run.startedAt.toISOString() : String(validationSummary.data.run.startedAt),
+    completedAt: validationSummary.data.run.completedAt instanceof Date ? validationSummary.data.run.completedAt.toISOString() : validationSummary.data.run.completedAt ? String(validationSummary.data.run.completedAt) : null,
+  } : null;
+  const validationResults: ValidationResultExport[] = (validationSummary.data?.results || []).map((r: any) => ({
+    assetHostname: r.assetHostname || r.hostname || 'unknown',
+    cveId: r.cveId || '',
+    msfModule: r.msfModule,
+    status: r.status,
+    exploitable: r.exploitable ?? false,
+    scoreAdjustment: r.scoreAdjustment ?? 0,
+    durationMs: r.durationMs ?? 0,
+    evidence: r.evidence ? (typeof r.evidence === 'string' ? JSON.parse(r.evidence) : r.evidence) : null,
+    errorMessage: r.errorMessage,
+    timestamp: r.completedAt ? String(r.completedAt) : r.startedAt ? String(r.startedAt) : '',
+  }));
 
   // Engagement mutation for scan_complete scans
   const startEngagement = trpc.domainIntel.startEngagement.useMutation({
@@ -304,8 +333,14 @@ export default function DomainIntelResults() {
               <DropdownMenuLabel>Export Data</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => {
-                exportExecutiveSummary(scan.primaryDomain, { ...scan, ...pipeline });
-                toast.success('Executive summary PDF exported');
+                // Check if validation data is available for enhanced export
+                if (validationRun && validationResults.length > 0) {
+                  exportExecutiveSummaryWithValidation(scan.primaryDomain, { ...scan, ...pipeline }, validationRun, validationResults);
+                  toast.success('Executive summary with validation evidence exported');
+                } else {
+                  exportExecutiveSummary(scan.primaryDomain, { ...scan, ...pipeline });
+                  toast.success('Executive summary PDF exported');
+                }
               }}>
                 <FileText className="h-4 w-4 mr-2" /> Executive Summary (PDF)
               </DropdownMenuItem>
@@ -360,6 +395,25 @@ export default function DomainIntelResults() {
                   </DropdownMenuItem>
                 </>
               )}
+              {validationResults.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => {
+                    exportValidationResultsCsv(scan.primaryDomain, validationResults);
+                    toast.success(`Exported ${validationResults.length} validation results as CSV`);
+                  }}>
+                    <FlaskConical className="h-4 w-4 mr-2" /> Validation Results (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    if (validationRun) {
+                      exportValidationReportPdf(scan.primaryDomain, validationRun, validationResults);
+                      toast.success('Validation evidence report exported as PDF');
+                    }
+                  }}>
+                    <FlaskConical className="h-4 w-4 mr-2" /> Validation Evidence (PDF)
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -374,6 +428,11 @@ export default function DomainIntelResults() {
           <RiskGauge score={scan.overallRiskScore || 0} band={scan.overallRiskBand || "low"} />
         </div>
       </div>
+
+      {/* Validate Top 10 Quick Action */}
+      {scan.status !== 'pending' && scan.status !== 'discovering' && (
+        <ValidateTop10Banner scanId={scanId} validationSummary={validationSummary.data} />
+      )}
 
       {/* Scan Complete — Start Engagement Banner */}
       {scan.status === 'scan_complete' && !engagementRunning && (
@@ -3546,5 +3605,135 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
         })}
       </div>
     </>
+  );
+}
+
+
+/** Validate Top 10 — quick-action banner for launching targeted validation from scan results */
+function ValidateTop10Banner({ scanId, validationSummary }: { scanId: number; validationSummary: any }) {
+  const [showMsfSelect, setShowMsfSelect] = useState(false);
+  const [selectedMsf, setSelectedMsf] = useState<string>("");
+  const msfServersQuery = trpc.metasploit.listServers.useQuery(undefined, { enabled: showMsfSelect });
+  const startRunMutation = trpc.validation.startRun.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Validation run #${data.runId} started — validating ${data.totalCandidates} candidates in ${data.mode} mode`);
+      setShowMsfSelect(false);
+    },
+    onError: (err) => {
+      toast.error(`Validation failed: ${err.message}`);
+    },
+  });
+
+  // If validation already exists for this scan, show summary instead
+  if (validationSummary?.hasValidation) {
+    const run = validationSummary.run;
+    return (
+      <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-emerald-500/10">
+              <FlaskConical className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm flex items-center gap-2">
+                Exploit Validation Complete
+                <Badge variant="outline" className="text-xs border-emerald-500/40 text-emerald-400">
+                  {validationSummary.exploitableCount} exploitable
+                </Badge>
+                <Badge variant="outline" className="text-xs border-zinc-500/40 text-zinc-400">
+                  {validationSummary.totalValidated} validated
+                </Badge>
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {run?.mode === 'check_only' ? 'Non-destructive check' : run?.mode === 'safe_exploit' ? 'Safe exploit' : 'Auxiliary scan'} mode
+                {run?.completedAt ? ` — completed ${new Date(run.completedAt).toLocaleString()}` : ''}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            onClick={() => window.location.href = '/validation-engine'}
+          >
+            <FlaskConical className="h-3.5 w-3.5 mr-1.5" /> View Full Results
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show the launch button
+  return (
+    <Card className="border-amber-500/30 bg-amber-500/5">
+      <CardContent className="p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-amber-500/10">
+            <FlaskConical className="h-5 w-5 text-amber-400" />
+          </div>
+          <div>
+            <p className="font-semibold text-sm">Validate Top 10 Critical Findings</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Run safe, non-destructive exploit validation against the highest-confidence KEV matches and MSF module targets. Results feed directly into risk scores.
+            </p>
+          </div>
+        </div>
+        {!showMsfSelect ? (
+          <Button
+            className="bg-amber-600 hover:bg-amber-700 shrink-0 text-xs"
+            size="sm"
+            onClick={() => setShowMsfSelect(true)}
+          >
+            <FlaskConical className="h-3.5 w-3.5 mr-1.5" /> Validate Top 10
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2 shrink-0">
+            <Select value={selectedMsf} onValueChange={setSelectedMsf}>
+              <SelectTrigger className="w-44 h-8 text-xs">
+                <SelectValue placeholder="Select C2 Server" />
+              </SelectTrigger>
+              <SelectContent>
+                {(msfServersQuery.data || []).map((s: any) => (
+                  <SelectItem key={s.id} value={String(s.id)}>
+                    {s.name || s.host}
+                  </SelectItem>
+                ))}
+                {(msfServersQuery.data || []).length === 0 && (
+                  <SelectItem value="none" disabled>No servers configured</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-xs"
+              disabled={!selectedMsf || selectedMsf === 'none' || startRunMutation.isPending}
+              onClick={() => {
+                startRunMutation.mutate({
+                  scanId,
+                  msfServerId: Number(selectedMsf),
+                  mode: 'check_only',
+                  maxCandidates: 10,
+                });
+              }}
+            >
+              {startRunMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Zap className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Launch
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => setShowMsfSelect(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

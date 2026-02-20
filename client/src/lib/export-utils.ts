@@ -682,3 +682,448 @@ export function exportBiaReportPdf(report: any): void {
 
   doc.save(`BIA_Report_${report.organization.primaryDomain}_${dateStamp()}.pdf`);
 }
+
+
+// ─── Proof-of-Exploit Evidence Export ──────────────────────────────────────
+
+export interface ValidationResultExport {
+  assetHostname: string;
+  cveId: string;
+  msfModule: string | null;
+  status: string;
+  exploitable: boolean;
+  scoreAdjustment: number;
+  durationMs: number;
+  evidence: {
+    checkOutput?: string;
+    msfJobId?: string;
+    auxiliaryScanner?: string;
+    timestamp?: string;
+  } | null;
+  errorMessage: string | null;
+  timestamp: string;
+}
+
+export interface ValidationRunExport {
+  id: number;
+  scanId: number;
+  mode: string;
+  status: string;
+  totalCandidates: number;
+  validated: number;
+  exploitable: number;
+  notVulnerable: number;
+  errors: number;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+/** Export validation results as CSV */
+export function exportValidationResultsCsv(
+  domain: string,
+  results: ValidationResultExport[],
+): void {
+  exportToCsv(`${domain}_validation_results_${dateStamp()}`, [
+    { header: 'Asset', accessor: (r) => r.assetHostname },
+    { header: 'CVE', accessor: (r) => r.cveId },
+    { header: 'MSF Module', accessor: (r) => r.msfModule || '' },
+    { header: 'Status', accessor: (r) => r.status },
+    { header: 'Exploitable', accessor: (r) => r.exploitable ? 'YES' : 'NO' },
+    { header: 'Score Adjustment', accessor: (r) => r.scoreAdjustment },
+    { header: 'Duration (ms)', accessor: (r) => r.durationMs },
+    { header: 'Evidence', accessor: (r) => r.evidence?.checkOutput?.substring(0, 200) || '' },
+    { header: 'Error', accessor: (r) => r.errorMessage || '' },
+    { header: 'Timestamp', accessor: (r) => r.timestamp },
+  ], results);
+}
+
+/** Export validation results as PDF with proof-of-exploit evidence */
+export function exportValidationReportPdf(
+  domain: string,
+  run: ValidationRunExport,
+  results: ValidationResultExport[],
+): void {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const contentWidth = pageWidth - margin * 2;
+
+  // ─── Cover Page ─────────────────────────────────────────────────────
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(26);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Exploitation Validation Report', margin, 55);
+
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(148, 163, 184);
+  doc.text(domain, margin, 67);
+  doc.text(`Proof-of-Exploit Evidence — ${run.mode.replace('_', ' ').toUpperCase()} Mode`, margin, 77);
+
+  // Summary box
+  let y = 95;
+  doc.setFillColor(30, 41, 59);
+  doc.roundedRect(margin, y, contentWidth, 45, 3, 3, 'F');
+  doc.setTextColor(148, 163, 184);
+  doc.setFontSize(9);
+  doc.text('VALIDATION SUMMARY', margin + 5, y + 8);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+
+  const exploitableColor: [number, number, number] = run.exploitable > 0 ? [220, 38, 38] : [34, 197, 94];
+  doc.setTextColor(exploitableColor[0], exploitableColor[1], exploitableColor[2]);
+  doc.text(`${run.exploitable} CONFIRMED EXPLOITABLE`, margin + 5, y + 19);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Total Candidates: ${run.totalCandidates}`, margin + 5, y + 28);
+  doc.text(`Validated: ${run.validated}`, margin + 55, y + 28);
+  doc.text(`Not Vulnerable: ${run.notVulnerable}`, margin + 95, y + 28);
+  doc.text(`Errors: ${run.errors}`, margin + 145, y + 28);
+
+  doc.text(`Started: ${run.startedAt ? new Date(run.startedAt).toLocaleString() : 'N/A'}`, margin + 5, y + 37);
+  doc.text(`Completed: ${run.completedAt ? new Date(run.completedAt).toLocaleString() : 'In Progress'}`, margin + 80, y + 37);
+
+  // Exploitable findings highlight
+  const exploitableResults = results.filter(r => r.exploitable);
+  if (exploitableResults.length > 0) {
+    y = 155;
+    doc.setFillColor(30, 20, 20);
+    doc.roundedRect(margin, y, contentWidth, 8 + exploitableResults.length * 7, 3, 3, 'F');
+    doc.setTextColor(220, 38, 38);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CONFIRMED EXPLOITABLE VULNERABILITIES', margin + 5, y + 7);
+    doc.setTextColor(255, 200, 200);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    exploitableResults.forEach((r, i) => {
+      doc.text(
+        `${r.assetHostname} — ${r.cveId} — ${r.msfModule || 'N/A'} — Score +${r.scoreAdjustment}`,
+        margin + 5,
+        y + 14 + i * 7,
+      );
+    });
+  }
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text('CONFIDENTIAL — Proof-of-Exploit Evidence — For authorized recipients only', margin, pageHeight - 10);
+
+  // ─── Detailed Results Table ─────────────────────────────────────────
+  doc.addPage();
+
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, 20, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Detailed Validation Results', margin, 13);
+
+  autoTable(doc, {
+    startY: 28,
+    head: [['Asset', 'CVE', 'MSF Module', 'Status', 'Exploitable', 'Score Adj.', 'Duration']],
+    body: results.map(r => [
+      r.assetHostname,
+      r.cveId,
+      (r.msfModule || 'N/A').substring(0, 35),
+      r.status.toUpperCase(),
+      r.exploitable ? 'YES' : 'NO',
+      r.exploitable ? `+${r.scoreAdjustment}` : '0',
+      `${(r.durationMs / 1000).toFixed(1)}s`,
+    ]),
+    theme: 'grid',
+    headStyles: {
+      fillColor: [30, 41, 59],
+      textColor: [255, 255, 255],
+      fontSize: 7,
+      fontStyle: 'bold',
+      cellPadding: 2,
+    },
+    bodyStyles: {
+      fontSize: 7,
+      cellPadding: 1.5,
+      textColor: [51, 65, 85],
+    },
+    alternateRowStyles: {
+      fillColor: [241, 245, 249],
+    },
+    margin: { left: margin, right: margin },
+    didParseCell: (data: any) => {
+      if (data.section === 'body') {
+        const text = String(data.cell.text).toUpperCase();
+        if (text === 'YES') { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
+        else if (text === 'VALIDATED') data.cell.styles.textColor = [220, 38, 38];
+        else if (text === 'NOT_VULNERABLE') data.cell.styles.textColor = [34, 197, 94];
+        else if (text === 'SKIPPED') data.cell.styles.textColor = [113, 113, 122];
+        else if (text === 'ERROR') data.cell.styles.textColor = [234, 88, 12];
+      }
+    },
+    didDrawPage: () => {
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Page ${doc.getCurrentPageInfo().pageNumber}`, pageWidth - 25, pageHeight - 8);
+      doc.text('CONFIDENTIAL — Proof-of-Exploit Evidence', margin, pageHeight - 8);
+    },
+  });
+
+  // ─── Evidence Details Page ──────────────────────────────────────────
+  const resultsWithEvidence = results.filter(r => r.evidence?.checkOutput);
+  if (resultsWithEvidence.length > 0) {
+    doc.addPage();
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 20, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Evidence Details', margin, 13);
+
+    y = 28;
+    for (const r of resultsWithEvidence) {
+      if (y > pageHeight - 50) {
+        doc.addPage();
+        y = margin;
+      }
+
+      // Evidence card
+      doc.setFillColor(241, 245, 249);
+      const evidenceText = r.evidence?.checkOutput || '';
+      const wrappedEvidence = doc.splitTextToSize(evidenceText.substring(0, 500), contentWidth - 10);
+      const cardHeight = 22 + wrappedEvidence.length * 3.5;
+      doc.roundedRect(margin, y, contentWidth, cardHeight, 2, 2, 'F');
+
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${r.assetHostname} — ${r.cveId}`, margin + 5, y + 6);
+
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Module: ${r.msfModule || 'N/A'} | Status: ${r.status} | Exploitable: ${r.exploitable ? 'YES' : 'NO'}`, margin + 5, y + 12);
+
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(7);
+      doc.text(wrappedEvidence, margin + 5, y + 18);
+
+      y += cardHeight + 5;
+    }
+  }
+
+  doc.save(`Validation_Report_${domain}_${dateStamp()}.pdf`);
+}
+
+/** Add validation evidence section to executive summary PDF */
+export function exportExecutiveSummaryWithValidation(
+  domain: string,
+  scan: any,
+  validationRun: ValidationRunExport | null,
+  validationResults: ValidationResultExport[],
+): void {
+  const filename = `${domain}_executive_summary_${dateStamp()}`;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const contentWidth = pageWidth - margin * 2;
+
+  // ─── Title Page (same as original) ──────────────────────────────────
+  doc.setFillColor(24, 24, 27);
+  doc.rect(0, 0, pageWidth, 60, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Executive Summary', 20, 25);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  doc.text(domain, 20, 35);
+  doc.setFontSize(9);
+  doc.setTextColor(161, 161, 170);
+  doc.text(`Generated: ${new Date().toLocaleString()} | ACE C3 Platform`, 20, 50);
+
+  let y = 70;
+
+  // Risk overview
+  doc.setTextColor(24, 24, 27);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Risk Overview', 20, y);
+  y += 8;
+
+  const riskColor = getRiskColor(scan.overallRiskBand);
+  doc.setFillColor(riskColor[0], riskColor[1], riskColor[2]);
+  doc.roundedRect(20, y, 40, 20, 3, 3, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text(String(scan.overallRiskScore ?? 0), 30, y + 13);
+  doc.setFontSize(8);
+  doc.text((scan.overallRiskBand || 'N/A').toUpperCase(), 30, y + 18);
+
+  doc.setTextColor(63, 63, 70);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Total Assets: ${scan.totalAssets ?? 0}`, 70, y + 6);
+  doc.text(`Total Findings: ${scan.totalFindings ?? 0}`, 70, y + 12);
+  doc.text(`Scan Date: ${scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : 'N/A'}`, 70, y + 18);
+  y += 30;
+
+  // Executive summary text
+  if (scan.executiveSummary) {
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Summary', 20, y);
+    y += 6;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(scan.executiveSummary, contentWidth);
+    doc.text(lines, 20, y);
+    y += lines.length * 4 + 6;
+  }
+
+  // ─── Validation Evidence Section (NEW) ──────────────────────────────
+  if (validationRun && validationResults.length > 0) {
+    if (y > 200) { doc.addPage(); y = 20; }
+
+    doc.setTextColor(24, 24, 27);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Exploitation Validation Evidence', 20, y);
+    y += 8;
+
+    // Validation summary stats
+    const exploitable = validationResults.filter(r => r.exploitable);
+    const notVuln = validationResults.filter(r => r.status === 'not_vulnerable');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(63, 63, 70);
+    doc.text(`Validation Mode: ${validationRun.mode.replace('_', ' ')}`, 20, y);
+    y += 5;
+
+    // Exploitable count in red
+    if (exploitable.length > 0) {
+      doc.setTextColor(220, 38, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${exploitable.length} vulnerabilities confirmed exploitable`, 20, y);
+      y += 5;
+    }
+
+    doc.setTextColor(34, 197, 94);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${notVuln.length} findings verified not exploitable`, 20, y);
+    y += 8;
+
+    // Exploitable findings table
+    if (exploitable.length > 0) {
+      doc.setTextColor(24, 24, 27);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Confirmed Exploitable Findings', 20, y);
+      y += 4;
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Asset', 'CVE', 'MSF Module', 'Score Impact', 'Evidence']],
+        body: exploitable.map(r => [
+          r.assetHostname,
+          r.cveId,
+          (r.msfModule || 'N/A').substring(0, 30),
+          `+${r.scoreAdjustment}`,
+          (r.evidence?.checkOutput || 'Exploitation confirmed').substring(0, 60),
+        ]),
+        theme: 'grid',
+        headStyles: {
+          fillColor: [127, 29, 29], // red-900
+          textColor: [255, 255, 255],
+          fontSize: 7,
+          fontStyle: 'bold',
+          cellPadding: 2,
+        },
+        bodyStyles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+          textColor: [39, 39, 42],
+        },
+        alternateRowStyles: {
+          fillColor: [254, 242, 242], // red-50
+        },
+        margin: { left: 20, right: 20 },
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Not vulnerable findings (brief)
+    if (notVuln.length > 0 && y < 240) {
+      doc.setTextColor(24, 24, 27);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Verified Not Exploitable', 20, y);
+      y += 4;
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Asset', 'CVE', 'MSF Module', 'Result']],
+        body: notVuln.slice(0, 15).map(r => [
+          r.assetHostname,
+          r.cveId,
+          (r.msfModule || 'N/A').substring(0, 30),
+          'Not Vulnerable',
+        ]),
+        theme: 'grid',
+        headStyles: {
+          fillColor: [20, 83, 45], // green-900
+          textColor: [255, 255, 255],
+          fontSize: 7,
+          fontStyle: 'bold',
+          cellPadding: 2,
+        },
+        bodyStyles: {
+          fontSize: 7,
+          cellPadding: 1.5,
+          textColor: [39, 39, 42],
+        },
+        alternateRowStyles: {
+          fillColor: [240, 253, 244], // green-50
+        },
+        margin: { left: 20, right: 20 },
+      });
+    }
+  }
+
+  // Threat model summary
+  if (scan.threatModelSummary) {
+    y = (doc as any).lastAutoTable?.finalY + 10 || y + 6;
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setTextColor(24, 24, 27);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Threat Model', 20, y);
+    y += 6;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(scan.threatModelSummary, contentWidth);
+    doc.text(lines, 20, y);
+  }
+
+  // Footer on all pages
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(161, 161, 170);
+    doc.text(`Page ${i} of ${pageCount} — CONFIDENTIAL`, 14, pageHeight - 8);
+  }
+
+  doc.save(`${filename}.pdf`);
+}

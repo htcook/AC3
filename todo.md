@@ -2867,3 +2867,18 @@
 - [x] Build frontend Validation Engine page with launch controls, results viewer, history, and CSV export
 - [x] Add navigation link to sidebar under Offensive Operations
 - [x] Write 27 tests for the validation engine (all passing)
+
+## Enhancement: Validation Engine Integration (3 enhancements)
+- [ ] Add proof-of-exploit evidence section to PDF export (executive summary + findings PDFs)
+- [ ] Build validation-triggered re-scoring hook (auto-rescore assets when validation run completes)
+- [ ] Add "Validate Top 10" quick-action button to DomainIntelResults page
+- [ ] Write tests for all three enhancements
+
+## Enhancement: Validation Engine Integration (3 items)
+- [x] Add proof-of-exploit evidence to PDF/CSV exports (exportValidationReportPdf, exportValidationResultsCsv, exportExecutiveSummaryWithValidation)
+- [x] Wire validation evidence export options into DomainIntelResults export dropdown (CSV + PDF)
+- [x] Build validation-triggered re-scoring hook — audit log entries for exploit_validation and exploit_validation_negative triggers
+- [x] Post-completion scan overall risk recalculation (weighted 60% max + 40% avg)
+- [x] Add Validate Top 10 quick-action banner to DomainIntelResults (MSF server selector, check_only mode, 10 candidates)
+- [x] Show validation summary banner when validation already exists for the scan
+- [x] Write 15 tests for all 3 enhancements (all passing, 42 total validation tests)

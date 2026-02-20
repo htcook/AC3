@@ -6091,17 +6091,60 @@ Make the phishing content highly realistic and tailored to the target domain and
                 case 'skipped': skippedCount++; break;
               }
 
-              // If validated, update the asset's risk score
+              // If validated, update the asset's risk score and record in scoring audit log
               if (result.exploitable && result.scoreAdjustment > 0) {
                 const newScore = Math.min(100, candidate.currentRiskScore + result.scoreAdjustment);
+                const newBand = newScore >= 80 ? 'critical' : newScore >= 60 ? 'high' : newScore >= 40 ? 'medium' : 'low';
                 await dbConn.update(discoveredAssets)
-                  .set({ hybridRiskScore: newScore, lastScoredAt: new Date() })
+                  .set({ hybridRiskScore: newScore, riskBand: newBand, lastScoredAt: new Date() })
                   .where(eq(discoveredAssets.id, candidate.assetId));
 
                 // Update the result with the new score
                 await dbConn.update(vResults)
                   .set({ newRiskScore: newScore })
                   .where(eq(vResults.runId, runId));
+
+                // Record re-scoring event in audit log for Dynamic Scoring Timeline
+                const { scoringAuditLog } = await import('../drizzle/schema');
+                await dbConn.insert(scoringAuditLog).values({
+                  assetId: candidate.assetId,
+                  scanId: input.scanId,
+                  hybridRiskScore: newScore,
+                  riskBand: newBand,
+                  previousScore: candidate.currentRiskScore,
+                  delta: result.scoreAdjustment,
+                  triggerType: 'exploit_validation',
+                  pipelinePhase: 'validation_engine',
+                  changeDescription: `Exploitation validated: ${result.cveId} via ${result.msfModule || 'auxiliary check'} — confirmed exploitable (+${result.scoreAdjustment})`,
+                  factorChanges: [{
+                    factor: 'exploitability',
+                    previousValue: 'unconfirmed',
+                    newValue: 'confirmed_exploitable',
+                    reason: `CVE ${result.cveId} validated via ${config.mode} mode`,
+                  }],
+                  computedBy: 'validation-engine',
+                });
+              } else if (result.status === 'not_vulnerable') {
+                // Record negative validation — reduces false positive noise in timeline
+                const { scoringAuditLog } = await import('../drizzle/schema');
+                await dbConn.insert(scoringAuditLog).values({
+                  assetId: candidate.assetId,
+                  scanId: input.scanId,
+                  hybridRiskScore: candidate.currentRiskScore,
+                  riskBand: candidate.currentRiskScore >= 80 ? 'critical' : candidate.currentRiskScore >= 60 ? 'high' : candidate.currentRiskScore >= 40 ? 'medium' : 'low',
+                  previousScore: candidate.currentRiskScore,
+                  delta: 0,
+                  triggerType: 'exploit_validation_negative',
+                  pipelinePhase: 'validation_engine',
+                  changeDescription: `Exploitation check negative: ${result.cveId} — not exploitable in current configuration`,
+                  factorChanges: [{
+                    factor: 'exploitability',
+                    previousValue: 'unconfirmed',
+                    newValue: 'not_exploitable',
+                    reason: `CVE ${result.cveId} check returned not vulnerable`,
+                  }],
+                  computedBy: 'validation-engine',
+                });
               }
             } catch (err: any) {
               errorCount++;
@@ -6124,6 +6167,30 @@ Make the phishing content highly realistic and tailored to the target domain and
           }).where(eq(validationRuns.id, runId));
 
           console.log(`[Validation] Run ${runId} completed: ${validatedCount} validated, ${notVulnCount} not vulnerable, ${inconclusiveCount} inconclusive, ${errorCount} errors, ${skippedCount} skipped`);
+
+          // ─── Post-completion re-scoring hook: recalculate scan overall risk ───
+          if (validatedCount > 0) {
+            try {
+              const { domainIntelScans } = await import('../drizzle/schema');
+              const allAssets = await dbConn.select({ hybridRiskScore: discoveredAssets.hybridRiskScore })
+                .from(discoveredAssets)
+                .where(eq(discoveredAssets.scanId, input.scanId));
+              if (allAssets.length > 0) {
+                const scores = allAssets.map(a => a.hybridRiskScore ?? 0);
+                const maxScore = Math.max(...scores);
+                const avgScore = scores.reduce((s, v) => s + v, 0) / scores.length;
+                const newOverall = Math.round(maxScore * 0.6 + avgScore * 0.4);
+                const newBand = newOverall >= 80 ? 'critical' : newOverall >= 60 ? 'high' : newOverall >= 40 ? 'medium' : 'low';
+                await dbConn.update(domainIntelScans).set({
+                  overallRiskScore: newOverall,
+                  overallRiskBand: newBand,
+                }).where(eq(domainIntelScans.id, input.scanId));
+                console.log(`[Validation] Scan ${input.scanId} re-scored: overall=${newOverall} (${newBand}) after ${validatedCount} exploit validations`);
+              }
+            } catch (resErr: any) {
+              console.error(`[Validation] Post-completion re-scoring failed:`, resErr.message);
+            }
+          }
         })().catch(async (err) => {
           console.error(`[Validation] Run ${runId} failed:`, err);
           await dbConn.update(validationRuns).set({ status: 'failed', errorMessage: String(err.message || err), completedAt: new Date() }).where(eq(validationRuns.id, runId));
