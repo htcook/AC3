@@ -2936,3 +2936,6 @@
 - [x] Update hero subtitle to 'Replace five disconnected tools with one unified offensive security platform'
 - [x] Update About section with CTEM framework alignment and competitive language
 - [x] Update footer tagline with unified workflow pipeline (Recon → Exploit → Validate → Detect → Report)
+
+## Remove Comparison Section from Homepage
+- [x] Remove the HOW ACE C3 COMPARES section (competitive matrix, category breakdown cards, unified answer card)
