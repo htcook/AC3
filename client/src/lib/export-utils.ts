@@ -686,6 +686,15 @@ export function exportBiaReportPdf(report: any): void {
 
 // ─── Proof-of-Exploit Evidence Export ──────────────────────────────────────
 
+export interface EvidenceArtifactExport {
+  type: string;
+  filename: string;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  capturedAt: string;
+}
+
 export interface ValidationResultExport {
   assetHostname: string;
   cveId: string;
@@ -702,6 +711,10 @@ export interface ValidationResultExport {
   } | null;
   errorMessage: string | null;
   timestamp: string;
+  /** Primary evidence report URL (S3) */
+  evidenceUrl?: string | null;
+  /** All captured evidence artifacts */
+  evidenceArtifacts?: EvidenceArtifactExport[] | null;
 }
 
 export interface ValidationRunExport {
@@ -876,7 +889,7 @@ export function exportValidationReportPdf(
   });
 
   // ─── Evidence Details Page ──────────────────────────────────────────
-  const resultsWithEvidence = results.filter(r => r.evidence?.checkOutput);
+  const resultsWithEvidence = results.filter(r => r.evidence?.checkOutput || r.evidenceUrl || (r.evidenceArtifacts && r.evidenceArtifacts.length > 0));
   if (resultsWithEvidence.length > 0) {
     doc.addPage();
 
@@ -897,8 +910,10 @@ export function exportValidationReportPdf(
       // Evidence card
       doc.setFillColor(241, 245, 249);
       const evidenceText = r.evidence?.checkOutput || '';
-      const wrappedEvidence = doc.splitTextToSize(evidenceText.substring(0, 500), contentWidth - 10);
-      const cardHeight = 22 + wrappedEvidence.length * 3.5;
+      const wrappedEvidence = evidenceText ? doc.splitTextToSize(evidenceText.substring(0, 500), contentWidth - 10) : [];
+      const artifactCount = r.evidenceArtifacts?.length ?? 0;
+      const artifactLines = artifactCount > 0 ? artifactCount + 1 : 0; // header + one line per artifact
+      const cardHeight = 22 + wrappedEvidence.length * 3.5 + artifactLines * 4;
       doc.roundedRect(margin, y, contentWidth, cardHeight, 2, 2, 'F');
 
       doc.setTextColor(15, 23, 42);
@@ -911,9 +926,44 @@ export function exportValidationReportPdf(
       doc.setFont('helvetica', 'normal');
       doc.text(`Module: ${r.msfModule || 'N/A'} | Status: ${r.status} | Exploitable: ${r.exploitable ? 'YES' : 'NO'}`, margin + 5, y + 12);
 
-      doc.setTextColor(51, 65, 85);
-      doc.setFontSize(7);
-      doc.text(wrappedEvidence, margin + 5, y + 18);
+      let cardY = y + 18;
+
+      // MSF output text
+      if (wrappedEvidence.length > 0) {
+        doc.setTextColor(51, 65, 85);
+        doc.setFontSize(7);
+        doc.text(wrappedEvidence, margin + 5, cardY);
+        cardY += wrappedEvidence.length * 3.5 + 2;
+      }
+
+      // Evidence artifacts list with S3 URLs
+      if (r.evidenceArtifacts && r.evidenceArtifacts.length > 0) {
+        doc.setTextColor(30, 64, 175); // blue-800
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Evidence Artifacts:', margin + 5, cardY);
+        cardY += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        for (const artifact of r.evidenceArtifacts) {
+          const artifactLabel = `${artifact.type}: ${artifact.filename}`;
+          const sizeStr = artifact.sizeBytes < 1024 ? `${artifact.sizeBytes} B` : `${(artifact.sizeBytes / 1024).toFixed(1)} KB`;
+          doc.setTextColor(30, 64, 175);
+          doc.textWithLink(artifactLabel, margin + 8, cardY, { url: artifact.url });
+          doc.setTextColor(100, 116, 139);
+          doc.text(` (${sizeStr})`, margin + 8 + doc.getTextWidth(artifactLabel), cardY);
+          cardY += 4;
+        }
+      } else if (r.evidenceUrl) {
+        // Fallback: just show the primary evidence report link
+        doc.setTextColor(30, 64, 175);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Evidence Report:', margin + 5, cardY);
+        doc.setFont('helvetica', 'normal');
+        doc.textWithLink('View Full Evidence Report', margin + 40, cardY, { url: r.evidenceUrl });
+        cardY += 4;
+      }
 
       y += cardHeight + 5;
     }
@@ -977,6 +1027,57 @@ export function exportExecutiveSummaryWithValidation(
   doc.text(`Scan Date: ${scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : 'N/A'}`, 70, y + 18);
   y += 30;
 
+  // ─── Validation Coverage Metric ──────────────────────────────────────
+  if (validationRun && validationResults.length > 0) {
+    const totalCritical = scan.totalFindings ?? validationResults.length;
+    const validated = validationResults.filter((r: any) => r.status === 'validated' || r.status === 'not_vulnerable').length;
+    const exploitable = validationResults.filter((r: any) => r.exploitable).length;
+    const coveragePct = totalCritical > 0 ? Math.round((validated / totalCritical) * 100) : 0;
+    const exploitablePct = validated > 0 ? Math.round((exploitable / validated) * 100) : 0;
+
+    doc.setTextColor(24, 24, 27);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Validation Coverage', 20, y);
+    y += 7;
+
+    // Coverage bar background
+    const barWidth = 80;
+    const barHeight = 8;
+    doc.setFillColor(228, 228, 231);
+    doc.roundedRect(20, y, barWidth, barHeight, 2, 2, 'F');
+    // Coverage bar fill
+    const fillWidth = Math.max(2, (coveragePct / 100) * barWidth);
+    const barColor = coveragePct >= 80 ? [34, 197, 94] : coveragePct >= 50 ? [234, 179, 8] : [239, 68, 68];
+    doc.setFillColor(barColor[0], barColor[1], barColor[2]);
+    doc.roundedRect(20, y, fillWidth, barHeight, 2, 2, 'F');
+    // Coverage percentage text
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    if (fillWidth > 15) doc.text(`${coveragePct}%`, 22, y + 5.5);
+
+    // Coverage stats
+    doc.setTextColor(63, 63, 70);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${validated} of ${totalCritical} critical findings validated`, 105, y + 3);
+    doc.text(`${exploitable} confirmed exploitable (${exploitablePct}%)`, 105, y + 7.5);
+    y += 14;
+
+    // Quality assessment
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(113, 113, 122);
+    const qualityMsg = coveragePct >= 80
+      ? 'High validation coverage \u2014 findings are well-substantiated with proof-of-exploit evidence.'
+      : coveragePct >= 50
+      ? 'Moderate validation coverage \u2014 additional validation recommended for remaining critical findings.'
+      : 'Low validation coverage \u2014 significant portion of critical findings remain unconfirmed.';
+    doc.text(qualityMsg, 20, y);
+    y += 8;
+  }
+
   // Executive summary text
   if (scan.executiveSummary) {
     doc.setFontSize(11);
@@ -990,7 +1091,7 @@ export function exportExecutiveSummaryWithValidation(
     y += lines.length * 4 + 6;
   }
 
-  // ─── Validation Evidence Section (NEW) ──────────────────────────────
+  // ─── Validation Evidence Section ──────────────────────────────────────
   if (validationRun && validationResults.length > 0) {
     if (y > 200) { doc.addPage(); y = 20; }
 
@@ -1033,13 +1134,14 @@ export function exportExecutiveSummaryWithValidation(
 
       autoTable(doc, {
         startY: y,
-        head: [['Asset', 'CVE', 'MSF Module', 'Score Impact', 'Evidence']],
+        head: [['Asset', 'CVE', 'MSF Module', 'Score Impact', 'Evidence', 'Artifacts']],
         body: exploitable.map(r => [
           r.assetHostname,
           r.cveId,
           (r.msfModule || 'N/A').substring(0, 30),
           `+${r.scoreAdjustment}`,
-          (r.evidence?.checkOutput || 'Exploitation confirmed').substring(0, 60),
+          (r.evidence?.checkOutput || 'Exploitation confirmed').substring(0, 50),
+          r.evidenceArtifacts?.length ? `${r.evidenceArtifacts.length} files` : r.evidenceUrl ? 'Report' : 'N/A',
         ]),
         theme: 'grid',
         headStyles: {

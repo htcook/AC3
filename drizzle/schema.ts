@@ -1773,6 +1773,9 @@ export const validationResults = mysqlTable("validation_results", {
   // Timing
   durationMs: int("validationDurationMs"),
   errorMessage: text("validationResultError"),
+  // Evidence artifacts (S3 URLs)
+  evidenceUrl: text("evidenceUrl"), // Primary evidence report URL
+  evidenceArtifacts: json("evidenceArtifacts"), // Array of S3 artifact URLs
   // Audit
   createdAt: timestamp("validationResultCreatedAt").defaultNow().notNull(),
 });

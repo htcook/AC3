@@ -2869,10 +2869,10 @@
 - [x] Write 27 tests for the validation engine (all passing)
 
 ## Enhancement: Validation Engine Integration (3 enhancements)
-- [ ] Add proof-of-exploit evidence section to PDF export (executive summary + findings PDFs)
-- [ ] Build validation-triggered re-scoring hook (auto-rescore assets when validation run completes)
-- [ ] Add "Validate Top 10" quick-action button to DomainIntelResults page
-- [ ] Write tests for all three enhancements
+- [x] Add proof-of-exploit evidence section to PDF export (executive summary + findings PDFs)
+- [x] Build validation-triggered re-scoring hook (auto-rescore assets when validation run completes)
+- [x] Add "Validate Top 10" quick-action button to DomainIntelResults page
+- [x] Write tests for all three enhancements
 
 ## Enhancement: Validation Engine Integration (3 items)
 - [x] Add proof-of-exploit evidence to PDF/CSV exports (exportValidationReportPdf, exportValidationResultsCsv, exportExecutiveSummaryWithValidation)
@@ -2882,3 +2882,13 @@
 - [x] Add Validate Top 10 quick-action banner to DomainIntelResults (MSF server selector, check_only mode, 10 candidates)
 - [x] Show validation summary banner when validation already exists for the scan
 - [x] Write 15 tests for all 3 enhancements (all passing, 42 total validation tests)
+
+## Enhancement: Validation Evidence Screenshots & Coverage Metric
+- [x] Add screenshot/evidence capture to validation engine during MSF session validation
+- [x] Store evidence artifacts (screenshots, session output) in S3
+- [x] Add evidence_url and evidence_artifacts columns to validation_results table
+- [x] Embed validation evidence artifacts (S3 URLs) in PDF export reports with clickable links
+- [x] Add Validation Coverage metric to executive summary PDF (coverage bar, percentage, quality assessment)
+- [x] Add coverage metric display to DomainIntelResults page (progress bar, exploitable/not-vulnerable/unconfirmed breakdown)
+- [x] Wire evidenceUrl and evidenceArtifacts into ValidationResultExport type and DomainIntelResults mapping
+- [x] Write 44 tests for evidence capture and coverage metric (all passing)

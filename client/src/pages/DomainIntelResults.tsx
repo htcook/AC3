@@ -181,6 +181,8 @@ export default function DomainIntelResults() {
     evidence: r.evidence ? (typeof r.evidence === 'string' ? JSON.parse(r.evidence) : r.evidence) : null,
     errorMessage: r.errorMessage,
     timestamp: r.completedAt ? String(r.completedAt) : r.startedAt ? String(r.startedAt) : '',
+    evidenceUrl: r.evidenceUrl ?? null,
+    evidenceArtifacts: r.evidenceArtifacts ?? null,
   }));
 
   // Engagement mutation for scan_complete scans
@@ -433,6 +435,58 @@ export default function DomainIntelResults() {
       {scan.status !== 'pending' && scan.status !== 'discovering' && (
         <ValidateTop10Banner scanId={scanId} validationSummary={validationSummary.data} />
       )}
+
+      {/* Validation Coverage Metric */}
+      {validationSummary.data?.run && validationSummary.data.results?.length > 0 && (() => {
+        const totalFindings = scan.totalFindings ?? validationSummary.data.results.length;
+        const validated = validationSummary.data.results.filter((r: any) => r.status === 'validated' || r.status === 'not_vulnerable').length;
+        const exploitableCount = validationSummary.data.results.filter((r: any) => r.exploitable).length;
+        const coveragePct = totalFindings > 0 ? Math.round((validated / totalFindings) * 100) : 0;
+        const exploitablePct = validated > 0 ? Math.round((exploitableCount / validated) * 100) : 0;
+        const barColor = coveragePct >= 80 ? 'bg-emerald-500' : coveragePct >= 50 ? 'bg-amber-500' : 'bg-red-500';
+        const borderColor = coveragePct >= 80 ? 'border-emerald-500/30' : coveragePct >= 50 ? 'border-amber-500/30' : 'border-red-500/30';
+        const bgColor = coveragePct >= 80 ? 'bg-emerald-500/5' : coveragePct >= 50 ? 'bg-amber-500/5' : 'bg-red-500/5';
+        return (
+          <Card className={`${borderColor} ${bgColor}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FlaskConical className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Validation Coverage</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {validated} of {totalFindings} findings validated
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${barColor} rounded-full transition-all duration-500`}
+                      style={{ width: `${Math.max(2, coveragePct)}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="text-sm font-bold tabular-nums w-12 text-right">{coveragePct}%</span>
+              </div>
+              <div className="flex items-center gap-6 mt-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  {exploitableCount} exploitable ({exploitablePct}%)
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  {validated - exploitableCount} not vulnerable
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-zinc-500" />
+                  {totalFindings - validated} unconfirmed
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Scan Complete — Start Engagement Banner */}
       {scan.status === 'scan_complete' && !engagementRunning && (

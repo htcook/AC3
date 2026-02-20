@@ -6055,6 +6055,7 @@ Make the phishing content highly realistic and tailored to the target domain and
             return;
           }
 
+          const { captureFullEvidence } = await import('./lib/evidence-capture');
           const results: any[] = [];
           let validatedCount = 0, notVulnCount = 0, inconclusiveCount = 0, errorCount = 0, skippedCount = 0;
           let totalScoreAdj = 0;
@@ -6063,6 +6064,44 @@ Make the phishing content highly realistic and tailored to the target domain and
             try {
               const result = await validateCandidate(candidate, msfClient, config as any);
               results.push(result);
+
+              // ─── Evidence Capture ───
+              let evidenceUrl: string | null = null;
+              let evidenceArtifacts: any[] | null = null;
+              try {
+                const captureCtx = {
+                  runId,
+                  scanId: input.scanId,
+                  candidateId: `${candidate.assetId}-${candidate.cveId}`,
+                  assetHostname: candidate.hostname,
+                  cveId: candidate.cveId,
+                  msfModule: candidate.msfModule,
+                  mode: result.mode,
+                  targetIp: candidate.hostname, // IP resolved from hostname
+                  targetPort: null,
+                };
+                const captured = await captureFullEvidence(
+                  msfClient,
+                  captureCtx,
+                  {
+                    status: result.status,
+                    exploitable: result.exploitable,
+                    rawOutput: result.rawOutput,
+                    evidence: result.evidence,
+                    durationMs: result.durationMs,
+                    scoreAdjustment: result.scoreAdjustment,
+                  },
+                  result.evidence?.sessionId ? String(result.evidence.sessionId) : null,
+                  null, // jobId not tracked in ValidationEvidence — console output captured via session
+                );
+                if (captured) {
+                  evidenceUrl = captured.reportUrl;
+                  evidenceArtifacts = captured.artifacts;
+                  console.log(`[Validation] Evidence captured for ${candidate.cveId} on ${candidate.hostname}: ${captured.artifacts.length} artifacts`);
+                }
+              } catch (evErr: any) {
+                console.error(`[Validation] Evidence capture failed (non-fatal):`, evErr.message);
+              }
 
               // Insert result record
               await dbConn.insert(vResults).values({
@@ -6080,6 +6119,8 @@ Make the phishing content highly realistic and tailored to the target domain and
                 previousRiskScore: candidate.currentRiskScore,
                 durationMs: result.durationMs,
                 errorMessage: result.errorMessage,
+                evidenceUrl,
+                evidenceArtifacts,
               });
 
               // Update counters
