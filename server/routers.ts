@@ -23,6 +23,7 @@ import { purpleTeamRouter } from "./routers/purple-team";
 import { webhooksRouter } from "./routers/webhooks";
 import { bugBountyRouter } from "./routers/bug-bounty";
 import { scoringRouter } from "./routers/scoring";
+import { accuracyEngineRouter } from "./routers/accuracy-engine";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -128,6 +129,7 @@ export const appRouter = router({
   webhooks: webhooksRouter,
   bugBounty: bugBountyRouter,
   scoring: scoringRouter,
+  accuracyEngine: accuracyEngineRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

@@ -2961,3 +2961,21 @@
 
 ## Tests for Accuracy Enhancements
 - [x] Write comprehensive tests for all 11 enhancements (53 tests, all passing)
+
+## Wire Accuracy Enhancement Modules into tRPC Endpoints
+- [x] Create accuracy-engine tRPC sub-router with 11 sub-routers and 40+ endpoints
+- [x] Wire accuracy-engine router into main appRouter
+- [x] Create tRPC endpoints for Cross-Source Corroboration Engine (analyze, sourceReliability)
+- [x] Create tRPC endpoints for Dynamic CVE-to-Product Matching (match, batchMatch, scanMatch)
+- [x] Create tRPC endpoints for Closed-Loop Remediation Verification (create, markRemediated, queueVerification, recordVerification, summary, byScan, getRecord, overdue, needsVerification)
+- [x] Create tRPC endpoints for Compensating Control Awareness (detect, assessScan)
+- [x] Create tRPC endpoints for Exploit Confidence Pre-Flight Checks (check, batchCheck, successRate)
+- [x] Create tRPC endpoints for Active Verification Probes (listTemplates, runScan)
+- [x] Create tRPC endpoints for Temporal Decay Scoring (score, scanScores)
+- [x] Create tRPC endpoints for Attack Chain Validation (analyze)
+- [x] Create tRPC endpoints for Exploit Module Feedback Loop (record, modulePerformance, rankModules, summary, needsAttention, improvementPrompt)
+- [x] Create tRPC endpoints for LLM-Powered Rule Generation (generate, validate)
+- [x] Create tRPC endpoints for Rule Validation Against Evidence (validate, batchValidate)
+- [x] Update Domain Intel Results page with Accuracy Insights tab (corroboration stats, temporal decay, attack chains, controls, remediation)
+- [x] Update Validation Engine page with Pre-Flight and Accuracy tabs (pre-flight checks, controls, temporal, chains, feedback, remediation)
+- [x] Write tests for accuracy-engine router structure (13 tests, all passing)
