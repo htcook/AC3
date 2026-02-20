@@ -21,6 +21,7 @@ import { binaryedgeConnector } from "./binaryedge";
 import { greynoiseConnector } from "./greynoise";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
+import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
 
 // All available connectors
 const ALL_CONNECTORS: PassiveConnector[] = [
@@ -62,6 +63,7 @@ export interface PassiveReconResult {
   allObservations: AssetObservation[];
   riskSignals: RiskSignal[];
   signalRules: ReturnType<typeof getSignalRuleDescriptions>;
+  corroboration?: CorroborationResult;
   summary: {
     totalObservations: number;
     totalSignals: number;
@@ -69,6 +71,7 @@ export interface PassiveReconResult {
     byAssetType: Record<string, number>;
     bySeverity: Record<string, number>;
     bySource: Record<string, number>;
+    corroborationRate?: number;
   };
   durationMs: number;
 }
@@ -172,6 +175,10 @@ export async function runPassiveRecon(
   const riskSignals = classifySignals(allObservations);
   const signalRules = getSignalRuleDescriptions();
 
+  // Run cross-source corroboration engine
+  const corroboration = corroborateFindings(connectorResults, riskSignals);
+  const corroboratedSignals = corroboration.adjustedSignals;
+
   // Build summary
   const byAssetType: Record<string, number> = {};
   const bySource: Record<string, number> = {};
@@ -181,7 +188,7 @@ export async function runPassiveRecon(
   }
 
   const bySeverity: Record<string, number> = {};
-  for (const sig of riskSignals) {
+  for (const sig of corroboratedSignals) {
     bySeverity[sig.severity] = (bySeverity[sig.severity] || 0) + 1;
   }
 
@@ -201,15 +208,17 @@ export async function runPassiveRecon(
     scanModeDescription,
     connectorResults,
     allObservations,
-    riskSignals,
+    riskSignals: corroboratedSignals,
     signalRules,
+    corroboration,
     summary: {
       totalObservations: allObservations.length,
-      totalSignals: riskSignals.length,
+      totalSignals: corroboratedSignals.length,
       connectorStats,
       byAssetType,
       bySeverity,
       bySource,
+      corroborationRate: corroboration.stats.corroborationRate,
     },
     durationMs: Date.now() - start,
   };

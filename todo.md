@@ -2939,3 +2939,25 @@
 
 ## Remove Comparison Section from Homepage
 - [x] Remove the HOW ACE C3 COMPARES section (competitive matrix, category breakdown cards, unified answer card)
+
+## Accuracy Enhancements: P0 (Critical)
+- [x] P0-1: Cross-Source Corroboration Engine — confidence multiplier based on independent source count
+- [x] P0-2: Dynamic CVE-to-Product Matching — live NVD API queries replacing hardcoded mappings
+- [x] P0-3: Closed-Loop Remediation Verification — re-run exploits after fix, proof of non-exploitability
+
+## Accuracy Enhancements: P1 (High)
+- [x] P1-1: Compensating Control Awareness — detect WAF/IPS/EDR, factor into scoring
+- [x] P1-2: Exploit Confidence Pre-Flight Checks — version banner, endpoint reachability before exploitation
+- [x] P1-3: Active Verification Probes — Nuclei-style template checks for critical findings
+
+## Accuracy Enhancements: P2 (Medium)
+- [x] P2-1: Temporal Decay Scoring — exponential decay on observation confidence by data age
+- [x] P2-2: Attack Chain Validation — validate chained exploit sequences, not just single CVEs
+- [x] P2-3: Exploit Module Feedback Loop — store outcomes, feed back into LLM exploit generation
+
+## Accuracy Enhancements: P3 (Lower)
+- [x] P3-1: LLM-Powered Rule Generation — replace hardcoded Sigma/YARA/Suricata templates
+- [x] P3-2: Rule Validation Against Evidence — replay exploitation evidence against generated rules
+
+## Tests for Accuracy Enhancements
+- [x] Write comprehensive tests for all 11 enhancements (53 tests, all passing)
