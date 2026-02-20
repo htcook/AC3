@@ -10,11 +10,14 @@ import {
   ShieldCheck, Palette, AlertTriangle, CheckCircle2, ArrowRight, Siren,
   Search, Code2, FileCode, Bug, Gauge, MonitorPlay, Building2, Stethoscope,
   GraduationCap, Landmark, Factory, ShoppingCart, Plane, ChevronDown,
-  Clock, TrendingUp, Unplug
+  Clock, TrendingUp, Unplug, FlaskConical, Camera, FileCheck2
 } from "lucide-react";
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
+  { date: "Feb 2026", title: "Validation Coverage Metric", desc: "Real-time coverage tracking shows what percentage of critical findings have been validated with proof-of-exploit evidence. Color-coded progress bars in scan results and executive summary PDFs with quality assessment tiers." },
+  { date: "Feb 2026", title: "Evidence Capture & Artifact Storage", desc: "Automated evidence collection during exploit validation — console output, session info, HTML evidence reports, and text screenshots stored in S3. Clickable artifact links embedded directly in PDF export reports." },
+  { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "Lightweight exploit validation runs real Metasploit checks against confirmed CVEs. Prioritizes KEV-listed and high-CVSS candidates, auto-rescores assets based on confirmed exploitability, and generates full audit trails." },
   { date: "Feb 2026", title: "Exploit Infrastructure Provisioning", desc: "One-click cloud provisioning for exploit frameworks. Auto-configures remote procedure calls, deploys agent stagers, and manages the full exploit-to-agent pipeline." },
   { date: "Feb 2026", title: "Unified Exploit Catalog", desc: "Merged phishing exploits and CVE exploits into a single catalog with adversary ability metadata. One-click sync for both initial-access and post-exploitation techniques." },
   { date: "Feb 2026", title: "Kill Chain Timeline", desc: "Unified engagement timeline visualizing the complete kill chain from OSINT recon through exploitation to post-exploitation with real-time WebSocket event streaming." },
@@ -236,11 +239,11 @@ export default function Home() {
               <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center border-2 border-primary/50 bg-primary/5">
                 <ShieldCheck className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="font-display text-xl tracking-wider mb-4">PROVE YOUR DEFENSES WORK</h3>
+              <h3 className="font-display text-xl tracking-wider mb-4">PROVE IT WITH EVIDENCE</h3>
               <p className="text-muted-foreground leading-relaxed">
-                After testing, Ace C3 measures which attacks your security tools caught and which
-                they missed. Get a clear report showing your actual security posture — not a
-                theoretical risk score.
+                Every exploitable finding is backed by captured proof — console output, session data,
+                and HTML evidence reports. Track your Validation Coverage to see exactly how much of
+                your attack surface has been confirmed with real exploit evidence.
               </p>
             </div>
 
@@ -284,8 +287,8 @@ export default function Home() {
                 {
                   step: "4",
                   icon: BarChart3,
-                  title: "Measure and Report",
-                  desc: "See exactly which attacks succeeded, which your defenses caught, and which slipped through. Get a professional report with specific remediation steps for every finding."
+                  title: "Validate, Measure & Report",
+                  desc: "Run autonomous exploit validation against confirmed CVEs with real Metasploit modules. Every exploitable finding is backed by captured evidence — console output, session data, and HTML reports stored in S3. See your Validation Coverage metric and get professional reports with proof-of-exploit artifacts."
                 },
               ].map((item) => (
                 <div key={item.step} className="flex gap-5 p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/50">
@@ -327,20 +330,22 @@ export default function Home() {
               isOther
               points={[
                 "Scan for vulnerabilities but don't test them",
-                "Generate long lists of theoretical risks",
+                "Generate long lists of theoretical risks with no proof",
                 "Require separate tools for scanning, testing, phishing, and reporting",
                 "Leave you guessing whether your defenses actually work",
-                "Potential findings treated the same as confirmed ones",
+                "No evidence capture — findings are claims without proof",
+                "No way to measure what percentage of findings are validated",
               ]}
             />
             <ComparisonCard
               icon={<Cloud className="w-6 h-6" />}
               title="Ace C3"
               points={[
-                "Finds vulnerabilities AND tests them with real exploits",
-                "Every finding is verified — confirmed, probable, or flagged as unrated",
-                "One platform: recon, exploitation, phishing, emulation, detection, reporting",
-                "Measures exactly which attacks your SIEM and defenses caught",
+                "Finds vulnerabilities AND validates them with real Metasploit exploits",
+                "Every exploitable finding backed by captured evidence artifacts in S3",
+                "One platform: recon, exploitation, validation, phishing, detection, reporting",
+                "Validation Coverage metric shows exactly how much is proven vs. unconfirmed",
+                "PDF reports include clickable evidence links and coverage quality assessment",
                 "Intelligence drives action — not just dashboards",
               ]}
             />
@@ -353,11 +358,12 @@ export default function Home() {
       {/* ─── Stats Bar ──────────────────────────────────────────── */}
       <section className="py-16 bg-card/50">
         <div className="container">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
             <AnimatedStat value={stats.metasploitModules} label="EXPLOIT MODULES" suffix="+" />
             <AnimatedStat value={stats.threatActors} label="THREAT ACTORS" suffix="+" />
             <AnimatedStat value={stats.calderaAbilities} label="ADVERSARY ABILITIES" suffix="" />
             <AnimatedStat value={stats.platformModules} label="PLATFORM MODULES" suffix="" />
+            <AnimatedStat value={4} label="EVIDENCE ARTIFACT TYPES" suffix="" />
           </div>
         </div>
       </section>
@@ -532,31 +538,31 @@ export default function Home() {
             <PillarCard
               icon={<ShieldCheck className="w-7 h-7" />}
               number="05"
-              title="DETECTION ENGINEERING"
-              description="Auto-generate detection rules from executed TTPs. Validate against 4 SIEM formats (Sigma, Splunk SPL, KQL, Suricata), measure which techniques your defenses caught, and deliver coverage gap analysis."
+              title="VALIDATION & DETECTION"
+              description="Autonomous exploit validation confirms which CVEs are actually exploitable using real Metasploit modules. Evidence capture stores proof artifacts in S3. Detection engineering auto-generates rules from executed TTPs."
               features={[
-                "Auto-generate Sigma, YARA, and Suricata rules",
+                "Autonomous Validation Engine with KEV/CVSS prioritization",
+                "Evidence capture: console output, session info, HTML reports",
+                "Validation Coverage metric with quality assessment tiers",
+                "Auto-rescore assets based on confirmed exploitability",
+                "Auto-generate Sigma, YARA, and Suricata detection rules",
                 "Validate in 5 formats: Sigma, YARA, Suricata, SPL, KQL",
-                "LLM-powered analysis with effectiveness scoring",
-                "Detection coverage matrix: rules vs attack chains",
-                "False positive risk assessment and suggestions",
-                "Batch validation and sample log generation",
               ]}
-              link="/rule-validator"
-              linkLabel="VALIDATE RULES"
+              link="/validation-engine"
+              linkLabel="VALIDATION ENGINE"
             />
 
             <PillarCard
               icon={<BarChart3 className="w-7 h-7" />}
               number="06"
               title="REPORTING & AUTOMATION"
-              description="Professional reports with confirmed findings, evidence chains, exploit references, and remediation steps. Unified Engagement Manager tracks the full lifecycle."
+              description="Professional reports with proof-of-exploit evidence artifacts, validation coverage metrics, and remediation steps. Executive summaries include color-coded coverage bars and clickable S3 evidence links."
               features={[
-                "Branded HTML reports with MITRE ATT&CK heatmaps",
-                "Evidence-based: only confirmed/probable findings",
+                "PDF reports with embedded S3 evidence artifact links",
+                "Validation Coverage bar in executive summary exports",
+                "Evidence Details page with artifact types and file sizes",
                 "Kill chain timeline with real-time event streaming",
-                "Unified Engagement Manager: OSINT → Exploit → Report",
-                "External attack vectors prioritized before phishing",
+                "Unified Engagement Manager: OSINT → Exploit → Validate → Report",
                 "Scan comparison reports for risk trending",
               ]}
               link="/post-engagement-report"
@@ -635,6 +641,9 @@ export default function Home() {
               title="DETECTION & VALIDATION"
               color="text-green-400"
               modules={[
+                { icon: FlaskConical, name: "Validation Engine", desc: "Autonomous exploit validation with Metasploit — KEV/CVSS prioritized, auto-rescore on confirmation" },
+                { icon: Camera, name: "Evidence Capture", desc: "Automated proof collection: console output, session info, HTML reports, text screenshots stored in S3" },
+                { icon: FileCheck2, name: "Validation Coverage", desc: "Real-time coverage metric tracking validated vs. unconfirmed findings with quality assessment tiers" },
                 { icon: ShieldCheck, name: "Rule Validator", desc: "Validate Sigma, YARA, Suricata, Splunk SPL, and KQL with LLM analysis" },
                 { icon: Target, name: "Coverage Matrix", desc: "Cross-reference rules vs attack chains to find SIEM gaps" },
                 { icon: FileCode, name: "Actor Rules", desc: "Auto-generate detection rules from threat actor techniques" },
@@ -645,8 +654,8 @@ export default function Home() {
               title="REPORTING & COMPLIANCE"
               color="text-violet-400"
               modules={[
-                { icon: FileText, name: "Engagement Report", desc: "Branded HTML reports with MITRE heatmaps and exec summaries" },
-                { icon: BarChart3, name: "Report Generator", desc: "Engagement-based compilation with campaign result aggregation" },
+                { icon: FileText, name: "Engagement Report", desc: "Branded HTML reports with MITRE heatmaps, evidence artifacts, and validation coverage" },
+                { icon: BarChart3, name: "Report Generator", desc: "Executive summaries with proof-of-exploit evidence links and coverage bars" },
                 { icon: Globe, name: "Compliance", desc: "NIST CSF, CMMC, and FedRAMP framework mapping" },
               ]}
             />
@@ -662,19 +671,21 @@ export default function Home() {
           <div className="mb-16">
             <h2 className="text-4xl sm:text-5xl font-display mb-4">ENGAGEMENT WORKFLOW</h2>
             <p className="text-lg text-muted-foreground max-w-3xl">
-              Six phases from OSINT through post-engagement reporting. External attack vectors
+              Seven phases from OSINT through post-engagement reporting. External attack vectors
               are tested before phishing — if exploitation succeeds, social engineering is optional.
+              Validation confirms exploitability with captured evidence before reporting.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             {[
               { step: "01", title: "RECON", desc: "Verified domain intel with DNS/banner confirmation and evidence-based risk scoring", icon: Radar },
               { step: "02", title: "EXPLOIT", desc: "Match confirmed vulns to exploit databases and deploy with agent stagers", icon: Target },
               { step: "03", title: "OPERATE", desc: "Run adversary operations with exploit-backed abilities and APT profiles", icon: Crosshair },
               { step: "04", title: "PHISH", desc: "If external access not achieved: launch exploit-enhanced phishing with 17 techniques", icon: Zap },
-              { step: "05", title: "DETECT", desc: "Auto-generate detection rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
-              { step: "06", title: "REPORT", desc: "Deliver branded reports with confirmed findings, exploit references, and remediation", icon: FileText },
+              { step: "05", title: "VALIDATE", desc: "Autonomous exploit validation with evidence capture — console output, session data, and HTML proof reports", icon: FlaskConical },
+              { step: "06", title: "DETECT", desc: "Auto-generate detection rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
+              { step: "07", title: "REPORT", desc: "Deliver reports with validation coverage metrics, evidence artifacts, and remediation steps", icon: FileText },
             ].map((item) => (
               <div key={item.step} className="text-center p-4 border border-border/50 bg-card/30 hover:border-primary/50 transition-colors">
                 <item.icon className="w-6 h-6 text-primary mx-auto mb-3" />
@@ -693,7 +704,7 @@ export default function Home() {
       <section className="py-20 bg-card/30">
         <div className="container">
           <h2 className="text-4xl sm:text-5xl font-display mb-16">ARCHITECTURE</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <ArchCard
               icon={<Server className="w-6 h-6" />}
               title="ADVERSARY EMULATION ENGINE"
@@ -739,6 +750,17 @@ export default function Home() {
               ]}
             />
             <ArchCard
+              icon={<FlaskConical className="w-6 h-6" />}
+              title="VALIDATION & EVIDENCE ENGINE"
+              items={[
+                "Autonomous Metasploit exploit validation",
+                "KEV/CVSS candidate prioritization",
+                "4 evidence artifact types captured to S3",
+                "Validation Coverage metric with quality tiers",
+                "Auto-rescore assets on confirmed exploitability",
+              ]}
+            />
+            <ArchCard
               icon={<Sparkles className="w-6 h-6" />}
               title="AI LAYER"
               items={[
@@ -746,7 +768,7 @@ export default function Home() {
                 "APT matching with confidence scoring",
                 "Detection rule generation",
                 "Rule validation analysis",
-                "Evidence-based report generation",
+                "Evidence-backed report generation",
               ]}
             />
             <ArchCard
@@ -781,7 +803,8 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                 Created by Harrison Cook, Ace C3 goes beyond scanning: verified reconnaissance confirms
                 what is actually exposed, the Exploit Arsenal matches confirmed CVEs to real exploit code,
-                and every finding is backed by evidence — potential matches are flagged but never rated.
+                and the Validation Engine confirms exploitability with captured evidence artifacts.
+                Every finding is backed by proof — potential matches are flagged but never rated.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">

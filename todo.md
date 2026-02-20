@@ -2892,3 +2892,16 @@
 - [x] Add coverage metric display to DomainIntelResults page (progress bar, exploitable/not-vulnerable/unconfirmed breakdown)
 - [x] Wire evidenceUrl and evidenceArtifacts into ValidationResultExport type and DomainIntelResults mapping
 - [x] Write 44 tests for evidence capture and coverage metric (all passing)
+
+## Front Page Update: Showcase New Enhancements
+- [x] Update What's New popup with Validation Engine, Evidence Capture, and Coverage Metric entries
+- [x] Update Platform Capabilities pillar cards to reference validation engine and evidence capture
+- [x] Add Validation Engine module to Operations Grid (Detection & Validation section)
+- [x] Update Engagement Workflow to include validation step (now 7 phases with VALIDATE step 05)
+- [x] Update Architecture section with Validation & Evidence Engine card (now 4-column grid)
+- [x] Update comparison card (Why Ace C3) to mention exploit validation proof
+- [x] Update stats bar with validation-related metric (5th stat: Evidence Artifact Types)
+- [x] Update How It Works step 4 to reference validation and evidence
+- [x] Update About section to mention Validation Engine
+- [x] Update Reporting pillar card with evidence artifacts and coverage bars
+- [x] Update value prop card to PROVE IT WITH EVIDENCE
