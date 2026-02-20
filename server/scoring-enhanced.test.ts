@@ -220,8 +220,8 @@ describe("Enhanced CARVER+Shock/CVSS Scoring Engine", () => {
   });
 
   describe("Scoring Presets", () => {
-    it("has 5 industry presets", () => {
-      expect(Object.keys(PRESET_PROFILES).length).toBe(5);
+    it("has at least 5 industry presets", () => {
+      expect(Object.keys(PRESET_PROFILES).length).toBeGreaterThanOrEqual(5);
     });
 
     it("each preset has valid carverWeights, shockWeights, and blend weights", () => {

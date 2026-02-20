@@ -1,16 +1,21 @@
 /**
- * CARVER+Shock / CVSS Hybrid Adaptive Scoring Engine
- * ───────────────────────────────────────────────────
+ * CARVER+Shock / CVSS v4.0 Hybrid Adaptive Scoring Engine
+ * ─────────────────────────────────────────────────────────
  * Production-grade scoring module that translates military CARVER+Shock
- * targeting methodology to digital asset criticality assessment, combined
- * with CVSS vulnerability scoring and LLM-based asset classification.
+ * targeting methodology (US Army FM 34-36) to digital asset criticality
+ * assessment, combined with CVSS v4.0 vulnerability scoring and
+ * LLM-based asset classification.
  *
  * Key capabilities:
- *   - CARVER factors mapped to digital asset context with mission-essential function weighting
- *   - Shock factors adapted for cyber impact (regulatory, reputational, operational)
- *   - LLM-based asset classification infers mission function, essential service, and business impact
+ *   - CARVER factors mapped to digital asset context per FM 34-36 Appendix D
+ *   - Shock factors adapted from FDA CARVER+Shock primer for cyber impact
+ *   - CVSS v4.0 full metric parsing (Base/Threat/Environmental/Supplemental)
+ *   - CVSS v4.0 → CARVER factor feed-through for automated enrichment
+ *   - FIPS 199 security categorization integration
+ *   - LLM-based asset classification with device → platform → mission inference
  *   - Dynamic re-scoring as new intelligence emerges during discovery/enumeration
  *   - Profile-aware: adjustable factor weights per engagement objective
+ *   - Criticality tier system aligned to RTO (Tier 1-5)
  *   - Audit trail: every scoring decision is logged with reasoning
  *
  * Patent-pending: CARVER+Shock/CVSS Hybrid Risk Scoring Pipeline
@@ -19,23 +24,36 @@
 
 import { invokeLLM } from "../_core/llm";
 
-// ─── Types ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §1 — CORE TYPES
+// ═══════════════════════════════════════════════════════════════════════
 
 export interface CarverScores {
-  criticality: number;    // 0-10: How critical is the asset to mission success?
-  accessibility: number;  // 0-10: How accessible is the asset to an attacker?
-  recuperability: number; // 0-10: How long to restore the asset after attack?
-  vulnerability: number;  // 0-10: How vulnerable is the asset to known attacks?
-  effect: number;         // 0-10: What is the effect of a successful attack?
-  recognizability: number;// 0-10: How easily can the asset be identified?
+  /** How critical is the asset to mission success? (FM 34-36: Target Value) */
+  criticality: number;
+  /** How accessible is the asset to an attacker? (FM 34-36: Can the element reach the target?) */
+  accessibility: number;
+  /** How long to restore the asset after attack? (FM 34-36: Time to replace/repair/bypass) */
+  recuperability: number;
+  /** How vulnerable is the asset to known attacks? (FM 34-36: Does the element have means?) */
+  vulnerability: number;
+  /** What is the broader effect of a successful attack? (FM 34-36: Military/political/economic impact) */
+  effect: number;
+  /** How easily can the asset be identified/fingerprinted? (FM 34-36: Degree of recognition) */
+  recognizability: number;
 }
 
 export interface ShockScores {
-  scope: number;             // 0-10: How wide is the blast radius?
-  handling: number;          // 0-10: How difficult is incident response?
-  operationalImpact: number; // 0-10: How much does it disrupt operations?
-  cascadingEffects: number;  // 0-10: Does failure cascade to other systems?
-  knowledge: number;         // 0-10: How much specialized knowledge is needed?
+  /** How wide is the blast radius? (FDA: health/psychological/economic scope) */
+  scope: number;
+  /** How difficult is incident response? (FDA: handling complexity) */
+  handling: number;
+  /** How much does it disrupt operations? (FDA: operational disruption) */
+  operationalImpact: number;
+  /** Does failure cascade to other systems? (FDA: collateral national economic impact) */
+  cascadingEffects: number;
+  /** How much specialized knowledge is needed to exploit? */
+  knowledge: number;
 }
 
 export interface CarverWeights {
@@ -58,13 +76,9 @@ export interface ShockWeights {
 export interface ScoringProfile {
   carverWeights: CarverWeights;
   shockWeights: ShockWeights;
-  /** How much CARVER contributes to the final composite (0-1) */
   carverWeight: number;
-  /** How much Shock contributes to the final composite (0-1) */
   shockWeight: number;
-  /** How much CVSS contributes to the final composite (0-1) */
   cvssWeight: number;
-  /** Risk band thresholds */
   criticalThreshold: number;
   highThreshold: number;
   mediumThreshold: number;
@@ -73,33 +87,29 @@ export interface ScoringProfile {
 export interface ScoringInput {
   carver: CarverScores;
   shock: ShockScores;
-  cvssEstimate: number; // 0-10
-  exposure: number;     // 0-1 (how exposed is the asset to the internet)
-  confidence: number;   // 0-1 (confidence in the assessment)
-  confirmedVulnScore?: number; // 0-100 from vuln enrichment
-  portLikelihoodBoost?: number; // 0-0.3 from port risk analysis
-  /** Mission function multiplier — boosts impact for mission-critical assets */
-  missionMultiplier?: number; // 0.5-2.0 (default 1.0)
-  /** Business impact level from LLM classification */
+  cvssEstimate: number;
+  exposure: number;
+  confidence: number;
+  confirmedVulnScore?: number;
+  portLikelihoodBoost?: number;
+  missionMultiplier?: number;
   businessImpactLevel?: "mission_critical" | "business_essential" | "operational" | "administrative";
+  /** CVSS v4.0 vector string for automated CARVER enrichment */
+  cvssV4Vector?: string;
+  /** FIPS 199 security categorization */
+  fips199?: Fips199Category;
+  /** Criticality tier (1-5) */
+  criticalityTier?: CriticalityTier;
 }
 
 export interface ScoringResult {
-  /** Weighted CARVER composite (0-10) */
   carverComposite: number;
-  /** Weighted Shock composite (0-10) */
   shockComposite: number;
-  /** Mission impact score (0-10) — blended CARVER + Shock */
   missionImpactScore: number;
-  /** Impact dimension (0-100) — normalized mission impact */
   impactScore: number;
-  /** Likelihood dimension (0-100) — driven by confirmed vulns + exposure */
   likelihoodScore: number;
-  /** Final hybrid risk score (0-100) */
   hybridRiskScore: number;
-  /** Risk band label */
   riskBand: "critical" | "high" | "medium" | "low";
-  /** Individual factor contributions for radar chart visualization */
   factorContributions: {
     factor: string;
     category: "CARVER" | "Shock";
@@ -107,45 +117,664 @@ export interface ScoringResult {
     weight: number;
     weightedScore: number;
   }[];
+  /** CVSS v4.0 parsed metrics (if vector provided) */
+  cvssV4Parsed?: CvssV4Parsed;
+  /** CVSS v4.0 → CARVER feed-through adjustments applied */
+  cvssCarverAdjustments?: Partial<CarverScores>;
+  /** FIPS 199 category used */
+  fips199Applied?: Fips199Category;
+  /** Criticality tier applied */
+  criticalityTierApplied?: CriticalityTier;
 }
 
-// ─── Asset Classification Types ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §2 — CVSS v4.0 TYPES & PARSER
+// ═══════════════════════════════════════════════════════════════════════
 
-/** IT asset classification taxonomy for LLM inference */
+/**
+ * CVSS v4.0 metric values per FIRST.org specification.
+ * Four metric groups: Base, Threat, Environmental, Supplemental.
+ */
+export interface CvssV4Metrics {
+  // Base — Exploitability
+  AV: "N" | "A" | "L" | "P";       // Attack Vector
+  AC: "L" | "H";                    // Attack Complexity
+  AT: "N" | "P";                    // Attack Requirements (new in v4.0)
+  PR: "N" | "L" | "H";             // Privileges Required
+  UI: "N" | "P" | "A";             // User Interaction (expanded in v4.0)
+  // Base — Vulnerable System Impact
+  VC: "N" | "L" | "H";             // Confidentiality
+  VI: "N" | "L" | "H";             // Integrity
+  VA: "N" | "L" | "H";             // Availability
+  // Base — Subsequent System Impact
+  SC: "N" | "L" | "H";             // Subsequent Confidentiality
+  SI: "N" | "L" | "H";             // Subsequent Integrity
+  SA: "N" | "L" | "H";             // Subsequent Availability
+  // Threat
+  E?: "X" | "A" | "P" | "U";      // Exploit Maturity
+  // Environmental — Requirements
+  CR?: "X" | "H" | "M" | "L";     // Confidentiality Requirement
+  IR?: "X" | "H" | "M" | "L";     // Integrity Requirement
+  AR?: "X" | "H" | "M" | "L";     // Availability Requirement
+  // Environmental — Modified Base (optional overrides)
+  MAV?: "X" | "N" | "A" | "L" | "P";
+  MAC?: "X" | "L" | "H";
+  MAT?: "X" | "N" | "P";
+  MPR?: "X" | "N" | "L" | "H";
+  MUI?: "X" | "N" | "P" | "A";
+  MVC?: "X" | "N" | "L" | "H";
+  MVI?: "X" | "N" | "L" | "H";
+  MVA?: "X" | "N" | "L" | "H";
+  MSC?: "X" | "N" | "L" | "H";
+  MSI?: "X" | "N" | "L" | "H" | "S";  // S = Safety
+  MSA?: "X" | "N" | "L" | "H" | "S";
+  // Supplemental
+  S?: "X" | "N" | "P";             // Safety
+  AU?: "X" | "N" | "Y";            // Automatable
+  U?: "X" | "Red" | "Amber" | "Green" | "Clear";  // Provider Urgency
+  R?: "X" | "A" | "U" | "I";       // Recovery
+  V?: "X" | "D" | "C";             // Value Density
+  RE?: "X" | "L" | "M" | "H";     // Vulnerability Response Effort
+}
+
+export interface CvssV4Parsed {
+  metrics: CvssV4Metrics;
+  /** Nomenclature: CVSS-B, CVSS-BT, CVSS-BE, or CVSS-BTE */
+  nomenclature: "CVSS-B" | "CVSS-BT" | "CVSS-BE" | "CVSS-BTE";
+  /** Estimated base score (0-10) */
+  estimatedScore: number;
+  /** Human-readable severity */
+  severity: "None" | "Low" | "Medium" | "High" | "Critical";
+  /** Whether threat metrics are present */
+  hasThreat: boolean;
+  /** Whether environmental metrics are present */
+  hasEnvironmental: boolean;
+  /** Whether supplemental metrics are present */
+  hasSupplemental: boolean;
+}
+
+/**
+ * Parse a CVSS v4.0 vector string into structured metrics.
+ * Format: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N
+ */
+export function parseCvssV4Vector(vector: string): CvssV4Parsed | null {
+  if (!vector || !vector.startsWith("CVSS:4.0/")) return null;
+
+  const parts = vector.replace("CVSS:4.0/", "").split("/");
+  const metrics: any = {};
+
+  for (const part of parts) {
+    const [key, value] = part.split(":");
+    if (key && value) metrics[key] = value;
+  }
+
+  // Validate required base metrics
+  const requiredBase = ["AV", "AC", "AT", "PR", "UI", "VC", "VI", "VA", "SC", "SI", "SA"];
+  for (const key of requiredBase) {
+    if (!metrics[key]) return null;
+  }
+
+  const hasThreat = !!metrics.E && metrics.E !== "X";
+  const hasEnvironmental = !!(
+    (metrics.CR && metrics.CR !== "X") ||
+    (metrics.IR && metrics.IR !== "X") ||
+    (metrics.AR && metrics.AR !== "X") ||
+    metrics.MAV || metrics.MAC || metrics.MAT || metrics.MPR || metrics.MUI ||
+    metrics.MVC || metrics.MVI || metrics.MVA || metrics.MSC || metrics.MSI || metrics.MSA
+  );
+  const hasSupplemental = !!(
+    (metrics.S && metrics.S !== "X") ||
+    (metrics.AU && metrics.AU !== "X") ||
+    (metrics.U && metrics.U !== "X") ||
+    (metrics.R && metrics.R !== "X") ||
+    (metrics.V && metrics.V !== "X") ||
+    (metrics.RE && metrics.RE !== "X")
+  );
+
+  let nomenclature: CvssV4Parsed["nomenclature"] = "CVSS-B";
+  if (hasThreat && hasEnvironmental) nomenclature = "CVSS-BTE";
+  else if (hasThreat) nomenclature = "CVSS-BT";
+  else if (hasEnvironmental) nomenclature = "CVSS-BE";
+
+  const estimatedScore = estimateCvssV4Score(metrics as CvssV4Metrics);
+  const severity = cvssScoreToSeverity(estimatedScore);
+
+  return {
+    metrics: metrics as CvssV4Metrics,
+    nomenclature,
+    estimatedScore,
+    severity,
+    hasThreat,
+    hasEnvironmental,
+    hasSupplemental,
+  };
+}
+
+/**
+ * Estimate a CVSS v4.0 base score from metrics.
+ * This is a simplified estimation — the full CVSS v4.0 scoring algorithm
+ * uses a lookup table approach. We approximate using weighted factors.
+ */
+function estimateCvssV4Score(m: CvssV4Metrics): number {
+  // Exploitability sub-score components
+  const avWeight: Record<string, number> = { N: 1.0, A: 0.75, L: 0.55, P: 0.2 };
+  const acWeight: Record<string, number> = { L: 1.0, H: 0.44 };
+  const atWeight: Record<string, number> = { N: 1.0, P: 0.6 };
+  const prWeight: Record<string, number> = { N: 1.0, L: 0.68, H: 0.27 };
+  const uiWeight: Record<string, number> = { N: 1.0, P: 0.62, A: 0.38 };
+
+  const exploitability =
+    (avWeight[m.AV] ?? 0.5) *
+    (acWeight[m.AC] ?? 0.5) *
+    (atWeight[m.AT] ?? 0.5) *
+    (prWeight[m.PR] ?? 0.5) *
+    (uiWeight[m.UI] ?? 0.5);
+
+  // Impact sub-score components
+  const impactWeight: Record<string, number> = { N: 0, L: 0.22, H: 0.56 };
+  const vulnImpact = 1 - (
+    (1 - (impactWeight[m.VC] ?? 0)) *
+    (1 - (impactWeight[m.VI] ?? 0)) *
+    (1 - (impactWeight[m.VA] ?? 0))
+  );
+  const subImpact = 1 - (
+    (1 - (impactWeight[m.SC] ?? 0)) *
+    (1 - (impactWeight[m.SI] ?? 0)) *
+    (1 - (impactWeight[m.SA] ?? 0))
+  );
+
+  const totalImpact = Math.min(1, vulnImpact + subImpact * 0.5);
+
+  if (totalImpact <= 0) return 0;
+
+  let score = Math.min(10, 10 * (0.6 * totalImpact + 0.4 * exploitability));
+
+  // Threat adjustment
+  if (m.E && m.E !== "X") {
+    const threatMult: Record<string, number> = { A: 1.0, P: 0.94, U: 0.91 };
+    score *= (threatMult[m.E] ?? 1.0);
+  }
+
+  // Environmental requirement adjustments
+  if (m.CR && m.CR !== "X") {
+    const reqMult: Record<string, number> = { H: 1.1, M: 1.0, L: 0.9 };
+    score *= (reqMult[m.CR] ?? 1.0);
+  }
+
+  return Math.round(clamp(score, 0, 10) * 10) / 10;
+}
+
+function cvssScoreToSeverity(score: number): CvssV4Parsed["severity"] {
+  if (score === 0) return "None";
+  if (score <= 3.9) return "Low";
+  if (score <= 6.9) return "Medium";
+  if (score <= 8.9) return "High";
+  return "Critical";
+}
+
+/**
+ * Generate a CVSS v4.0 vector string from metrics.
+ */
+export function buildCvssV4Vector(metrics: Partial<CvssV4Metrics>): string {
+  const parts = ["CVSS:4.0"];
+  const order = [
+    "AV", "AC", "AT", "PR", "UI", "VC", "VI", "VA", "SC", "SI", "SA",
+    "E", "CR", "IR", "AR",
+    "MAV", "MAC", "MAT", "MPR", "MUI", "MVC", "MVI", "MVA", "MSC", "MSI", "MSA",
+    "S", "AU", "U", "R", "V", "RE",
+  ];
+  for (const key of order) {
+    const val = (metrics as any)[key];
+    if (val && val !== "X") parts.push(`${key}:${val}`);
+  }
+  return parts.join("/");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3 — CVSS v4.0 → CARVER FEED-THROUGH
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Map CVSS v4.0 metrics to CARVER factor adjustments.
+ * This is the bridge between technical vulnerability scoring and
+ * organizational mission impact assessment.
+ *
+ * Mapping rationale:
+ *   AV (Attack Vector)     → Accessibility (network reach = physical access analog)
+ *   AC + AT (Complexity)   → Vulnerability (ease of exploitation)
+ *   E (Exploit Maturity)   → Vulnerability + Recognizability
+ *   PR + UI (Requirements) → Accessibility (barriers to entry)
+ *   VC/VI/VA (Impact)      → Effect (direct damage)
+ *   SC/SI/SA (Subsequent)  → Shock.cascadingEffects
+ *   CR/IR/AR (Env Reqs)    → Criticality (organizational importance)
+ *   R (Recovery)           → Recuperability
+ *   S (Safety)             → Shock.operationalImpact
+ *   AU (Automatable)       → Recognizability + Accessibility
+ *   V (Value Density)      → Shock.scope
+ */
+export function cvssV4ToCarverAdjustments(parsed: CvssV4Parsed): {
+  carverAdjustments: Partial<CarverScores>;
+  shockAdjustments: Partial<ShockScores>;
+} {
+  const m = parsed.metrics;
+  const carver: Partial<CarverScores> = {};
+  const shock: Partial<ShockScores> = {};
+
+  // AV → Accessibility
+  const avMap: Record<string, number> = { N: 9, A: 7, L: 4, P: 2 };
+  carver.accessibility = avMap[m.AV] ?? 5;
+
+  // AC + AT → Vulnerability (ease of exploitation)
+  const acBase: Record<string, number> = { L: 8, H: 4 };
+  const atMod: Record<string, number> = { N: 1.0, P: 0.7 };
+  carver.vulnerability = Math.round(
+    (acBase[m.AC] ?? 5) * (atMod[m.AT] ?? 0.85)
+  );
+
+  // PR + UI → Accessibility modifier
+  const prMod: Record<string, number> = { N: 0, L: -1, H: -3 };
+  const uiMod: Record<string, number> = { N: 0, P: -1, A: -2 };
+  carver.accessibility = clamp(
+    carver.accessibility + (prMod[m.PR] ?? 0) + (uiMod[m.UI] ?? 0),
+    1, 10
+  );
+
+  // VC/VI/VA → Effect (direct damage to vulnerable system)
+  const impMap: Record<string, number> = { N: 0, L: 3, H: 8 };
+  const vulnEffect = Math.max(
+    impMap[m.VC] ?? 0,
+    impMap[m.VI] ?? 0,
+    impMap[m.VA] ?? 0
+  );
+  carver.effect = clamp(vulnEffect, 1, 10);
+
+  // SC/SI/SA → Shock.cascadingEffects (damage to subsequent systems)
+  const subEffect = Math.max(
+    impMap[m.SC] ?? 0,
+    impMap[m.SI] ?? 0,
+    impMap[m.SA] ?? 0
+  );
+  if (subEffect > 0) {
+    shock.cascadingEffects = clamp(subEffect + 1, 1, 10);
+    shock.scope = clamp(Math.round(subEffect * 0.8), 1, 10);
+  }
+
+  // E (Exploit Maturity) → Vulnerability boost + Recognizability
+  if (m.E && m.E !== "X") {
+    const eMod: Record<string, number> = { A: 2, P: 1, U: 0 };
+    carver.vulnerability = clamp(
+      (carver.vulnerability ?? 5) + (eMod[m.E] ?? 0),
+      1, 10
+    );
+    // Actively exploited = highly recognizable to attackers
+    if (m.E === "A") carver.recognizability = 8;
+    else if (m.E === "P") carver.recognizability = 6;
+  }
+
+  // Environmental Requirements → Criticality
+  if (m.CR || m.IR || m.AR) {
+    const reqMap: Record<string, number> = { H: 9, M: 6, L: 3 };
+    const maxReq = Math.max(
+      reqMap[m.CR ?? "X"] ?? 0,
+      reqMap[m.IR ?? "X"] ?? 0,
+      reqMap[m.AR ?? "X"] ?? 0
+    );
+    if (maxReq > 0) carver.criticality = maxReq;
+  }
+
+  // Supplemental: Recovery → Recuperability
+  if (m.R && m.R !== "X") {
+    const recMap: Record<string, number> = { I: 10, U: 7, A: 3 };
+    carver.recuperability = recMap[m.R] ?? 5;
+  }
+
+  // Supplemental: Safety → Shock.operationalImpact
+  if (m.S === "P") {
+    shock.operationalImpact = 9;
+  }
+
+  // Supplemental: Automatable → Accessibility + Recognizability boost
+  if (m.AU === "Y") {
+    carver.accessibility = clamp((carver.accessibility ?? 5) + 1, 1, 10);
+    carver.recognizability = clamp((carver.recognizability ?? 5) + 1, 1, 10);
+  }
+
+  // Supplemental: Value Density → Shock.scope
+  if (m.V === "C") {
+    shock.scope = clamp((shock.scope ?? 5) + 2, 1, 10);
+  }
+
+  return { carverAdjustments: carver, shockAdjustments: shock };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §4 — FIPS 199 SECURITY CATEGORIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface Fips199Category {
+  confidentiality: "low" | "moderate" | "high";
+  integrity: "low" | "moderate" | "high";
+  availability: "low" | "moderate" | "high";
+}
+
+/**
+ * Map FIPS 199 security categories to CARVER+Shock adjustments.
+ * FIPS 199 defines the security categorization for federal information systems,
+ * but the concept applies broadly to any organization's asset classification.
+ */
+export function fips199ToCarverAdjustments(category: Fips199Category): {
+  carverAdjustments: Partial<CarverScores>;
+  shockAdjustments: Partial<ShockScores>;
+  missionMultiplier: number;
+} {
+  const levelMap: Record<string, number> = { low: 2, moderate: 5, high: 9 };
+
+  const confScore = levelMap[category.confidentiality] ?? 5;
+  const intScore = levelMap[category.integrity] ?? 5;
+  const availScore = levelMap[category.availability] ?? 5;
+
+  const maxLevel = Math.max(confScore, intScore, availScore);
+
+  const carver: Partial<CarverScores> = {
+    criticality: maxLevel,
+    effect: Math.round((confScore + intScore) / 2),
+    recuperability: availScore >= 7 ? 8 : availScore >= 4 ? 5 : 3,
+  };
+
+  const shock: Partial<ShockScores> = {
+    scope: confScore >= 7 ? 8 : confScore >= 4 ? 5 : 2,
+    operationalImpact: availScore >= 7 ? 8 : availScore >= 4 ? 5 : 2,
+    handling: intScore >= 7 ? 7 : intScore >= 4 ? 5 : 3,
+  };
+
+  // Mission multiplier based on highest categorization
+  let missionMultiplier = 1.0;
+  if (maxLevel >= 9) missionMultiplier = 1.8;
+  else if (maxLevel >= 5) missionMultiplier = 1.3;
+  else missionMultiplier = 0.9;
+
+  return { carverAdjustments: carver, shockAdjustments: shock, missionMultiplier };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §5 — CRITICALITY TIER SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+
+export type CriticalityTier = 1 | 2 | 3 | 4 | 5;
+
+/**
+ * Criticality tiers aligned to Recovery Time Objectives (RTO).
+ * Based on NIST SP 800-34 and BIA best practices.
+ */
+export const CRITICALITY_TIERS: Record<CriticalityTier, {
+  name: string;
+  rto: string;
+  description: string;
+  missionMultiplier: number;
+  carverFloor: Partial<CarverScores>;
+  shockFloor: Partial<ShockScores>;
+}> = {
+  1: {
+    name: "Mission Critical",
+    rto: "< 1 hour",
+    description: "Immediate operational impact. Loss causes complete mission failure. No acceptable workaround exists.",
+    missionMultiplier: 2.0,
+    carverFloor: { criticality: 9, effect: 8, recuperability: 9 },
+    shockFloor: { operationalImpact: 9, cascadingEffects: 8, scope: 8 },
+  },
+  2: {
+    name: "Business Critical",
+    rto: "1–24 hours",
+    description: "Significant impact within hours. Core business functions degraded. Manual workarounds possible but costly.",
+    missionMultiplier: 1.6,
+    carverFloor: { criticality: 7, effect: 7, recuperability: 7 },
+    shockFloor: { operationalImpact: 7, cascadingEffects: 6, scope: 6 },
+  },
+  3: {
+    name: "Business Important",
+    rto: "1–7 days",
+    description: "Moderate impact within days. Supporting functions affected. Workarounds available.",
+    missionMultiplier: 1.3,
+    carverFloor: { criticality: 5, effect: 5, recuperability: 5 },
+    shockFloor: { operationalImpact: 5, cascadingEffects: 4, scope: 4 },
+  },
+  4: {
+    name: "Administrative",
+    rto: "> 7 days",
+    description: "Minimal operational impact. Administrative or convenience functions. Extended outage tolerable.",
+    missionMultiplier: 0.9,
+    carverFloor: { criticality: 3, effect: 3 },
+    shockFloor: { operationalImpact: 3 },
+  },
+  5: {
+    name: "Non-Essential",
+    rto: "N/A",
+    description: "No operational impact. Test environments, deprecated systems, or non-production assets.",
+    missionMultiplier: 0.6,
+    carverFloor: { criticality: 1, effect: 1 },
+    shockFloor: { operationalImpact: 1 },
+  },
+};
+
+/**
+ * Apply criticality tier floors to CARVER+Shock scores.
+ */
+export function applyCriticalityTierFloors(
+  carver: CarverScores,
+  shock: ShockScores,
+  tier: CriticalityTier
+): { carver: CarverScores; shock: ShockScores; missionMultiplier: number } {
+  const tierDef = CRITICALITY_TIERS[tier];
+  const adjustedCarver = { ...carver };
+  const adjustedShock = { ...shock };
+
+  for (const [key, val] of Object.entries(tierDef.carverFloor)) {
+    const k = key as keyof CarverScores;
+    adjustedCarver[k] = Math.max(adjustedCarver[k], val as number);
+  }
+  for (const [key, val] of Object.entries(tierDef.shockFloor)) {
+    const k = key as keyof ShockScores;
+    adjustedShock[k] = Math.max(adjustedShock[k], val as number);
+  }
+
+  return { carver: adjustedCarver, shock: adjustedShock, missionMultiplier: tierDef.missionMultiplier };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §6 — FM 34-36 DIGITAL ASSET TRANSLATION TABLES
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * FM 34-36 Appendix D CARVER factor scoring translated to digital assets.
+ * Each factor retains the 1-10 scale from the original military methodology
+ * but criteria are adapted for cyber operations targeting.
+ */
+export const CARVER_DIGITAL_TRANSLATION = {
+  criticality: {
+    name: "Criticality (Mission Value)",
+    fm34_36: "How important is the target to the overall system/mission?",
+    digital: "How critical is this digital asset to the organization's essential missions and supporting functions?",
+    scale: [
+      { range: [9, 10], military: "Immediate halt in output/production/service", digital: "Domain controller, primary DB, payment gateway — immediate halt to all dependent services" },
+      { range: [7, 8], military: "Halt within 1 day, or 66% curtailment", digital: "Email server, VPN concentrator, ERP — major business disruption within hours" },
+      { range: [5, 6], military: "Halt within 1 week, or 33% curtailment", digital: "CI/CD pipeline, monitoring stack, secondary DNS — degraded operations within days" },
+      { range: [3, 4], military: "Halt within 10 days, or 10% curtailment", digital: "Development server, staging environment, internal wiki — minor productivity loss" },
+      { range: [1, 2], military: "No significant effect on output", digital: "Test environment, deprecated system, static marketing page — no operational impact" },
+    ],
+    subFactors: ["Time to impact", "Percentage of function curtailment", "Availability of surrogates", "Position in dependency chain"],
+  },
+  accessibility: {
+    name: "Accessibility (Attack Surface)",
+    fm34_36: "Can the operational element reach the target?",
+    digital: "How reachable is the asset from an attacker's perspective, considering network position and authentication barriers?",
+    scale: [
+      { range: [9, 10], military: "Easily accessible, standoff weapons can be employed", digital: "Internet-facing, no auth required, known service with public exploits" },
+      { range: [7, 8], military: "Inside perimeter fence but outdoors", digital: "Internet-facing with basic auth, or DMZ with known attack surface" },
+      { range: [5, 6], military: "Inside building, ground floor", digital: "DMZ with WAF/IDS, requires credential theft or social engineering" },
+      { range: [3, 4], military: "Inside building, 2nd floor/basement", digital: "Internal network, segmented VLAN, requires lateral movement" },
+      { range: [1, 2], military: "Not accessible or extreme difficulty", digital: "Air-gapped, hardware security module, or zero-trust microsegmented" },
+    ],
+    subFactors: ["Network exposure", "Authentication barriers", "Firewall/WAF protection", "Physical access requirements"],
+  },
+  recuperability: {
+    name: "Recuperability (Recovery Difficulty)",
+    fm34_36: "How long to replace, repair, or bypass?",
+    digital: "How long to restore the asset to full operational capability after compromise or destruction?",
+    scale: [
+      { range: [9, 10], military: "Replacement/repair requires 1 month+", digital: "Custom-built system, no backups, no documentation — months to rebuild" },
+      { range: [7, 8], military: "Replacement/repair requires 1 week to 1 month", digital: "Complex system, weekly backups, specialized knowledge required" },
+      { range: [5, 6], military: "Replacement/repair requires 72 hours to 1 week", digital: "Standard system, daily backups, documented recovery procedures" },
+      { range: [3, 4], military: "Replacement/repair requires 24 to 72 hours", digital: "Redundant system, hot standby, automated failover with manual intervention" },
+      { range: [1, 2], military: "Same day replacement/repair", digital: "Auto-scaling, instant failover, immutable infrastructure, containerized" },
+    ],
+    subFactors: ["Backup frequency", "Recovery documentation", "Redundancy level", "Specialized knowledge required"],
+  },
+  vulnerability: {
+    name: "Vulnerability (Exploitability)",
+    fm34_36: "Does the operational element have means to attack?",
+    digital: "Does the attacker have viable means to exploit this asset, considering known CVEs, misconfigurations, and available tooling?",
+    scale: [
+      { range: [9, 10], military: "Vulnerable to small arms or charges ≤5 lbs", digital: "Known RCE with public exploit, actively exploited in the wild (KEV)" },
+      { range: [7, 8], military: "Vulnerable to light antiarmor or 5-10 lb charges", digital: "Known vulnerability with proof-of-concept, exploit kit available" },
+      { range: [5, 6], military: "Vulnerable to medium antiarmor or 10-30 lb charges", digital: "Known vulnerability, complex exploit chain required" },
+      { range: [3, 4], military: "Vulnerable to heavy antiarmor or 30-50 lb charges", digital: "Theoretical vulnerability, no public exploit, requires custom tooling" },
+      { range: [1, 2], military: "Invulnerable to all but extreme measures", digital: "No known vulnerabilities, hardened configuration, defense in depth" },
+    ],
+    subFactors: ["CVE count and severity", "Exploit availability", "Patch status", "Configuration hardening"],
+  },
+  effect: {
+    name: "Effect (Organizational Impact)",
+    fm34_36: "Military, political, economic, psychological, sociological impacts",
+    digital: "What are the broader organizational impacts of successful compromise — financial, regulatory, reputational, operational?",
+    scale: [
+      { range: [9, 10], military: "Overwhelmingly positive effects for attacker", digital: "Data breach + regulatory fines + reputational damage + operational shutdown" },
+      { range: [7, 8], military: "Moderately positive effects for attacker", digital: "Service disruption + financial loss + customer impact" },
+      { range: [5, 6], military: "No significant effects; neutral", digital: "Limited operational impact, contained to single business unit" },
+      { range: [3, 4], military: "Moderately negative effects for attacker", digital: "Minimal impact, quickly contained, no data exposure" },
+      { range: [1, 2], military: "Overwhelmingly negative effects for attacker", digital: "No meaningful impact, honeypot/deception, attacker exposure risk" },
+    ],
+    subFactors: ["Financial impact", "Regulatory consequences", "Reputational damage", "Operational disruption"],
+  },
+  recognizability: {
+    name: "Recognizability (Discoverability)",
+    fm34_36: "Degree to which target can be identified",
+    digital: "How easily can an attacker identify, fingerprint, and target this specific asset?",
+    scale: [
+      { range: [9, 10], military: "Clearly recognizable under all conditions from distance", digital: "Banner grabbing reveals exact version, indexed by search engines, public documentation" },
+      { range: [7, 8], military: "Easily recognizable at small-arms range", digital: "Service type identifiable, version guessable from behavior patterns" },
+      { range: [5, 6], military: "Difficult in bad weather, might be confused", digital: "Service type identifiable but version hidden, generic error pages" },
+      { range: [3, 4], military: "Difficult even at close range, easily confused", digital: "Behind CDN/WAF, minimal fingerprint, custom headers stripped" },
+      { range: [1, 2], military: "Cannot be recognized except by experts", digital: "Completely obscured, no signatures, deception/honeypot deployed" },
+    ],
+    subFactors: ["Banner exposure", "Search engine indexing", "DNS/certificate transparency", "Error page information leakage"],
+  },
+} as const;
+
+/**
+ * FM 34-36 Shock factor translated to digital assets.
+ * Adapted from FDA CARVER+Shock primer for cyber operations.
+ */
+export const SHOCK_DIGITAL_TRANSLATION = {
+  scope: {
+    name: "Scope (Blast Radius)",
+    original: "Health, psychological, and collateral economic impacts — scope of affected population",
+    digital: "How many users, customers, or systems are affected by compromise of this asset?",
+    scale: [
+      { range: [9, 10], digital: "All customers/users affected, global service outage, supply chain cascade" },
+      { range: [7, 8], digital: "Major customer segment affected, regional outage, partner impact" },
+      { range: [5, 6], digital: "Department-level impact, subset of users affected" },
+      { range: [3, 4], digital: "Team-level impact, limited user base affected" },
+      { range: [1, 2], digital: "Single user or system affected, no external impact" },
+    ],
+  },
+  handling: {
+    name: "Handling (Response Complexity)",
+    original: "Difficulty of incident response and containment",
+    digital: "How complex is the incident response, forensics, and remediation process?",
+    scale: [
+      { range: [9, 10], digital: "Requires external forensics, legal counsel, regulatory notification, board-level response" },
+      { range: [7, 8], digital: "Cross-team IR, evidence preservation, customer notification required" },
+      { range: [5, 6], digital: "Standard IR playbook, contained within security team" },
+      { range: [3, 4], digital: "Simple remediation, automated response available" },
+      { range: [1, 2], digital: "Self-healing, auto-rollback, no manual intervention needed" },
+    ],
+  },
+  operationalImpact: {
+    name: "Operational Impact (Business Disruption)",
+    original: "Disruption to normal operations and essential services",
+    digital: "How severely does compromise disrupt day-to-day business operations and revenue generation?",
+    scale: [
+      { range: [9, 10], digital: "Complete business halt, revenue stops, SLA violations, contractual penalties" },
+      { range: [7, 8], digital: "Major business disruption, significant revenue impact, degraded SLAs" },
+      { range: [5, 6], digital: "Moderate disruption, some revenue impact, workarounds available" },
+      { range: [3, 4], digital: "Minor disruption, negligible revenue impact, easy workarounds" },
+      { range: [1, 2], digital: "No operational disruption, business continues normally" },
+    ],
+  },
+  cascadingEffects: {
+    name: "Cascading Effects (Dependency Chain)",
+    original: "Collateral national economic impact and downstream effects",
+    digital: "Does compromise of this asset enable attacks on dependent systems, partners, or supply chain?",
+    scale: [
+      { range: [9, 10], digital: "Compromise enables full domain takeover, supply chain poisoning, island-hopping to partners" },
+      { range: [7, 8], digital: "Compromise of auth/SSO cascades to all downstream applications" },
+      { range: [5, 6], digital: "Compromise affects 2-3 dependent systems or services" },
+      { range: [3, 4], digital: "Limited cascade, 1 dependent system affected" },
+      { range: [1, 2], digital: "Isolated system, no downstream dependencies" },
+    ],
+  },
+  knowledge: {
+    name: "Knowledge (Exploitation Expertise)",
+    original: "Specialized knowledge required for attack",
+    digital: "What level of specialized knowledge or tooling does an attacker need to exploit this asset?",
+    scale: [
+      { range: [9, 10], digital: "Script kiddie level — automated tools, public exploits, no expertise needed" },
+      { range: [7, 8], digital: "Intermediate — requires understanding of the technology stack" },
+      { range: [5, 6], digital: "Advanced — requires custom tooling or exploit development" },
+      { range: [3, 4], digital: "Expert — requires deep domain knowledge and specialized equipment" },
+      { range: [1, 2], digital: "Nation-state level — requires zero-day research and significant resources" },
+    ],
+  },
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// §7 — ASSET CLASSIFICATION TAXONOMY
+// ═══════════════════════════════════════════════════════════════════════
+
 export const ASSET_DEVICE_TYPES = [
-  "network_infrastructure", // Routers, switches, firewalls, load balancers, WAFs
-  "server",                 // Web servers, app servers, database servers, file servers, mail servers
-  "endpoint",               // Workstations, laptops, mobile devices, IoT
-  "security_appliance",     // IDS/IPS, SIEM, DLP, NAC
-  "storage",                // SAN, NAS, backup systems, cloud storage
-  "cloud_service",          // SaaS, PaaS, IaaS instances
-  "iot_ot",                 // Industrial control systems, SCADA, IoT sensors
+  "network_infrastructure",
+  "server",
+  "endpoint",
+  "security_appliance",
+  "storage",
+  "cloud_service",
+  "iot_ot",
   "unknown",
 ] as const;
 
 export const ASSET_PLATFORM_TYPES = [
-  "identity_access",        // Active Directory, LDAP, SSO, MFA providers
-  "business_critical",      // ERP, CRM, HRM, financial systems, payment gateways
-  "communication",          // Email, VoIP, messaging, video conferencing
-  "development",            // CI/CD, source control, container orchestration
-  "data_store",             // Databases, data warehouses, data lakes, caches
-  "web_application",        // Customer-facing web apps, portals, APIs
-  "monitoring",             // APM, logging, metrics, alerting
-  "content_delivery",       // CDN, static hosting, media streaming
+  "identity_access",
+  "business_critical",
+  "communication",
+  "development",
+  "data_store",
+  "web_application",
+  "monitoring",
+  "content_delivery",
   "unknown",
 ] as const;
 
 export const MISSION_FUNCTIONS = [
-  "command_control",        // Assets enabling organizational decision-making
-  "revenue_generation",     // Assets directly involved in generating revenue
-  "customer_data",          // Assets storing or processing customer information
-  "intellectual_property",  // Assets containing proprietary information
-  "operational_continuity", // Assets required for day-to-day operations
-  "compliance",             // Assets required for regulatory compliance
-  "external_communication", // Assets enabling external stakeholder communication
-  "authentication",         // Identity and access management
-  "data_processing",        // Data transformation, analytics, reporting
-  "supply_chain",           // Vendor/partner integration systems
+  "command_control",
+  "revenue_generation",
+  "customer_data",
+  "intellectual_property",
+  "operational_continuity",
+  "compliance",
+  "external_communication",
+  "authentication",
+  "data_processing",
+  "supply_chain",
 ] as const;
 
 export const ESSENTIAL_SERVICES = [
@@ -159,10 +788,10 @@ export const ESSENTIAL_SERVICES = [
 ] as const;
 
 export const BUSINESS_IMPACT_LEVELS = [
-  "mission_critical",    // Loss causes >75% business function disruption
-  "business_essential",  // Loss causes 40-75% disruption
-  "operational",         // Loss causes 10-40% disruption
-  "administrative",      // Loss causes <10% disruption
+  "mission_critical",
+  "business_essential",
+  "operational",
+  "administrative",
 ] as const;
 
 export interface AssetClassification {
@@ -172,32 +801,25 @@ export interface AssetClassification {
   essentialService: string;
   assetPurpose: string;
   businessImpactLevel: typeof BUSINESS_IMPACT_LEVELS[number];
+  /** FIPS 199 security categorization inferred by LLM */
+  fips199Category?: Fips199Category;
+  /** Criticality tier (1-5) inferred by LLM */
+  criticalityTier?: CriticalityTier;
   missionDependencies: {
     upstreamAssets: string[];
     downstreamAssets: string[];
     sharedServices: string[];
   };
-  /** CARVER factor adjustments based on classification */
   carverAdjustments: Partial<CarverScores>;
-  /** Shock factor adjustments based on classification */
   shockAdjustments: Partial<ShockScores>;
-  /** Confidence in this classification (0-1) */
   classificationConfidence: number;
-  /** Reasoning for the classification */
   reasoning: string;
 }
 
-// ─── Mission Function → CARVER/Shock Baseline Mappings ──────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §8 — MISSION FUNCTION BASELINES
+// ═══════════════════════════════════════════════════════════════════════
 
-/**
- * Baseline CARVER+Shock score adjustments based on mission function.
- * These represent the "floor" scores for assets in each category —
- * the LLM and discovery data can only increase these, not decrease.
- *
- * This is the key innovation: military CARVER targeting methodology
- * translated to digital asset criticality through organizational
- * mission function mapping.
- */
 export const MISSION_FUNCTION_BASELINES: Record<string, {
   carver: Partial<CarverScores>;
   shock: Partial<ShockScores>;
@@ -266,10 +888,6 @@ export const MISSION_FUNCTION_BASELINES: Record<string, {
   },
 };
 
-/**
- * Essential service → baseline CARVER adjustments.
- * These provide granular scoring based on the specific service type.
- */
 export const ESSENTIAL_SERVICE_BASELINES: Record<string, {
   carver: Partial<CarverScores>;
   shock: Partial<ShockScores>;
@@ -294,7 +912,9 @@ export const ESSENTIAL_SERVICE_BASELINES: Record<string, {
   waf: { carver: { criticality: 6, effect: 6, vulnerability: 4 }, shock: { scope: 5, handling: 5 } },
 };
 
-// ─── Default Profile ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §9 — DEFAULT & PRESET PROFILES
+// ═══════════════════════════════════════════════════════════════════════
 
 export const DEFAULT_PROFILE: ScoringProfile = {
   carverWeights: {
@@ -319,8 +939,6 @@ export const DEFAULT_PROFILE: ScoringProfile = {
   highThreshold: 65,
   mediumThreshold: 40,
 };
-
-// ─── Preset Profiles ───────────────────────────────────────────────────
 
 export const PRESET_PROFILES: Record<string, { name: string; description: string; profile: ScoringProfile }> = {
   critical_infrastructure: {
@@ -383,18 +1001,28 @@ export const PRESET_PROFILES: Record<string, { name: string; description: string
       cvssWeight: 0.35,
     },
   },
+  mssp_managed: {
+    name: "MSSP / Managed Services",
+    description: "Balanced profile for managed security service providers managing multiple client environments. Emphasizes scope and cascading effects across client boundaries.",
+    profile: {
+      ...DEFAULT_PROFILE,
+      carverWeights: { criticality: 2.0, accessibility: 2.0, recuperability: 1.5, vulnerability: 1.5, effect: 1.5, recognizability: 1.0 },
+      shockWeights: { scope: 2.5, handling: 1.5, operationalImpact: 1.5, cascadingEffects: 2.0, knowledge: 1.0 },
+      carverWeight: 0.35,
+      shockWeight: 0.35,
+      cvssWeight: 0.3,
+    },
+  },
 };
 
-// ─── Core Scoring Functions ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §10 — CORE SCORING FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════
 
 function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
 }
 
-/**
- * Compute the weighted CARVER composite score.
- * Each factor is weighted according to the engagement profile.
- */
 export function computeCarverComposite(scores: CarverScores, weights: CarverWeights): number {
   let sum = 0, totalWeight = 0;
   const entries: [keyof CarverScores, number][] = [
@@ -412,10 +1040,6 @@ export function computeCarverComposite(scores: CarverScores, weights: CarverWeig
   return totalWeight > 0 ? sum / totalWeight : 0;
 }
 
-/**
- * Compute the weighted Shock composite score.
- * Shock measures the broader organizational and societal impact.
- */
 export function computeShockComposite(scores: ShockScores, weights: ShockWeights): number {
   let sum = 0, totalWeight = 0;
   const entries: [keyof ShockScores, number][] = [
@@ -432,10 +1056,6 @@ export function computeShockComposite(scores: ShockScores, weights: ShockWeights
   return totalWeight > 0 ? sum / totalWeight : 0;
 }
 
-/**
- * Compute mission impact from CARVER and Shock composites using meta-weights.
- * Applies mission function multiplier for assets classified as mission-critical.
- */
 export function computeMissionImpact(
   carverComposite: number,
   shockComposite: number,
@@ -445,16 +1065,9 @@ export function computeMissionImpact(
   const carverNorm = profile.carverWeight / (profile.carverWeight + profile.shockWeight);
   const shockNorm = profile.shockWeight / (profile.carverWeight + profile.shockWeight);
   const baseMissionImpact = (carverComposite * carverNorm) + (shockComposite * shockNorm);
-  // Apply mission function multiplier — caps at 10
   return clamp(baseMissionImpact * missionMultiplier, 0, 10);
 }
 
-/**
- * Apply mission function baselines to CARVER and Shock scores.
- * Baselines act as floors — they raise scores but never lower them.
- * This ensures that an SSO system is never scored lower than its
- * mission-critical baseline, regardless of what the LLM initially estimated.
- */
 export function applyMissionBaselines(
   carver: CarverScores,
   shock: ShockScores,
@@ -468,7 +1081,6 @@ export function applyMissionBaselines(
   let adjustedShock = { ...shock };
   let missionMultiplier = 1.0;
 
-  // Apply mission function baselines (floors)
   if (missionBaseline) {
     missionMultiplier = missionBaseline.missionMultiplier;
     for (const [key, val] of Object.entries(missionBaseline.carver)) {
@@ -481,7 +1093,6 @@ export function applyMissionBaselines(
     }
   }
 
-  // Apply essential service baselines (additional floors)
   if (serviceBaseline) {
     for (const [key, val] of Object.entries(serviceBaseline.carver)) {
       const k = key as keyof CarverScores;
@@ -496,10 +1107,6 @@ export function applyMissionBaselines(
   return { carver: adjustedCarver, shock: adjustedShock, missionMultiplier };
 }
 
-/**
- * Business impact level → mission multiplier mapping.
- * Used when LLM classification provides a business impact level.
- */
 export function businessImpactToMultiplier(level: string): number {
   switch (level) {
     case "mission_critical": return 1.8;
@@ -511,84 +1118,127 @@ export function businessImpactToMultiplier(level: string): number {
 }
 
 /**
- * Compute the full hybrid risk score using the Impact x Likelihood model.
+ * Compute the full hybrid risk score using the Impact × Likelihood model.
+ *
+ * Now enhanced with:
+ *   - CVSS v4.0 vector parsing and CARVER feed-through
+ *   - FIPS 199 security categorization integration
+ *   - Criticality tier floor enforcement
  *
  * IMPACT (0-1): Derived from CARVER+Shock mission impact with mission function weighting.
  * LIKELIHOOD (0-1): Driven by confirmed vulnerability evidence, exposure, and port risk.
- * RISK = sqrt(Impact x Likelihood) x 100
- *
- * The geometric mean ensures both dimensions must be elevated for high risk:
- *   - Critical asset with no confirmed vulns → score ~30 (low)
- *   - Low-importance asset with confirmed CVEs → score ~52 (medium)
- *   - Critical asset with confirmed CVEs → score ~90 (critical)
+ * RISK = sqrt(Impact × Likelihood) × 100
  */
 export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile): ScoringResult {
-  // Determine mission multiplier from business impact level or explicit multiplier
   let missionMult = input.missionMultiplier ?? 1.0;
   if (!input.missionMultiplier && input.businessImpactLevel) {
     missionMult = businessImpactToMultiplier(input.businessImpactLevel);
   }
 
-  const carverComposite = computeCarverComposite(input.carver, profile.carverWeights);
-  const shockComposite = computeShockComposite(input.shock, profile.shockWeights);
+  let carver = { ...input.carver };
+  let shock = { ...input.shock };
+  let cvssV4Parsed: CvssV4Parsed | undefined;
+  let cvssCarverAdjustments: Partial<CarverScores> | undefined;
+  let fips199Applied: Fips199Category | undefined;
+  let criticalityTierApplied: CriticalityTier | undefined;
+
+  // ── CVSS v4.0 Feed-Through ──
+  if (input.cvssV4Vector) {
+    cvssV4Parsed = parseCvssV4Vector(input.cvssV4Vector) ?? undefined;
+    if (cvssV4Parsed) {
+      const { carverAdjustments, shockAdjustments } = cvssV4ToCarverAdjustments(cvssV4Parsed);
+      cvssCarverAdjustments = carverAdjustments;
+      // Apply as floors (never lower existing scores)
+      for (const [key, val] of Object.entries(carverAdjustments)) {
+        const k = key as keyof CarverScores;
+        carver[k] = Math.max(carver[k], val as number);
+      }
+      for (const [key, val] of Object.entries(shockAdjustments)) {
+        const k = key as keyof ShockScores;
+        shock[k] = Math.max(shock[k], val as number);
+      }
+    }
+  }
+
+  // ── FIPS 199 Integration ──
+  if (input.fips199) {
+    fips199Applied = input.fips199;
+    const fipsResult = fips199ToCarverAdjustments(input.fips199);
+    for (const [key, val] of Object.entries(fipsResult.carverAdjustments)) {
+      const k = key as keyof CarverScores;
+      carver[k] = Math.max(carver[k], val as number);
+    }
+    for (const [key, val] of Object.entries(fipsResult.shockAdjustments)) {
+      const k = key as keyof ShockScores;
+      shock[k] = Math.max(shock[k], val as number);
+    }
+    missionMult = Math.max(missionMult, fipsResult.missionMultiplier);
+  }
+
+  // ── Criticality Tier Floors ──
+  if (input.criticalityTier) {
+    criticalityTierApplied = input.criticalityTier;
+    const tierResult = applyCriticalityTierFloors(carver, shock, input.criticalityTier);
+    carver = tierResult.carver;
+    shock = tierResult.shock;
+    missionMult = Math.max(missionMult, tierResult.missionMultiplier);
+  }
+
+  // ── Core Computation ──
+  const carverComposite = computeCarverComposite(carver, profile.carverWeights);
+  const shockComposite = computeShockComposite(shock, profile.shockWeights);
   const missionImpact = computeMissionImpact(carverComposite, shockComposite, profile, missionMult);
 
-  // Impact: normalized mission impact (0-1)
   const impact = clamp(missionImpact / 10, 0, 1);
 
-  // Likelihood: driven by confirmed vulnerability evidence
+  // Likelihood computation
   let likelihoodBase: number;
   if (input.confirmedVulnScore !== undefined && input.confirmedVulnScore > 0) {
     const vulnNorm = clamp(input.confirmedVulnScore / 100, 0, 1);
     likelihoodBase = vulnNorm;
     likelihoodBase += (input.exposure - 0.5) * 0.2;
-    likelihoodBase += (clamp(input.carver.recognizability / 10, 0, 1) - 0.5) * 0.1;
+    likelihoodBase += (clamp(carver.recognizability / 10, 0, 1) - 0.5) * 0.1;
   } else if (input.confirmedVulnScore === 0) {
-    // No confirmed vulns — baseline from exposure only
-    likelihoodBase = clamp((input.exposure * 0.1) + (clamp(input.carver.recognizability / 10, 0, 1) * 0.05), 0, 0.15);
+    likelihoodBase = clamp((input.exposure * 0.1) + (clamp(carver.recognizability / 10, 0, 1) * 0.05), 0, 0.15);
   } else {
-    // Pre-enrichment: use CVSS estimate as placeholder
-    const cvssNorm = clamp(input.cvssEstimate / 10, 0, 1);
+    // Use CVSS v4.0 estimated score if available, otherwise cvssEstimate
+    const cvssScore = cvssV4Parsed?.estimatedScore ?? input.cvssEstimate;
+    const cvssNorm = clamp(cvssScore / 10, 0, 1);
     likelihoodBase = cvssNorm;
     likelihoodBase += (input.exposure - 0.5) * 0.2;
-    likelihoodBase += (clamp(input.carver.recognizability / 10, 0, 1) - 0.5) * 0.1;
+    likelihoodBase += (clamp(carver.recognizability / 10, 0, 1) - 0.5) * 0.1;
   }
   likelihoodBase = clamp(likelihoodBase, 0, 1);
 
-  // Port exposure boost
   if (input.portLikelihoodBoost && input.portLikelihoodBoost > 0) {
     likelihoodBase = clamp(likelihoodBase + input.portLikelihoodBoost, 0, 1);
   }
 
-  // Confidence dampening: low-confidence assessments reduce likelihood
   const confidenceDampening = 0.55 + (input.confidence * 0.45);
   const likelihood = clamp(likelihoodBase * confidenceDampening, 0, 1);
 
-  // Hybrid risk = geometric mean of Impact and Likelihood
   const hybridRiskScore = Math.round(Math.sqrt(impact * likelihood) * 100);
 
-  // Risk band
   let riskBand: "critical" | "high" | "medium" | "low";
   if (hybridRiskScore >= profile.criticalThreshold) riskBand = "critical";
   else if (hybridRiskScore >= profile.highThreshold) riskBand = "high";
   else if (hybridRiskScore >= profile.mediumThreshold) riskBand = "medium";
   else riskBand = "low";
 
-  // Factor contributions for visualization
   const factorContributions = [
     ...Object.entries(profile.carverWeights).map(([key, weight]) => ({
       factor: key.charAt(0).toUpperCase() + key.slice(1),
       category: "CARVER" as const,
-      rawScore: (input.carver as any)[key] as number,
+      rawScore: (carver as any)[key] as number,
       weight,
-      weightedScore: ((input.carver as any)[key] as number) * weight,
+      weightedScore: ((carver as any)[key] as number) * weight,
     })),
     ...Object.entries(profile.shockWeights).map(([key, weight]) => ({
       factor: key.charAt(0).toUpperCase() + key.slice(1),
       category: "Shock" as const,
-      rawScore: (input.shock as any)[key] as number,
+      rawScore: (shock as any)[key] as number,
       weight,
-      weightedScore: ((input.shock as any)[key] as number) * weight,
+      weightedScore: ((shock as any)[key] as number) * weight,
     })),
   ];
 
@@ -601,22 +1251,23 @@ export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile):
     hybridRiskScore,
     riskBand,
     factorContributions,
+    cvssV4Parsed,
+    cvssCarverAdjustments,
+    fips199Applied,
+    criticalityTierApplied,
   };
 }
 
-// ─── LLM Asset Classification ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §11 — LLM ASSET CLASSIFICATION (Enhanced)
+// ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Use LLM to classify discovered assets by mission function, essential service,
- * business impact level, and inter-asset dependencies.
- *
- * The LLM is trained on IT asset classification taxonomies including:
- * - Device types (network infrastructure, servers, endpoints, security appliances, storage, cloud, IoT/OT)
- * - Platform types (identity/access, business critical, communication, development, data stores)
- * - Mission functions (C2, revenue, customer data, IP, ops continuity, compliance, auth)
- * - Essential services (SSO, AD, payment, email, VPN, DNS, DB, API gateway, etc.)
- *
- * Returns classification with CARVER/Shock adjustments and reasoning.
+ * Enhanced LLM asset classification with:
+ *   - Device type → Platform type → Mission function inference chain
+ *   - FIPS 199 security categorization
+ *   - Criticality tier assignment (1-5)
+ *   - CARVER+Shock factor suggestions based on classification
  */
 export async function classifyAssets(
   assets: Array<{
@@ -638,7 +1289,11 @@ export async function classifyAssets(
 ): Promise<Map<string, AssetClassification>> {
   if (assets.length === 0) return new Map();
 
-  const prompt = `You are an IT asset classification specialist. Classify each discovered asset based on its role in the organization's mission.
+  const prompt = `You are an IT asset classification specialist trained on NIST SP 800-60, FIPS 199, and organizational mission function mapping. Classify each discovered asset using a three-step inference chain:
+
+STEP 1: Identify DEVICE TYPE from hostname, services, and technology fingerprints
+STEP 2: Infer PLATFORM TYPE from device type and detected technologies
+STEP 3: Map to MISSION FUNCTION based on platform type and organizational context
 
 ORGANIZATION CONTEXT:
 - Name: ${orgContext.name}
@@ -654,6 +1309,18 @@ Mission Functions: ${MISSION_FUNCTIONS.join(", ")}
 Essential Services: ${ESSENTIAL_SERVICES.join(", ")}
 Business Impact Levels: ${BUSINESS_IMPACT_LEVELS.join(", ")}
 
+FIPS 199 Security Categories (for each of Confidentiality, Integrity, Availability):
+- high: Loss would have severe/catastrophic adverse effect
+- moderate: Loss would have serious adverse effect
+- low: Loss would have limited adverse effect
+
+Criticality Tiers:
+- 1 (Mission Critical): < 1 hour RTO, immediate operational impact
+- 2 (Business Critical): 1-24 hour RTO, significant impact within hours
+- 3 (Business Important): 1-7 day RTO, moderate impact within days
+- 4 (Administrative): > 7 day RTO, minimal impact
+- 5 (Non-Essential): No operational impact
+
 ASSETS TO CLASSIFY (${assets.length}):
 ${JSON.stringify(assets.map(a => ({
   id: a.assetId,
@@ -666,31 +1333,26 @@ ${JSON.stringify(assets.map(a => ({
   url: a.url,
 })), null, 2)}
 
-For EACH asset, determine:
-1. deviceType: The physical/virtual device category
-2. platformType: The application/platform category
-3. missionFunction: Which organizational mission this asset supports (pick the PRIMARY one)
-4. essentialService: The specific service this asset provides (from the list, or a custom short name)
-5. assetPurpose: A 1-2 sentence description of what this asset does for the organization
-6. businessImpactLevel: How severe would loss of this asset be?
-   - mission_critical: Loss causes >75% business function disruption (e.g., AD, primary DB, payment gateway)
-   - business_essential: Loss causes 40-75% disruption (e.g., email, VPN, CRM)
-   - operational: Loss causes 10-40% disruption (e.g., monitoring, CI/CD, dev tools)
-   - administrative: Loss causes <10% disruption (e.g., static sites, CDN, test environments)
-7. missionDependencies: What other assets/services does this depend on or feed into?
-8. carverAdjustments: Specific CARVER factor adjustments (0-10) based on your classification. Only include factors you want to adjust.
-9. shockAdjustments: Specific Shock factor adjustments (0-10) based on your classification. Only include factors you want to adjust.
-10. classificationConfidence: 0-1 confidence in your classification
-11. reasoning: Brief explanation of why you classified it this way
+For EACH asset, return:
+1. deviceType, platformType, missionFunction, essentialService
+2. assetPurpose: 1-2 sentence description of what this asset does for the organization
+3. businessImpactLevel: mission_critical | business_essential | operational | administrative
+4. fips199Category: { confidentiality: "low"|"moderate"|"high", integrity: "low"|"moderate"|"high", availability: "low"|"moderate"|"high" }
+5. criticalityTier: 1-5 based on RTO analysis
+6. missionDependencies: { upstreamAssets: [], downstreamAssets: [], sharedServices: [] }
+7. carverAdjustments: Specific CARVER factor scores (0-10) based on your classification
+8. shockAdjustments: Specific Shock factor scores (0-10) based on your classification
+9. classificationConfidence: 0-1
+10. reasoning: Brief explanation including your inference chain (device → platform → mission)
 
 CALIBRATION RULES:
-- Only 5-10% of assets should be mission_critical. Most should be operational or administrative.
-- Consider the organization's sector when assessing impact (healthcare → patient data is mission_critical)
-- CDNs, static sites, and marketing pages are almost always administrative
-- APIs and SSO are typically business_essential or higher
-- Databases are business_essential unless they store critical customer/financial data
+- Only 5-10% of assets should be mission_critical / Tier 1
+- Consider the organization's sector when assessing impact
+- CDNs, static sites, and marketing pages are almost always administrative / Tier 4-5
+- Domain controllers, SSO, and payment gateways are almost always Tier 1
+- APIs and databases are typically Tier 2 unless storing critical data
 
-Return JSON: { "classifications": [ { "assetId": "...", "deviceType": "...", ... } ] }`;
+Return JSON: { "classifications": [ { "assetId": "...", ... } ] }`;
 
   try {
     const response = await invokeLLM({
@@ -709,7 +1371,6 @@ Return JSON: { "classifications": [ { "assetId": "...", "deviceType": "...", ...
     try {
       parsed = JSON.parse(content);
     } catch {
-      // Try to extract JSON from markdown code blocks
       const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (match) parsed = JSON.parse(match[1]);
       else return new Map();
@@ -724,6 +1385,8 @@ Return JSON: { "classifications": [ { "assetId": "...", "deviceType": "...", ...
         essentialService: c.essentialService || "unknown",
         assetPurpose: c.assetPurpose || "",
         businessImpactLevel: c.businessImpactLevel || "operational",
+        fips199Category: c.fips199Category || undefined,
+        criticalityTier: c.criticalityTier ? clamp(c.criticalityTier, 1, 5) as CriticalityTier : undefined,
         missionDependencies: c.missionDependencies || { upstreamAssets: [], downstreamAssets: [], sharedServices: [] },
         carverAdjustments: c.carverAdjustments || {},
         shockAdjustments: c.shockAdjustments || {},
@@ -738,7 +1401,9 @@ Return JSON: { "classifications": [ { "assetId": "...", "deviceType": "...", ...
   }
 }
 
-// ─── Dynamic Re-scoring ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §12 — DYNAMIC RE-SCORING
+// ═══════════════════════════════════════════════════════════════════════
 
 export type RescoringTrigger =
   | "new_cve_discovered"
@@ -750,7 +1415,12 @@ export type RescoringTrigger =
   | "llm_reclassification"
   | "manual_override"
   | "profile_change"
-  | "initial_scan";
+  | "initial_scan"
+  | "cvss_v4_vector_added"
+  | "fips199_categorized"
+  | "criticality_tier_assigned"
+  | "kev_match"
+  | "darkweb_exposure";
 
 export interface RescoringEvent {
   trigger: RescoringTrigger;
@@ -760,9 +1430,7 @@ export interface RescoringEvent {
   previousBand: string;
   newBand: string;
   delta: number;
-  /** What changed that triggered the re-score */
   changeDescription: string;
-  /** Factor-level changes */
   factorChanges: Array<{
     factor: string;
     previousValue: number;
@@ -773,9 +1441,103 @@ export interface RescoringEvent {
 }
 
 /**
- * Compute score delta and generate a re-scoring event.
- * This is called whenever new intelligence triggers a re-evaluation.
+ * Discovery phase triggers and their CARVER/Shock adjustments.
+ * These define how new intelligence gathered during discovery
+ * automatically adjusts scoring factors.
  */
+export const DISCOVERY_PHASE_TRIGGERS: Record<string, {
+  description: string;
+  carverAdjustments: (data: any) => Partial<CarverScores>;
+  shockAdjustments: (data: any) => Partial<ShockScores>;
+  likelihoodBoost: (data: any) => number;
+}> = {
+  new_cve_discovered: {
+    description: "New CVE discovered during vulnerability scanning",
+    carverAdjustments: (data: { cvssScore?: number; exploitAvailable?: boolean; kevListed?: boolean }) => ({
+      vulnerability: data.kevListed ? 10 : data.exploitAvailable ? 8 : Math.min(10, Math.round((data.cvssScore ?? 5) * 1.2)),
+    }),
+    shockAdjustments: () => ({}),
+    likelihoodBoost: (data: { cvssScore?: number; exploitAvailable?: boolean }) =>
+      data.exploitAvailable ? 0.25 : (data.cvssScore ?? 5) > 7 ? 0.15 : 0.05,
+  },
+  new_port_service: {
+    description: "New port/service discovered during enumeration",
+    carverAdjustments: (data: { isHighRiskPort?: boolean; serviceVersion?: string }) => ({
+      accessibility: data.isHighRiskPort ? 8 : 6,
+      recognizability: data.serviceVersion ? 7 : 5,
+    }),
+    shockAdjustments: () => ({}),
+    likelihoodBoost: (data: { isHighRiskPort?: boolean }) => data.isHighRiskPort ? 0.1 : 0.03,
+  },
+  kev_match: {
+    description: "Asset vulnerability matches CISA Known Exploited Vulnerabilities catalog",
+    carverAdjustments: () => ({
+      vulnerability: 10,
+      recognizability: 8,
+    }),
+    shockAdjustments: () => ({
+      scope: 7,
+      handling: 7,
+    }),
+    likelihoodBoost: () => 0.3,
+  },
+  darkweb_exposure: {
+    description: "Asset credentials or data found on dark web marketplaces",
+    carverAdjustments: (data: { dataType?: string }) => ({
+      accessibility: 9,
+      vulnerability: 8,
+      recognizability: 9,
+    }),
+    shockAdjustments: (data: { dataType?: string }) => ({
+      scope: data.dataType === "credentials" ? 8 : 6,
+      handling: 8,
+    }),
+    likelihoodBoost: () => 0.25,
+  },
+  threat_actor_ttp_match: {
+    description: "Asset matches known threat actor TTP targeting patterns",
+    carverAdjustments: (data: { sophistication?: string }) => ({
+      vulnerability: data.sophistication === "apt" ? 7 : 5,
+    }),
+    shockAdjustments: (data: { sophistication?: string }) => ({
+      knowledge: data.sophistication === "apt" ? 3 : 6,
+    }),
+    likelihoodBoost: (data: { sophistication?: string }) => data.sophistication === "apt" ? 0.2 : 0.1,
+  },
+};
+
+/**
+ * Apply a discovery phase trigger to generate CARVER/Shock adjustments.
+ */
+export function applyDiscoveryTrigger(
+  triggerType: string,
+  triggerData: any,
+  currentCarver: CarverScores,
+  currentShock: ShockScores
+): { carver: CarverScores; shock: ShockScores; likelihoodBoost: number } {
+  const trigger = DISCOVERY_PHASE_TRIGGERS[triggerType];
+  if (!trigger) return { carver: currentCarver, shock: currentShock, likelihoodBoost: 0 };
+
+  const carverAdj = trigger.carverAdjustments(triggerData);
+  const shockAdj = trigger.shockAdjustments(triggerData);
+  const likelihoodBoost = trigger.likelihoodBoost(triggerData);
+
+  const adjustedCarver = { ...currentCarver };
+  const adjustedShock = { ...currentShock };
+
+  // Apply as floors (never lower)
+  for (const [key, val] of Object.entries(carverAdj)) {
+    const k = key as keyof CarverScores;
+    adjustedCarver[k] = Math.max(adjustedCarver[k], val as number);
+  }
+  for (const [key, val] of Object.entries(shockAdj)) {
+    const k = key as keyof ShockScores;
+    adjustedShock[k] = Math.max(adjustedShock[k], val as number);
+  }
+
+  return { carver: adjustedCarver, shock: adjustedShock, likelihoodBoost };
+}
+
 export function generateRescoringEvent(
   trigger: RescoringTrigger,
   assetId: string,
@@ -798,10 +1560,6 @@ export function generateRescoringEvent(
   };
 }
 
-/**
- * Determine if a re-scoring event is significant enough to warrant notification.
- * Significant events: band change, score delta > 15, or critical threshold crossed.
- */
 export function isSignificantChange(event: RescoringEvent): boolean {
   if (event.previousBand !== event.newBand) return true;
   if (Math.abs(event.delta) >= 15) return true;
@@ -809,11 +1567,10 @@ export function isSignificantChange(event: RescoringEvent): boolean {
   return false;
 }
 
-// ─── Utility Functions ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// §13 — UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════
 
-/**
- * Convert a DB scoring profile row to a ScoringProfile object.
- */
 export function dbProfileToScoringProfile(row: any): ScoringProfile {
   return {
     carverWeights: {
@@ -840,23 +1597,14 @@ export function dbProfileToScoringProfile(row: any): ScoringProfile {
   };
 }
 
-/**
- * Generate a heat map color for a given risk score (0-100).
- * Returns an HSL color string: green (low) → yellow (medium) → red (critical).
- */
 export function riskScoreToHeatColor(score: number): string {
   const clamped = clamp(score, 0, 100);
-  // Map 0-100 to hue 120 (green) → 0 (red)
   const hue = Math.round(120 * (1 - clamped / 100));
-  const saturation = 70 + Math.round(30 * (clamped / 100)); // More saturated at higher risk
-  const lightness = 50 - Math.round(10 * (clamped / 100)); // Darker at higher risk
+  const saturation = 70 + Math.round(30 * (clamped / 100));
+  const lightness = 50 - Math.round(10 * (clamped / 100));
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
-/**
- * Generate heat map data for attack path visualization overlay.
- * Groups assets by risk band and provides color-coded coordinates.
- */
 export function generateHeatMapData(
   assets: Array<{
     assetId: string;
@@ -876,7 +1624,6 @@ export function generateHeatMapData(
   color: string;
   missionFunction: string;
   businessImpactLevel: string;
-  /** Normalized intensity for heat map rendering (0-1) */
   intensity: number;
 }> {
   return assets.map(a => ({

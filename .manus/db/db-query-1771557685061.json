@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `cvssV4Vector` varchar(512);\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `fips199Category` json;\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `criticalityTier` int;\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `deviceType` varchar(64);\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `platformType` varchar(64);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute ALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `cvssV4Vector` varchar(512);\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `fips199Category` json;\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `criticalityTier` int;\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `deviceType` varchar(64);\nALTER TABLE `discovered_assets` ADD COLUMN IF NOT EXISTS `platformType` varchar(64);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2205
+}

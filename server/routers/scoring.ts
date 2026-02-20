@@ -1,9 +1,10 @@
 /**
- * CARVER+Shock / CVSS Hybrid Scoring Router (Enhanced)
- * ─────────────────────────────────────────────────────
+ * CARVER+Shock / CVSS v4.0 Hybrid Scoring Router (Enhanced)
+ * ─────────────────────────────────────────────────────────
  * Manages scoring profiles, LLM-based asset classification,
- * dynamic re-scoring with mission function baselines, and
- * heat map data for attack path visualization.
+ * CVSS v4.0 vector parsing and feed-through, FIPS 199 categorization,
+ * criticality tier management, dynamic re-scoring with mission
+ * function baselines, and heat map data for attack path visualization.
  */
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -27,17 +28,31 @@ import {
   generateRescoringEvent,
   isSignificantChange,
   businessImpactToMultiplier,
+  parseCvssV4Vector,
+  buildCvssV4Vector,
+  cvssV4ToCarverAdjustments,
+  fips199ToCarverAdjustments,
+  applyCriticalityTierFloors,
+  applyDiscoveryTrigger,
   MISSION_FUNCTIONS,
   ESSENTIAL_SERVICES,
   BUSINESS_IMPACT_LEVELS,
   MISSION_FUNCTION_BASELINES,
   ESSENTIAL_SERVICE_BASELINES,
+  CARVER_DIGITAL_TRANSLATION,
+  SHOCK_DIGITAL_TRANSLATION,
+  CRITICALITY_TIERS,
+  DISCOVERY_PHASE_TRIGGERS,
+  ASSET_DEVICE_TYPES,
+  ASSET_PLATFORM_TYPES,
   type ScoringInput,
   type ScoringProfile,
   type ScoringResult,
   type CarverScores,
   type ShockScores,
   type RescoringEvent,
+  type CriticalityTier,
+  type Fips199Category,
 } from "../lib/scoring-engine";
 
 async function getDbSafe() {
@@ -46,7 +61,7 @@ async function getDbSafe() {
   return db;
 }
 
-/** Build a ScoringInput from an asset row, applying mission function baselines */
+/** Build a ScoringInput from an asset row, applying mission function baselines and CVSS v4.0 feed-through */
 function buildScoringInput(asset: any, profile: ScoringProfile): ScoringInput {
   let carver: CarverScores = (asset.carverScores as any) || {
     criticality: 3, accessibility: 3, recuperability: 3,
@@ -86,6 +101,10 @@ function buildScoringInput(asset: any, profile: ScoringProfile): ScoringInput {
     confirmedVulnScore: asset.vulnRiskScore ?? undefined,
     missionMultiplier,
     businessImpactLevel: asset.businessImpactLevel ?? undefined,
+    // Enhanced v4.0 fields
+    cvssV4Vector: asset.cvssV4Vector ?? undefined,
+    fips199: asset.fips199Category ? (asset.fips199Category as Fips199Category) : undefined,
+    criticalityTier: asset.criticalityTier ?? undefined,
   };
 }
 
@@ -132,7 +151,38 @@ export const scoringRouter = router({
         label: bil.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
         multiplier: businessImpactToMultiplier(bil),
       })),
+      deviceTypes: ASSET_DEVICE_TYPES.filter(t => t !== "unknown").map(dt => ({
+        key: dt,
+        label: dt.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      })),
+      platformTypes: ASSET_PLATFORM_TYPES.filter(t => t !== "unknown").map(pt => ({
+        key: pt,
+        label: pt.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      })),
+      criticalityTiers: Object.entries(CRITICALITY_TIERS).map(([tier, def]) => ({
+        tier: Number(tier),
+        name: def.name,
+        rto: def.rto,
+        description: def.description,
+        missionMultiplier: def.missionMultiplier,
+      })),
     };
+  }),
+
+  /** Get CARVER+Shock digital translation reference (FM 34-36 aligned) */
+  getCarverReference: protectedProcedure.query(() => {
+    return {
+      carver: CARVER_DIGITAL_TRANSLATION,
+      shock: SHOCK_DIGITAL_TRANSLATION,
+    };
+  }),
+
+  /** Get available discovery phase triggers */
+  getDiscoveryTriggers: protectedProcedure.query(() => {
+    return Object.entries(DISCOVERY_PHASE_TRIGGERS).map(([key, val]) => ({
+      key,
+      description: val.description,
+    }));
   }),
 
   createProfile: protectedProcedure
@@ -240,12 +290,391 @@ export const scoringRouter = router({
       return { success: true };
     }),
 
-  // ─── LLM Asset Classification ──────────────────────────────────────
+  // ─── CVSS v4.0 Operations ──────────────────────────────────────────
 
-  /** Classify assets in a scan using LLM to determine mission function,
-   *  essential service, business impact level, and inter-asset dependencies.
-   *  This is the key differentiator: the LLM is trained on IT asset taxonomies
-   *  to infer what each asset does for the organization. */
+  /** Parse a CVSS v4.0 vector string and return structured metrics + CARVER feed-through */
+  parseCvssV4: protectedProcedure
+    .input(z.object({ vector: z.string() }))
+    .query(({ input }) => {
+      const parsed = parseCvssV4Vector(input.vector);
+      if (!parsed) return { error: "Invalid CVSS v4.0 vector string", parsed: null, feedThrough: null };
+
+      const feedThrough = cvssV4ToCarverAdjustments(parsed);
+      return { error: null, parsed, feedThrough };
+    }),
+
+  /** Build a CVSS v4.0 vector string from individual metrics */
+  buildCvssV4Vector: protectedProcedure
+    .input(z.object({
+      AV: z.enum(["N", "A", "L", "P"]),
+      AC: z.enum(["L", "H"]),
+      AT: z.enum(["N", "P"]),
+      PR: z.enum(["N", "L", "H"]),
+      UI: z.enum(["N", "P", "A"]),
+      VC: z.enum(["N", "L", "H"]),
+      VI: z.enum(["N", "L", "H"]),
+      VA: z.enum(["N", "L", "H"]),
+      SC: z.enum(["N", "L", "H"]),
+      SI: z.enum(["N", "L", "H"]),
+      SA: z.enum(["N", "L", "H"]),
+      E: z.enum(["X", "A", "P", "U"]).optional(),
+      CR: z.enum(["X", "H", "M", "L"]).optional(),
+      IR: z.enum(["X", "H", "M", "L"]).optional(),
+      AR: z.enum(["X", "H", "M", "L"]).optional(),
+      S: z.enum(["X", "N", "P"]).optional(),
+      AU: z.enum(["X", "N", "Y"]).optional(),
+      R: z.enum(["X", "A", "U", "I"]).optional(),
+      V: z.enum(["X", "D", "C"]).optional(),
+      RE: z.enum(["X", "L", "M", "H"]).optional(),
+    }))
+    .query(({ input }) => {
+      const vector = buildCvssV4Vector(input);
+      const parsed = parseCvssV4Vector(vector);
+      return { vector, parsed };
+    }),
+
+  /** Apply CVSS v4.0 vector to an asset and re-score */
+  applyCvssV4ToAsset: protectedProcedure
+    .input(z.object({
+      assetId: z.number(),
+      cvssV4Vector: z.string(),
+      profileId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const [asset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      if (!asset) throw new Error("Asset not found");
+
+      const parsed = parseCvssV4Vector(input.cvssV4Vector);
+      if (!parsed) throw new Error("Invalid CVSS v4.0 vector string");
+
+      // Store the vector on the asset
+      await db.update(discoveredAssets).set({
+        cvssV4Vector: input.cvssV4Vector,
+        cvssEstimate: Math.round(parsed.estimatedScore),
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      // Re-score with the new vector
+      let profile: ScoringProfile = DEFAULT_PROFILE;
+      if (input.profileId) {
+        const [row] = await db.select().from(scoringProfiles).where(eq(scoringProfiles.id, input.profileId));
+        if (row) profile = dbProfileToScoringProfile(row);
+      }
+
+      // Re-fetch asset with updated vector
+      const [updatedAsset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      const scoringInput = buildScoringInput(updatedAsset, profile);
+      const result = computeHybridRisk(scoringInput, profile);
+
+      const previousScore = asset.hybridRiskScore ?? 0;
+      const previousBand = asset.riskBand ?? "low";
+
+      await db.update(discoveredAssets).set({
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        missionImpactScore: Math.round(result.missionImpactScore * 10) / 10,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        scoringVersion: sql`COALESCE(${discoveredAssets.scoringVersion}, 0) + 1`,
+        lastScoredAt: new Date(),
+        scoringProfileId: input.profileId ?? null,
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      await db.insert(scoringAuditLog).values({
+        assetId: input.assetId,
+        scanId: asset.scanId,
+        profileId: input.profileId ?? null,
+        carverScores: scoringInput.carver,
+        shockScores: scoringInput.shock,
+        cvssEstimate: parsed.estimatedScore,
+        missionImpactScore: result.missionImpactScore,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        weightsSnapshot: profile,
+        computedBy: ctx.user.openId,
+      });
+
+      return {
+        ...result,
+        delta: result.hybridRiskScore - previousScore,
+        previousBand,
+        cvssV4: parsed,
+        feedThrough: cvssV4ToCarverAdjustments(parsed),
+      };
+    }),
+
+  // ─── FIPS 199 Categorization ──────────────────────────────────────
+
+  /** Apply FIPS 199 security categorization to an asset */
+  applyFips199: protectedProcedure
+    .input(z.object({
+      assetId: z.number(),
+      confidentiality: z.enum(["low", "moderate", "high"]),
+      integrity: z.enum(["low", "moderate", "high"]),
+      availability: z.enum(["low", "moderate", "high"]),
+      profileId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const [asset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      if (!asset) throw new Error("Asset not found");
+
+      const fips199: Fips199Category = {
+        confidentiality: input.confidentiality,
+        integrity: input.integrity,
+        availability: input.availability,
+      };
+
+      // Store FIPS 199 on the asset
+      await db.update(discoveredAssets).set({
+        fips199Category: fips199,
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      // Re-score
+      let profile: ScoringProfile = DEFAULT_PROFILE;
+      if (input.profileId) {
+        const [row] = await db.select().from(scoringProfiles).where(eq(scoringProfiles.id, input.profileId));
+        if (row) profile = dbProfileToScoringProfile(row);
+      }
+
+      const [updatedAsset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      const scoringInput = buildScoringInput(updatedAsset, profile);
+      const result = computeHybridRisk(scoringInput, profile);
+
+      const previousScore = asset.hybridRiskScore ?? 0;
+
+      await db.update(discoveredAssets).set({
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        missionImpactScore: Math.round(result.missionImpactScore * 10) / 10,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        scoringVersion: sql`COALESCE(${discoveredAssets.scoringVersion}, 0) + 1`,
+        lastScoredAt: new Date(),
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      await db.insert(scoringAuditLog).values({
+        assetId: input.assetId,
+        scanId: asset.scanId,
+        profileId: input.profileId ?? null,
+        carverScores: scoringInput.carver,
+        shockScores: scoringInput.shock,
+        cvssEstimate: asset.cvssEstimate ?? 5,
+        missionImpactScore: result.missionImpactScore,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        weightsSnapshot: profile,
+        computedBy: ctx.user.openId,
+      });
+
+      const fipsAdjustments = fips199ToCarverAdjustments(fips199);
+
+      return {
+        ...result,
+        delta: result.hybridRiskScore - previousScore,
+        fips199Applied: fips199,
+        fipsAdjustments,
+      };
+    }),
+
+  // ─── Criticality Tier Management ──────────────────────────────────
+
+  /** Assign a criticality tier (1-5) to an asset and re-score */
+  assignCriticalityTier: protectedProcedure
+    .input(z.object({
+      assetId: z.number(),
+      tier: z.number().min(1).max(5),
+      profileId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const [asset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      if (!asset) throw new Error("Asset not found");
+
+      const tier = input.tier as CriticalityTier;
+      const tierDef = CRITICALITY_TIERS[tier];
+
+      await db.update(discoveredAssets).set({
+        criticalityTier: tier,
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      // Re-score
+      let profile: ScoringProfile = DEFAULT_PROFILE;
+      if (input.profileId) {
+        const [row] = await db.select().from(scoringProfiles).where(eq(scoringProfiles.id, input.profileId));
+        if (row) profile = dbProfileToScoringProfile(row);
+      }
+
+      const [updatedAsset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      const scoringInput = buildScoringInput(updatedAsset, profile);
+      const result = computeHybridRisk(scoringInput, profile);
+
+      const previousScore = asset.hybridRiskScore ?? 0;
+
+      await db.update(discoveredAssets).set({
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        missionImpactScore: Math.round(result.missionImpactScore * 10) / 10,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        scoringVersion: sql`COALESCE(${discoveredAssets.scoringVersion}, 0) + 1`,
+        lastScoredAt: new Date(),
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      await db.insert(scoringAuditLog).values({
+        assetId: input.assetId,
+        scanId: asset.scanId,
+        profileId: input.profileId ?? null,
+        carverScores: scoringInput.carver,
+        shockScores: scoringInput.shock,
+        cvssEstimate: asset.cvssEstimate ?? 5,
+        missionImpactScore: result.missionImpactScore,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        weightsSnapshot: profile,
+        computedBy: ctx.user.openId,
+      });
+
+      return {
+        ...result,
+        delta: result.hybridRiskScore - previousScore,
+        tierApplied: {
+          tier,
+          name: tierDef.name,
+          rto: tierDef.rto,
+          missionMultiplier: tierDef.missionMultiplier,
+        },
+      };
+    }),
+
+  // ─── Dynamic Re-Scoring (Discovery Phase Triggers) ────────────────
+
+  /** Apply a discovery phase trigger to an asset and re-score dynamically */
+  applyDiscoveryTrigger: protectedProcedure
+    .input(z.object({
+      assetId: z.number(),
+      triggerType: z.string(),
+      triggerData: z.any().default({}),
+      profileId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const [asset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      if (!asset) throw new Error("Asset not found");
+
+      const currentCarver: CarverScores = (asset.carverScores as any) || {
+        criticality: 3, accessibility: 3, recuperability: 3,
+        vulnerability: 3, effect: 3, recognizability: 3,
+      };
+      const currentShock: ShockScores = (asset.shockScores as any) || {
+        scope: 3, handling: 3, operationalImpact: 3,
+        cascadingEffects: 3, knowledge: 3,
+      };
+
+      const { carver: newCarver, shock: newShock, likelihoodBoost } =
+        applyDiscoveryTrigger(input.triggerType, input.triggerData, currentCarver, currentShock);
+
+      // Update the raw CARVER/Shock scores on the asset
+      await db.update(discoveredAssets).set({
+        carverScores: newCarver,
+        shockScores: newShock,
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      // Re-score with updated factors
+      let profile: ScoringProfile = DEFAULT_PROFILE;
+      if (input.profileId) {
+        const [row] = await db.select().from(scoringProfiles).where(eq(scoringProfiles.id, input.profileId));
+        if (row) profile = dbProfileToScoringProfile(row);
+      }
+
+      const [updatedAsset] = await db.select().from(discoveredAssets).where(eq(discoveredAssets.id, input.assetId));
+      const scoringInput = buildScoringInput(updatedAsset, profile);
+      // Add the likelihood boost from the trigger
+      scoringInput.portLikelihoodBoost = (scoringInput.portLikelihoodBoost ?? 0) + likelihoodBoost;
+
+      const result = computeHybridRisk(scoringInput, profile);
+
+      const previousScore = asset.hybridRiskScore ?? 0;
+      const previousBand = asset.riskBand ?? "low";
+
+      await db.update(discoveredAssets).set({
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        missionImpactScore: Math.round(result.missionImpactScore * 10) / 10,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        scoringVersion: sql`COALESCE(${discoveredAssets.scoringVersion}, 0) + 1`,
+        lastScoredAt: new Date(),
+      }).where(eq(discoveredAssets.id, input.assetId));
+
+      await db.insert(scoringAuditLog).values({
+        assetId: input.assetId,
+        scanId: asset.scanId,
+        profileId: input.profileId ?? null,
+        carverScores: newCarver,
+        shockScores: newShock,
+        cvssEstimate: asset.cvssEstimate ?? 5,
+        missionImpactScore: result.missionImpactScore,
+        impactScore: result.impactScore,
+        likelihoodScore: result.likelihoodScore,
+        hybridRiskScore: result.hybridRiskScore,
+        riskBand: result.riskBand,
+        weightsSnapshot: profile,
+        computedBy: ctx.user.openId,
+      });
+
+      // Build factor changes for the event
+      const factorChanges: Array<{ factor: string; previousValue: number; newValue: number; reason: string }> = [];
+      for (const key of Object.keys(currentCarver) as (keyof CarverScores)[]) {
+        if (newCarver[key] !== currentCarver[key]) {
+          factorChanges.push({
+            factor: `CARVER.${key}`,
+            previousValue: currentCarver[key],
+            newValue: newCarver[key],
+            reason: `Discovery trigger: ${input.triggerType}`,
+          });
+        }
+      }
+      for (const key of Object.keys(currentShock) as (keyof ShockScores)[]) {
+        if (newShock[key] !== currentShock[key]) {
+          factorChanges.push({
+            factor: `Shock.${key}`,
+            previousValue: currentShock[key],
+            newValue: newShock[key],
+            reason: `Discovery trigger: ${input.triggerType}`,
+          });
+        }
+      }
+
+      const event: RescoringEvent = {
+        trigger: input.triggerType as any,
+        assetId: String(input.assetId),
+        previousScore,
+        newScore: result.hybridRiskScore,
+        previousBand,
+        newBand: result.riskBand,
+        delta: result.hybridRiskScore - previousScore,
+        changeDescription: `Discovery trigger '${input.triggerType}' applied`,
+        factorChanges,
+        timestamp: Date.now(),
+      };
+
+      return {
+        ...result,
+        event,
+        significant: isSignificantChange(event),
+        factorChanges,
+      };
+    }),
+
+  // ─── LLM Asset Classification (Enhanced) ──────────────────────────
+
   classifyAssets: protectedProcedure
     .input(
       z.object({
@@ -266,7 +695,6 @@ export const scoringRouter = router({
 
       if (assets.length === 0) return { classified: 0, results: [] };
 
-      // Prepare asset data for LLM classification
       const assetData = assets.map(a => ({
         assetId: a.assetId || `asset-${a.id}`,
         hostname: a.hostname,
@@ -277,7 +705,6 @@ export const scoringRouter = router({
         url: a.url || undefined,
       }));
 
-      // Run LLM classification in batches of 15
       const batchSize = 15;
       const allClassifications = new Map<string, any>();
 
@@ -294,14 +721,17 @@ export const scoringRouter = router({
         }
       }
 
-      // Update assets with classification results
       const results: Array<{
         assetId: number;
         hostname: string;
+        deviceType: string;
+        platformType: string;
         missionFunction: string;
         essentialService: string;
         businessImpactLevel: string;
         assetPurpose: string;
+        fips199Category: any;
+        criticalityTier: number | null;
         confidence: number;
       }> = [];
 
@@ -310,25 +740,45 @@ export const scoringRouter = router({
         const classification = allClassifications.get(assetKey);
         if (!classification) continue;
 
+        const updateData: any = {
+          missionFunction: classification.missionFunction,
+          essentialService: classification.essentialService,
+          assetPurpose: classification.assetPurpose,
+          businessImpactLevel: classification.businessImpactLevel,
+          missionDependencies: classification.missionDependencies,
+          llmClassification: classification,
+        };
+
+        // Store enhanced classification fields if available
+        if (classification.fips199Category) {
+          updateData.fips199Category = classification.fips199Category;
+        }
+        if (classification.criticalityTier) {
+          updateData.criticalityTier = classification.criticalityTier;
+        }
+        if (classification.deviceType) {
+          updateData.deviceType = classification.deviceType;
+        }
+        if (classification.platformType) {
+          updateData.platformType = classification.platformType;
+        }
+
         await db
           .update(discoveredAssets)
-          .set({
-            missionFunction: classification.missionFunction,
-            essentialService: classification.essentialService,
-            assetPurpose: classification.assetPurpose,
-            businessImpactLevel: classification.businessImpactLevel,
-            missionDependencies: classification.missionDependencies,
-            llmClassification: classification,
-          })
+          .set(updateData)
           .where(eq(discoveredAssets.id, asset.id));
 
         results.push({
           assetId: asset.id,
           hostname: asset.hostname,
+          deviceType: classification.deviceType || "unknown",
+          platformType: classification.platformType || "unknown",
           missionFunction: classification.missionFunction,
           essentialService: classification.essentialService,
           businessImpactLevel: classification.businessImpactLevel,
           assetPurpose: classification.assetPurpose,
+          fips199Category: classification.fips199Category || null,
+          criticalityTier: classification.criticalityTier || null,
           confidence: classification.classificationConfidence,
         });
       }
@@ -336,7 +786,6 @@ export const scoringRouter = router({
       return { classified: results.length, results };
     }),
 
-  /** Manually update an asset's mission classification */
   updateAssetClassification: protectedProcedure
     .input(
       z.object({
@@ -345,24 +794,23 @@ export const scoringRouter = router({
         essentialService: z.string().optional(),
         businessImpactLevel: z.string().optional(),
         assetPurpose: z.string().optional(),
+        deviceType: z.string().optional(),
+        platformType: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
       const db = await getDbSafe();
       const { assetId, ...updates } = input;
       const setData: any = {};
-      if (updates.missionFunction !== undefined) setData.missionFunction = updates.missionFunction;
-      if (updates.essentialService !== undefined) setData.essentialService = updates.essentialService;
-      if (updates.businessImpactLevel !== undefined) setData.businessImpactLevel = updates.businessImpactLevel;
-      if (updates.assetPurpose !== undefined) setData.assetPurpose = updates.assetPurpose;
-
+      for (const [key, val] of Object.entries(updates)) {
+        if (val !== undefined) setData[key] = val;
+      }
       await db.update(discoveredAssets).set(setData).where(eq(discoveredAssets.id, assetId));
       return { success: true };
     }),
 
-  // ─── Scoring Operations (Enhanced with Mission Baselines) ──────────
+  // ─── Scoring Operations ───────────────────────────────────────────
 
-  /** Score a single asset with mission function baselines applied */
   scoreAsset: protectedProcedure
     .input(
       z.object({
@@ -384,7 +832,6 @@ export const scoringRouter = router({
       const scoringInput = buildScoringInput(asset, profile);
       const result = computeHybridRisk(scoringInput, profile);
 
-      // Capture previous score for delta tracking
       const previousScore = asset.hybridRiskScore ?? 0;
       const previousBand = asset.riskBand ?? "low";
 
@@ -428,7 +875,6 @@ export const scoringRouter = router({
       };
     }),
 
-  /** Batch re-score all assets in a scan with mission function baselines */
   batchRescore: protectedProcedure
     .input(
       z.object({
@@ -456,6 +902,7 @@ export const scoringRouter = router({
         riskBand: string;
         missionFunction: string | null;
         businessImpactLevel: string | null;
+        criticalityTier: number | null;
         significant: boolean;
       }> = [];
 
@@ -506,6 +953,7 @@ export const scoringRouter = router({
           riskBand: result.riskBand,
           missionFunction: asset.missionFunction,
           businessImpactLevel: asset.businessImpactLevel,
+          criticalityTier: asset.criticalityTier,
           significant,
         });
       }
@@ -519,7 +967,6 @@ export const scoringRouter = router({
       };
     }),
 
-  /** Full pipeline: classify assets with LLM, then re-score with mission baselines */
   classifyAndRescore: protectedProcedure
     .input(
       z.object({
@@ -534,7 +981,6 @@ export const scoringRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDbSafe();
 
-      // Step 1: Classify assets
       const assets = await db.select().from(discoveredAssets).where(eq(discoveredAssets.scanId, input.scanId));
       if (assets.length === 0) return { classified: 0, scored: 0, results: [] };
 
@@ -561,29 +1007,31 @@ export const scoringRouter = router({
         for (const [key, val] of Array.from(classifications.entries())) allClassifications.set(key, val);
       }
 
-      // Step 2: Update classifications
       for (const asset of assets) {
         const assetKey = asset.assetId || `asset-${asset.id}`;
         const classification = allClassifications.get(assetKey);
         if (!classification) continue;
-        await db.update(discoveredAssets).set({
+        const updateData: any = {
           missionFunction: classification.missionFunction,
           essentialService: classification.essentialService,
           assetPurpose: classification.assetPurpose,
           businessImpactLevel: classification.businessImpactLevel,
           missionDependencies: classification.missionDependencies,
           llmClassification: classification,
-        }).where(eq(discoveredAssets.id, asset.id));
+        };
+        if (classification.fips199Category) updateData.fips199Category = classification.fips199Category;
+        if (classification.criticalityTier) updateData.criticalityTier = classification.criticalityTier;
+        if (classification.deviceType) updateData.deviceType = classification.deviceType;
+        if (classification.platformType) updateData.platformType = classification.platformType;
+        await db.update(discoveredAssets).set(updateData).where(eq(discoveredAssets.id, asset.id));
       }
 
-      // Step 3: Re-score with updated classifications
       let profile: ScoringProfile = DEFAULT_PROFILE;
       if (input.profileId) {
         const [row] = await db.select().from(scoringProfiles).where(eq(scoringProfiles.id, input.profileId));
         if (row) profile = dbProfileToScoringProfile(row);
       }
 
-      // Re-fetch assets with updated classifications
       const updatedAssets = await db.select().from(discoveredAssets).where(eq(discoveredAssets.scanId, input.scanId));
 
       const results: Array<{
@@ -592,6 +1040,7 @@ export const scoringRouter = router({
         missionFunction: string | null;
         essentialService: string | null;
         businessImpactLevel: string | null;
+        criticalityTier: number | null;
         oldScore: number;
         newScore: number;
         delta: number;
@@ -636,6 +1085,7 @@ export const scoringRouter = router({
           missionFunction: asset.missionFunction,
           essentialService: asset.essentialService,
           businessImpactLevel: asset.businessImpactLevel,
+          criticalityTier: asset.criticalityTier,
           oldScore,
           newScore: result.hybridRiskScore,
           delta: result.hybridRiskScore - oldScore,
@@ -650,7 +1100,7 @@ export const scoringRouter = router({
       };
     }),
 
-  /** Simulate scoring with a profile (preview mode, no save) */
+  /** Simulate scoring with a profile (preview mode, no save) — enhanced with CVSS v4.0 */
   simulateScore: protectedProcedure
     .input(
       z.object({
@@ -677,6 +1127,13 @@ export const scoringRouter = router({
         missionFunction: z.string().optional(),
         essentialService: z.string().optional(),
         businessImpactLevel: z.string().optional(),
+        cvssV4Vector: z.string().optional(),
+        fips199: z.object({
+          confidentiality: z.enum(["low", "moderate", "high"]),
+          integrity: z.enum(["low", "moderate", "high"]),
+          availability: z.enum(["low", "moderate", "high"]),
+        }).optional(),
+        criticalityTier: z.number().min(1).max(5).optional(),
       })
     )
     .query(async ({ input }) => {
@@ -692,7 +1149,6 @@ export const scoringRouter = router({
       let shock = input.shock;
       let missionMultiplier = 1.0;
 
-      // Apply mission baselines if provided
       if (input.missionFunction) {
         const baselines = applyMissionBaselines(
           carver as CarverScores,
@@ -719,6 +1175,9 @@ export const scoringRouter = router({
         confirmedVulnScore: input.confirmedVulnScore,
         missionMultiplier,
         businessImpactLevel: input.businessImpactLevel as any,
+        cvssV4Vector: input.cvssV4Vector,
+        fips199: input.fips199,
+        criticalityTier: input.criticalityTier as CriticalityTier | undefined,
       };
 
       const result = computeHybridRisk(scoringInput, profile);
@@ -761,19 +1220,20 @@ export const scoringRouter = router({
           assetPurpose: discoveredAssets.assetPurpose,
           scoringVersion: discoveredAssets.scoringVersion,
           lastScoredAt: discoveredAssets.lastScoredAt,
+          criticalityTier: discoveredAssets.criticalityTier,
+          fips199Category: discoveredAssets.fips199Category,
+          cvssV4Vector: discoveredAssets.cvssV4Vector,
         })
         .from(discoveredAssets)
         .where(eq(discoveredAssets.scanId, input.scanId))
         .orderBy(desc(discoveredAssets.hybridRiskScore));
 
-      // Generate heat map colors
       const heatMapAssets = assets.map(a => ({
         ...a,
         heatColor: riskScoreToHeatColor(a.hybridRiskScore ?? 0),
         intensity: Math.min(1, (a.hybridRiskScore ?? 0) / 100),
       }));
 
-      // Distribution stats
       const scores = assets.map(a => a.hybridRiskScore ?? 0);
       const total = scores.length;
       const avg = total > 0 ? scores.reduce((a, b) => a + b, 0) / total : 0;
@@ -782,7 +1242,6 @@ export const scoringRouter = router({
       const medium = scores.filter(s => s >= 40 && s < 65).length;
       const low = scores.filter(s => s < 40).length;
 
-      // Mission function distribution
       const missionFunctionDist: Record<string, { count: number; avgScore: number }> = {};
       for (const a of assets) {
         const mf = a.missionFunction || "unclassified";
@@ -794,11 +1253,17 @@ export const scoringRouter = router({
         missionFunctionDist[mf].avgScore = Math.round(missionFunctionDist[mf].avgScore / missionFunctionDist[mf].count);
       }
 
-      // Business impact distribution
       const impactDist: Record<string, number> = {};
       for (const a of assets) {
         const bil = a.businessImpactLevel || "unclassified";
         impactDist[bil] = (impactDist[bil] || 0) + 1;
+      }
+
+      // Criticality tier distribution
+      const tierDist: Record<string, number> = {};
+      for (const a of assets) {
+        const tier = a.criticalityTier ? `Tier ${a.criticalityTier}` : "Unassigned";
+        tierDist[tier] = (tierDist[tier] || 0) + 1;
       }
 
       return {
@@ -809,8 +1274,27 @@ export const scoringRouter = router({
           distribution: { critical, high, medium, low },
           missionFunctionDistribution: missionFunctionDist,
           businessImpactDistribution: impactDist,
+          criticalityTierDistribution: tierDist,
         },
       };
+    }),
+
+  // ─── Scoring Timeline (Dynamic Scoring History) ───────────────────
+
+  /** Get scoring history for an asset to visualize score changes over time */
+  getAssetScoringTimeline: protectedProcedure
+    .input(z.object({
+      assetId: z.number(),
+      limit: z.number().min(1).max(100).default(20),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      return db
+        .select()
+        .from(scoringAuditLog)
+        .where(eq(scoringAuditLog.assetId, input.assetId))
+        .orderBy(desc(scoringAuditLog.computedAt))
+        .limit(input.limit);
     }),
 
   // ─── Audit Log ──────────────────────────────────────────────────────

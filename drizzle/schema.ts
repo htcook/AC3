@@ -532,6 +532,15 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
   scoringVersion: int("scoringVersion").default(1), // increments on each re-score
   lastScoredAt: timestamp("lastScoredAt"), // when the asset was last scored
   scoringProfileId: int("scoringProfileId"), // which scoring profile was used
+  // CVSS v4.0 integration
+  cvssV4Vector: varchar("cvssV4Vector", { length: 512 }), // full CVSS v4.0 vector string
+  // FIPS 199 security categorization
+  fips199Category: json("fips199Category"), // { confidentiality, integrity, availability } each low/moderate/high
+  // Criticality tier (1-5, aligned to BCP/DR recovery tiers)
+  criticalityTier: int("criticalityTier"), // 1=Mission Critical, 2=Business Essential, 3=Operational, 4=Administrative, 5=Non-Essential
+  // Enhanced asset classification
+  deviceType: varchar("deviceType", { length: 64 }), // server, workstation, network_device, iot, mobile, etc.
+  platformType: varchar("platformType", { length: 64 }), // web_application, api_service, database, mail_server, etc.
 });
 
 export type DiscoveredAsset = typeof discoveredAssets.$inferSelect;

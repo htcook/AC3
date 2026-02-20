@@ -19,8 +19,16 @@ import {
   Target, Shield, Zap, Activity, Plus, Save, RotateCcw,
   AlertTriangle, TrendingUp, BarChart3, Crosshair, Flame,
   Gauge, RefreshCw, Eye, Trash2, Copy, Brain, Server,
-  Building2, Layers, Cpu, Network, FileSearch,
+  Building2, Layers, Cpu, Network, FileSearch, Clock,
+  ArrowRight, ChevronDown, ChevronUp, Info, Lock, Globe,
+  Wifi, Database, Monitor, Smartphone, HardDrive,
 } from "lucide-react";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+} from "@/components/ui/accordion";
 
 // ─── Risk band colors ──────────────────────────────────────────────────
 const RISK_COLORS: Record<string, string> = {
@@ -356,6 +364,21 @@ export default function ScoringHub() {
   const [selectedScanId, setSelectedScanId] = useState<number | undefined>();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
+  const [timelineAssetId, setTimelineAssetId] = useState<number | undefined>();
+
+  // CVSS v4.0 Calculator state
+  const [cvssMetrics, setCvssMetrics] = useState({
+    AV: "N" as "N"|"A"|"L"|"P", AC: "L" as "L"|"H", AT: "N" as "N"|"P",
+    PR: "N" as "N"|"L"|"H", UI: "N" as "N"|"P"|"A",
+    VC: "H" as "N"|"L"|"H", VI: "H" as "N"|"L"|"H", VA: "H" as "N"|"L"|"H",
+    SC: "N" as "N"|"L"|"H", SI: "N" as "N"|"L"|"H", SA: "N" as "N"|"L"|"H",
+    E: "X" as "X"|"A"|"P"|"U",
+    CR: "X" as "X"|"H"|"M"|"L", IR: "X" as "X"|"H"|"M"|"L", AR: "X" as "X"|"H"|"M"|"L",
+    S: "X" as "X"|"N"|"P", AU: "X" as "X"|"N"|"Y",
+    R: "X" as "X"|"A"|"U"|"I", V: "X" as "X"|"D"|"C", RE: "X" as "X"|"L"|"M"|"H",
+  });
+  const [cvssVectorInput, setCvssVectorInput] = useState("");
+  const [cvssApplyAssetId, setCvssApplyAssetId] = useState<number | undefined>();
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -395,6 +418,17 @@ export default function ScoringHub() {
     { scanId: selectedScanId, limit: 50 },
     { enabled: !!selectedScanId }
   );
+  const carverRefQ = trpc.scoring.getCarverReference.useQuery();
+  const discoveryTriggersQ = trpc.scoring.getDiscoveryTriggers.useQuery();
+  const cvssParseQ = trpc.scoring.parseCvssV4.useQuery(
+    { vector: cvssVectorInput },
+    { enabled: cvssVectorInput.startsWith("CVSS:4.0/") }
+  );
+  const cvssBuildQ = trpc.scoring.buildCvssV4Vector.useQuery(cvssMetrics);
+  const timelineQ = trpc.scoring.getAssetScoringTimeline.useQuery(
+    { assetId: timelineAssetId!, limit: 50 },
+    { enabled: !!timelineAssetId }
+  );
 
   // Mutations
   const createProfile = trpc.scoring.createProfile.useMutation({
@@ -421,6 +455,13 @@ export default function ScoringHub() {
   const classifyAndRescore = trpc.scoring.classifyAndRescore.useMutation({
     onSuccess: (data: any) => {
       toast.success(`Classified ${data.classified} assets, re-scored ${data.scored}`);
+      heatMapQ.refetch();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const applyCvssV4 = trpc.scoring.applyCvssV4ToAsset.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`CVSS v4.0 applied — score ${data.hybridRiskScore} (${data.riskBand}) Δ${data.delta > 0 ? "+" : ""}${data.delta}`);
       heatMapQ.refetch();
     },
     onError: (e: any) => toast.error(e.message),
@@ -760,6 +801,15 @@ export default function ScoringHub() {
           </TabsTrigger>
           <TabsTrigger value="mission">
             <Building2 className="w-4 h-4 mr-1" /> Mission Functions
+          </TabsTrigger>
+          <TabsTrigger value="cvss4">
+            <Zap className="w-4 h-4 mr-1" /> CVSS v4.0
+          </TabsTrigger>
+          <TabsTrigger value="carver-ref">
+            <Target className="w-4 h-4 mr-1" /> CARVER Matrix
+          </TabsTrigger>
+          <TabsTrigger value="timeline">
+            <TrendingUp className="w-4 h-4 mr-1" /> Scoring Timeline
           </TabsTrigger>
           <TabsTrigger value="audit">
             <Eye className="w-4 h-4 mr-1" /> Audit Log
@@ -1141,6 +1191,500 @@ export default function ScoringHub() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* ─── CVSS v4.0 Calculator Tab ────────────────────────────── */}
+        <TabsContent value="cvss4" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Vector Builder */}
+            <div className="lg:col-span-2 space-y-4">
+              <Card className="bg-zinc-900/50 border-zinc-800">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-violet-400" />
+                    CVSS v4.0 Vector Builder
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Build or parse CVSS v4.0 vectors. The engine automatically translates CVSS metrics into CARVER factor adjustments.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Parse existing vector */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={cvssVectorInput}
+                      onChange={(e) => setCvssVectorInput(e.target.value)}
+                      placeholder="CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"
+                      className="font-mono text-xs"
+                    />
+                    <Button size="sm" variant="outline" onClick={() => {
+                      if (cvssBuildQ.data?.vector) setCvssVectorInput(cvssBuildQ.data.vector);
+                    }}>
+                      <Copy className="w-3 h-3 mr-1" /> From Builder
+                    </Button>
+                  </div>
+
+                  {/* Base Metrics */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Base Metrics (Required)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {([
+                        { key: "AV", label: "Attack Vector", opts: [["N","Network"],["A","Adjacent"],["L","Local"],["P","Physical"]] },
+                        { key: "AC", label: "Attack Complexity", opts: [["L","Low"],["H","High"]] },
+                        { key: "AT", label: "Attack Requirements", opts: [["N","None"],["P","Present"]] },
+                        { key: "PR", label: "Privileges Required", opts: [["N","None"],["L","Low"],["H","High"]] },
+                        { key: "UI", label: "User Interaction", opts: [["N","None"],["P","Passive"],["A","Active"]] },
+                        { key: "VC", label: "Vuln. Confidentiality", opts: [["N","None"],["L","Low"],["H","High"]] },
+                        { key: "VI", label: "Vuln. Integrity", opts: [["N","None"],["L","Low"],["H","High"]] },
+                        { key: "VA", label: "Vuln. Availability", opts: [["N","None"],["L","Low"],["H","High"]] },
+                        { key: "SC", label: "Sub. Confidentiality", opts: [["N","None"],["L","Low"],["H","High"]] },
+                        { key: "SI", label: "Sub. Integrity", opts: [["N","None"],["L","Low"],["H","High"]] },
+                        { key: "SA", label: "Sub. Availability", opts: [["N","None"],["L","Low"],["H","High"]] },
+                      ] as { key: string; label: string; opts: string[][] }[]).map((m) => (
+                        <div key={m.key}>
+                          <Label className="text-[10px] text-zinc-500">{m.label}</Label>
+                          <Select
+                            value={(cvssMetrics as any)[m.key]}
+                            onValueChange={(v) => setCvssMetrics((p) => ({ ...p, [m.key]: v }))}
+                          >
+                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {m.opts.map(([val, lbl]) => (
+                                <SelectItem key={val} value={val}>{val}: {lbl}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Threat + Environmental + Supplemental */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Threat / Environmental / Supplemental (Optional)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {([
+                        { key: "E", label: "Exploit Maturity", opts: [["X","Not Defined"],["A","Attacked"],["P","PoC"],["U","Unreported"]] },
+                        { key: "CR", label: "Conf. Requirement", opts: [["X","Not Defined"],["H","High"],["M","Medium"],["L","Low"]] },
+                        { key: "IR", label: "Integ. Requirement", opts: [["X","Not Defined"],["H","High"],["M","Medium"],["L","Low"]] },
+                        { key: "AR", label: "Avail. Requirement", opts: [["X","Not Defined"],["H","High"],["M","Medium"],["L","Low"]] },
+                        { key: "S", label: "Safety", opts: [["X","Not Defined"],["N","Negligible"],["P","Present"]] },
+                        { key: "AU", label: "Automatable", opts: [["X","Not Defined"],["N","No"],["Y","Yes"]] },
+                        { key: "R", label: "Recovery", opts: [["X","Not Defined"],["A","Automatic"],["U","User"],["I","Irrecoverable"]] },
+                        { key: "V", label: "Value Density", opts: [["X","Not Defined"],["D","Diffuse"],["C","Concentrated"]] },
+                        { key: "RE", label: "Response Effort", opts: [["X","Not Defined"],["L","Low"],["M","Moderate"],["H","High"]] },
+                      ] as { key: string; label: string; opts: string[][] }[]).map((m) => (
+                        <div key={m.key}>
+                          <Label className="text-[10px] text-zinc-500">{m.label}</Label>
+                          <Select
+                            value={(cvssMetrics as any)[m.key]}
+                            onValueChange={(v) => setCvssMetrics((p) => ({ ...p, [m.key]: v }))}
+                          >
+                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {m.opts.map(([val, lbl]) => (
+                                <SelectItem key={val} value={val}>{val}: {lbl}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Apply to Asset */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                    <Label className="text-xs text-zinc-400 shrink-0">Apply to Asset ID:</Label>
+                    <Input
+                      type="number" className="w-24 h-8 text-xs"
+                      value={cvssApplyAssetId ?? ""}
+                      onChange={(e) => setCvssApplyAssetId(e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="#"
+                    />
+                    <Button
+                      size="sm" className="bg-violet-600 hover:bg-violet-700 h-8 text-xs"
+                      disabled={!cvssApplyAssetId || !cvssBuildQ.data?.vector || applyCvssV4.isPending}
+                      onClick={() => {
+                        if (cvssApplyAssetId && cvssBuildQ.data?.vector) {
+                          applyCvssV4.mutate({
+                            assetId: cvssApplyAssetId,
+                            cvssV4Vector: cvssBuildQ.data.vector,
+                            profileId: selectedProfileId,
+                          });
+                        }
+                      }}
+                    >
+                      {applyCvssV4.isPending ? <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
+                      Apply CVSS v4.0 & Re-Score
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Result Panel */}
+            <div className="space-y-4">
+              <Card className="bg-zinc-900/50 border-violet-500/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Computed Vector</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="bg-zinc-800/50 rounded-lg p-3">
+                    <code className="text-[10px] text-violet-300 break-all font-mono">
+                      {cvssBuildQ.data?.vector ?? "Building..."}
+                    </code>
+                  </div>
+                  {cvssBuildQ.data?.parsed && (
+                    <>
+                      <div className="text-center">
+                        <div className="text-4xl font-bold" style={{
+                          color: cvssBuildQ.data.parsed.estimatedScore >= 9 ? "#ef4444"
+                            : cvssBuildQ.data.parsed.estimatedScore >= 7 ? "#f97316"
+                            : cvssBuildQ.data.parsed.estimatedScore >= 4 ? "#eab308" : "#22c55e"
+                        }}>
+                          {cvssBuildQ.data.parsed.estimatedScore.toFixed(1)}
+                        </div>
+                        <div className="text-[10px] text-zinc-500 mt-1">Estimated CVSS v4.0 Score</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-zinc-800/50 rounded p-2">
+                          <div className="text-zinc-500 text-[10px]">Nomenclature</div>
+                          <div className="text-violet-400 font-mono">{cvssBuildQ.data.parsed.nomenclature ?? "N/A"}</div>
+                        </div>
+                        <div className="bg-zinc-800/50 rounded p-2">
+                          <div className="text-zinc-500 text-[10px]">Severity</div>
+                          <div className="text-rose-400 font-mono">{cvssBuildQ.data.parsed.severity ?? "N/A"}</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* CARVER Feed-Through Preview */}
+              {cvssVectorInput.startsWith("CVSS:4.0/") && cvssParseQ.data?.feedThrough && (
+                <Card className="bg-zinc-900/50 border-cyan-500/30">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <ArrowRight className="w-4 h-4 text-cyan-400" />
+                      CVSS → CARVER Feed-Through
+                    </CardTitle>
+                    <CardDescription className="text-[10px]">
+                      Automatic CARVER factor adjustments derived from the CVSS v4.0 vector.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {Object.entries(cvssParseQ.data.feedThrough.carverAdjustments ?? {}).map(([key, val]) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <span className="text-[10px] text-zinc-400 w-28 capitalize">{key}</span>
+                          <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${((val as number) / 10) * 100}%` }} />
+                          </div>
+                          <span className="text-xs font-mono text-cyan-400 w-6 text-right">{val as number}</span>
+                        </div>
+                      ))}
+                      {Object.entries(cvssParseQ.data.feedThrough.shockAdjustments ?? {}).map(([key, val]) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <span className="text-[10px] text-zinc-400 w-28 capitalize">{key.replace(/([A-Z])/g, " $1")}</span>
+                          <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-500 rounded-full" style={{ width: `${((val as number) / 10) * 100}%` }} />
+                          </div>
+                          <span className="text-xs font-mono text-amber-400 w-6 text-right">{val as number}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ─── CARVER Matrix Reference Tab ─────────────────────────────── */}
+        <TabsContent value="carver-ref" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* CARVER Factors */}
+            <Card className="bg-zinc-900/50 border-zinc-800">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Crosshair className="w-4 h-4 text-cyan-400" />
+                  CARVER Factors — FM 34-36 Digital Translation
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Each factor from the US Army FM 34-36 targeting methodology translated to digital asset context.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {carverRefQ.data?.carver && Object.entries(carverRefQ.data.carver).map(([key, factor]: [string, any]) => (
+                    <div key={key} className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-700/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="text-xs font-semibold text-cyan-400">{factor.name}</h5>
+                        <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-300">
+                          FM 34-36
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 mb-2 italic">"{factor.fm34_36}"</p>
+                      <p className="text-[10px] text-zinc-300 mb-2">{factor.digital}</p>
+                      <div className="space-y-1">
+                        {factor.scale?.map((s: any, i: number) => (
+                          <div key={i} className="flex gap-2 text-[9px]">
+                            <Badge className="shrink-0 text-[8px] w-10 justify-center" style={{
+                              backgroundColor: s.range[0] >= 9 ? "#ef444430" : s.range[0] >= 7 ? "#f9731630" : s.range[0] >= 5 ? "#eab30830" : s.range[0] >= 3 ? "#22c55e30" : "#64748b30",
+                              color: s.range[0] >= 9 ? "#ef4444" : s.range[0] >= 7 ? "#f97316" : s.range[0] >= 5 ? "#eab308" : s.range[0] >= 3 ? "#22c55e" : "#94a3b8",
+                            }}>
+                              {s.range[0]}-{s.range[1]}
+                            </Badge>
+                            <span className="text-zinc-500">{s.digital}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {factor.subFactors && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {factor.subFactors.map((sf: string) => (
+                            <Badge key={sf} variant="outline" className="text-[8px] text-zinc-500 border-zinc-700">{sf}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Shock Factors */}
+            <div className="space-y-4">
+              <Card className="bg-zinc-900/50 border-zinc-800">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-amber-400" />
+                    Shock Factors — FDA Primer Digital Translation
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Shock factors adapted from the FDA CARVER+Shock primer for cyber impact assessment.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {carverRefQ.data?.shock && Object.entries(carverRefQ.data.shock).map(([key, factor]: [string, any]) => (
+                      <div key={key} className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-700/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-xs font-semibold text-amber-400">{factor.name}</h5>
+                          <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-300">
+                            Shock
+                          </Badge>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 mb-2 italic">"{factor.original}"</p>
+                        <p className="text-[10px] text-zinc-300 mb-2">{factor.digital}</p>
+                        <div className="space-y-1">
+                          {factor.scale?.map((s: any, i: number) => (
+                            <div key={i} className="flex gap-2 text-[9px]">
+                              <Badge className="shrink-0 text-[8px] w-10 justify-center" style={{
+                                backgroundColor: s.range[0] >= 9 ? "#ef444430" : s.range[0] >= 7 ? "#f9731630" : s.range[0] >= 5 ? "#eab30830" : s.range[0] >= 3 ? "#22c55e30" : "#64748b30",
+                                color: s.range[0] >= 9 ? "#ef4444" : s.range[0] >= 7 ? "#f97316" : s.range[0] >= 5 ? "#eab308" : s.range[0] >= 3 ? "#22c55e" : "#94a3b8",
+                              }}>
+                                {s.range[0]}-{s.range[1]}
+                              </Badge>
+                              <span className="text-zinc-500">{s.digital}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Criticality Tiers */}
+              <Card className="bg-zinc-900/50 border-zinc-800">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-rose-400" />
+                    Criticality Tiers (RTO-Aligned)
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Five-tier system aligned to Recovery Time Objectives. Each tier sets minimum CARVER+Shock factor floors.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {[1, 2, 3, 4, 5].map((tier) => {
+                      const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#64748b"];
+                      const names = ["Mission Critical", "Business Critical", "Business Important", "Administrative", "Non-Essential"];
+                      const rtos = ["< 1 hour", "1–24 hours", "1–7 days", "> 7 days", "N/A"];
+                      const mults = ["2.0x", "1.6x", "1.3x", "0.9x", "0.6x"];
+                      return (
+                        <div key={tier} className="flex items-center gap-3 bg-zinc-800/30 rounded-lg p-2">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold" style={{
+                            backgroundColor: `${colors[tier - 1]}20`, color: colors[tier - 1],
+                          }}>
+                            T{tier}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-xs font-medium text-zinc-200">{names[tier - 1]}</div>
+                            <div className="text-[10px] text-zinc-500">RTO: {rtos[tier - 1]}</div>
+                          </div>
+                          <Badge variant="outline" className="text-[9px]" style={{
+                            borderColor: `${colors[tier - 1]}50`, color: colors[tier - 1],
+                          }}>
+                            {mults[tier - 1]} multiplier
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ─── Dynamic Scoring Timeline Tab ─────────────────────────────── */}
+        <TabsContent value="timeline" className="space-y-4">
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    Dynamic Scoring Timeline
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Track how asset risk scores evolve during discovery and enumeration as new intelligence emerges.
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="number" className="w-28 h-8 text-xs"
+                    value={timelineAssetId ?? ""}
+                    onChange={(e) => setTimelineAssetId(e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="Asset ID"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!timelineAssetId ? (
+                <div className="text-center py-12 text-zinc-500">
+                  <Clock className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">Enter an asset ID to view its scoring timeline.</p>
+                  <p className="text-[10px] text-zinc-600 mt-1">Scores change dynamically as new CVEs, ports, KEV matches, and threat intelligence are discovered.</p>
+                </div>
+              ) : timelineQ.isLoading ? (
+                <div className="text-center py-12 text-zinc-500">
+                  <RefreshCw className="w-6 h-6 mx-auto mb-2 animate-spin" />
+                  <p className="text-sm">Loading timeline...</p>
+                </div>
+              ) : !timelineQ.data?.length ? (
+                <div className="text-center py-12 text-zinc-500">
+                  <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No scoring events found for this asset.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Score Evolution Chart (simplified SVG) */}
+                  <div className="bg-zinc-800/30 rounded-lg p-4">
+                    <h4 className="text-xs font-semibold text-zinc-300 mb-3">Score Evolution</h4>
+                    <svg viewBox="0 0 800 200" className="w-full h-40">
+                      {/* Grid lines */}
+                      {[0, 25, 50, 75, 100].map((v) => (
+                        <g key={v}>
+                          <line x1="40" y1={180 - v * 1.6} x2="780" y2={180 - v * 1.6} stroke="#374151" strokeWidth="0.5" />
+                          <text x="35" y={184 - v * 1.6} textAnchor="end" className="text-[9px] fill-zinc-600">{v}</text>
+                        </g>
+                      ))}
+                      {/* Score line */}
+                      <polyline
+                        fill="none" stroke="#06b6d4" strokeWidth="2"
+                        points={timelineQ.data.map((e: any, i: number) => {
+                          const x = 40 + (i / Math.max(timelineQ.data.length - 1, 1)) * 740;
+                          const y = 180 - (e.hybridRiskScore ?? 0) * 1.6;
+                          return `${x},${y}`;
+                        }).join(" ")}
+                      />
+                      {/* Score dots */}
+                      {timelineQ.data.map((e: any, i: number) => {
+                        const x = 40 + (i / Math.max(timelineQ.data.length - 1, 1)) * 740;
+                        const y = 180 - (e.hybridRiskScore ?? 0) * 1.6;
+                        const color = RISK_COLORS[e.riskBand ?? "low"];
+                        return <circle key={i} cx={x} cy={y} r="4" fill={color} stroke="#1f2937" strokeWidth="1" />;
+                      })}
+                    </svg>
+                  </div>
+
+                  {/* Timeline Events */}
+                  <div className="relative pl-6 space-y-3">
+                    <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-zinc-700" />
+                    {timelineQ.data.map((entry: any, i: number) => {
+                      const prevScore = i < timelineQ.data.length - 1 ? timelineQ.data[i + 1]?.hybridRiskScore ?? 0 : 0;
+                      const delta = (entry.hybridRiskScore ?? 0) - prevScore;
+                      return (
+                        <div key={entry.id} className="relative">
+                          <div className="absolute -left-4 top-1 w-3 h-3 rounded-full border-2 border-zinc-700" style={{
+                            backgroundColor: RISK_COLORS[entry.riskBand ?? "low"],
+                          }} />
+                          <div className="bg-zinc-800/30 rounded-lg p-3 ml-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg font-bold" style={{ color: RISK_COLORS[entry.riskBand ?? "low"] }}>
+                                  {entry.hybridRiskScore}
+                                </span>
+                                {delta !== 0 && (
+                                  <Badge className={`text-[9px] ${delta > 0 ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"}`}>
+                                    {delta > 0 ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                    {delta > 0 ? "+" : ""}{delta}
+                                  </Badge>
+                                )}
+                                <Badge className={`text-[9px] ${RISK_BG[entry.riskBand ?? "low"]}`}>
+                                  {(entry.riskBand ?? "low").toUpperCase()}
+                                </Badge>
+                              </div>
+                              <span className="text-[10px] text-zinc-600">
+                                {entry.computedAt ? new Date(entry.computedAt).toLocaleString() : "N/A"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2 mt-2 text-[10px]">
+                              <div><span className="text-zinc-500">Impact:</span> <span className="text-violet-400 font-mono">{entry.impactScore}</span></div>
+                              <div><span className="text-zinc-500">Likelihood:</span> <span className="text-rose-400 font-mono">{entry.likelihoodScore}</span></div>
+                              <div><span className="text-zinc-500">CVSS:</span> <span className="text-amber-400 font-mono">{entry.cvssEstimate ?? "N/A"}</span></div>
+                              <div><span className="text-zinc-500">Mission:</span> <span className="text-emerald-400 font-mono">{entry.missionImpactScore ?? "N/A"}</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Discovery Phase Triggers Reference */}
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="w-4 h-4 text-amber-400" />
+                Discovery Phase Triggers
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Events during discovery and enumeration that automatically trigger score re-computation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(discoveryTriggersQ.data ?? []).map((trigger: any) => (
+                  <div key={trigger.key} className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-700/50">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Zap className="w-3 h-3 text-amber-400" />
+                      <span className="text-xs font-medium text-zinc-200 capitalize">{trigger.key.replace(/_/g, " ")}</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500">{trigger.description}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Audit Log Tab */}

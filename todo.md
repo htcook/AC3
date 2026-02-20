@@ -2783,15 +2783,29 @@
 - [x] Remediate all identified trade secret exposures
 
 ## Enhancement #12: Enhanced Adaptive CARVER+Shock/CVSS Scoring Engine
-- [ ] Research CARVER methodology and translate factors to digital asset scoring
-- [ ] Research Shock methodology and map to cybersecurity impact assessment
-- [ ] Research CVSS v4.0 framework for proper integration
-- [ ] Research IT asset classification taxonomies (device types, applications, platforms)
-- [ ] Build LLM-based asset classification module for mission function inference
-- [ ] Build adaptive scoring engine that dynamically re-scores during discovery
-- [ ] Integrate dynamic re-scoring into domain intel discovery pipeline
-- [ ] Update Scoring Hub UI with mission function mapping and dynamic scoring
-- [ ] Write tests for enhanced scoring engine
+- [x] Research CARVER methodology and translate factors to digital asset scoring
+- [x] Research Shock methodology and map to cybersecurity impact assessment
+- [x] Research CVSS v4.0 framework for proper integration
+- [x] Research IT asset classification taxonomies (device types, applications, platforms)
+- [x] Build LLM-based asset classification module for mission function inference
+- [x] Build adaptive scoring engine that dynamically re-scores during discovery
+- [x] Integrate dynamic re-scoring into domain intel discovery pipeline
+- [x] Update Scoring Hub UI with mission function mapping and dynamic scoring
+- [x] Write tests for enhanced scoring engine
 - [x] Remediate trade secret exposures in public-facing UI
 - [x] Remediate trade secret exposures in internal operator pages (37 files, 295 references)
 - [x] Verify no remaining unprotected IP exposures across all pages
+
+## CARVER+Shock/CVSS Adaptive Scoring Engine Enhancement
+- [x] Enhanced CARVER+Shock scoring engine with FM 34-36 aligned factor definitions and digital asset translation tables
+- [x] CVSS v4.0 metric parser and integration (Base/Threat/Environmental/Supplemental metric groups)
+- [x] CVSS v4.0 → CARVER factor feed-through (AV→Accessibility, E→Vulnerability, etc.)
+- [x] Enhanced Shock 2.0 with regulatory, reputational, and cascading impact sub-dimensions
+- [x] FIPS 199 security categorization integration for mission function mapping
+- [x] Enhanced LLM asset classification with device type → platform type → mission function inference chains
+- [x] Dynamic re-scoring triggers that fire automatically during discovery phases
+- [x] Criticality tier system aligned to RTO (Tier 1-5 from <1hr to non-essential)
+- [x] New DB columns for CVSS v4.0 vector strings, FIPS 199 categories, criticality tiers
+- [x] Enhanced Scoring Hub UI with CVSS v4.0 calculator and CARVER matrix visualization
+- [x] Scoring timeline visualization showing dynamic score changes during discovery
+- [x] Comprehensive tests for enhanced scoring engine
