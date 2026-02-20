@@ -531,11 +531,13 @@ describe("computeHybridRisk", () => {
   });
 
   it("assigns correct risk band based on thresholds", () => {
-    // Critical scenario
+    // Critical scenario — requires confirmedVulnScore to drive likelihood
+    // (without confirmed findings, assets stay green per "innocent until proven guilty")
     const critInput: ScoringInput = {
       carver: { criticality: 10, accessibility: 10, recuperability: 10, vulnerability: 10, effect: 10, recognizability: 10 },
       shock: { scope: 10, handling: 10, operationalImpact: 10, cascadingEffects: 10, knowledge: 10 },
       cvssEstimate: 10, exposure: 1.0, confidence: 1.0,
+      confirmedVulnScore: 100,
     };
     const critResult = computeHybridRisk(critInput, DEFAULT_PROFILE);
     expect(critResult.riskBand).toBe("critical");

@@ -2809,3 +2809,5 @@
 - [x] Enhanced Scoring Hub UI with CVSS v4.0 calculator and CARVER matrix visualization
 - [x] Scoring timeline visualization showing dynamic score changes during discovery
 - [x] Comprehensive tests for enhanced scoring engine
+- [x] Assets with no confirmed findings should display as green in heat map and scoring displays
+- [x] Assets with no confirmed findings should display as green (innocent until proven guilty) — only escalate color as confirmed findings come in

@@ -693,12 +693,12 @@ function computeHybridRisk(
       likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
     }
   } else {
-    // INITIAL PASS (pre-enrichment): Use LLM CVSS estimate as a placeholder.
-    // This will be overwritten after vuln feed enrichment with confirmed data.
-    const cvssNorm = clamp(cvss / 10, 0, 1);
-    likelihoodBase = cvssNorm;
-    likelihoodBase += (ctx.exposure - 0.5) * 0.2;
-    likelihoodBase += (ctx.recognizability - 0.5) * 0.1;
+    // INITIAL PASS (pre-enrichment): "Innocent until proven guilty" approach.
+    // LLM CVSS estimates are unconfirmed — treat as advisory only.
+    // Use the same low-baseline formula as no-confirmed-vulns to keep assets GREEN
+    // until enrichment provides corroborated evidence.
+    // The LLM CVSS is stored for reference but does NOT inflate the displayed score.
+    likelihoodBase = clamp((ctx.exposure * 0.1) + (ctx.recognizability * 0.05), 0, 0.15);
   }
   likelihoodBase = clamp(likelihoodBase, 0, 1);
 

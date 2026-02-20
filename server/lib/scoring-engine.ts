@@ -1201,12 +1201,11 @@ export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile):
   } else if (input.confirmedVulnScore === 0) {
     likelihoodBase = clamp((input.exposure * 0.1) + (clamp(carver.recognizability / 10, 0, 1) * 0.05), 0, 0.15);
   } else {
-    // Use CVSS v4.0 estimated score if available, otherwise cvssEstimate
-    const cvssScore = cvssV4Parsed?.estimatedScore ?? input.cvssEstimate;
-    const cvssNorm = clamp(cvssScore / 10, 0, 1);
-    likelihoodBase = cvssNorm;
-    likelihoodBase += (input.exposure - 0.5) * 0.2;
-    likelihoodBase += (clamp(carver.recognizability / 10, 0, 1) - 0.5) * 0.1;
+    // "Innocent until proven guilty" — no confirmed vulnerability data available.
+    // CVSS estimates (LLM or v4.0 vector) are advisory only and do NOT inflate the score.
+    // Assets stay GREEN until corroborated evidence (confirmed/probable findings) arrives.
+    // Use the same low-baseline formula as confirmedVulnScore === 0.
+    likelihoodBase = clamp((input.exposure * 0.1) + (clamp(carver.recognizability / 10, 0, 1) * 0.05), 0, 0.15);
   }
   likelihoodBase = clamp(likelihoodBase, 0, 1);
 
