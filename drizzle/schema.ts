@@ -1710,3 +1710,71 @@ export const scoringAuditLog = mysqlTable("scoring_audit_log", {
   computedAt: timestamp("computedAt").defaultNow().notNull(),
 });
 export type ScoringAuditEntry = typeof scoringAuditLog.$inferSelect;
+
+
+/**
+ * Autonomous Validation Engine — Validation Runs
+ * Tracks each validation run (batch of candidate validations)
+ */
+export const validationRuns = mysqlTable("validation_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  scanId: int("validationScanId").notNull(), // Link to domain_intel_scans
+  msfServerId: int("validationMsfServerId").notNull(), // MSF server used
+  engagementId: int("validationEngagementId"), // Optional engagement link
+  // Configuration
+  mode: mysqlEnum("validationMode", ["check_only", "auxiliary_scan", "safe_exploit"]).notNull(),
+  maxCandidates: int("maxCandidates").default(10).notNull(),
+  timeoutPerCandidate: int("timeoutPerCandidate").default(60).notNull(),
+  requireApproval: boolean("requireApproval").default(true).notNull(),
+  scopeRestrictions: json("scopeRestrictions"), // string[]
+  // Status
+  status: mysqlEnum("validationRunStatus", ["pending", "running", "completed", "failed", "cancelled"]).default("pending").notNull(),
+  // Results summary
+  totalCandidates: int("totalCandidates").default(0).notNull(),
+  validated: int("validatedCount").default(0).notNull(),
+  notVulnerable: int("notVulnerableCount").default(0).notNull(),
+  inconclusive: int("inconclusiveCount").default(0).notNull(),
+  errors: int("errorCount").default(0).notNull(),
+  skipped: int("skippedCount").default(0).notNull(),
+  avgScoreAdjustment: double("avgScoreAdjustment").default(0),
+  // Audit
+  operatorId: varchar("validationOperatorId", { length: 255 }).notNull(),
+  startedAt: timestamp("validationStartedAt").defaultNow().notNull(),
+  completedAt: timestamp("validationCompletedAt"),
+  totalDurationMs: int("totalDurationMs"),
+  errorMessage: text("validationRunError"),
+});
+export type ValidationRun = typeof validationRuns.$inferSelect;
+export type InsertValidationRun = typeof validationRuns.$inferInsert;
+
+/**
+ * Autonomous Validation Engine — Individual Validation Results
+ * Each row is a single candidate validation attempt with proof-of-exploit evidence
+ */
+export const validationResults = mysqlTable("validation_results", {
+  id: int("id").autoincrement().primaryKey(),
+  runId: int("validationRunId").notNull(), // Link to validation_runs
+  assetId: int("validationAssetId").notNull(), // Link to discovered_assets
+  // Target
+  cveId: varchar("validationCveId", { length: 32 }).notNull(),
+  hostname: varchar("validationHostname", { length: 255 }).notNull(),
+  msfModule: varchar("validationMsfModule", { length: 512 }),
+  // Result
+  mode: mysqlEnum("resultMode", ["check_only", "auxiliary_scan", "safe_exploit"]).notNull(),
+  status: mysqlEnum("validationResultStatus", ["pending", "running", "validated", "not_vulnerable", "inconclusive", "error", "skipped", "approved_pending"]).default("pending").notNull(),
+  exploitable: boolean("exploitable").default(false).notNull(),
+  // Evidence
+  rawOutput: text("validationRawOutput"),
+  evidence: json("validationEvidence"), // ValidationEvidence JSON
+  // Scoring
+  scoreAdjustment: double("scoreAdjustment").default(0),
+  previousRiskScore: double("previousRiskScore"),
+  newRiskScore: double("newRiskScore"),
+  // Timing
+  durationMs: int("validationDurationMs"),
+  errorMessage: text("validationResultError"),
+  // Audit
+  createdAt: timestamp("validationResultCreatedAt").defaultNow().notNull(),
+});
+export type ValidationResult = typeof validationResults.$inferSelect;
+export type InsertValidationResult = typeof validationResults.$inferInsert;

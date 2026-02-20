@@ -2857,3 +2857,13 @@
   - [x] Fix scan history card to show retry button for pending scans
 - [x] Write 16 tests for scan pipeline fixes (all passing)
 - [x] Verify scan execution works end-to-end
+
+## Feature: Autonomous Validation Engine (Lightweight Exploit Validation)
+- [x] Audit existing exploit matching, MSF RPC, and scoring infrastructure
+- [x] Build validation engine library (835 LOC — candidate selection, safe exploit execution, result recording)
+- [x] Add DB schema for validation_runs and validation_results tables
+- [x] Add 7 tRPC endpoints (startRun, getRun, listRuns, cancelRun, approveCandidate, getRunResults, getStats)
+- [x] Integrate validation score adjustments into CARVER/SHOCK scoring pipeline
+- [x] Build frontend Validation Engine page with launch controls, results viewer, history, and CSV export
+- [x] Add navigation link to sidebar under Offensive Operations
+- [x] Write 27 tests for the validation engine (all passing)

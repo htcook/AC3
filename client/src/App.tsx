@@ -67,6 +67,7 @@ const Webhooks = lazy(() => import("./pages/Webhooks"));
 const BugBountyHub = lazy(() => import("./pages/BugBountyHub"));
 const ScoringHub = lazy(() => import("./pages/ScoringHub"));
 const BiaReport = lazy(() => import("./pages/BiaReport"));
+const ValidationEngine = lazy(() => import("./pages/ValidationEngine"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -275,6 +276,9 @@ function Router() {
         </Route>
         <Route path="/exploit-catalog">
           <ProtectedRoute component={ExploitArsenal} />
+        </Route>
+        <Route path="/validation-engine">
+          <ProtectedRoute component={ValidationEngine} />
         </Route>
         <Route path="/msf-servers">
           <ProtectedRoute component={MsfServers} />

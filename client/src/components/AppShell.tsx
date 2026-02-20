@@ -43,6 +43,7 @@ import {
   BookMarked,
   Archive,
   ClipboardCheck,
+  FlaskConical,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -89,6 +90,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
       { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
+      { href: "/validation-engine", icon: FlaskConical, label: "VALIDATION ENGINE" },
       { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
       { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
       { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
