@@ -2911,3 +2911,28 @@
 - [x] Update What's New popup entries referencing Metasploit
 - [x] Update How It Works, value props, and comparison cards
 - [x] Update Pillar cards, Operations Grid, Architecture, and Engagement Workflow
+
+## Front Page: Re-review Platform & Industry Comparisons
+- [x] Audit "Why Ace C3" comparison card for accuracy and completeness
+- [x] Audit "Other Tools" comparison points against real industry competitors
+- [x] Review all 6 Pillar cards for accurate feature descriptions
+- [x] Review Operations Grid modules for completeness
+- [x] Review Architecture cards for accuracy
+- [x] Review Engagement Workflow steps
+- [x] Review stats bar accuracy
+- [x] Update any outdated or inaccurate descriptions
+
+## Industry & Competitor Review + Homepage Comparison Update
+- [x] Research BAS market (Cymulate, Picus, SafeBreach, AttackIQ) — Picus comparison article, GBHackers top 10
+- [x] Research automated pentest tools (Pentera $100M+ ARR, Horizon3 NodeZero)
+- [x] Research vulnerability scanners (Nessus, Qualys, Rapid7) — 30-50% false positive rates documented
+- [x] Research C2 frameworks (Cobalt Strike, Sliver, Brute Ratel) — Bishop Fox 2025 review
+- [x] Research open-source adversary emulation (MITRE CALDERA 527 procedures, Atomic Red Team 1,225 tests)
+- [x] Research EASM tools and Gartner CTEM framework (5 stages: Scoping, Discovery, Prioritization, Validation, Mobilization)
+- [x] Compile competitive analysis report (competitive-analysis.md) with 11 cited sources
+- [x] Replace generic 'Other Tools' card with 13-row competitive matrix across 5 named categories
+- [x] Add 'WHERE EACH CATEGORY FALLS SHORT' breakdown cards (Vuln Scanners, BAS, Auto Pentest, C2)
+- [x] Add 'ACE C3: THE UNIFIED ANSWER' summary card with 6 key differentiators
+- [x] Update hero subtitle to 'Replace five disconnected tools with one unified offensive security platform'
+- [x] Update About section with CTEM framework alignment and competitive language
+- [x] Update footer tagline with unified workflow pipeline (Recon → Exploit → Validate → Detect → Report)

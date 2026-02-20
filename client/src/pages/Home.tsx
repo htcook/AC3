@@ -168,11 +168,12 @@ export default function Home() {
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
-              Ace C3 finds your real security gaps the way attackers would,
-              and shows you exactly what to fix — all from one platform.
+              The only platform that unifies reconnaissance, exploitation, validation,
+              social engineering, detection, and reporting — with evidence.
             </p>
 
             <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-10">
+              Replace five disconnected tools with one unified offensive security platform.
               Built for red teams, penetration testers, and security teams at enterprises,
               government agencies, and managed service providers.
             </p>
@@ -313,42 +314,122 @@ export default function Home() {
 
       <div className="w-full h-px bg-primary" />
 
-      {/* ─── Why Ace C3 Stands Out ──────────────────────────────── */}
+      {/* ─── Industry Comparison ──────────────────────────────── */}
       <section className="py-20">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-4xl sm:text-5xl font-display mb-4">WHY ACE C3</h2>
+            <h2 className="text-4xl sm:text-5xl font-display mb-4">HOW ACE C3 COMPARES</h2>
             <p className="text-lg text-muted-foreground">
-              Most security tools scan. Some simulate. Ace C3 does both — and closes the loop.
+              Most security tools solve one piece of the puzzle. Ace C3 is the full picture — from reconnaissance through validated exploitation to evidence-backed reporting.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-            <ComparisonCard
-              icon={<Unplug className="w-6 h-6" />}
-              title="Other Tools"
-              isOther
-              points={[
-                "Scan for vulnerabilities but don't test them",
-                "Generate long lists of theoretical risks with no proof",
-                "Require separate tools for scanning, testing, phishing, and reporting",
-                "Leave you guessing whether your defenses actually work",
-                "No evidence capture — findings are claims without proof",
-                "No way to measure what percentage of findings are validated",
-              ]}
-            />
-            <ComparisonCard
-              icon={<Cloud className="w-6 h-6" />}
-              title="Ace C3"
-              points={[
-                "Finds vulnerabilities AND validates them with LLM-built exploits from multiple sources",
-                "Every exploitable finding backed by captured evidence artifacts in S3",
-                "One platform: recon, exploitation, validation, phishing, detection, reporting",
-                "Validation Coverage metric shows exactly how much is proven vs. unconfirmed",
-                "PDF reports include clickable evidence links and coverage quality assessment",
-                "Intelligence drives action — not just dashboards",
-              ]}
-            />
+          {/* Competitive matrix table */}
+          <div className="max-w-6xl mx-auto mb-12 overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b-2 border-primary/50">
+                  <th className="text-left py-3 px-4 font-display text-xs tracking-[0.15em] text-muted-foreground w-[200px]">CAPABILITY</th>
+                  <th className="text-center py-3 px-2 font-display text-[10px] tracking-[0.1em] text-muted-foreground">VULN SCANNERS<br/><span className="text-[9px] opacity-60">Nessus · Qualys · Rapid7</span></th>
+                  <th className="text-center py-3 px-2 font-display text-[10px] tracking-[0.1em] text-muted-foreground">BAS PLATFORMS<br/><span className="text-[9px] opacity-60">Cymulate · Picus · SafeBreach</span></th>
+                  <th className="text-center py-3 px-2 font-display text-[10px] tracking-[0.1em] text-muted-foreground">AUTO PENTEST<br/><span className="text-[9px] opacity-60">Pentera · Horizon3</span></th>
+                  <th className="text-center py-3 px-2 font-display text-[10px] tracking-[0.1em] text-muted-foreground">C2 FRAMEWORKS<br/><span className="text-[9px] opacity-60">Cobalt Strike · Sliver</span></th>
+                  <th className="text-center py-3 px-2 font-display text-[10px] tracking-[0.1em] text-primary border-b-2 border-primary">ACE C3</th>
+                </tr>
+              </thead>
+              <tbody className="text-xs">
+                {[
+                  { cap: "External Recon & OSINT", scores: ["Limited", "No", "No", "No", "Full"] },
+                  { cap: "Live Banner Verification", scores: ["No", "No", "No", "No", "Yes"] },
+                  { cap: "CVE Identification", scores: ["Yes", "Partial", "Partial", "No", "Yes"] },
+                  { cap: "Real Exploit Execution", scores: ["No", "Simulated", "Yes", "Yes", "Yes"] },
+                  { cap: "Multi-Source Exploit Building", scores: ["No", "No", "No", "No", "LLM-Built"] },
+                  { cap: "Evidence Capture & Proof", scores: ["No", "No", "Limited", "No", "4 Types"] },
+                  { cap: "Validation Coverage Metric", scores: ["No", "No", "No", "No", "Yes"] },
+                  { cap: "Social Engineering (17 techniques)", scores: ["No", "Basic", "No", "No", "Yes"] },
+                  { cap: "Adversary Emulation (ATT&CK)", scores: ["No", "Yes", "Partial", "Yes", "Yes"] },
+                  { cap: "Threat Actor Profiling", scores: ["No", "Partial", "No", "No", "1,694+"] },
+                  { cap: "Detection Rule Generation", scores: ["No", "Partial", "No", "No", "5 Formats"] },
+                  { cap: "Reports with Evidence Links", scores: ["No", "Generic", "Generic", "No", "Yes"] },
+                  { cap: "Unified Engagement Workflow", scores: ["No", "No", "No", "No", "Yes"] },
+                ].map((row, i) => (
+                  <tr key={i} className="border-b border-border/30 hover:bg-card/50 transition-colors">
+                    <td className="py-2.5 px-4 font-medium text-foreground/80">{row.cap}</td>
+                    {row.scores.map((s, j) => (
+                      <td key={j} className={`py-2.5 px-2 text-center ${
+                        j === 4 ? 'text-primary font-semibold bg-primary/5' :
+                        s === 'Yes' || s === 'Full' ? 'text-emerald-400' :
+                        s === 'No' ? 'text-red-400/50' :
+                        'text-amber-400/70'
+                      }`}>{s}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Category breakdown cards */}
+          <div className="max-w-6xl mx-auto">
+            <h3 className="font-display text-xs tracking-[0.25em] text-muted-foreground mb-6 text-center">WHERE EACH CATEGORY FALLS SHORT</h3>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                {
+                  icon: Scan,
+                  title: "Vulnerability Scanners",
+                  vendors: "Nessus · Qualys · Rapid7",
+                  gap: "Identify CVEs by version matching but cannot prove exploitability. 30-50% false positive rates. No social engineering, no detection rules, no evidence."
+                },
+                {
+                  icon: Shield,
+                  title: "BAS Platforms",
+                  vendors: "Cymulate · Picus · SafeBreach · AttackIQ",
+                  gap: "Simulate attacks against controls but never execute real exploits. No external recon. No evidence capture. No unified engagement workflow."
+                },
+                {
+                  icon: Crosshair,
+                  title: "Auto Pentest Tools",
+                  vendors: "Pentera · Horizon3 NodeZero",
+                  gap: "Execute real exploits but only for internal networks. No social engineering. No detection engineering. Black-box exploit libraries with limited transparency."
+                },
+                {
+                  icon: Terminal,
+                  title: "C2 Frameworks",
+                  vendors: "Cobalt Strike · Sliver · Brute Ratel",
+                  gap: "Powerful post-exploitation but require skilled manual operators. No automation, no recon pipeline, no reporting, no social engineering integration."
+                },
+              ].map((cat) => (
+                <div key={cat.title} className="p-5 border border-border bg-card/30 hover:border-border/80 transition-colors">
+                  <cat.icon className="w-5 h-5 text-muted-foreground mb-3" />
+                  <h4 className="font-display text-sm tracking-wider mb-1">{cat.title}</h4>
+                  <p className="text-[10px] text-muted-foreground/60 mb-3 font-mono">{cat.vendors}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{cat.gap}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Ace C3 unified answer */}
+            <div className="mt-6 p-6 border-2 border-primary/50 bg-primary/5">
+              <div className="flex items-center gap-3 mb-4">
+                <Cloud className="w-6 h-6 text-primary" />
+                <h3 className="font-display text-lg tracking-wider text-primary">ACE C3: THE UNIFIED ANSWER</h3>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  "Full external recon with live banner verification and 3-tier evidence corroboration",
+                  "LLM-built exploit modules sourced from Metasploit, ExploitDB, and other databases",
+                  "Autonomous validation with 4 evidence artifact types stored in S3",
+                  "17 advanced phishing techniques with automated typosquat domain purchasing",
+                  "Detection rules in 5 formats: Sigma, YARA, Suricata, Splunk SPL, Microsoft KQL",
+                  "Validation Coverage metric with quality tiers and evidence-linked PDF reports",
+                ].map((p, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                    <span className="text-foreground/80">{p}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -797,14 +878,16 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
                 Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance,
                 CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
-                Ace C3 is our intelligence-driven offensive execution platform — purpose-built for teams
-                that turn vulnerability intelligence into real attacks and measurable results.
+                Ace C3 is our unified offensive security platform — replacing the fragmented toolchains
+                of vulnerability scanners, BAS platforms, automated pentesting tools, and C2 frameworks
+                with a single connected workflow.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Created by Harrison Cook, Ace C3 goes beyond scanning: verified reconnaissance confirms
-                what is actually exposed, the Exploit Arsenal matches confirmed CVEs to real exploit code,
-                and the Validation Engine confirms exploitability with captured evidence artifacts.
-                Every finding is backed by proof — potential matches are flagged but never rated.
+                Created by Harrison Cook, Ace C3 aligns to Gartner's CTEM framework across all five stages:
+                scoping, discovery, prioritization, validation, and mobilization. Where vulnerability scanners
+                stop at identification and BAS platforms stop at simulation, Ace C3 executes real exploits
+                built by LLM from Metasploit, ExploitDB, and other sources — then captures evidence proving
+                exploitability. Every finding is backed by proof, not theory.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
@@ -856,7 +939,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE C3</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
-            Ace C3 — Cyber Campaign Command | Offensive Execution Platform | Powered by Ace of Cloud
+            Ace C3 — Unified Offensive Security Platform | Recon → Exploit → Validate → Detect → Report | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
