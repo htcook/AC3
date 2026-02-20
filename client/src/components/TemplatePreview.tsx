@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// Sample data for GoPhish template variable substitution
+// Sample data for phishing template variable substitution
 const SAMPLE_DATA: Record<string, string> = {
   "{{.FirstName}}": "John",
   "{{.LastName}}": "Smith",
@@ -281,7 +281,7 @@ export default function TemplatePreview({
       {viewTab === "source" && (
         <div className="px-4 py-2 border-t border-border bg-muted/10">
           <div className="flex items-center gap-4 text-[10px] text-muted-foreground flex-wrap">
-            <span className="font-medium">GoPhish Variables:</span>
+            <span className="font-medium">Template Variables:</span>
             <code className="bg-muted px-1 rounded">{"{{.FirstName}}"}</code>
             <code className="bg-muted px-1 rounded">{"{{.LastName}}"}</code>
             <code className="bg-muted px-1 rounded">{"{{.Email}}"}</code>

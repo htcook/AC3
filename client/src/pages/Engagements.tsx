@@ -36,7 +36,7 @@ const STATUS_OPTIONS = [
 const WORKFLOW_PHASES = [
   { id: 1, label: 'OSINT & Recon', icon: Radar, description: 'Domain intel, passive recon, asset discovery' },
   { id: 2, label: 'External Attack Surface', icon: Bug, description: 'Exploit external-facing vulns (RCE, auth bypass, SSRF)' },
-  { id: 3, label: 'Caldera Operations', icon: Crosshair, description: 'Deploy exploit abilities, run red team operations' },
+  { id: 3, label: 'emulation framework Operations', icon: Crosshair, description: 'Deploy exploit abilities, run red team operations' },
   { id: 4, label: 'Phishing Campaign', icon: Fish, description: 'Social engineering if external access not achieved' },
   { id: 5, label: 'Post-Exploitation', icon: Skull, description: 'Lateral movement, persistence, data exfiltration' },
   { id: 6, label: 'Reporting', icon: FileText, description: 'Generate engagement report with findings' },
@@ -110,7 +110,7 @@ export default function Engagements() {
   const { data: allCampaignLinks, refetch: refetchLinks } = trpc.campaignEngagements.listAll.useQuery();
   const { data: gophishCampaigns } = trpc.gophishProxy.getCampaigns.useQuery();
 
-  // Caldera operations data
+  // adversary operations data
   const { data: operations, isLoading: opsLoading, refetch: refetchOps, isRefetching } = trpc.calderaProxy.getOperations.useQuery();
   const { data: allAbilities } = trpc.calderaProxy.getAbilities.useQuery();
 
@@ -264,7 +264,7 @@ export default function Engagements() {
         <div>
           <h1 className="font-display text-2xl sm:text-3xl tracking-wider">ENGAGEMENT MANAGER</h1>
           <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-            Manage engagements, Caldera operations, and campaign execution
+            Manage engagements, adversary operations, and campaign execution
           </p>
         </div>
         <div className="flex gap-2">
@@ -736,7 +736,7 @@ export default function Engagements() {
                             onChange={(e) => setSelectedCampaignToLink(e.target.value ? Number(e.target.value) : null)}
                             className="bg-background border border-border px-3 py-1.5 text-xs focus:outline-none focus:border-primary flex-1 max-w-sm"
                           >
-                            <option value="">Select a GoPhish campaign...</option>
+                            <option value="">Select a phishing campaign...</option>
                             {gophishCampaigns?.map((c: any) => {
                               const alreadyLinked = allCampaignLinks?.some((l: any) => l.gophishCampaignId === c.id && l.engagementId === engagement.id);
                               return (
@@ -806,7 +806,7 @@ export default function Engagements() {
                                       <div>
                                         <p className="text-sm font-medium">{link.gophishCampaignName || `Campaign #${link.gophishCampaignId}`}</p>
                                         <p className="text-xs text-muted-foreground">
-                                          GoPhish ID: {link.gophishCampaignId}
+                                          Campaign ID: {link.gophishCampaignId}
                                           {campaign?.status && ` — ${campaign.status}`}
                                           {campaign?.stats && ` — ${campaign.stats.total || 0} targets, ${campaign.stats.submitted_data || 0} creds`}
                                         </p>
@@ -856,7 +856,7 @@ export default function Engagements() {
           {/* Operations Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
             <p className="text-sm text-muted-foreground">
-              Live operations synced from Caldera — deploy exploit abilities from Domain Intel scans
+              Live operations synced from the emulation framework — deploy exploit abilities from Domain Intel scans
             </p>
             <Button
               variant="outline"
@@ -904,7 +904,7 @@ export default function Engagements() {
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-                <p className="text-muted-foreground">Loading operations from Caldera...</p>
+                <p className="text-muted-foreground">Loading operations from the emulation framework...</p>
               </div>
             </div>
           )}
@@ -915,7 +915,7 @@ export default function Engagements() {
               <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
               <h3 className="font-display text-xl mb-2">No Operations Found</h3>
               <p className="text-muted-foreground mb-4">
-                Run a Domain Intel scan to discover exploits, then deploy them as Caldera abilities.
+                Run a Domain Intel scan to discover exploits, then deploy them as adversary abilities.
               </p>
               <div className="flex gap-3 justify-center">
                 <Button onClick={() => navigate('/domain-intel')} variant="outline">
@@ -924,7 +924,7 @@ export default function Engagements() {
                 </Button>
                 <Button onClick={() => window.open('https://caldera.aceofcloud.io', '_blank')}>
                   <ExternalLink className="w-4 h-4 mr-2" />
-                  Open Caldera
+                  Open Emulation UI
                 </Button>
               </div>
             </div>
@@ -979,7 +979,7 @@ export default function Engagements() {
           {/* Info Banner */}
           <div className="bg-blue-500/10 border border-blue-500/30 p-4 mt-6">
             <p className="text-sm text-blue-400">
-              <strong>Workflow:</strong> OSINT &rarr; External Attack Surface &rarr; Caldera Operations &rarr; Phishing (only if external access not achieved) &rarr; Post-Exploitation &rarr; Reporting.
+              <strong>Workflow:</strong> OSINT &rarr; External Attack Surface &rarr; Adversary Operations &rarr; Phishing (only if external access not achieved) &rarr; Post-Exploitation &rarr; Reporting.
               External attack vectors are tested before phishing is performed.
             </p>
           </div>

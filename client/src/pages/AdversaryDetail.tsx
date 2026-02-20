@@ -100,7 +100,7 @@ export default function AdversaryDetail() {
   const [expandedAbility, setExpandedAbility] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Fetch adversary details from Caldera
+  // Fetch adversary details from the emulation framework
   const { data: adversary, isLoading: adversaryLoading, error: adversaryError } = 
     trpc.calderaProxy.getAdversary.useQuery(
       { adversaryId: params.id || '' },
@@ -217,7 +217,7 @@ export default function AdversaryDetail() {
             <div className="bg-destructive/10 border border-destructive p-6 text-center">
               <AlertTriangle className="w-12 h-12 mx-auto text-destructive mb-4" />
               <p className="text-lg font-display mb-2">FAILED TO LOAD ADVERSARY</p>
-              <p className="text-muted-foreground mb-4">Could not fetch adversary details from Caldera server.</p>
+              <p className="text-muted-foreground mb-4">Could not fetch adversary details from emulation server.</p>
               <Button onClick={() => navigate('/adversaries')} variant="outline">
                 <ChevronLeft className="w-4 h-4 mr-2" />
                 Return to Adversaries

@@ -2754,3 +2754,44 @@
 - [x] Defer background startup tasks to avoid proxy rate limiting
 - [x] Increase startup delay for vuln feed sync, IOC sync, scan recovery
 - [x] Add React.lazy() to all 56 page imports to reduce initial module load
+
+## Enhancement #10: Bug Bounty Platform Integration (HackerOne + Bugcrowd)
+- [ ] Research HackerOne and Bugcrowd public APIs
+- [ ] Add database tables for bug bounty programs, findings, and correlations
+- [ ] Build tRPC router with API integration and correlation logic
+- [ ] Build Bug Bounty Hub UI page with program browser, findings feed, and correlation dashboard
+- [ ] Register route and add sidebar navigation entry
+- [ ] Write tests for bug bounty router
+- [ ] Correlate bug bounty findings with existing vulnerability intelligence data
+
+## Enhancement #11: CARVER+Shock/CVSS Hybrid Scoring Engine (Patent Implementation)
+- [ ] Add database tables for CARVER scoring profiles, asset scores, and weight configurations
+- [ ] Build server-side scoring engine module that applies CARVER+Shock factors to discovered assets
+- [ ] Auto-apply scoring during domain intelligence scans
+- [ ] Build adjustable factor weight UI per engagement objective
+- [ ] Build heat map visualization overlaid on attack path graph
+- [ ] Integrate composite score with existing vulnerability intelligence
+- [ ] Register route and add sidebar navigation entry
+- [ ] Write tests for scoring engine
+
+## Security: Trade Secret Audit
+- [ ] Audit home page for exposed proprietary methodology details
+- [x] Audit all public-facing pages for system internals, API names, scoring algorithms
+- [x] Review sidebar labels and navigation for IP-revealing terminology
+- [ ] Ensure CARVER+Shock methodology details are not exposed in client-side code
+- [x] Sanitize any references to Spicy TIP, internal API endpoints, or integration specifics
+- [x] Remediate all identified trade secret exposures
+
+## Enhancement #12: Enhanced Adaptive CARVER+Shock/CVSS Scoring Engine
+- [ ] Research CARVER methodology and translate factors to digital asset scoring
+- [ ] Research Shock methodology and map to cybersecurity impact assessment
+- [ ] Research CVSS v4.0 framework for proper integration
+- [ ] Research IT asset classification taxonomies (device types, applications, platforms)
+- [ ] Build LLM-based asset classification module for mission function inference
+- [ ] Build adaptive scoring engine that dynamically re-scores during discovery
+- [ ] Integrate dynamic re-scoring into domain intel discovery pipeline
+- [ ] Update Scoring Hub UI with mission function mapping and dynamic scoring
+- [ ] Write tests for enhanced scoring engine
+- [x] Remediate trade secret exposures in public-facing UI
+- [x] Remediate trade secret exposures in internal operator pages (37 files, 295 references)
+- [x] Verify no remaining unprotected IP exposures across all pages

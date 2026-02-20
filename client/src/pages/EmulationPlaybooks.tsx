@@ -87,8 +87,8 @@ export default function EmulationPlaybooks() {
   const launchMutation = trpc.emulationPlaybooks.launch.useMutation({
     onSuccess: (data) => {
       toast.success(data.operationId
-        ? `Operation ${data.operationId} started on Caldera`
-        : "Execution queued (Caldera connection pending)");
+        ? `Operation ${data.operationId} started`
+        : "Execution queued (emulation framework connection pending)");
       refetch();
     },
     onError: (err) => toast.error(`Launch failed: ${err.message}`),
@@ -138,7 +138,7 @@ export default function EmulationPlaybooks() {
             Adversary Emulation Playbooks
           </h1>
           <p className="text-muted-foreground mt-1">
-            Map threat actor TTPs to Caldera operations for one-click adversary emulation
+            Map threat actor TTPs to adversary operations for one-click adversary emulation
           </p>
         </div>
         <div className="flex gap-2">
@@ -419,7 +419,7 @@ export default function EmulationPlaybooks() {
                                     <span className="text-muted-foreground">{tech.techniqueName}</span>
                                     {tech.abilityId && (
                                       <Badge variant="outline" className="text-[9px] ml-auto">
-                                        Caldera: {tech.abilityId.slice(0, 8)}...
+                                        Ability: {tech.abilityId.slice(0, 8)}...
                                       </Badge>
                                     )}
                                   </div>
@@ -437,7 +437,7 @@ export default function EmulationPlaybooks() {
                 <div className="flex flex-wrap gap-2 pt-2 border-t text-xs text-muted-foreground">
                   <span>Created: {new Date(selectedPb.createdAt).toLocaleDateString()}</span>
                   {selectedPb.calderaAdversaryId && (
-                    <span>Caldera Adversary: {selectedPb.calderaAdversaryId}</span>
+                    <span>emulation framework Adversary: {selectedPb.calderaAdversaryId}</span>
                   )}
                 </div>
               </CardContent>

@@ -78,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
       { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
       { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
+      { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
     ],
   },
   {
@@ -106,6 +107,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
       { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
       { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
+      { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
       { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
     ],
   },

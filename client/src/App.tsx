@@ -64,6 +64,8 @@ const EvidenceCollection = lazy(() => import("./pages/EvidenceCollection"));
 const AttackPaths = lazy(() => import("./pages/AttackPaths"));
 const PurpleTeam = lazy(() => import("./pages/PurpleTeam"));
 const Webhooks = lazy(() => import("./pages/Webhooks"));
+const BugBountyHub = lazy(() => import("./pages/BugBountyHub"));
+const ScoringHub = lazy(() => import("./pages/ScoringHub"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -311,6 +313,12 @@ function Router() {
         </Route>
         <Route path="/webhooks">
           <ProtectedRoute component={Webhooks} />
+        </Route>
+        <Route path="/bug-bounty">
+          <ProtectedRoute component={BugBountyHub} />
+        </Route>
+        <Route path="/scoring">
+          <ProtectedRoute component={ScoringHub} />
         </Route>
         <Route path="/portal/:token" component={ClientPortal} />
         <Route path="/404" component={NotFound} />

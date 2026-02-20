@@ -74,7 +74,7 @@ export default function CalderaGuide() {
             <Crosshair className="w-8 h-8 text-primary" />
             <h1 className="font-display text-3xl tracking-wider">CALDERA OPERATIONS GUIDE</h1>
           </div>
-          <p className="text-muted-foreground text-lg">Complete guide to adversary emulation, red team operations, and automated attack simulation using MITRE Caldera.</p>
+          <p className="text-muted-foreground text-lg">Complete guide to adversary emulation, red team operations, and automated attack simulation using the adversary emulation framework.</p>
           <p className="text-xs text-muted-foreground mt-2">Ace C3 — AceofCloud</p>
         </div>
 
@@ -103,12 +103,12 @@ export default function CalderaGuide() {
         </div>
 
         {/* Section 1: Overview */}
-        <Section title="What is MITRE Caldera?" icon={<Shield className="w-5 h-5" />} defaultOpen={true}>
+        <Section title="What is MITRE emulation framework?" icon={<Shield className="w-5 h-5" />} defaultOpen={true}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            MITRE Caldera is an automated adversary emulation platform that enables red teams to run realistic attack scenarios against target environments. It maps directly to the MITRE ATT&CK framework, allowing you to simulate specific threat actor behaviors (TTPs) and measure your organization's detection and response capabilities.
+            the adversary emulation framework is an automated adversary emulation platform that enables red teams to run realistic attack scenarios against target environments. It maps directly to the MITRE ATT&CK framework, allowing you to simulate specific threat actor behaviors (TTPs) and measure your organization's detection and response capabilities.
           </p>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Caldera operates on a client-server model: the <strong className="text-foreground">server</strong> orchestrates operations and stores adversary profiles, while lightweight <strong className="text-foreground">agents</strong> deployed on target systems execute the attack techniques. The server decides which abilities to run based on the adversary profile, the agent's platform, and the operation's planner logic.
+            The platform operates on a client-server model: the <strong className="text-foreground">server</strong> orchestrates operations and stores adversary profiles, while lightweight <strong className="text-foreground">agents</strong> deployed on target systems execute the attack techniques. The server decides which abilities to run based on the adversary profile, the agent's platform, and the operation's planner logic.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">CORE CONCEPTS</h4>
@@ -118,7 +118,7 @@ export default function CalderaGuide() {
               <tbody>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Ability</td><td className="px-4 py-2 text-muted-foreground">A single ATT&CK technique implementation — a specific command or script that performs one action (e.g., "Enumerate local users via net user")</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Adversary</td><td className="px-4 py-2 text-muted-foreground">An ordered collection of abilities that models a threat actor's behavior — defines the attack chain from initial access to impact</td></tr>
-                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Agent</td><td className="px-4 py-2 text-muted-foreground">A lightweight implant deployed on target systems that beacons back to the Caldera server and executes abilities</td></tr>
+                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Agent</td><td className="px-4 py-2 text-muted-foreground">A lightweight implant deployed on target systems that beacons back to the emulation server and executes abilities</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Operation</td><td className="px-4 py-2 text-muted-foreground">A running campaign that pairs an adversary profile with a group of agents — the actual execution of the attack chain</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Fact</td><td className="px-4 py-2 text-muted-foreground">A piece of information discovered during an operation (hostname, username, file path) that can be used by subsequent abilities</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Planner</td><td className="px-4 py-2 text-muted-foreground">The decision engine that determines which ability to execute next based on available facts and the adversary profile</td></tr>
@@ -147,7 +147,7 @@ export default function CalderaGuide() {
         {/* Section 2: Agents */}
         <Section title="Deploying Agents" icon={<Cpu className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Agents are the backbone of Caldera operations. They run on target systems, beacon back to the C2 server at configurable intervals, receive instructions, execute abilities, and return results. Caldera supports multiple agent types for different platforms and use cases.
+            Agents are the backbone of adversary operations. They run on target systems, beacon back to the C2 server at configurable intervals, receive instructions, execute abilities, and return results. The platform supports multiple agent types for different platforms and use cases.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">AGENT TYPES</h4>
@@ -190,7 +190,7 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
             <table className="w-full text-sm border border-border">
               <thead><tr className="bg-card"><th className="px-4 py-2 text-left border-b border-border">Option</th><th className="px-4 py-2 text-left border-b border-border">Default</th><th className="px-4 py-2 text-left border-b border-border">Description</th></tr></thead>
               <tbody>
-                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">-server</td><td className="px-4 py-2 text-muted-foreground">http://localhost:8888</td><td className="px-4 py-2 text-muted-foreground">Caldera server address for C2 communication</td></tr>
+                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">-server</td><td className="px-4 py-2 text-muted-foreground">http://localhost:8888</td><td className="px-4 py-2 text-muted-foreground">emulation server address for C2 communication</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">-group</td><td className="px-4 py-2 text-muted-foreground">red</td><td className="px-4 py-2 text-muted-foreground">Agent group assignment for operation targeting</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">-range</td><td className="px-4 py-2 text-muted-foreground">60</td><td className="px-4 py-2 text-muted-foreground">Beacon interval in seconds (how often agent checks in)</td></tr>
                 <tr><td className="px-4 py-2 font-mono text-primary">-v</td><td className="px-4 py-2 text-muted-foreground">false</td><td className="px-4 py-2 text-muted-foreground">Verbose logging for debugging agent issues</td></tr>
@@ -199,14 +199,14 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
           </div>
 
           <InfoBox type="warning">
-            <strong>Dynamic Compilation:</strong> If GoLang is installed on the Caldera server, each agent download is dynamically compiled with a unique hash and randomized process name, helping bypass file-based signature detection.
+            <strong>Dynamic Compilation:</strong> If GoLang is installed on the emulation server, each agent download is dynamically compiled with a unique hash and randomized process name, helping bypass file-based signature detection.
           </InfoBox>
         </Section>
 
         {/* Section 3: Adversary Profiles */}
         <Section title="Adversary Profiles" icon={<Target className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Adversary profiles define the attack chain — an ordered sequence of abilities that model a specific threat actor's behavior. Caldera ships with 494 pre-built adversary profiles from the MITRE ATT&CK knowledge base, and you can create custom profiles for specific engagement scenarios.
+            Adversary profiles define the attack chain — an ordered sequence of abilities that model a specific threat actor's behavior. the platform ships with 494 pre-built adversary profiles from the MITRE ATT&CK knowledge base, and you can create custom profiles for specific engagement scenarios.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">YOUR CUSTOM ADVERSARY PROFILES</h4>
@@ -237,7 +237,7 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
         {/* Section 4: Operations */}
         <Section title="Running Operations" icon={<Eye className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Operations are the execution engine of Caldera. They combine an adversary profile with a group of agents and a planner to automatically execute the attack chain. Operations track every ability execution, collecting results, facts, and timing data.
+            Operations are the execution engine of the emulation framework. They combine an adversary profile with a group of agents and a planner to automatically execute the attack chain. Operations track every ability execution, collecting results, facts, and timing data.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">OPERATION CONFIGURATION</h4>
@@ -295,7 +295,7 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
         {/* Section 5: Facts & Sources */}
         <Section title="Facts, Sources & Relationships" icon={<Network className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Facts are the intelligence backbone of Caldera operations. As abilities execute, they discover new facts (hostnames, usernames, file paths, credentials) that subsequent abilities can use. This creates a dynamic, adaptive attack chain that mirrors real adversary behavior.
+            Facts are the intelligence backbone of adversary operations. As abilities execute, they discover new facts (hostnames, usernames, file paths, credentials) that subsequent abilities can use. This creates a dynamic, adaptive attack chain that mirrors real adversary behavior.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">FACT TYPES</h4>
@@ -320,7 +320,7 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
         {/* Section 6: Plugins */}
         <Section title="Essential Plugins" icon={<Layers className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Caldera's functionality is extended through plugins. Each plugin adds abilities, adversaries, agents, or UI features. Plugins are enabled in the <code className="bg-card px-1 rounded">conf/default.yml</code> configuration file.
+            The platform's functionality is extended through plugins. Each plugin adds abilities, adversaries, agents, or UI features. Plugins are enabled in the <code className="bg-card px-1 rounded">conf/default.yml</code> configuration file.
           </p>
 
           <div className="overflow-x-auto mb-4">
@@ -328,13 +328,13 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
               <thead><tr className="bg-card"><th className="px-4 py-2 text-left border-b border-border">Plugin</th><th className="px-4 py-2 text-left border-b border-border">Purpose</th><th className="px-4 py-2 text-left border-b border-border">Key Features</th></tr></thead>
               <tbody>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Stockpile</td><td className="px-4 py-2 text-muted-foreground">Core ability library</td><td className="px-4 py-2 text-muted-foreground">Hundreds of ATT&CK techniques, adversary profiles, and facts</td></tr>
-                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Atomic</td><td className="px-4 py-2 text-muted-foreground">Atomic Red Team integration</td><td className="px-4 py-2 text-muted-foreground">Imports Atomic Red Team tests as Caldera abilities</td></tr>
+                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Atomic</td><td className="px-4 py-2 text-muted-foreground">Atomic Red Team integration</td><td className="px-4 py-2 text-muted-foreground">Imports Atomic Red Team tests as adversary abilities</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Sandcat</td><td className="px-4 py-2 text-muted-foreground">Default agent</td><td className="px-4 py-2 text-muted-foreground">Cross-platform GoLang agent with dynamic compilation</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Manx</td><td className="px-4 py-2 text-muted-foreground">Reverse shell agent</td><td className="px-4 py-2 text-muted-foreground">TCP-based agent for environments where HTTP is blocked</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Response</td><td className="px-4 py-2 text-muted-foreground">Blue team automation</td><td className="px-4 py-2 text-muted-foreground">Autonomous incident response abilities that fight back</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Compass</td><td className="px-4 py-2 text-muted-foreground">ATT&CK Navigator</td><td className="px-4 py-2 text-muted-foreground">Visualize adversary coverage on the MITRE ATT&CK matrix</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Debrief</td><td className="px-4 py-2 text-muted-foreground">Operation reporting</td><td className="px-4 py-2 text-muted-foreground">Generate detailed reports and visualizations of operations</td></tr>
-                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Training</td><td className="px-4 py-2 text-muted-foreground">Interactive tutorials</td><td className="px-4 py-2 text-muted-foreground">Guided training exercises for learning Caldera</td></tr>
+                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Training</td><td className="px-4 py-2 text-muted-foreground">Interactive tutorials</td><td className="px-4 py-2 text-muted-foreground">Guided training exercises for learning the emulation framework</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">GameBoard</td><td className="px-4 py-2 text-muted-foreground">Red vs Blue visualization</td><td className="px-4 py-2 text-muted-foreground">Real-time scoreboard for red team vs blue team exercises</td></tr>
                 <tr><td className="px-4 py-2 font-mono text-primary">Access</td><td className="px-4 py-2 text-muted-foreground">Initial access attacks</td><td className="px-4 py-2 text-muted-foreground">Phishing, exploit delivery, and initial foothold techniques</td></tr>
               </tbody>
@@ -358,7 +358,7 @@ plugins:
         {/* Section 7: API Reference */}
         <Section title="REST API Quick Reference" icon={<Terminal className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Caldera provides a comprehensive REST API for programmatic control. All API requests require the <code className="bg-card px-1 rounded">KEY</code> header with your API key. The Cyber Campaign Command dashboard uses this API to display operations, adversaries, and agents.
+            the platform provides a comprehensive REST API for programmatic control. All API requests require the <code className="bg-card px-1 rounded">KEY</code> header with your API key. The Cyber Campaign Command dashboard uses this API to display operations, adversaries, and agents.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">COMMON API ENDPOINTS</h4>
@@ -396,7 +396,7 @@ plugins:
         {/* Section 8: Best Practices */}
         <Section title="Red Team Best Practices" icon={<Shield className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Running effective red team operations requires careful planning, coordination with stakeholders, and adherence to rules of engagement. Here are proven best practices for using Caldera in professional engagements.
+            Running effective red team operations requires careful planning, coordination with stakeholders, and adherence to rules of engagement. Here are proven best practices for using the emulation framework in professional engagements.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">PRE-ENGAGEMENT</h4>
@@ -410,13 +410,13 @@ plugins:
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">DURING OPERATIONS</h4>
           <div className="space-y-3 text-sm text-muted-foreground mb-6">
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Monitor continuously:</strong> Watch operation progress in real-time. Be ready to pause or abort if abilities cause unexpected impact.</span></div>
-            <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Log everything:</strong> Caldera logs all ability executions, but maintain your own operator notes with timestamps, observations, and decisions.</span></div>
+            <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Log everything:</strong> the platform logs all ability executions, but maintain your own operator notes with timestamps, observations, and decisions.</span></div>
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Use obfuscation wisely:</strong> Start with plain-text commands for debugging, then switch to base64 or other obfuscators for realistic testing.</span></div>
           </div>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">POST-ENGAGEMENT</h4>
           <div className="space-y-3 text-sm text-muted-foreground">
-            <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Clean up:</strong> Remove all agents, backdoors, and artifacts from target systems. Use Caldera's cleanup phase to reverse changes.</span></div>
+            <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Clean up:</strong> Remove all agents, backdoors, and artifacts from target systems. Use emulation framework's cleanup phase to reverse changes.</span></div>
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Debrief report:</strong> Use the Debrief plugin to generate operation reports. Include timeline, techniques used, detection gaps, and remediation recommendations.</span></div>
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">ATT&CK mapping:</strong> Use the Compass plugin to generate an ATT&CK Navigator layer showing which techniques were tested and their outcomes.</span></div>
           </div>
@@ -427,14 +427,14 @@ plugins:
           <FAQ
             items={calderaFAQItems}
             title="CALDERA TROUBLESHOOTING FAQ"
-            description="Common issues and solutions for MITRE Caldera agents, abilities, operations, and server configuration."
+            description="Common issues and solutions for MITRE emulation framework agents, abilities, operations, and server configuration."
           />
         </div>
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">
-          <p>Cyber Campaign Command Caldera Operations Guide — AceofCloud</p>
-          <p className="mt-1">For the latest Caldera documentation, visit <a href="https://caldera.readthedocs.io" target="_blank" className="text-primary underline">caldera.readthedocs.io</a></p>
+          <p>Cyber Campaign Command Emulation Operations Guide — AceofCloud</p>
+          <p className="mt-1"><span className="text-primary">See the official emulation framework documentation for the latest updates.</span></p>
         </div>
       </AppShell>
   );

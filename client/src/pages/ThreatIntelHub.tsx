@@ -90,7 +90,7 @@ export default function ThreatIntelHub() {
             { label: "THREAT ACTORS", value: totalActors, icon: Users, color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20" },
             { label: "RANSOMWARE GROUPS", value: ransomwareCount, icon: Skull, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
             { label: "TOTAL VICTIMS", value: totalVictims, icon: Target, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
-            { label: "CISA KEV", value: activeKEV, icon: Shield, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
+            { label: "known exploited vulnerabilities (KEV)", value: activeKEV, icon: Shield, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
             { label: "ACCESS BROKERS", value: iabCount, icon: Key, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
             { label: "THREATFOX IOCs", value: iocCount, icon: Bug, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
             { label: "ESCALATIONS", value: escalationCount, icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
@@ -212,18 +212,18 @@ export default function ThreatIntelHub() {
               )}
             </div>
 
-            {/* ─── CISA KEV & Active Vulnerabilities ───────────────── */}
+            {/* ─── KEV & Active Vulnerabilities ───────────────── */}
             <div className="border border-border bg-card">
               <button onClick={() => toggle("kev")} className="flex items-center justify-between w-full p-4">
                 <h2 className="text-sm font-display tracking-wider flex items-center gap-2">
                   <Shield className="w-5 h-5 text-red-400" /> ACTIVE VULNERABILITY FEEDS
-                  <span className="text-[10px] text-muted-foreground">(CISA KEV + ThreatFox IOCs)</span>
+                  <span className="text-[10px] text-muted-foreground">(known exploited vulnerabilities (KEV) + malware indicator feeds IOCs)</span>
                 </h2>
                 {expandedSection === "kev" ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
               </button>
               {expandedSection === "kev" && (
                 <div className="px-4 pb-4 space-y-4">
-                  {/* CISA KEV */}
+                  {/* KEV */}
                   <div>
                     <h3 className="text-xs font-display tracking-wider text-red-400 mb-2 flex items-center gap-2">
                       <Shield className="w-3.5 h-3.5" /> CISA KNOWN EXPLOITED VULNERABILITIES
@@ -249,11 +249,11 @@ export default function ThreatIntelHub() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground text-center py-4">No CISA KEV entries available.</p>
+                      <p className="text-xs text-muted-foreground text-center py-4">No known exploited vulnerabilities (KEV) entries available.</p>
                     )}
                   </div>
 
-                  {/* ThreatFox IOCs */}
+                  {/* malware indicator feeds IOCs */}
                   <div>
                     <h3 className="text-xs font-display tracking-wider text-purple-400 mb-2 flex items-center gap-2">
                       <Bug className="w-3.5 h-3.5" /> THREATFOX INDICATORS OF COMPROMISE
@@ -275,7 +275,7 @@ export default function ThreatIntelHub() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground text-center py-4">No ThreatFox IOCs available.</p>
+                      <p className="text-xs text-muted-foreground text-center py-4">No malware indicator feeds IOCs available.</p>
                     )}
                   </div>
 

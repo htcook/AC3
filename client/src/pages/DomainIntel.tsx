@@ -62,13 +62,13 @@ const SCAN_METHODS = [
   },
   {
     id: "passive_asm_shodan",
-    name: "Shodan Passive Port Discovery",
+    name: "Passive Port Discovery",
     icon: Radar,
     category: "Passive Data Collection",
-    description: "Queries Shodan's database of internet-wide scan results to discover open ports, services, and technologies without sending any traffic to the target. Requires a Shodan API key for full results.",
+    description: "Queries internet-wide scan databases to discover open ports, services, and technologies without sending any traffic to the target.",
     outputs: "Open ports, service banners, OS detection, technology fingerprints, CVE associations",
-    attribution: "Data from Shodan (shodan.io). Verify at: https://www.shodan.io/host/<IP>",
-    falsePositiveRisk: "Low — Shodan data is from real scans, but may be stale (days to weeks old).",
+    attribution: "Data from passive internet scanning databases. Cross-referenced for accuracy.",
+    falsePositiveRisk: "Low — passive scan data is from real scans, but may be stale (days to weeks old).",
   },
   {
     id: "passive_asm_wayback",
@@ -132,20 +132,20 @@ const SCAN_METHODS = [
   },
   {
     id: "passive_asm_internetdb",
-    name: "Shodan InternetDB Fast-Path",
+    name: "Internet Scan Fast-Path",
     icon: Radar,
     category: "Passive Data Collection",
-    description: "Queries Shodan's free InternetDB API (internetdb.shodan.io) for instant IP enrichment without consuming API credits. Returns open ports, CVEs, CPEs, hostnames, and tags for any IP address. Runs first in the pipeline as a fast-path before the full Shodan API.",
-    outputs: "Open ports, CVE IDs, CPE strings, reverse hostnames, Shodan tags",
-    attribution: "Data from Shodan InternetDB (internetdb.shodan.io). Free tier, no API key required. Verify at: https://internetdb.shodan.io/<IP>",
-    falsePositiveRisk: "Low — based on real Shodan scan data, updated regularly.",
+    description: "Queries free internet scan databases for instant IP enrichment. Returns open ports, CVEs, CPEs, hostnames, and tags for any IP address. Runs first in the pipeline as a fast-path.",
+    outputs: "Open ports, CVE IDs, CPE strings, reverse hostnames, classification tags",
+    attribution: "Data from internet-wide scanning databases. Cross-referenced for accuracy.",
+    falsePositiveRisk: "Low — based on real internet scan data, updated regularly.",
   },
   {
     id: "passive_asm_binaryedge",
     name: "BinaryEdge Host Intelligence",
     icon: Scan,
     category: "Passive Data Collection",
-    description: "Queries BinaryEdge's internet-wide scanning database for independent validation of open ports, service banners, and CVEs. Provides a second opinion beyond Shodan for multi-source corroboration. Scans ~3,500 ports vs Shodan's ~1,500.",
+    description: "Queries additional internet-wide scanning databases for independent validation of open ports, service banners, and CVEs. Provides multi-source corroboration with broader port coverage.",
     outputs: "Open ports, service banners, CVE associations, subdomain discovery",
     attribution: "Data from BinaryEdge (binaryedge.io). Verify at: https://app.binaryedge.io/services/query",
     falsePositiveRisk: "Low — based on real scan data from an independent source.",
@@ -202,7 +202,7 @@ const SCAN_METHODS = [
   },
   {
     id: "kev_enrichment",
-    name: "CISA KEV (Known Exploited Vulnerabilities) Matching",
+    name: "KEV (Known Exploited Vulnerabilities) Matching",
     icon: Shield,
     category: "Vulnerability Intelligence",
     description: "Cross-references detected technologies against the CISA Known Exploited Vulnerabilities catalog — a curated list of CVEs confirmed to be actively exploited in the wild. Matches are based on vendor/product name.",
@@ -215,18 +215,18 @@ const SCAN_METHODS = [
     name: "Multi-Source Vulnerability Feed Matching",
     icon: Bug,
     category: "Vulnerability Intelligence",
-    description: "Matches detected technologies against multiple vulnerability databases: NVD (National Vulnerability Database), Google Project Zero, CIRCL CVE database, and Exploit-DB. Provides CVSS scores and exploit availability.",
+    description: "Matches detected technologies against multiple vulnerability databases and advisory feeds. Provides CVSS scores and exploit availability from authoritative sources.",
     outputs: "CVE IDs with CVSS scores, exploit availability, patch status, 0-day flags",
     attribution: "Each CVE links to its NVD page. Verify at: https://nvd.nist.gov/vuln/detail/<CVE-ID>. Sources listed per finding.",
     falsePositiveRisk: "Medium — product-family matches may not apply to the specific version running on the target.",
   },
   {
     id: "carver_shock_bia",
-    name: "CARVER+SHOCK Business Impact Analysis",
+    name: "Business Impact Analysis",
     icon: Target,
     category: "Risk Scoring",
-    description: "Applies the military-grade CARVER targeting methodology (Criticality, Accessibility, Recuperability, Vulnerability, Effect, Recognizability) combined with SHOCK factors (Scope, Handling, Operational Impact, Cascading Effects, Knowledge) to score each asset's mission importance.",
-    outputs: "Per-asset CARVER scores (0-10 each), SHOCK scores (0-10 each), mission impact score, asset tier classification",
+    description: "Applies proprietary multi-dimensional targeting methodology combining asset criticality, operational impact, and cascading risk factors to score each asset's mission importance.",
+    outputs: "Per-asset impact scores (0-10 each across multiple dimensions), mission impact score, asset tier classification",
     attribution: "Scores are LLM-generated based on asset type, sector context, and critical functions. These are analytical estimates, not measured values.",
     falsePositiveRisk: "N/A — these are risk scores, not binary findings. Interpret as relative prioritization.",
   },
@@ -235,7 +235,7 @@ const SCAN_METHODS = [
     name: "Hybrid Risk Score Computation",
     icon: Radar,
     category: "Risk Scoring",
-    description: "Combines CVSS vulnerability scores with CARVER+SHOCK mission impact scores and contextual indicators (exposure level, recognizability, confidence) into a single 0-100 hybrid risk score per asset. Formula: 40% CVSS + 35% Mission Impact + 25% Context.",
+    description: "Combines vulnerability severity with mission impact analysis and contextual indicators into a unified 0-100 hybrid risk score per asset using a proprietary weighting algorithm.",
     outputs: "Hybrid risk score (0-100), risk band (critical/high/medium/low), confidence percentage",
     attribution: "Computed algorithmically from the sub-scores above. The formula is deterministic — same inputs always produce the same score.",
     falsePositiveRisk: "N/A — this is a composite score. Accuracy depends on the quality of input scores.",
@@ -255,9 +255,9 @@ const SCAN_METHODS = [
     name: "Automated Campaign Design",
     icon: Zap,
     category: "Offensive Planning",
-    description: "Auto-generates red team, phishing, and purple team campaign recommendations based on discovered assets, vulnerabilities, and threat actor TTPs. Maps to specific MITRE ATT&CK techniques, Caldera abilities, and GoPhish templates.",
-    outputs: "Campaign plans with attack chains, Caldera ability mappings, GoPhish email templates, MITRE technique IDs",
-    attribution: "Campaign designs are AI-generated recommendations. Caldera abilities reference real ATT&CK technique IDs (e.g., T1566.001). Verify at: https://attack.mitre.org/techniques/<ID>",
+    description: "Auto-generates red team, phishing, and purple team campaign recommendations based on discovered assets, vulnerabilities, and threat actor TTPs. Maps to specific MITRE ATT&CK techniques and adversary abilities.",
+    outputs: "Campaign plans with attack chains, adversary ability mappings, phishing templates, MITRE technique IDs",
+    attribution: "Campaign designs are AI-generated recommendations. Adversary abilities reference real ATT&CK technique IDs (e.g., T1566.001). Verify at: https://attack.mitre.org/techniques/<ID>",
     falsePositiveRisk: "N/A — these are recommendations, not findings.",
   },
 ];
@@ -498,10 +498,10 @@ export default function DomainIntel() {
 
   // Pipeline stages for progress display
   const SCAN_STAGES = [
-    { label: "Passive Recon (crt.sh, Shodan, Wayback, RDAP, RIPEstat" + (scanMode === 'full' ? ', Censys, urlscan, SecurityTrails, Dehashed)' : ')'), stage: 0.5, method: "passive_asm" },
+    { label: "Passive Recon (certificate logs, internet scan databases, web archives, domain registries" + (scanMode === 'full' ? ', extended OSINT sources)' : ')'), stage: 0.5, method: "passive_asm" },
     { label: "LLM-Powered Discovery (enriched with passive data)", stage: 1, method: "llm_passive_recon" },
     { label: "DNS Verification & Banner Grabbing", stage: 2, method: "dns_verification" },
-    { label: "CARVER+SHOCK BIA & Risk Scoring", stage: 3, method: "carver_shock_bia" },
+    { label: "Business Impact & Risk Scoring", stage: 3, method: "carver_shock_bia" },
     { label: "Vuln Feed & KEV Enrichment", stage: 3, method: "kev_enrichment" },
   ];
 
@@ -637,7 +637,7 @@ export default function DomainIntel() {
             <div className="w-full max-w-sm space-y-2">
               <Progress value={Math.max(5, (pipelineStage / 5) * 100)} className="h-2" />
               <p className="text-xs text-muted-foreground text-center">
-                {scanStatusQuery.data?.status === "passive_recon" ? "Stage 0.5: Passive reconnaissance — querying InternetDB, crt.sh, Shodan, BinaryEdge, GreyNoise, Wayback, RDAP..." :
+                {scanStatusQuery.data?.status === "passive_recon" ? "Stage 0.5: Passive reconnaissance — querying internet scan databases, certificate logs, web archives, domain registries..." :
                  scanStatusQuery.data?.status === "discovering" ? "Stage 1: LLM discovery enriched with passive recon data..." :
                  scanStatusQuery.data?.status === "analyzing" ? "Stage 2: BIA scoring + asset classification..." :
                  scanStatusQuery.data?.status === "scoring" ? "Stage 3: Vuln feeds + KEV enrichment + risk computation..." :

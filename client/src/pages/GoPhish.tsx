@@ -75,7 +75,7 @@ export default function GoPhish() {
 
   const handleRefresh = () => {
     refetchStatus(); refetchCampaigns(); refetchTemplates(); refetchPages(); refetchGroups(); refetchSmtp();
-    toast.success("Refreshing all GoPhish data...");
+    toast.success("Refreshing all phishing platform data...");
   };
 
   return (
@@ -90,7 +90,7 @@ export default function GoPhish() {
                   <Fish className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
                   GOPHISH MANAGER
                 </h1>
-                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Phishing Campaign Management & Caldera Integration</p>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Phishing Campaign Management & emulation framework Integration</p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -169,10 +169,10 @@ export default function GoPhish() {
                   <div className="space-y-3">
                     <h3 className="font-display text-sm tracking-wider text-muted-foreground">WORKFLOW</h3>
                     <div className="bg-background/50 border border-border p-4 space-y-3">
-                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-500/20 flex items-center justify-center text-orange-500 font-display text-xs">1</div><span className="text-sm">GoPhish sends phishing email</span></div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-500/20 flex items-center justify-center text-orange-500 font-display text-xs">1</div><span className="text-sm">phishing platform sends phishing email</span></div>
                       <div className="flex items-center gap-3"><div className="w-8 h-8 bg-yellow-500/20 flex items-center justify-center text-yellow-500 font-display text-xs">2</div><span className="text-sm">Target clicks link / submits credentials</span></div>
-                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-red-500/20 flex items-center justify-center text-red-500 font-display text-xs">3</div><span className="text-sm">Bridge detects event & triggers Caldera</span></div>
-                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-display text-xs">4</div><span className="text-sm">Caldera launches post-exploitation operation</span></div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-red-500/20 flex items-center justify-center text-red-500 font-display text-xs">3</div><span className="text-sm">Bridge detects event & triggers emulation framework</span></div>
+                      <div className="flex items-center gap-3"><div className="w-8 h-8 bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-display text-xs">4</div><span className="text-sm">emulation framework launches post-exploitation operation</span></div>
                     </div>
                   </div>
                 </div>
@@ -746,7 +746,7 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
           </button>
         </div>
       ) : (
-        <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Templates support GoPhish variables like {{.URL}} and {{.FirstName}}." />
+        <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Templates support phishing platform variables like {{.URL}} and {{.FirstName}}." />
       )}
 
       {/* Template Preview Modal */}
@@ -1150,7 +1150,7 @@ function CampaignCard({ campaign, onDelete, onComplete, onClone, campaignLinks }
   );
 }
 
-// Exported reusable GoPhish Manager content for embedding in other pages
+// Exported reusable Phishing Manager content for embedding in other pages
 export function GoPhishManagerContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'templates' | 'pages' | 'groups' | 'smtp'>('overview');
   const [selectedEngagementId, setSelectedEngagementId] = useState<number | null>(null);
@@ -1189,7 +1189,7 @@ export function GoPhishManagerContent() {
 
   const handleRefresh = () => {
     refetchStatus(); refetchCampaigns(); refetchTemplates(); refetchPages(); refetchGroups(); refetchSmtp();
-    toast.success("Refreshing all GoPhish data...");
+    toast.success("Refreshing all phishing platform data...");
   };
 
   return (
@@ -1200,7 +1200,7 @@ export function GoPhishManagerContent() {
           <Fish className="w-5 h-5 text-orange-500" />
           <div>
             <h2 className="font-display text-lg tracking-wider">GOPHISH MANAGER</h2>
-            <p className="text-xs text-muted-foreground">Phishing Campaign Management & Caldera Integration</p>
+            <p className="text-xs text-muted-foreground">Phishing Campaign Management & emulation framework Integration</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -1277,10 +1277,10 @@ export function GoPhishManagerContent() {
               <div className="space-y-3">
                 <h3 className="font-display text-sm tracking-wider text-muted-foreground">WORKFLOW</h3>
                 <div className="bg-background/50 border border-border p-4 space-y-3 rounded">
-                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-500/20 flex items-center justify-center text-orange-500 font-display text-xs rounded">1</div><span className="text-sm">GoPhish sends phishing email</span></div>
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-500/20 flex items-center justify-center text-orange-500 font-display text-xs rounded">1</div><span className="text-sm">phishing platform sends phishing email</span></div>
                   <div className="flex items-center gap-3"><div className="w-8 h-8 bg-yellow-500/20 flex items-center justify-center text-yellow-500 font-display text-xs rounded">2</div><span className="text-sm">Target clicks link / submits credentials</span></div>
-                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-red-500/20 flex items-center justify-center text-red-500 font-display text-xs rounded">3</div><span className="text-sm">Bridge detects event & triggers Caldera</span></div>
-                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-display text-xs rounded">4</div><span className="text-sm">Caldera launches post-exploitation operation</span></div>
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-red-500/20 flex items-center justify-center text-red-500 font-display text-xs rounded">3</div><span className="text-sm">Bridge detects event & triggers emulation framework</span></div>
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-display text-xs rounded">4</div><span className="text-sm">emulation framework launches post-exploitation operation</span></div>
                 </div>
               </div>
             </div>

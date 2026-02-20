@@ -9,8 +9,8 @@ import { useSearch } from "wouter";
 import { Cloud, Lock, User, Shield, AlertTriangle } from "lucide-react";
 
 const REDIRECT_MAP: Record<string, { label: string; url: string }> = {
-  caldera: { label: "MITRE Caldera", url: "https://caldera.aceofcloud.io" },
-  gophish: { label: "GoPhish Admin", url: "https://gophish.aceofcloud.io" },
+  caldera: { label: "the adversary emulation framework", url: "https://caldera.aceofcloud.io" },
+  gophish: { label: "Phishing Admin", url: "https://gophish.aceofcloud.io" },
 };
 
 export default function Login() {
@@ -111,7 +111,7 @@ export default function Login() {
               Sign in to access <span className="font-semibold">{redirectInfo.label}</span>
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              One login for Dashboard, Caldera, and GoPhish
+              One login for all platform services
             </p>
           </div>
         )}
@@ -200,7 +200,7 @@ export default function Login() {
             {/* Unified auth info */}
             <div className="mt-4 p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground text-center">
-                Single sign-on for all services: Dashboard, MITRE Caldera, and GoPhish
+                Single sign-on for all platform services
               </p>
             </div>
 

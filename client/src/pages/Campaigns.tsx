@@ -61,7 +61,7 @@ const OPERATION_METADATA: Record<string, { description: string; targetEnvironmen
 export default function Campaigns() {
   const [, navigate] = useLocation();
 
-  // Fetch live operations from Caldera
+  // Fetch live operations from the emulation framework
   const { data: operations, isLoading, refetch, isRefetching } = trpc.calderaProxy.getOperations.useQuery();
   const { data: allAbilities } = trpc.calderaProxy.getAbilities.useQuery();
 
@@ -95,7 +95,7 @@ export default function Campaigns() {
 
   const handleRefresh = () => {
     refetch();
-    toast.success('Refreshing operations from Caldera...');
+    toast.success('Refreshing operations from emulation framework...');
   };
 
   return (
@@ -164,7 +164,7 @@ export default function Campaigns() {
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-                <p className="text-muted-foreground">Loading operations from Caldera...</p>
+                <p className="text-muted-foreground">Loading operations from the emulation framework...</p>
               </div>
             </div>
           )}
@@ -175,11 +175,11 @@ export default function Campaigns() {
               <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
               <h3 className="font-display text-xl mb-2">No Operations Found</h3>
               <p className="text-muted-foreground mb-4">
-                Create operations in Caldera to see them here.
+                Create operations in the emulation framework to see them here.
               </p>
               <Button onClick={handleOpenCaldera}>
                 <ExternalLink className="w-4 h-4 mr-2" />
-                Open Caldera
+                Open Emulation UI
               </Button>
             </div>
           )}
@@ -247,7 +247,7 @@ export default function Campaigns() {
           <div className="bg-blue-500/10 border-2 border-blue-500/30 p-4">
             <p className="text-sm text-blue-400">
               <strong>Tip:</strong> Click on any operation to view all abilities with MITRE ATT&CK mapping. 
-              Operations are synced live from the Caldera server at caldera.aceofcloud.io.
+              Operations are synced live from the emulation server at caldera.aceofcloud.io.
             </p>
           </div>
         </div>

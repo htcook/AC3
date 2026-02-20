@@ -23,9 +23,9 @@ const SEVERITY_CONFIG: Record<string, { color: string; bg: string }> = {
 };
 
 const SOURCE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{className?: string}>; color: string }> = {
-  cisa_kev: { label: 'CISA KEV', icon: Shield, color: 'text-red-400' },
+  cisa_kev: { label: 'KEV', icon: Shield, color: 'text-red-400' },
   alienvault_otx: { label: 'AlienVault OTX', icon: Globe, color: 'text-blue-400' },
-  abusech_urlhaus: { label: 'abuse.ch URLhaus', icon: Bug, color: 'text-green-400' },
+  abusech_urlhaus: { label: 'threat intelligence feeds URLhaus', icon: Bug, color: 'text-green-400' },
 };
 
 export default function IOCFeed() {
@@ -43,17 +43,17 @@ export default function IOCFeed() {
   const { data: stats } = trpc.iocFeed.stats.useQuery();
 
   const fetchCisaKev = trpc.iocFeed.fetchCisaKev.useMutation({
-    onSuccess: (data) => { toast.success(`Fetched ${data.fetched} CISA KEV entries`); refetch(); },
+    onSuccess: (data) => { toast.success(`Fetched ${data.fetched} known exploited vulnerabilities (KEV) entries`); refetch(); },
     onError: (err) => toast.error(err.message),
   });
 
   const fetchAbuseCh = trpc.iocFeed.fetchAbuseCh.useMutation({
-    onSuccess: (data) => { toast.success(`Fetched ${data.fetched} abuse.ch entries`); refetch(); },
+    onSuccess: (data) => { toast.success(`Fetched ${data.fetched} threat intelligence feeds entries`); refetch(); },
     onError: (err) => toast.error(err.message),
   });
 
   const fetchThreatFox = trpc.iocFeed.fetchThreatFox.useMutation({
-    onSuccess: (data: any) => { toast.success(`Fetched ${data.fetched} ThreatFox entries`); refetch(); },
+    onSuccess: (data: any) => { toast.success(`Fetched ${data.fetched} malware indicator entries`); refetch(); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -103,7 +103,7 @@ export default function IOCFeed() {
               Live IOC Feed
             </h1>
             <p className="text-muted-foreground mt-1">
-              Real-time threat intelligence from CISA KEV, AlienVault OTX, and abuse.ch
+              Real-time threat intelligence from KEV, AlienVault OTX, and threat intelligence feeds
             </p>
           </div>
           <div className="flex gap-2">
@@ -165,7 +165,7 @@ export default function IOCFeed() {
         {/* Feed Source Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
           <FeedSourceCard
-            name="CISA KEV"
+            name="KEV"
             description="Known Exploited Vulnerabilities catalog — actively exploited CVEs requiring remediation"
             icon={Shield}
             color="text-red-400"
@@ -174,8 +174,8 @@ export default function IOCFeed() {
             count={entries.filter((e: any) => e.feedSource === 'cisa_kev').length}
           />
           <FeedSourceCard
-            name="ThreatFox"
-            description="abuse.ch ThreatFox — IOCs associated with malware including C2, payloads, and configs"
+            name="malware indicator feeds"
+            description="threat intelligence feeds malware indicator feeds — IOCs associated with malware including C2, payloads, and configs"
             icon={Globe}
             color="text-blue-400"
             onFetch={() => fetchThreatFox.mutate()}
@@ -183,7 +183,7 @@ export default function IOCFeed() {
             count={entries.filter((e: any) => e.feedSource === 'abusech_threatfox').length}
           />
           <FeedSourceCard
-            name="abuse.ch URLhaus"
+            name="threat intelligence feeds URLhaus"
             description="Malicious URL database — phishing, malware distribution, and C2 server URLs"
             icon={Bug}
             color="text-green-400"

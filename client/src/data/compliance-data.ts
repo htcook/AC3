@@ -159,10 +159,10 @@ export const ENGAGEMENT_INFRA: InfraComponent[] = [
   },
   {
     name: "App Server",
-    role: "C2 / Caldera / GoPhish",
+    role: "C2 / Emulation / Phishing",
     size: "s-2vcpu-2gb",
     access: "HTTPS 443 (configurable CIDRs), SSH from bastion only",
-    description: "Hosts Caldera C2 server and GoPhish phishing platform. HTTPS exposed for campaign delivery, SSH restricted to bastion private IP.",
+    description: "Hosts C2 framework server and phishing platform. HTTPS exposed for campaign delivery, SSH restricted to bastion private IP.",
   },
   {
     name: "Mail Server",
@@ -182,13 +182,13 @@ export const ENGAGEMENT_INFRA: InfraComponent[] = [
 
 export const INFRA_REQUIREMENTS = {
   terraform: ">= 1.5",
-  provider: "DigitalOcean (doctl authenticated)",
+  provider: "cloud provider (doctl authenticated)",
   tools: ["jq"],
   variables: [
-    { name: "do_token", description: "DigitalOcean API token", sensitive: true },
+    { name: "do_token", description: "cloud DNS API token", sensitive: true },
     { name: "engagement_id", description: "Unique engagement identifier (e.g., clientx-2026q1)", sensitive: false },
     { name: "region", description: "DO region (default: nyc3)", sensitive: false },
-    { name: "ssh_key_fingerprints", description: "SSH keys uploaded to DigitalOcean", sensitive: false },
+    { name: "ssh_key_fingerprints", description: "SSH keys uploaded to cloud provider", sensitive: false },
     { name: "redteam_admin_cidrs", description: "CIDRs allowed to SSH to bastion", sensitive: false },
     { name: "app_https_cidrs", description: "CIDRs allowed to reach app on 443", sensitive: false },
   ],

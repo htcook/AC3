@@ -4,18 +4,18 @@ export const calderaFAQItems: FAQItem[] = [
   // --- Agent Not Checking In ---
   {
     id: 'cal-agent-1',
-    question: 'Agent deployed but not checking in to Caldera server',
-    answer: `This is the most common Caldera issue. Work through these checks:
+    question: 'Agent deployed but not checking in to emulation server',
+    answer: `This is the most common emulation framework issue. Work through these checks:
 
-1. **Network connectivity**: Verify the target machine can reach the Caldera server:
+1. **Network connectivity**: Verify the target machine can reach the emulation server:
    curl -k https://caldera.aceofcloud.io/api/v2/health
    If this fails, there's a network/firewall issue between the agent and server.
 
-2. **Correct callback address**: The agent must be configured with the correct Caldera server IP and port. Check the deployment command:
+2. **Correct callback address**: The agent must be configured with the correct emulation server IP and port. Check the deployment command:
    - Server: https://caldera.aceofcloud.io
    - The agent binary must have been compiled with this address
 
-3. **Firewall rules**: Ensure port 8888 is open on the Caldera server:
+3. **Firewall rules**: Ensure port 8888 is open on the emulation server:
    sudo ufw allow 8888/tcp
    Also check the target machine's outbound firewall rules.
 
@@ -33,8 +33,8 @@ export const calderaFAQItems: FAQItem[] = [
    - Linux: sandcat.go-linux
    - macOS: sandcat.go-darwin
 
-7. **Check Caldera logs**: On the server, check for connection attempts:
-   tail -f /opt/caldera/logs/caldera.log`,
+7. **Check platform logs**: On the server, check for connection attempts:
+   tail -f /opt/emulation/logs/caldera.log`,
     category: 'Agents',
     tags: ['agent', 'check-in', 'connectivity', 'deployment', 'sandcat'],
     severity: 'critical',
@@ -44,7 +44,7 @@ export const calderaFAQItems: FAQItem[] = [
     question: 'Agent was checking in but suddenly stopped (went "dead")',
     answer: `An agent that stops checking in may have been killed or blocked:
 
-1. **Check agent status in Caldera**: Go to Agents page. If the agent shows as "dead" (red), it hasn't checked in within the expected interval.
+1. **Check agent status in the emulation framework**: Go to Agents page. If the agent shows as "dead" (red), it hasn't checked in within the expected interval.
 
 2. **Default check-in interval**: Agents check in every 60 seconds by default. If the agent misses 3 consecutive check-ins, it's marked as dead.
 
@@ -59,7 +59,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 6. **Redeploy**: If the agent is truly dead, you'll need to redeploy. Use the Agent Deploy page in Cyber Campaign Command for deployment scripts.
 
-7. **Trust level**: Check if the agent's trust level was changed to "untrusted" in Caldera. Untrusted agents are ignored.`,
+7. **Trust level**: Check if the agent's trust level was changed to "untrusted" in the emulation framework. Untrusted agents are ignored.`,
     category: 'Agents',
     tags: ['dead agent', 'stopped', 'check-in', 'killed'],
     severity: 'high',
@@ -85,7 +85,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 6. **Timing**: Deploy during business hours when there's more noise. Avoid deploying during quiet periods when anomalies are more visible.
 
-7. **Test first**: Use the CrowdStrike_Bypass operation in Caldera to test which evasion techniques work in the target environment.`,
+7. **Test first**: Use the CrowdStrike_Bypass operation in the emulation framework to test which evasion techniques work in the target environment.`,
     category: 'Agents',
     tags: ['CrowdStrike', 'EDR', 'bypass', 'evasion', 'AMSI'],
     severity: 'high',
@@ -108,7 +108,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 4. **Manx agent**: For more executor support, use the Manx agent which provides a reverse shell with broader command execution.
 
-5. **Custom executors**: You can create custom executors in Caldera plugins. Check if the required plugin is enabled.
+5. **Custom executors**: You can create custom executors in emulation plugins. Check if the required plugin is enabled.
 
 6. **Verify in operation**: When viewing an operation, abilities that can't run on the current agent platform will show as "skipped" or "failed".
 
@@ -122,7 +122,7 @@ export const calderaFAQItems: FAQItem[] = [
     question: 'Abilities execute but return no output or "collected" status',
     answer: `Abilities that show "collected" status ran but may not have produced visible output:
 
-1. **"Collected" is normal**: In Caldera, "collected" means the ability executed and the output was collected. This is a success state.
+1. **"Collected" is normal**: In the emulation framework, "collected" means the ability executed and the output was collected. This is a success state.
 
 2. **Check output**: Click on the ability in the operation view to see the raw output. Some abilities produce output that's stored as facts rather than displayed.
 
@@ -160,7 +160,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 5. **Planner logic**: The operation's planner determines ability execution order. The "atomic" planner runs abilities sequentially. The "batch" planner runs all at once.
 
-6. **Rate limiting**: Caldera may throttle ability execution. Check the operation's "jitter" settings (min/max sleep between abilities).
+6. **Rate limiting**: the platform may throttle ability execution. Check the operation's "jitter" settings (min/max sleep between abilities).
 
 7. **Resume operation**: If the operation is stuck, try:
    - Pause and resume the operation
@@ -180,7 +180,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 2. **Check agent privilege**: In the Agents page, check the agent's privilege level. If it shows "User", you need to escalate.
 
-3. **Privilege escalation**: Use Caldera's privilege escalation abilities first:
+3. **Privilege escalation**: Use the platform's privilege escalation abilities first:
    - T1548.002: Abuse Elevation Control Mechanism (UAC Bypass)
    - T1134: Access Token Manipulation
    - T1068: Exploitation for Privilege Escalation
@@ -216,22 +216,22 @@ export const calderaFAQItems: FAQItem[] = [
    - Batch: Executes all abilities at once
    - Buckets: Groups by tactic phase
 
-5. **Caldera logs**: Check server logs for errors:
-   tail -100 /opt/caldera/logs/caldera.log
+5. **platform logs**: Check server logs for errors:
+   tail -100 /opt/emulation/logs/caldera.log
 
 6. **Restart operation**: Sometimes restarting helps:
-   - In Caldera UI: Stop the operation, then start a new one
+   - In Emulation UI: Stop the operation, then start a new one
    - Via API: DELETE /api/v2/operations/{id}, then POST /api/v2/operations
 
-7. **Operation persistence**: If Caldera was restarted, operations may need to be recreated. The Cyber Campaign Command platform has a persistence service that handles this automatically.`,
+7. **Operation persistence**: If the platform was restarted, operations may need to be recreated. The Cyber Campaign Command platform has a persistence service that handles this automatically.`,
     category: 'Operations',
     tags: ['operation', 'not progressing', 'stuck', 'planner'],
     severity: 'critical',
   },
   {
     id: 'cal-ops-2',
-    question: 'Operations disappear after Caldera server restart',
-    answer: `Caldera operations are stored in memory by default and may not survive restarts:
+    question: 'Operations disappear after emulation server restart',
+    answer: `adversary operations are stored in memory by default and may not survive restarts:
 
 1. **Operation persistence service**: The Cyber Campaign Command platform includes a systemd service (caldera-ops-persist.service) that automatically recreates operations on restart.
 
@@ -242,15 +242,15 @@ export const calderaFAQItems: FAQItem[] = [
    - APT29_VCD (48 abilities)
    - CrowdStrike_Bypass (12 abilities)
 
-3. **Manual recreation**: If the service isn't running, you can recreate operations via the Caldera API:
+3. **Manual recreation**: If the service isn't running, you can recreate operations via the Emulation API:
    curl -X POST https://caldera.aceofcloud.io/api/v2/operations \\
      -H "KEY: YOUR_API_KEY" \\
      -H "Content-Type: application/json" \\
      -d '{"name":"Operation Name","adversary":{"adversary_id":"ID"}}'
 
-4. **Caldera data directory**: Operation data is stored in /opt/caldera/data/. Ensure this directory is preserved during updates.
+4. **platform data directory**: Operation data is stored in /opt/emulation/data/. Ensure this directory is preserved during updates.
 
-5. **Backup**: Regularly backup /opt/caldera/data/ and /opt/caldera/conf/ to preserve configurations.`,
+5. **Backup**: Regularly backup /opt/emulation/data/ and /opt/emulation/conf/ to preserve configurations.`,
     category: 'Operations',
     tags: ['restart', 'persistence', 'disappear', 'operations'],
     severity: 'high',
@@ -260,18 +260,18 @@ export const calderaFAQItems: FAQItem[] = [
     question: 'How do I run a specific subset of abilities from an adversary profile?',
     answer: `To run only specific abilities instead of the full adversary profile:
 
-1. **Create a custom adversary**: In Caldera, create a new adversary profile with only the abilities you want:
-   - Go to Adversaries in Caldera UI
+1. **Create a custom adversary**: In the emulation framework, create a new adversary profile with only the abilities you want:
+   - Go to Adversaries in Emulation UI
    - Click "Create Adversary"
    - Add only the desired abilities
 
-2. **Manual command execution**: Use the Manual Command feature in Caldera to run individual commands on an agent without creating an operation.
+2. **Manual command execution**: Use the Manual Command feature in the emulation framework to run individual commands on an agent without creating an operation.
 
 3. **Operation with filters**: Start an operation and immediately pause it. Then manually queue specific abilities.
 
 4. **Atomic planner**: Use the "atomic" planner which runs abilities one at a time. You can pause the operation between abilities.
 
-5. **API approach**: Use the Caldera API to create a custom operation:
+5. **API approach**: Use the Emulation API to create a custom operation:
    POST /api/v2/operations with a custom adversary containing only your selected abilities.
 
 6. **Cyber Campaign Command dashboard**: Use the Operation Detail page to view all abilities in an adversary profile and identify which ones you want to run.`,
@@ -283,24 +283,24 @@ export const calderaFAQItems: FAQItem[] = [
   // --- Server Issues ---
   {
     id: 'cal-server-1',
-    question: 'Caldera server is not starting or crashes on startup',
-    answer: `If the Caldera server won't start:
+    question: 'emulation server is not starting or crashes on startup',
+    answer: `If the emulation server won't start:
 
 1. **Check the service**:
    sudo systemctl status caldera
    sudo journalctl -u caldera -f
 
-2. **Port conflict**: Caldera uses port 8888 by default. Check if another process is using it:
+2. **Port conflict**: the platform uses port 8888 by default. Check if another process is using it:
    sudo lsof -i :8888
-   Kill the conflicting process or change Caldera's port in conf/local.yml.
+   Kill the conflicting process or change the platform's port in conf/local.yml.
 
-3. **Python dependencies**: Caldera requires Python 3.8+. Verify:
+3. **Python dependencies**: the platform requires Python 3.8+. Verify:
    python3 --version
    pip3 list | grep -i caldera
 
-4. **Configuration errors**: Check /opt/caldera/conf/local.yml for syntax errors. YAML is sensitive to indentation.
+4. **Configuration errors**: Check /opt/emulation/conf/local.yml for syntax errors. YAML is sensitive to indentation.
 
-5. **Memory issues**: Caldera needs at least 2GB RAM. Check available memory:
+5. **Memory issues**: the platform needs at least 2GB RAM. Check available memory:
    free -h
    If low on memory, stop unnecessary services.
 
@@ -316,14 +316,14 @@ export const calderaFAQItems: FAQItem[] = [
   },
   {
     id: 'cal-server-2',
-    question: 'Caldera API returns 401 Unauthorized for all requests',
+    question: 'Emulation API returns 401 Unauthorized for all requests',
     answer: `API authentication failures usually mean incorrect API keys:
 
-1. **Check API keys**: Caldera has two API keys:
+1. **Check API keys**: the platform has two API keys:
    - Red team key: For offensive operations
    - Blue team key: For defensive monitoring
    
-   Find them in /opt/caldera/conf/local.yml under "api_key_red" and "api_key_blue".
+   Find them in /opt/emulation/conf/local.yml under "api_key_red" and "api_key_blue".
 
 2. **Header format**: The API key must be sent in the "KEY" header (not "Authorization"):
    curl -H "KEY: your-api-key" https://caldera.aceofcloud.io/api/v2/health
@@ -345,10 +345,10 @@ export const calderaFAQItems: FAQItem[] = [
   },
   {
     id: 'cal-server-3',
-    question: 'Caldera plugins are not loading or showing errors',
-    answer: `Plugin issues can affect Caldera functionality:
+    question: 'emulation plugins are not loading or showing errors',
+    answer: `Plugin issues can affect platform functionality:
 
-1. **Check enabled plugins**: View /opt/caldera/conf/local.yml for the plugins list:
+1. **Check enabled plugins**: View /opt/emulation/conf/local.yml for the plugins list:
    plugins:
      - sandcat
      - stockpile
@@ -364,14 +364,14 @@ export const calderaFAQItems: FAQItem[] = [
 3. **Plugin conflicts**: Disable all plugins, then enable them one at a time to identify the problematic one.
 
 4. **Stockpile plugin**: This is the main ability repository. If it's not loading, most abilities will be missing:
-   cd /opt/caldera/plugins/stockpile
+   cd /opt/emulation/plugins/stockpile
    git pull origin master
 
 5. **EMU plugin**: The MITRE EMU plugin provides APT emulation profiles. Ensure it's installed:
-   cd /opt/caldera/plugins
+   cd /opt/emulation/plugins
    git clone https://github.com/mitre/emu.git
 
-6. **Restart after changes**: Always restart Caldera after modifying plugins:
+6. **Restart after changes**: Always restart the platform after modifying plugins:
    sudo systemctl restart caldera
 
 7. **Check logs**: Plugin errors are logged during startup:
@@ -385,9 +385,9 @@ export const calderaFAQItems: FAQItem[] = [
   {
     id: 'cal-mitre-1',
     question: 'How do I map my operation results to the MITRE ATT&CK framework?',
-    answer: `Caldera natively supports MITRE ATT&CK mapping:
+    answer: `the platform natively supports MITRE ATT&CK mapping:
 
-1. **Built-in mapping**: Every ability in Caldera is tagged with its MITRE ATT&CK technique ID (e.g., T1059.001). This mapping is automatic.
+1. **Built-in mapping**: Every ability in the emulation framework is tagged with its MITRE ATT&CK technique ID (e.g., T1059.001). This mapping is automatic.
 
 2. **Compass plugin**: Enable the Compass plugin to generate ATT&CK Navigator layers:
    - Shows which techniques were tested
@@ -409,23 +409,23 @@ export const calderaFAQItems: FAQItem[] = [
   // --- Integration ---
   {
     id: 'cal-integration-1',
-    question: 'How does the Caldera-GoPhish bridge work?',
-    answer: `The Cyber Campaign Command platform includes a bridge service that connects GoPhish and Caldera:
+    question: 'How does the emulation-phishing bridge work?',
+    answer: `The Cyber Campaign Command platform includes a bridge service that connects the phishing platform and emulation framework:
 
-1. **How it works**: When a target submits credentials on a GoPhish landing page, the bridge service automatically triggers a Caldera operation against that target.
+1. **How it works**: When a target submits credentials on a phishing landing page, the bridge service automatically triggers a adversary operation against that target.
 
 2. **Flow**:
-   a. GoPhish sends phishing email to target
+   a. the platform sends phishing email to target
    b. Target clicks link and enters credentials
-   c. GoPhish webhook notifies the bridge service
-   d. Bridge service triggers a Caldera operation
-   e. Caldera deploys an agent to the target (if accessible)
+   c. platform webhook notifies the bridge service
+   d. Bridge service triggers a adversary operation
+   e. the emulation framework deploys an agent to the target (if accessible)
 
 3. **Configuration**: The bridge service runs at /opt/caldera-gophish-bridge/ and is managed by systemd:
    sudo systemctl status caldera-gophish-bridge
 
 4. **Customization**: Edit the bridge configuration to:
-   - Choose which Caldera operation to trigger
+   - Choose which adversary operation to trigger
    - Set delay between credential capture and operation start
    - Filter by target group or campaign
 
@@ -434,7 +434,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 6. **Manual trigger**: You can also manually trigger operations from the Cyber Campaign Command dashboard after reviewing captured credentials.`,
     category: 'Integration',
-    tags: ['bridge', 'GoPhish', 'webhook', 'automation'],
+    tags: ['bridge', 'phishing-platform', 'webhook', 'automation'],
     severity: 'medium',
   },
   {
@@ -454,8 +454,8 @@ export const calderaFAQItems: FAQItem[] = [
 
 4. **Current access URLs**:
    - Dashboard: https://dashboard.aceofcloud.io (SSL warning)
-   - Caldera UI: https://caldera.aceofcloud.io (no SSL)
-   - GoPhish Admin: https://gophish.aceofcloud.io (SSL warning)
+   - Emulation UI: https://caldera.aceofcloud.io (no SSL)
+   - Phishing Admin: (configured in dashboard) (SSL warning)
 
 5. **For API access**: When using curl with self-signed certs, add the -k flag:
    curl -k https://dashboard.aceofcloud.io/api/...`,

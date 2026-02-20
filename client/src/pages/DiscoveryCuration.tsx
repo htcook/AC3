@@ -624,7 +624,7 @@ function AssetRow({ asset, isSelected, isExpanded, isExcludedView, onToggleSelec
 
         {/* Impact & Likelihood (new) + Criticality & Vuln Risk */}
         <div className="hidden lg:flex shrink-0 gap-2">
-          <div className="w-12 text-center" title="Impact: How bad if this asset were compromised (from CARVER/SHOCK)">
+          <div className="w-12 text-center" title="Impact: How bad if this asset were compromised">
             <div className="text-[9px] tracking-widest text-sky-400/70">IMP</div>
             <div className={`font-display text-sm ${(asset.impactScore || 0) >= 70 ? 'text-sky-400' : (asset.impactScore || 0) >= 40 ? 'text-sky-300' : 'text-slate-400'}`}>
               {asset.impactScore || 0}
@@ -706,7 +706,7 @@ function AssetRow({ asset, isSelected, isExpanded, isExcludedView, onToggleSelec
           {/* BIA Scores */}
           {asset.carverScores && (
             <div>
-              <div className="text-[10px] font-display tracking-wider text-muted-foreground mb-1.5">CARVER+SHOCK SCORES</div>
+              <div className="text-[10px] font-display tracking-wider text-muted-foreground mb-1.5">IMPACT DIMENSION SCORES</div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
                 {Object.entries(asset.carverScores as Record<string, number>).map(([key, val]) => (
                   <div key={key} className="bg-background border border-border p-1.5 text-center">

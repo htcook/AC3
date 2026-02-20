@@ -536,7 +536,7 @@ export default function ThreatActorCatalogDetail() {
             </h3>
             <div className="grid grid-cols-2 gap-4 text-xs mb-4">
               <div>
-                <span className="text-muted-foreground">Caldera ID</span>
+                <span className="text-muted-foreground">emulation framework ID</span>
                 <p className="font-mono text-foreground">{actor.calderaProfile.id || "—"}</p>
               </div>
               <div>

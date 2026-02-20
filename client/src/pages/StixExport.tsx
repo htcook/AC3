@@ -256,7 +256,7 @@ export default function StixExport() {
                 <AlertTriangle className="h-5 w-5 text-amber-400" />
                 Export IOC Feed
               </CardTitle>
-              <CardDescription>Generate STIX 2.1 Indicator objects from IOC feeds (Abuse.ch, ThreatFox, CISA KEV)</CardDescription>
+              <CardDescription>Generate STIX 2.1 Indicator objects from IOC feeds (threat intelligence feeds, malware indicators, KEV)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -266,10 +266,10 @@ export default function StixExport() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Sources</SelectItem>
-                      <SelectItem value="cisa_kev">CISA KEV</SelectItem>
-                      <SelectItem value="abusech_urlhaus">Abuse.ch URLhaus</SelectItem>
-                      <SelectItem value="abusech_malwarebazaar">Abuse.ch MalwareBazaar</SelectItem>
-                      <SelectItem value="abusech_threatfox">Abuse.ch ThreatFox</SelectItem>
+                      <SelectItem value="cisa_kev">KEV</SelectItem>
+                      <SelectItem value="abusech_urlhaus">URLhaus Feed</SelectItem>
+                      <SelectItem value="abusech_malwarebazaar">MalwareBazaar Feed</SelectItem>
+                      <SelectItem value="abusech_threatfox">Malware Indicator Feed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -320,7 +320,7 @@ export default function StixExport() {
                 <Bug className="h-5 w-5 text-purple-400" />
                 Export Vulnerabilities
               </CardTitle>
-              <CardDescription>Generate STIX 2.1 Vulnerability and Attack Pattern objects from exploit catalog and CISA KEV</CardDescription>
+              <CardDescription>Generate STIX 2.1 Vulnerability and Attack Pattern objects from exploit catalog and known exploited vulnerabilities (KEV)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

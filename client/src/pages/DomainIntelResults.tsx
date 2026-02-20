@@ -167,7 +167,7 @@ export default function DomainIntelResults() {
     onSuccess: (result) => {
       setExploitDeploying(false);
       if (result.success) {
-        toast.success(`Deployed ${result.deployed?.length || 0} exploit abilities to Caldera`);
+        toast.success(`Deployed ${result.deployed?.length || 0} exploit abilities to the emulation framework`);
       } else {
         toast.error(result.error || 'Failed to deploy exploits');
       }
@@ -199,7 +199,7 @@ export default function DomainIntelResults() {
   const createAdversaryMutation = trpc.domainIntel.createExploitAdversary.useMutation({
     onSuccess: (result: any) => {
       if (result.success) {
-        toast.success(`Created adversary profile "${result.adversary?.name || 'exploit-adversary'}" in Caldera`);
+        toast.success(`Created adversary profile "${result.adversary?.name || 'exploit-adversary'}" in the emulation framework`);
       } else {
         toast.error(result.error || 'Failed to create adversary');
       }
@@ -522,10 +522,10 @@ export default function DomainIntelResults() {
 
                     {/* Score Breakdown */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* CARVER Scores */}
+                      {/* Impact Scores */}
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <Target className="h-3 w-3" /> CARVER Scores
+                          <Target className="h-3 w-3" /> Impact Scores
                         </p>
                         <div className="space-y-1">
                           {Object.entries(carver).map(([k, v]) => (
@@ -540,10 +540,10 @@ export default function DomainIntelResults() {
                         </div>
                       </div>
 
-                      {/* SHOCK Scores */}
+                      {/* Disruption Scores */}
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <Zap className="h-3 w-3" /> SHOCK Scores
+                          <Zap className="h-3 w-3" /> Disruption Scores
                         </p>
                         <div className="space-y-1">
                           {Object.entries(shock).map(([k, v]) => (
@@ -566,7 +566,7 @@ export default function DomainIntelResults() {
                         <div className="space-y-2">
                           {/* Impact × Likelihood — the two dimensions that compose the risk score */}
                           <div className="flex justify-between text-[11px]">
-                            <span className="text-sky-400 font-medium">Impact (CARVER/SHOCK)</span>
+                            <span className="text-sky-400 font-medium">Mission Impact</span>
                             <span className={`font-bold ${(asset.impactScore || 0) >= 70 ? 'text-sky-400' : (asset.impactScore || 0) >= 40 ? 'text-sky-300' : 'text-slate-400'}`}>{asset.impactScore || 0}/100</span>
                           </div>
                           <div className="flex justify-between text-[11px]">
@@ -840,10 +840,10 @@ export default function DomainIntelResults() {
 
                 {isExpanded && (
                   <CardContent className="pt-0 pb-4 space-y-4 border-t border-border">
-                    {/* CARVER + SHOCK Scores */}
+                    {/* Impact + Disruption Scores */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-2">CARVER Scores</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Impact Scores</p>
                         <div className="flex items-center gap-4">
                           <CarverRadar scores={carver} />
                           <div className="space-y-1.5 flex-1">
@@ -858,7 +858,7 @@ export default function DomainIntelResults() {
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-2">SHOCK Scores</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Disruption Scores</p>
                         <div className="space-y-1.5">
                           {Object.entries(shock).map(([k, v]) => (
                             <div key={k} className="flex items-center gap-2">
@@ -1142,7 +1142,7 @@ export default function DomainIntelResults() {
                       Discovered Subdomains ({allSubdomains.length})
                     </CardTitle>
                     <CardDescription>
-                      All subdomains discovered across passive recon connectors (crt.sh, Shodan, SecurityTrails, Censys, URLScan, Wayback, Dehashed)
+                      All subdomains discovered across passive recon connectors (crt.sh, internet scan databases, SecurityTrails, Censys, URLScan, Wayback, Dehashed)
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1294,7 +1294,7 @@ export default function DomainIntelResults() {
                       Open Ports & Services ({ports.length})
                     </CardTitle>
                     <CardDescription>
-                      All open ports and running services identified across discovered assets via Shodan, InternetDB, and banner verification
+                      All open ports and running services identified across discovered assets via internet scan databases, InternetDB, and banner verification
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1406,7 +1406,7 @@ export default function DomainIntelResults() {
                         <tbody className="divide-y divide-border">
                           {filtered.length === 0 ? (
                             <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
-                              {ports.length === 0 ? 'No port data available. Port scanning requires Shodan API key or InternetDB data.' : 'No ports matching your filters'}
+                              {ports.length === 0 ? 'No port data available. Port scanning requires internet scan databases API key or InternetDB data.' : 'No ports matching your filters'}
                             </td></tr>
                           ) : filtered.map((p: any, i: number) => (
                             <tr key={i} className={`hover:bg-muted/20 ${p.vulns?.length > 0 ? 'bg-red-500/5' : ''}`}>
@@ -1594,7 +1594,7 @@ export default function DomainIntelResults() {
                               <Eye className="w-3 h-3 mr-1" /> Intel
                             </Button>
                             <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => {
-                              toast.info('Deploying adversary profile to Caldera...');
+                              toast.info('Deploying adversary profile to emulation framework...');
                               navigate(`/threat-actors/${actor.actorId}`);
                             }}>
                               <Crosshair className="w-3 h-3 mr-1" /> Deploy Campaign
@@ -1749,7 +1749,7 @@ export default function DomainIntelResults() {
                       }}
                     >
                       {exploitDeploying ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Target className="h-3 w-3 mr-1" />}
-                      Deploy All to Caldera
+                      Deploy All to the emulation framework
                     </Button>
                     <Button
                       size="sm"
@@ -1766,15 +1766,15 @@ export default function DomainIntelResults() {
                 <div className="flex gap-4 mt-2">
                   <div className="text-center">
                     <div className="text-lg font-bold text-red-400">{exploitMatches.totalMetasploit}</div>
-                    <div className="text-[10px] text-muted-foreground">Metasploit Modules</div>
+                    <div className="text-[10px] text-muted-foreground">Exploit Modules</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-amber-400">{exploitMatches.totalExploitDb}</div>
-                    <div className="text-[10px] text-muted-foreground">ExploitDB Entries</div>
+                    <div className="text-[10px] text-muted-foreground">public exploit databases Entries</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-purple-400">{exploitMatches.totalCalderaAbilities}</div>
-                    <div className="text-[10px] text-muted-foreground">Caldera Abilities</div>
+                    <div className="text-[10px] text-muted-foreground">Adversary Abilities</div>
                   </div>
                 </div>
               </CardHeader>
@@ -1808,7 +1808,7 @@ export default function DomainIntelResults() {
                         )}
                       </div>
                     </div>
-                    {/* Metasploit modules */}
+                    {/* Exploit Framework modules */}
                     {m.metasploitModules?.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {m.metasploitModules.slice(0, 3).map((mod: any, i: number) => (
@@ -1820,7 +1820,7 @@ export default function DomainIntelResults() {
                         ))}
                       </div>
                     )}
-                    {/* ExploitDB entries */}
+                    {/* public exploit databases entries */}
                     {m.exploitDbEntries?.length > 0 && (
                       <div className="mt-1 space-y-1">
                         {m.exploitDbEntries.slice(0, 2).map((edb: any, i: number) => (
@@ -1833,7 +1833,7 @@ export default function DomainIntelResults() {
                         ))}
                       </div>
                     )}
-                    {/* Caldera abilities */}
+                    {/* Emulation abilities */}
                     {m.calderaAbilities?.length > 0 && (
                       <div className="mt-1 flex gap-1 flex-wrap">
                         {m.calderaAbilities.map((ab: any, i: number) => (
@@ -1934,12 +1934,12 @@ export default function DomainIntelResults() {
                         </div>
                       )}
 
-                      {/* Caldera Abilities */}
+                      {/* Emulation Abilities */}
                       {c.calderaAbilities?.length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground mb-2">
                             <Shield className="h-3 w-3 inline mr-1" />
-                            Caldera Abilities
+                            Adversary Abilities
                           </p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {c.calderaAbilities.map((a: any, i: number) => (
@@ -1959,12 +1959,12 @@ export default function DomainIntelResults() {
                         </div>
                       )}
 
-                      {/* GoPhish Templates */}
+                      {/* Phishing Templates */}
                       {c.gophishTemplates?.length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground mb-2">
                             <Zap className="h-3 w-3 inline mr-1" />
-                            GoPhish Templates
+                            Phishing Templates
                           </p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {c.gophishTemplates.map((t: any, i: number) => (
@@ -2026,7 +2026,7 @@ export default function DomainIntelResults() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Asset Tier Distribution</CardTitle>
-              <CardDescription>CARVER+SHOCK-based prioritization tiers</CardDescription>
+              <CardDescription>Mission impact-based prioritization tiers</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-4 gap-3">
@@ -2507,7 +2507,7 @@ export default function DomainIntelResults() {
                                     {f.cveIds?.length > 0
                                       ? `Verify CVE at NVD: ${f.cveIds.map((c: string) => `https://nvd.nist.gov/vuln/detail/${c}`).join(" | ")}${f.detectedVersion ? `. Confirm version ${f.detectedVersion} with: curl -I https://${f.assetHostname || f.assetRef || 'target'}` : ". Run active scan to confirm version."}`
                                       : f.kevListed
-                                      ? `Verify at CISA KEV catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog`
+                                      ? `Verify at the KEV catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog`
                                       : `This is an LLM-inferred risk. Perform manual assessment or active scanning to confirm.`}
                                   </span>
                                 </div>
@@ -2957,7 +2957,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
     },
     {
       id: "internetdb_enrichment",
-      name: "Shodan InternetDB Fast-Path",
+      name: "internet scan databases InternetDB Fast-Path",
       icon: Radar,
       category: "Passive Data Collection",
       status: (() => {
@@ -2966,7 +2966,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
         const c = pr.connectorResults.find((r: any) => r.connector === "shodan_internetdb");
         return c && c.observations?.length > 0 ? "completed" : "no_results";
       })(),
-      description: "Queried Shodan's free InternetDB API for instant IP enrichment — open ports, CVEs, CPEs, hostnames, and tags — without consuming API credits.",
+      description: "Queried internet scan databases's free InternetDB API for instant IP enrichment — open ports, CVEs, CPEs, hostnames, and tags — without consuming API credits.",
       outputs: (() => {
         const pr = (scan.pipelineOutput as any)?.passiveRecon;
         if (!pr?.connectorResults) return "Not executed";
@@ -2974,8 +2974,8 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
         if (!c) return "Not executed";
         return `${c.observations?.length || 0} observations from InternetDB`;
       })(),
-      attribution: 'Data from Shodan InternetDB (internetdb.shodan.io). Free, no API key required.',
-      fpRisk: "Low — based on real Shodan scan data.",
+      attribution: 'Data from Internet Scan Database (internetdb.shodan.io). Free, no API key required.',
+      fpRisk: "Low — based on real internet scan databases scan data.",
       verifyCmd: "curl https://internetdb.shodan.io/<IP>",
     },
     {
@@ -3054,7 +3054,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
     },
     {
       id: "kev_enrichment",
-      name: "CISA KEV Matching",
+      name: "KEV Matching",
       icon: Shield,
       category: "Vulnerability Intelligence",
       status: kevFindings.length > 0 ? "completed" : "no_results",
@@ -3062,7 +3062,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       outputs: `${kevFindings.length} KEV-listed findings matched`,
       attribution: 'Verify at: https://www.cisa.gov/known-exploited-vulnerabilities-catalog',
       fpRisk: "Low for product match, Medium for version match.",
-      verifyCmd: "Search CISA KEV by CVE ID",
+      verifyCmd: "Search KEV by CVE ID",
     },
     {
       id: "vuln_feed",
@@ -3070,7 +3070,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       icon: Bug,
       category: "Vulnerability Intelligence",
       status: confirmedFindings.length + probableFindings.length > 0 ? "completed" : "no_results",
-      description: "Matched technologies against NVD, Google Project Zero, CIRCL CVE database, and Exploit-DB. Provides CVSS scores and exploit availability.",
+      description: "Matched technologies against NVD, zero-day research programs, vulnerability advisory feeds, and public exploit databases. Provides CVSS scores and exploit availability.",
       outputs: `${confirmedFindings.length} confirmed + ${probableFindings.length} probable CVE matches`,
       attribution: 'Each CVE links to NVD: https://nvd.nist.gov/vuln/detail/<CVE-ID>',
       fpRisk: "Medium — product-family matches may not apply to the specific version.",
@@ -3078,15 +3078,15 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
     },
     {
       id: "carver_shock",
-      name: "CARVER+SHOCK Business Impact Analysis",
+      name: "Business Impact Analysis",
       icon: Target,
       category: "Risk Scoring",
       status: "completed",
-      description: "Applied military-grade CARVER targeting methodology combined with SHOCK factors to score each asset's mission importance and cascading risk.",
-      outputs: `Scored ${assets.length} assets with CARVER (6 dimensions) + SHOCK (5 dimensions)`,
+      description: "Applied proprietary multi-dimensional targeting methodology to score each asset's mission importance and cascading risk.",
+      outputs: `Scored ${assets.length} assets across 11 impact dimensions`,
       attribution: 'Scores are LLM-generated analytical estimates based on asset type and sector context.',
       fpRisk: "N/A — risk scores, not binary findings.",
-      verifyCmd: "Review individual asset CARVER/SHOCK scores in Assets tab",
+      verifyCmd: "Review individual asset impact scores in Assets tab",
     },
     {
       id: "hybrid_risk",
@@ -3094,7 +3094,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       icon: Radar,
       category: "Risk Scoring",
       status: "completed",
-      description: "Combined CVSS scores (40%) + Mission Impact (60%) into a hybrid risk score. Now also provides separated Asset Criticality (CARVER+SHOCK, mission importance) and Vulnerability Risk (confirmed/probable scan findings only) scores.",
+      description: "Combined vulnerability severity with mission impact analysis into a hybrid risk score. Also provides separated Asset Criticality (mission importance) and Vulnerability Risk (confirmed/probable scan findings only) scores.",
       outputs: `Overall risk: ${scan.overallRiskScore || 'N/A'} (${scan.overallRiskBand || 'N/A'}). Asset criticality and vuln risk are now separated — high criticality does NOT imply high vulnerability risk.`,
       attribution: 'Deterministic formula — same inputs always produce the same score. Vuln risk only counts confirmed/probable findings.',
       fpRisk: "N/A — composite score. Vuln risk requires scan evidence.",
@@ -3120,7 +3120,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       status: ((scan.campaignRecommendations || []) as any[]).length > 0 ? "completed" : "no_results",
       description: "Auto-generated red team, phishing, and purple team campaign recommendations based on discovered assets, vulnerabilities, and threat actor TTPs.",
       outputs: `${((scan.campaignRecommendations || []) as any[]).length} campaigns designed`,
-      attribution: 'Caldera abilities reference real ATT&CK technique IDs. Verify at: https://attack.mitre.org/techniques/<ID>',
+      attribution: 'emulation framework abilities reference real ATT&CK technique IDs. Verify at: https://attack.mitre.org/techniques/<ID>',
       fpRisk: "N/A — recommendations, not findings.",
       verifyCmd: "Review campaigns in the Campaigns tab",
     },
@@ -3306,7 +3306,7 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
         <CardContent className="p-8 text-center text-muted-foreground">
           <Shield className="h-8 w-8 mx-auto mb-2 text-green-400" />
           <p className="font-semibold">No known vulnerabilities matched</p>
-          <p className="text-xs mt-1">No discovered technologies matched against CISA KEV, Project Zero, NVD, CIRCL, or Exploit-DB feeds.</p>
+          <p className="text-xs mt-1">No discovered technologies matched against known exploited vulnerabilities (KEV), zero-day research, NVD, advisory feeds, or public exploit databases feeds.</p>
         </CardContent>
       </Card>
     );
@@ -3338,7 +3338,7 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
           <CardContent className="pt-3 pb-2 px-3">
             <div className="flex items-center gap-1.5">
               <Shield className="h-3.5 w-3.5 text-orange-500" />
-              <span className="text-[10px] text-muted-foreground">CISA KEV</span>
+              <span className="text-[10px] text-muted-foreground">KEV</span>
             </div>
             <div className="text-xl font-bold text-orange-400 mt-0.5">{data.totalKev}</div>
           </CardContent>
@@ -3445,7 +3445,7 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
                             <div className="flex gap-2 mt-2">
                               {vuln.sources?.map((s: string) => {
                                 const labels: Record<string, string> = {
-                                  cisa_kev: "CISA KEV", project_zero: "Project Zero", nvd: "NVD", circl: "CIRCL", exploit_db: "Exploit-DB",
+                                  cisa_kev: "KEV", project_zero: "zero-day research", nvd: "NVD", circl: "advisory feeds", exploit_db: "public exploit databases",
                                 };
                                 return <Badge key={s} variant="outline" className="text-[8px]">{labels[s] || s}</Badge>;
                               })}
@@ -3456,7 +3456,7 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
                               </a>
                               {vuln.exploitDbId && (
                                 <a href={`https://www.exploit-db.com/exploits/${vuln.exploitDbId}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
-                                  <ExternalLink className="h-2.5 w-2.5" /> Exploit-DB
+                                  <ExternalLink className="h-2.5 w-2.5" /> public exploit databases
                                 </a>
                               )}
                             </div>

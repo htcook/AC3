@@ -17,7 +17,7 @@ import { useDashboardEvents } from "@/hooks/useWebSocket";
 
 const DEFAULT_SERVER = {
   id: 1,
-  name: "Caldera Production",
+  name: "Production Server",
   ipAddress: "134.199.213.248",
   httpsUrl: "https://dashboard.aceofcloud.io",
   httpUrl: "https://caldera.aceofcloud.io",
@@ -191,7 +191,7 @@ export default function Dashboard() {
       { delay: 2000, msg: 'Running passive asset discovery...' },
       { delay: 5000, msg: 'Enumerating DNS records and subdomains...' },
       { delay: 8000, msg: 'Analyzing tech stack and infrastructure...' },
-      { delay: 12000, msg: 'Running BIA risk assessment (CARVER+SHOCK)...' },
+      { delay: 12000, msg: 'Running business impact risk assessment...' },
       { delay: 16000, msg: 'Matching threat actors to target profile...' },
       { delay: 20000, msg: 'Generating campaign recommendations...' },
     ];
@@ -504,7 +504,7 @@ export default function Dashboard() {
         <div className="w-full h-0.5 bg-primary/30" />
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* LIVE STATS — Caldera + GoPhish at a glance                     */}
+        {/* LIVE STATS — Emulation + Phishing at a glance                    */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         <section>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
@@ -655,7 +655,7 @@ export default function Dashboard() {
             </div>
             <div className="bg-card border border-purple-500/30 p-3 text-center">
               <div className="font-display text-2xl text-purple-500">{kevCount > 0 ? (kevCount >= 1000 ? `${(kevCount / 1000).toFixed(0)}K` : kevCount) : '...'}</div>
-              <div className="text-[10px] tracking-widest text-muted-foreground">CISA KEV</div>
+              <div className="text-[10px] tracking-widest text-muted-foreground">KNOWN EXPLOITED</div>
             </div>
           </div>
           <div className="bg-card border border-border p-4">
@@ -690,7 +690,7 @@ export default function Dashboard() {
           expanded={expandedSections.vulnFeed}
           onToggle={() => toggleSection('vulnFeed')}
           icon={<Flame className="w-4 h-4 text-red-500" />}
-          badge={<span className="text-xs text-muted-foreground">Live CVE tracking · CISA KEV · Exploit DB · NVD</span>}
+          badge={<span className="text-xs text-muted-foreground">Live CVE tracking from multiple authoritative sources</span>}
         >
           <ZeroDayFeed />
         </CollapsibleSection>
@@ -707,8 +707,8 @@ export default function Dashboard() {
             <ToolCard icon={<Layers />} label="Abilities Library" desc="6,340+ attack abilities" href="/abilities-library" />
             <ToolCard icon={<FileText />} label="Template Library" desc="26 phishing templates" href="/templates" />
             <ToolCard icon={<Globe />} label="Page Builder" desc="Visual landing pages" href="/landing-page-builder" />
-            <ToolCard icon={<ShieldAlert />} label="IOC Feeds" desc="CISA KEV, OTX, abuse.ch" href="/ioc-feed" />
-            <ToolCard icon={<Terminal />} label="Offensive Tools" desc="Kali + Metasploit catalog" href="/infra-reference" />
+            <ToolCard icon={<ShieldAlert />} label="IOC Feeds" desc="Aggregated threat intelligence" href="/ioc-feed" />
+            <ToolCard icon={<Terminal />} label="Offensive Tools" desc="Exploit framework catalog" href="/infra-reference" />
           </div>
         </section>
 

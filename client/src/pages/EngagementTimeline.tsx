@@ -226,7 +226,7 @@ export default function EngagementTimeline() {
         <h1 className="text-2xl font-bold text-foreground">Engagement Timeline</h1>
         <div className="flex items-center gap-3 mt-1">
           <p className="text-sm text-muted-foreground">
-            Unified kill chain visualization — events from OSINT, phishing, Metasploit, and Caldera.
+            Unified kill chain visualization — events from OSINT, phishing, exploit frameworks, and adversary emulation.
           </p>
           <div className="flex items-center gap-1.5 ml-auto">
             <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : wsStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`} />
@@ -461,7 +461,7 @@ export default function EngagementTimeline() {
                 <h3 className="text-lg font-medium text-foreground mb-2">No Timeline Events</h3>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
                   Events will appear here as you run OSINT scans, launch phishing campaigns,
-                  execute exploits, and deploy Caldera operations.
+                  execute exploits, and deploy adversary operations.
                 </p>
               </CardContent>
             </Card>
@@ -738,19 +738,19 @@ function EventDetailModal({ event, onClose }: { event: TimelineEvent | null; onC
             )}
             {event.msfModule && (
               <div className="col-span-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Metasploit Module</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Exploit Module</h4>
                 <p className="text-sm text-red-400 font-mono">{event.msfModule}</p>
               </div>
             )}
             {event.calderaOperationId && (
               <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Caldera Operation</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Adversary Operation</h4>
                 <p className="text-sm text-violet-400">{event.calderaOperationId}</p>
               </div>
             )}
             {event.gophishCampaignId && (
               <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">GoPhish Campaign</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Phishing Campaign</h4>
                 <p className="text-sm text-emerald-400">#{event.gophishCampaignId}</p>
               </div>
             )}

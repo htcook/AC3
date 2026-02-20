@@ -37,11 +37,11 @@ function severityBadge(sev: string) {
 
 function sourceLabel(src: string) {
   const labels: Record<string, { label: string; color: string; icon: string }> = {
-    cisa_kev: { label: "CISA KEV", color: "bg-red-600/80 text-white", icon: "🛡️" },
-    project_zero: { label: "Project Zero", color: "bg-purple-600/80 text-white", icon: "🔬" },
+    cisa_kev: { label: "KEV", color: "bg-red-600/80 text-white", icon: "🛡️" },
+    project_zero: { label: "zero-day research", color: "bg-purple-600/80 text-white", icon: "🔬" },
     nvd: { label: "NVD", color: "bg-blue-600/80 text-white", icon: "📋" },
-    circl: { label: "CIRCL", color: "bg-teal-600/80 text-white", icon: "🌐" },
-    exploit_db: { label: "Exploit-DB", color: "bg-amber-600/80 text-white", icon: "💣" },
+    circl: { label: "advisory feeds", color: "bg-teal-600/80 text-white", icon: "🌐" },
+    exploit_db: { label: "public exploit databases", color: "bg-amber-600/80 text-white", icon: "💣" },
   };
   return labels[src] || { label: src, color: "bg-zinc-600/80 text-white", icon: "📄" };
 }
@@ -137,7 +137,7 @@ export default function KevDashboard() {
             Vulnerability Intelligence
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Unified feed aggregating CISA KEV, Google Project Zero 0-days, NVD CVEs, CIRCL, and Exploit-DB weaponization data
+            Unified feed aggregating known exploited vulnerabilities (KEV), zero-day research programs 0-days, NVD CVEs, advisory feeds, and public exploit databases weaponization data
           </p>
         </div>
         <Button
@@ -200,7 +200,7 @@ export default function KevDashboard() {
           <CardContent className="pt-3 pb-2 px-3">
             <div className="flex items-center gap-1.5">
               <Shield className="h-3.5 w-3.5 text-orange-500" />
-              <span className="text-[10px] text-muted-foreground">CISA KEV</span>
+              <span className="text-[10px] text-muted-foreground">KEV</span>
             </div>
             <div className="text-xl font-bold text-orange-400 mt-0.5">
               {statsLoading ? "..." : feedStats?.kevListedCount?.toLocaleString()}
@@ -353,7 +353,7 @@ export default function KevDashboard() {
             <Crosshair className="h-3.5 w-3.5" /> Weaponized
           </TabsTrigger>
           <TabsTrigger value="kev" className="gap-1.5">
-            <Shield className="h-3.5 w-3.5" /> CISA KEV
+            <Shield className="h-3.5 w-3.5" /> KEV
           </TabsTrigger>
           <TabsTrigger value="search" className="gap-1.5">
             <Search className="h-3.5 w-3.5" /> Search All
@@ -409,7 +409,7 @@ export default function KevDashboard() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Shield className="h-4 w-4 text-red-400" />
-                Latest CISA KEV Additions
+                Latest KEV Additions
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5 max-h-[300px] overflow-y-auto">
@@ -429,7 +429,7 @@ export default function KevDashboard() {
             <div>
               <h2 className="text-lg font-semibold">0-Day In-The-Wild Tracker</h2>
               <p className="text-xs text-muted-foreground">
-                Confirmed 0-day vulnerabilities exploited in the wild — sourced from Google Project Zero and cross-referenced with CISA KEV
+                Confirmed 0-day vulnerabilities exploited in the wild — sourced from zero-day research programs and cross-referenced with known exploited vulnerabilities (KEV)
               </p>
             </div>
             <Badge variant="outline" className="ml-auto">
@@ -444,7 +444,7 @@ export default function KevDashboard() {
             ))}
             {!zeroDaysLoading && (zeroDays || []).length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
-                No 0-day data available. The Google Project Zero feed may still be loading.
+                No 0-day data available. The zero-day research programs feed may still be loading.
               </div>
             )}
           </div>
@@ -457,7 +457,7 @@ export default function KevDashboard() {
             <div>
               <h2 className="text-lg font-semibold">Weaponized CVEs</h2>
               <p className="text-xs text-muted-foreground">
-                CVEs with confirmed public exploits in Exploit-DB — indicates active weaponization risk
+                CVEs with confirmed public exploits in public exploit databases — indicates active weaponization risk
               </p>
             </div>
             <Badge variant="outline" className="ml-auto">
@@ -478,7 +478,7 @@ export default function KevDashboard() {
           </div>
         </TabsContent>
 
-        {/* ─── CISA KEV Tab ─── */}
+        {/* ─── KEV Tab ─── */}
         <TabsContent value="kev" className="space-y-4 mt-4">
           <div className="flex items-center gap-3 mb-2">
             <Shield className="h-5 w-5 text-red-400" />
@@ -579,7 +579,7 @@ export default function KevDashboard() {
             <div>
               <h2 className="text-lg font-semibold">Search All Vulnerability Feeds</h2>
               <p className="text-xs text-muted-foreground">
-                Cross-feed search across CISA KEV, Project Zero, NVD, CIRCL, and Exploit-DB
+                Cross-feed search across known exploited vulnerabilities (KEV), zero-day research, NVD, advisory feeds, and public exploit databases
               </p>
             </div>
           </div>
@@ -735,7 +735,7 @@ function VulnRow({ vuln, expanded, onToggle }: { vuln: any; expanded: boolean; o
               )}
               {vuln.exploitDbId && (
                 <div>
-                  <span className="text-muted-foreground">Exploit-DB:</span>
+                  <span className="text-muted-foreground">public exploit databases:</span>
                   <p className="text-foreground/80 mt-0.5">EDB-{vuln.exploitDbId}</p>
                 </div>
               )}
@@ -773,7 +773,7 @@ function VulnRow({ vuln, expanded, onToggle }: { vuln: any; expanded: boolean; o
                   className="text-xs text-amber-400 hover:underline flex items-center gap-1"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <ExternalLink className="h-3 w-3" /> Exploit-DB
+                  <ExternalLink className="h-3 w-3" /> public exploit databases
                 </a>
               )}
               <a
@@ -783,7 +783,7 @@ function VulnRow({ vuln, expanded, onToggle }: { vuln: any; expanded: boolean; o
                 className="text-xs text-teal-400 hover:underline flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
               >
-                <ExternalLink className="h-3 w-3" /> CIRCL
+                <ExternalLink className="h-3 w-3" /> advisory feeds
               </a>
             </div>
           </div>

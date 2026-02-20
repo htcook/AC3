@@ -521,6 +521,17 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
   exclusionReason: varchar("exclusionReason", { length: 512 }), // why the user excluded this asset
   excludedAt: timestamp("excludedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  // Mission function mapping (LLM-classified)
+  missionFunction: varchar("missionFunction", { length: 128 }), // e.g. "authentication", "data_storage", "communications"
+  essentialService: varchar("essentialService", { length: 128 }), // e.g. "email", "sso", "payment_processing"
+  assetPurpose: text("assetPurpose"), // LLM-generated description of asset's role in org
+  businessImpactLevel: varchar("businessImpactLevel", { length: 32 }), // mission_critical, business_essential, operational, administrative
+  missionDependencies: json("missionDependencies"), // { upstreamAssets: string[], downstreamAssets: string[], sharedServices: string[] }
+  llmClassification: json("llmClassification"), // full LLM classification output for audit trail
+  // Dynamic scoring metadata
+  scoringVersion: int("scoringVersion").default(1), // increments on each re-score
+  lastScoredAt: timestamp("lastScoredAt"), // when the asset was last scored
+  scoringProfileId: int("scoringProfileId"), // which scoring profile was used
 });
 
 export type DiscoveredAsset = typeof discoveredAssets.$inferSelect;
@@ -1533,3 +1544,153 @@ export const defenseScores = mysqlTable("defense_scores", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type DefenseScore = typeof defenseScores.$inferSelect;
+
+
+// ─── Bug Bounty Platform Integration ───
+
+export const bugBountyPrograms = mysqlTable("bug_bounty_programs", {
+  id: int("id").primaryKey().autoincrement(),
+  platform: varchar("platform", { length: 32 }).notNull(), // hackerone | bugcrowd | manual
+  handle: varchar("handle", { length: 255 }).notNull(),
+  name: varchar("name", { length: 512 }).notNull(),
+  url: varchar("url", { length: 1024 }),
+  logoUrl: varchar("logo_url", { length: 1024 }),
+  state: varchar("state", { length: 64 }), // open, paused, closed
+  submissionState: varchar("submission_state", { length: 64 }),
+  currency: varchar("currency", { length: 16 }),
+  minBounty: double("min_bounty"),
+  maxBounty: double("max_bounty"),
+  avgBounty: double("avg_bounty"),
+  totalPaid: double("total_paid"),
+  resolvedCount: int("resolved_count"),
+  hackerCount: int("hacker_count"),
+  scopeAssets: json("scope_assets"), // array of { type, identifier, eligible, maxSeverity }
+  policyUrl: varchar("policy_url", { length: 1024 }),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BugBountyProgram = typeof bugBountyPrograms.$inferSelect;
+
+export const bugBountyFindings = mysqlTable("bug_bounty_findings", {
+  id: int("id").primaryKey().autoincrement(),
+  programId: int("program_id"),
+  platform: varchar("platform", { length: 32 }).notNull(),
+  externalId: varchar("external_id", { length: 128 }),
+  title: varchar("title", { length: 1024 }).notNull(),
+  severityRating: varchar("severity_rating", { length: 32 }), // critical, high, medium, low, none
+  cveIds: json("cve_ids"), // array of CVE IDs
+  cweId: varchar("cwe_id", { length: 32 }),
+  cweName: varchar("cwe_name", { length: 512 }),
+  substate: varchar("substate", { length: 64 }), // resolved, informative, duplicate, etc.
+  reportUrl: varchar("report_url", { length: 1024 }),
+  disclosedAt: timestamp("disclosed_at"),
+  awardedAmount: double("awarded_amount"),
+  currency: varchar("currency", { length: 16 }),
+  reporterUsername: varchar("reporter_username", { length: 255 }),
+  reporterReputation: int("reporter_reputation"),
+  programHandle: varchar("program_handle", { length: 255 }),
+  programName: varchar("program_name", { length: 512 }),
+  assetIdentifier: varchar("asset_identifier", { length: 512 }),
+  assetType: varchar("asset_type", { length: 64 }),
+  votes: int("votes"),
+  summary: text("summary"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BugBountyFinding = typeof bugBountyFindings.$inferSelect;
+
+export const bugBountyCorrelations = mysqlTable("bug_bounty_correlations", {
+  id: int("id").primaryKey().autoincrement(),
+  findingId: int("finding_id").notNull(),
+  correlationType: varchar("correlation_type", { length: 64 }).notNull(), // cve_match, asset_match, cwe_match
+  matchedEntityType: varchar("matched_entity_type", { length: 64 }).notNull(), // vuln_intel, discovered_asset, ttp_knowledge
+  matchedEntityId: int("matched_entity_id").notNull(),
+  matchedEntityName: varchar("matched_entity_name", { length: 512 }),
+  confidenceScore: double("confidence_score"), // 0.0 - 1.0
+  details: json("details"), // { matchField, matchValue, context }
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BugBountyCorrelation = typeof bugBountyCorrelations.$inferSelect;
+
+export const bugBountySyncLogs = mysqlTable("bug_bounty_sync_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  platform: varchar("platform", { length: 32 }).notNull(),
+  syncType: varchar("sync_type", { length: 64 }).notNull(), // programs, hacktivity, scopes
+  status: varchar("status", { length: 32 }).notNull(), // running, completed, failed
+  itemsSynced: int("items_synced").default(0),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+export type BugBountySyncLog = typeof bugBountySyncLogs.$inferSelect;
+
+
+// ─── CARVER+Shock Scoring Profiles ──────────────────────────────────────
+/**
+ * Stores adjustable CARVER+Shock factor weight profiles per engagement.
+ * Users can create custom weight profiles for different engagement objectives
+ * (e.g., emphasizing "Shock" for critical infrastructure assessments).
+ */
+export const scoringProfiles = mysqlTable("scoring_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  engagementId: int("engagementId"), // optional link to a specific engagement
+  isDefault: boolean("isDefault").default(false),
+  // CARVER factor weights (0-10 scale, default weights match existing algorithm)
+  wCriticality: double("wCriticality").default(2.0).notNull(),
+  wAccessibility: double("wAccessibility").default(1.5).notNull(),
+  wRecuperability: double("wRecuperability").default(1.0).notNull(),
+  wVulnerability: double("wVulnerability").default(1.5).notNull(),
+  wEffect: double("wEffect").default(1.5).notNull(),
+  wRecognizability: double("wRecognizability").default(0.5).notNull(),
+  // Shock factor weights
+  wScope: double("wScope").default(1.5).notNull(),
+  wHandling: double("wHandling").default(1.0).notNull(),
+  wOperationalImpact: double("wOperationalImpact").default(2.0).notNull(),
+  wCascadingEffects: double("wCascadingEffects").default(1.5).notNull(),
+  wKnowledge: double("wKnowledge").default(1.0).notNull(),
+  // Meta-weights: how much CARVER vs Shock vs CVSS contribute to final score
+  carverWeight: double("carverWeight").default(0.4).notNull(), // 0-1
+  shockWeight: double("shockWeight").default(0.3).notNull(),   // 0-1
+  cvssWeight: double("cvssWeight").default(0.3).notNull(),     // 0-1
+  // Thresholds for risk bands
+  criticalThreshold: int("criticalThreshold").default(85).notNull(),
+  highThreshold: int("highThreshold").default(65).notNull(),
+  mediumThreshold: int("mediumThreshold").default(40).notNull(),
+  // Metadata
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type ScoringProfile = typeof scoringProfiles.$inferSelect;
+export type InsertScoringProfile = typeof scoringProfiles.$inferInsert;
+
+// ─── Scoring Audit Log ──────────────────────────────────────────────────
+/**
+ * Immutable audit trail of every scoring computation.
+ * Records the profile used, input factors, and computed scores for traceability.
+ */
+export const scoringAuditLog = mysqlTable("scoring_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  assetId: int("assetId").notNull(),
+  scanId: int("scanId"),
+  profileId: int("profileId"), // null = default weights
+  // Input factors snapshot
+  carverScores: json("carverScores"),  // { criticality, accessibility, ... }
+  shockScores: json("shockScores"),    // { scope, handling, ... }
+  cvssEstimate: double("cvssEstimate"),
+  // Computed outputs
+  missionImpactScore: double("missionImpactScore"),
+  impactScore: double("impactScore"),
+  likelihoodScore: double("likelihoodScore"),
+  hybridRiskScore: double("hybridRiskScore"),
+  riskBand: varchar("riskBand", { length: 32 }),
+  // Weight snapshot (for reproducibility)
+  weightsSnapshot: json("weightsSnapshot"), // full profile weights at time of computation
+  // Metadata
+  computedBy: varchar("computedBy", { length: 255 }),
+  computedAt: timestamp("computedAt").defaultNow().notNull(),
+});
+export type ScoringAuditEntry = typeof scoringAuditLog.$inferSelect;

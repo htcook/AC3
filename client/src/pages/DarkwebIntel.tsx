@@ -401,7 +401,7 @@ export default function DarkwebIntel() {
               </div>
             )}
 
-            {/* ─── ThreatFox IOCs (from bridge) ──────────────────────────── */}
+            {/* ─── malware indicator feeds IOCs (from bridge) ──────────────────────────── */}
             <div className="space-y-3">
               <button onClick={() => toggleSection("iocs")} className="flex items-center justify-between w-full">
                 <h2 className="text-sm font-display tracking-wider flex items-center gap-2">
@@ -416,7 +416,7 @@ export default function DarkwebIntel() {
                 ) : !threatFoxIOCs || threatFoxIOCs.data.length === 0 ? (
                   <div className="bg-card border border-border p-6 text-center">
                     <Bug className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">No ThreatFox IOCs available. Fetching from direct feed...</p>
+                    <p className="text-xs text-muted-foreground">No malware indicator feeds IOCs available. Fetching from direct feed...</p>
                   </div>
                 ) : (
                   <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
@@ -439,11 +439,11 @@ export default function DarkwebIntel() {
               )}
             </div>
 
-            {/* ─── CISA KEV (from bridge) ────────────────────────────────── */}
+            {/* ─── KEV (from bridge) ────────────────────────────────── */}
             <div className="space-y-3">
               <button onClick={() => toggleSection("kev")} className="flex items-center justify-between w-full">
                 <h2 className="text-sm font-display tracking-wider flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-red-400" /> CISA KEV ({cisaKEV?.data?.length ?? 0})
+                  <Shield className="w-4 h-4 text-red-400" /> known exploited vulnerabilities (KEV) ({cisaKEV?.data?.length ?? 0})
                   <span className="text-[10px] text-muted-foreground">Known Exploited Vulnerabilities</span>
                 </h2>
                 {expandedSections.kev ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
@@ -454,7 +454,7 @@ export default function DarkwebIntel() {
                 ) : !cisaKEV || cisaKEV.data.length === 0 ? (
                   <div className="bg-card border border-border p-6 text-center">
                     <Shield className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">No CISA KEV entries available.</p>
+                    <p className="text-xs text-muted-foreground">No KEV entries available.</p>
                   </div>
                 ) : (
                   <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
@@ -517,7 +517,7 @@ export default function DarkwebIntel() {
               <button onClick={() => toggleSection("malware")} className="flex items-center justify-between w-full">
                 <h2 className="text-sm font-display tracking-wider flex items-center gap-2">
                   <Skull className="w-4 h-4 text-orange-400" /> MALWARE BAZAAR ({malwareBazaar?.data?.length ?? 0})
-                  <span className="text-[10px] text-muted-foreground">abuse.ch</span>
+                  <span className="text-[10px] text-muted-foreground">threat intelligence feeds</span>
                 </h2>
                 {expandedSections.malware ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
               </button>

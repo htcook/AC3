@@ -257,7 +257,7 @@ export default function CampaignWizard() {
               <Rocket className="w-8 h-8 text-primary" />
               CAMPAIGN LAUNCH WIZARD
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">Create and launch GoPhish phishing campaigns step by step</p>
+            <p className="text-muted-foreground text-sm mt-1">Create and launch phishing campaigns step by step</p>
           </div>
           <Button variant="outline" onClick={() => navigate("/phishing-ops")} className="font-display tracking-wider">
             <X className="w-4 h-4 mr-2" /> CANCEL
@@ -369,7 +369,7 @@ export default function CampaignWizard() {
             <div>
               <h2 className="font-display text-xl tracking-wider mb-1">SELECT EMAIL TEMPLATE</h2>
               <p className="text-muted-foreground text-sm mb-6">
-                Choose a phishing email template from your GoPhish library. Click to preview.
+                Choose a phishing email template from your template library. Click to preview.
               </p>
 
               {previewTemplateHtml ? (
@@ -408,8 +408,8 @@ export default function CampaignWizard() {
                   {(!templates || templates.length === 0) && (
                     <div className="col-span-full text-center py-12 text-muted-foreground">
                       <LayoutTemplate className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No templates found in GoPhish.</p>
-                      <p className="text-xs mt-1">Create templates in the GoPhish admin panel first.</p>
+                      <p>No templates found in the phishing platform.</p>
+                      <p className="text-xs mt-1">Create templates in the phishing admin panel first.</p>
                     </div>
                   )}
                 </div>
@@ -590,7 +590,7 @@ export default function CampaignWizard() {
                   <div className="text-center py-8 text-muted-foreground">
                     <Send className="w-10 h-10 mx-auto mb-2 opacity-50" />
                     <p>No sending profiles found.</p>
-                    <p className="text-xs mt-1">Create an SMTP profile in GoPhish first.</p>
+                    <p className="text-xs mt-1">Create an SMTP profile in the phishing platform first.</p>
                   </div>
                 )}
               </div>
@@ -639,7 +639,7 @@ export default function CampaignWizard() {
                   {(!landingPages || landingPages.length === 0) && (
                     <div className="col-span-full text-center py-12 text-muted-foreground">
                       <Globe className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No landing pages found in GoPhish.</p>
+                      <p>No landing pages found in the phishing platform.</p>
                     </div>
                   )}
                 </div>
@@ -678,7 +678,7 @@ export default function CampaignWizard() {
                     placeholder="https://your-phishing-domain.com"
                     className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">The URL where the landing page will be hosted (GoPhish listener)</p>
+                  <p className="text-xs text-muted-foreground mt-1">The URL where the landing page will be hosted (phishing platform listener)</p>
                 </div>
 
                 {/* Schedule */}
@@ -746,7 +746,7 @@ export default function CampaignWizard() {
                   <div>
                     <p className="font-medium text-yellow-400">Ready to Launch</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      This will create and launch a live phishing campaign in GoPhish. Emails will be sent to all targets in the selected group.
+                      This will create and launch a live phishing campaign in the phishing platform. Emails will be sent to all targets in the selected group.
                       {!launchDate && " The campaign will launch immediately."}
                     </p>
                   </div>

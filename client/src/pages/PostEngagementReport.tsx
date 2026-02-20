@@ -103,7 +103,7 @@ export default function PostEngagementReport() {
               Post-Engagement Report Generator
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Generate client-ready PDF reports from completed Caldera operations with MITRE ATT&CK mapping,
+              Generate client-ready PDF reports from completed adversary operations with MITRE ATT&CK mapping,
               detection coverage analysis, and LLM-powered executive summaries.
             </p>
           </div>

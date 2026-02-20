@@ -291,7 +291,7 @@ export default function CampaignArchetypes() {
                   {/* Abilities */}
                   <div>
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
-                      Caldera Ability Steps
+                      Adversary Ability Steps
                     </h4>
                     <div className="space-y-1.5">
                       {(arch.defaultAbilities || []).map((a: any, i: number) => (

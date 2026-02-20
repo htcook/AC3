@@ -58,7 +58,7 @@ export default function EngagementResults() {
     { enabled: !!engagementId }
   );
 
-  // Fetch all GoPhish campaigns to get stats
+  // Fetch all phishing campaigns to get stats
   const { data: allCampaigns } = trpc.gophishProxy.getCampaigns.useQuery();
 
   // Compute aggregated stats
@@ -213,7 +213,7 @@ export default function EngagementResults() {
               <div className="text-center py-8">
                 <Fish className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <p className="font-display tracking-wider mb-2">NO CAMPAIGNS LINKED</p>
-                <p className="text-sm text-muted-foreground mb-4">Link campaigns to this engagement from the GoPhish page or use the Launch Wizard.</p>
+                <p className="text-sm text-muted-foreground mb-4">Link campaigns to this engagement from the phishing platform page or use the Launch Wizard.</p>
                 <Link href="/campaign-wizard">
                   <Button className="font-display tracking-wider"><Rocket className="w-4 h-4 mr-2" />LAUNCH WIZARD</Button>
                 </Link>
@@ -360,7 +360,7 @@ export default function EngagementResults() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Note: Detailed credential data (usernames/passwords) is available in the GoPhish UI for each campaign.
+                Note: Detailed credential data (usernames/passwords) is available in the phishing platform for each campaign.
                 This dashboard shows aggregate counts only for operational security.
               </p>
             </div>

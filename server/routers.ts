@@ -21,6 +21,8 @@ import { evidenceRouter } from "./routers/evidence";
 import { attackPathsRouter } from "./routers/attack-paths";
 import { purpleTeamRouter } from "./routers/purple-team";
 import { webhooksRouter } from "./routers/webhooks";
+import { bugBountyRouter } from "./routers/bug-bounty";
+import { scoringRouter } from "./routers/scoring";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -124,6 +126,8 @@ export const appRouter = router({
   attackPaths: attackPathsRouter,
   purpleTeam: purpleTeamRouter,
   webhooks: webhooksRouter,
+  bugBounty: bugBountyRouter,
+  scoring: scoringRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -3836,6 +3840,12 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               assetCriticalityBand: a.assetCriticalityBand || 'low',
               vulnRiskScore: a.vulnRiskScore || 0,
               vulnRiskBand: a.vulnRiskBand || 'low',
+              missionFunction: a.missionFunction || 'public_facing_services',
+              essentialService: a.essentialService || 'general_server',
+              businessImpactLevel: a.businessImpactLevel || 'moderate',
+              deviceType: a.deviceType || 'unknown',
+              platformType: a.platformType || 'unknown',
+              missionJustification: a.missionJustification || '',
             }));
 
             // Batch insert assets in chunks of 5 to avoid oversized queries
@@ -4116,6 +4126,12 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               vulnRiskBand: a.vulnRiskBand || 'low',
               impactScore: a.impactScore || 0,
               likelihoodScore: a.likelihoodScore || 0,
+              missionFunction: a.missionFunction || 'public_facing_services',
+              essentialService: a.essentialService || 'general_server',
+              businessImpactLevel: a.businessImpactLevel || 'moderate',
+              deviceType: a.deviceType || 'unknown',
+              platformType: a.platformType || 'unknown',
+              missionJustification: a.missionJustification || '',
             }));
 
             // Run campaign design
@@ -4311,6 +4327,12 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               assetCriticalityBand: a.assetCriticalityBand || 'low',
               vulnRiskScore: a.vulnRiskScore || 0,
               vulnRiskBand: a.vulnRiskBand || 'low',
+              missionFunction: a.missionFunction || 'public_facing_services',
+              essentialService: a.essentialService || 'general_server',
+              businessImpactLevel: a.businessImpactLevel || 'moderate',
+              deviceType: a.deviceType || 'unknown',
+              platformType: a.platformType || 'unknown',
+              missionJustification: a.missionJustification || '',
             }));
 
             if (assetRecords.length > 0) {

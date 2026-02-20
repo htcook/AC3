@@ -313,7 +313,7 @@ function CampaignBuilderTab() {
   const deployDraft = trpc.phishingOps.deployToGophish.useMutation({
     onSuccess: (data) => {
       if (data.success) {
-        toast.success("Deployed to GoPhish!");
+        toast.success("Deployed to phishing platform!");
       } else {
         toast.error(`Deployment had errors: ${data.errors.join(", ")}`);
       }
@@ -385,7 +385,7 @@ function CampaignBuilderTab() {
                     ) : (
                       <Send className="w-3.5 h-3.5 mr-1.5" />
                     )}
-                    Deploy to GoPhish
+                    Deploy to the phishing platform
                   </Button>
                 )}
               </>
@@ -440,13 +440,13 @@ function CampaignBuilderTab() {
                 )}
                 {selectedDraft.gophishTemplateId && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">GoPhish Template ID</span>
+                    <span className="text-muted-foreground">Phishing Template ID</span>
                     <span className="font-mono text-primary">{selectedDraft.gophishTemplateId}</span>
                   </div>
                 )}
                 {selectedDraft.gophishCampaignId && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">GoPhish Campaign ID</span>
+                    <span className="text-muted-foreground">Phishing Campaign ID</span>
                     <span className="font-mono text-primary">{selectedDraft.gophishCampaignId}</span>
                   </div>
                 )}
@@ -525,7 +525,7 @@ function CampaignBuilderTab() {
                         </div>
                       )}
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        GoPhish variables: {"{{.FirstName}}"}, {"{{.LastName}}"}, {"{{.Email}}"}, {"{{.URL}}"}, {"{{.TrackingURL}}"}, {"{{.From}}"}
+                        Template variables: {"{{.FirstName}}"}, {"{{.LastName}}"}, {"{{.Email}}"}, {"{{.URL}}"}, {"{{.TrackingURL}}"}, {"{{.From}}"}
                       </p>
                     </div>
                   </>
@@ -909,12 +909,12 @@ function ActiveCampaignsTab() {
                           ) : (
                             <Cpu className="w-3.5 h-3.5 mr-1.5" />
                           )}
-                          Trigger Caldera
+                          Trigger Emulation
                         </Button>
                       )}
                       {campaign.calderaOperationId && (
                         <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30">
-                          <Cpu className="w-3 h-3 mr-1" /> Caldera: {campaign.calderaOperationId}
+                          <Cpu className="w-3 h-3 mr-1" /> Operation: {campaign.calderaOperationId}
                         </Badge>
                       )}
                     </div>
@@ -940,7 +940,7 @@ function ActiveCampaignsTab() {
                   ) : (
                     <div className="bg-card-elevated rounded-lg p-4 text-center text-sm text-muted-foreground">
                       <Clock className="w-4 h-4 mx-auto mb-2" />
-                      No stats yet — click "Sync Stats" to pull data from GoPhish
+                      No stats yet — click "Sync Stats" to pull data from the phishing platform
                     </div>
                   )}
                 </CardContent>
@@ -1129,10 +1129,10 @@ function ActiveCampaignsTab() {
               </div>
             )}
 
-            {/* Caldera Post-Exploitation */}
+            {/* Emulation Post-Exploitation */}
             {reportData.caldera && (
               <div className="p-6 border-b border-border">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Caldera Post-Exploitation</h3>
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Post-Exploitation</h3>
                 <div className="grid grid-cols-3 gap-3 mb-3">
                   <div className="bg-card-elevated rounded-lg p-3">
                     <p className="text-lg font-bold text-orange-400">{reportData.caldera.stepsExecuted}</p>
@@ -1227,7 +1227,7 @@ function ArsenalTab() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-primary mr-3" />
-        <span className="text-muted-foreground">Loading GoPhish arsenal...</span>
+        <span className="text-muted-foreground">Loading phishing arsenal...</span>
       </div>
     );
   }
@@ -1237,9 +1237,9 @@ function ArsenalTab() {
       <Card className="bg-card border-border">
         <CardContent className="p-12 text-center">
           <AlertTriangle className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">GoPhish Offline</h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">Phishing Platform Offline</h3>
           <p className="text-muted-foreground text-sm">
-            Cannot connect to GoPhish server. Check the server configuration.
+            Cannot connect to phishing server. Check the server configuration.
           </p>
         </CardContent>
       </Card>
@@ -1282,7 +1282,7 @@ function ArsenalTab() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-sm text-green-400">GoPhish Online</span>
+          <span className="text-sm text-green-400">Phishing Platform Online</span>
         </div>
         <div className="flex gap-2">
           <Button
@@ -1433,7 +1433,7 @@ function ArsenalTab() {
             ) : staleData ? (
               <div className="flex items-center gap-2 py-4">
                 <CheckCircle className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-muted-foreground">No stale resources found. Your GoPhish arsenal is clean.</span>
+                <span className="text-sm text-muted-foreground">No stale resources found. Your phishing arsenal is clean.</span>
               </div>
             ) : null}
           </CardContent>
@@ -1549,7 +1549,7 @@ export default function PhishingOperations() {
               { icon: Send, label: "Deploy", color: "text-primary" },
               { icon: Rocket, label: "Launch", color: "text-green-400" },
               { icon: BarChart3, label: "Track", color: "text-blue-400" },
-              { icon: Cpu, label: "Caldera", color: "text-red-400" },
+              { icon: Cpu, label: "emulation framework", color: "text-red-400" },
             ].map(({ icon: Icon, label, color }, i) => (
               <div key={label} className="flex items-center gap-2 flex-shrink-0">
                 <div className="flex flex-col items-center gap-1">
@@ -1581,7 +1581,7 @@ export default function PhishingOperations() {
             <Database className="w-3.5 h-3.5" /> Arsenal
           </TabsTrigger>
           <TabsTrigger value="gophish-manager" className="flex items-center gap-1.5">
-            <Fish className="w-3.5 h-3.5" /> GoPhish Manager
+            <Fish className="w-3.5 h-3.5" /> Phishing Manager
           </TabsTrigger>
           <TabsTrigger value="typosquat" className="flex items-center gap-1.5">
             <Globe className="w-3.5 h-3.5" /> Typosquat Domains

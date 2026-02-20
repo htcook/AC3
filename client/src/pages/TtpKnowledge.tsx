@@ -88,7 +88,7 @@ export default function TtpKnowledge() {
   const total = knowledge.data?.total || 0;
   const totalPages = Math.ceil(total / 25);
 
-  // Group Kali tools by category
+  // Group offensive tools by category
   const kaliByCategory = useMemo(() => {
     const tools = kaliTools.data || [];
     const grouped = new Map<string, typeof tools>();
@@ -168,7 +168,7 @@ export default function TtpKnowledge() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{kaliTools.data?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">Kali Tools</p>
+                <p className="text-xs text-muted-foreground">Offensive Tools</p>
               </div>
             </div>
           </CardContent>
@@ -197,7 +197,7 @@ export default function TtpKnowledge() {
               <div className="flex-1">
                 <p className="text-sm font-medium">Ingesting from GitHub repositories...</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Downloading ATT&CK STIX, Atomic Red Team, LOLBAS, Metasploit modules, and mapping Kali tools
+                  Downloading ATT&CK STIX, Atomic Red Team, LOLBAS, exploit modules, and mapping offensive tools
                 </p>
                 <Progress value={undefined} className="mt-2 h-1" />
               </div>
@@ -210,7 +210,7 @@ export default function TtpKnowledge() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-zinc-900 border border-zinc-800">
           <TabsTrigger value="knowledge">Technique Knowledge</TabsTrigger>
-          <TabsTrigger value="kali">Kali Linux Tools</TabsTrigger>
+          <TabsTrigger value="kali">penetration testing tools Tools</TabsTrigger>
           <TabsTrigger value="tactics">Tactic Heatmap</TabsTrigger>
         </TabsList>
 
@@ -474,13 +474,13 @@ export default function TtpKnowledge() {
           )}
         </TabsContent>
 
-        {/* Kali Tools Tab */}
+        {/* Offensive Tools Tab */}
         <TabsContent value="kali" className="space-y-4">
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wrench className="h-5 w-5 text-orange-400" />
-                Kali Linux Offensive Tool Catalog
+                penetration testing tools Offensive Tool Catalog
               </CardTitle>
               <CardDescription>
                 {kaliTools.data?.length || 0} tools mapped to MITRE ATT&CK techniques across {kaliByCategory.size} categories

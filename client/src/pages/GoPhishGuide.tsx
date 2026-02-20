@@ -75,7 +75,7 @@ export default function GoPhishGuide() {
             <Mail className="w-8 h-8 text-primary" />
             <h1 className="font-display text-3xl tracking-wider">GOPHISH CAMPAIGN GUIDE</h1>
           </div>
-          <p className="text-muted-foreground text-lg">Complete guide to designing and managing phishing test campaigns for your customers using GoPhish.</p>
+          <p className="text-muted-foreground text-lg">Complete guide to designing and managing phishing test campaigns for your customers using phishing platform.</p>
           <p className="text-xs text-muted-foreground mt-2">Ace C3 — AceofCloud</p>
         </div>
 
@@ -99,12 +99,12 @@ export default function GoPhishGuide() {
         </div>
 
         {/* Section 1: Overview */}
-        <Section title="What is GoPhish?" icon={<Shield className="w-5 h-5" />} defaultOpen={true}>
+        <Section title="What is phishing platform?" icon={<Shield className="w-5 h-5" />} defaultOpen={true}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            GoPhish is an open-source phishing simulation framework that enables security teams to design, launch, and track phishing campaigns against their organization or clients. It provides a complete toolkit for creating realistic phishing emails, credential capture landing pages, and detailed analytics on user behavior.
+            This is an open-source phishing simulation framework that enables security teams to design, launch, and track phishing campaigns against their organization or clients. It provides a complete toolkit for creating realistic phishing emails, credential capture landing pages, and detailed analytics on user behavior.
           </p>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            In the Cyber Campaign Command platform, GoPhish is integrated directly into the dashboard, allowing you to manage all phishing operations alongside your Caldera red team exercises. This creates a unified offensive security workflow where phishing (initial access) feeds directly into adversary emulation (post-exploitation).
+            In the Cyber Campaign Command platform, the phishing platform is integrated directly into the dashboard, allowing you to manage all phishing operations alongside your adversary emulation exercises. This creates a unified offensive security workflow where phishing (initial access) feeds directly into adversary emulation (post-exploitation).
           </p>
           <div className="bg-card border border-border rounded-lg p-4">
             <h4 className="font-display tracking-wider text-sm mb-3 text-primary">CAMPAIGN WORKFLOW</h4>
@@ -125,7 +125,7 @@ export default function GoPhishGuide() {
         {/* Section 2: Sending Profiles */}
         <Section title="Step 1: Sending Profiles (SMTP)" icon={<Send className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            A Sending Profile configures the SMTP server that GoPhish uses to deliver phishing emails. This is the foundation of your campaign — without a properly configured sending profile, emails will not be delivered or will land in spam.
+            A Sending Profile configures the SMTP server that the platform uses to deliver phishing emails. This is the foundation of your campaign — without a properly configured sending profile, emails will not be delivered or will land in spam.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">CONFIGURATION FIELDS</h4>
@@ -186,7 +186,7 @@ export default function GoPhishGuide() {
         {/* Section 4: Email Templates */}
         <Section title="Step 3: Email Templates" icon={<Mail className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Email Templates are the core of your phishing campaign — they determine what the target sees in their inbox. GoPhish provides an HTML editor for creating pixel-perfect emails, the ability to import existing emails, and template variables for personalization.
+            Email Templates are the core of your phishing campaign — they determine what the target sees in their inbox. The platform provides an HTML editor for creating pixel-perfect emails, the ability to import existing emails, and template variables for personalization.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">TEMPLATE VARIABLES (CASE SENSITIVE)</h4>
@@ -263,12 +263,12 @@ export default function GoPhishGuide() {
         {/* Section 5: Landing Pages */}
         <Section title="Step 4: Landing Pages" icon={<Globe className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Landing Pages are the HTML pages displayed when targets click the phishing link. They typically mimic a login page to capture credentials. GoPhish can import pages directly from URLs and automatically capture submitted form data.
+            Landing Pages are the HTML pages displayed when targets click the phishing link. They typically mimic a login page to capture credentials. The platform can import pages directly from URLs and automatically capture submitted form data.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">KEY FEATURES</h4>
           <div className="space-y-3 text-sm text-muted-foreground mb-4">
-            <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Import Site:</strong> Enter any URL and GoPhish will clone the page HTML, making it easy to replicate real login pages (Microsoft 365, Google Workspace, VPN portals).</span></div>
+            <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Import Site:</strong> Enter any URL and phishing platform will clone the page HTML, making it easy to replicate real login pages (Microsoft 365, Google Workspace, VPN portals).</span></div>
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Capture Credentials:</strong> Enable "Capture Submitted Data" to log usernames and passwords entered on the landing page.</span></div>
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Capture Passwords:</strong> Optionally enable "Capture Passwords" for full credential capture (use with caution and proper authorization).</span></div>
             <div className="flex gap-3"><CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" /><span><strong className="text-foreground">Redirect:</strong> After form submission, redirect users to the real login page or a training page explaining the phishing test.</span></div>
@@ -296,7 +296,7 @@ export default function GoPhishGuide() {
         {/* Section 6: Launching Campaigns */}
         <Section title="Step 5: Launch & Monitor Campaigns" icon={<Zap className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Once all components are configured, you can launch a campaign by selecting a template, landing page, sending profile, target group, and the phishing URL. GoPhish tracks every interaction — email sent, opened, link clicked, and data submitted.
+            Once all components are configured, you can launch a campaign by selecting a template, landing page, sending profile, target group, and the phishing URL. The platform tracks every interaction — email sent, opened, link clicked, and data submitted.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">CAMPAIGN CONFIGURATION</h4>
@@ -307,7 +307,7 @@ export default function GoPhishGuide() {
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Name</td><td className="px-4 py-2 text-muted-foreground">Descriptive campaign name (e.g., "Q1-2026 Password Reset Simulation")</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Email Template</td><td className="px-4 py-2 text-muted-foreground">Select the phishing email template to use</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Landing Page</td><td className="px-4 py-2 text-muted-foreground">Select the credential capture page</td></tr>
-                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">URL</td><td className="px-4 py-2 text-muted-foreground">The phishing URL targets will see (your GoPhish listener address)</td></tr>
+                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">URL</td><td className="px-4 py-2 text-muted-foreground">The phishing URL targets will see (your phishing platform listener address)</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Sending Profile</td><td className="px-4 py-2 text-muted-foreground">SMTP configuration for email delivery</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Groups</td><td className="px-4 py-2 text-muted-foreground">Target recipient groups</td></tr>
                 <tr><td className="px-4 py-2 font-mono text-primary">Launch Date</td><td className="px-4 py-2 text-muted-foreground">Schedule campaign or launch immediately</td></tr>
@@ -368,7 +368,7 @@ export default function GoPhishGuide() {
           </div>
 
           <InfoBox type="important">
-            <strong>GoPhish Fingerprint Removal:</strong> Remove the <code>X-Gophish-Contact</code> header and customize the default 404 page to prevent security tools from identifying your GoPhish server. Edit the GoPhish source code or use a reverse proxy (nginx) to strip these indicators.
+            <strong>phishing platform Fingerprint Removal:</strong> Remove the <code>X-Gophish-Contact</code> header and customize the default 404 page to prevent security tools from identifying your phishing server. Edit the platform source code or use a reverse proxy (nginx) to strip these indicators.
           </InfoBox>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary mt-6">CONTENT TIPS TO AVOID SPAM FILTERS</h4>
@@ -383,7 +383,7 @@ export default function GoPhishGuide() {
         {/* Section 8: Reporting */}
         <Section title="Reporting & Metrics" icon={<FileText className="w-5 h-5" />}>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            After a campaign completes, GoPhish provides detailed reports showing user behavior at each stage of the phishing funnel. These reports are essential for demonstrating risk to stakeholders and measuring the effectiveness of security awareness training.
+            After a campaign completes, the platform provides detailed reports showing user behavior at each stage of the phishing funnel. These reports are essential for demonstrating risk to stakeholders and measuring the effectiveness of security awareness training.
           </p>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary">KEY METRICS FOR CLIENT REPORTS</h4>
@@ -400,7 +400,7 @@ export default function GoPhishGuide() {
           </div>
 
           <InfoBox type="tip">
-            <strong>Export Options:</strong> GoPhish supports CSV export of campaign results. Use this data to create executive summaries, department-level breakdowns, and trend analysis across multiple campaigns.
+            <strong>Export Options:</strong> The platform supports CSV export of campaign results. Use this data to create executive summaries, department-level breakdowns, and trend analysis across multiple campaigns.
           </InfoBox>
         </Section>
 
@@ -409,14 +409,14 @@ export default function GoPhishGuide() {
           <FAQ
             items={gophishFAQItems}
             title="GOPHISH TROUBLESHOOTING FAQ"
-            description="Common issues and solutions for GoPhish phishing campaigns, email delivery, SMTP configuration, and landing pages."
+            description="Common issues and solutions for phishing platform phishing campaigns, email delivery, SMTP configuration, and landing pages."
           />
         </div>
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">
-          <p>Cyber Campaign Command GoPhish Campaign Guide — AceofCloud</p>
-          <p className="mt-1">For the latest GoPhish documentation, visit <a href="https://docs.getgophish.com" target="_blank" className="text-primary underline">docs.getgophish.com</a></p>
+          <p>Cyber Campaign Command Phishing Campaign Guide — AceofCloud</p>
+          <p className="mt-1">For the latest phishing platform documentation, visit <a href="https://docs.getgophish.com" target="_blank" className="text-primary underline">docs.getgophish.com</a></p>
         </div>
       </AppShell>
   );

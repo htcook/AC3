@@ -188,7 +188,7 @@ export default function CveDetailModal({ open, onOpenChange, cveId }: CveDetailM
                   <div className={`p-3 border text-center ${data.kevListed ? "border-yellow-500/30 bg-yellow-500/10" : "border-border bg-card"}`}>
                     <Shield className={`w-5 h-5 mx-auto mb-1 ${data.kevListed ? "text-yellow-400" : "text-muted-foreground/30"}`} />
                     <div className={`text-[9px] tracking-wider ${data.kevListed ? "text-yellow-400" : "text-muted-foreground/50"}`}>
-                      {data.kevListed ? "CISA KEV LISTED" : "NOT ON KEV"}
+                      {data.kevListed ? "KEV LISTED" : "NOT ON KEV"}
                     </div>
                   </div>
                   <div className={`p-3 border text-center ${data.exploitAvailable ? "border-orange-500/30 bg-orange-500/10" : "border-border bg-card"}`}>
@@ -326,7 +326,7 @@ export default function CveDetailModal({ open, onOpenChange, cveId }: CveDetailM
               {/* ── EXPLOITS TAB ── */}
               {exploitMatches && (
                 <TabsContent value="exploits" className="px-6 py-4 space-y-5 mt-0">
-                  {/* Metasploit Modules */}
+                  {/* Exploit Modules */}
                   {exploitMatches.metasploitModules && exploitMatches.metasploitModules.length > 0 && (
                     <div>
                       <h4 className="text-[10px] font-display tracking-widest text-orange-400 mb-3 flex items-center gap-2">
@@ -362,7 +362,7 @@ export default function CveDetailModal({ open, onOpenChange, cveId }: CveDetailM
                     </div>
                   )}
 
-                  {/* ExploitDB Entries */}
+                  {/* Exploit Database Entries */}
                   {exploitMatches.exploitDbEntries && exploitMatches.exploitDbEntries.length > 0 && (
                     <div>
                       <h4 className="text-[10px] font-display tracking-widest text-amber-400 mb-3 flex items-center gap-2">
@@ -398,7 +398,7 @@ export default function CveDetailModal({ open, onOpenChange, cveId }: CveDetailM
                     </div>
                   )}
 
-                  {/* Caldera Ability */}
+                  {/* the emulation framework Ability */}
                   {exploitMatches.calderaAbility && (
                     <div className="bg-primary/5 border border-primary/20 p-4">
                       <h4 className="text-[10px] font-display tracking-widest text-primary mb-2 flex items-center gap-2">

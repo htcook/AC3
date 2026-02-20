@@ -58,7 +58,7 @@ export default function TemplateGenerator() {
   const deployMutation = trpc.templateGenerator.deployToGophish.useMutation({
     onSuccess: (data) => {
       if (data.errors.length === 0) {
-        toast.success("Template and landing page deployed to GoPhish.");
+        toast.success("Template and landing page deployed to phishing platform.");
       } else {
         toast.error(`Partial deployment: ${data.errors.join('; ')}`);
       }
@@ -439,7 +439,7 @@ export default function TemplateGenerator() {
                   {deployMutation.isPending ? (
                     <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Deploying...</>
                   ) : (
-                    <><Send className="w-3.5 h-3.5 mr-1" /> Deploy to GoPhish</>
+                    <><Send className="w-3.5 h-3.5 mr-1" /> Deploy to the phishing platform</>
                   )}
                 </Button>
               </div>

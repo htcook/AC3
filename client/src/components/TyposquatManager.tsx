@@ -127,7 +127,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
 
         if (res.success) {
           setIntegrationStep("done");
-          toast.success(`${selectedDomain.domain} fully integrated with GoPhish!`);
+          toast.success(`${selectedDomain.domain} fully integrated with the phishing platform!`);
         } else {
           toast.error("Some integration steps failed. Check the details.");
           setIntegrationStep("done");
@@ -168,7 +168,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
                 TYPOSQUAT DOMAIN ACQUISITION
               </CardTitle>
               <CardDescription className="mt-1">
-                Generate, purchase, and auto-integrate typosquat domains into GoPhish campaigns when target email security prevents direct spoofing.
+                Generate, purchase, and auto-integrate typosquat domains into phishing campaigns when target email security prevents direct spoofing.
               </CardDescription>
             </div>
           </div>
@@ -241,7 +241,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
               TOP {result.recommendedVariants.length} RECOMMENDED DOMAINS
             </CardTitle>
             <CardDescription className="text-xs">
-              Ranked by phishing effectiveness. Available domains can be purchased and auto-integrated with GoPhish.
+              Ranked by phishing effectiveness. Available domains can be purchased and auto-integrated with the phishing platform.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -323,7 +323,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
               DOMAIN INTEGRATION WORKFLOW
             </DialogTitle>
             <DialogDescription>
-              Purchase and auto-configure <span className="font-mono text-foreground">{selectedDomain?.domain}</span> for GoPhish phishing campaigns.
+              Purchase and auto-configure <span className="font-mono text-foreground">{selectedDomain?.domain}</span> for phishing campaigns.
             </DialogDescription>
           </DialogHeader>
 
@@ -383,9 +383,9 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-display tracking-wider">2. CONFIGURE DNS (DigitalOcean)</p>
+                  <p className="text-sm font-display tracking-wider">2. CONFIGURE DNS (cloud provider)</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Auto-create MX, SPF, and DMARC records via DigitalOcean API.
+                    Auto-create MX, SPF, and DMARC records via cloud DNS API.
                   </p>
                 </div>
               </div>
@@ -402,7 +402,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
                 <div>
                   <p className="text-sm font-display tracking-wider">3. CREATE GOPHISH SENDING PROFILE</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Auto-create SMTP sending profile in GoPhish with the new domain.
+                    Auto-create SMTP sending profile in the phishing platform with the new domain.
                   </p>
                 </div>
               </div>
@@ -412,7 +412,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
             {integrationStep === "confirm" && (
               <div className="space-y-3 pt-2 border-t border-border">
                 <div>
-                  <Label className="text-xs font-display tracking-wider text-muted-foreground">FROM NAME (for GoPhish profile)</Label>
+                  <Label className="text-xs font-display tracking-wider text-muted-foreground">FROM NAME (for phishing profile)</Label>
                   <Input
                     value={fromName}
                     onChange={(e) => setFromName(e.target.value)}
@@ -523,14 +523,14 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
                 <div className="w-6 h-6 bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-display text-xs shrink-0">3</div>
                 <div>
                   <p className="text-xs font-display tracking-wider">PURCHASE & CONFIGURE</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Buy domain at registrar, auto-configure DNS via DigitalOcean</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Buy domain at registrar, auto-configure DNS via cloud provider</p>
                 </div>
               </div>
               <div className="flex items-start gap-2 p-3 bg-muted/30 border border-border">
                 <div className="w-6 h-6 bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-display text-xs shrink-0">4</div>
                 <div>
                   <p className="text-xs font-display tracking-wider">AUTO-INTEGRATE</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">GoPhish sending profile created automatically for the new domain</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">phishing sending profile created automatically for the new domain</p>
                 </div>
               </div>
             </div>

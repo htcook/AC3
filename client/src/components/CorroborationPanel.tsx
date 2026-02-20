@@ -151,7 +151,7 @@ export default function CorroborationPanel({
             IOC CORROBORATION
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Cross-reference discovered assets against ThreatFox IOCs via SpicyThreatIntel
+            Cross-reference discovered assets against threat indicators via SpicyThreatIntel
           </p>
         </div>
         <Button
@@ -177,7 +177,7 @@ export default function CorroborationPanel({
             <Loader2 className="h-5 w-5 animate-spin text-purple-400" />
             <div>
               <p className="text-sm font-semibold">Corroborating {assetInputs.length} assets...</p>
-              <p className="text-xs text-muted-foreground">Checking against ThreatFox IOC database</p>
+              <p className="text-xs text-muted-foreground">Checking against threat indicator database</p>
             </div>
           </CardContent>
         </Card>
@@ -236,7 +236,7 @@ export default function CorroborationPanel({
                 <CheckCircle2 className="h-10 w-10 text-green-400 mx-auto mb-3" />
                 <p className="text-sm font-semibold text-green-400">No IOC Matches Found</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  None of the {assetInputs.length} discovered assets matched known ThreatFox indicators.
+                  None of the {assetInputs.length} discovered assets matched known threat indicators.
                   This does not guarantee safety — it means no current IOC correlation was found.
                 </p>
               </CardContent>
@@ -371,7 +371,7 @@ export default function CorroborationPanel({
             <Bug className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
               Click "Run Corroboration" to cross-reference {assetInputs.length} discovered assets
-              against ThreatFox IOCs for known threat indicators.
+              against threat indicators for known threat indicators.
             </p>
           </CardContent>
         </Card>

@@ -33,13 +33,13 @@ const DIFFICULTY_COLORS = {
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" />, label: "Dashboard" },
   { href: "/campaigns", icon: <Target className="w-4 h-4" />, label: "Campaigns" },
-  { href: "/phishing-ops", icon: <Crosshair className="w-4 h-4" />, label: "GoPhish" },
+  { href: "/phishing-ops", icon: <Crosshair className="w-4 h-4" />, label: "phishing platform" },
   { href: "/credentials", icon: <Shield className="w-4 h-4" />, label: "Credentials" },
 ];
 
 const GUIDE_ITEMS = [
-  { href: "/guides/gophish", icon: <BookOpen className="w-4 h-4" />, label: "GoPhish Guide" },
-  { href: "/guides/caldera", icon: <BookOpen className="w-4 h-4" />, label: "Caldera Guide" },
+  { href: "/guides/gophish", icon: <BookOpen className="w-4 h-4" />, label: "Phishing Platform Guide" },
+  { href: "/guides/caldera", icon: <BookOpen className="w-4 h-4" />, label: "Emulation Framework Guide" },
 ];
 
 const THREAT_ITEMS = [
@@ -141,7 +141,7 @@ export default function TemplateLibrary() {
                 Phishing Template Library
               </h1>
               <p className="text-gray-400 mt-1">
-                {PHISHING_TEMPLATES.length} ready-to-use GoPhish templates across {Object.keys(TEMPLATE_CATEGORIES).length} categories
+                {PHISHING_TEMPLATES.length} ready-to-use phishing templates across {Object.keys(TEMPLATE_CATEGORIES).length} categories
               </p>
             </div>
             <button
@@ -325,7 +325,7 @@ export default function TemplateLibrary() {
           <div className="bg-[#0d1221] border border-white/5 rounded-xl p-6">
             <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-teal-400" />
-              How to Use These Templates in GoPhish
+              How to Use These Templates in the phishing platform
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
@@ -333,14 +333,14 @@ export default function TemplateLibrary() {
                   <span className="w-6 h-6 rounded-full bg-teal-500/20 flex items-center justify-center text-xs font-bold">1</span>
                   Copy the Template
                 </div>
-                <p className="text-gray-400 text-sm">Click "Copy HTML" on any template to copy the full HTML source code to your clipboard. Each template includes GoPhish variables like {"{{.FirstName}}"}, {"{{.Email}}"}, {"{{.URL}}"}, and {"{{.Tracker}}"}.</p>
+                <p className="text-gray-400 text-sm">Click "Copy HTML" on any template to copy the full HTML source code to your clipboard. Each template includes phishing platform variables like {"{{.FirstName}}"}, {"{{.Email}}"}, {"{{.URL}}"}, and {"{{.Tracker}}"}.</p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-teal-400 font-medium text-sm">
                   <span className="w-6 h-6 rounded-full bg-teal-500/20 flex items-center justify-center text-xs font-bold">2</span>
-                  Import into GoPhish
+                  Import into the phishing platform
                 </div>
-                <p className="text-gray-400 text-sm">In GoPhish Admin, go to <strong className="text-gray-300">Email Templates → New Template</strong>. Paste the HTML into the "HTML" tab. Set the subject line from the template details. Save the template.</p>
+                <p className="text-gray-400 text-sm">In phishing platform Admin, go to <strong className="text-gray-300">Email Templates → New Template</strong>. Paste the HTML into the "HTML" tab. Set the subject line from the template details. Save the template.</p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-teal-400 font-medium text-sm">

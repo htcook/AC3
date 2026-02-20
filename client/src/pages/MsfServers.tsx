@@ -85,10 +85,10 @@ export default function MsfServers() {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Server className="w-6 h-6 text-purple-500" />
-                Metasploit Servers
+                Exploit Servers
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Provision and manage Metasploit Framework instances on DigitalOcean
+                Provision and manage Exploit Framework instances on cloud provider
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -110,8 +110,8 @@ export default function MsfServers() {
             <Card className="bg-zinc-900/50 border-zinc-800">
               <CardContent className="py-16 text-center">
                 <Server className="w-12 h-12 mx-auto mb-4 text-zinc-600" />
-                <h3 className="text-lg font-semibold text-zinc-300 mb-2">No Metasploit Servers</h3>
-                <p className="text-sm text-zinc-500 mb-4">Provision a DigitalOcean droplet with Metasploit Framework pre-installed and MSGRPC auto-configured.</p>
+                <h3 className="text-lg font-semibold text-zinc-300 mb-2">No Exploit Servers</h3>
+                <p className="text-sm text-zinc-500 mb-4">Provision a cloud provider droplet with Exploit Framework pre-installed and MSGRPC auto-configured.</p>
                 <Button onClick={() => setProvisionOpen(true)} className="bg-purple-600 hover:bg-purple-700">
                   <Plus className="w-4 h-4 mr-1" />Provision Your First Server
                 </Button>
@@ -206,7 +206,7 @@ export default function MsfServers() {
                     <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold">1</div>
                     Provision
                   </div>
-                  <p className="text-zinc-500 text-xs">Spin up a DigitalOcean droplet with Docker-based Metasploit Framework and MSGRPC daemon auto-configured.</p>
+                  <p className="text-zinc-500 text-xs">Spin up a cloud provider droplet with Docker-based Exploit Framework and MSGRPC daemon auto-configured.</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-blue-400 font-semibold">
@@ -220,14 +220,14 @@ export default function MsfServers() {
                     <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center text-xs font-bold">3</div>
                     Exploit
                   </div>
-                  <p className="text-zinc-500 text-xs">Fire exploits from the Exploit Arsenal against authorized targets. Sessions auto-deploy Caldera agents.</p>
+                  <p className="text-zinc-500 text-xs">Fire exploits from the Exploit Arsenal against authorized targets. Sessions auto-deploy emulation agents.</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-green-400 font-semibold">
                     <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center text-xs font-bold">4</div>
                     Handoff
                   </div>
-                  <p className="text-zinc-500 text-xs">Once Caldera agent is running, post-exploitation chains execute automatically. Destroy the MSF droplet when done.</p>
+                  <p className="text-zinc-500 text-xs">Once emulation agent is running, post-exploitation chains execute automatically. Destroy the MSF droplet when done.</p>
                 </div>
               </div>
             </CardContent>
@@ -240,10 +240,10 @@ export default function MsfServers() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-purple-400" />
-                Provision Metasploit Server
+                Provision Exploit Server
               </DialogTitle>
               <DialogDescription>
-                Creates a DigitalOcean droplet with Metasploit Framework pre-installed via Docker.
+                Creates a cloud provider droplet with Exploit Framework pre-installed via Docker.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-4">
@@ -277,7 +277,7 @@ export default function MsfServers() {
               <div className="bg-zinc-800/50 border border-zinc-700 rounded p-3 text-xs text-zinc-400 space-y-1">
                 <p><strong className="text-zinc-300">What gets installed:</strong></p>
                 <ul className="list-disc list-inside space-y-0.5">
-                  <li>Docker + Metasploit Framework (latest)</li>
+                  <li>Docker + Exploit Framework (latest)</li>
                   <li>MSGRPC daemon on port 55553 (SSL enabled)</li>
                   <li>UFW firewall (SSH + MSGRPC only)</li>
                   <li>Auto-registered in platform with connection details</li>
@@ -307,7 +307,7 @@ export default function MsfServers() {
                 Destroy Server
               </DialogTitle>
               <DialogDescription>
-                This will permanently destroy the DigitalOcean droplet and all data on it. This action cannot be undone.
+                This will permanently destroy the cloud provider droplet and all data on it. This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-4">

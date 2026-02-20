@@ -167,6 +167,13 @@ export interface AssetAnalysis {
   // Impact × Likelihood decomposition (for analyst transparency)
   impactScore: number;           // 0-100, normalized from CARVER/SHOCK mission impact
   likelihoodScore: number;       // 0-100, derived from CVSS + exposure + recognizability, dampened by confidence
+  // Mission Function Classification
+  missionFunction: string;       // e.g., 'authentication_and_access', 'revenue_generation'
+  essentialService: string;      // e.g., 'sso_idp', 'payment_processing'
+  businessImpactLevel: string;   // 'catastrophic' | 'severe' | 'significant' | 'moderate' | 'minimal'
+  deviceType: string;            // e.g., 'server', 'cloud_service', 'network_appliance'
+  platformType: string;          // e.g., 'linux_server', 'cloud_saas', 'web_application'
+  missionJustification: string;  // Brief explanation of why this asset is critical
 }
 
 export interface KevEnrichment {
@@ -429,6 +436,20 @@ For EACH asset, provide:
 
 7. Test Vectors: Suggested attack vectors (array of objects with id, vectorType, hypothesis, suggestedEmulation {technique, tactic}, expectedTelemetry[], riskSignal {severity, likelihood})
 
+8. Mission Function Classification (REQUIRED for each asset):
+   Classify each asset's role in the organization's mission-essential functions:
+   - missionFunction: One of: command_and_control, revenue_generation, customer_data_processing, intellectual_property_storage, authentication_and_access, communication_infrastructure, regulatory_compliance, business_continuity, supply_chain_integration, public_facing_services
+   - essentialService: Specific service type, one of: sso_idp, active_directory, payment_processing, email_gateway, vpn_concentrator, dns_infrastructure, database_primary, database_replica, load_balancer, web_application_firewall, api_gateway, ci_cd_pipeline, monitoring_alerting, backup_recovery, file_storage, certificate_authority, secrets_management, container_orchestration, message_queue, cdn_edge, erp_system, crm_system, scada_hmi, medical_device, pos_terminal, voip_pbx, print_server, general_server
+   - businessImpactLevel: One of: catastrophic, severe, significant, moderate, minimal
+     * catastrophic: Complete mission failure, existential threat to organization
+     * severe: Major mission degradation, significant financial/operational impact
+     * significant: Noticeable mission impact, requires immediate attention
+     * moderate: Limited impact, workarounds available
+     * minimal: Negligible operational impact
+   - deviceType: One of: server, workstation, network_appliance, iot_device, mobile_device, virtual_machine, container, cloud_service, embedded_system, unknown
+   - platformType: One of: windows_server, linux_server, cloud_saas, cloud_iaas, cloud_paas, network_os, firmware, web_application, mobile_app, database_engine, unknown
+   - missionJustification: Brief explanation of WHY this asset is critical to the identified mission function (1-2 sentences)
+
 Return JSON with this exact structure:
 {
   "analyses": [
@@ -440,7 +461,13 @@ Return JSON with this exact structure:
       "contextIndicators": { "exposure": 0.6, "recognizability": 0.5, "confidence": 0.4 },
       "suggestedTier": "tier2_medium",
       "postureFindings": [...],
-      "testVectors": [...]
+      "testVectors": [...],
+      "missionFunction": "authentication_and_access",
+      "essentialService": "sso_idp",
+      "businessImpactLevel": "severe",
+      "deviceType": "cloud_service",
+      "platformType": "cloud_saas",
+      "missionJustification": "SSO portal is the single authentication gateway for all employees; compromise grants lateral access to every connected system."
     }
   ]
 }
@@ -558,6 +585,13 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
         // Impact × Likelihood decomposition
         impactScore: hybrid.impactScore,
         likelihoodScore: hybrid.likelihoodScore,
+        // Mission Function Classification (from LLM)
+        missionFunction: analysis.missionFunction || 'public_facing_services',
+        essentialService: analysis.essentialService || 'general_server',
+        businessImpactLevel: analysis.businessImpactLevel || 'moderate',
+        deviceType: analysis.deviceType || 'unknown',
+        platformType: analysis.platformType || 'unknown',
+        missionJustification: analysis.missionJustification || '',
       };
     });
   } catch (err) {
@@ -1100,6 +1134,13 @@ function createDefaultAnalysis(asset: DiscoveredAssetRaw): AssetAnalysis {
     vulnRiskBand: "low",
     impactScore: hybrid.impactScore,
     likelihoodScore: hybrid.likelihoodScore,
+    // Mission Function Classification defaults
+    missionFunction: 'public_facing_services',
+    essentialService: 'general_server',
+    businessImpactLevel: 'moderate',
+    deviceType: 'unknown',
+    platformType: 'unknown',
+    missionJustification: '',
   };
 }
 
@@ -1795,8 +1836,23 @@ export async function runDomainIntelPipeline(
   // Only confirmed (version-matched CVEs, KEV with version overlap, zero-days) and probable (CVE product-family match) drive Likelihood.
   // Port exposure boost adds to likelihood for assets with high-risk exposed ports (RDP, Telnet, FTP, VNC, SMB, databases).
   // Assets with zero confirmed/probable vulns get a baseline low Likelihood (~5-15%).
+  //
+  // ENHANCED: Apply mission function baselines from the scoring engine.
+  // Assets classified with critical mission functions (C2, auth, revenue) get floor scores
+  // that ensure they are never under-scored regardless of vuln data.
+  // Essential service baselines provide granular CARVER/Shock adjustments.
+  const { applyMissionBaselines } = await import('./lib/scoring-engine');
   for (const a of analyses) {
-    const missionImpact = computeMissionImpact(a.carverScores, a.shockScores);
+    // Apply mission function + essential service baselines in one call
+    // This ensures critical assets are never under-scored regardless of vuln data
+    const baselines = applyMissionBaselines(
+      a.carverScores,
+      a.shockScores,
+      a.missionFunction || 'public_facing_services',
+      a.essentialService || 'general_server'
+    );
+    // Use the baseline-adjusted scores for mission impact calculation
+    const missionImpact = computeMissionImpact(baselines.carver, baselines.shock);
     const portBoost = (a as any)._portLikelihoodBoost || 0;
     const hybrid = computeHybridRisk(
       a.cvssEstimate,
@@ -1805,16 +1861,22 @@ export async function runDomainIntelPipeline(
       a.vulnRiskScore, // Pass the CONFIRMED vuln score — this overrides the LLM CVSS for Likelihood
       portBoost // Port exposure boost — high-risk ports increase likelihood
     );
+    // Update CARVER/Shock scores with baseline-adjusted values
+    a.carverScores = baselines.carver;
+    a.shockScores = baselines.shock;
+    a.missionImpactScore = Math.round(missionImpact * 10) / 10;
     a.hybridRiskScore = hybrid.score;
     a.riskBand = hybrid.band;
     a.suggestedTier = riskTier(hybrid.score);
     a.impactScore = hybrid.impactScore;
     a.likelihoodScore = hybrid.likelihoodScore;
+    a.assetCriticalityScore = computeAssetCriticality(missionImpact).score;
+    a.assetCriticalityBand = computeAssetCriticality(missionImpact).band;
     // Clean up temporary port data
     delete (a as any)._portLikelihoodBoost;
     delete (a as any)._portExposureScore;
   }
-  console.log(`[DomainIntel] Hybrid risk recalculated using confirmed vuln data + port exposure (unconfirmed vulns excluded from scoring)`);
+  console.log(`[DomainIntel] Hybrid risk recalculated with mission function baselines + confirmed vuln data + port exposure`);
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
   // If skipEngagement is true, skip campaign design and generate scan-only summaries

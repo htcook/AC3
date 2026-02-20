@@ -172,7 +172,7 @@ export default function AbilitiesLibrary() {
   const [viewMode, setViewMode] = useState<'tactic' | 'group' | 'flat'>('tactic');
 
   const deployMutation = trpc.calderaProxy.deployRansomwareProfile.useMutation({
-    onSuccess: (data) => toast.success(`Deployed ${data.abilitiesDeployed} abilities to Caldera`),
+    onSuccess: (data) => toast.success(`Deployed ${data.abilitiesDeployed} abilities to the emulation framework`),
     onError: (err) => toast.error(err.message),
   });
 
@@ -321,7 +321,7 @@ export default function AbilitiesLibrary() {
               Abilities Library
             </h1>
             <p className="text-muted-foreground mt-1">
-              Searchable catalog of {allAbilities.length} Caldera abilities and {allIOCs.length} IOCs across {RANSOMWARE_PROFILES.length} ransomware groups
+              Searchable catalog of {allAbilities.length} adversary abilities and {allIOCs.length} IOCs across {RANSOMWARE_PROFILES.length} ransomware groups
             </p>
           </div>
           <div className="flex gap-2">
@@ -333,7 +333,7 @@ export default function AbilitiesLibrary() {
                 <Button variant="outline" size="sm" onClick={clearSelection}>Clear</Button>
                 <Button size="sm" onClick={deploySelected} disabled={deployMutation.isPending} className="bg-cyan-600 hover:bg-cyan-700">
                   <Upload className="w-4 h-4 mr-1" />
-                  Deploy to Caldera
+                  Deploy to the emulation framework
                 </Button>
               </>
             )}
@@ -550,7 +550,7 @@ function GroupCard({ profile, onDeploy, deploying }: {
           disabled={deploying}
         >
           <Upload className="w-4 h-4 mr-1" />
-          Deploy All to Caldera
+          Deploy All to the emulation framework
         </Button>
       </CardContent>
     </Card>

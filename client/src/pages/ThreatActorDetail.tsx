@@ -130,7 +130,7 @@ export default function ThreatActorDetail() {
   });
 
   const deployMutation = trpc.calderaProxy.createAdversary.useMutation({
-    onSuccess: () => toast.success("Adversary profile deployed to Caldera"),
+    onSuccess: () => toast.success("Adversary profile deployed to emulation framework"),
     onError: (err) => toast.error(`Deploy failed: ${err.message}`),
   });
 
@@ -327,7 +327,7 @@ export default function ThreatActorDetail() {
           <Card className="bg-card/50">
             <CardContent className="p-3 text-center">
               <div className="text-2xl font-bold text-cyan-400">{(abilities as any[])?.length || 0}</div>
-              <div className="text-xs text-muted-foreground">Caldera Abilities</div>
+              <div className="text-xs text-muted-foreground">Adversary Abilities</div>
             </CardContent>
           </Card>
         </div>
@@ -348,7 +348,7 @@ export default function ThreatActorDetail() {
               <Calendar className="w-4 h-4 mr-1" /> Activity Timeline
             </TabsTrigger>
             <TabsTrigger value="abilities">
-              <Zap className="w-4 h-4 mr-1" /> Caldera Abilities
+              <Zap className="w-4 h-4 mr-1" /> Adversary Abilities
             </TabsTrigger>
             <TabsTrigger value="targeting">
               <Crosshair className="w-4 h-4 mr-1" /> Targeting
@@ -549,12 +549,12 @@ export default function ThreatActorDetail() {
             </Card>
           </TabsContent>
 
-          {/* Caldera Abilities Tab */}
+          {/* Emulation Abilities Tab */}
           <TabsContent value="abilities" className="space-y-4">
             <Card className="bg-card/50">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-amber-400" /> Caldera Abilities
+                  <Zap className="w-5 h-5 text-amber-400" /> Adversary Abilities
                 </CardTitle>
                 <Button
                   size="sm"
@@ -568,7 +568,7 @@ export default function ThreatActorDetail() {
                 {!abilities || (abilities as any[]).length === 0 ? (
                   <div className="text-center py-8">
                     <Zap className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">No Caldera abilities mapped for this actor.</p>
+                    <p className="text-muted-foreground">No adversary abilities mapped for this actor.</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Use the Abilities Library to add abilities for this threat actor.
                     </p>

@@ -58,7 +58,7 @@ interface OperationStatus {
   abilities_blocked: number;
 }
 
-// Default empty state (populated from Caldera API)
+// Default empty state (populated from the emulation framework API)
 const DEFAULT_OPERATION: OperationStatus = {
   id: '',
   name: '',
@@ -80,7 +80,7 @@ export default function OperationMonitor() {
   const [filter, setFilter] = useState<'all' | 'success' | 'failed' | 'blocked'>('all');
   const resultsEndRef = useRef<HTMLDivElement>(null);
   
-  // Fetch operations from Caldera
+  // Fetch operations from the emulation framework
   const { data: operations, refetch: refetchOperations } = trpc.calderaProxy.getOperations.useQuery();
 
   // Poll for operation updates
@@ -278,7 +278,7 @@ export default function OperationMonitor() {
           </div>
         </div>
 
-        {/* Live Operations from Caldera */}
+        {/* Live Operations from Emulation */}
         {operations && operations.length > 0 && (
           <div className="bg-card border-2 border-border mb-6">
             <div className="p-4 border-b border-border">
@@ -308,7 +308,7 @@ export default function OperationMonitor() {
                     >
                       <Button size="sm" variant="outline">
                         <Eye className="w-4 h-4 mr-1" />
-                        View in Caldera
+                        View in the emulation framework
                       </Button>
                     </a>
                   </div>
@@ -382,7 +382,7 @@ export default function OperationMonitor() {
                   <a href={`http://${CALDERA_SERVER}:${CALDERA_PORT}`} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" variant="outline">
                       <Zap className="w-4 h-4 mr-1" />
-                      Open Caldera
+                      Open Emulation UI
                     </Button>
                   </a>
                 </div>

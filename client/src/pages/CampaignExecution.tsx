@@ -151,7 +151,7 @@ export default function CampaignExecution() {
         <div>
           <h1 className="text-2xl font-bold">Campaign Execution Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Real-time monitoring of Caldera operations, agent status, and
+            Real-time monitoring of adversary operations, agent status, and
             technique progress
           </p>
         </div>

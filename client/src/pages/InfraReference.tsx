@@ -49,7 +49,7 @@ app_https_cidrs      = ["0.0.0.0/0", "::/0"]`;
 <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="px-6 py-4">
             <h1 className="font-display text-3xl md:text-2xl sm:text-3xl lg:text-4xl">ENGAGEMENT INFRASTRUCTURE</h1>
-            <p className="text-sm text-muted-foreground">Terraform-provisioned isolated DigitalOcean VPC architecture for per-engagement red team infrastructure with hardened firewall rules.</p>
+            <p className="text-sm text-muted-foreground">Terraform-provisioned isolated cloud provider VPC architecture for per-engagement red team infrastructure with hardened firewall rules.</p>
           </div>
           <div className="w-full h-1 bg-primary" />
         </header>
@@ -103,7 +103,7 @@ app_https_cidrs      = ["0.0.0.0/0", "::/0"]`;
                   <div className="bg-card border-2 border-primary/30 p-4 text-center">
                     <Server className="w-8 h-8 text-primary mx-auto mb-2" />
                     <div className="font-display text-lg text-primary">APP SERVER</div>
-                    <div className="text-xs text-muted-foreground">C2 / Caldera / GoPhish</div>
+                    <div className="text-xs text-muted-foreground">C2 / emulation framework / phishing platform</div>
                     <div className="text-[10px] text-muted-foreground mt-1">s-2vcpu-2gb</div>
                     <div className="mt-2 px-2 py-1 bg-primary/10 text-[10px] tracking-wider text-primary">HTTPS 443 EXPOSED</div>
                   </div>

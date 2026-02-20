@@ -1,5 +1,5 @@
-// Ransomware Group Caldera Abilities & IOC Database
-// Maps each ransomware group's TTPs to executable Caldera abilities with IOC metadata
+// Ransomware Group Adversary Abilities & IOC Database
+// Maps each ransomware group's TTPs to executable adversary abilities with IOC metadata
 
 export interface CalderaAbilityDef {
   ability_id: string;

@@ -26,10 +26,10 @@ interface PipelineStep {
 const INITIAL_STEPS: Omit<PipelineStep, 'status'>[] = [
   { id: 'intel', title: 'Domain Intelligence', description: 'Passive discovery of assets, DNS, certificates, and infrastructure', icon: Search },
   { id: 'classify', title: 'Asset Classification', description: 'Categorize discovered assets by type, criticality, and business function', icon: Brain },
-  { id: 'risk', title: 'Risk Assessment', description: 'CARVER+SHOCK BIA scoring with hybrid risk analysis', icon: Shield },
+  { id: 'risk', title: 'Risk Assessment', description: 'Multi-dimensional business impact scoring with hybrid risk analysis', icon: Shield },
   { id: 'threat', title: 'Threat Modeling', description: 'Map threat actors and TTPs relevant to the target profile', icon: Target },
-  { id: 'campaign', title: 'Campaign Design', description: 'Generate Caldera operations and GoPhish campaigns from findings', icon: Zap },
-  { id: 'deploy', title: 'Auto-Deploy', description: 'Create engagement, push abilities to Caldera, and deploy GoPhish templates', icon: Rocket },
+  { id: 'campaign', title: 'Campaign Design', description: 'Generate adversary operations and phishing campaigns from findings', icon: Zap },
+  { id: 'deploy', title: 'Auto-Deploy', description: 'Create engagement, push adversary abilities, and deploy phishing templates', icon: Rocket },
 ];
 
 const CLIENT_TYPES = [
@@ -159,7 +159,7 @@ export default function EngagementPipeline() {
               Automated Engagement Pipeline
             </h1>
             <p className="text-muted-foreground mt-1">
-              One-click: Domain Intel → Risk Scoring → Campaign Design → Auto-Deploy to Caldera & GoPhish
+              One-click: Domain Intel → Risk Scoring → Campaign Design → Auto-Deploy
             </p>
           </div>
         </div>

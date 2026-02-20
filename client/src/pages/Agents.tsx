@@ -196,7 +196,7 @@ export default function Agents() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
             <div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-1 sm:mb-2">DEPLOYED AGENTS</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">Monitor and manage Caldera agents</p>
+              <p className="text-sm sm:text-base text-muted-foreground">Monitor and manage emulation agents</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
@@ -276,7 +276,7 @@ export default function Agents() {
                   variant="default"
                   onClick={() => window.open('https://dashboard.aceofcloud.io', '_blank')}
                 >
-                  Open Caldera to Deploy Agents
+                  Open Emulation UI to Deploy Agents
                 </Button>
               </CardContent>
             </Card>
@@ -474,7 +474,7 @@ export default function Agents() {
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Kill Agent?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        This will terminate the agent on {agent.host}. The agent process will be killed and removed from Caldera. This action cannot be undone.
+                                        This will terminate the agent on {agent.host}. The agent process will be killed and removed from the emulation framework. This action cannot be undone.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>

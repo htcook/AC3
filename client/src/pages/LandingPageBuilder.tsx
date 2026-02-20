@@ -539,7 +539,7 @@ export default function LandingPageBuilder() {
         capture_passwords: capturePasswords,
         redirect_url: redirectUrl,
       });
-      toast.success("Landing page exported to GoPhish!");
+      toast.success("Landing page exported to phishing platform!");
     } catch (err: any) {
       toast.error(err.message || "Failed to export");
     }
@@ -707,7 +707,7 @@ export default function LandingPageBuilder() {
             )}
           </div>
 
-          {/* Right sidebar - Properties + GoPhish settings */}
+          {/* Right sidebar - Properties + Phishing settings */}
           <div className="w-72 border-l border-border bg-card flex flex-col shrink-0 overflow-y-auto">
             {/* Block properties */}
             <div className="px-3 py-2 border-b border-border">
@@ -727,7 +727,7 @@ export default function LandingPageBuilder() {
               )}
             </div>
 
-            {/* GoPhish Export Settings */}
+            {/* Phishing Export Settings */}
             <div className="px-3 py-2 border-b border-border">
               <span className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-1"><Globe className="w-3 h-3" /> GOPHISH SETTINGS</span>
             </div>
