@@ -2837,3 +2837,13 @@
 - [x] Add BIA Report PDF export with cover page and FIPS 199 summary
 - [x] Add BIA Report link to sidebar navigation under Reports & Guides
 - [x] Write tests for all three features (29 tests, 3 suites, all passing)
+
+## Critical Fixes: Security & Trade Secret Audit
+- [x] Fix ErrorBoundary exposing full stack traces in UI (renders error.stack)
+- [x] Remove MITRE Caldera, GoPhish from index.html meta keywords (search-engine indexed leak)
+- [x] Rename sidebar labels MSF SERVERS, GOPHISH GUIDE, CALDERA GUIDE to generic operator terms
+
+## Critical Fixes: Security & Trade Secret Audit
+- [x] Fix ErrorBoundary exposing full stack traces in UI (renders error.stack)
+- [x] Remove MITRE Caldera, GoPhish from index.html meta keywords (search-engine indexed leak)
+- [x] Rename sidebar labels MSF SERVERS, GOPHISH GUIDE, CALDERA GUIDE to generic operator terms

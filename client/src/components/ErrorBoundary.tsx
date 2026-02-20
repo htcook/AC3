@@ -34,9 +34,13 @@ class ErrorBoundary extends Component<Props, State> {
             <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
 
             <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
-              <pre className="text-sm text-muted-foreground whitespace-break-spaces">
-                {this.state.error?.stack}
-              </pre>
+              <p className="text-sm text-muted-foreground">
+                Something went wrong while loading this page. Please try reloading.
+                If the issue persists, contact your administrator.
+              </p>
+              <p className="text-xs text-muted-foreground/60 mt-2">
+                Error reference: {this.state.error?.message?.replace(/[\n\r]/g, '').slice(0, 80) || 'Unknown error'}
+              </p>
             </div>
 
             <button
