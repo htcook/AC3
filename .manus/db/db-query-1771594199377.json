@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, primaryDomain, status, overallRiskScore, totalAssets, createdAt FROM domain_intel_scans ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, overallRiskScore, totalAssets, createdAt FROM domain_intel_scans ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "840190",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "overallRiskScore": "56",
+      "totalAssets": "30",
+      "createdAt": "2026-02-20 04:48:42"
+    },
+    {
+      "id": "840189",
+      "primaryDomain": "threat-model-1771562479804.com",
+      "status": "completed",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "createdAt": "2026-02-20 04:41:19"
+    },
+    {
+      "id": "840188",
+      "primaryDomain": "campaigns-1771562479344.com",
+      "status": "completed",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "createdAt": "2026-02-20 04:41:19"
+    },
+    {
+      "id": "840187",
+      "primaryDomain": "trpc-get-1771562479092.com",
+      "status": "completed",
+      "overallRiskScore": "60",
+      "totalAssets": "5",
+      "createdAt": "2026-02-20 04:41:19"
+    },
+    {
+      "id": "840186",
+      "primaryDomain": "findings-1771562476987.com",
+      "status": "scan_complete",
+      "overallRiskScore": "29",
+      "totalAssets": "27",
+      "createdAt": "2026-02-20 04:41:16"
+    },
+    {
+      "id": "840185",
+      "primaryDomain": "scores-1771562476713.com",
+      "status": "scan_complete",
+      "overallRiskScore": "53",
+      "totalAssets": "27",
+      "createdAt": "2026-02-20 04:41:16"
+    },
+    {
+      "id": "840184",
+      "primaryDomain": "multi-asset-1771562476377.com",
+      "status": "scan_complete",
+      "overallRiskScore": "53",
+      "totalAssets": "30",
+      "createdAt": "2026-02-20 04:41:16"
+    },
+    {
+      "id": "840183",
+      "primaryDomain": "asset-test-1771562476355.com",
+      "status": "scan_complete",
+      "overallRiskScore": "54",
+      "totalAssets": "27",
+      "createdAt": "2026-02-20 04:41:16"
+    },
+    {
+      "id": "840182",
+      "primaryDomain": "other-1771562476343.com",
+      "status": "pending",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "createdAt": "2026-02-20 04:41:16"
+    },
+    {
+      "id": "840181",
+      "primaryDomain": "mixed_hosting-1771562476333.com",
+      "status": "pending",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "createdAt": "2026-02-20 04:41:16"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\toverallRiskScore\ttotalAssets\tcreatedAt\n840190\taceofcloud.com\tscan_complete\t56\t30\t2026-02-20 04:48:42\n840189\tthreat-model-1771562479804.com\tcompleted\tNULL\t0\t2026-02-20 04:41:19\n840188\tcampaigns-1771562479344.com\tcompleted\tNULL\t0\t2026-02-20 04:41:19\n840187\ttrpc-get-1771562479092.com\tcompleted\t60\t5\t2026-02-20 04:41:19\n840186\tfindings-1771562476987.com\tscan_complete\t29\t27\t2026-02-20 04:41:16\n840185\tscores-1771562476713.com\tscan_complete\t53\t27\t2026-02-20 04:41:16\n840184\tmulti-asset-1771562476377.com\tscan_complete\t53\t30\t2026-02-20 04:41:16\n840183\tasset-test-1771562476355.com\tscan_complete\t54\t27\t2026-02-20 04:41:16\n840182\tother-1771562476343.com\tpending\tNULL\t0\t2026-02-20 04:41:16\n840181\tmixed_hosting-1771562476333.com\tpending\tNULL\t0\t2026-02-20 04:41:16\n",
+  "stderr": "",
+  "execution_time_ms": 637
+}

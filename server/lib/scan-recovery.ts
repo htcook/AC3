@@ -21,6 +21,7 @@ const MAX_AUTO_RETRIES = 3;
 const CRON_SCHEDULE = "*/5 * * * *"; // Every 5 minutes
 
 const IN_PROGRESS_STATUSES = [
+  "pending",
   "passive_recon",
   "discovering",
   "analyzing",

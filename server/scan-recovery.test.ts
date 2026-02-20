@@ -35,7 +35,7 @@ describe('Scan Recovery Scheduler', () => {
       expect(statuses).not.toContain('completed');
       expect(statuses).not.toContain('scan_complete');
       expect(statuses).not.toContain('failed');
-      expect(statuses).not.toContain('pending');
+      expect(statuses).toContain('pending');
     });
   });
 

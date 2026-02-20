@@ -4108,13 +4108,15 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               try { const { emitReconComplete, emitSystemNotification } = await import('./lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitSystemNotification({ title: 'Domain Intel Complete', message: `Scan of ${pipelineInput.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' }); } catch {}
             }
           } catch (err: any) {
-            console.error(`[DomainIntel] Pipeline failed for scan ${scanId}:`, err.message, err.stack?.substring(0, 500));
+            const errMsg = err?.message || (typeof err === 'string' ? err : 'Unknown pipeline error');
+            const errStack = err?.stack?.substring(0, 1000) || '';
+            console.error(`[DomainIntel] Pipeline failed for scan ${scanId}:`, errMsg, errStack.substring(0, 500));
             // Store error details so they can be viewed in the UI
             await db.updateDomainIntelScan(scanId, {
               status: 'failed',
-              pipelineOutput: { error: err.message, stack: err.stack?.substring(0, 1000), failedAt: new Date().toISOString() },
+              pipelineOutput: { error: errMsg, stack: errStack, failedAt: new Date().toISOString() },
             }).catch((updateErr) => {
-              console.error(`[DomainIntel] Failed to update scan ${scanId} status to failed:`, updateErr.message);
+              console.error(`[DomainIntel] Failed to update scan ${scanId} status to failed:`, updateErr?.message || 'unknown');
             });
           }
         });
@@ -4254,7 +4256,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
 
         // Detect stuck scans: if status is an in-progress stage and hasn't been updated in 15 minutes
         const STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
-        const inProgressStatuses = ['passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
+        const inProgressStatuses = ['pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
         const isStuck = inProgressStatuses.includes(scan.status)
           && scan.updatedAt
           && (Date.now() - new Date(scan.updatedAt).getTime() > STUCK_THRESHOLD_MS);
@@ -4284,14 +4286,14 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         const scan = await db.getDomainIntelScanById(input.scanId);
         if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
 
-        // Allow retry only for failed scans or stuck scans (in-progress for >15 min)
-        const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
-        const inProgressStatuses = ['passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
+        // Allow retry only for failed scans, pending scans, or stuck scans (in-progress for >15 min)
+        const STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+        const inProgressStatuses = ['pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
         const isStuck = inProgressStatuses.includes(scan.status)
           && scan.updatedAt
           && (Date.now() - new Date(scan.updatedAt).getTime() > STUCK_THRESHOLD_MS);
 
-        if (scan.status !== 'failed' && !isStuck) {
+        if (scan.status !== 'failed' && scan.status !== 'pending' && !isStuck) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: `Scan cannot be retried in status "${scan.status}". Only failed or stuck scans can be retried.`,

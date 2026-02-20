@@ -1,0 +1,110 @@
+{
+  "query": "SELECT id, status, primaryDomain, overallRiskScore, totalAssets, totalFindings, createdAt, updatedAt FROM domain_intel_scans ORDER BY id DESC LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, status, primaryDomain, overallRiskScore, totalAssets, totalFindings, createdAt, updatedAt FROM domain_intel_scans ORDER BY id DESC LIMIT 10",
+  "rows": [
+    {
+      "id": "840190",
+      "status": "scan_complete",
+      "primaryDomain": "aceofcloud.com",
+      "overallRiskScore": "56",
+      "totalAssets": "30",
+      "totalFindings": "4449",
+      "createdAt": "2026-02-20 04:48:42",
+      "updatedAt": "2026-02-20 05:28:20"
+    },
+    {
+      "id": "840189",
+      "status": "completed",
+      "primaryDomain": "threat-model-1771562479804.com",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "createdAt": "2026-02-20 04:41:19",
+      "updatedAt": "2026-02-20 04:41:19"
+    },
+    {
+      "id": "840188",
+      "status": "completed",
+      "primaryDomain": "campaigns-1771562479344.com",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "createdAt": "2026-02-20 04:41:19",
+      "updatedAt": "2026-02-20 04:41:19"
+    },
+    {
+      "id": "840187",
+      "status": "completed",
+      "primaryDomain": "trpc-get-1771562479092.com",
+      "overallRiskScore": "60",
+      "totalAssets": "5",
+      "totalFindings": "0",
+      "createdAt": "2026-02-20 04:41:19",
+      "updatedAt": "2026-02-20 04:41:19"
+    },
+    {
+      "id": "840186",
+      "status": "scan_complete",
+      "primaryDomain": "findings-1771562476987.com",
+      "overallRiskScore": "29",
+      "totalAssets": "27",
+      "totalFindings": "1808",
+      "createdAt": "2026-02-20 04:41:16",
+      "updatedAt": "2026-02-20 05:01:48"
+    },
+    {
+      "id": "840185",
+      "status": "scan_complete",
+      "primaryDomain": "scores-1771562476713.com",
+      "overallRiskScore": "53",
+      "totalAssets": "27",
+      "totalFindings": "1896",
+      "createdAt": "2026-02-20 04:41:16",
+      "updatedAt": "2026-02-20 05:13:04"
+    },
+    {
+      "id": "840184",
+      "status": "scan_complete",
+      "primaryDomain": "multi-asset-1771562476377.com",
+      "overallRiskScore": "53",
+      "totalAssets": "30",
+      "totalFindings": "1639",
+      "createdAt": "2026-02-20 04:41:16",
+      "updatedAt": "2026-02-20 05:37:30"
+    },
+    {
+      "id": "840183",
+      "status": "scan_complete",
+      "primaryDomain": "asset-test-1771562476355.com",
+      "overallRiskScore": "54",
+      "totalAssets": "27",
+      "totalFindings": "3434",
+      "createdAt": "2026-02-20 04:41:16",
+      "updatedAt": "2026-02-20 05:22:38"
+    },
+    {
+      "id": "840182",
+      "status": "pending",
+      "primaryDomain": "other-1771562476343.com",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "createdAt": "2026-02-20 04:41:16",
+      "updatedAt": "2026-02-20 04:41:16"
+    },
+    {
+      "id": "840181",
+      "status": "pending",
+      "primaryDomain": "mixed_hosting-1771562476333.com",
+      "overallRiskScore": "NULL",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "createdAt": "2026-02-20 04:41:16",
+      "updatedAt": "2026-02-20 04:41:16"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tprimaryDomain\toverallRiskScore\ttotalAssets\ttotalFindings\tcreatedAt\tupdatedAt\n840190\tscan_complete\taceofcloud.com\t56\t30\t4449\t2026-02-20 04:48:42\t2026-02-20 05:28:20\n840189\tcompleted\tthreat-model-1771562479804.com\tNULL\t0\t0\t2026-02-20 04:41:19\t2026-02-20 04:41:19\n840188\tcompleted\tcampaigns-1771562479344.com\tNULL\t0\t0\t2026-02-20 04:41:19\t2026-02-20 04:41:19\n840187\tcompleted\ttrpc-get-1771562479092.com\t60\t5\t0\t2026-02-20 04:41:19\t2026-02-20 04:41:19\n840186\tscan_complete\tfindings-1771562476987.com\t29\t27\t1808\t2026-02-20 04:41:16\t2026-02-20 05:01:48\n840185\tscan_complete\tscores-1771562476713.com\t53\t27\t1896\t2026-02-20 04:41:16\t2026-02-20 05:13:04\n840184\tscan_complete\tmulti-asset-1771562476377.com\t53\t30\t1639\t2026-02-20 04:41:16\t2026-02-20 05:37:30\n840183\tscan_complete\tasset-test-1771562476355.com\t54\t27\t3434\t2026-02-20 04:41:16\t2026-02-20 05:22:38\n840182\tpending\tother-1771562476343.com\tNULL\t0\t0\t2026-02-20 04:41:16\t2026-02-20 04:41:16\n840181\tpending\tmixed_hosting-1771562476333.com\tNULL\t0\t0\t2026-02-20 04:41:16\t2026-02-20 04:41:16\n",
+  "stderr": "",
+  "execution_time_ms": 92
+}

@@ -426,7 +426,7 @@ export default function DomainIntel() {
   // Helper: detect stuck scans in the list (in-progress > 15 min)
   const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
   const isScanStuck = (scan: any) => {
-    const inProgressStatuses = ['passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
+    const inProgressStatuses = ['pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
     return inProgressStatuses.includes(scan.status)
       && scan.updatedAt
       && (Date.now() - new Date(scan.updatedAt).getTime() > STUCK_THRESHOLD_MS);
@@ -1088,7 +1088,7 @@ export default function DomainIntel() {
               const probableCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'probable').length || 0;
               const potentialCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'potential').length || 0;
               const stuck = isScanStuck(scan);
-              const canRetry = stuck || scan.status === 'failed';
+              const canRetry = stuck || scan.status === 'failed' || scan.status === 'pending';
               const displayStatus = stuck ? 'stuck' : scan.status === 'scan_complete' ? 'scan complete' : scan.status;
               return (
                 <Card

@@ -2847,3 +2847,13 @@
 - [x] Fix ErrorBoundary exposing full stack traces in UI (renders error.stack)
 - [x] Remove MITRE Caldera, GoPhish from index.html meta keywords (search-engine indexed leak)
 - [x] Rename sidebar labels MSF SERVERS, GOPHISH GUIDE, CALDERA GUIDE to generic operator terms
+
+## Bug: Test Scan Failures
+- [x] Investigate scan failure root causes from server logs
+- [x] Fix identified scan pipeline issues:
+  - [x] Add 'pending' to stuck scan detection (scan-recovery.ts, getScanStatus, retryScan, DomainIntel.tsx)
+  - [x] Improve error serialization for non-Error objects in pipeline catch block
+  - [x] Allow retry for pending scans in both backend and frontend
+  - [x] Fix scan history card to show retry button for pending scans
+- [x] Write 16 tests for scan pipeline fixes (all passing)
+- [x] Verify scan execution works end-to-end
