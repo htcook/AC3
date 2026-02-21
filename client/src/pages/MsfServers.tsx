@@ -8,14 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import {
   Server, Plus, RefreshCw, Trash2, Activity, CheckCircle2, XCircle, Clock,
-  Loader2, Terminal, Globe, Shield, Cpu, HardDrive, AlertTriangle, Power, Zap
+  Loader2, Terminal, Globe, Shield, Cpu, HardDrive, AlertTriangle, Power, Zap,
+  Link2, Unlink, ArrowUpDown, HeartPulse, Wifi, WifiOff
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
-
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
+
 export default function MsfServers() {
-  // Real-time MSF server events
-  const { events: wsEvents, isConnected: wsConnected } = useWebSocket({
+  const { events: wsEvents } = useWebSocket({
     channels: ['msf'],
     showToasts: true,
   });
@@ -28,7 +28,6 @@ export default function MsfServers() {
 
   const serversQuery = trpc.metasploit.listServers.useQuery();
 
-  // Auto-refetch when MSF server events arrive
   useEffect(() => {
     if (wsEvents.length > 0) {
       serversQuery.refetch();
@@ -65,6 +64,22 @@ export default function MsfServers() {
     onError: (err: any) => toast.error(`Destroy failed: ${sanitizeErrorForToast(err)}`),
   });
 
+  const connectTunnelMut = trpc.metasploit.connectTunnel.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`SSH tunnel connected on local port ${data.localPort}`);
+      serversQuery.refetch();
+    },
+    onError: (err: any) => toast.error(`Tunnel failed: ${sanitizeErrorForToast(err)}`),
+  });
+
+  const disconnectTunnelMut = trpc.metasploit.disconnectTunnel.useMutation({
+    onSuccess: () => {
+      toast.success("SSH tunnel disconnected");
+      serversQuery.refetch();
+    },
+    onError: (err: any) => toast.error(`Disconnect failed: ${sanitizeErrorForToast(err)}`),
+  });
+
   const servers = serversQuery.data || [];
 
   function getStatusBadge(status: string) {
@@ -74,6 +89,16 @@ export default function MsfServers() {
       case "offline": return <span className="flex items-center gap-1 text-red-400 text-xs font-bold"><XCircle className="w-3.5 h-3.5" />OFFLINE</span>;
       case "destroyed": return <span className="flex items-center gap-1 text-zinc-500 text-xs font-bold"><Trash2 className="w-3.5 h-3.5" />DESTROYED</span>;
       default: return <span className="flex items-center gap-1 text-zinc-500 text-xs font-bold"><Clock className="w-3.5 h-3.5" />{status.toUpperCase()}</span>;
+    }
+  }
+
+  function getTunnelBadge(tunnelStatus: string | null) {
+    switch (tunnelStatus) {
+      case "connected": return <span className="flex items-center gap-1 text-cyan-400 text-xs font-bold"><Wifi className="w-3 h-3" />TUNNEL</span>;
+      case "connecting":
+      case "reconnecting": return <span className="flex items-center gap-1 text-yellow-400 text-xs font-bold"><Loader2 className="w-3 h-3 animate-spin" />CONNECTING</span>;
+      case "error": return <span className="flex items-center gap-1 text-red-400 text-xs font-bold"><WifiOff className="w-3 h-3" />TUNNEL ERR</span>;
+      default: return <span className="flex items-center gap-1 text-zinc-500 text-xs font-bold"><WifiOff className="w-3 h-3" />NO TUNNEL</span>;
     }
   }
 
@@ -89,7 +114,7 @@ export default function MsfServers() {
                 Exploit Servers
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Provision and manage Exploit Framework instances on cloud provider
+                Provision and manage Exploit Framework instances with secure SSH tunnel connectivity
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -112,7 +137,7 @@ export default function MsfServers() {
               <CardContent className="py-16 text-center">
                 <Server className="w-12 h-12 mx-auto mb-4 text-zinc-600" />
                 <h3 className="text-lg font-semibold text-zinc-300 mb-2">No Exploit Servers</h3>
-                <p className="text-sm text-zinc-500 mb-4">Provision a cloud provider droplet with Exploit Framework pre-installed and MSGRPC auto-configured.</p>
+                <p className="text-sm text-zinc-500 mb-4">Provision a cloud droplet with Exploit Framework pre-installed and MSGRPC auto-configured.</p>
                 <Button onClick={() => setProvisionOpen(true)} className="bg-purple-600 hover:bg-purple-700">
                   <Plus className="w-4 h-4 mr-1" />Provision Your First Server
                 </Button>
@@ -128,7 +153,10 @@ export default function MsfServers() {
                         <Terminal className="w-4 h-4 text-purple-400" />
                         {server.name}
                       </CardTitle>
-                      {getStatusBadge(server.status)}
+                      <div className="flex items-center gap-2">
+                        {getTunnelBadge(server.tunnelStatus)}
+                        {getStatusBadge(server.status)}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -150,6 +178,47 @@ export default function MsfServers() {
                         <div className="text-zinc-200 text-xs">{server.msfVersion || "—"}</div>
                       </div>
                     </div>
+
+                    {/* SSH Tunnel Section */}
+                    {server.sshTunnelEnabled && (
+                      <div className="bg-cyan-950/30 border border-cyan-900/40 rounded p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-cyan-400 flex items-center gap-1">
+                            <ArrowUpDown className="w-3 h-3" />SSH Tunnel
+                          </span>
+                          {server.tunnelLocalPort && (
+                            <span className="text-xs text-cyan-300 font-mono">
+                              :{server.tunnelLocalPort} → {server.ipAddress}:{server.rpcPort || 55553}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {server.tunnelStatus === "connected" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 text-xs border-cyan-800 text-cyan-400 hover:bg-cyan-900/30"
+                              onClick={() => disconnectTunnelMut.mutate({ serverId: server.id })}
+                              disabled={disconnectTunnelMut.isPending}
+                            >
+                              {disconnectTunnelMut.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Unlink className="w-3 h-3 mr-1" />}
+                              Disconnect
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 text-xs border-cyan-800 text-cyan-400 hover:bg-cyan-900/30"
+                              onClick={() => connectTunnelMut.mutate({ serverId: server.id })}
+                              disabled={connectTunnelMut.isPending || server.status === "destroyed"}
+                            >
+                              {connectTunnelMut.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Link2 className="w-3 h-3 mr-1" />}
+                              Connect Tunnel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {server.dropletId && (
                       <div className="bg-zinc-800/50 rounded p-2 text-xs">
@@ -197,7 +266,7 @@ export default function MsfServers() {
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2 text-zinc-400">
                 <Shield className="w-4 h-4" />
-                How It Works
+                SSH Tunnel Architecture
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -207,28 +276,28 @@ export default function MsfServers() {
                     <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold">1</div>
                     Provision
                   </div>
-                  <p className="text-zinc-500 text-xs">Spin up a cloud provider droplet with Docker-based Exploit Framework and MSGRPC daemon auto-configured.</p>
+                  <p className="text-zinc-500 text-xs">Spin up a cloud droplet with Exploit Framework. msfrpcd binds to localhost only (no SSL needed).</p>
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-blue-400 font-semibold">
-                    <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-xs font-bold">2</div>
-                    Connect
+                  <div className="flex items-center gap-2 text-cyan-400 font-semibold">
+                    <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs font-bold">2</div>
+                    SSH Tunnel
                   </div>
-                  <p className="text-zinc-500 text-xs">Platform auto-connects via MSGRPC API. Search modules, configure payloads, and manage sessions remotely.</p>
+                  <p className="text-zinc-500 text-xs">Encrypted SSH tunnel forwards localhost:random → remote:55553. No SSL compatibility issues.</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-red-400 font-semibold">
                     <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center text-xs font-bold">3</div>
                     Exploit
                   </div>
-                  <p className="text-zinc-500 text-xs">Fire exploits from the Exploit Arsenal against authorized targets. Sessions auto-deploy emulation agents.</p>
+                  <p className="text-zinc-500 text-xs">MessagePack RPC over tunnel. Search modules, fire exploits, manage sessions — all through the secure channel.</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-green-400 font-semibold">
                     <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center text-xs font-bold">4</div>
-                    Handoff
+                    Auto-Heal
                   </div>
-                  <p className="text-zinc-500 text-xs">Once emulation agent is running, post-exploitation chains execute automatically. Destroy the MSF droplet when done.</p>
+                  <p className="text-zinc-500 text-xs">Health monitoring every 30s with auto-reconnect. Exponential backoff ensures resilient connectivity.</p>
                 </div>
               </div>
             </CardContent>
@@ -244,7 +313,7 @@ export default function MsfServers() {
                 Provision Exploit Server
               </DialogTitle>
               <DialogDescription>
-                Creates a cloud provider droplet with Exploit Framework pre-installed via Docker.
+                Creates a cloud droplet with Exploit Framework pre-installed. SSH tunnel mode enabled by default.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-4">
@@ -275,13 +344,13 @@ export default function MsfServers() {
                   <option value="s-8vcpu-16gb">8 vCPU / 16 GB RAM ($96/mo) — Heavy Use</option>
                 </select>
               </div>
-              <div className="bg-zinc-800/50 border border-zinc-700 rounded p-3 text-xs text-zinc-400 space-y-1">
-                <p><strong className="text-zinc-300">What gets installed:</strong></p>
+              <div className="bg-cyan-950/30 border border-cyan-900/40 rounded p-3 text-xs text-zinc-400 space-y-1">
+                <p><strong className="text-cyan-300">SSH Tunnel Mode (Default):</strong></p>
                 <ul className="list-disc list-inside space-y-0.5">
-                  <li>Docker + Exploit Framework (latest)</li>
-                  <li>MSGRPC daemon on port 55553 (SSL enabled)</li>
-                  <li>UFW firewall (SSH + MSGRPC only)</li>
-                  <li>Auto-registered in platform with connection details</li>
+                  <li>msfrpcd binds to localhost:55553 (no SSL)</li>
+                  <li>SSH tunnel provides encrypted transport</li>
+                  <li>Auto-reconnect with health monitoring</li>
+                  <li>Bypasses Ruby/OpenSSL compatibility issues</li>
                 </ul>
               </div>
             </div>
@@ -308,7 +377,7 @@ export default function MsfServers() {
                 Destroy Server
               </DialogTitle>
               <DialogDescription>
-                This will permanently destroy the cloud provider droplet and all data on it. This action cannot be undone.
+                This will permanently destroy the cloud droplet and all data on it. This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-4">

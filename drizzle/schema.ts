@@ -1205,7 +1205,7 @@ export const metasploitServers = mysqlTable("metasploit_servers", {
   rpcPort: int("rpcPort").default(55553),
   rpcUser: varchar("rpcUser", { length: 64 }).default("msf"),
   rpcPass: text("rpcPass"),
-  rpcSsl: boolean("rpcSsl").default(true),
+  rpcSsl: boolean("rpcSsl").default(false),
   rpcToken: text("rpcToken"), // Session token from auth
   // Status
   status: mysqlEnum("msfStatus", ["provisioning", "installing", "online", "offline", "error", "destroying"]).default("provisioning").notNull(),
@@ -1218,6 +1218,12 @@ export const metasploitServers = mysqlTable("metasploit_servers", {
   // Lifecycle
   autoDestroy: boolean("autoDestroy").default(false), // Destroy after engagement
   engagementId: int("engagementId"), // Link to engagement if scoped
+  // SSH Tunnel configuration
+  sshTunnelEnabled: boolean("sshTunnelEnabled").default(true),
+  sshUser: varchar("sshUser", { length: 64 }).default("root"),
+  sshKeyPath: text("msfSshKeyPath"),
+  tunnelStatus: mysqlEnum("msfTunnelStatus", ["connected", "connecting", "disconnected", "reconnecting", "error"]).default("disconnected"),
+  tunnelLocalPort: int("tunnelLocalPort"),
   createdAt: timestamp("msfCreatedAt").defaultNow().notNull(),
   updatedAt: timestamp("msfUpdatedAt").defaultNow().onUpdateNow().notNull(),
 });

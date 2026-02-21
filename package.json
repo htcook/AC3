@@ -49,6 +49,7 @@
     "@types/archiver": "^7.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/ssh2": "^1.15.5",
     "archiver": "^7.0.1",
     "axios": "^1.12.0",
     "class-variance-authority": "^0.7.1",
@@ -68,6 +69,7 @@
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.453.0",
+    "msgpackr": "^1.11.8",
     "mysql2": "^3.15.0",
     "nanoid": "^5.1.5",
     "next-themes": "^0.4.6",
@@ -79,6 +81,7 @@
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.2",
     "sonner": "^2.0.7",
+    "ssh2": "^1.17.0",
     "streamdown": "^1.4.0",
     "superjson": "^1.13.3",
     "tailwind-merge": "^3.3.1",
@@ -122,6 +125,11 @@
     },
     "overrides": {
       "tailwindcss>nanoid": "3.3.7"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "cpu-features",
+      "msgpackr-extract",
+      "ssh2"
+    ]
   }
 }

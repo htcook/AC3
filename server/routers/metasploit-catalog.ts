@@ -495,4 +495,90 @@ export const metasploitCatalogRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Auto-exploit failed: ${err.message}` });
       }
     }),
+
+  // ─── SSH Tunnel Management ────────────────────────────────────────────────
+
+  connectTunnel: protectedProcedure
+    .input(z.object({ serverId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { metasploitServers } = await import("../../drizzle/schema");
+      const { getDbRequired } = await import("../db");
+      const { eq } = await import("drizzle-orm");
+      const { createTunnelForServer } = await import("../lib/ssh-tunnel-manager");
+      const dbConn = await getDbRequired();
+
+      const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
+      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+      if (!server.ipAddress) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server has no IP address" });
+
+      try {
+        const result = await createTunnelForServer({
+          id: server.id,
+          ipAddress: server.ipAddress,
+          rpcPort: server.rpcPort,
+          sshUser: server.sshUser,
+          sshKeyPath: server.sshKeyPath,
+        });
+
+        await dbConn.update(metasploitServers)
+          .set({ tunnelStatus: "connected", tunnelLocalPort: result.localPort })
+          .where(eq(metasploitServers.id, input.serverId));
+
+        return { success: true, tunnelId: result.tunnelId, localPort: result.localPort };
+      } catch (err: any) {
+        await dbConn.update(metasploitServers)
+          .set({ tunnelStatus: "error" })
+          .where(eq(metasploitServers.id, input.serverId));
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `SSH tunnel failed: ${err.message}` });
+      }
+    }),
+
+  disconnectTunnel: protectedProcedure
+    .input(z.object({ serverId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { metasploitServers } = await import("../../drizzle/schema");
+      const { getDbRequired } = await import("../db");
+      const { eq } = await import("drizzle-orm");
+      const { tunnelManager } = await import("../lib/ssh-tunnel-manager");
+      const dbConn = await getDbRequired();
+
+      const tunnelId = `msf-tunnel-${input.serverId}`;
+      await tunnelManager.closeTunnel(tunnelId);
+
+      await dbConn.update(metasploitServers)
+        .set({ tunnelStatus: "disconnected", tunnelLocalPort: null })
+        .where(eq(metasploitServers.id, input.serverId));
+
+      return { success: true };
+    }),
+
+  getTunnelStatus: protectedProcedure
+    .input(z.object({ serverId: z.number() }))
+    .query(async ({ input }) => {
+      const { tunnelManager } = await import("../lib/ssh-tunnel-manager");
+      const tunnelId = `msf-tunnel-${input.serverId}`;
+      const status = tunnelManager.getTunnelStatus(tunnelId);
+      return {
+        connected: status?.state === "connected",
+        state: status?.state || "disconnected",
+        localPort: status?.localPort || null,
+        connectedAt: status?.connectedAt || null,
+        reconnectAttempts: status?.reconnectAttempts || 0,
+        bytesTransferred: status?.bytesTransferred || 0,
+        lastError: status?.lastError || null,
+      };
+    }),
+
+  getAllTunnelStatuses: protectedProcedure.query(async () => {
+    const { tunnelManager } = await import("../lib/ssh-tunnel-manager");
+    return tunnelManager.getAllTunnelStatuses();
+  }),
+
+  tunnelHealthCheck: protectedProcedure
+    .input(z.object({ serverId: z.number() }))
+    .query(async ({ input }) => {
+      const { tunnelManager } = await import("../lib/ssh-tunnel-manager");
+      const tunnelId = `msf-tunnel-${input.serverId}`;
+      return tunnelManager.healthCheck(tunnelId);
+    }),
 });

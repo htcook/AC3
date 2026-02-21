@@ -1,22 +1,29 @@
 /**
  * Metasploit MSGRPC API Client
  *
- * Provides a typed interface to the Metasploit JSON RPC API for:
+ * Provides a typed interface to the Metasploit RPC API for:
  * - Authentication (login/logout/token management)
  * - Module search, info, and execution
  * - Session management (list, interact, terminate)
  * - Job monitoring
  * - Console interaction
  *
- * Supports both the JSON RPC endpoint (/api/v1/json-rpc) and the
- * legacy MessagePack RPC. We use JSON RPC as the primary protocol.
+ * Uses MessagePack RPC protocol (native msfrpcd protocol).
+ * Supports SSH tunnel mode for secure connectivity.
  *
  * Connection details can come from:
  * 1. ENV vars (MSF_RPC_HOST, etc.) for a static instance
  * 2. Per-server config from the metasploitServers DB table
+ * 3. SSH tunnel (localhost:tunnelPort → remote:55553)
  */
 
 import { ENV } from "../_core/env";
+import { Packr, Unpackr } from "msgpackr";
+import { tunnelManager, createTunnelForServer } from "./ssh-tunnel-manager";
+
+// MessagePack encoder/decoder configured for Ruby compatibility
+const packr = new Packr({ useRecords: false });
+const unpackr = new Unpackr({ useRecords: false, mapsAsObjects: false });
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -30,10 +37,10 @@ export interface MsfConnectionConfig {
 }
 
 export interface MsfRpcResponse {
-  jsonrpc: string;
   result?: any;
-  error?: { code: number; message: string; data?: any };
-  id: number;
+  error?: string;
+  error_code?: number;
+  error_message?: string;
 }
 
 export interface MsfModule {
@@ -138,12 +145,16 @@ export class MsfClient {
    * Create a client from a server config record.
    */
   static fromServerConfig(server: {
+    id?: number;
     ipAddress: string | null;
     rpcPort: number | null;
     rpcUser: string | null;
     rpcPass: string | null;
     rpcSsl: boolean | null;
     rpcToken: string | null;
+    sshTunnelEnabled?: boolean | null;
+    sshUser?: string | null;
+    sshKeyPath?: string | null;
   }): MsfClient | null {
     if (!server.ipAddress) return null;
     return new MsfClient({
@@ -151,7 +162,58 @@ export class MsfClient {
       port: server.rpcPort || 55553,
       user: server.rpcUser || "msf",
       pass: server.rpcPass || "",
-      ssl: server.rpcSsl ?? true,
+      ssl: server.rpcSsl ?? false,
+      token: server.rpcToken || undefined,
+    });
+  }
+
+  /**
+   * Create a tunnel-aware client for an MSF server.
+   * Establishes SSH tunnel first, then connects via localhost.
+   */
+  static async fromServerWithTunnel(server: {
+    id: number;
+    ipAddress: string | null;
+    rpcPort: number | null;
+    rpcUser: string | null;
+    rpcPass: string | null;
+    rpcSsl: boolean | null;
+    rpcToken: string | null;
+    sshTunnelEnabled?: boolean | null;
+    sshUser?: string | null;
+    sshKeyPath?: string | null;
+  }): Promise<MsfClient | null> {
+    if (!server.ipAddress) return null;
+
+    const tunnelId = `msf-tunnel-${server.id}`;
+    let host = server.ipAddress;
+    let port = server.rpcPort || 55553;
+
+    // If tunnel is enabled, establish SSH tunnel first
+    if (server.sshTunnelEnabled !== false) {
+      const existingPort = tunnelManager.getLocalPort(tunnelId);
+      if (existingPort && tunnelManager.isConnected(tunnelId)) {
+        host = "127.0.0.1";
+        port = existingPort;
+      } else {
+        const result = await createTunnelForServer({
+          id: server.id,
+          ipAddress: server.ipAddress,
+          rpcPort: server.rpcPort,
+          sshUser: server.sshUser,
+          sshKeyPath: server.sshKeyPath,
+        });
+        host = "127.0.0.1";
+        port = result.localPort;
+      }
+    }
+
+    return new MsfClient({
+      host,
+      port,
+      user: server.rpcUser || "msf",
+      pass: server.rpcPass || "",
+      ssl: false, // No SSL needed through tunnel
       token: server.rpcToken || undefined,
     });
   }
@@ -164,29 +226,50 @@ export class MsfClient {
   }
 
   /**
-   * Send a JSON RPC request to the MSF instance.
+   * Convert Ruby MessagePack binary-key Maps to plain JS objects.
+   * Ruby's msgpack encodes string keys as binary (bin type),
+   * which msgpackr decodes as Buffer keys in Maps.
+   */
+  private convertMapToObject(value: any): any {
+    if (value instanceof Map) {
+      const obj: Record<string, any> = {};
+      value.forEach((v: any, k: any) => {
+        const key = Buffer.isBuffer(k) ? k.toString("utf8") : String(k);
+        obj[key] = this.convertMapToObject(v);
+      });
+      return obj;
+    }
+    if (Buffer.isBuffer(value)) {
+      return value.toString("utf8");
+    }
+    if (Array.isArray(value)) {
+      return value.map((v) => this.convertMapToObject(v));
+    }
+    return value;
+  }
+
+  /**
+   * Send a MessagePack RPC request to the MSF instance.
+   * This is the native msfrpcd protocol.
    */
   private async rpc(method: string, params: any[] = []): Promise<any> {
     this.requestId++;
 
-    // If we have a token, prepend it to params (MessagePack RPC convention)
-    // For JSON RPC, some methods need token in params
-    const fullParams = this.token && !method.startsWith("auth.login")
-      ? [this.token, ...params]
-      : params;
+    // MessagePack RPC: [method, ...params] with token prepended
+    const callArgs = this.token && !method.startsWith("auth.login")
+      ? [method, this.token, ...params]
+      : [method, ...params];
 
-    const body = {
-      jsonrpc: "2.0",
-      method,
-      id: this.requestId,
-      params: fullParams,
-    };
+    const packed = packr.pack(callArgs);
 
     try {
-      const resp = await fetch(`${this.baseUrl}/api/v1/json-rpc`, {
+      const resp = await fetch(`${this.baseUrl}/api/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        headers: {
+          "Content-Type": "binary/message-pack",
+          "Accept": "binary/message-pack",
+        },
+        body: packed as any,
         signal: AbortSignal.timeout(30000),
       });
 
@@ -194,15 +277,16 @@ export class MsfClient {
         throw new Error(`MSF RPC HTTP ${resp.status}: ${await resp.text().catch(() => "unknown")}`);
       }
 
-      const data: MsfRpcResponse = await resp.json();
+      const buffer = Buffer.from(await resp.arrayBuffer());
+      const raw = unpackr.unpack(buffer);
+      const data = this.convertMapToObject(raw);
 
-      if (data.error) {
-        throw new Error(`MSF RPC Error [${data.error.code}]: ${data.error.message}`);
+      if (data.error === true || data.error_class) {
+        throw new Error(`MSF RPC Error: ${data.error_message || data.error_string || "Unknown error"}`);
       }
 
-      return data.result;
+      return data;
     } catch (err: any) {
-      // If it's a fetch error (connection refused, etc.), wrap it
       if (err.name === "TypeError" || err.name === "AbortError") {
         throw new Error(`MSF RPC connection failed (${this.config.host}:${this.config.port}): ${err.message}`);
       }

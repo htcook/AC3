@@ -2979,3 +2979,17 @@
 - [x] Update Domain Intel Results page with Accuracy Insights tab (corroboration stats, temporal decay, attack chains, controls, remediation)
 - [x] Update Validation Engine page with Pre-Flight and Accuracy tabs (pre-flight checks, controls, temporal, chains, feedback, remediation)
 - [x] Write tests for accuracy-engine router structure (13 tests, all passing)
+
+
+## SSH Tunnel Architecture for Metasploit RPC
+- [x] Create SSH tunnel manager module (server/lib/ssh-tunnel-manager.ts) with auto-reconnect, health monitoring, exponential backoff
+- [x] Update MsfClient to use MessagePack RPC protocol (msgpackr) instead of JSON-RPC for native msfrpcd compatibility
+- [x] Add SSH tunnel support to MsfClient (fromServerWithTunnel factory method)
+- [x] Add SSH tunnel columns to metasploitServers schema (sshTunnelEnabled, sshUser, sshKeyPath, tunnelStatus, tunnelLocalPort)
+- [x] Add connectTunnel, disconnectTunnel, getTunnelStatus endpoints to metasploit-catalog router
+- [x] Update MsfServers UI with tunnel controls (connect/disconnect buttons, tunnel status badges, architecture info card)
+- [x] Provision new MSF droplet (142.93.55.239) with msfrpcd bound to localhost:55553 (no SSL) and SSH tunnel access
+- [x] Verify full pipeline: SSH tunnel → MessagePack RPC → auth.login → core.version → module_stats (all passing)
+- [x] Write comprehensive tests for SSH tunnel manager and MsfClient (27 tests, all passing)
+- [x] Install ssh2 and msgpackr dependencies
+- [x] Create systemd service for msfrpcd persistence on droplet
