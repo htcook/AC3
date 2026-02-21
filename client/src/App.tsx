@@ -61,6 +61,7 @@ const MsfSessions = lazy(() => import("./pages/MsfSessions"));
 const SessionRecordings = lazy(() => import("./pages/SessionRecordings"));
 const PostExploitPlaybooks = lazy(() => import("./pages/PostExploitPlaybooks"));
 const FileTransfers = lazy(() => import("./pages/FileTransfers"));
+const PayloadGenerator = lazy(() => import("./pages/PayloadGenerator"));
 const EngagementTimeline = lazy(() => import("./pages/EngagementTimeline"));
 const StixExport = lazy(() => import("./pages/StixExport"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
@@ -302,6 +303,9 @@ function Router() {
         </Route>
         <Route path="/file-transfers">
           <ProtectedRoute component={FileTransfers} />
+        </Route>
+        <Route path="/payload-generator">
+          <ProtectedRoute component={PayloadGenerator} />
         </Route>
         <Route path="/engagement-timeline">
           <ProtectedRoute component={EngagementTimeline} />

@@ -29,6 +29,8 @@ import { msfSessionsRouter } from "./routers/msf-sessions";
 import { sessionRecordingsRouter } from "./routers/session-recordings";
 import { postExploitPlaybooksRouter } from "./routers/post-exploit-playbooks";
 import { fileTransfersRouter } from "./routers/file-transfers";
+import { sessionAlerterRouter } from "./routers/session-alerter";
+import { payloadGeneratorRouter } from "./routers/payload-generator";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -129,6 +131,8 @@ export const appRouter = router({
   sessionRecordings: sessionRecordingsRouter,
   postExploitPlaybooks: postExploitPlaybooksRouter,
   fileTransfers: fileTransfersRouter,
+  sessionAlerter: sessionAlerterRouter,
+  payloadGenerator: payloadGeneratorRouter,
   engagementTimeline: engagementTimelineRouter,
   stixExport: stixExportRouter,
   clientPortal: clientPortalRouter,

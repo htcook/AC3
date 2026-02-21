@@ -3042,3 +3042,21 @@
 - [x] Build file transfer UI buttons in session terminal
 - [x] Add file browser for Meterpreter sessions (ls, cd, pwd)
 - [x] Build artifact gallery for downloaded files
+
+
+## Feature: Automated Session Alerting
+- [x] Add session polling background job that detects new sessions across all online MSF servers
+- [x] Trigger notifyOwner notification when new Meterpreter/shell session is established
+- [x] Include session metadata in alert (target IP, session type, platform, exploit used)
+- [x] Add notification bell integration for real-time in-app alerts
+- [x] Add configurable alert settings (enable/disable, poll interval)
+- [x] Track already-notified sessions to avoid duplicate alerts
+
+## Feature: Payload Generator UI (msfvenom via SSH Tunnel)
+- [x] Add msfvenom execution endpoint via SSH tunnel (run command on MSF server)
+- [x] Support common payload formats: exe, elf, apk, ps1, py, raw, dll, macho
+- [x] Support encoders: x86/shikata_ga_nai, x64/xor, cmd/powershell_base64, etc.
+- [x] Add payload template options (LHOST, LPORT, payload type, architecture)
+- [x] Store generated payloads in S3 with download links
+- [x] Build payload generator UI with form inputs and live preview of msfvenom command
+- [x] Add payload history with download links and metadata

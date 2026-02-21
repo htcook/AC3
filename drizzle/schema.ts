@@ -1906,3 +1906,32 @@ export const fileTransfers = mysqlTable("file_transfers", {
 });
 export type FileTransfer = typeof fileTransfers.$inferSelect;
 export type InsertFileTransfer = typeof fileTransfers.$inferInsert;
+
+
+// ─── Generated Payloads (msfvenom) ──────────────────────────────────────────
+export const generatedPayloads = mysqlTable("generated_payloads", {
+  id: int("id").primaryKey().autoincrement(),
+  serverId: int("server_id").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  payload: varchar("payload_type", { length: 255 }).notNull(), // e.g. windows/meterpreter/reverse_tcp
+  format: varchar("format", { length: 50 }).notNull(), // exe, elf, apk, ps1, py, raw, dll, macho
+  lhost: varchar("lhost", { length: 255 }).notNull(),
+  lport: int("lport").notNull(),
+  encoder: varchar("encoder", { length: 255 }), // e.g. x86/shikata_ga_nai
+  iterations: int("iterations").default(1),
+  arch: varchar("arch", { length: 50 }), // x86, x64
+  platform: varchar("platform", { length: 50 }), // windows, linux, osx, android
+  extraOptions: text("extra_options"), // JSON string of additional msfvenom options
+  msfvenomCommand: text("msfvenom_command"), // The full command that was run
+  status: mysqlEnum("status", ["pending", "generating", "completed", "failed"]).default("pending").notNull(),
+  errorMessage: text("error_message"),
+  fileKey: varchar("file_key", { length: 500 }), // S3 key
+  fileUrl: varchar("file_url", { length: 1000 }), // S3 URL
+  fileSize: int("file_size"), // bytes
+  fileSha256: varchar("file_sha256", { length: 64 }), // SHA256 hash
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+export type GeneratedPayload = typeof generatedPayloads.$inferSelect;
+export type InsertGeneratedPayload = typeof generatedPayloads.$inferInsert;

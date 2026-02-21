@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS generated_payloads (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  server_id INT NOT NULL,\n  name VARCHAR(255) NOT NULL,\n  payload_type VARCHAR(255) NOT NULL,\n  format VARCHAR(50) NOT NULL,\n  lhost VARCHAR(255) NOT NULL,\n  lport INT NOT NULL,\n  encoder VARCHAR(255),\n  iterations INT DEFAULT 1,\n  arch VARCHAR(50),\n  platform VARCHAR(50),\n  extra_options TEXT,\n  msfvenom_command TEXT,\n  status ENUM('pending', 'generating', 'completed', 'failed') DEFAULT 'pending' NOT NULL,\n  error_message TEXT,\n  file_key VARCHAR(500),\n  file_url VARCHAR(1000),\n  file_size INT,\n  file_sha256 VARCHAR(64),\n  created_by INT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  completed_at TIMESTAMP NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS generated_payloads (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  server_id INT NOT NULL,\n  name VARCHAR(255) NOT NULL,\n  payload_type VARCHAR(255) NOT NULL,\n  format VARCHAR(50) NOT NULL,\n  lhost VARCHAR(255) NOT NULL,\n  lport INT NOT NULL,\n  encoder VARCHAR(255),\n  iterations INT DEFAULT 1,\n  arch VARCHAR(50),\n  platform VARCHAR(50),\n  extra_options TEXT,\n  msfvenom_command TEXT,\n  status ENUM('pending', 'generating', 'completed', 'failed') DEFAULT 'pending' NOT NULL,\n  error_message TEXT,\n  file_key VARCHAR(500),\n  file_url VARCHAR(1000),\n  file_size INT,\n  file_sha256 VARCHAR(64),\n  created_by INT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  completed_at TIMESTAMP NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 592
+}
