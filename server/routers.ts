@@ -26,6 +26,9 @@ import { scoringRouter } from "./routers/scoring";
 import { accuracyEngineRouter } from "./routers/accuracy-engine";
 import { sshKeysRouter } from "./routers/ssh-keys";
 import { msfSessionsRouter } from "./routers/msf-sessions";
+import { sessionRecordingsRouter } from "./routers/session-recordings";
+import { postExploitPlaybooksRouter } from "./routers/post-exploit-playbooks";
+import { fileTransfersRouter } from "./routers/file-transfers";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -123,6 +126,9 @@ export const appRouter = router({
   metasploit: metasploitCatalogRouter,
   sshKeys: sshKeysRouter,
   msfSessions: msfSessionsRouter,
+  sessionRecordings: sessionRecordingsRouter,
+  postExploitPlaybooks: postExploitPlaybooksRouter,
+  fileTransfers: fileTransfersRouter,
   engagementTimeline: engagementTimelineRouter,
   stixExport: stixExportRouter,
   clientPortal: clientPortalRouter,

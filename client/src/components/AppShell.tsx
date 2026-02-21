@@ -46,6 +46,9 @@ import {
   FlaskConical,
   KeyRound,
   Terminal,
+  Video,
+  ScrollText,
+  ArrowUpDown,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -96,6 +99,9 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
       { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
       { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
+      { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
+      { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
+      { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
       { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
       { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
       { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },

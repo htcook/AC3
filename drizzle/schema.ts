@@ -1811,3 +1811,98 @@ export const validationResults = mysqlTable("validation_results", {
 });
 export type ValidationResult = typeof validationResults.$inferSelect;
 export type InsertValidationResult = typeof validationResults.$inferInsert;
+
+
+// ─── Session Recordings ──────────────────────────────────────────────────────
+
+export const sessionRecordings = mysqlTable("session_recordings", {
+  id: int("id").autoincrement().primaryKey(),
+  serverId: int("serverId").notNull(),
+  sessionId: varchar("sessionId", { length: 64 }).notNull(),
+  sessionType: mysqlEnum("sessionType", ["shell", "meterpreter"]).notNull(),
+  targetHost: varchar("targetHost", { length: 255 }),
+  username: varchar("recordingUsername", { length: 255 }),
+  platform: varchar("recordingPlatform", { length: 128 }),
+  viaExploit: varchar("viaExploit", { length: 512 }),
+  status: mysqlEnum("recordingStatus", ["recording", "completed", "error"]).default("recording").notNull(),
+  totalChunks: int("totalChunks").default(0).notNull(),
+  totalBytes: int("totalBytes").default(0).notNull(),
+  durationMs: int("durationMs").default(0),
+  startedAt: timestamp("recordingStartedAt").defaultNow().notNull(),
+  completedAt: timestamp("recordingCompletedAt"),
+  createdBy: varchar("recordingCreatedBy", { length: 64 }),
+});
+export type SessionRecording = typeof sessionRecordings.$inferSelect;
+export type InsertSessionRecording = typeof sessionRecordings.$inferInsert;
+
+export const recordingChunks = mysqlTable("recording_chunks", {
+  id: int("id").autoincrement().primaryKey(),
+  recordingId: int("recordingId").notNull(),
+  chunkIndex: int("chunkIndex").notNull(),
+  chunkType: mysqlEnum("chunkType", ["input", "output", "system"]).default("output").notNull(),
+  content: text("chunkContent").notNull(),
+  timestampMs: int("timestampMs").notNull(), // ms offset from recording start
+  createdAt: timestamp("chunkCreatedAt").defaultNow().notNull(),
+});
+export type RecordingChunk = typeof recordingChunks.$inferSelect;
+export type InsertRecordingChunk = typeof recordingChunks.$inferInsert;
+
+// ─── Post-Exploitation Playbooks ─────────────────────────────────────────────
+
+export const postExploitPlaybooks = mysqlTable("post_exploit_playbooks", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("playbookName", { length: 255 }).notNull(),
+  description: text("playbookDescription"),
+  category: mysqlEnum("playbookCategory", ["recon", "credential", "persistence", "lateral", "exfil", "cleanup", "custom"]).default("custom").notNull(),
+  targetSessionType: mysqlEnum("targetSessionType", ["shell", "meterpreter", "both"]).default("both").notNull(),
+  commands: json("playbookCommands").notNull(), // Array of { command: string, description: string, delayMs: number }
+  autoTrigger: boolean("autoTrigger").default(false).notNull(),
+  autoTriggerFilter: json("autoTriggerFilter"), // { platform?: string, arch?: string, exploit?: string }
+  isBuiltIn: boolean("isBuiltIn").default(false).notNull(),
+  enabled: boolean("playbookEnabled").default(true).notNull(),
+  createdBy: varchar("playbookCreatedBy", { length: 64 }),
+  createdAt: timestamp("playbookCreatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("playbookUpdatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PostExploitPlaybook = typeof postExploitPlaybooks.$inferSelect;
+export type InsertPostExploitPlaybook = typeof postExploitPlaybooks.$inferInsert;
+
+export const postExploitExecutions = mysqlTable("post_exploit_executions", {
+  id: int("id").autoincrement().primaryKey(),
+  playbookId: int("pePlaybookId").notNull(),
+  serverId: int("peServerId").notNull(),
+  sessionId: varchar("peSessionId", { length: 64 }).notNull(),
+  status: mysqlEnum("peStatus", ["pending", "running", "completed", "failed", "aborted"]).default("pending").notNull(),
+  currentStep: int("peCurrentStep").default(0).notNull(),
+  totalSteps: int("peTotalSteps").notNull(),
+  output: json("peOutput"), // Array of { step: number, command: string, output: string, status: string, durationMs: number }
+  errorMessage: text("peErrorMessage"),
+  startedAt: timestamp("peStartedAt").defaultNow().notNull(),
+  completedAt: timestamp("peCompletedAt"),
+  triggeredBy: mysqlEnum("peTriggeredBy", ["manual", "auto"]).default("manual").notNull(),
+  createdBy: varchar("peCreatedBy", { length: 64 }),
+});
+export type PostExploitExecution = typeof postExploitExecutions.$inferSelect;
+export type InsertPostExploitExecution = typeof postExploitExecutions.$inferInsert;
+
+// ─── File Transfers ──────────────────────────────────────────────────────────
+
+export const fileTransfers = mysqlTable("file_transfers", {
+  id: int("id").autoincrement().primaryKey(),
+  serverId: int("transferServerId").notNull(),
+  sessionId: varchar("transferSessionId", { length: 64 }).notNull(),
+  direction: mysqlEnum("transferDirection", ["upload", "download"]).notNull(),
+  remotePath: varchar("remotePath", { length: 1024 }).notNull(),
+  fileName: varchar("transferFileName", { length: 255 }).notNull(),
+  fileSize: int("fileSize"),
+  mimeType: varchar("transferMimeType", { length: 128 }),
+  s3Key: varchar("s3Key", { length: 512 }),
+  s3Url: text("s3Url"),
+  status: mysqlEnum("transferStatus", ["pending", "in_progress", "completed", "failed"]).default("pending").notNull(),
+  errorMessage: text("transferErrorMessage"),
+  createdBy: varchar("transferCreatedBy", { length: 64 }),
+  createdAt: timestamp("transferCreatedAt").defaultNow().notNull(),
+  completedAt: timestamp("transferCompletedAt"),
+});
+export type FileTransfer = typeof fileTransfers.$inferSelect;
+export type InsertFileTransfer = typeof fileTransfers.$inferInsert;

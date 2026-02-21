@@ -2605,7 +2605,7 @@
 - [ ] Build embedded Caldera agent interaction panel
 - [ ] Add live session monitoring (active agents, beacons, callbacks)
 - [ ] Add command execution interface within Ace C3
-- [ ] Add session recording and playback
+- [x] Add session recording and playback
 
 ### 9. Attack Path Modeling with Graph Visualization — High Effort
 - [ ] Build attack graph data model (nodes=assets, edges=attack vectors)
@@ -3015,3 +3015,30 @@
 - [x] Implement interactive shell/Meterpreter terminal component
 - [x] Add session metadata display (type, target, route, platform, arch)
 - [x] Add session interaction commands (sysinfo, getuid, shell, upload, download)
+
+
+## Feature: Session Recording & Playback
+- [x] Create session_recordings table (sessionId, serverId, output chunks, timestamps, metadata)
+- [x] Auto-persist terminal output to DB during active sessions
+- [x] Add recording start/stop endpoints
+- [x] Build playback endpoint that returns timestamped output for replay
+- [x] Build session recording list UI with search and filter
+- [x] Build playback viewer with timeline scrubbing and speed controls
+
+## Feature: Automated Post-Exploitation Playbooks
+- [x] Create playbooks table (name, description, commands, target session types, auto-trigger)
+- [x] Create playbook_executions table (playbook, session, status, output, timestamps)
+- [x] Add CRUD endpoints for playbook management
+- [x] Add playbook execution engine that runs commands sequentially with output capture
+- [x] Add auto-trigger logic for new sessions (configurable per playbook)
+- [x] Build playbook management UI with command editor
+- [x] Build playbook execution UI with real-time output
+- [x] Seed default playbooks (sysinfo, hashdump, screenshot, network enum)
+
+## Feature: File Transfer UI with S3 Storage
+- [x] Add Meterpreter file upload/download tRPC endpoints
+- [x] Integrate S3 storage for captured artifacts (storagePut)
+- [x] Create file_transfers table to track transfer history
+- [x] Build file transfer UI buttons in session terminal
+- [x] Add file browser for Meterpreter sessions (ls, cd, pwd)
+- [x] Build artifact gallery for downloaded files

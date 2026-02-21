@@ -58,6 +58,9 @@ const ExploitArsenal = lazy(() => import("./pages/ExploitArsenal"));
 const MsfServers = lazy(() => import("./pages/MsfServers"));
 const SshKeyManager = lazy(() => import("./pages/SshKeyManager"));
 const MsfSessions = lazy(() => import("./pages/MsfSessions"));
+const SessionRecordings = lazy(() => import("./pages/SessionRecordings"));
+const PostExploitPlaybooks = lazy(() => import("./pages/PostExploitPlaybooks"));
+const FileTransfers = lazy(() => import("./pages/FileTransfers"));
 const EngagementTimeline = lazy(() => import("./pages/EngagementTimeline"));
 const StixExport = lazy(() => import("./pages/StixExport"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
@@ -290,6 +293,15 @@ function Router() {
         </Route>
         <Route path="/msf-sessions">
           <ProtectedRoute component={MsfSessions} />
+        </Route>
+        <Route path="/session-recordings">
+          <ProtectedRoute component={SessionRecordings} />
+        </Route>
+        <Route path="/post-exploit-playbooks">
+          <ProtectedRoute component={PostExploitPlaybooks} />
+        </Route>
+        <Route path="/file-transfers">
+          <ProtectedRoute component={FileTransfers} />
         </Route>
         <Route path="/engagement-timeline">
           <ProtectedRoute component={EngagementTimeline} />
