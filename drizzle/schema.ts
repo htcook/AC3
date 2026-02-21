@@ -473,6 +473,9 @@ export const domainIntelScans = mysqlTable("domain_intel_scans", {
   // Aggregated results
   totalAssets: int("totalAssets").default(0),
   totalFindings: int("totalFindings").default(0),
+  confirmedFindings: int("confirmedFindings").default(0),
+  probableFindings: int("probableFindings").default(0),
+  potentialFindings: int("potentialFindings").default(0),
   overallRiskScore: int("overallRiskScore"), // 0-100
   overallRiskBand: varchar("overallRiskBand", { length: 32 }), // critical/high/medium/low
   // LLM-generated summaries

@@ -19,6 +19,10 @@ import { dehashedConnector } from "./dehashed";
 import { shodanInternetDBConnector } from "./shodan-internetdb";
 import { binaryedgeConnector } from "./binaryedge";
 import { greynoiseConnector } from "./greynoise";
+import { emailSecurityConnector } from "./email-security";
+import { httpSecurityConnector } from "./http-security";
+import { cloudAssetsConnector } from "./cloud-assets";
+import { dnsDeepConnector } from "./dns-deep";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
@@ -37,6 +41,10 @@ const ALL_CONNECTORS: PassiveConnector[] = [
   dehashedConnector,
   binaryedgeConnector,        // Independent validation source
   greynoiseConnector,         // Threat pressure context
+  emailSecurityConnector,     // Email security posture (DMARC/SPF/DKIM)
+  httpSecurityConnector,      // HTTP security headers & WAF detection
+  cloudAssetsConnector,       // Cloud storage enumeration (S3/Azure/GCP)
+  dnsDeepConnector,           // Comprehensive DNS record analysis
 ];
 
 export interface PassiveReconConfig {

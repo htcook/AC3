@@ -60,6 +60,8 @@ export interface VulnFeedStats {
   feedHealth: Record<VulnSource, "ok" | "stale" | "error">;
 }
 
+export type CorroborationTier = 'confirmed' | 'probable' | 'potential';
+
 export interface TechVulnMatch {
   technology: string;
   vulns: VulnEntry[];
@@ -67,6 +69,10 @@ export interface TechVulnMatch {
   exploitCount: number;
   kevCount: number;
   riskScore: number; // 0-100
+  corroborationTier: CorroborationTier;
+  confirmedVulnCount: number;
+  probableVulnCount: number;
+  potentialVulnCount: number;
 }
 
 // ─── In-Memory Cache ────────────────────────────────────────────────────────
@@ -728,7 +734,8 @@ export async function getWeaponizedCves(limit: number = 50): Promise<VulnEntry[]
  * Returns matches grouped by technology with unified risk scoring
  */
 export async function matchTechnologiesAgainstAllFeeds(
-  technologies: string[]
+  technologies: string[],
+  detectedVersions?: Record<string, string>
 ): Promise<{
   matches: TechVulnMatch[];
   totalVulns: number;
@@ -736,6 +743,9 @@ export async function matchTechnologiesAgainstAllFeeds(
   totalKev: number;
   totalZeroDay: number;
   overallRiskBoost: number;
+  confirmedVulnCount: number;
+  probableVulnCount: number;
+  potentialVulnCount: number;
 }> {
   const map = await buildUnifiedMap();
   const kevCatalog = await fetchKevCatalog();
@@ -750,6 +760,11 @@ export async function matchTechnologiesAgainstAllFeeds(
   let totalExploits = 0;
   let totalKev = 0;
   let totalZeroDay = 0;
+  let confirmedVulnCount = 0;
+  let probableVulnCount = 0;
+  let potentialVulnCount = 0;
+
+  const versions = detectedVersions || {};
 
   for (const tech of technologies) {
     const techLower = tech.toLowerCase().trim();
@@ -781,6 +796,34 @@ export async function matchTechnologiesAgainstAllFeeds(
       const kevCount = matchedVulns.filter(v => v.kevListed).length;
       const zeroDayCount = matchedVulns.filter(v => v.inTheWild).length;
 
+      // Determine corroboration tier for this technology
+      const detectedVersion = versions[tech] || versions[techLower];
+      const hasVersionMatch = !!detectedVersion;
+      const hasKev = kevCount > 0;
+      const hasZeroDay = zeroDayCount > 0;
+      const hasExploit = exploitCount > 0;
+
+      // Tier classification:
+      // confirmed = KEV-listed OR in-the-wild 0-day OR version-matched with exploit
+      // probable  = version detected (can compare) OR has public exploit
+      // potential = name-only match, no version info, no exploit evidence
+      let tier: CorroborationTier;
+      if (hasKev || hasZeroDay || (hasVersionMatch && hasExploit)) {
+        tier = 'confirmed';
+      } else if (hasVersionMatch || hasExploit) {
+        tier = 'probable';
+      } else {
+        tier = 'potential';
+      }
+
+      // Per-vuln tier counts
+      let techConfirmed = 0, techProbable = 0, techPotential = 0;
+      for (const v of matchedVulns) {
+        if (v.kevListed || v.inTheWild) techConfirmed++;
+        else if (hasVersionMatch || v.exploitAvailable) techProbable++;
+        else techPotential++;
+      }
+
       // Calculate risk score for this technology
       const maxCvss = Math.max(...matchedVulns.map(v => v.cvssScore || 0));
       const riskScore = Math.min(100, Math.round(
@@ -803,12 +846,19 @@ export async function matchTechnologiesAgainstAllFeeds(
         exploitCount,
         kevCount,
         riskScore,
+        corroborationTier: tier,
+        confirmedVulnCount: techConfirmed,
+        probableVulnCount: techProbable,
+        potentialVulnCount: techPotential,
       });
 
       totalVulns += matchedVulns.length;
       totalExploits += exploitCount;
       totalKev += kevCount;
       totalZeroDay += zeroDayCount;
+      confirmedVulnCount += techConfirmed;
+      probableVulnCount += techProbable;
+      potentialVulnCount += techPotential;
     }
   }
 
@@ -819,6 +869,9 @@ export async function matchTechnologiesAgainstAllFeeds(
     totalKev,
     totalZeroDay,
     overallRiskBoost: kevRisk.riskBoost,
+    confirmedVulnCount,
+    probableVulnCount,
+    potentialVulnCount,
   };
 }
 

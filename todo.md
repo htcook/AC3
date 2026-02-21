@@ -3060,3 +3060,21 @@
 - [x] Store generated payloads in S3 with download links
 - [x] Build payload generator UI with form inputs and live preview of msfvenom command
 - [x] Add payload history with download links and metadata
+
+## Fix: Only Count Confirmed Vulnerabilities (Re-applied after sandbox reset)
+- [x] Review vulnerability counting logic in domain intel pipeline
+- [x] Update vuln counts to only include confirmed/corroborated vulnerabilities
+- [x] Separate confirmed vulns from potential/theoretical vulns in the data model
+- [x] Update Vulns tab UI to distinguish confirmed vs potential vulnerabilities
+- [x] Update risk scoring to weight confirmed vulns higher than potential ones
+- [x] Update executive summary generation to reference only confirmed vulns
+- [x] Write tests for the updated counting logic (13 tests passing)
+
+## Enhancement: Red Team Top-10 Discovery Priorities (Re-applied after sandbox reset)
+- [x] Analyze red team top-10 discovery priorities vs current OSINT pipeline coverage
+- [x] Gap analysis: identify which of the 10 discovery categories are missing or weak
+- [x] Enhance domain intel pipeline with missing red team discovery capabilities
+- [x] Add cloud asset and misconfiguration discovery (S3 buckets, Azure storage, GCP)
+- [x] Add security tooling detection (WAF fingerprinting, EDR/AV banners, DMARC/SPF)
+- [x] Write tests for new OSINT enhancements (9 tests passing)
+- [x] All 22 tests passing (13 vuln tier + 9 OSINT connector)

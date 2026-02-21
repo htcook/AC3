@@ -1550,7 +1550,15 @@ export const appRouter = router({
           const techList = a.technologies || [];
           (Array.isArray(techList) ? techList : []).forEach((t: string) => techs.add(t));
         });
-        return matchTechnologiesAgainstAllFeeds(Array.from(techs));
+        // Extract detected versions from scan data for tier classification
+        const detectedVersions: Record<string, string> = {};
+        (output?.assets || []).forEach((a: any) => {
+          const versions = a.detectedVersions || a.asset?.detectedVersions || {};
+          if (typeof versions === 'object') {
+            Object.entries(versions).forEach(([k, v]) => { if (typeof v === 'string') detectedVersions[k] = v; });
+          }
+        });
+        return matchTechnologiesAgainstAllFeeds(Array.from(techs), detectedVersions);
       }),
 
     enrichCve: protectedProcedure
@@ -3947,6 +3955,9 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               overallRiskBand: result.overallRiskBand,
               totalAssets: result.totalAssets,
               totalFindings: result.totalFindings,
+              confirmedFindings: result.confirmedFindingsCount || 0,
+              probableFindings: result.probableFindingsCount || 0,
+              potentialFindings: result.potentialFindingsCount || 0,
               executiveSummary: result.executiveSummary,
               threatModelSummary: result.threatModelSummary,
               // Keep KEV enrichment summary but trim the full match list
@@ -4069,6 +4080,9 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 status: 'scan_complete',
                 totalAssets: result.totalAssets,
                 totalFindings: result.totalFindings,
+              confirmedFindings: result.confirmedFindingsCount || 0,
+              probableFindings: result.probableFindingsCount || 0,
+              potentialFindings: result.potentialFindingsCount || 0,
                 overallRiskScore: result.overallRiskScore,
                 overallRiskBand: result.overallRiskBand,
                 executiveSummary: result.executiveSummary,
@@ -4112,6 +4126,9 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 status: 'completed',
                 totalAssets: result.totalAssets,
                 totalFindings: result.totalFindings,
+              confirmedFindings: result.confirmedFindingsCount || 0,
+              probableFindings: result.probableFindingsCount || 0,
+              potentialFindings: result.potentialFindingsCount || 0,
                 overallRiskScore: result.overallRiskScore,
                 overallRiskBand: result.overallRiskBand,
                 executiveSummary: result.executiveSummary,
@@ -4326,6 +4343,9 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           status: 'discovering',
           totalAssets: 0,
           totalFindings: 0,
+          confirmedFindings: 0,
+          probableFindings: 0,
+          potentialFindings: 0,
           overallRiskScore: null,
           overallRiskBand: null,
           executiveSummary: null,
@@ -4426,6 +4446,9 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               overallRiskBand: result.overallRiskBand,
               totalAssets: result.totalAssets,
               totalFindings: result.totalFindings,
+              confirmedFindings: result.confirmedFindingsCount || 0,
+              probableFindings: result.probableFindingsCount || 0,
+              potentialFindings: result.potentialFindingsCount || 0,
               executiveSummary: result.executiveSummary,
               threatModelSummary: result.threatModelSummary,
               kevEnrichment: result.kevEnrichment ? {
@@ -4472,6 +4495,9 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               status: 'scan_complete',
               totalAssets: result.totalAssets,
               totalFindings: result.totalFindings,
+              confirmedFindings: result.confirmedFindingsCount || 0,
+              probableFindings: result.probableFindingsCount || 0,
+              potentialFindings: result.potentialFindingsCount || 0,
               overallRiskScore: result.overallRiskScore,
               overallRiskBand: result.overallRiskBand,
               executiveSummary: result.executiveSummary,

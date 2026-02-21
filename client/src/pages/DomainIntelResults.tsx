@@ -544,8 +544,11 @@ export default function DomainIntelResults() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold">{scan.totalFindings || 0}</p>
-            <p className="text-xs text-muted-foreground mt-1">Posture Findings</p>
+            <p className="text-3xl font-bold">{(scan as any).confirmedFindings ?? scan.totalFindings ?? 0}</p>
+            <p className="text-xs text-muted-foreground mt-1">Confirmed Findings</p>
+            {(scan as any).confirmedFindings != null && scan.totalFindings != null && scan.totalFindings > (scan as any).confirmedFindings && (
+              <p className="text-[10px] text-muted-foreground">{scan.totalFindings} total ({(scan as any).probableFindings || 0} probable, {(scan as any).potentialFindings || 0} potential)</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -3468,6 +3471,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
 function VulnIntelSection({ scanId }: { scanId: number }) {
   const [expandedTech, setExpandedTech] = useState<string | null>(null);
   const [expandedCve, setExpandedCve] = useState<string | null>(null);
+  const [showAllTiers, setShowAllTiers] = useState(false);
 
   const { data, isLoading, error } = trpc.calderaProxy.matchTechVulns.useQuery(
     { scanId },
@@ -3508,15 +3512,38 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
 
   return (
     <>
+      {/* Tier Filter Toggle */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Showing:</span>
+          <button
+            onClick={() => setShowAllTiers(false)}
+            className={`text-xs px-2 py-0.5 rounded border transition-all ${
+              !showAllTiers ? 'bg-accent text-accent-foreground border-accent' : 'border-border text-muted-foreground hover:border-accent/50'
+            }`}
+          >
+            Confirmed + Probable ({(data as any).confirmedVulnCount + (data as any).probableVulnCount || data.totalVulns})
+          </button>
+          <button
+            onClick={() => setShowAllTiers(true)}
+            className={`text-xs px-2 py-0.5 rounded border transition-all ${
+              showAllTiers ? 'bg-accent text-accent-foreground border-accent' : 'border-border text-muted-foreground hover:border-accent/50'
+            }`}
+          >
+            All Tiers ({data.totalVulns})
+          </button>
+        </div>
+      </div>
+
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="border-red-500/30 bg-red-500/5">
           <CardContent className="pt-3 pb-2 px-3">
             <div className="flex items-center gap-1.5">
               <Bug className="h-3.5 w-3.5 text-red-500" />
-              <span className="text-[10px] text-muted-foreground">Total Vulns</span>
+              <span className="text-[10px] text-muted-foreground">{showAllTiers ? 'Total Vulns' : 'Confirmed Vulns'}</span>
             </div>
-            <div className="text-xl font-bold text-red-400 mt-0.5">{data.totalVulns}</div>
+            <div className="text-xl font-bold text-red-400 mt-0.5">{showAllTiers ? data.totalVulns : ((data as any).confirmedVulnCount + (data as any).probableVulnCount || data.totalVulns)}</div>
           </CardContent>
         </Card>
         <Card className="border-amber-500/30 bg-amber-500/5">
@@ -3559,7 +3586,7 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
 
       {/* Technology Matches */}
       <div className="space-y-2">
-        {data.matches.map((match: any) => {
+        {data.matches.filter((match: any) => showAllTiers || match.corroborationTier !== 'potential').map((match: any) => {
           const isExpanded = expandedTech === match.technology;
           const sevColors: Record<string, string> = {
             critical: "border-red-500/40 bg-red-500/5",
@@ -3585,6 +3612,13 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
                   <div className="flex items-center gap-2">
                     <Database className="h-3.5 w-3.5 text-accent" />
                     <span className="font-semibold text-sm">{match.technology}</span>
+                    {match.corroborationTier && (
+                      <Badge className={`text-[8px] h-4 ${
+                        match.corroborationTier === 'confirmed' ? 'bg-green-600/80 text-white' :
+                        match.corroborationTier === 'probable' ? 'bg-blue-600/80 text-white' :
+                        'bg-gray-600/80 text-white'
+                      }`}>{match.corroborationTier}</Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-muted-foreground">{match.vulns.length} CVEs</span>

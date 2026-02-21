@@ -210,6 +210,9 @@ export interface PipelineResult {
   threatModelSummary: string;
   totalAssets: number;
   totalFindings: number;
+  confirmedFindingsCount: number;
+  probableFindingsCount: number;
+  potentialFindingsCount: number;
   kevEnrichment?: KevEnrichment;
   passiveRecon?: PassiveReconResult;
   breachData?: BreachDataSummary;
@@ -2050,6 +2053,9 @@ export async function runDomainIntelPipeline(
   }
 
   const totalFindings = analyses.reduce((s, a) => s + a.postureFindings.length, 0);
+  const confirmedFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'confirmed').length, 0);
+  const probableFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'probable').length, 0);
+  const potentialFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'potential' || !f.corroborationTier).length, 0);
 
   // Extract breach data summary from Dehashed passive recon observations
   let breachData: BreachDataSummary | undefined;
@@ -2089,6 +2095,9 @@ export async function runDomainIntelPipeline(
     threatModelSummary: summaries.threatModelSummary,
     totalAssets: analyses.length,
     totalFindings,
+    confirmedFindingsCount,
+    probableFindingsCount,
+    potentialFindingsCount,
     kevEnrichment,
     passiveRecon,
     breachData,
