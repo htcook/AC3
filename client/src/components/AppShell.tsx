@@ -44,6 +44,8 @@ import {
   Archive,
   ClipboardCheck,
   FlaskConical,
+  KeyRound,
+  Terminal,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -92,6 +94,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
       { href: "/validation-engine", icon: FlaskConical, label: "VALIDATION ENGINE" },
       { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
+      { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
+      { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
       { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
       { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
       { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },

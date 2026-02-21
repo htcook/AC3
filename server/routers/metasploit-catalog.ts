@@ -7,6 +7,23 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { ENV } from "../_core/env";
 
+/**
+ * Helper: Get a tunnel-aware MsfClient for a server record.
+ * Automatically establishes SSH tunnel if enabled, falls back to direct connection.
+ */
+async function getTunnelAwareMsfClient(server: any): Promise<any> {
+  const { MsfClient } = await import("../lib/msf-client");
+  // Prefer SSH tunnel for secure connectivity
+  if (server.sshTunnelEnabled !== false && server.ipAddress) {
+    const client = await MsfClient.fromServerWithTunnel(server);
+    if (client) return client;
+  }
+  // Fallback to direct connection
+  const client = MsfClient.fromServerConfig(server);
+  if (!client) throw new (await import("@trpc/server")).TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
+  return client;
+}
+
 export const metasploitCatalogRouter = router({
   // ─── MSF Server Provisioning ───────────────────────────────────────────────
 
@@ -58,11 +75,8 @@ export const metasploitCatalogRouter = router({
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.id)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
 
-      const { MsfClient } = await import("../lib/msf-client");
-      const client = MsfClient.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
-
       try {
+        const client = await getTunnelAwareMsfClient(server);
         await client.ensureAuth();
         const version = await client.getVersion();
         const status = "online" as const;
@@ -174,9 +188,7 @@ export const metasploitCatalogRouter = router({
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const { MsfClient } = await import("../lib/msf-client");
-      const client = MsfClient.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
+      const client = await getTunnelAwareMsfClient(server);
       await client.ensureAuth();
       // Prefix search with type filter
       const searchQuery = input.type !== "exploit" ? `type:${input.type} ${input.query}` : input.query;
@@ -193,9 +205,7 @@ export const metasploitCatalogRouter = router({
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const { MsfClient } = await import("../lib/msf-client");
-      const client = MsfClient.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
+      const client = await getTunnelAwareMsfClient(server);
       await client.ensureAuth();
       return client.getModuleInfo(input.moduleType, input.moduleName);
     }),
@@ -244,14 +254,12 @@ export const metasploitCatalogRouter = router({
         startedAt: new Date(),
       }).$returningId();
 
-      const { MsfClient } = await import("../lib/msf-client");
-      const client = MsfClient.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
-
       const { emitExploitFired, emitExploitResult } = await import("../lib/ws-event-hub");
 
       // Emit exploit fired event
       emitExploitFired({ jobId: job.id, module: input.moduleName, targetIp: input.targetHost, targetPort: input.targetPort || 0, engagementId: input.engagementId });
+
+      const client = await getTunnelAwareMsfClient(server);
 
       try {
         await client.ensureAuth();
@@ -308,10 +316,8 @@ export const metasploitCatalogRouter = router({
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const { MsfClient } = await import("../lib/msf-client");
-      const client = MsfClient.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
       try {
+        const client = await getTunnelAwareMsfClient(server);
         await client.ensureAuth();
         return client.listSessions();
       } catch (err: any) {
@@ -329,10 +335,8 @@ export const metasploitCatalogRouter = router({
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const { MsfClient } = await import("../lib/msf-client");
-      const client = MsfClient.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
       try {
+        const client = await getTunnelAwareMsfClient(server);
         await client.ensureAuth();
         await client.stopSession(input.sessionId);
         return { success: true, sessionId: input.sessionId };
@@ -365,9 +369,8 @@ export const metasploitCatalogRouter = router({
       const stager = stagers.find(s => s.platform === input.platform && s.type === input.agentType);
       if (!stager) throw new TRPCError({ code: "BAD_REQUEST", message: `No stager for ${input.platform}/${input.agentType}` });
 
-      const client = MsfClient.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
       try {
+        const client = await getTunnelAwareMsfClient(server);
         await client.ensureAuth();
         // Use shellWrite for shell sessions, meterpreterWrite for meterpreter
         await client.shellWrite(input.sessionId, stager.command + "\n");
@@ -416,14 +419,14 @@ export const metasploitCatalogRouter = router({
         startedAt: new Date(),
       }).$returningId();
 
-      const { MsfClient: MsfClientClass, generateAgentStagers } = await import("../lib/msf-client");
-      const client = MsfClientClass.fromServerConfig(server);
-      if (!client) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server IP not configured" });
+      const { generateAgentStagers } = await import("../lib/msf-client");
 
       const { emitExploitFired, emitExploitResult, emitAgentDeployed } = await import("../lib/ws-event-hub");
 
       // Emit exploit fired event
       emitExploitFired({ jobId: job.id, module: entry.msfModule, targetIp: input.targetHost, targetPort: input.targetPort || 0, engagementId: input.engagementId });
+
+      const client = await getTunnelAwareMsfClient(server);
 
       try {
         await client.ensureAuth();
@@ -447,10 +450,10 @@ export const metasploitCatalogRouter = router({
           try {
             const sessions = await client.listSessions();
             const newSession = Object.entries(sessions).find(
-              ([_, s]) => s.target_host === input.targetHost || s.tunnel_peer?.includes(input.targetHost)
+              ([_, s]: [string, any]) => s.target_host === input.targetHost || s.tunnel_peer?.includes(input.targetHost)
             );
             if (newSession) {
-              const [sessionId, sessionInfo] = newSession;
+              const [sessionId, sessionInfo] = newSession as [string, any];
               const stagers = generateAgentStagers(ENV.calderaBaseUrl);
               const platform = entry.platform === "windows" ? "windows" : entry.platform === "darwin" ? "darwin" : "linux";
               const stager = stagers.find(s => s.platform === platform && s.type === input.agentType);

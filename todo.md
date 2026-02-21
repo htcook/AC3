@@ -2993,3 +2993,25 @@
 - [x] Write comprehensive tests for SSH tunnel manager and MsfClient (27 tests, all passing)
 - [x] Install ssh2 and msgpackr dependencies
 - [x] Create systemd service for msfrpcd persistence on droplet
+
+
+## Feature: Wire SSH Tunnel into Exploit Execution
+- [x] Auto-establish SSH tunnel before sending RPC exploit commands
+- [x] Update Exploit Arsenal "Fire Exploit" flow to use tunnel-aware MsfClient
+- [x] Add tunnel status check before exploit execution with auto-connect fallback
+- [x] Update exploit execution router to use fromServerWithTunnel
+
+## Feature: SSH Key Management UI
+- [x] Create SSH key storage in database (encrypted key content, fingerprint, metadata)
+- [x] Add tRPC endpoints for SSH key CRUD (upload, list, delete, rotate)
+- [x] Build SSH Key Management UI page with upload/rotate/delete controls
+- [x] Support generating new SSH key pairs from the dashboard
+- [x] Wire SSH key selection into MSF server provisioning and tunnel connections
+
+## Feature: Real-Time Session Monitoring
+- [x] Add tRPC endpoints for session.list, session.read, session.write, session.stop via tunnel
+- [x] Create session polling mechanism with configurable interval
+- [x] Build Session Monitor UI page with active session cards
+- [x] Implement interactive shell/Meterpreter terminal component
+- [x] Add session metadata display (type, target, route, platform, arch)
+- [x] Add session interaction commands (sysinfo, getuid, shell, upload, download)

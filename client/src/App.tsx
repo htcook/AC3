@@ -56,6 +56,8 @@ const ThreatIntelHub = lazy(() => import("./pages/ThreatIntelHub"));
 const CampaignArchetypes = lazy(() => import("./pages/CampaignArchetypes"));
 const ExploitArsenal = lazy(() => import("./pages/ExploitArsenal"));
 const MsfServers = lazy(() => import("./pages/MsfServers"));
+const SshKeyManager = lazy(() => import("./pages/SshKeyManager"));
+const MsfSessions = lazy(() => import("./pages/MsfSessions"));
 const EngagementTimeline = lazy(() => import("./pages/EngagementTimeline"));
 const StixExport = lazy(() => import("./pages/StixExport"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
@@ -282,6 +284,12 @@ function Router() {
         </Route>
         <Route path="/msf-servers">
           <ProtectedRoute component={MsfServers} />
+        </Route>
+        <Route path="/ssh-keys">
+          <ProtectedRoute component={SshKeyManager} />
+        </Route>
+        <Route path="/msf-sessions">
+          <ProtectedRoute component={MsfSessions} />
         </Route>
         <Route path="/engagement-timeline">
           <ProtectedRoute component={EngagementTimeline} />

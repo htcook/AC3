@@ -58,6 +58,30 @@ export type ServerCredential = typeof serverCredentials.$inferSelect;
 export type InsertServerCredential = typeof serverCredentials.$inferInsert;
 
 /**
+ * SSH keys for MSF server tunnel connections.
+ * Stores the key content (encrypted at rest), fingerprint, and metadata.
+ */
+export const sshKeys = mysqlTable("ssh_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  fingerprint: varchar("fingerprint", { length: 255 }).notNull(),
+  publicKey: text("publicKey").notNull(),
+  privateKey: text("privateKey").notNull(),
+  keyType: mysqlEnum("keyType", ["ed25519", "rsa", "ecdsa"]).default("ed25519").notNull(),
+  bitLength: int("bitLength"),
+  passphrase: text("passphrase"),
+  isDefault: boolean("isDefault").default(false).notNull(),
+  associatedServerId: int("associatedServerId"),
+  createdBy: varchar("createdBy", { length: 64 }),
+  lastUsedAt: timestamp("lastUsedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SshKey = typeof sshKeys.$inferSelect;
+export type InsertSshKey = typeof sshKeys.$inferInsert;
+
+/**
  * Activity logs for audit trail
  */
 export const activityLogs = mysqlTable("activity_logs", {

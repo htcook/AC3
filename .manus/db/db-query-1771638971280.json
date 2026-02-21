@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS ssh_keys (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  name VARCHAR(255) NOT NULL,\n  fingerprint VARCHAR(255) NOT NULL,\n  publicKey TEXT NOT NULL,\n  privateKey TEXT NOT NULL,\n  keyType ENUM('ed25519', 'rsa', 'ecdsa') DEFAULT 'ed25519' NOT NULL,\n  bitLength INT,\n  passphrase TEXT,\n  isDefault BOOLEAN DEFAULT FALSE NOT NULL,\n  associatedServerId INT,\n  createdBy VARCHAR(64),\n  lastUsedAt TIMESTAMP NULL,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS ssh_keys (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  name VARCHAR(255) NOT NULL,\n  fingerprint VARCHAR(255) NOT NULL,\n  publicKey TEXT NOT NULL,\n  privateKey TEXT NOT NULL,\n  keyType ENUM('ed25519', 'rsa', 'ecdsa') DEFAULT 'ed25519' NOT NULL,\n  bitLength INT,\n  passphrase TEXT,\n  isDefault BOOLEAN DEFAULT FALSE NOT NULL,\n  associatedServerId INT,\n  createdBy VARCHAR(64),\n  lastUsedAt TIMESTAMP NULL,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 545
+}

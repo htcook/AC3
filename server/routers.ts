@@ -24,6 +24,8 @@ import { webhooksRouter } from "./routers/webhooks";
 import { bugBountyRouter } from "./routers/bug-bounty";
 import { scoringRouter } from "./routers/scoring";
 import { accuracyEngineRouter } from "./routers/accuracy-engine";
+import { sshKeysRouter } from "./routers/ssh-keys";
+import { msfSessionsRouter } from "./routers/msf-sessions";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -119,6 +121,8 @@ export const appRouter = router({
   campaignArchetypes: campaignArchetypeRouter,
   phishingOps: phishingOpsRouter,
   metasploit: metasploitCatalogRouter,
+  sshKeys: sshKeysRouter,
+  msfSessions: msfSessionsRouter,
   engagementTimeline: engagementTimelineRouter,
   stixExport: stixExportRouter,
   clientPortal: clientPortalRouter,
