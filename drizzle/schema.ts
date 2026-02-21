@@ -476,6 +476,8 @@ export const domainIntelScans = mysqlTable("domain_intel_scans", {
   confirmedFindings: int("confirmedFindings").default(0),
   probableFindings: int("probableFindings").default(0),
   potentialFindings: int("potentialFindings").default(0),
+  discoveryCoverageScore: int("discoveryCoverageScore").default(0), // 0-100 red team coverage
+  discoveryCoverageBand: varchar("discoveryCoverageBand", { length: 32 }), // comprehensive/good/partial/limited
   overallRiskScore: int("overallRiskScore"), // 0-100
   overallRiskBand: varchar("overallRiskBand", { length: 32 }), // critical/high/medium/low
   // LLM-generated summaries

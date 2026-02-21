@@ -3084,3 +3084,12 @@
 - [x] Simplify Home page by collapsing technical feature descriptions
 - [x] Keep all technical content but make it expandable/collapsible
 - [x] Refresh Home page descriptions to reflect latest capabilities
+
+## Red Team Top-10 Discovery Integration into OSINT Pipeline
+- [x] Analyze document and map each of the 10 priorities to current pipeline capabilities
+- [x] Design weighted scoring model based on red team priority ordering
+- [x] Implement red team priority scoring into the risk engine (discovery coverage score)
+- [x] Add discovery coverage tracking per scan (which of the 10 areas were covered)
+- [x] Enhance pipeline with missing checks derived from the document
+- [x] Update UI to show discovery coverage and red team priority alignment
+- [x] Write tests for the new scoring and coverage tracking (22 tests passing)

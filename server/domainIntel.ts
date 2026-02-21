@@ -224,6 +224,27 @@ export interface PipelineResult {
     remoteAccessCount: number;
   };
   rescoringTimeline?: RescoringTimelineEntry[];
+  discoveryCoverage?: {
+    coverageScore: number;
+    prioritiesCovered: number;
+    totalPriorities: number;
+    coverageBand: string;
+    assessment: string;
+    structuralGaps: string[];
+    actionableGaps: string[];
+    priorities: Array<{
+      id: number;
+      name: string;
+      shortName: string;
+      weight: number;
+      covered: boolean;
+      observationCount: number;
+      contributingConnectors: string[];
+      quality: string;
+      hasConnectors: boolean;
+      attackTechniques: string[];
+    }>;
+  };
 }
 
 export interface BreachDataSummary {
@@ -2103,5 +2124,6 @@ export async function runDomainIntelPipeline(
     breachData,
     exploitMatches: exploitMatchResult,
     rescoringTimeline,
+    discoveryCoverage: passiveRecon?.discoveryCoverage || undefined,
   };
 }

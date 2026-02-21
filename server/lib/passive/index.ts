@@ -26,6 +26,7 @@ import { dnsDeepConnector } from "./dns-deep";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
+import { computeDiscoveryCoverage, type DiscoveryCoverageReport } from "../redteam-discovery-coverage";
 
 // All available connectors
 const ALL_CONNECTORS: PassiveConnector[] = [
@@ -72,6 +73,7 @@ export interface PassiveReconResult {
   riskSignals: RiskSignal[];
   signalRules: ReturnType<typeof getSignalRuleDescriptions>;
   corroboration?: CorroborationResult;
+  discoveryCoverage?: DiscoveryCoverageReport;
   summary: {
     totalObservations: number;
     totalSignals: number;
@@ -83,6 +85,7 @@ export interface PassiveReconResult {
   };
   durationMs: number;
 }
+
 
 /**
  * Run passive reconnaissance against a domain
@@ -210,6 +213,10 @@ export async function runPassiveRecon(
     skipReason: blocked.find(b => b.name === r.connector)?.reason,
   }));
 
+  // Compute red team discovery coverage
+  const discoveryCoverage = computeDiscoveryCoverage(connectorResults, allObservations);
+  console.log(`[PassiveRecon] Red team discovery coverage: ${discoveryCoverage.coverageScore}% (${discoveryCoverage.prioritiesCovered}/10 priorities)`);
+
   return {
     domain,
     scanMode,
@@ -219,6 +226,7 @@ export async function runPassiveRecon(
     riskSignals: corroboratedSignals,
     signalRules,
     corroboration,
+    discoveryCoverage,
     summary: {
       totalObservations: allObservations.length,
       totalSignals: corroboratedSignals.length,
