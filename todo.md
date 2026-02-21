@@ -3078,3 +3078,9 @@
 - [x] Add security tooling detection (WAF fingerprinting, EDR/AV banners, DMARC/SPF)
 - [x] Write tests for new OSINT enhancements (9 tests passing)
 - [x] All 22 tests passing (13 vuln tier + 9 OSINT connector)
+
+## Home Page Simplification & What's New Update
+- [x] Update What's New popup with confirmed-only vulns and 4 new OSINT connectors
+- [x] Simplify Home page by collapsing technical feature descriptions
+- [x] Keep all technical content but make it expandable/collapsible
+- [x] Refresh Home page descriptions to reflect latest capabilities

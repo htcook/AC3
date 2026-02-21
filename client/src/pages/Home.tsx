@@ -9,12 +9,40 @@ import {
   BookOpen, Server, Cpu, Eye, X, Brain, Layers, Radio, Workflow, Rocket,
   ShieldCheck, Palette, AlertTriangle, CheckCircle2, ArrowRight, Siren,
   Search, Code2, FileCode, Bug, Gauge, MonitorPlay, Building2, Stethoscope,
-  GraduationCap, Landmark, Factory, ShoppingCart, Plane, ChevronDown,
+  GraduationCap, Landmark, Factory, ShoppingCart, Plane, ChevronDown, ChevronUp,
   Clock, TrendingUp, Unplug, FlaskConical, Camera, FileCheck2
 } from "lucide-react";
 
+// ─── Collapsible Section ────────────────────────────────────────────
+function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: {
+  title: string; subtitle?: string; defaultOpen?: boolean; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-left group"
+      >
+        <div>
+          <h2 className="text-4xl sm:text-5xl font-display mb-1 group-hover:text-primary transition-colors">{title}</h2>
+          {subtitle && <p className="text-lg text-muted-foreground max-w-3xl">{subtitle}</p>}
+        </div>
+        <div className="flex-shrink-0 ml-4 w-10 h-10 flex items-center justify-center border-2 border-border group-hover:border-primary transition-colors">
+          {open ? <ChevronUp className="w-5 h-5 text-muted-foreground group-hover:text-primary" /> : <ChevronDown className="w-5 h-5 text-muted-foreground group-hover:text-primary" />}
+        </div>
+      </button>
+      <div className={`overflow-hidden transition-all duration-500 ease-in-out ${open ? 'max-h-[5000px] opacity-100 mt-10' : 'max-h-0 opacity-0 mt-0'}`}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
+  { date: "Feb 2026", title: "Confirmed-Only Vulnerability Counting", desc: "Vulnerability counts now show only confirmed findings by default — KEV-listed, 0-day, or version-matched with exploit evidence. A tier toggle lets you reveal probable and potential matches. Executive summary and stat cards reflect confirmed counts for accurate risk posture." },
+  { date: "Feb 2026", title: "4 New OSINT Connectors", desc: "Email Security (DMARC/SPF/DKIM/MX analysis with spoofability scoring), HTTP Security Headers (WAF fingerprinting, CSP, HSTS detection), Cloud Asset Discovery (S3/Azure/GCP bucket enumeration), and DNS Deep Analysis (A/AAAA/CNAME/NS/SOA/TXT/SRV/CAA with CDN detection)." },
   { date: "Feb 2026", title: "Validation Coverage Metric", desc: "Real-time coverage tracking shows what percentage of critical findings have been validated with proof-of-exploit evidence. Color-coded progress bars in scan results and executive summary PDFs with quality assessment tiers." },
   { date: "Feb 2026", title: "Evidence Capture & Artifact Storage", desc: "Automated evidence collection during exploit validation — console output, session info, HTML evidence reports, and text screenshots stored in S3. Clickable artifact links embedded directly in PDF export reports." },
   { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "LLM-driven exploit validation runs real checks against confirmed CVEs using modules built from Metasploit, ExploitDB, and other sources. Prioritizes KEV-listed and high-CVSS candidates, auto-rescores assets based on confirmed exploitability, and generates full audit trails." },
@@ -415,18 +443,14 @@ export default function Home() {
       {/* ─── Platform Capabilities — 6 Pillars ──────────────────── */}
       <section id="capabilities" className="py-20">
         <div className="container">
-          <div className="mb-16">
-            <div className="inline-flex items-center gap-2 px-3 py-1 border border-border text-muted-foreground text-xs font-display tracking-widest mb-4">
-              <Terminal className="w-3 h-3" />
-              TECHNICAL DETAILS
-            </div>
-            <h2 className="text-4xl sm:text-5xl font-display mb-4">PLATFORM CAPABILITIES</h2>
-            <p className="text-lg text-muted-foreground max-w-3xl">
-              Six integrated pillars covering the full offensive execution lifecycle — from verified
-              reconnaissance through live adversary emulation to detection engineering and reporting.
-            </p>
+          <div className="inline-flex items-center gap-2 px-3 py-1 border border-border text-muted-foreground text-xs font-display tracking-widest mb-6">
+            <Terminal className="w-3 h-3" />
+            TECHNICAL DETAILS
           </div>
-
+          <CollapsibleSection
+            title="PLATFORM CAPABILITIES"
+            subtitle="Six integrated pillars covering the full offensive execution lifecycle."
+          >
           <div className="grid lg:grid-cols-3 gap-6">
             <PillarCard
               icon={<Target className="w-7 h-7" />}
@@ -466,14 +490,14 @@ export default function Home() {
               icon={<Radar className="w-7 h-7" />}
               number="03"
               title="OSINT & RECONNAISSANCE"
-              description="Verified domain intelligence with 3-tier evidence corroboration. Active DNS resolution, HTTP header parsing, and live banner confirmation separate real risks from noise."
+              description="16 passive recon connectors with confirmed-only vulnerability counting. Email security analysis, HTTP header inspection, cloud asset enumeration, and comprehensive DNS footprinting — all corroborated through 3-tier evidence classification."
               features={[
-                "Live banner verification: real-time version confirmation",
-                "3-tier evidence: Confirmed, Probable, Potential (unrated)",
-                "Active DNS resolution + HTTP header parsing",
-                "Remote access vulnerabilities highlighted",
+                "Confirmed-only vuln counting: KEV, 0-day, version-matched",
+                "Email security: DMARC/SPF/DKIM/MX spoofability scoring",
+                "HTTP security headers: WAF, CSP, HSTS detection",
+                "Cloud asset discovery: S3, Azure Blob, GCP bucket enumeration",
+                "DNS deep: A/AAAA/CNAME/NS/SOA/TXT/SRV/CAA + CDN detection",
                 "Scan comparison: side-by-side risk posture delta",
-                "SPF/DKIM/DMARC analysis with spoofability scoring",
               ]}
               link="/domain-intel"
               linkLabel="START SCANNING"
@@ -530,6 +554,7 @@ export default function Home() {
               linkLabel="GENERATE REPORTS"
             />
           </div>
+          </CollapsibleSection>
         </div>
       </section>
 
@@ -538,14 +563,10 @@ export default function Home() {
       {/* ─── Operations Grid — All Modules ──────────────────────── */}
       <section id="operations" className="py-20 bg-card/30">
         <div className="container">
-          <div className="mb-16">
-            <h2 className="text-4xl sm:text-5xl font-display mb-4">OPERATIONS CENTER</h2>
-            <p className="text-lg text-muted-foreground max-w-3xl">
-              29 integrated modules organized across six operational domains.
-              Every module connects to live backend APIs.
-            </p>
-          </div>
-
+          <CollapsibleSection
+            title="OPERATIONS CENTER"
+            subtitle="29 integrated modules organized across six operational domains."
+          >
           <div className="space-y-12">
             <ModuleSection
               title="COMMAND & CONTROL"
@@ -590,9 +611,9 @@ export default function Home() {
               title="INTELLIGENCE & RECON"
               color="text-amber-400"
               modules={[
-                { icon: Brain, name: "Domain Intel", desc: "Verified pipeline: asset discovery, banner confirmation, exploit matching" },
+                { icon: Brain, name: "Domain Intel", desc: "16 connectors with confirmed-only vuln counting and 3-tier corroboration" },
                 { icon: Scan, name: "Banner Verification", desc: "Real-time service banner verification confirms CVEs on live assets" },
-                { icon: Radar, name: "Domain Recon", desc: "DNS/MX/SPF/DKIM/DMARC analysis, subdomains, spoofability scoring" },
+                { icon: Radar, name: "Domain Recon", desc: "DNS deep, email security, HTTP headers, cloud assets, subdomains" },
                 { icon: Eye, name: "Scan Comparison", desc: "Side-by-side diff: new/removed assets, CVE changes, risk deltas" },
                 { icon: Radio, name: "IOC Feed", desc: "Aggregated feeds from multiple authoritative threat intelligence sources" },
               ]}
@@ -621,6 +642,7 @@ export default function Home() {
               ]}
             />
           </div>
+          </CollapsibleSection>
         </div>
       </section>
 
@@ -629,15 +651,10 @@ export default function Home() {
       {/* ─── Engagement Workflow ─────────────────────────────────── */}
       <section className="py-20">
         <div className="container">
-          <div className="mb-16">
-            <h2 className="text-4xl sm:text-5xl font-display mb-4">ENGAGEMENT WORKFLOW</h2>
-            <p className="text-lg text-muted-foreground max-w-3xl">
-              Seven phases from OSINT through post-engagement reporting. External attack vectors
-              are tested before phishing — if exploitation succeeds, social engineering is optional.
-              Validation confirms exploitability with captured evidence before reporting.
-            </p>
-          </div>
-
+          <CollapsibleSection
+            title="ENGAGEMENT WORKFLOW"
+            subtitle="Seven phases from OSINT through post-engagement reporting."
+          >
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             {[
               { step: "01", title: "RECON", desc: "Verified domain intel with DNS/banner confirmation and evidence-based risk scoring", icon: Radar },
@@ -656,15 +673,19 @@ export default function Home() {
               </div>
             ))}
           </div>
+          </CollapsibleSection>
         </div>
       </section>
 
       <div className="w-full h-px bg-primary" />
 
-      {/* ─── Architecture ───────────────────────────────────────── */}
+      {/* ─── Architecture ─────────────────────────────────────────── */}
       <section className="py-20 bg-card/30">
         <div className="container">
-          <h2 className="text-4xl sm:text-5xl font-display mb-16">ARCHITECTURE</h2>
+          <CollapsibleSection
+            title="ARCHITECTURE"
+            subtitle="Backend systems powering the platform."
+          >
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <ArchCard
               icon={<Server className="w-6 h-6" />}
@@ -692,11 +713,11 @@ export default function Home() {
               icon={<Radar className="w-6 h-6" />}
               title="INTEL ENGINE"
               items={[
-                "Live banner verification",
-                "3-tier evidence corroboration",
+                "16 passive recon connectors with confirmed-only counting",
+                "Email security, HTTP headers, cloud assets, DNS deep",
+                "3-tier evidence corroboration (confirmed/probable/potential)",
                 "APT matching with kill chains",
                 "Scan comparison & risk trending",
-                "IOC feed aggregator",
               ]}
             />
             <ArchCard
@@ -744,6 +765,7 @@ export default function Home() {
               ]}
             />
           </div>
+          </CollapsibleSection>
         </div>
       </section>
 
