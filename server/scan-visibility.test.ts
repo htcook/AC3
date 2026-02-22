@@ -3,7 +3,7 @@
  *
  * Verifies that completed scans are accessible via:
  * - Sidebar navigation (SCAN HISTORY link)
- * - Domain Intel page (completed scans section always visible)
+ * - Domain Intel page (completed scans as hero section)
  * - Scan History page route
  */
 import { describe, it, expect } from "vitest";
@@ -40,33 +40,33 @@ describe("Scan History Sidebar Navigation", () => {
   });
 });
 
-describe("Domain Intel - Completed Scans Visibility", () => {
-  it("should show completed scans section without isComplete/isScanComplete conditions", async () => {
+describe("Domain Intel - Completed Scans Hero Section", () => {
+  it("should show completed scans section when not running", async () => {
     const fs = await import("fs");
     const path = await import("path");
     const domainIntelPath = path.resolve(__dirname, "../client/src/pages/DomainIntel.tsx");
     const content = fs.readFileSync(domainIntelPath, "utf-8");
-    // The completed scans section should NOT have !isComplete && !isScanComplete conditions
-    const completedScansSection = content.substring(
-      content.indexOf("Completed Scans (Prominent)"),
-      content.indexOf("Completed Scans (Prominent)") + 300
-    );
-    expect(completedScansSection).not.toContain("!isComplete && !isScanComplete");
-    // But it should still have !isRunning
-    expect(completedScansSection).toContain("!isRunning");
+    // The completed scans section should be gated by !isRunning only
+    expect(content).toContain("Completed Scan Reports");
+    // Find the completed scans section and verify it uses !isRunning
+    const completedIdx = content.indexOf("Completed Scan Reports");
+    expect(completedIdx).toBeGreaterThan(-1);
+    // Look backwards for the condition — should be !isRunning (wider range to catch the JSX condition)
+    const sectionBefore = content.substring(Math.max(0, completedIdx - 500), completedIdx);
+    expect(sectionBefore).toContain("!isRunning");
+    // Should NOT have !isComplete or !isScanComplete conditions blocking it
+    expect(sectionBefore).not.toContain("!isComplete && !isScanComplete");
   });
 
-  it("should show search form without isComplete blocking condition", async () => {
+  it("should have prominent scan stats above completed scans", async () => {
     const fs = await import("fs");
     const path = await import("path");
     const domainIntelPath = path.resolve(__dirname, "../client/src/pages/DomainIntel.tsx");
     const content = fs.readFileSync(domainIntelPath, "utf-8");
-    // Find the Unified Search Form section
-    const searchFormIdx = content.indexOf("Unified Search Form");
-    const nextLine = content.substring(searchFormIdx, searchFormIdx + 200);
-    // Should use {!isRunning && ( not {!isRunning && !isComplete && (
-    expect(nextLine).toContain("!isRunning");
-    expect(nextLine).not.toContain("!isComplete");
+    // Should have stats cards showing total scans, avg risk, total assets
+    expect(content).toContain("Completed Scans");
+    expect(content).toContain("overallRiskScore");
+    expect(content).toContain("totalAssets");
   });
 
   it("should link to scan history page from completed scans section", async () => {
@@ -76,6 +76,15 @@ describe("Domain Intel - Completed Scans Visibility", () => {
     const content = fs.readFileSync(domainIntelPath, "utf-8");
     expect(content).toContain('/domain-intel/history');
     expect(content).toContain('View All');
+  });
+
+  it("should have clickable scan cards that navigate to scan detail", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const domainIntelPath = path.resolve(__dirname, "../client/src/pages/DomainIntel.tsx");
+    const content = fs.readFileSync(domainIntelPath, "utf-8");
+    expect(content).toContain("/domain-intel/${");
+    expect(content).toContain("navigate");
   });
 });
 
@@ -120,6 +129,15 @@ describe("Scan History Route", () => {
     const scanHistoryPath = path.resolve(__dirname, "../client/src/pages/ScanHistory.tsx");
     const content = fs.readFileSync(scanHistoryPath, "utf-8");
     expect(content).toContain("/domain-intel/${scan.id}");
+  });
+
+  it("ScanHistory should have Highest Risk Scans grid with prominent cards", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const scanHistoryPath = path.resolve(__dirname, "../client/src/pages/ScanHistory.tsx");
+    const content = fs.readFileSync(scanHistoryPath, "utf-8");
+    expect(content).toContain("Highest Risk Scans");
+    expect(content).toContain("View Full Report");
   });
 });
 

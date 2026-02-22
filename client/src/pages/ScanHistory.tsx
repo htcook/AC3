@@ -205,21 +205,89 @@ export default function ScanHistory() {
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[
-            { label: "Total Scans", value: stats.total, color: "text-foreground" },
-            { label: "Completed", value: stats.completed, color: "text-emerald-400" },
-            { label: "Scan Complete", value: stats.scanComplete, color: "text-cyan-400" },
-            { label: "Failed", value: stats.failed, color: "text-red-400" },
-            { label: "Pending", value: stats.pending, color: "text-muted-foreground" },
-          ].map(s => (
-            <Card key={s.label}>
-              <CardContent className="p-3 text-center">
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
-              </CardContent>
-            </Card>
-          ))}
+          {(() => {
+            const viewable = scansQuery.data?.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete') || [];
+            const avgRisk = viewable.length > 0 ? Math.round(viewable.reduce((sum: number, s: any) => sum + (s.overallRiskScore || 0), 0) / viewable.length) : 0;
+            const totalAssets = viewable.reduce((sum: number, s: any) => sum + (s.totalAssets || 0), 0);
+            const highRisk = viewable.filter((s: any) => (s.overallRiskScore || 0) >= 70).length;
+            const uniqueDomains = new Set(viewable.map((s: any) => s.primaryDomain)).size;
+            return [
+              { label: "Completed Scans", value: viewable.length, color: "text-purple-400", accent: "border-purple-500/30 bg-purple-500/5" },
+              { label: "Unique Domains", value: uniqueDomains, color: "text-foreground", accent: "" },
+              { label: "Avg Risk Score", value: avgRisk, color: avgRisk >= 70 ? 'text-red-400' : avgRisk >= 40 ? 'text-orange-400' : 'text-green-400', accent: "" },
+              { label: "Total Assets", value: totalAssets.toLocaleString(), color: "text-cyan-400", accent: "" },
+              { label: "High Risk (70+)", value: highRisk, color: highRisk > 0 ? 'text-red-400' : 'text-green-400', accent: highRisk > 0 ? 'border-red-500/30 bg-red-500/5' : '' },
+            ].map(s => (
+              <Card key={s.label} className={s.accent}>
+                <CardContent className="p-3 text-center">
+                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
+                </CardContent>
+              </Card>
+            ));
+          })()}
         </div>
+
+        {/* Top Scans — Prominent Grid */}
+        {scansQuery.data && (() => {
+          const topScans = scansQuery.data
+            .filter((s: any) => s.status === 'completed' || s.status === 'scan_complete')
+            .sort((a: any, b: any) => (b.overallRiskScore || 0) - (a.overallRiskScore || 0))
+            .slice(0, 6);
+          if (topScans.length === 0) return null;
+          return (
+            <div className="space-y-3">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <Shield className="h-5 w-5 text-red-400" />
+                Highest Risk Scans
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {topScans.map((scan: any) => {
+                  const riskScore = scan.overallRiskScore || 0;
+                  const assetCount = scan.totalAssets || 0;
+                  const riskBorder = riskScore >= 70 ? 'border-red-500/40 hover:border-red-500/70' : riskScore >= 40 ? 'border-orange-500/40 hover:border-orange-500/70' : 'border-green-500/40 hover:border-green-500/70';
+                  const riskBg = riskScore >= 70 ? 'bg-red-500/5' : riskScore >= 40 ? 'bg-orange-500/5' : 'bg-green-500/5';
+                  const riskTxt = riskScore >= 70 ? 'text-red-400' : riskScore >= 40 ? 'text-orange-400' : 'text-green-400';
+                  return (
+                    <Card
+                      key={scan.id}
+                      className={`cursor-pointer transition-all ${riskBorder} ${riskBg} hover:shadow-lg hover:shadow-purple-500/5`}
+                      onClick={() => navigate(`/domain-intel/${scan.id}`)}
+                    >
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-mono text-base font-bold truncate">{scan.primaryDomain}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {scan.customerName || scan.clientType?.toUpperCase() || 'SCAN'}
+                              {scan.sector ? ` · ${scan.sector}` : ''}
+                            </p>
+                          </div>
+                          <div className={`text-3xl font-bold font-mono ${riskTxt} ml-3`}>
+                            {riskScore || '—'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap mb-3">
+                          <span className="text-xs bg-muted px-2 py-1 rounded font-medium">{assetCount} assets</span>
+                          {statusBadge(scan.status)}
+                        </div>
+                        <div className="flex items-center justify-between pt-3 border-t border-border">
+                          <span className="text-xs text-muted-foreground">
+                            {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                          </span>
+                          <Button variant="ghost" size="sm" className="h-7 px-3 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10">
+                            <Target className="h-3.5 w-3.5 mr-1.5" />
+                            View Full Report
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
