@@ -3240,3 +3240,13 @@
 - [x] Investigate why completed scans are not accessible in the UI
 - [x] Fix scan visibility/accessibility issue
 - [x] Verify fix works correctly
+
+## Test Scan History Page
+- [ ] Verify Scan History page loads and shows completed scans in browser
+- [ ] Run domain scans on multiple domains if list is empty
+- [ ] Confirm completed scans appear in Scan History with correct data
+
+## Scan Database Cleanup
+- [x] Remove failed scans from database
+- [x] Remove scans with empty results (no assets, no risk score)
+- [x] Verify remaining scans are all meaningful completed scans
