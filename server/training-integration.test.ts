@@ -255,6 +255,86 @@ describe("Campaign Detail - Similar Attacks Panel", () => {
   });
 });
 
+describe("Apply Template to Campaign", () => {
+  it("should have applyTemplateToCampaign procedure on threatIntelTraining router", async () => {
+    const mod = await import("./routers/threat-intel-training");
+    const routerDef = mod.threatIntelTrainingRouter._def;
+    const procedures = Object.keys(routerDef.procedures || routerDef.record || {});
+    expect(procedures).toContain("applyTemplateToCampaign");
+  });
+
+  it("applyTemplateToCampaign should be a mutation (not query)", async () => {
+    const mod = await import("./routers/threat-intel-training");
+    const routerDef = mod.threatIntelTrainingRouter._def;
+    const procs = routerDef.procedures || routerDef.record || {};
+    const proc = procs["applyTemplateToCampaign"] as any;
+    expect(proc).toBeDefined();
+    expect(proc._def?.type || proc._type).toBe("mutation");
+  });
+
+  it("CampaignWizard should have selectedAttackTemplateId state", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const wizardPath = path.resolve(__dirname, "../client/src/pages/CampaignWizard.tsx");
+    const content = fs.readFileSync(wizardPath, "utf-8");
+    expect(content).toContain("selectedAttackTemplateId");
+    expect(content).toContain("setSelectedAttackTemplateId");
+  });
+
+  it("CampaignWizard should use applyTemplateToCampaign mutation", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const wizardPath = path.resolve(__dirname, "../client/src/pages/CampaignWizard.tsx");
+    const content = fs.readFileSync(wizardPath, "utf-8");
+    expect(content).toContain("applyTemplateToCampaign.useMutation");
+  });
+
+  it("CampaignWizard should create internal campaign when template selected", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const wizardPath = path.resolve(__dirname, "../client/src/pages/CampaignWizard.tsx");
+    const content = fs.readFileSync(wizardPath, "utf-8");
+    expect(content).toContain("createInternalCampaign.mutateAsync");
+    expect(content).toContain("applyTemplateMutation.mutateAsync");
+  });
+
+  it("CampaignWizard should pass selectedAttackTemplateId to AttackTemplatePicker", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const wizardPath = path.resolve(__dirname, "../client/src/pages/CampaignWizard.tsx");
+    const content = fs.readFileSync(wizardPath, "utf-8");
+    expect(content).toContain("selectedAttackTemplateId={selectedAttackTemplateId}");
+    expect(content).toContain("onSelectTemplate={setSelectedAttackTemplateId}");
+  });
+
+  it("CampaignWizard review step should show AttackTemplateSummary when template selected", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const wizardPath = path.resolve(__dirname, "../client/src/pages/CampaignWizard.tsx");
+    const content = fs.readFileSync(wizardPath, "utf-8");
+    expect(content).toContain("AttackTemplateSummary");
+    expect(content).toContain("ATTACK TEMPLATE WILL BE APPLIED");
+  });
+
+  it("AttackTemplateSummary should show technique count and tactics", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const wizardPath = path.resolve(__dirname, "../client/src/pages/CampaignWizard.tsx");
+    const content = fs.readFileSync(wizardPath, "utf-8");
+    expect(content).toContain("totalTechniques");
+    expect(content).toContain("abilities will be auto-populated");
+  });
+
+  it("AttackTemplatePicker should accept props for controlled selection", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const wizardPath = path.resolve(__dirname, "../client/src/pages/CampaignWizard.tsx");
+    const content = fs.readFileSync(wizardPath, "utf-8");
+    expect(content).toContain("selectedAttackTemplateId: number | null");
+    expect(content).toContain("onSelectTemplate: (id: number | null) => void");
+  });
+});
+
 describe("Training Dashboard Page", () => {
   it("should exist as a page component", async () => {
     const fs = await import("fs");

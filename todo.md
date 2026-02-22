@@ -3228,3 +3228,10 @@
 - [x] Add "Similar Attacks" panel to Campaign Detail page
 - [x] Add findSimilarIncidents tRPC procedure for campaign TTP matching
 - [x] Write tests for Training Dashboard, Campaign Wizard templates, Similar Attacks panel
+
+## Pipeline Population & Auto-Apply Templates
+- [x] Run full ingestion from all threat intel sources to populate incident reports
+- [x] Run batch processing to extract attack sequences and generate templates
+- [x] Add "Use This Template" button to Campaign Wizard Attack Template Picker
+- [x] Auto-populate campaign abilities from selected template's Caldera ability mappings
+- [x] Write tests for auto-apply template functionality

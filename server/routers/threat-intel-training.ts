@@ -384,4 +384,65 @@ export const threatIntelTrainingRouter = router({
       learning: learner,
     };
   }),
+
+  /** Apply attack template abilities to an internal campaign */
+  applyTemplateToCampaign: protectedProcedure
+    .input(z.object({
+      templateId: z.number(),
+      campaignId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const [template] = await db.select().from(attackSequenceTemplates).where(eq(attackSequenceTemplates.id, input.templateId)).limit(1);
+      if (!template) throw new Error("Template not found");
+
+      // Extract abilities from phases
+      const phases: any[] = (() => {
+        try {
+          return typeof template.phases === "string" ? JSON.parse(template.phases as string) : (template.phases as any[]) || [];
+        } catch { return []; }
+      })();
+
+      const abilities: Array<{
+        campaignId: number;
+        abilityId: string;
+        abilityName: string;
+        technique?: string;
+        tactic?: string;
+        description?: string;
+        executionOrder: number;
+      }> = [];
+
+      let order = 0;
+      for (const phase of phases) {
+        const techniques = Array.isArray(phase.techniques) ? phase.techniques : [];
+        for (const tech of techniques) {
+          abilities.push({
+            campaignId: input.campaignId,
+            abilityId: tech.id || `phase-${phase.order || order}-${tech.name || 'unknown'}`,
+            abilityName: tech.name || `${phase.tactic || 'unknown'} technique`,
+            technique: tech.id || undefined,
+            tactic: phase.tactic || undefined,
+            description: tech.description || undefined,
+            executionOrder: order,
+          });
+          order++;
+        }
+      }
+
+      if (abilities.length === 0) {
+        return { success: false, message: "No techniques found in template phases", abilitiesAdded: 0 };
+      }
+
+      // Import addCampaignAbilities from db
+      const { addCampaignAbilities } = await import("../db");
+      await addCampaignAbilities(abilities);
+
+      return {
+        success: true,
+        abilitiesAdded: abilities.length,
+        templateName: template.name,
+        tactics: Array.from(new Set(abilities.map(a => a.tactic).filter(Boolean))),
+      };
+    }),
 });

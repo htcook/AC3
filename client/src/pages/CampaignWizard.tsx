@@ -55,6 +55,9 @@ export default function CampaignWizard() {
   ]);
   const [csvImport, setCsvImport] = useState("");
 
+  // Attack template state (from threat intel pipeline)
+  const [selectedAttackTemplateId, setSelectedAttackTemplateId] = useState<number | null>(null);
+
   // Preview state
   const [previewTemplateHtml, setPreviewTemplateHtml] = useState<string | null>(null);
   const [previewPageHtml, setPreviewPageHtml] = useState<string | null>(null);
@@ -70,6 +73,8 @@ export default function CampaignWizard() {
   const createGroupMutation = trpc.gophishProxy.createGroup.useMutation();
   const launchCampaignMutation = trpc.gophishProxy.launchCampaign.useMutation();
   const linkCampaignMutation = trpc.campaignEngagements.link.useMutation();
+  const createInternalCampaign = trpc.campaign.create.useMutation();
+  const applyTemplateMutation = trpc.threatIntelTraining.applyTemplateToCampaign.useMutation();
 
   // Derived data
   const selectedTemplate = useMemo(() =>
@@ -234,6 +239,28 @@ export default function CampaignWizard() {
         });
       }
 
+      // If an attack template was selected, create an internal campaign and apply template abilities
+      if (selectedAttackTemplateId) {
+        try {
+          const internalCampaign = await createInternalCampaign.mutateAsync({
+            name: campaignName,
+            description: `Phishing campaign with attack template applied. GoPhish ID: ${result?.id || 'unknown'}`,
+          });
+          if (internalCampaign?.id) {
+            const applyResult = await applyTemplateMutation.mutateAsync({
+              templateId: selectedAttackTemplateId,
+              campaignId: internalCampaign.id,
+            });
+            if (applyResult.success) {
+              toast.success(`Attack template applied: ${applyResult.abilitiesAdded} abilities added to campaign`);
+            }
+          }
+        } catch (templateError: any) {
+          console.error('Failed to apply attack template:', templateError);
+          toast.error('Campaign launched but failed to apply attack template abilities');
+        }
+      }
+
       toast.success("Campaign launched successfully!");
       navigate("/phishing-ops");
     } catch (error: any) {
@@ -364,7 +391,10 @@ export default function CampaignWizard() {
               )}
 
               {/* Attack Template Picker - optional enrichment from threat intel */}
-              <AttackTemplatePicker />
+              <AttackTemplatePicker
+                selectedAttackTemplateId={selectedAttackTemplateId}
+                onSelectTemplate={setSelectedAttackTemplateId}
+              />
             </div>
           )}
 
@@ -744,6 +774,11 @@ export default function CampaignWizard() {
                   </div>
                 </div>
 
+                {/* Attack Template Summary */}
+                {selectedAttackTemplateId && (
+                  <AttackTemplateSummary templateId={selectedAttackTemplateId} />
+                )}
+
                 {/* Warning */}
                 <div className="flex items-start gap-3 p-3 border border-yellow-500/30 bg-yellow-500/5 text-sm">
                   <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -924,16 +959,58 @@ function OsintFindingsPanel({ engagementId, domain }: { engagementId: number; do
 }
 
 
-function AttackTemplatePicker() {
+function AttackTemplateSummary({ templateId }: { templateId: number }) {
+  const { data: template } = trpc.threatIntelTraining.getTemplate.useQuery({ id: templateId });
+  if (!template) return null;
+
+  const phases: any[] = (() => {
+    try {
+      return typeof template.phases === "string" ? JSON.parse(template.phases as string) : (template.phases as any[]) || [];
+    } catch { return []; }
+  })();
+
+  const totalTechniques = phases.reduce((sum: number, p: any) => sum + (Array.isArray(p.techniques) ? p.techniques.length : 0), 0);
+  const tactics = Array.from(new Set(phases.map((p: any) => p.tactic).filter(Boolean)));
+
+  return (
+    <div className="border border-purple-500/30 bg-purple-500/5 p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <Brain className="w-4 h-4 text-purple-400" />
+        <h3 className="font-display text-sm tracking-wider text-purple-400">ATTACK TEMPLATE WILL BE APPLIED</h3>
+      </div>
+      <p className="text-sm font-medium">{template.name}</p>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+          {totalTechniques} techniques
+        </span>
+        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+          {phases.length} phases
+        </span>
+        {tactics.map((t: string) => (
+          <span key={t} className="px-2 py-0.5 bg-secondary text-muted-foreground rounded">
+            {t.replace(/-/g, " ").toUpperCase()}
+          </span>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        After launch, {totalTechniques} MITRE ATT&CK abilities will be auto-populated into an internal campaign for adversary emulation tracking.
+      </p>
+    </div>
+  );
+}
+
+function AttackTemplatePicker({ selectedAttackTemplateId, onSelectTemplate }: {
+  selectedAttackTemplateId: number | null;
+  onSelectTemplate: (id: number | null) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
 
   const { data: templates } = trpc.threatIntelTraining.listTemplates.useQuery(
     { limit: 10, offset: 0, status: "production" },
     { enabled: expanded }
   );
 
-  const selectedTemplate = templates?.templates?.find((t: any) => t.id === selectedTemplateId);
+  const selectedTemplate = templates?.templates?.find((t: any) => t.id === selectedAttackTemplateId);
 
   const phases = (() => {
     if (!selectedTemplate) return [];
@@ -968,7 +1045,7 @@ function AttackTemplatePicker() {
             <>
               <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-1">
                 {templates.templates.map((template: any) => {
-                  const isSelected = selectedTemplateId === template.id;
+                  const isSelected = selectedAttackTemplateId === template.id;
                   const tPhases = (() => {
                     try {
                       return typeof template.phases === "string"
@@ -979,7 +1056,7 @@ function AttackTemplatePicker() {
                   return (
                     <button
                       key={template.id}
-                      onClick={() => setSelectedTemplateId(isSelected ? null : template.id)}
+                      onClick={() => onSelectTemplate(isSelected ? null : template.id)}
                       className={`w-full text-left p-3 border transition-all ${
                         isSelected
                           ? "border-purple-500 bg-purple-500/10 ring-1 ring-purple-500/30"
