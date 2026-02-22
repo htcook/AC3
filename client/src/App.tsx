@@ -77,6 +77,7 @@ const ValidationEngine = lazy(() => import("./pages/ValidationEngine"));
 const EvasionEngine = lazy(() => import("./pages/EvasionEngine"));
 const SiemConnectors = lazy(() => import("./pages/SiemConnectors"));
 const ScanHistory = lazy(() => import("./pages/ScanHistory"));
+const TrainingDashboard = lazy(() => import("./pages/TrainingDashboard"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -348,6 +349,9 @@ function Router() {
         </Route>
         <Route path="/evasion-engine">
           <ProtectedRoute component={EvasionEngine} />
+        </Route>
+        <Route path="/training-dashboard">
+          <ProtectedRoute component={TrainingDashboard} />
         </Route>
         <Route path="/siem-connectors">
           <ProtectedRoute component={SiemConnectors} />

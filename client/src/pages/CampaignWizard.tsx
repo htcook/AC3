@@ -10,7 +10,7 @@ import {
   Upload, Clock, AlertTriangle, Search, LayoutTemplate, MousePointerClick
 } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Radar, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Radar, ShieldAlert, ShieldCheck, Brain } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
@@ -362,6 +362,9 @@ export default function CampaignWizard() {
               {selectedEngagementId && selectedEngagement?.targetDomain && (
                 <OsintFindingsPanel engagementId={selectedEngagementId} domain={selectedEngagement.targetDomain} />
               )}
+
+              {/* Attack Template Picker - optional enrichment from threat intel */}
+              <AttackTemplatePicker />
             </div>
           )}
 
@@ -916,6 +919,151 @@ function OsintFindingsPanel({ engagementId, domain }: { engagementId: number; do
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function AttackTemplatePicker() {
+  const [expanded, setExpanded] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+
+  const { data: templates } = trpc.threatIntelTraining.listTemplates.useQuery(
+    { limit: 10, offset: 0, status: "production" },
+    { enabled: expanded }
+  );
+
+  const selectedTemplate = templates?.templates?.find((t: any) => t.id === selectedTemplateId);
+
+  const phases = (() => {
+    if (!selectedTemplate) return [];
+    try {
+      return typeof selectedTemplate.phases === "string"
+        ? JSON.parse(selectedTemplate.phases)
+        : selectedTemplate.phases || [];
+    } catch { return []; }
+  })();
+
+  return (
+    <div className="mt-6 border border-dashed border-purple-500/30 bg-purple-500/5 p-4">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between"
+      >
+        <div className="flex items-center gap-3">
+          <Brain className="w-5 h-5 text-purple-400" />
+          <div className="text-left">
+            <h3 className="font-display text-sm tracking-wider">ATTACK TEMPLATE LIBRARY</h3>
+            <p className="text-xs text-muted-foreground">
+              Optionally select a real-world attack sequence template to guide campaign design
+            </p>
+          </div>
+        </div>
+        {expanded ? <ChevronLeft className="w-4 h-4 text-muted-foreground rotate-90" /> : <ChevronRight className="w-4 h-4 text-muted-foreground rotate-90" />}
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-3">
+          {templates?.templates && templates.templates.length > 0 ? (
+            <>
+              <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-1">
+                {templates.templates.map((template: any) => {
+                  const isSelected = selectedTemplateId === template.id;
+                  const tPhases = (() => {
+                    try {
+                      return typeof template.phases === "string"
+                        ? JSON.parse(template.phases)
+                        : template.phases || [];
+                    } catch { return []; }
+                  })();
+                  return (
+                    <button
+                      key={template.id}
+                      onClick={() => setSelectedTemplateId(isSelected ? null : template.id)}
+                      className={`w-full text-left p-3 border transition-all ${
+                        isSelected
+                          ? "border-purple-500 bg-purple-500/10 ring-1 ring-purple-500/30"
+                          : "border-border hover:border-purple-500/50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-display text-xs tracking-wider truncate">{template.name}</span>
+                        <div className="flex gap-1">
+                          {template.attackType && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+                              {template.attackType.replace(/_/g, " ").toUpperCase()}
+                            </span>
+                          )}
+                          {template.complexity && (
+                            <span className="text-[9px] px-1.5 py-0.5 bg-secondary text-muted-foreground rounded">
+                              {template.complexity.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground truncate">{template.description}</p>
+                      <div className="flex gap-2 mt-1 text-[10px] text-muted-foreground">
+                        <span>{tPhases.length} phases</span>
+                        {template.targetEnvironment && <span>• {template.targetEnvironment}</span>}
+                        {template.successRate && <span>• {Math.round(Number(template.successRate) * 100)}% success</span>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected template detail */}
+              {selectedTemplate && phases.length > 0 && (
+                <div className="bg-card border border-purple-500/30 p-3">
+                  <h4 className="font-display text-xs tracking-wider text-purple-400 mb-2">
+                    ATTACK PHASES — {selectedTemplate.name}
+                  </h4>
+                  <div className="space-y-1.5">
+                    {phases.map((phase: any, i: number) => (
+                      <div key={i} className="flex items-start gap-2 text-xs">
+                        <span className="w-5 h-5 flex items-center justify-center rounded-full bg-purple-500/20 text-purple-400 text-[10px] font-display shrink-0">
+                          {i + 1}
+                        </span>
+                        <div>
+                          <span className="font-display text-[10px] tracking-wider">
+                            {phase.tactic?.toUpperCase() || `PHASE ${i + 1}`}
+                          </span>
+                          {phase.technique && (
+                            <span className="ml-2 font-mono text-[10px] text-muted-foreground">{phase.technique}</span>
+                          )}
+                          {phase.description && (
+                            <p className="text-[10px] text-muted-foreground">{phase.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {Boolean(selectedTemplate.commonDetections) && (
+                    <div className="mt-2 pt-2 border-t border-border">
+                      <span className="text-[10px] font-display text-yellow-400">COMMON DETECTIONS: </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {(() => {
+                          try {
+                            const raw = selectedTemplate.commonDetections as any;
+                            const dets = typeof raw === "string" ? JSON.parse(raw) : raw;
+                            return Array.isArray(dets) ? dets.join(", ") : "—";
+                          } catch { return "—"; }
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Brain className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No production-ready attack templates available yet</p>
+              <p className="text-xs mt-1">Process threat intel reports in the Training Dashboard to generate templates</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

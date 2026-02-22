@@ -286,6 +286,88 @@ export const threatIntelTrainingRouter = router({
       return exploits;
     }),
 
+  // ─── Similar Incidents ──────────────────────────────────────────────
+
+  /** Find similar real-world incidents based on campaign techniques */
+  findSimilarIncidents: protectedProcedure
+    .input(z.object({
+      techniques: z.array(z.string()).min(1), // MITRE technique IDs like ["T1566.001", "T1059.001"]
+      limit: z.number().min(1).max(20).default(5),
+    }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      // Find incident reports that mention any of the given techniques
+      // We search in ttpsExtracted JSON and attackSequence JSON
+      const techConditions = input.techniques.map(t =>
+        or(
+          like(sql`CAST(${incidentReports.ttpsExtracted} AS CHAR)`, `%${t}%`),
+          like(sql`CAST(${incidentReports.attackSequence} AS CHAR)`, `%${t}%`)
+        )
+      );
+
+      const reports = await db.select({
+        id: incidentReports.id,
+        title: incidentReports.title,
+        source: incidentReports.source,
+        url: incidentReports.url,
+        incidentType: incidentReports.incidentType,
+        severity: incidentReports.severity,
+        publishedAt: incidentReports.publishedAt,
+        ttpsExtracted: incidentReports.ttpsExtracted,
+        attackSequence: incidentReports.attackSequence,
+        actorsIdentified: incidentReports.actorsIdentified,
+        targetSectors: incidentReports.targetSectors,
+        attackNarrative: incidentReports.attackNarrative,
+      })
+        .from(incidentReports)
+        .where(or(...techConditions))
+        .orderBy(desc(incidentReports.createdAt))
+        .limit(input.limit * 3); // Fetch more to rank
+
+      // Rank by number of matching techniques
+      const ranked = reports.map(report => {
+        const ttps: any[] = Array.isArray(report.ttpsExtracted) ? report.ttpsExtracted : [];
+        const seq: any[] = Array.isArray(report.attackSequence as any) ? (report.attackSequence as any) : [];
+        const allTechIds = new Set<string>();
+        ttps.forEach((t: any) => { if (t.techniqueId) allTechIds.add(t.techniqueId); });
+        seq.forEach((s: any) => { if (s.techniqueId) allTechIds.add(s.techniqueId); });
+        const matchCount = input.techniques.filter(t => allTechIds.has(t)).length;
+        const relevance = input.techniques.length > 0 ? Math.round((matchCount / input.techniques.length) * 100) : 0;
+        return {
+          ...report,
+          matchingTechniques: matchCount,
+          relevanceScore: relevance,
+        };
+      });
+
+      ranked.sort((a, b) => b.matchingTechniques - a.matchingTechniques);
+      return ranked.slice(0, input.limit);
+    }),
+
+  /** Find attack templates matching campaign techniques */
+  findSimilarTemplates: protectedProcedure
+    .input(z.object({
+      techniques: z.array(z.string()).min(1),
+      limit: z.number().min(1).max(10).default(5),
+    }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const techConditions = input.techniques.map(t =>
+        or(
+          like(sql`CAST(${attackSequenceTemplates.phases} AS CHAR)`, `%${t}%`),
+          like(sql`CAST(${attackSequenceTemplates.calderaAbilities} AS CHAR)`, `%${t}%`)
+        )
+      );
+
+      const templates = await db.select()
+        .from(attackSequenceTemplates)
+        .where(or(...techConditions))
+        .orderBy(desc(attackSequenceTemplates.createdAt))
+        .limit(input.limit);
+
+      return templates;
+    }),
+
   // ─── Statistics ─────────────────────────────────────────────────────
 
   /** Get learner pipeline statistics */

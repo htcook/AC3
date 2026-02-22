@@ -127,6 +127,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
       { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
       { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
+      { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
     ],
   },
   {

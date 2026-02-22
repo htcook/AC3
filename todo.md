@@ -3203,3 +3203,28 @@
 - [x] Build tRPC router for training pipeline management (threatIntelTraining — 16 procedures)
 - [x] Wire training data into cron scheduler (8h ingestion + daily extraction)
 - [x] Write tests for all connectors and pipeline (30 tests passing)
+
+## Training Dashboard UI & Campaign Integration
+- [ ] Build Training Dashboard page with ingestion stats, processed reports, extracted templates
+- [ ] Add "Run Ingestion Now" button for on-demand feed ingestion
+- [ ] Show feed source status cards with last sync time and record counts
+- [ ] Show attack sequence templates table with status, actor, phases, confidence
+- [ ] Show exploit intelligence summary with CVE counts and severity breakdown
+- [ ] Add page description at top per UI/UX requirements
+- [ ] Wire route in App.tsx and add nav link in AppShell sidebar
+- [ ] Wire attack templates into Campaign Wizard for template-based campaign creation
+- [ ] Add template selector step in campaign creation flow
+- [ ] Show template details (phases, TTPs, actor) when selected
+- [x] Add "Similar Attacks" panel to Campaign Detail page
+- [ ] Query incident reports matching campaign TTPs for contextual intelligence
+- [ ] Show matching real-world incidents with relevance scores
+- [ ] Write tests for new components and backend procedures
+
+## Threat Intel Training UI & Campaign Integration
+- [x] Fix TrainingDashboard TypeScript errors (align with actual tRPC return types)
+- [x] Complete Training Dashboard UI page with overview, reports, templates, exploits tabs
+- [x] Add Training Dashboard to sidebar navigation
+- [x] Wire attack templates into Campaign Wizard (template selection step)
+- [x] Add "Similar Attacks" panel to Campaign Detail page
+- [x] Add findSimilarIncidents tRPC procedure for campaign TTP matching
+- [x] Write tests for Training Dashboard, Campaign Wizard templates, Similar Attacks panel

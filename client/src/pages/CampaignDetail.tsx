@@ -32,6 +32,10 @@ import {
   AlertTriangle,
   XCircle,
   BarChart3,
+  Globe2,
+  Newspaper,
+  BookOpen,
+  Brain,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -724,6 +728,9 @@ export default function CampaignDetail() {
               </div>
             )}
           </section>
+
+          {/* Similar Attacks Panel */}
+          <SimilarAttacksPanel abilities={campaign?.abilities || []} />
         </div>
       {/* Add Agent Modal */}
       {showAddAgentModal && (
@@ -825,5 +832,210 @@ function AddAgentModal({
         </form>
       </div>
     </div>
+  );
+}
+
+
+function SimilarAttacksPanel({ abilities }: { abilities: Array<{ technique?: string | null; tactic?: string | null; abilityName?: string }> }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Extract unique technique IDs from campaign abilities
+  const techniques = useMemo(() => {
+    const techs = new Set<string>();
+    abilities.forEach(a => {
+      if (a.technique) techs.add(a.technique);
+    });
+    return Array.from(techs);
+  }, [abilities]);
+
+  const { data: similarIncidents, isLoading: incidentsLoading } = trpc.threatIntelTraining.findSimilarIncidents.useQuery(
+    { techniques, limit: 5 },
+    { enabled: expanded && techniques.length > 0 }
+  );
+
+  const { data: similarTemplates, isLoading: templatesLoading } = trpc.threatIntelTraining.findSimilarTemplates.useQuery(
+    { techniques, limit: 3 },
+    { enabled: expanded && techniques.length > 0 }
+  );
+
+  if (techniques.length === 0) return null;
+
+  const severityColor = (s: string) => {
+    switch (s?.toLowerCase()) {
+      case "critical": return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "high": return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "medium": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "low": return "bg-green-500/20 text-green-400 border-green-500/30";
+      default: return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+    }
+  };
+
+  return (
+    <section className="mt-6">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full bg-card border-2 border-border p-4 flex items-center justify-between hover:bg-secondary/20 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <Brain className="w-5 h-5 text-purple-400" />
+          <div className="text-left">
+            <h3 className="font-display text-lg tracking-wider">SIMILAR REAL-WORLD ATTACKS</h3>
+            <p className="text-xs text-muted-foreground">
+              {techniques.length} technique{techniques.length !== 1 ? "s" : ""} from this campaign matched against threat intel database
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="font-mono text-xs">{techniques.length} TTPs</Badge>
+          {expanded ? (
+            <XCircle className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <Play className="w-4 h-4 text-muted-foreground" />
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="bg-card border-2 border-t-0 border-border p-6 space-y-6">
+          {/* Technique chips */}
+          <div>
+            <h4 className="font-display text-xs tracking-wider text-muted-foreground mb-2">CAMPAIGN TECHNIQUES BEING MATCHED</h4>
+            <div className="flex flex-wrap gap-1">
+              {techniques.map(t => (
+                <Badge key={t} variant="outline" className="font-mono text-[10px]">{t}</Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Similar Incident Reports */}
+          <div>
+            <h4 className="font-display text-sm tracking-wider mb-3 flex items-center gap-2">
+              <Newspaper className="w-4 h-4 text-red-400" />
+              MATCHING INCIDENT REPORTS
+            </h4>
+            {incidentsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground py-4">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Searching threat intel database...</span>
+              </div>
+            ) : similarIncidents && similarIncidents.length > 0 ? (
+              <div className="space-y-2">
+                {similarIncidents.map((incident: any) => (
+                  <div key={incident.id} className="bg-secondary/30 border border-border p-3 hover:bg-secondary/50 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-sm truncate">{incident.title}</p>
+                          <Badge className={`text-[10px] shrink-0 ${severityColor(incident.severity)}`}>
+                            {(incident.severity || "unknown").toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="font-mono">{incident.source}</span>
+                          {incident.incidentType && <span>• {incident.incidentType}</span>}
+                          {incident.publishedAt && <span>• {incident.publishedAt}</span>}
+                        </div>
+                        {incident.attackNarrative && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {incident.attackNarrative}
+                          </p>
+                        )}
+                        {/* Show matching actors */}
+                        {incident.actorsIdentified && (() => {
+                          const actors = Array.isArray(incident.actorsIdentified) ? incident.actorsIdentified : [];
+                          return actors.length > 0 ? (
+                            <div className="flex gap-1 mt-1">
+                              {actors.slice(0, 3).map((a: any, i: number) => (
+                                <Badge key={i} variant="outline" className="text-[10px] text-red-400 border-red-500/30">
+                                  {a.name || a}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-2xl font-display text-primary">{incident.relevanceScore}%</div>
+                        <div className="text-[10px] text-muted-foreground">relevance</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {incident.matchingTechniques}/{techniques.length} TTPs
+                        </div>
+                      </div>
+                    </div>
+                    {incident.url && (
+                      <a
+                        href={incident.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-primary hover:underline mt-1 block truncate"
+                      >
+                        {incident.url}
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <Newspaper className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No matching incidents found</p>
+                <p className="text-xs mt-1">Run ingestion in the Training Dashboard to populate the threat intel database</p>
+              </div>
+            )}
+          </div>
+
+          {/* Similar Attack Templates */}
+          <div>
+            <h4 className="font-display text-sm tracking-wider mb-3 flex items-center gap-2">
+              <Crosshair className="w-4 h-4 text-purple-400" />
+              MATCHING ATTACK TEMPLATES
+            </h4>
+            {templatesLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground py-4">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Searching attack template library...</span>
+              </div>
+            ) : similarTemplates && similarTemplates.length > 0 ? (
+              <div className="space-y-2">
+                {similarTemplates.map((template: any) => {
+                  const phases = (() => {
+                    try {
+                      return typeof template.phases === "string" ? JSON.parse(template.phases) : template.phases || [];
+                    } catch { return []; }
+                  })();
+                  return (
+                    <div key={template.id} className="bg-secondary/30 border border-border p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-display text-sm tracking-wider">{template.name}</span>
+                        <div className="flex gap-1">
+                          {template.attackType && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {(template.attackType as string).replace(/_/g, " ").toUpperCase()}
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-[10px]">{phases.length} phases</Badge>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
+                      {template.avgDwellTime && (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Avg dwell time: <span className="text-foreground">{template.avgDwellTime}</span>
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <Crosshair className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No matching attack templates found</p>
+                <p className="text-xs mt-1">Process reports in the Training Dashboard to generate attack sequence templates</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
