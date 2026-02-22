@@ -115,19 +115,16 @@ describe("AppShell Navigation - Training Dashboard", () => {
     expect(content).toContain("TRAINING PIPELINE");
   });
 
-  it("training-dashboard route should be in the intelligence nav group", async () => {
+  it("training-dashboard route should be in the admin nav group", async () => {
     const fs = await import("fs");
     const path = await import("path");
     const appShellPath = path.resolve(__dirname, "../client/src/components/AppShell.tsx");
     const content = fs.readFileSync(appShellPath, "utf-8");
-    // The training-dashboard entry should appear between INTELLIGENCE label and KNOWLEDGE BASE
-    const intelligenceIdx = content.indexOf('"INTELLIGENCE"');
-    const knowledgeIdx = content.indexOf('"KNOWLEDGE BASE"');
+    // The training-dashboard entry should appear in the ADMIN group
+    const adminIdx = content.indexOf('"ADMIN"');
     const trainingIdx = content.indexOf("/training-dashboard");
-    expect(intelligenceIdx).toBeGreaterThan(-1);
-    expect(knowledgeIdx).toBeGreaterThan(-1);
-    expect(trainingIdx).toBeGreaterThan(intelligenceIdx);
-    expect(trainingIdx).toBeLessThan(knowledgeIdx);
+    expect(adminIdx).toBeGreaterThan(-1);
+    expect(trainingIdx).toBeGreaterThan(adminIdx);
   });
 });
 

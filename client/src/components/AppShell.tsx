@@ -52,6 +52,9 @@ import {
   Package,
   ShieldOff,
   ClipboardList,
+  Scan,
+  Fish,
+  Hammer,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -73,90 +76,120 @@ interface NavGroup {
 // ─── Navigation Structure ──────────────────────────────────────────────────────
 
 const NAV_GROUPS: NavGroup[] = [
+  // ── Phase 1: Where every engagement starts ──
   {
-    id: "operations",
-    label: "OPERATIONS",
-    icon: Swords,
+    id: "recon",
+    label: "RECON & SCANNING",
+    icon: Scan,
     items: [
-      { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
-      { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
-      { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
-      { href: "/agents", icon: Cpu, label: "AGENTS" },
-      { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
-      { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
-      { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
-      { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
-      { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
-      { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
-      { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
-      { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
-      { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
+      { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+      { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
+      { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
+      { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
     ],
   },
+  // ── Phase 2: Analyze what you found ──
+  {
+    id: "intelligence",
+    label: "THREAT INTELLIGENCE",
+    icon: Shield,
+    items: [
+      { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
+      { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
+      { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
+      { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
+      { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
+      { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
+      { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
+    ],
+  },
+  // ── Phase 3: Design the campaign from intel ──
+  {
+    id: "planning",
+    label: "ENGAGEMENT PLANNING",
+    icon: Briefcase,
+    items: [
+      { href: "/dashboard", icon: Activity, label: "COMMAND CENTER" },
+      { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
+      { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
+      { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
+      { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
+      { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
+    ],
+  },
+  // ── Phase 4: Build and launch phishing campaigns ──
   {
     id: "phishing",
-    label: "PHISHING & EXPLOITS",
-    icon: Zap,
+    label: "PHISHING & SOCIAL ENG",
+    icon: Fish,
     items: [
       { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
+      { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
+      { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
+      { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
+      { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
+    ],
+  },
+  // ── Phase 5: Execute technical attacks ──
+  {
+    id: "exploitation",
+    label: "EXPLOITATION & C2",
+    icon: Hammer,
+    items: [
       { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
       { href: "/validation-engine", icon: FlaskConical, label: "VALIDATION ENGINE" },
+      { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
       { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
       { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
       { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
       { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
       { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
       { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
-      { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
-      { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
-      { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
-      { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
-      { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
+      { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
     ],
   },
+  // ── Phase 6: Adversary emulation and blue team validation ──
   {
-    id: "intelligence",
-    label: "INTELLIGENCE",
-    icon: Search,
+    id: "emulation",
+    label: "EMULATION & DETECTION",
+    icon: Swords,
     items: [
-      { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
-      { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
-      { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
-      { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
-      { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
-      { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
-      { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
-      { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
-      { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
-      { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
-      { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
+      { href: "/agents", icon: Cpu, label: "AGENTS" },
+      { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
+      { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
+      { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
+      { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
+      { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
+      { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
     ],
   },
-  {
-    id: "knowledge",
-    label: "KNOWLEDGE BASE",
-    icon: GraduationCap,
-    items: [
-      { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
-      { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
-      { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
-      { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
-      { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
-    ],
-  },
+  // ── Phase 7: Document and deliver results ──
   {
     id: "reports",
-    label: "REPORTS & GUIDES",
+    label: "REPORTING",
     icon: BarChart3,
     items: [
       { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
       { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
       { href: "/bia-report", icon: ClipboardCheck, label: "AUTO-BIA REPORT" },
-      { href: "/guide/gophish", icon: BookOpen, label: "PHISHING OPS GUIDE" },
-      { href: "/guide/caldera", icon: BookOpen, label: "EMULATION GUIDE" },
-      { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
+      { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
     ],
   },
+  // ── Reference material and guides ──
+  {
+    id: "knowledge",
+    label: "KNOWLEDGE BASE",
+    icon: GraduationCap,
+    items: [
+      { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
+      { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
+      { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
+      { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
+      { href: "/guide/gophish", icon: BookOpen, label: "PHISHING OPS GUIDE" },
+      { href: "/guide/caldera", icon: BookOpen, label: "EMULATION GUIDE" },
+    ],
+  },
+  // ── Platform management ──
   {
     id: "admin",
     label: "ADMIN",
@@ -164,8 +197,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/team", icon: Users, label: "TEAM" },
       { href: "/activity", icon: FileText, label: "ACTIVITY" },
-      { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
       { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
+      { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
     ],
   },
 ];

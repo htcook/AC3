@@ -3281,3 +3281,11 @@
 - [x] Verify the target page/component renders asset data correctly
 - [x] Fix any issues preventing the button from working on all scan reports — converted Tabs to controlled component, removed DOM manipulation
 - [x] Test the fix — TypeScript clean, 1928 tests pass
+
+## Sidebar Navigation Reorganization — Workflow-Driven Order
+- [x] Audit all current modules, pages, routes, and sidebar groups
+- [x] Map the natural engagement workflow (recon → analysis → campaign → execution → reporting)
+- [x] Propose new sidebar ordering that puts domain scanning at the top
+- [x] Get user approval on proposed ordering
+- [x] Implement the new sidebar navigation order — 9 workflow-driven groups: Recon & Scanning → Threat Intelligence → Engagement Planning → Phishing & Social Eng → Exploitation & C2 → Emulation & Detection → Reporting → Knowledge Base → Admin
+- [x] Test all navigation links still work correctly — zero TypeScript errors, dev server running
