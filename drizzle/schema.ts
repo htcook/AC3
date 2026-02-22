@@ -2341,3 +2341,122 @@ export const ransomwareAffiliates = mysqlTable("ransomware_affiliates", {
 });
 export type RansomwareAffiliate = typeof ransomwareAffiliates.$inferSelect;
 export type InsertRansomwareAffiliate = typeof ransomwareAffiliates.$inferInsert;
+
+
+// ─── Threat Intel Training Pipeline ─────────────────────────────────────
+
+/**
+ * Ingested incident reports from DFIR Report, CISA advisories, vendor reports, etc.
+ * Raw source material for LLM training on attack sequences and TTPs.
+ */
+export const incidentReports = mysqlTable("incident_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceId: varchar("sourceId", { length: 255 }).notNull(), // unique ID from source (URL hash, advisory ID, etc.)
+  source: varchar("source", { length: 64 }).notNull(), // dfir_report, cisa_advisory, unit42, hacker_news, dark_reading, cyberscoop, cybersecurity_dive, wikipedia_breaches, hhs_ocr, misp
+  title: text("title").notNull(),
+  url: text("url"),
+  publishedAt: varchar("publishedAt", { length: 64 }),
+  // Content
+  summary: text("summary"),
+  fullContent: text("fullContent"), // raw extracted text
+  // Extracted intelligence
+  attackSequence: json("attackSequence"), // ordered array of { phase, technique, techniqueId, description, tools, duration }
+  ttpsExtracted: json("ttpsExtracted"), // { techniqueId, techniqueName, tactic, confidence }[]
+  iocsExtracted: json("iocsExtracted"), // { type, value, context }[]
+  actorsIdentified: json("actorsIdentified"), // { name, aliases, type, confidence }[]
+  malwareIdentified: json("malwareIdentified"), // string[]
+  cvesMentioned: json("cvesMentioned"), // string[]
+  targetSectors: json("targetSectors"), // string[]
+  targetCountries: json("targetCountries"), // string[]
+  // LLM analysis
+  attackNarrative: text("attackNarrative"), // LLM-generated narrative of the attack flow
+  lessonsLearned: text("lessonsLearned"), // What defenders should take away
+  emulationGuidance: text("emulationGuidance"), // How to emulate this attack in Caldera
+  exploitContext: json("exploitContext"), // { cve, exploitType, targetProduct, patchAvailable, weaponized }[]
+  // Classification
+  incidentType: varchar("incidentType", { length: 64 }), // ransomware, apt, data_breach, supply_chain, phishing, etc.
+  severity: mysqlEnum("ir_severity", ["critical", "high", "medium", "low"]).default("medium"),
+  // Processing status
+  status: mysqlEnum("ir_status", ["raw", "extracted", "enriched", "training_ready"]).default("raw"),
+  enrichedAt: timestamp("ir_enriched_at"),
+  createdAt: timestamp("ir_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("ir_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type IncidentReport = typeof incidentReports.$inferSelect;
+export type InsertIncidentReport = typeof incidentReports.$inferInsert;
+
+/**
+ * Attack sequence templates derived from real incidents.
+ * Used by the chain builder and campaign recommendation engine.
+ */
+export const attackSequenceTemplates = mysqlTable("attack_sequence_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  templateId: varchar("templateId", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  // Source incident(s)
+  sourceIncidentIds: json("sourceIncidentIds"), // int[] referencing incidentReports.id
+  sourceActors: json("sourceActors"), // string[] actor names
+  // Attack sequence
+  phases: json("phases"), // ordered array of { order, tactic, techniques: { id, name, tools, commands }[], duration, description }
+  totalPhases: int("totalPhases"),
+  // Classification
+  attackType: varchar("attackType", { length: 64 }), // ransomware, apt_espionage, data_theft, supply_chain, etc.
+  complexity: mysqlEnum("ast_complexity", ["basic", "intermediate", "advanced", "nation-state"]).default("intermediate"),
+  targetEnvironment: varchar("targetEnvironment", { length: 128 }), // windows_ad, linux_cloud, hybrid, ot_ics, etc.
+  targetSectors: json("ast_targetSectors"), // string[]
+  // Caldera mapping
+  calderaAbilities: json("ast_calderaAbilities"), // { abilityId, name, phase, executor }[]
+  calderaAdversaryProfile: json("calderaAdversaryProfile"), // { name, atomicOrdering, objectives }
+  // Evasion intelligence
+  detectionDifficulty: int("detectionDifficulty"), // 1-10
+  commonDetections: json("commonDetections"), // string[] Sigma rule names that detect this sequence
+  evasionTechniques: json("evasionTechniques"), // string[] techniques used for evasion
+  // Metrics
+  avgDwellTime: varchar("avgDwellTime", { length: 64 }), // average time from initial access to objective
+  successRate: double("successRate"), // from real-world data
+  useCount: int("useCount").default(0), // how many times this template has been used
+  // Metadata
+  confidence: int("ast_confidence"), // 0-100
+  status: mysqlEnum("ast_status", ["draft", "validated", "production"]).default("draft"),
+  createdAt: timestamp("ast_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("ast_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type AttackSequenceTemplate = typeof attackSequenceTemplates.$inferSelect;
+export type InsertAttackSequenceTemplate = typeof attackSequenceTemplates.$inferInsert;
+
+/**
+ * Exploit intelligence database — maps CVEs to real-world exploitation context.
+ */
+export const exploitIntelligence = mysqlTable("exploit_intelligence", {
+  id: int("id").autoincrement().primaryKey(),
+  cveId: varchar("cveId", { length: 32 }).notNull(),
+  // Exploit details
+  exploitType: varchar("exploitType", { length: 64 }), // rce, lpe, sqli, xss, auth_bypass, etc.
+  targetProduct: varchar("targetProduct", { length: 255 }),
+  targetVersion: varchar("targetVersion", { length: 128 }),
+  // Weaponization
+  weaponized: boolean("weaponized").default(false),
+  publicExploitUrl: text("publicExploitUrl"), // GitHub, ExploitDB, etc.
+  metasploitModule: varchar("metasploitModule", { length: 255 }),
+  nucleiTemplate: varchar("nucleiTemplate", { length: 255 }),
+  // Real-world usage
+  usedByActors: json("usedByActors"), // string[] actor names
+  usedInIncidents: json("usedInIncidents"), // int[] referencing incidentReports.id
+  firstExploitedInWild: varchar("firstExploitedInWild", { length: 64 }),
+  // Attack context
+  attackPhase: varchar("attackPhase", { length: 64 }), // initial_access, privilege_escalation, etc.
+  prerequisites: json("ei_prerequisites"), // string[] what's needed before this exploit
+  postExploitActions: json("postExploitActions"), // string[] what typically follows
+  // Scoring
+  cvssScore: double("cvssScore"),
+  epssScore: double("epssScore"),
+  cisaKev: boolean("cisaKev").default(false),
+  // Metadata
+  source: varchar("ei_source", { length: 64 }), // cisa_kev, nvd, exploitdb, incident_report, osint
+  confidence: int("ei_confidence"),
+  createdAt: timestamp("ei_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("ei_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ExploitIntelligence = typeof exploitIntelligence.$inferSelect;
+export type InsertExploitIntelligence = typeof exploitIntelligence.$inferInsert;

@@ -34,6 +34,7 @@ import { payloadGeneratorRouter } from "./routers/payload-generator";
 import { evasionEngineRouter } from "./routers/evasion-engine";
 import { siemConnectorsRouter } from "./routers/siem-connectors";
 import { darkwebIntelRouter } from "./routers/darkweb-intel";
+import { threatIntelTrainingRouter } from "./routers/threat-intel-training";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -150,6 +151,7 @@ export const appRouter = router({
   evasionEngine: evasionEngineRouter,
   siemConnectors: siemConnectorsRouter,
   darkwebIntel: darkwebIntelRouter,
+  threatIntelTraining: threatIntelTrainingRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

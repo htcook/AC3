@@ -1,0 +1,305 @@
+/**
+ * Threat Intel Training Pipeline Router
+ *
+ * Exposes the full ingestion → extraction → learning pipeline:
+ * - Ingest from all 12+ threat intel sources
+ * - Extract attack sequences from reports via LLM
+ * - Generate Caldera emulation templates
+ * - Enrich exploit intelligence
+ * - Cross-reference threat actors
+ * - Update TTP knowledge base
+ * - Query templates, reports, and exploits
+ */
+
+import { z } from "zod";
+import { router, protectedProcedure } from "../_core/trpc";
+import {
+  incidentReports,
+  attackSequenceTemplates,
+  exploitIntelligence,
+} from "../../drizzle/schema";
+import { eq, desc, like, sql, and, or } from "drizzle-orm";
+import { getDb } from "../db";
+import {
+  runFullIngest,
+  ingestDfirReport,
+  ingestCisaAdvisories,
+  ingestUnit42,
+  ingestHackerNews,
+  ingestDarkReading,
+  ingestCyberScoop,
+  ingestCybersecurityDive,
+  ingestMispCircl,
+  ingestDigitalSideMisp,
+  ingestMetasploitCves,
+  ingestCisaKevExploits,
+  getIngestStats,
+  THREAT_INTEL_SOURCES,
+} from "../lib/threat-intel-ingest";
+import {
+  processReport,
+  processBatch,
+  extractAttackSequence,
+  generateAttackTemplate,
+  getLearnerStats,
+} from "../lib/attack-sequence-learner";
+
+async function requireDb() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db;
+}
+
+export const threatIntelTrainingRouter = router({
+  // ─── Ingestion ──────────────────────────────────────────────────────
+
+  /** Run full ingestion from all sources */
+  ingestAll: protectedProcedure.mutation(async () => {
+    return runFullIngest();
+  }),
+
+  /** Ingest from a specific source */
+  ingestSource: protectedProcedure
+    .input(z.object({ source: z.string() }))
+    .mutation(async ({ input }) => {
+      const sourceMap: Record<string, () => Promise<any>> = {
+        dfir_report: ingestDfirReport,
+        cisa_advisory: ingestCisaAdvisories,
+        unit42: ingestUnit42,
+        hacker_news: ingestHackerNews,
+        dark_reading: ingestDarkReading,
+        cyberscoop: ingestCyberScoop,
+        cybersecurity_dive: ingestCybersecurityDive,
+        misp_circl: ingestMispCircl,
+        digitalside_misp: ingestDigitalSideMisp,
+        metasploit_cve: ingestMetasploitCves,
+        cisa_kev_exploits: ingestCisaKevExploits,
+      };
+      const fn = sourceMap[input.source];
+      if (!fn) throw new Error(`Unknown source: ${input.source}`);
+      return fn();
+    }),
+
+  /** Get ingestion statistics */
+  ingestStats: protectedProcedure.query(async () => {
+    return getIngestStats();
+  }),
+
+  /** List available sources */
+  listSources: protectedProcedure.query(() => {
+    return THREAT_INTEL_SOURCES.map(s => ({
+      name: s.name,
+      category: s.category,
+      priority: s.priority,
+    }));
+  }),
+
+  // ─── Reports ────────────────────────────────────────────────────────
+
+  /** List incident reports with filtering */
+  listReports: protectedProcedure
+    .input(z.object({
+      source: z.string().optional(),
+      status: z.string().optional(),
+      incidentType: z.string().optional(),
+      search: z.string().optional(),
+      limit: z.number().min(1).max(100).default(25),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const conditions = [];
+      if (input.source) conditions.push(eq(incidentReports.source, input.source));
+      if (input.status) conditions.push(eq(incidentReports.status, input.status as any));
+      if (input.incidentType) conditions.push(eq(incidentReports.incidentType, input.incidentType));
+      if (input.search) conditions.push(like(incidentReports.title, `%${input.search}%`));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [countResult] = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(incidentReports)
+        .where(where);
+
+      const reports = await db.select({
+        id: incidentReports.id,
+        sourceId: incidentReports.sourceId,
+        source: incidentReports.source,
+        title: incidentReports.title,
+        url: incidentReports.url,
+        publishedAt: incidentReports.publishedAt,
+        incidentType: incidentReports.incidentType,
+        severity: incidentReports.severity,
+        status: incidentReports.status,
+        createdAt: incidentReports.createdAt,
+      })
+        .from(incidentReports)
+        .where(where)
+        .orderBy(desc(incidentReports.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return { reports, total: countResult?.count || 0 };
+    }),
+
+  /** Get a single report with full detail */
+  getReport: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const [report] = await db.select().from(incidentReports).where(eq(incidentReports.id, input.id)).limit(1);
+      return report || null;
+    }),
+
+  // ─── Processing ─────────────────────────────────────────────────────
+
+  /** Process a single report through the full pipeline */
+  processReport: protectedProcedure
+    .input(z.object({ reportId: z.number() }))
+    .mutation(async ({ input }) => {
+      return processReport(input.reportId);
+    }),
+
+  /** Process a batch of unprocessed reports */
+  processBatch: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(20).default(5) }))
+    .mutation(async ({ input }) => {
+      return processBatch(input.limit);
+    }),
+
+  /** Extract attack sequence from a specific report */
+  extractSequence: protectedProcedure
+    .input(z.object({ reportId: z.number() }))
+    .mutation(async ({ input }) => {
+      return extractAttackSequence(input.reportId);
+    }),
+
+  /** Generate attack template from an extracted report */
+  generateTemplate: protectedProcedure
+    .input(z.object({ reportId: z.number() }))
+    .mutation(async ({ input }) => {
+      return generateAttackTemplate(input.reportId);
+    }),
+
+  // ─── Templates ──────────────────────────────────────────────────────
+
+  /** List attack sequence templates */
+  listTemplates: protectedProcedure
+    .input(z.object({
+      attackType: z.string().optional(),
+      complexity: z.string().optional(),
+      status: z.string().optional(),
+      search: z.string().optional(),
+      limit: z.number().min(1).max(100).default(25),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const conditions = [];
+      if (input.attackType) conditions.push(eq(attackSequenceTemplates.attackType, input.attackType));
+      if (input.complexity) conditions.push(eq(attackSequenceTemplates.complexity, input.complexity as any));
+      if (input.status) conditions.push(eq(attackSequenceTemplates.status, input.status as any));
+      if (input.search) conditions.push(like(attackSequenceTemplates.name, `%${input.search}%`));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [countResult] = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(attackSequenceTemplates)
+        .where(where);
+
+      const templates = await db.select()
+        .from(attackSequenceTemplates)
+        .where(where)
+        .orderBy(desc(attackSequenceTemplates.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return { templates, total: countResult?.count || 0 };
+    }),
+
+  /** Get a single template */
+  getTemplate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const [template] = await db.select().from(attackSequenceTemplates).where(eq(attackSequenceTemplates.id, input.id)).limit(1);
+      return template || null;
+    }),
+
+  /** Update template status */
+  updateTemplateStatus: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(["draft", "validated", "production"]),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      await db.update(attackSequenceTemplates)
+        .set({ status: input.status })
+        .where(eq(attackSequenceTemplates.id, input.id));
+      return { success: true };
+    }),
+
+  // ─── Exploit Intelligence ───────────────────────────────────────────
+
+  /** List exploit intelligence */
+  listExploits: protectedProcedure
+    .input(z.object({
+      source: z.string().optional(),
+      weaponized: z.boolean().optional(),
+      cisaKev: z.boolean().optional(),
+      search: z.string().optional(),
+      limit: z.number().min(1).max(100).default(25),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const conditions = [];
+      if (input.source) conditions.push(eq(exploitIntelligence.source, input.source));
+      if (input.weaponized !== undefined) conditions.push(eq(exploitIntelligence.weaponized, input.weaponized));
+      if (input.cisaKev !== undefined) conditions.push(eq(exploitIntelligence.cisaKev, input.cisaKev));
+      if (input.search) conditions.push(like(exploitIntelligence.cveId, `%${input.search}%`));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [countResult] = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(exploitIntelligence)
+        .where(where);
+
+      const exploits = await db.select()
+        .from(exploitIntelligence)
+        .where(where)
+        .orderBy(desc(exploitIntelligence.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return { exploits, total: countResult?.count || 0 };
+    }),
+
+  /** Get exploit details for a CVE */
+  getExploitByCve: protectedProcedure
+    .input(z.object({ cveId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const exploits = await db.select()
+        .from(exploitIntelligence)
+        .where(eq(exploitIntelligence.cveId, input.cveId.toUpperCase()));
+      return exploits;
+    }),
+
+  // ─── Statistics ─────────────────────────────────────────────────────
+
+  /** Get learner pipeline statistics */
+  learnerStats: protectedProcedure.query(async () => {
+    return getLearnerStats();
+  }),
+
+  /** Get combined dashboard stats */
+  dashboardStats: protectedProcedure.query(async () => {
+    const ingest = await getIngestStats();
+    const learner = await getLearnerStats();
+    return {
+      ingestion: ingest,
+      learning: learner,
+    };
+  }),
+});

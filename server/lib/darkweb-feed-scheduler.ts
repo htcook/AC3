@@ -32,6 +32,8 @@ import {
 } from "./darkweb-osint-service";
 import { enrichBatch } from "./darkweb-enrichment-service";
 import { syncRansomwareActors } from "./darkweb-intel-service";
+import { runFullIngest } from "./threat-intel-ingest";
+import { processBatch as processAttackSequences } from "./attack-sequence-learner";
 
 // Track scheduler state
 let schedulerInitialized = false;
@@ -242,8 +244,33 @@ export function initDarkwebFeedScheduler(): void {
     cron.schedule("0 0 9 * * *", runEnrichmentBatch, { timezone: "UTC" })
   );
 
+   // Threat intel report ingestion — every 8 hours at :15
+  activeTasks.push(
+    cron.schedule("0 15 */8 * * *", async () => {
+      console.log("[DarkwebScheduler] Starting threat intel report ingestion...");
+      try {
+        const result = await runFullIngest();
+        const totalNew = result.results.reduce((sum, r) => sum + r.newRecords, 0);
+        console.log(`[DarkwebScheduler] Threat intel ingestion complete: ${totalNew} new reports from ${result.results.length} sources`);
+      } catch (e: any) {
+        console.error(`[DarkwebScheduler] Threat intel ingestion error: ${e.message}`);
+      }
+    }, { timezone: "UTC" })
+  );
+  // Attack sequence extraction — daily at 10:00 UTC (after enrichment)
+  activeTasks.push(
+    cron.schedule("0 0 10 * * *", async () => {
+      console.log("[DarkwebScheduler] Starting attack sequence extraction...");
+      try {
+        const results = await processAttackSequences(10);
+        const successful = results.filter(r => r.phasesExtracted > 0).length;
+        console.log(`[DarkwebScheduler] Attack sequence extraction complete: ${successful}/${results.length} reports processed`);
+      } catch (e: any) {
+        console.error(`[DarkwebScheduler] Attack sequence extraction error: ${e.message}`);
+      }
+    }, { timezone: "UTC" })
+  );
   schedulerInitialized = true;
-
   console.log("[DarkwebScheduler] Feed sync scheduler initialized:");
   console.log("  - abuse.ch feeds: every 6h at :00");
   console.log("  - ransomware.live: every 6h at :30");
@@ -251,6 +278,8 @@ export function initDarkwebFeedScheduler(): void {
   console.log("  - Blocklist.de/Spamhaus/HIBP: daily at 04:00 UTC");
   console.log("  - IAB/IO campaigns: daily at 08:00 UTC");
   console.log("  - LLM enrichment: daily at 09:00 UTC");
+  console.log("  - Threat intel ingestion: every 8h at :15");
+  console.log("  - Attack sequence extraction: daily at 10:00 UTC");
 }
 
 /** Stop all scheduled tasks (for testing/shutdown). */

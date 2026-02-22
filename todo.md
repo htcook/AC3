@@ -3184,3 +3184,22 @@
 - [x] Register cron scheduler in server startup (_core/index.ts)
 - [x] Write tests for cron scheduler and migration (14 tests passing)
 - [x] Verify UI works end-to-end with new router (zero darkwebBridge references in client)
+
+## LLM Attack Sequence Training Pipeline
+- [x] Research all listed threat intel sources for API access and data formats
+- [x] Build DFIR Report ingestion connector (real intrusion case write-ups)
+- [x] Build CISA advisories + KEV catalog connector
+- [x] Build Unit 42 / vendor threat report connector
+- [x] Build OTX pulse ingestion (via MISP CIRCL feed)
+- [x] Build MISP feed connector (CIRCL + DigitalSide)
+- [x] Build news aggregator connector (Hacker News, Dark Reading, CyberScoop, Cybersecurity Dive)
+- [x] Build Metasploit CVE + CISA KEV exploit intel connectors (breach DB connectors deferred — no public API)
+- [x] Build DigitalSide MISP feed connector (additional threat sharing source)
+- [x] Build 11 total feed connectors across 5 categories
+- [x] Create LLM training pipeline: TTP extraction from incident reports (extractAttackSequence)
+- [x] Create LLM training pipeline: attack sequence design from real cases (generateAttackTemplate)
+- [x] Create LLM training pipeline: adversary emulation profile generation (Caldera profiles)
+- [x] Create LLM training pipeline: exploit selection based on vulnerability context (enrichExploitsFromReport)
+- [x] Build tRPC router for training pipeline management (threatIntelTraining — 16 procedures)
+- [x] Wire training data into cron scheduler (8h ingestion + daily extraction)
+- [x] Write tests for all connectors and pipeline (30 tests passing)
