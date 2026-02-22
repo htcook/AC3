@@ -3153,3 +3153,9 @@
 - [x] Update red team discovery coverage mapping (Priority #10: Code Repositories)
 - [x] Add GitHub code leak results to Domain Intel Results UI (via passive recon pipeline)
 - [x] Write tests for GitHub code leak connector (7 tests passing)
+
+## Bug Fixes
+- [x] Fix Domain Intel page not displaying scan reports
+- [x] Create /domain-intel/history page with full scan history table
+- [x] Ensure Recent Scans section is visible and prominent on Domain Intel page
+- [x] Wire the history route in App.tsx

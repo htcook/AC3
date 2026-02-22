@@ -535,6 +535,64 @@ export default function DomainIntel() {
         )}
       </div>
 
+      {/* ─── Completed Scans (Prominent) ──────────────────────────── */}
+      {!isRunning && !isComplete && !isScanComplete && scansQuery.data && scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              Completed Scan Reports
+            </h3>
+            <Button variant="ghost" size="sm" className="text-xs text-purple-400 hover:text-purple-300" onClick={() => navigate("/domain-intel/history")}>
+              View All {scansQuery.data.length} Scans →
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {scansQuery.data
+              .filter((s: any) => s.status === 'completed' || s.status === 'scan_complete')
+              .slice(0, 6)
+              .map((scan: any) => {
+                const output = scan.pipelineOutput as any;
+                const riskScore = output?.riskScore || scan.overallRiskScore || 0;
+                const assetCount = output?.assets?.length || scan.totalAssets || 0;
+                const displayStatus = scan.status === 'scan_complete' ? 'scan complete' : scan.status;
+                return (
+                  <Card
+                    key={scan.id}
+                    className="cursor-pointer hover:border-purple-500/50 transition-all"
+                    onClick={() => navigate(`/domain-intel/${scan.id}`)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-mono text-sm font-semibold">{scan.primaryDomain}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {scan.clientType?.toUpperCase() || 'SCAN'} &middot; Risk: <span className={riskScore >= 70 ? 'text-red-400 font-bold' : riskScore >= 40 ? 'text-orange-400 font-bold' : 'text-green-400 font-bold'}>{riskScore || 'N/A'}</span>
+                          </p>
+                        </div>
+                        <Badge variant="default" className={
+                          scan.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'
+                        }>
+                          {displayStatus}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{assetCount} assets</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                        <span className="text-[10px] text-muted-foreground">
+                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                        </span>
+                        <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* ─── Scan Methods Explainer ─────────────────────────────────── */}
       <Collapsible open={showMethods} onOpenChange={setShowMethods}>
         <CollapsibleTrigger asChild>
@@ -1074,66 +1132,39 @@ export default function DomainIntel() {
         </div>
       )}
 
-      {/* ─── Recent Scans ──────────────────────────────────────────── */}
-      {!isRunning && !isComplete && scansQuery.data && scansQuery.data.length > 0 && (
+      {/* ─── All Scans (with retry/delete for stuck/failed) ────────── */}
+      {!isRunning && !isComplete && scansQuery.data && scansQuery.data.filter((s: any) => s.status !== 'completed' && s.status !== 'scan_complete').some((s: any) => s.status === 'failed' || s.status === 'pending' || isScanStuck(s)) && (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground">Recent Scans</h3>
+          <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-orange-400" />
+            Scans Needing Attention
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {scansQuery.data.slice(0, 12).map((scan: any) => {
-              const output = scan.pipelineOutput as any;
-              const riskScore = output?.riskScore || scan.overallRiskScore || 0;
-              const assetCount = output?.assets?.length || scan.totalAssets || 0;
-              const findingCount = output?.postureFindings?.length || 0;
-              const confirmedCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'confirmed').length || 0;
-              const probableCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'probable').length || 0;
-              const potentialCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'potential').length || 0;
-              const stuck = isScanStuck(scan);
-              const canRetry = stuck || scan.status === 'failed' || scan.status === 'pending';
-              const displayStatus = stuck ? 'stuck' : scan.status === 'scan_complete' ? 'scan complete' : scan.status;
-              return (
-                <Card
-                  key={scan.id}
-                  className={`cursor-pointer hover:border-purple-500/50 transition-all ${stuck ? 'border-orange-500/40' : canRetry ? 'border-destructive/40' : ''}`}
-                  onClick={() => !canRetry && navigate(`/domain-intel/${scan.id}`)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
+            {scansQuery.data
+              .filter((s: any) => s.status === 'failed' || s.status === 'pending' || isScanStuck(s))
+              .slice(0, 6)
+              .map((scan: any) => {
+                const stuck = isScanStuck(scan);
+                const displayStatus = stuck ? 'stuck' : scan.status;
+                return (
+                  <Card key={scan.id} className={`${stuck ? 'border-orange-500/40' : 'border-destructive/40'}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
                         <p className="font-mono text-sm font-semibold">{scan.primaryDomain}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {scan.clientType?.toUpperCase() || 'SCAN'} &middot; Risk: <span className={riskScore >= 70 ? 'text-red-400 font-bold' : riskScore >= 40 ? 'text-orange-400 font-bold' : 'text-green-400 font-bold'}>{riskScore || 'N/A'}</span>
-                        </p>
+                        <Badge variant="destructive" className={stuck ? 'bg-orange-500/20 text-orange-400' : ''}>
+                          {displayStatus}
+                        </Badge>
                       </div>
-                      <Badge variant={
-                        scan.status === "completed" ? "default" :
-                        scan.status === "scan_complete" ? "default" :
-                        canRetry ? "destructive" : "secondary"
-                      } className={
-                        scan.status === "completed" ? "bg-emerald-500/20 text-emerald-400" :
-                        scan.status === "scan_complete" ? "bg-cyan-500/20 text-cyan-400" :
-                        stuck ? "bg-orange-500/20 text-orange-400" : ""
-                      }>
-                        {displayStatus}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{assetCount} assets</span>
-                      {findingCount > 0 && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{findingCount} findings</span>}
-                      {confirmedCount > 0 && <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">{confirmedCount} confirmed</span>}
-                      {probableCount > 0 && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">{probableCount} probable</span>}
-                      {potentialCount > 0 && <span className="text-[10px] bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded">{potentialCount} potential</span>}
-                    </div>
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
-                      <span className="text-[10px] text-muted-foreground">
-                        {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
-                      </span>
-                      {canRetry ? (
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                        <span className="text-[10px] text-muted-foreground">
+                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                        </span>
                         <div className="flex items-center gap-1.5">
                           <Button
                             size="sm"
                             variant="ghost"
                             className="h-6 px-2 text-orange-400 hover:text-orange-300 hover:bg-orange-500/10"
-                            onClick={(e) => { e.stopPropagation(); retryScan.mutate({ scanId: scan.id }); }}
+                            onClick={() => retryScan.mutate({ scanId: scan.id })}
                             disabled={retryScan.isPending}
                           >
                             {retryScan.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
@@ -1143,20 +1174,17 @@ export default function DomainIntel() {
                             size="sm"
                             variant="ghost"
                             className="h-6 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                            onClick={(e) => { e.stopPropagation(); if (confirm('Delete this scan?')) deleteScan.mutate({ scanId: scan.id }); }}
+                            onClick={() => { if (confirm('Delete this scan?')) deleteScan.mutate({ scanId: scan.id }); }}
                             disabled={deleteScan.isPending}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
-                      ) : (
-                        <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
           </div>
         </div>
       )}

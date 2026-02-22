@@ -76,6 +76,7 @@ const BiaReport = lazy(() => import("./pages/BiaReport"));
 const ValidationEngine = lazy(() => import("./pages/ValidationEngine"));
 const EvasionEngine = lazy(() => import("./pages/EvasionEngine"));
 const SiemConnectors = lazy(() => import("./pages/SiemConnectors"));
+const ScanHistory = lazy(() => import("./pages/ScanHistory"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -212,6 +213,9 @@ function Router() {
         </Route>
         <Route path="/domain-intel">
           <ProtectedRoute component={DomainIntel} />
+        </Route>
+        <Route path="/domain-intel/history">
+          <ProtectedRoute component={ScanHistory} />
         </Route>
         <Route path="/domain-intel/curate/:scanId">
           {() => <ProtectedRoute component={DiscoveryCuration} />}
