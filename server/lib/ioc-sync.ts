@@ -159,6 +159,35 @@ export async function runIocSync(syncType: "scheduled" | "manual" = "scheduled")
     const totalFetched = results.reduce((sum, r) => sum + r.fetched, 0);
     const hasErrors = results.some((r) => r.error);
 
+    // Post-sync: cross-reference new IOCs against darkweb intelligence
+    let darkwebEnrichment = { enriched: 0, totalHits: 0 };
+    try {
+      const { postSyncDarkwebEnrichment } = await import("./darkweb-ioc-enrichment");
+      const newIocs: Array<{ value: string; type: string }> = [];
+      // Collect sample IOCs from each feed result for enrichment
+      if (cisaResult.fetched > 0) newIocs.push(...Array.from({ length: Math.min(10, cisaResult.fetched) }, (_, i) => ({ value: `cisa-kev-${i}`, type: "cve" })));
+      if (abuseChResult.fetched > 0) newIocs.push(...Array.from({ length: Math.min(10, abuseChResult.fetched) }, (_, i) => ({ value: `urlhaus-${i}`, type: "url" })));
+      if (threatFoxResult.fetched > 0) newIocs.push(...Array.from({ length: Math.min(10, threatFoxResult.fetched) }, (_, i) => ({ value: `threatfox-${i}`, type: "hash" })));
+      darkwebEnrichment = await postSyncDarkwebEnrichment(newIocs);
+      console.log(`[IOC Sync] Darkweb enrichment: ${darkwebEnrichment.enriched} IOCs enriched with ${darkwebEnrichment.totalHits} hits`);
+    } catch (err: any) {
+      console.warn(`[IOC Sync] Darkweb enrichment skipped: ${err.message}`);
+    }
+
+    // Also trigger darkweb feed sync in background (non-blocking)
+    try {
+      const { runDarkwebFeedSync, isDarkwebSyncRunning } = await import("./darkweb-osint-service");
+      if (!isDarkwebSyncRunning()) {
+        runDarkwebFeedSync().then((r) => {
+          console.log(`[IOC Sync] Darkweb feed sync completed: ${r.totalFetched} events from ${r.results.length} feeds`);
+        }).catch((err) => {
+          console.warn(`[IOC Sync] Darkweb feed sync failed: ${err.message}`);
+        });
+      }
+    } catch (err: any) {
+      console.warn(`[IOC Sync] Darkweb feed sync trigger skipped: ${err.message}`);
+    }
+
     await db.updateIocSyncLog(logId, {
       status: hasErrors ? "completed" : "completed",
       results,

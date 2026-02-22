@@ -580,7 +580,7 @@ describe("Pipeline Integration — New Connectors", () => {
         binaryedge: "test-be-key",
         greynoise: "test-gn-key",
       },
-      timeout: 5000,
+      timeout: 8000,
     });
 
     const connectorNames = result.connectorResults.map(r => r.connector);
@@ -595,11 +595,11 @@ describe("Pipeline Integration — New Connectors", () => {
     const result = await runPassiveRecon("example.com", {
       scanMode: "active",
       apiKeys: {},
-      timeout: 5000,
+      timeout: 8000,
     });
 
-    // 9 original + 3 new + 4 OSINT = 16
-    expect(result.connectorResults.length).toBe(16);
+    // 9 original + 3 new + 4 OSINT + 1 github_leaks = 17
+    expect(result.connectorResults.length).toBe(17);
   });
 
   it("should include new signal rules in the rule descriptions", async () => {

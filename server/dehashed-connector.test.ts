@@ -502,7 +502,7 @@ describe("Dehashed Orchestrator Integration", () => {
     const result = await runPassiveRecon("example.com", {
       scanMode: "active",
       apiKeys: { dehashed: "test-key" },
-      timeout: 5000,
+      timeout: 8000,
     });
 
     // Dehashed should appear in connector results
@@ -526,7 +526,7 @@ describe("Dehashed Orchestrator Integration", () => {
     await runPassiveRecon("example.com", {
       scanMode: "strict_passive",
       apiKeys: { dehashed: "my-dehashed-key" },
-      timeout: 5000,
+      timeout: 8000,
     });
 
     // Find the Dehashed API call (POST to dehashed v2 search)

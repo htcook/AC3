@@ -2058,3 +2058,286 @@ export const siemConnections = mysqlTable("siem_connections", {
 });
 export type SiemConnection = typeof siemConnections.$inferSelect;
 export type InsertSiemConnection = typeof siemConnections.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DARKWEB INTELLIGENCE PIPELINE — Self-contained feed ingestion & enrichment
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Underground Intel Events (unified event stream) ─────────────────────
+/**
+ * Unified event stream for all underground intelligence categories.
+ * Each row is a normalized event from any darkweb source.
+ */
+export const undergroundIntelEvents = mysqlTable("underground_intel_events", {
+  id: int("id").autoincrement().primaryKey(),
+  category: mysqlEnum("uie_category", [
+    "ransomware", "credential", "iab", "malware", "influence",
+    "botnet", "phishing", "exploit", "data_leak", "other",
+  ]).notNull(),
+  source: varchar("uie_source", { length: 128 }).notNull(),
+  sourceUrl: varchar("uie_source_url", { length: 1024 }),
+  title: varchar("uie_title", { length: 512 }).notNull(),
+  description: text("uie_description"),
+  severity: mysqlEnum("uie_severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  confidence: int("uie_confidence").default(75),
+  // IOC linkage
+  iocType: varchar("uie_ioc_type", { length: 64 }),
+  iocValue: text("uie_ioc_value"),
+  // Actor linkage
+  actorName: varchar("uie_actor_name", { length: 255 }),
+  actorAliases: json("uie_actor_aliases"),
+  // Victim / target
+  victimName: varchar("uie_victim_name", { length: 512 }),
+  victimSector: varchar("uie_victim_sector", { length: 128 }),
+  victimCountry: varchar("uie_victim_country", { length: 128 }),
+  // MITRE mapping
+  mitreTechniques: json("uie_mitre_techniques"),
+  // Enrichment
+  enriched: boolean("uie_enriched").default(false),
+  enrichmentData: json("uie_enrichment_data"),
+  // Tags & metadata
+  tags: json("uie_tags"),
+  rawData: json("uie_raw_data"),
+  eventDate: timestamp("uie_event_date"),
+  ingestedAt: timestamp("uie_ingested_at").defaultNow().notNull(),
+  createdAt: timestamp("uie_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("uie_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type UndergroundIntelEvent = typeof undergroundIntelEvents.$inferSelect;
+export type InsertUndergroundIntelEvent = typeof undergroundIntelEvents.$inferInsert;
+
+// ─── Network Events (C2, botnet, malicious infrastructure) ───────────────
+export const networkEvents = mysqlTable("network_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: mysqlEnum("ne_event_type", [
+    "c2_server", "botnet_controller", "malicious_ip", "tor_exit_node",
+    "proxy_node", "vpn_endpoint", "dns_sinkhole", "fast_flux",
+    "ssl_blacklist", "spam_source", "scanner", "other",
+  ]).notNull(),
+  source: varchar("ne_source", { length: 128 }).notNull(),
+  ipAddress: varchar("ne_ip_address", { length: 45 }),
+  port: int("ne_port"),
+  hostname: varchar("ne_hostname", { length: 512 }),
+  protocol: varchar("ne_protocol", { length: 32 }),
+  malwareFamily: varchar("ne_malware_family", { length: 255 }),
+  description: text("ne_description"),
+  severity: mysqlEnum("ne_severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  confidence: int("ne_confidence").default(75),
+  // GeoIP
+  country: varchar("ne_country", { length: 128 }),
+  asn: varchar("ne_asn", { length: 64 }),
+  asnOrg: varchar("ne_asn_org", { length: 255 }),
+  // Status
+  status: mysqlEnum("ne_status", ["active", "inactive", "sinkholed", "takedown"]).default("active"),
+  firstSeen: timestamp("ne_first_seen"),
+  lastSeen: timestamp("ne_last_seen"),
+  tags: json("ne_tags"),
+  rawData: json("ne_raw_data"),
+  createdAt: timestamp("ne_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("ne_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type NetworkEvent = typeof networkEvents.$inferSelect;
+export type InsertNetworkEvent = typeof networkEvents.$inferInsert;
+
+// ─── IAB Activity (Initial Access Broker listings) ───────────────────────
+export const iabActivity = mysqlTable("iab_activity", {
+  id: int("id").autoincrement().primaryKey(),
+  brokerId: varchar("iab_broker_id", { length: 128 }).notNull(),
+  brokerName: varchar("iab_broker_name", { length: 255 }).notNull(),
+  listingType: mysqlEnum("iab_listing_type", [
+    "vpn_access", "rdp_access", "citrix_access", "webshell",
+    "domain_admin", "cloud_access", "email_access", "database_access",
+    "zero_day", "exploit_kit", "credential_dump", "other",
+  ]).notNull(),
+  accessType: varchar("iab_access_type", { length: 255 }),
+  description: text("iab_description"),
+  // Victim / target
+  victimName: varchar("iab_victim_name", { length: 512 }),
+  victimSector: varchar("iab_victim_sector", { length: 128 }),
+  victimCountry: varchar("iab_victim_country", { length: 128 }),
+  victimRevenue: varchar("iab_victim_revenue", { length: 64 }),
+  // Pricing
+  askingPrice: varchar("iab_asking_price", { length: 64 }),
+  currency: varchar("iab_currency", { length: 16 }).default("USD"),
+  // Attribution
+  forumSource: varchar("iab_forum_source", { length: 255 }),
+  linkedRansomwareGroups: json("iab_linked_rw_groups"),
+  mitreTechniques: json("iab_mitre_techniques"),
+  // Status
+  status: mysqlEnum("iab_status", ["active", "sold", "expired", "removed", "law_enforcement"]).default("active"),
+  confidence: int("iab_confidence").default(75),
+  firstSeen: timestamp("iab_first_seen"),
+  lastActive: timestamp("iab_last_active"),
+  tags: json("iab_tags"),
+  rawData: json("iab_raw_data"),
+  createdAt: timestamp("iab_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("iab_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type IabActivityRow = typeof iabActivity.$inferSelect;
+export type InsertIabActivity = typeof iabActivity.$inferInsert;
+
+// ─── Influence Operations ────────────────────────────────────────────────
+export const influenceOperations = mysqlTable("influence_operations", {
+  id: int("id").autoincrement().primaryKey(),
+  operationName: varchar("io_operation_name", { length: 512 }).notNull(),
+  attributedTo: varchar("io_attributed_to", { length: 255 }),
+  nationState: varchar("io_nation_state", { length: 128 }),
+  description: text("io_description"),
+  // Targeting
+  targetCountries: json("io_target_countries"),
+  targetSectors: json("io_target_sectors"),
+  targetNarratives: json("io_target_narratives"),
+  // Platforms
+  platforms: json("io_platforms"),
+  // Techniques
+  techniques: json("io_techniques"),
+  mitreTechniques: json("io_mitre_techniques"),
+  // Scale
+  accountsIdentified: int("io_accounts_identified").default(0),
+  contentPieces: int("io_content_pieces").default(0),
+  // Source
+  source: varchar("io_source", { length: 255 }),
+  sourceUrl: varchar("io_source_url", { length: 1024 }),
+  reportDate: timestamp("io_report_date"),
+  // Status
+  status: mysqlEnum("io_status", ["active", "disrupted", "dormant", "attributed"]).default("active"),
+  confidence: int("io_confidence").default(75),
+  tags: json("io_tags"),
+  rawData: json("io_raw_data"),
+  createdAt: timestamp("io_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("io_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type InfluenceOperation = typeof influenceOperations.$inferSelect;
+export type InsertInfluenceOperation = typeof influenceOperations.$inferInsert;
+
+// ─── Credential Exposures ────────────────────────────────────────────────
+export const credentialExposures = mysqlTable("credential_exposures", {
+  id: int("id").autoincrement().primaryKey(),
+  source: varchar("ce_source", { length: 128 }).notNull(),
+  breachName: varchar("ce_breach_name", { length: 512 }).notNull(),
+  breachDate: timestamp("ce_breach_date"),
+  // Scope
+  domain: varchar("ce_domain", { length: 512 }),
+  emailCount: int("ce_email_count").default(0),
+  totalRecords: int("ce_total_records").default(0),
+  // Data types exposed
+  dataClasses: json("ce_data_classes"),
+  // Attribution
+  actorName: varchar("ce_actor_name", { length: 255 }),
+  // Severity
+  severity: mysqlEnum("ce_severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  isVerified: boolean("ce_is_verified").default(false),
+  isSensitive: boolean("ce_is_sensitive").default(false),
+  isRetired: boolean("ce_is_retired").default(false),
+  isSpamList: boolean("ce_is_spam_list").default(false),
+  // Source metadata
+  sourceUrl: varchar("ce_source_url", { length: 1024 }),
+  description: text("ce_description"),
+  tags: json("ce_tags"),
+  rawData: json("ce_raw_data"),
+  createdAt: timestamp("ce_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("ce_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type CredentialExposure = typeof credentialExposures.$inferSelect;
+export type InsertCredentialExposure = typeof credentialExposures.$inferInsert;
+
+// ─── Darkweb Enriched Records (LLM-enriched intel) ──────────────────────
+export const darkwebEnrichedRecords = mysqlTable("darkweb_enriched_records", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceEventId: int("der_source_event_id"),
+  sourceTable: varchar("der_source_table", { length: 128 }),
+  // LLM enrichment output
+  summary: text("der_summary"),
+  threatAssessment: text("der_threat_assessment"),
+  riskScore: int("der_risk_score").default(0),
+  impactAnalysis: text("der_impact_analysis"),
+  recommendedActions: json("der_recommended_actions"),
+  // Cross-references
+  relatedActors: json("der_related_actors"),
+  relatedCampaigns: json("der_related_campaigns"),
+  relatedCves: json("der_related_cves"),
+  relatedIocs: json("der_related_iocs"),
+  // MITRE mapping
+  mitreTactics: json("der_mitre_tactics"),
+  mitreTechniques: json("der_mitre_techniques"),
+  // Sector / geo impact
+  affectedSectors: json("der_affected_sectors"),
+  affectedCountries: json("der_affected_countries"),
+  // Metadata
+  enrichmentModel: varchar("der_enrichment_model", { length: 128 }),
+  enrichmentVersion: varchar("der_enrichment_version", { length: 32 }),
+  processingTimeMs: int("der_processing_time_ms"),
+  createdAt: timestamp("der_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("der_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type DarkwebEnrichedRecord = typeof darkwebEnrichedRecords.$inferSelect;
+export type InsertDarkwebEnrichedRecord = typeof darkwebEnrichedRecords.$inferInsert;
+
+// ─── Darkweb Feed Registry (feed source health tracking) ────────────────
+export const darkwebFeedRegistry = mysqlTable("darkweb_feed_registry", {
+  id: int("id").autoincrement().primaryKey(),
+  feedName: varchar("dfr_feed_name", { length: 255 }).notNull().unique(),
+  feedUrl: varchar("dfr_feed_url", { length: 1024 }).notNull(),
+  feedType: mysqlEnum("dfr_feed_type", [
+    "ioc", "malware", "ransomware", "credential", "phishing",
+    "botnet", "c2", "blocklist", "vulnerability", "influence", "other",
+  ]).notNull(),
+  provider: varchar("dfr_provider", { length: 255 }),
+  description: text("dfr_description"),
+  // Auth
+  requiresAuth: boolean("dfr_requires_auth").default(false),
+  authType: mysqlEnum("dfr_auth_type", ["none", "api_key", "bearer", "basic", "custom"]).default("none"),
+  authEnvVar: varchar("dfr_auth_env_var", { length: 128 }),
+  // Schedule
+  syncInterval: varchar("dfr_sync_interval", { length: 32 }).default("daily"),
+  lastSyncAt: timestamp("dfr_last_sync_at"),
+  nextSyncAt: timestamp("dfr_next_sync_at"),
+  // Health
+  status: mysqlEnum("dfr_status", ["active", "degraded", "down", "disabled", "pending"]).default("pending"),
+  lastError: text("dfr_last_error"),
+  consecutiveFailures: int("dfr_consecutive_failures").default(0),
+  totalSyncs: int("dfr_total_syncs").default(0),
+  totalRecordsFetched: int("dfr_total_records_fetched").default(0),
+  avgResponseTimeMs: int("dfr_avg_response_time_ms"),
+  // Metadata
+  isBuiltIn: boolean("dfr_is_built_in").default(true),
+  enabled: boolean("dfr_enabled").default(true),
+  config: json("dfr_config"),
+  createdAt: timestamp("dfr_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("dfr_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type DarkwebFeedRegistryRow = typeof darkwebFeedRegistry.$inferSelect;
+export type InsertDarkwebFeedRegistry = typeof darkwebFeedRegistry.$inferInsert;
+
+// ─── Ransomware Affiliates ───────────────────────────────────────────────
+export const ransomwareAffiliates = mysqlTable("ransomware_affiliates", {
+  id: int("id").autoincrement().primaryKey(),
+  affiliateId: varchar("ra_affiliate_id", { length: 128 }).notNull(),
+  affiliateName: varchar("ra_affiliate_name", { length: 255 }).notNull(),
+  aliases: json("ra_aliases"),
+  description: text("ra_description"),
+  // Group affiliations
+  primaryGroup: varchar("ra_primary_group", { length: 255 }),
+  affiliatedGroups: json("ra_affiliated_groups"),
+  // Activity
+  activityScore: int("ra_activity_score").default(0),
+  totalVictims: int("ra_total_victims").default(0),
+  topSectors: json("ra_top_sectors"),
+  topCountries: json("ra_top_countries"),
+  // TTPs
+  mitreTechniques: json("ra_mitre_techniques"),
+  preferredAccess: varchar("ra_preferred_access", { length: 255 }),
+  toolsUsed: json("ra_tools_used"),
+  // Status
+  status: mysqlEnum("ra_status", ["active", "inactive", "arrested", "unknown"]).default("active"),
+  confidence: int("ra_confidence").default(75),
+  firstSeen: varchar("ra_first_seen", { length: 32 }),
+  lastActive: varchar("ra_last_active", { length: 32 }),
+  tags: json("ra_tags"),
+  rawData: json("ra_raw_data"),
+  createdAt: timestamp("ra_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("ra_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type RansomwareAffiliate = typeof ransomwareAffiliates.$inferSelect;
+export type InsertRansomwareAffiliate = typeof ransomwareAffiliates.$inferInsert;

@@ -33,6 +33,7 @@ import { sessionAlerterRouter } from "./routers/session-alerter";
 import { payloadGeneratorRouter } from "./routers/payload-generator";
 import { evasionEngineRouter } from "./routers/evasion-engine";
 import { siemConnectorsRouter } from "./routers/siem-connectors";
+import { darkwebIntelRouter } from "./routers/darkweb-intel";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -148,6 +149,7 @@ export const appRouter = router({
   accuracyEngine: accuracyEngineRouter,
   evasionEngine: evasionEngineRouter,
   siemConnectors: siemConnectorsRouter,
+  darkwebIntel: darkwebIntelRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

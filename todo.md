@@ -3159,3 +3159,18 @@
 - [x] Create /domain-intel/history page with full scan history table
 - [x] Ensure Recent Scans section is visible and prominent on Domain Intel page
 - [x] Wire the history route in App.tsx
+
+## Darkweb Intelligence Pipeline (Self-Contained)
+- [x] Create database schema: underground_intel_events, ransomware_events, network_events, iab_activity, influence_operations, credential_exposures, darkweb_enriched_records, darkweb_feed_registry, ransomware_affiliates
+- [x] Build darkweb-osint-service: URLhaus, ThreatFox, Feodo + MalwareBazaar, SSL Blacklist, ransomware.live, AlienVault OTX, OpenPhish, Tor Exit Nodes, Blocklist.de, Spamhaus DROP, HIBP Breaches (13 feeds total)
+- [x] Build ransomware-live-service: ransomware.live API integration (victims + groups endpoints)
+- [x] Build ransomware-victim-sync-service: victim data sync and stats
+- [x] Build ransomware-actor-sync-service: actor sync with enrichment
+- [x] Build ransomware-sector-enrichment-service: sector-based enrichment
+- [x] Build darkweb-enrichment-service: LLM enrichment of darkweb records
+- [x] Build darkweb-intel-service: darkweb intelligence analysis
+- [x] Build darkweb-mysql-service: MySQL CRUD for all darkweb tables
+- [x] Build tRPC router for darkweb intel (29 procedures, parallel to bridge)
+- [x] Wire darkweb feeds into IOC enrichment pipeline (enrichIocWithDarkweb + batch)
+- [x] Write tests for darkweb services (24 tests passing)
+- [x] Verify integration with existing Darkweb Intel UI (bridge + new router coexist)

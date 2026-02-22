@@ -58,9 +58,10 @@ describe("computeDiscoveryCoverage", () => {
 
   it("identifies structural gaps for priorities with no connectors", () => {
     const report = computeDiscoveryCoverage([], []);
-    // Priority 6 (Key Personnel OSINT) and 10 (Code Repos) have no connectors
+    // Priority 6 (Key Personnel OSINT) has no connectors (Priority 10 now has github_leaks)
     expect(report.structuralGaps).toContain("Key Personnel OSINT");
-    expect(report.structuralGaps).toContain("Code Repositories & Configuration Leaks");
+    // Code Repos is no longer a structural gap since github_leaks connector was added
+    expect(report.structuralGaps).not.toContain("Code Repositories & Configuration Leaks");
   });
 
   it("identifies actionable gaps for priorities with connectors but no data", () => {
