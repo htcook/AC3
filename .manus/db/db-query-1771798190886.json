@@ -1,0 +1,66 @@
+{
+  "query": "SELECT scanId, COUNT(*) as asset_count FROM discovered_assets GROUP BY scanId LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT scanId, COUNT(*) as asset_count FROM discovered_assets GROUP BY scanId LIMIT 20;",
+  "rows": [
+    {
+      "scanId": "990005",
+      "asset_count": "26"
+    },
+    {
+      "scanId": "990021",
+      "asset_count": "1"
+    },
+    {
+      "scanId": "990020",
+      "asset_count": "2"
+    },
+    {
+      "scanId": "990022",
+      "asset_count": "1"
+    },
+    {
+      "scanId": "960036",
+      "asset_count": "20"
+    },
+    {
+      "scanId": "990003",
+      "asset_count": "28"
+    },
+    {
+      "scanId": "990002",
+      "asset_count": "30"
+    },
+    {
+      "scanId": "990004",
+      "asset_count": "30"
+    },
+    {
+      "scanId": "990008",
+      "asset_count": "30"
+    },
+    {
+      "scanId": "990006",
+      "asset_count": "28"
+    },
+    {
+      "scanId": "600002",
+      "asset_count": "30"
+    },
+    {
+      "scanId": "990001",
+      "asset_count": "28"
+    },
+    {
+      "scanId": "990019",
+      "asset_count": "1"
+    },
+    {
+      "scanId": "990007",
+      "asset_count": "29"
+    }
+  ],
+  "messages": [],
+  "stdout": "scanId\tasset_count\n990005\t26\n990021\t1\n990020\t2\n990022\t1\n960036\t20\n990003\t28\n990002\t30\n990004\t30\n990008\t30\n990006\t28\n600002\t30\n990001\t28\n990019\t1\n990007\t29\n",
+  "stderr": "",
+  "execution_time_ms": 64
+}

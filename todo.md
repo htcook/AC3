@@ -3275,3 +3275,9 @@
 - [x] Debug getDomainIntelScans DB function - check query and return format — works correctly
 - [x] Fix root cause preventing scans from displaying — was synthetic test data, replaced with real scans
 - [x] Verify scans display on both Scan History and Domain Intel pages — API confirmed
+
+## Bug: View Full Asset Details Button
+- [x] Trace the View Full Asset Details button click handler and navigation target
+- [x] Verify the target page/component renders asset data correctly
+- [x] Fix any issues preventing the button from working on all scan reports — converted Tabs to controlled component, removed DOM manipulation
+- [x] Test the fix — TypeScript clean, 1928 tests pass

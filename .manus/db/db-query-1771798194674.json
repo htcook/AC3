@@ -1,0 +1,70 @@
+{
+  "query": "SELECT da.scanId, dis.primaryDomain, COUNT(*) as asset_count FROM discovered_assets da JOIN domain_intel_scans dis ON da.scanId = dis.id GROUP BY da.scanId, dis.primaryDomain;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT da.scanId, dis.primaryDomain, COUNT(*) as asset_count FROM discovered_assets da JOIN domain_intel_scans dis ON da.scanId = dis.id GROUP BY da.scanId, dis.primaryDomain;",
+  "rows": [
+    {
+      "scanId": "990021",
+      "primaryDomain": "scores-1771797982883.com",
+      "asset_count": "1"
+    },
+    {
+      "scanId": "990005",
+      "primaryDomain": "github.com",
+      "asset_count": "26"
+    },
+    {
+      "scanId": "990007",
+      "primaryDomain": "dropbox.com",
+      "asset_count": "29"
+    },
+    {
+      "scanId": "990003",
+      "primaryDomain": "shopify.com",
+      "asset_count": "28"
+    },
+    {
+      "scanId": "990008",
+      "primaryDomain": "slack.com",
+      "asset_count": "30"
+    },
+    {
+      "scanId": "990020",
+      "primaryDomain": "multi-asset-1771797981857.com",
+      "asset_count": "2"
+    },
+    {
+      "scanId": "990004",
+      "primaryDomain": "stripe.com",
+      "asset_count": "30"
+    },
+    {
+      "scanId": "990022",
+      "primaryDomain": "findings-1771797983677.com",
+      "asset_count": "1"
+    },
+    {
+      "scanId": "990001",
+      "primaryDomain": "tesla.com",
+      "asset_count": "28"
+    },
+    {
+      "scanId": "990002",
+      "primaryDomain": "cloudflare.com",
+      "asset_count": "30"
+    },
+    {
+      "scanId": "990019",
+      "primaryDomain": "asset-test-1771797981832.com",
+      "asset_count": "1"
+    },
+    {
+      "scanId": "990006",
+      "primaryDomain": "zoom.us",
+      "asset_count": "28"
+    }
+  ],
+  "messages": [],
+  "stdout": "scanId\tprimaryDomain\tasset_count\n990021\tscores-1771797982883.com\t1\n990005\tgithub.com\t26\n990007\tdropbox.com\t29\n990003\tshopify.com\t28\n990008\tslack.com\t30\n990020\tmulti-asset-1771797981857.com\t2\n990004\tstripe.com\t30\n990022\tfindings-1771797983677.com\t1\n990001\ttesla.com\t28\n990002\tcloudflare.com\t30\n990019\tasset-test-1771797981832.com\t1\n990006\tzoom.us\t28\n",
+  "stderr": "",
+  "execution_time_ms": 70
+}
