@@ -3289,3 +3289,6 @@
 - [x] Get user approval on proposed ordering
 - [x] Implement the new sidebar navigation order — 9 workflow-driven groups: Recon & Scanning → Threat Intelligence → Engagement Planning → Phishing & Social Eng → Exploitation & C2 → Emulation & Detection → Reporting → Knowledge Base → Admin
 - [x] Test all navigation links still work correctly — zero TypeScript errors, dev server running
+
+## Auto-Expand Recon & Scanning on Fresh Login
+- [x] Make the Recon & Scanning group auto-expand when no saved sidebar state exists

@@ -212,7 +212,8 @@ function loadExpandedGroups(): Record<string, boolean> {
     const stored = localStorage.getItem(SIDEBAR_STATE_KEY);
     if (stored) return JSON.parse(stored);
   } catch {}
-  return {};
+  // Fresh login — auto-expand Recon & Scanning so Domain Intel is immediately visible
+  return { recon: true };
 }
 
 function saveExpandedGroups(state: Record<string, boolean>) {
