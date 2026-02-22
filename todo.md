@@ -3235,3 +3235,8 @@
 - [x] Add "Use This Template" button to Campaign Wizard Attack Template Picker
 - [x] Auto-populate campaign abilities from selected template's Caldera ability mappings
 - [x] Write tests for auto-apply template functionality
+
+## Bug Fix: Completed Scans Not Visible
+- [x] Investigate why completed scans are not accessible in the UI
+- [x] Fix scan visibility/accessibility issue
+- [x] Verify fix works correctly

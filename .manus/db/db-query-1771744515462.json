@@ -1,0 +1,38 @@
+{
+  "query": "SELECT status, COUNT(*) as cnt FROM domain_intel_scans GROUP BY status;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT status, COUNT(*) as cnt FROM domain_intel_scans GROUP BY status;",
+  "rows": [
+    {
+      "status": "analyzing",
+      "cnt": "1"
+    },
+    {
+      "status": "pending",
+      "cnt": "173"
+    },
+    {
+      "status": "failed",
+      "cnt": "1"
+    },
+    {
+      "status": "passive_recon",
+      "cnt": "4"
+    },
+    {
+      "status": "completed",
+      "cnt": "147"
+    },
+    {
+      "status": "scan_complete",
+      "cnt": "292"
+    },
+    {
+      "status": "discovering",
+      "cnt": "5"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tcnt\nanalyzing\t1\npending\t173\nfailed\t1\npassive_recon\t4\ncompleted\t147\nscan_complete\t292\ndiscovering\t5\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

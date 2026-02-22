@@ -51,6 +51,7 @@ import {
   ArrowUpDown,
   Package,
   ShieldOff,
+  ClipboardList,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -124,6 +125,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
       { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
       { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+      { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
       { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
       { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
       { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },

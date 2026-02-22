@@ -536,7 +536,7 @@ export default function DomainIntel() {
       </div>
 
       {/* ─── Completed Scans (Prominent) ──────────────────────────── */}
-      {!isRunning && !isComplete && !isScanComplete && scansQuery.data && scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length > 0 && (
+      {!isRunning && scansQuery.data && scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -794,7 +794,7 @@ export default function DomainIntel() {
       )}
 
       {/* ─── Unified Search Form ───────────────────────────────────── */}
-      {!isRunning && !isComplete && (
+      {!isRunning && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Form */}
           <div className="lg:col-span-2 space-y-5">
