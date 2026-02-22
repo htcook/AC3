@@ -1940,3 +1940,90 @@ export const generatedPayloads = mysqlTable("generated_payloads", {
 });
 export type GeneratedPayload = typeof generatedPayloads.$inferSelect;
 export type InsertGeneratedPayload = typeof generatedPayloads.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// SIEM/EDR EVASION ENGINE TABLES
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Evasion test sessions — each run of the mutation engine or scorecard
+ */
+export const evasionSessions = mysqlTable("evasion_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Link to a campaign or scan */
+  campaignId: varchar("campaign_id", { length: 255 }),
+  /** Session type */
+  sessionType: mysqlEnum("session_type", ["mutation_test", "pipeline_config", "scorecard", "purple_cycle"]).notNull(),
+  /** ATT&CK techniques tested (JSON array of strings) */
+  techniques: json("techniques"),
+  /** Evasion profile used */
+  evasionProfile: mysqlEnum("evasion_profile", ["none", "low", "medium", "high"]).default("none"),
+  /** Campaign stealth score (0-100) */
+  stealthScore: int("stealth_score"),
+  /** Stealth band classification */
+  stealthBand: varchar("stealth_band", { length: 20 }),
+  /** Detection coverage percentage */
+  detectionCoverage: int("detection_coverage"),
+  /** Evasion success rate percentage */
+  evasionSuccessRate: int("evasion_success_rate"),
+  /** Full scorecard result (JSON) */
+  scorecardData: json("scorecard_data"),
+  /** Full mutation results (JSON) */
+  mutationData: json("mutation_data"),
+  /** Full pipeline config (JSON) */
+  pipelineData: json("pipeline_data"),
+  /** Purple team cycle data (JSON) */
+  purpleCycleData: json("purple_cycle_data"),
+  /** Summary stats */
+  totalTechniques: int("total_techniques"),
+  detectedCount: int("detected_count"),
+  evadedCount: int("evaded_count"),
+  partialCount: int("partial_count"),
+  untestedCount: int("untested_count"),
+  totalRules: int("total_rules"),
+  robustRules: int("robust_rules"),
+  fragileRules: int("fragile_rules"),
+  criticalGaps: int("critical_gaps"),
+  /** Status */
+  status: mysqlEnum("status", ["running", "completed", "failed"]).default("running").notNull(),
+  errorMessage: text("error_message"),
+  /** Ownership */
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+export type EvasionSession = typeof evasionSessions.$inferSelect;
+export type InsertEvasionSession = typeof evasionSessions.$inferInsert;
+
+/**
+ * Individual rule robustness test results
+ */
+export const ruleRobustnessResults = mysqlTable("rule_robustness_results", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: int("session_id").notNull(),
+  /** Rule identifier */
+  ruleId: varchar("rule_id", { length: 255 }).notNull(),
+  ruleTitle: varchar("rule_title", { length: 500 }),
+  /** The original command tested */
+  originalCommand: text("original_command"),
+  /** Detection pattern tested against */
+  detectionPattern: text("detection_pattern"),
+  /** Robustness score (0-100) */
+  robustnessScore: int("robustness_score"),
+  /** Robustness classification */
+  robustnessClass: mysqlEnum("robustness_class", ["robust", "moderate", "fragile", "bypassed"]),
+  /** Variant counts */
+  totalVariants: int("total_variants"),
+  detectedCount: int("detected_count"),
+  evadedCount: int("evaded_count"),
+  /** Weakest mutation categories (JSON array) */
+  weakestCategories: json("weakest_categories"),
+  /** Hardening tips (JSON array) */
+  hardeningTips: json("hardening_tips"),
+  /** Full variant details (JSON) */
+  variantDetails: json("variant_details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type RuleRobustnessResult = typeof ruleRobustnessResults.$inferSelect;
+export type InsertRuleRobustnessResult = typeof ruleRobustnessResults.$inferInsert;

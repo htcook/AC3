@@ -31,6 +31,7 @@ import { postExploitPlaybooksRouter } from "./routers/post-exploit-playbooks";
 import { fileTransfersRouter } from "./routers/file-transfers";
 import { sessionAlerterRouter } from "./routers/session-alerter";
 import { payloadGeneratorRouter } from "./routers/payload-generator";
+import { evasionEngineRouter } from "./routers/evasion-engine";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -144,6 +145,7 @@ export const appRouter = router({
   bugBounty: bugBountyRouter,
   scoring: scoringRouter,
   accuracyEngine: accuracyEngineRouter,
+  evasionEngine: evasionEngineRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

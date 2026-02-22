@@ -598,8 +598,8 @@ describe("Pipeline Integration — New Connectors", () => {
       timeout: 5000,
     });
 
-    // 9 original + 3 new = 12
-    expect(result.connectorResults.length).toBe(12);
+    // 9 original + 3 new + 4 OSINT = 16
+    expect(result.connectorResults.length).toBe(16);
   });
 
   it("should include new signal rules in the rule descriptions", async () => {

@@ -3093,3 +3093,34 @@
 - [x] Enhance pipeline with missing checks derived from the document
 - [x] Update UI to show discovery coverage and red team priority alignment
 - [x] Write tests for the new scoring and coverage tracking (22 tests passing)
+
+## SIEM/EDR Evasion Architecture (3-Tier)
+
+### Tier 1: SIEM Rule Mutation Engine
+- [x] Build 9+ mutation category generators (case, path, env var, encoding, caret, variable indirection, interpreter chain, argument reorder, whitespace, string concat)
+- [x] Build Sigma rule parser to extract detection patterns
+- [x] Build mutation-vs-rule testing engine (does mutated command still match the rule?)
+- [x] Compute per-rule robustness score (% of mutations caught)
+
+### Tier 2: Payload Transformation Pipeline
+- [x] Build evasion profile model (none/low/medium/high/custom)
+- [x] Build AMSI/ETW patching module definitions
+- [x] Build payload obfuscation engine (Base64, XOR, AES, string splitting)
+- [x] Build process injection technique selector
+- [x] Build ScareCrow/Donut/Freeze integration interfaces (abstracted for future CLI integration)
+- [x] Build pipeline orchestrator that chains transformations based on profile
+
+### Tier 3: Evasion Scorecard
+- [x] Build per-technique evasion scoring (detected/evaded/partial)
+- [x] Build per-rule robustness classification (robust/fragile/bypassed)
+- [x] Build Campaign Stealth Score computation
+- [x] Build Evasion Delta calculation (baseline detection vs evasive detection)
+
+### Infrastructure
+- [x] Add DB schema for evasion profiles, mutation results, and scorecard data
+- [x] Add tRPC endpoints for mutation testing, pipeline config, and scorecard queries
+- [x] Build Evasion Engine UI page with sidebar navigation entry
+- [x] Build Mutation Tester tab (input command/rule, see variants and robustness)
+- [x] Build Evasion Pipeline tab (configure profiles, view transformation chain)
+- [x] Build Scorecard tab (campaign-level evasion results, ATT&CK overlay)
+- [x] Write tests for mutation engine, pipeline, and scorecard (32 tests passing)

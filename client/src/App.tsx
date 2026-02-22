@@ -74,6 +74,7 @@ const BugBountyHub = lazy(() => import("./pages/BugBountyHub"));
 const ScoringHub = lazy(() => import("./pages/ScoringHub"));
 const BiaReport = lazy(() => import("./pages/BiaReport"));
 const ValidationEngine = lazy(() => import("./pages/ValidationEngine"));
+const EvasionEngine = lazy(() => import("./pages/EvasionEngine"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -339,6 +340,9 @@ function Router() {
         </Route>
         <Route path="/purple-team">
           <ProtectedRoute component={PurpleTeam} />
+        </Route>
+        <Route path="/evasion-engine">
+          <ProtectedRoute component={EvasionEngine} />
         </Route>
         <Route path="/webhooks">
           <ProtectedRoute component={Webhooks} />

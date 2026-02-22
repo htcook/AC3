@@ -50,6 +50,7 @@ import {
   ScrollText,
   ArrowUpDown,
   Package,
+  ShieldOff,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -85,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
       { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
       { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
+      { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
       { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
       { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
     ],
