@@ -73,22 +73,22 @@ export default function DarkwebIntel() {
   const { data: stats } = trpc.threatIntel.stats.useQuery();
   const { data: coverage } = trpc.threatIntel.techniqueCoverage.useQuery();
 
-  // ─── SpicyTIP Bridge queries ───────────────────────────────────────────
-  const { data: bridgeHealth } = trpc.darkwebBridge.health.useQuery();
-  const { data: escalationAlerts, isLoading: alertsLoading } = trpc.darkwebBridge.escalationAlerts.useQuery({});
-  const { data: ransomwareVictimStats } = trpc.darkwebBridge.ransomwareVictimStats.useQuery({});
-  const { data: activityRatings } = trpc.darkwebBridge.activityRatings.useQuery();
-  const { data: threatFoxIOCs, isLoading: iocsLoading } = trpc.darkwebBridge.threatFoxIOCs.useQuery({});
-  const { data: cisaKEV, isLoading: kevLoading } = trpc.darkwebBridge.cisaKEV.useQuery({});
-  const { data: otxPulses, isLoading: otxLoading } = trpc.darkwebBridge.otxPulses.useQuery({});
-  const { data: malwareBazaar, isLoading: malwareLoading } = trpc.darkwebBridge.malwareBazaar.useQuery({});
-  const { data: adaptiveKeywords } = trpc.darkwebBridge.adaptiveKeywords.useQuery();
-  const { data: recentVictimEvents } = trpc.darkwebBridge.recentVictimEvents.useQuery({});
+  // ─── Darkweb Intel queries (self-contained, no bridge dependency) ──────
+  const { data: bridgeHealth } = trpc.darkwebIntel.health.useQuery();
+  const { data: escalationAlerts, isLoading: alertsLoading } = trpc.darkwebIntel.escalationAlerts.useQuery({});
+  const { data: ransomwareVictimStats } = trpc.darkwebIntel.ransomwareVictimStats.useQuery({});
+  const { data: activityRatings } = trpc.darkwebIntel.activityRatings.useQuery();
+  const { data: threatFoxIOCs, isLoading: iocsLoading } = trpc.darkwebIntel.threatFoxIOCs.useQuery({});
+  const { data: cisaKEV, isLoading: kevLoading } = trpc.darkwebIntel.cisaKEV.useQuery({});
+  const { data: otxPulses, isLoading: otxLoading } = trpc.darkwebIntel.otxPulses.useQuery({});
+  const { data: malwareBazaar, isLoading: malwareLoading } = trpc.darkwebIntel.malwareBazaar.useQuery({});
+  const { data: adaptiveKeywords } = trpc.darkwebIntel.adaptiveKeywords.useQuery();
+  const { data: recentVictimEvents } = trpc.darkwebIntel.recentVictimEvents.useQuery({});
 
   // ─── Access Broker & Info Ops queries ──────────────────────────────────
-  const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebBridge.accessBrokers.useQuery({});
-  const { data: iosCampaigns, isLoading: iosLoading, refetch: refetchIOs } = trpc.darkwebBridge.infoOpsCampaigns.useQuery({});
-  const syncDarkwebFeeds = trpc.darkwebBridge.syncDarkwebFeeds.useMutation({
+  const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
+  const { data: iosCampaigns, isLoading: iosLoading, refetch: refetchIOs } = trpc.darkwebIntel.infoOpsCampaigns.useQuery({});
+  const syncDarkwebFeeds = trpc.darkwebIntel.syncDarkwebFeeds.useMutation({
     onSuccess: (result) => {
       toast.success("Darkweb Feeds Synced", {
         description: `IABs: ${result.accessBrokers.inserted} new / ${result.accessBrokers.updated} updated (${result.accessBrokers.total} total). IO Campaigns: ${result.infoOps.inserted} new / ${result.infoOps.updated} updated (${result.infoOps.total} total).`,
@@ -104,7 +104,7 @@ export default function DarkwebIntel() {
     onSuccess: () => refetchEvents(),
   });
 
-  const syncAll = trpc.darkwebBridge.syncAll.useMutation({
+  const syncAll = trpc.darkwebIntel.syncAll.useMutation({
     onSuccess: (result) => {
       toast.success("Darkweb Sync Complete", {
         description: `Imported: ${result.actorsImported} actors, ${result.iocsImported} IOCs, ${result.eventsImported} events. ${result.errors.length > 0 ? `Errors: ${result.errors.length}` : ""}`,

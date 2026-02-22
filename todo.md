@@ -3174,3 +3174,13 @@
 - [x] Wire darkweb feeds into IOC enrichment pipeline (enrichIocWithDarkweb + batch)
 - [x] Write tests for darkweb services (24 tests passing)
 - [x] Verify integration with existing Darkweb Intel UI (bridge + new router coexist)
+
+## Darkweb UI Migration & Feed Sync Scheduling
+- [x] Map all darkwebBridge hooks in DarkwebIntel.tsx to darkwebIntel equivalents
+- [x] Migrate DarkwebIntel.tsx from trpc.darkwebBridge.* to trpc.darkwebIntel.*
+- [x] Migrate ThreatIntelHub.tsx, AlertDetailModal.tsx, CorroborationPanel.tsx from darkwebBridge to darkwebIntel
+- [x] Add all bridge-equivalent procedures to darkwebIntel router (47 total procedures)
+- [x] Build automatic feed sync cron scheduler (6 staggered cron jobs: 6h/12h/24h)
+- [x] Register cron scheduler in server startup (_core/index.ts)
+- [x] Write tests for cron scheduler and migration (14 tests passing)
+- [x] Verify UI works end-to-end with new router (zero darkwebBridge references in client)

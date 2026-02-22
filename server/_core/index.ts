@@ -348,6 +348,13 @@ async function startServer() {
         console.warn("[ScanRecovery] Failed to initialize scan recovery scheduler:", err);
       });
 
+      // Initialize Darkweb Feed sync scheduler (staggered: 6h/12h/24h)
+      import("../lib/darkweb-feed-scheduler").then(({ initDarkwebFeedScheduler }) => {
+        initDarkwebFeedScheduler();
+      }).catch((err) => {
+        console.warn("[DarkwebScheduler] Failed to initialize darkweb feed scheduler:", err);
+      });
+
       console.log("[Background] All background schedulers initialized");
     }, BACKGROUND_DELAY);
   });

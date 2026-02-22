@@ -107,7 +107,7 @@ export default function CorroborationPanel({
   }, [assets]);
 
   // Corroboration mutation
-  const corroborate = trpc.darkwebBridge.corroborateAssets.useMutation({
+  const corroborate = trpc.darkwebIntel.corroborateAssets.useMutation({
     onSuccess: () => setHasRun(true),
   });
 

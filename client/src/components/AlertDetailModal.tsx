@@ -67,7 +67,7 @@ function timeAgo(dateStr: string | null | undefined): string {
 }
 
 export default function AlertDetailModal({ open, onOpenChange, eventId }: AlertDetailModalProps) {
-  const { data, isLoading, error } = trpc.darkwebBridge.alertDetail.useQuery(
+  const { data, isLoading, error } = trpc.darkwebIntel.alertDetail.useQuery(
     { eventId: eventId! },
     { enabled: !!eventId && open }
   );

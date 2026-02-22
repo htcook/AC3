@@ -30,16 +30,16 @@ export default function ThreatIntelHub() {
   const { data: coverage } = trpc.threatIntel.techniqueCoverage.useQuery();
   const { data: recentEvents } = trpc.threatIntel.recentEvents.useQuery();
 
-  // Darkweb Bridge feeds
-  const { data: cisaKEV, isLoading: kevLoading } = trpc.darkwebBridge.cisaKEV.useQuery({ limit: 15 });
-  const { data: victimStats, isLoading: victimLoading } = trpc.darkwebBridge.ransomwareVictimStats.useQuery({ limit: 20 });
-  const { data: escalations } = trpc.darkwebBridge.escalationAlerts.useQuery();
-  const { data: activityRatings } = trpc.darkwebBridge.activityRatings.useQuery();
-  const { data: accessBrokers, isLoading: iabLoading } = trpc.darkwebBridge.accessBrokers.useQuery();
-  const { data: threatFox, isLoading: iocLoading } = trpc.darkwebBridge.threatFoxIOCs.useQuery({ limit: 15 });
+  // Darkweb Intel feeds (self-contained, no bridge dependency)
+  const { data: cisaKEV, isLoading: kevLoading } = trpc.darkwebIntel.cisaKEV.useQuery({ limit: 15 });
+  const { data: victimStats, isLoading: victimLoading } = trpc.darkwebIntel.ransomwareVictimStats.useQuery({ limit: 20 });
+  const { data: escalations } = trpc.darkwebIntel.escalationAlerts.useQuery();
+  const { data: activityRatings } = trpc.darkwebIntel.activityRatings.useQuery();
+  const { data: accessBrokers, isLoading: iabLoading } = trpc.darkwebIntel.accessBrokers.useQuery();
+  const { data: threatFox, isLoading: iocLoading } = trpc.darkwebIntel.threatFoxIOCs.useQuery({ limit: 15 });
 
   // Sync
-  const syncAll = trpc.darkwebBridge.syncAll.useMutation();
+  const syncAll = trpc.darkwebIntel.syncAll.useMutation();
   const syncCatalog = trpc.threatIntel.syncCatalog.useMutation();
 
   const toggle = (s: string) => setExpandedSection(expandedSection === s ? null : s);
