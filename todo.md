@@ -3292,3 +3292,13 @@
 
 ## Auto-Expand Recon & Scanning on Fresh Login
 - [x] Make the Recon & Scanning group auto-expand when no saved sidebar state exists
+
+## Workflow Progress Badges on Sidebar Group Headers
+- [x] Create tRPC procedure to fetch sidebar badge counts (scans, campaigns, agents, etc.)
+- [x] Add badge UI to NavGroupSection component headers
+- [x] Style badges to be subtle and not clutter the sidebar
+
+## First-Time Onboarding Tooltip for Domain Intel
+- [x] Create onboarding tooltip component with localStorage persistence
+- [x] Show tooltip pointing to Domain Intel on first visit
+- [x] Include dismiss button and "Start your first scan" CTA

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 import {
   Activity,
   Target,
@@ -272,12 +273,14 @@ function NavGroupSection({
   onToggle,
   currentPath,
   onNavClick,
+  badgeText,
 }: {
   group: NavGroup;
   expanded: boolean;
   onToggle: () => void;
   currentPath: string;
   onNavClick: () => void;
+  badgeText?: string;
 }) {
   const GroupIcon = group.icon;
   const hasActiveItem = group.items.some(
@@ -296,6 +299,11 @@ function NavGroupSection({
       >
         <GroupIcon className="w-4 h-4 shrink-0" />
         <span className="flex-1 text-left truncate">{group.label}</span>
+        {badgeText && (
+          <span className="px-1.5 py-0.5 text-[9px] font-mono leading-none rounded bg-primary/15 text-primary border border-primary/20 shrink-0">
+            {badgeText}
+          </span>
+        )}
         {expanded ? (
           <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
         ) : (
@@ -343,6 +351,45 @@ export default function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [location] = useLocation();
   const currentPath = activePath || location;
+
+  // First-time onboarding tooltip
+  const ONBOARDING_KEY = "ace-c3-onboarding-seen";
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try {
+      return !localStorage.getItem(ONBOARDING_KEY);
+    } catch { return false; }
+  });
+
+  const dismissOnboarding = useCallback(() => {
+    setShowOnboarding(false);
+    try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+  }, []);
+
+  // Fetch sidebar badge counts (silent — never blocks UI)
+  const { data: badges } = trpc.platformStats.getSidebarBadges.useQuery(undefined, {
+    staleTime: 60_000, // refresh every 60s
+    refetchInterval: 120_000, // auto-refetch every 2 min
+    retry: false,
+  });
+
+  // Compute badge text per group from the fetched data
+  const badgeTexts = useMemo<Record<string, string | undefined>>(() => {
+    if (!badges) return {};
+    const b: Record<string, string | undefined> = {};
+    const r = badges.recon as any;
+    if (r?.total) b.recon = `${r.completed ?? r.total} scans`;
+    const i = badges.intelligence as any;
+    if (i?.actors) b.intelligence = `${i.actors} actors`;
+    const p = badges.planning as any;
+    if (p?.engagements) b.planning = `${p.engagements} eng`;
+    const ph = badges.phishing as any;
+    if (ph?.active) b.phishing = `${ph.active} active`;
+    else if (ph?.campaigns) b.phishing = `${ph.campaigns} camp`;
+    const em = badges.emulation as any;
+    if (em?.active) b.emulation = `${em.active} running`;
+    else if (em?.operations) b.emulation = `${em.operations} ops`;
+    return b;
+  }, [badges]);
 
   // Expanded groups state — initialize from localStorage + auto-expand active group
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
@@ -476,15 +523,46 @@ export default function AppShell({
               </button>
             </div>
 
-            {NAV_GROUPS.map((group) => (
-              <NavGroupSection
-                key={group.id}
-                group={group}
-                expanded={!!expandedGroups[group.id]}
-                onToggle={() => toggleGroup(group.id)}
-                currentPath={currentPath}
-                onNavClick={closeSidebar}
-              />
+            {NAV_GROUPS.map((group, idx) => (
+              <div key={group.id} className="relative">
+                <NavGroupSection
+                  group={group}
+                  expanded={!!expandedGroups[group.id]}
+                  onToggle={() => toggleGroup(group.id)}
+                  currentPath={currentPath}
+                  onNavClick={closeSidebar}
+                  badgeText={badgeTexts[group.id]}
+                />
+                {/* First-time onboarding tooltip on the Recon group */}
+                {idx === 0 && showOnboarding && (
+                  <div className="absolute left-full top-0 ml-3 z-[60] w-64 animate-in fade-in slide-in-from-left-2 duration-300">
+                    <div className="relative bg-primary text-primary-foreground rounded-lg shadow-xl p-4">
+                      {/* Arrow pointing left */}
+                      <div className="absolute -left-2 top-4 w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-primary" />
+                      <p className="font-display text-xs tracking-wider mb-1 opacity-80">GETTING STARTED</p>
+                      <p className="text-sm font-medium mb-2">Start your first domain scan</p>
+                      <p className="text-xs opacity-80 mb-3">Every engagement begins here. Enter a target domain to discover assets, vulnerabilities, and attack surface.</p>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href="/domain-intel"
+                          onClick={() => { dismissOnboarding(); closeSidebar(); }}
+                        >
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-display tracking-wider bg-primary-foreground text-primary rounded hover:opacity-90 transition-opacity cursor-pointer">
+                            <Scan className="w-3 h-3" />
+                            SCAN NOW
+                          </span>
+                        </Link>
+                        <button
+                          onClick={dismissOnboarding}
+                          className="text-xs opacity-70 hover:opacity-100 transition-opacity font-display tracking-wider"
+                        >
+                          DISMISS
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </nav>
 

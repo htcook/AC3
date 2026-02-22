@@ -5898,6 +5898,55 @@ Make the phishing content highly realistic and tailored to the target domain and
 
   // ─── Dynamic Platform Stats (public, for homepage) ──────────────────
   platformStats: router({
+    // Lightweight counts for sidebar group badges
+    getSidebarBadges: protectedProcedure.query(async () => {
+      try {
+        // Parallel fetch all counts — each wrapped in try/catch to be resilient
+        const [scans, engagements, threatActorCount, iocStats, gophishCampaigns, calderaOps] = await Promise.allSettled([
+          // Recon: domain intel scans
+          db.getDomainIntelScans(),
+          // Planning: engagements
+          db.getEngagements(),
+          // Intelligence: threat actors
+          db.getThreatActorCount(),
+          // Intelligence: IOC feed stats
+          db.getIocFeedStats(),
+          // Phishing: GoPhish campaigns
+          fetchGophishAPI('/api/campaigns/').catch(() => []),
+          // Emulation: Caldera operations
+          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations').catch(() => []),
+        ]);
+
+        const scanList = scans.status === 'fulfilled' ? scans.value : [];
+        const engagementList = engagements.status === 'fulfilled' ? engagements.value : [];
+        const actorCount = threatActorCount.status === 'fulfilled' ? threatActorCount.value : 0;
+        const iocData = iocStats.status === 'fulfilled' ? iocStats.value : { total: 0, recentCount: 0 };
+        const campaigns = gophishCampaigns.status === 'fulfilled' ? (Array.isArray(gophishCampaigns.value) ? gophishCampaigns.value : []) : [];
+        const operations = calderaOps.status === 'fulfilled' ? (Array.isArray(calderaOps.value) ? calderaOps.value : []) : [];
+
+        const completedScans = scanList.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete');
+        const activeCampaigns = campaigns.filter((c: any) => c.status === 'In progress');
+        const activeOps = operations.filter((o: any) => o.state === 'running');
+
+        return {
+          recon: { total: scanList.length, completed: completedScans.length },
+          intelligence: { actors: actorCount, iocs: iocData.total, recentIocs: iocData.recentCount },
+          planning: { engagements: engagementList.length },
+          phishing: { campaigns: campaigns.length, active: activeCampaigns.length },
+          exploitation: {},
+          emulation: { operations: operations.length, active: activeOps.length },
+          reports: {},
+          knowledge: {},
+          admin: {},
+        };
+      } catch {
+        return {
+          recon: {}, intelligence: {}, planning: {}, phishing: {},
+          exploitation: {}, emulation: {}, reports: {}, knowledge: {}, admin: {},
+        };
+      }
+    }),
+
     getHomepageStats: publicProcedure.query(async () => {
       const { getCatalogStats } = await import('./lib/exploit-catalog');
       const catalogStats = await getCatalogStats();
