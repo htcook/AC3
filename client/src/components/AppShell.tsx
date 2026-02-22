@@ -87,6 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
       { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
       { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
+      { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
       { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
       { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
     ],

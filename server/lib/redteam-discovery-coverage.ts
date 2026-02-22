@@ -138,8 +138,8 @@ export const RED_TEAM_PRIORITIES: DiscoveryPriority[] = [
     shortName: "Code/Config Leaks",
     description: "GitHub, Pastebin, Confluence — hardcoded creds, internal IPs, architecture diagrams, .env files.",
     weight: 0.65,
-    connectors: [],  // Not yet covered — requires GitHub API
-    coverageTags: ["github", "pastebin", "code_leak", "config_leak", "env_file"],
+    connectors: ["github_leaks"],
+    coverageTags: ["github", "pastebin", "code_leak", "config_leak", "env_file", "api_key_leak", "credential"],
     minObservations: 1,
     attackTechniques: ["T1593.003", "T1596.004"],
   },

@@ -75,6 +75,7 @@ const ScoringHub = lazy(() => import("./pages/ScoringHub"));
 const BiaReport = lazy(() => import("./pages/BiaReport"));
 const ValidationEngine = lazy(() => import("./pages/ValidationEngine"));
 const EvasionEngine = lazy(() => import("./pages/EvasionEngine"));
+const SiemConnectors = lazy(() => import("./pages/SiemConnectors"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -343,6 +344,9 @@ function Router() {
         </Route>
         <Route path="/evasion-engine">
           <ProtectedRoute component={EvasionEngine} />
+        </Route>
+        <Route path="/siem-connectors">
+          <ProtectedRoute component={SiemConnectors} />
         </Route>
         <Route path="/webhooks">
           <ProtectedRoute component={Webhooks} />

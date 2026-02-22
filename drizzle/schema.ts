@@ -2027,3 +2027,34 @@ export const ruleRobustnessResults = mysqlTable("rule_robustness_results", {
 });
 export type RuleRobustnessResult = typeof ruleRobustnessResults.$inferSelect;
 export type InsertRuleRobustnessResult = typeof ruleRobustnessResults.$inferInsert;
+
+/**
+ * SIEM Connections — Wazuh / Elastic configuration
+ */
+export const siemConnections = mysqlTable("siem_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  backend: mysqlEnum("backend", ["wazuh", "elastic"]).notNull(),
+  baseUrl: varchar("base_url", { length: 512 }).notNull(),
+  username: varchar("username", { length: 255 }),
+  password: varchar("password", { length: 512 }),
+  apiKey: varchar("api_key", { length: 512 }),
+  insecure: boolean("insecure").default(false),
+  timeoutMs: int("timeout_ms").default(15000),
+  indexPattern: varchar("index_pattern", { length: 512 }),
+  useSecurityDetections: boolean("use_security_detections").default(false),
+  /** Connection status */
+  connected: boolean("connected").default(false),
+  enabled: boolean("enabled").default(true),
+  lastTestedAt: timestamp("last_tested_at"),
+  version: varchar("version", { length: 64 }),
+  clusterName: varchar("cluster_name", { length: 255 }),
+  alertCount: int("alert_count"),
+  errorMessage: text("error_message"),
+  /** Ownership */
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type SiemConnection = typeof siemConnections.$inferSelect;
+export type InsertSiemConnection = typeof siemConnections.$inferInsert;

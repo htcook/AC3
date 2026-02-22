@@ -3124,3 +3124,32 @@
 - [x] Build Evasion Pipeline tab (configure profiles, view transformation chain)
 - [x] Build Scorecard tab (campaign-level evasion results, ATT&CK overlay)
 - [x] Write tests for mutation engine, pipeline, and scorecard (32 tests passing)
+
+## SIEM Connectors (Wazuh + Elastic) for Live Detection Correlation
+
+- [x] Build Wazuh SIEM connector (REST API integration for alert ingestion)
+- [x] Build Elastic SIEM connector (Elasticsearch API for alert/detection ingestion)
+- [x] Create unified SIEM alert normalization layer
+- [x] Wire SIEM alert data into Evasion Scorecard for live detection correlation
+- [x] Add SIEM connector configuration UI (connection settings, test connectivity)
+- [x] Add real-time alert feed display during campaign execution
+- [x] Add tRPC endpoints for SIEM connector management and alert queries
+- [x] Write tests for SIEM connectors (25 tests passing)
+
+## Run Mutation Test on Campaign Detail Page
+
+- [x] Add "Run Mutation Test" button to Campaign Detail page
+- [x] Build mutation test dialog with Sigma rule input and technique selection
+- [x] Wire mutation test to existing evasion engine endpoints
+- [x] Display mutation test results inline on Campaign Detail page
+- [x] Write tests for campaign mutation test integration
+
+## GitHub Code Leak OSINT Connector
+
+- [x] Build GitHub code leak search connector using GitHub Search API
+- [x] Implement search patterns for credentials, API keys, secrets, config files (15+ patterns)
+- [x] Add leak severity classification (critical/high/medium/low)
+- [x] Integrate into passive recon pipeline as new connector
+- [x] Update red team discovery coverage mapping (Priority #10: Code Repositories)
+- [x] Add GitHub code leak results to Domain Intel Results UI (via passive recon pipeline)
+- [x] Write tests for GitHub code leak connector (7 tests passing)

@@ -25,8 +25,18 @@ import {
   ExternalLink,
   Cpu,
   Briefcase,
+  FlaskConical,
+  ShieldOff,
+  Shield,
+  Loader2,
+  AlertTriangle,
+  XCircle,
+  BarChart3,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { useState, useEffect, useMemo } from "react";
 
 import AppShell from "@/components/AppShell";
 // APT29 VCD Enhanced abilities for pre-population
@@ -100,6 +110,10 @@ export default function CampaignDetail() {
   const params = useParams<{ id: string }>();
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
   const [selectedTactic, setSelectedTactic] = useState<string | null>(null);
+  const [showMutationTest, setShowMutationTest] = useState(false);
+  const [mutationSigmaYaml, setMutationSigmaYaml] = useState('');
+  const [mutationCommand, setMutationCommand] = useState('');
+  const [siemCorrelation, setSiemCorrelation] = useState<any>(null);
 
   const campaignId = parseInt(params.id || '0');
   const { data: campaign, isLoading, refetch } = trpc.campaign.get.useQuery(
@@ -145,6 +159,55 @@ export default function CampaignDetail() {
 
   const handleStatusChange = (status: string) => {
     updateCampaign.mutate({ id: campaignId, status: status as any });
+  };
+
+  // ── Mutation Test ──────────────────────────────────────────────────
+  const runMutationTest = trpc.evasionEngine.testSigmaRule.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`Mutation test complete — robustness ${data.robustnessScore}%`);
+    },
+    onError: (err: any) => toast.error(`Mutation test failed: ${err.message}`),
+  });
+
+  const runBatchMutation = trpc.evasionEngine.batchTest.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`Batch test complete — ${data.summary.totalTests} rules tested`);
+    },
+    onError: (err: any) => toast.error(`Batch test failed: ${err.message}`),
+  });
+
+  // ── SIEM Correlation ─────────────────────────────────────────────
+  const correlateDetections = trpc.siemConnectors.correlateWithCampaign.useMutation({
+    onSuccess: (data: any) => {
+      setSiemCorrelation(data);
+      toast.success(`SIEM correlation complete — ${data.stats.coveragePercent}% detection coverage`);
+    },
+    onError: (err: any) => toast.error(`SIEM correlation failed: ${err.message}`),
+  });
+
+  const campaignTechniques = useMemo(() => {
+    return campaign?.abilities?.map((a: any) => a.technique).filter(Boolean) || [];
+  }, [campaign?.abilities]);
+
+  const handleRunMutationTest = () => {
+    if (!mutationCommand.trim()) {
+      toast.error('Enter a command to test');
+      return;
+    }
+    if (!mutationSigmaYaml.trim()) {
+      toast.error('Enter Sigma rule YAML');
+      return;
+    }
+    runMutationTest.mutate({ command: mutationCommand, sigmaYaml: mutationSigmaYaml });
+  };
+
+  const handleCorrelateWithSiem = () => {
+    const techs = campaignTechniques;
+    if (techs.length === 0) {
+      toast.error('No techniques in this campaign to correlate');
+      return;
+    }
+    correlateDetections.mutate({ techniques: techs });
   };
 
   const handleLoadAPT29Abilities = () => {
@@ -433,6 +496,230 @@ export default function CampaignDetail() {
                 <p className="text-muted-foreground mb-4">No abilities loaded</p>
                 <p className="text-sm text-muted-foreground">
                   Click "Load APT29-VCD Enhanced" to populate with 46 abilities for VMware Cloud Director environments
+                </p>
+              </div>
+            )}
+          </section>
+
+          <div className="w-full h-0.5 bg-primary" />
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* MUTATION TEST & SIEM CORRELATION SECTION                      */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl flex items-center gap-2">
+                <FlaskConical className="w-6 h-6 text-primary" />
+                EVASION TESTING
+              </h2>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-display"
+                  onClick={() => setShowMutationTest(!showMutationTest)}
+                >
+                  <FlaskConical className="w-4 h-4 mr-2" />
+                  RUN MUTATION TEST
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-display"
+                  onClick={handleCorrelateWithSiem}
+                  disabled={correlateDetections.isPending || campaignTechniques.length === 0}
+                >
+                  {correlateDetections.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Shield className="w-4 h-4 mr-2" />
+                  )}
+                  SIEM CORRELATION
+                </Button>
+              </div>
+            </div>
+
+            {/* Mutation Test Panel */}
+            {showMutationTest && (
+              <div className="bg-card border-2 border-border p-6 mb-4">
+                <h3 className="font-display text-lg mb-4 flex items-center gap-2">
+                  <ShieldOff className="w-5 h-5 text-yellow-500" />
+                  SIGMA RULE MUTATION TEST
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Test a command against a Sigma rule to see how many mutation variants evade detection.
+                  Use this before launching an engagement to validate your evasion posture.
+                </p>
+                <div className="grid md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-display tracking-wider text-muted-foreground mb-2">
+                      COMMAND TO TEST
+                    </label>
+                    <Textarea
+                      value={mutationCommand}
+                      onChange={(e: any) => setMutationCommand(e.target.value)}
+                      placeholder="e.g., powershell.exe -enc SQBFAFgAIAAoA..."
+                      className="font-mono text-sm min-h-[100px] bg-secondary border-border"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-display tracking-wider text-muted-foreground mb-2">
+                      SIGMA RULE (YAML)
+                    </label>
+                    <Textarea
+                      value={mutationSigmaYaml}
+                      onChange={(e: any) => setMutationSigmaYaml(e.target.value)}
+                      placeholder={`title: Suspicious PowerShell Execution\nstatus: experimental\nlogsource:\n  category: process_creation\n  product: windows\ndetection:\n  selection:\n    CommandLine|contains:\n      - '-enc'\n      - '-encodedcommand'\n  condition: selection`}
+                      className="font-mono text-sm min-h-[100px] bg-secondary border-border"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    className="font-display bg-primary hover:bg-primary/90"
+                    onClick={handleRunMutationTest}
+                    disabled={runMutationTest.isPending}
+                  >
+                    {runMutationTest.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4 mr-2" />
+                    )}
+                    RUN TEST
+                  </Button>
+                </div>
+
+                {/* Mutation Test Results */}
+                {runMutationTest.data && (
+                  <div className="mt-4 border-t border-border pt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="bg-secondary/50 p-3">
+                        <div className="text-xs text-muted-foreground font-display">ROBUSTNESS</div>
+                        <div className="text-2xl font-display">{runMutationTest.data.robustnessScore}%</div>
+                        <Badge variant={runMutationTest.data.robustnessScore >= 70 ? 'default' : 'destructive'} className="mt-1">
+                          {runMutationTest.data.robustnessClass?.toUpperCase()}
+                        </Badge>
+                      </div>
+                      <div className="bg-secondary/50 p-3">
+                        <div className="text-xs text-muted-foreground font-display">TOTAL VARIANTS</div>
+                        <div className="text-2xl font-display">{runMutationTest.data.totalVariants}</div>
+                      </div>
+                      <div className="bg-secondary/50 p-3">
+                        <div className="text-xs text-muted-foreground font-display">DETECTED</div>
+                        <div className="text-2xl font-display text-green-400">{runMutationTest.data.detectedCount}</div>
+                      </div>
+                      <div className="bg-secondary/50 p-3">
+                        <div className="text-xs text-muted-foreground font-display">EVADED</div>
+                        <div className="text-2xl font-display text-red-400">{runMutationTest.data.evadedCount}</div>
+                      </div>
+                    </div>
+                    {runMutationTest.data.hardeningTips && runMutationTest.data.hardeningTips.length > 0 && (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 p-3">
+                        <div className="text-xs font-display text-yellow-500 mb-2 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> HARDENING TIPS
+                        </div>
+                        <ul className="text-sm space-y-1">
+                          {runMutationTest.data.hardeningTips.map((tip: string, i: number) => (
+                            <li key={i} className="text-muted-foreground">• {tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SIEM Correlation Results */}
+            {siemCorrelation && (
+              <div className="bg-card border-2 border-border p-6">
+                <h3 className="font-display text-lg mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  LIVE SIEM DETECTION CORRELATION
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-secondary/50 p-3">
+                    <div className="text-xs text-muted-foreground font-display">COVERAGE</div>
+                    <div className="text-2xl font-display">{siemCorrelation.stats.coveragePercent}%</div>
+                    <Progress value={siemCorrelation.stats.coveragePercent} className="mt-2 h-1" />
+                  </div>
+                  <div className="bg-secondary/50 p-3">
+                    <div className="text-xs text-muted-foreground font-display">DETECTED</div>
+                    <div className="text-2xl font-display text-green-400">{siemCorrelation.stats.detectedTechniques}</div>
+                  </div>
+                  <div className="bg-secondary/50 p-3">
+                    <div className="text-xs text-muted-foreground font-display">UNDETECTED</div>
+                    <div className="text-2xl font-display text-red-400">{siemCorrelation.stats.undetectedTechniques}</div>
+                  </div>
+                  <div className="bg-secondary/50 p-3">
+                    <div className="text-xs text-muted-foreground font-display">TOTAL ALERTS</div>
+                    <div className="text-2xl font-display">{siemCorrelation.totalAlerts}</div>
+                  </div>
+                </div>
+
+                {/* Detection gaps */}
+                {siemCorrelation.stats.detectionGaps.length > 0 && (
+                  <div className="bg-red-500/10 border border-red-500/30 p-3 mb-4">
+                    <div className="text-xs font-display text-red-400 mb-2 flex items-center gap-1">
+                      <XCircle className="w-3 h-3" /> DETECTION GAPS ({siemCorrelation.stats.detectionGaps.length} techniques)
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {siemCorrelation.stats.detectionGaps.map((tech: string) => (
+                        <Badge key={tech} variant="outline" className="font-mono text-red-400 border-red-500/30">
+                          {tech}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Per-technique correlation table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/50">
+                        <th className="px-3 py-2 text-left text-xs font-display text-muted-foreground">TECHNIQUE</th>
+                        <th className="px-3 py-2 text-left text-xs font-display text-muted-foreground">DETECTED</th>
+                        <th className="px-3 py-2 text-left text-xs font-display text-muted-foreground">ALERTS</th>
+                        <th className="px-3 py-2 text-left text-xs font-display text-muted-foreground">MAX SEVERITY</th>
+                        <th className="px-3 py-2 text-left text-xs font-display text-muted-foreground">DETECTION RULES</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {siemCorrelation.correlations.slice(0, 20).map((c: any) => (
+                        <tr key={c.techniqueId} className="border-b border-border/50 hover:bg-secondary/30">
+                          <td className="px-3 py-2 font-mono text-primary">{c.techniqueId}</td>
+                          <td className="px-3 py-2">
+                            {c.detected ? (
+                              <CheckCircle className="w-4 h-4 text-green-400" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-red-400" />
+                            )}
+                          </td>
+                          <td className="px-3 py-2">{c.alertCount}</td>
+                          <td className="px-3 py-2">
+                            <Badge variant={c.maxSeverity === 'critical' ? 'destructive' : c.maxSeverity === 'high' ? 'destructive' : 'secondary'} className="text-xs">
+                              {c.maxSeverity.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground truncate max-w-[200px]">
+                            {c.detectionRules.join(', ') || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Empty state when no tests run yet */}
+            {!showMutationTest && !siemCorrelation && (
+              <div className="bg-card border-2 border-border p-6 text-center">
+                <FlaskConical className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-muted-foreground mb-2">No evasion tests run for this campaign yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Use "Run Mutation Test" to validate Sigma rules or "SIEM Correlation" to check live detection coverage
                 </p>
               </div>
             )}

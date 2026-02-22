@@ -23,6 +23,7 @@ import { emailSecurityConnector } from "./email-security";
 import { httpSecurityConnector } from "./http-security";
 import { cloudAssetsConnector } from "./cloud-assets";
 import { dnsDeepConnector } from "./dns-deep";
+import { githubLeaksConnector } from "./github-leaks";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
@@ -46,6 +47,7 @@ const ALL_CONNECTORS: PassiveConnector[] = [
   httpSecurityConnector,      // HTTP security headers & WAF detection
   cloudAssetsConnector,       // Cloud storage enumeration (S3/Azure/GCP)
   dnsDeepConnector,           // Comprehensive DNS record analysis
+  githubLeaksConnector,       // GitHub code leak scanner (Priority #10)
 ];
 
 export interface PassiveReconConfig {
