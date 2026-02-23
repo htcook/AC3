@@ -80,6 +80,11 @@ const ScanHistory = lazy(() => import("./pages/ScanHistory"));
 const TrainingDashboard = lazy(() => import("./pages/TrainingDashboard"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 const ValidationScheduler = lazy(() => import("./pages/ValidationScheduler"));
+const CloudAttackPaths = lazy(() => import("./pages/CloudAttackPaths"));
+const ADAttackSim = lazy(() => import("./pages/ADAttackSim"));
+const EDRValidation = lazy(() => import("./pages/EDRValidation"));
+const ComplianceMapper = lazy(() => import("./pages/ComplianceMapper"));
+const APISecurityTesting = lazy(() => import("./pages/APISecurityTesting"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -377,6 +382,21 @@ function Router() {
           <ProtectedRoute component={BiaReport} />
         </Route>
         <Route path="/portal/:token" component={ClientPortal} />
+        <Route path="/cloud-attack-paths">
+          <ProtectedRoute component={CloudAttackPaths} />
+        </Route>
+        <Route path="/ad-attack-sim">
+          <ProtectedRoute component={ADAttackSim} />
+        </Route>
+        <Route path="/edr-validation">
+          <ProtectedRoute component={EDRValidation} />
+        </Route>
+        <Route path="/compliance-mapper">
+          <ProtectedRoute component={ComplianceMapper} />
+        </Route>
+        <Route path="/api-security-testing">
+          <ProtectedRoute component={APISecurityTesting} />
+        </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

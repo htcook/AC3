@@ -2517,3 +2517,381 @@ export const validationSchedules = mysqlTable("validation_schedules", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+
+// ============================================================
+// Cloud-Native Attack Paths
+// ============================================================
+
+export const cloudProviders = mysqlTable("cloud_providers", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  provider: mysqlEnum("provider", ["aws", "azure", "gcp"]).notNull(),
+  accountId: varchar("account_id", { length: 255 }).notNull(),
+  accountAlias: varchar("account_alias", { length: 255 }),
+  region: varchar("region", { length: 64 }),
+  status: mysqlEnum("status", ["active", "inactive", "scanning"]).default("active").notNull(),
+  lastScanAt: timestamp("last_scan_at"),
+  config: json("config"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const cloudIdentities = mysqlTable("cloud_identities", {
+  id: int("id").autoincrement().primaryKey(),
+  providerId: int("provider_id").notNull(),
+  identityType: mysqlEnum("identity_type", ["user", "role", "service_account", "group", "app_registration"]).notNull(),
+  arn: varchar("arn", { length: 512 }),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  isPrivileged: boolean("is_privileged").default(false),
+  lastActivity: timestamp("last_activity"),
+  permissions: json("permissions"),
+  policies: json("policies"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const cloudAttackPaths = mysqlTable("cloud_attack_paths", {
+  id: int("id").autoincrement().primaryKey(),
+  providerId: int("provider_id").notNull(),
+  engagementId: int("engagement_id"),
+  pathName: varchar("path_name", { length: 255 }).notNull(),
+  attackType: mysqlEnum("attack_type", [
+    "privilege_escalation", "role_chaining", "cross_account",
+    "service_account_impersonation", "org_policy_bypass",
+    "consent_grant_abuse", "app_registration_abuse", "pim_escalation",
+    "s3_public_access", "storage_misconfiguration", "iam_misconfiguration",
+    "lateral_movement", "data_exfiltration"
+  ]).notNull(),
+  provider: mysqlEnum("cloud_provider", ["aws", "azure", "gcp"]).notNull(),
+  sourceIdentity: varchar("source_identity", { length: 512 }),
+  targetResource: varchar("target_resource", { length: 512 }),
+  pathNodes: json("path_nodes"),
+  riskScore: double("risk_score"),
+  severity: mysqlEnum("severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  description: text("description"),
+  mitreTechniques: json("mitre_techniques"),
+  remediationSteps: json("remediation_steps"),
+  status: mysqlEnum("path_status", ["open", "exploited", "mitigated", "accepted"]).default("open"),
+  exploitedAt: timestamp("exploited_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const cloudMisconfigurations = mysqlTable("cloud_misconfigurations", {
+  id: int("id").autoincrement().primaryKey(),
+  providerId: int("provider_id").notNull(),
+  resourceType: varchar("resource_type", { length: 128 }).notNull(),
+  resourceArn: varchar("resource_arn", { length: 512 }),
+  resourceName: varchar("resource_name", { length: 255 }),
+  misconfigType: varchar("misconfig_type", { length: 128 }).notNull(),
+  severity: mysqlEnum("misconfig_severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  description: text("description"),
+  currentValue: text("current_value"),
+  expectedValue: text("expected_value"),
+  remediationSteps: text("remediation_steps"),
+  complianceFrameworks: json("compliance_frameworks"),
+  status: mysqlEnum("misconfig_status", ["open", "remediated", "accepted", "false_positive"]).default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// Active Directory Attack Simulation
+// ============================================================
+
+export const adEnvironments = mysqlTable("ad_environments", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  domainName: varchar("domain_name", { length: 255 }).notNull(),
+  domainController: varchar("domain_controller", { length: 255 }),
+  forestName: varchar("forest_name", { length: 255 }),
+  functionalLevel: varchar("functional_level", { length: 64 }),
+  status: mysqlEnum("ad_status", ["connected", "disconnected", "scanning", "error"]).default("disconnected").notNull(),
+  lastEnumAt: timestamp("last_enum_at"),
+  connectionConfig: json("connection_config"),
+  stats: json("stats"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const adObjects = mysqlTable("ad_objects", {
+  id: int("id").autoincrement().primaryKey(),
+  environmentId: int("environment_id").notNull(),
+  objectType: mysqlEnum("object_type", ["user", "group", "computer", "gpo", "ou", "trust", "spn", "certificate_template"]).notNull(),
+  distinguishedName: varchar("distinguished_name", { length: 1024 }),
+  samAccountName: varchar("sam_account_name", { length: 255 }),
+  displayName: varchar("display_name", { length: 255 }),
+  isPrivileged: boolean("is_privileged").default(false),
+  isEnabled: boolean("is_enabled").default(true),
+  memberOf: json("member_of"),
+  members: json("members"),
+  properties: json("properties"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const adAttackSimulations = mysqlTable("ad_attack_simulations", {
+  id: int("id").autoincrement().primaryKey(),
+  environmentId: int("environment_id").notNull(),
+  engagementId: int("engagement_id"),
+  attackType: mysqlEnum("ad_attack_type", [
+    "kerberoasting", "as_rep_roasting", "dcsync",
+    "golden_ticket", "silver_ticket", "pass_the_hash",
+    "pass_the_ticket", "overpass_the_hash", "skeleton_key",
+    "dcshadow", "sid_history_injection", "gpo_abuse",
+    "certificate_abuse", "constrained_delegation", "unconstrained_delegation",
+    "resource_based_constrained_delegation", "ad_enumeration"
+  ]).notNull(),
+  targetObject: varchar("target_object", { length: 512 }),
+  sourceObject: varchar("source_object", { length: 512 }),
+  status: mysqlEnum("sim_status", ["pending", "running", "success", "failed", "blocked"]).default("pending").notNull(),
+  riskScore: double("risk_score"),
+  severity: mysqlEnum("ad_severity", ["critical", "high", "medium", "low"]).default("high"),
+  description: text("description"),
+  attackPath: json("attack_path"),
+  prerequisites: json("prerequisites"),
+  mitreTechniques: json("mitre_techniques"),
+  evidence: json("evidence"),
+  remediationSteps: json("remediation_steps"),
+  detectedBy: json("detected_by"),
+  executedAt: timestamp("executed_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const adAttackPaths = mysqlTable("ad_attack_paths", {
+  id: int("id").autoincrement().primaryKey(),
+  environmentId: int("environment_id").notNull(),
+  pathName: varchar("path_name", { length: 255 }).notNull(),
+  sourceNode: varchar("source_node", { length: 512 }).notNull(),
+  targetNode: varchar("target_node", { length: 512 }).notNull(),
+  pathLength: int("path_length"),
+  pathNodes: json("path_nodes"),
+  pathEdges: json("path_edges"),
+  riskScore: double("risk_score"),
+  isShortestPath: boolean("is_shortest_path").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// EDR Effectiveness Validation
+// ============================================================
+
+export const edrProducts = mysqlTable("edr_products", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  productName: varchar("product_name", { length: 255 }).notNull(),
+  vendor: varchar("vendor", { length: 255 }).notNull(),
+  version: varchar("version", { length: 64 }),
+  deploymentType: mysqlEnum("deployment_type", ["endpoint", "network", "cloud", "hybrid"]).default("endpoint"),
+  agentCount: int("agent_count"),
+  config: json("config"),
+  status: mysqlEnum("edr_status", ["active", "inactive", "testing"]).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const edrTestCatalog = mysqlTable("edr_test_catalog", {
+  id: int("id").autoincrement().primaryKey(),
+  testName: varchar("test_name", { length: 255 }).notNull(),
+  category: mysqlEnum("test_category", [
+    "process_injection", "credential_access", "defense_evasion",
+    "lateral_movement", "persistence", "privilege_escalation",
+    "command_and_control", "exfiltration", "execution",
+    "discovery", "collection", "impact"
+  ]).notNull(),
+  mitreTechniqueId: varchar("mitre_technique_id", { length: 32 }),
+  mitreTechniqueName: varchar("mitre_technique_name", { length: 255 }),
+  description: text("description"),
+  testBinaryType: mysqlEnum("binary_type", ["safe_mimikatz", "safe_injection", "safe_dump", "safe_lateral", "safe_persist", "safe_c2", "safe_exfil", "custom"]).default("custom"),
+  testPayload: json("test_payload"),
+  expectedBehavior: text("expected_behavior"),
+  riskLevel: mysqlEnum("test_risk", ["safe", "low", "medium", "high"]).default("safe"),
+  isBuiltin: boolean("is_builtin").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const edrTestResults = mysqlTable("edr_test_results", {
+  id: int("id").autoincrement().primaryKey(),
+  edrProductId: int("edr_product_id").notNull(),
+  testCatalogId: int("test_catalog_id").notNull(),
+  engagementId: int("engagement_id"),
+  executionStatus: mysqlEnum("execution_status", ["pending", "running", "completed", "error"]).default("pending").notNull(),
+  detectionResult: mysqlEnum("detection_result", ["detected", "missed", "partial", "delayed", "blocked"]),
+  detectionTimeMs: int("detection_time_ms"),
+  alertSeverity: varchar("alert_severity", { length: 32 }),
+  alertTitle: varchar("alert_title", { length: 512 }),
+  responseAction: varchar("response_action", { length: 255 }),
+  falsePositive: boolean("false_positive").default(false),
+  evidence: json("evidence"),
+  notes: text("notes"),
+  executedAt: timestamp("executed_at"),
+  detectedAt: timestamp("detected_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const edrCoverageMatrix = mysqlTable("edr_coverage_matrix", {
+  id: int("id").autoincrement().primaryKey(),
+  edrProductId: int("edr_product_id").notNull(),
+  mitreTacticId: varchar("mitre_tactic_id", { length: 32 }).notNull(),
+  mitreTechniqueId: varchar("mitre_technique_id", { length: 32 }).notNull(),
+  totalTests: int("total_tests").default(0),
+  detected: int("detected").default(0),
+  missed: int("missed").default(0),
+  partial: int("partial").default(0),
+  blocked: int("blocked").default(0),
+  avgDetectionTimeMs: int("avg_detection_time_ms"),
+  coverageScore: double("coverage_score"),
+  lastTestedAt: timestamp("last_tested_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ============================================================
+// Compliance Framework Mapping
+// ============================================================
+
+export const complianceFrameworks = mysqlTable("compliance_frameworks", {
+  id: int("id").autoincrement().primaryKey(),
+  frameworkName: varchar("framework_name", { length: 128 }).notNull(),
+  frameworkVersion: varchar("framework_version", { length: 32 }),
+  frameworkType: mysqlEnum("framework_type", ["soc2", "iso27001", "nist_csf", "pci_dss", "hipaa", "cis", "fedramp", "dod_stig", "cmmc", "custom"]).notNull(),
+  description: text("description"),
+  totalControls: int("total_controls"),
+  controlHierarchy: json("control_hierarchy"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const complianceControls = mysqlTable("compliance_controls", {
+  id: int("id").autoincrement().primaryKey(),
+  frameworkId: int("framework_id").notNull(),
+  controlId: varchar("control_id", { length: 64 }).notNull(),
+  controlName: varchar("control_name", { length: 512 }).notNull(),
+  controlDescription: text("control_description"),
+  parentControlId: varchar("parent_control_id", { length: 64 }),
+  category: varchar("category", { length: 255 }),
+  subcategory: varchar("subcategory", { length: 255 }),
+  implementationGuidance: text("implementation_guidance"),
+  testProcedures: json("test_procedures"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const complianceMappings = mysqlTable("compliance_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  controlId: int("control_id").notNull(),
+  engagementId: int("engagement_id"),
+  findingType: varchar("finding_type", { length: 128 }),
+  findingId: int("finding_id"),
+  findingSource: mysqlEnum("finding_source", ["vulnerability", "misconfiguration", "attack_path", "edr_test", "pentest", "manual"]).notNull(),
+  mappingStatus: mysqlEnum("mapping_status", ["covered", "gap", "partial", "not_applicable", "compensating"]).default("gap").notNull(),
+  evidenceNotes: text("evidence_notes"),
+  compensatingControl: text("compensating_control"),
+  riskAcceptance: text("risk_acceptance"),
+  assessedBy: varchar("assessed_by", { length: 255 }),
+  assessedAt: timestamp("assessed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const complianceReports = mysqlTable("compliance_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  frameworkId: int("framework_id").notNull(),
+  reportName: varchar("report_name", { length: 255 }).notNull(),
+  totalControls: int("total_controls").default(0),
+  coveredControls: int("covered_controls").default(0),
+  gapControls: int("gap_controls").default(0),
+  partialControls: int("partial_controls").default(0),
+  naControls: int("na_controls").default(0),
+  overallScore: double("overall_score"),
+  reportData: json("report_data"),
+  generatedBy: varchar("generated_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
+// API Security Testing
+// ============================================================
+
+export const apiTargets = mysqlTable("api_targets", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  name: varchar("api_name", { length: 255 }).notNull(),
+  baseUrl: varchar("base_url", { length: 1024 }).notNull(),
+  specType: mysqlEnum("spec_type", ["openapi_3", "openapi_2", "swagger", "graphql", "grpc", "manual"]).default("manual"),
+  specUrl: varchar("spec_url", { length: 1024 }),
+  specContent: json("spec_content"),
+  authType: mysqlEnum("auth_type", ["none", "api_key", "bearer", "basic", "oauth2", "custom"]).default("none"),
+  authConfig: json("auth_config"),
+  totalEndpoints: int("total_endpoints").default(0),
+  status: mysqlEnum("api_status", ["active", "inactive", "scanning"]).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const apiEndpoints = mysqlTable("api_endpoints", {
+  id: int("id").autoincrement().primaryKey(),
+  targetId: int("target_id").notNull(),
+  method: mysqlEnum("http_method", ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]).notNull(),
+  path: varchar("endpoint_path", { length: 1024 }).notNull(),
+  operationId: varchar("operation_id", { length: 255 }),
+  summary: text("summary"),
+  parameters: json("parameters"),
+  requestBody: json("request_body"),
+  responseSchemas: json("response_schemas"),
+  authRequired: boolean("auth_required").default(false),
+  rateLimited: boolean("rate_limited").default(false),
+  deprecated: boolean("deprecated").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const apiSecurityTests = mysqlTable("api_security_tests", {
+  id: int("id").autoincrement().primaryKey(),
+  testName: varchar("api_test_name", { length: 255 }).notNull(),
+  owaspCategory: mysqlEnum("owasp_category", [
+    "API1_BOLA", "API2_BROKEN_AUTH", "API3_OBJECT_PROPERTY",
+    "API4_UNRESTRICTED_CONSUMPTION", "API5_BROKEN_FUNCTION_AUTH",
+    "API6_SERVER_SIDE_REQUEST_FORGERY", "API7_SECURITY_MISCONFIGURATION",
+    "API8_LACK_OF_PROTECTION", "API9_IMPROPER_INVENTORY",
+    "API10_UNSAFE_API_CONSUMPTION"
+  ]).notNull(),
+  description: text("api_test_description"),
+  testType: mysqlEnum("test_type", ["automated", "semi_automated", "manual"]).default("automated"),
+  testPayload: json("test_payload"),
+  expectedResult: text("expected_result"),
+  severity: mysqlEnum("api_test_severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  isBuiltin: boolean("is_builtin").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const apiTestResults = mysqlTable("api_test_results", {
+  id: int("id").autoincrement().primaryKey(),
+  endpointId: int("endpoint_id").notNull(),
+  testId: int("test_id").notNull(),
+  engagementId: int("engagement_id"),
+  result: mysqlEnum("test_result", ["vulnerable", "secure", "error", "inconclusive", "skipped"]).default("inconclusive").notNull(),
+  severity: mysqlEnum("result_severity", ["critical", "high", "medium", "low", "info"]),
+  requestSent: json("request_sent"),
+  responseReceived: json("response_received"),
+  evidence: json("api_evidence"),
+  notes: text("api_notes"),
+  falsePositive: boolean("api_false_positive").default(false),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const apiFuzzingRuns = mysqlTable("api_fuzzing_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  targetId: int("target_id").notNull(),
+  engagementId: int("engagement_id"),
+  fuzzType: mysqlEnum("fuzz_type", ["parameter_mutation", "injection", "auth_bypass", "rate_limit", "schema_violation"]).notNull(),
+  status: mysqlEnum("fuzz_status", ["pending", "running", "completed", "error"]).default("pending").notNull(),
+  totalRequests: int("total_requests").default(0),
+  anomaliesFound: int("anomalies_found").default(0),
+  errorsFound: int("errors_found").default(0),
+  config: json("fuzz_config"),
+  results: json("fuzz_results"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});

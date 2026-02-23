@@ -38,6 +38,11 @@ import { threatIntelTrainingRouter } from "./routers/threat-intel-training";
 import { roeAuditRouter } from "./routers/roe-audit";
 import { validationSchedulerRouter } from "./routers/validation-scheduler";
 import { detectionRulesRouter } from "./routers/detection-rules";
+import { cloudAttackPathsRouter } from "./routers/cloud-attack-paths";
+import { adAttackSimRouter } from "./routers/ad-attack-sim";
+import { edrValidationRouter } from "./routers/edr-validation";
+import { complianceMapperRouter } from "./routers/compliance-mapper";
+import { apiSecurityRouter } from "./routers/api-security";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -158,6 +163,11 @@ export const appRouter = router({
   roeAudit: roeAuditRouter,
   validationScheduler: validationSchedulerRouter,
   detectionRules: detectionRulesRouter,
+  cloudAttackPaths: cloudAttackPathsRouter,
+  adAttackSim: adAttackSimRouter,
+  edrValidation: edrValidationRouter,
+  complianceMapper: complianceMapperRouter,
+  apiSecurity: apiSecurityRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

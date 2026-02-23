@@ -3282,3 +3282,87 @@
 - [x] Pull offensive_audit_log entries for the engagement
 - [x] Include ROE status, dates, and scope in the section
 - [x] List all offensive actions with operator, timestamp, and result
+
+## Competitive Analysis & Gap Identification (Round 2)
+- [x] Review previous competitive analysis results
+- [x] Inventory current Ace C3 platform features
+- [x] Research leading competitors (Cobalt Strike, Pentera, AttackIQ, SafeBreach, Cymulate, etc.)
+- [x] Build feature comparison matrix
+- [x] Identify closed gaps since last analysis
+- [x] Identify remaining gaps and new opportunities
+- [x] Compile final competitive analysis report
+
+## Strategic Recommendation: Cloud-Native Attack Paths
+- [x] Create cloud-attack-paths.ts library module (AWS IAM, Azure Entra ID, GCP IAM)
+- [x] Build AWS IAM attack path analysis (privilege escalation, role chaining, cross-account access)
+- [x] Build Azure Entra ID attack path analysis (app registration abuse, consent grants, PIM escalation)
+- [x] Build GCP IAM attack path analysis (service account impersonation, org policy bypass)
+- [x] Build cloud misconfiguration scanner (S3 public buckets, storage accounts, GCS permissions)
+- [x] Build cloud identity graph builder (users → roles → permissions → resources)
+- [x] Add cloud attack path schema tables to database
+- [x] Create tRPC router for cloud attack paths
+- [x] Build Cloud Attack Paths UI page with provider tabs and graph visualization
+- [x] Wire route in App.tsx and add sidebar navigation entry
+
+## Strategic Recommendation: Active Directory Attack Simulation
+- [x] Create ad-attack-sim.ts library module
+- [x] Build AD enumeration module (users, groups, GPOs, trusts, SPNs)
+- [x] Build Kerberoasting attack simulation
+- [x] Build AS-REP Roasting attack simulation
+- [x] Build DCSync attack simulation
+- [x] Build Golden/Silver Ticket attack simulation
+- [x] Build AD attack path graph (user → group → admin → DC)
+- [x] Add AD attack schema tables to database
+- [x] Create tRPC router for AD attack simulation
+- [x] Build AD Attack Simulation UI page with attack technique cards and path visualization
+- [x] Wire route in App.tsx and add sidebar navigation entry
+
+## Strategic Recommendation: EDR Effectiveness Validation
+- [x] Create edr-validation.ts library module
+- [x] Build safe test binary catalog (mimikatz-like, process injection, credential dump, lateral movement)
+- [x] Build EDR test execution engine (deploy test, monitor detection, collect results)
+- [x] Build EDR coverage matrix (technique → EDR product → detected/missed)
+- [x] Build EDR effectiveness scoring (detection rate, response time, alert fidelity)
+- [x] Add EDR validation schema tables to database
+- [x] Create tRPC router for EDR validation
+- [x] Build EDR Validation UI page with test catalog, execution panel, and coverage matrix
+- [x] Wire route in App.tsx and add sidebar navigation entry
+
+## Strategic Recommendation: Compliance Framework Mapping
+- [x] Create compliance-mapper.ts library module
+- [x] Build SOC 2 control mapping (Trust Services Criteria → findings)
+- [x] Build ISO 27001 control mapping (Annex A controls → findings)
+- [x] Build NIST CSF mapping (Functions/Categories/Subcategories → findings)
+- [x] Build PCI DSS mapping (Requirements → findings)
+- [x] Build compliance gap analysis engine (covered vs uncovered controls)
+- [x] Build compliance report generator (per-framework PDF sections)
+- [x] Add compliance mapping schema tables to database
+- [x] Create tRPC router for compliance mapping
+- [x] Build Compliance Frameworks UI page with framework selector and gap visualization
+- [x] Wire route in App.tsx and add sidebar navigation entry
+
+## Strategic Recommendation: API Security Testing
+- [x] Create api-security-tester.ts library module
+- [x] Build OWASP API Top 10 test catalog (BOLA, broken auth, excessive data, etc.)
+- [x] Build API endpoint discovery (OpenAPI/Swagger parsing, traffic analysis)
+- [x] Build API fuzzing engine (parameter mutation, injection payloads, auth bypass)
+- [x] Build API authentication testing (JWT manipulation, OAuth flow abuse, API key leakage)
+- [x] Build API rate limiting and resource testing
+- [x] Add API security schema tables to database
+- [x] Create tRPC router for API security testing
+- [x] Build API Security Testing UI page with endpoint catalog, test runner, and results
+- [x] Wire route in App.tsx and add sidebar navigation entry
+
+## Tests for Strategic Recommendations
+- [x] Write tests for cloud attack paths module
+- [x] Write tests for AD attack simulation module
+- [x] Write tests for EDR validation module
+- [x] Write tests for compliance mapping module
+- [x] Write tests for API security testing module
+
+## Additional Compliance Frameworks
+- [x] Add FedRAMP compliance framework controls to compliance mapper
+- [x] Add DoD STIG compliance framework controls to compliance mapper
+- [x] Add CMMC 2.0 compliance framework controls to compliance mapper
+- [x] Update schema enum to include fedramp, dod_stig, cmmc types
+- [x] Update compliance UI to support new frameworks

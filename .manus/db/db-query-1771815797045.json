@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `cloud_providers` (`id` int AUTO_INCREMENT NOT NULL, `engagement_id` int, `provider` enum('aws','azure','gcp') NOT NULL, `account_id` varchar(255) NOT NULL, `account_alias` varchar(255), `region` varchar(64), `status` enum('active','inactive','scanning') NOT NULL DEFAULT 'active', `last_scan_at` timestamp, `config` json, `created_at` timestamp DEFAULT (now()), `updated_at` timestamp DEFAULT (now()), CONSTRAINT `cloud_providers_id` PRIMARY KEY(`id`));",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `cloud_providers` (`id` int AUTO_INCREMENT NOT NULL, `engagement_id` int, `provider` enum('aws','azure','gcp') NOT NULL, `account_id` varchar(255) NOT NULL, `account_alias` varchar(255), `region` varchar(64), `status` enum('active','inactive','scanning') NOT NULL DEFAULT 'active', `last_scan_at` timestamp, `config` json, `created_at` timestamp DEFAULT (now()), `updated_at` timestamp DEFAULT (now()), CONSTRAINT `cloud_providers_id` PRIMARY KEY(`id`));",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 211
+}
