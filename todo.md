@@ -3537,3 +3537,32 @@
 - [x] Add NVD API lookupCve, matchProductToCves, getNvdApiStatus functions
 - [x] Add evaluateCompensatingControls, getControlCatalog, calculateRiskAdjustment functions
 - [x] Add corroborateFromSources, getAvailableSources functions
+
+## Rerun Platform Analysis (February 23, 2026)
+
+- [x] Audit all 20 platform modules against current codebase for updated accuracy ratings
+- [x] Audit all 11 improvements for implementation status (implemented vs remaining)
+- [x] Research latest competitor updates (Picus, Horizon3, Pentera, Cymulate) for 2026
+- [x] Produce updated Ace C3 Platform Analysis report with revised ratings and roadmap
+
+## Brand New Competitive Analysis (February 23, 2026)
+
+- [x] Research all major AEV/BAS/CTEM competitors (Pentera, Horizon3, Picus, Cymulate, AttackIQ, SafeBreach, XM Cyber, RidgeBot, Bishop Fox)
+- [x] Research market landscape, Gartner/Forrester analyst coverage, market sizing
+- [x] Deep-dive each competitor: pricing, features, strengths, weaknesses, recent funding/acquisitions
+- [x] Full Ace C3 codebase capability audit for competitive comparison
+- [x] Write comprehensive competitive analysis report with SWOT, feature matrices, and strategic recommendations
+- [x] Generate PDF and deliver
+
+## Attack Paths Page & Module Audit (February 23, 2026)
+
+- [x] Identify all attack-path related files (11 files: 4 client pages, 4 routers, 3 libs)
+- [x] Audit client-side AttackPaths pages for UI/TS errors (found 10 issues)
+- [x] Audit server-side attack-paths routers for logic/TS errors
+- [x] Audit server-side attack-paths libraries for logic/TS errors
+- [x] Fix all 10 identified errors (5 critical, 5 moderate)
+- [x] Run TypeScript checks (0 errors) and tests (19/19 passing)
+- [x] ADAttackPathGraph.tsx: Fixed edge.relationship→edge.type, node.risk→node.riskScore, path.riskScore→path.riskLevel, path.nodeIds→path.nodes
+- [x] ADAttackPathGraph.tsx: Added missing dc/service_account nodeColors and 10 missing edgeColors
+- [x] AttackPathDiscovery.tsx: Fixed pathNodes JSON string display crash, added missing node types
+- [x] CloudAttackPaths.tsx: Added provider selection for new paths, prevented FK violation on empty providers

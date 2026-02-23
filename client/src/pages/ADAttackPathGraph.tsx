@@ -18,17 +18,43 @@ const nodeColors: Record<string, { fill: string; stroke: string; text: string }>
   ou: { fill: "#374151", stroke: "#6b7280", text: "#d1d5db" },
   domain: { fill: "#991b1b", stroke: "#ef4444", text: "#fca5a5" },
   trust: { fill: "#854d0e", stroke: "#eab308", text: "#fde68a" },
+  dc: { fill: "#7f1d1d", stroke: "#dc2626", text: "#fca5a5" },
+  service_account: { fill: "#1e3a5f", stroke: "#60a5fa", text: "#bfdbfe" },
 };
 
 const edgeColors: Record<string, string> = {
   memberOf: "#3b82f6",
   adminTo: "#ef4444",
   canRDP: "#f97316",
+  canPsRemote: "#f59e0b",
   hasSession: "#a855f7",
   gpLink: "#8b5cf6",
+  contains: "#6b7280",
   trustedBy: "#10b981",
+  dcsync: "#dc2626",
+  kerberoastable: "#f43f5e",
+  asrepRoastable: "#e11d48",
+  delegateTo: "#14b8a6",
+  writeDacl: "#f97316",
+  genericAll: "#ef4444",
+  forceChangePassword: "#ec4899",
+  addMember: "#8b5cf6",
   owns: "#eab308",
   default: "#6b7280",
+};
+
+function getRiskLevelFromScore(score: number): "critical" | "high" | "medium" | "low" {
+  if (score >= 80) return "critical";
+  if (score >= 60) return "high";
+  if (score >= 30) return "medium";
+  return "low";
+}
+
+const RISK_COLORS: Record<string, string> = {
+  critical: "bg-red-500/20 text-red-400",
+  high: "bg-orange-500/20 text-orange-400",
+  medium: "bg-yellow-500/20 text-yellow-400",
+  low: "bg-green-500/20 text-green-400",
 };
 
 export default function ADAttackPathGraph() {
@@ -209,26 +235,27 @@ export default function ADAttackPathGraph() {
                             const source = nodes.find((n: any) => n.id === edge.source);
                             const target = nodes.find((n: any) => n.id === edge.target);
                             if (!source || !target || source.x == null || source.y == null || target.x == null || target.y == null) return null;
-                            const color = edgeColors[edge.relationship] || edgeColors.default;
+                            // FIX: Use edge.type (not edge.relationship) to match GraphEdge type
+                            const color = edgeColors[edge.type] || edgeColors.default;
                             return (
                               <g key={`edge-${i}`}>
                                 <line
                                   x1={source.x} y1={source.y}
                                   x2={target.x} y2={target.y}
-                                  stroke={edge.isAttackPath ? "#ef4444" : color}
-                                  strokeWidth={edge.isAttackPath ? 2.5 : 1.5}
-                                  strokeDasharray={edge.isAttackPath ? "6,3" : "none"}
+                                  stroke={edge.isExploitable ? color : "#444"}
+                                  strokeWidth={edge.isExploitable ? 2 : 1}
+                                  strokeDasharray={!edge.isExploitable ? "4,3" : "none"}
                                   opacity={0.6}
                                 />
                                 <text
                                   x={(source.x + target.x) / 2}
-                                  y={(source.y + target.y) / 2 - 6}
+                                  y={(source.y + target.y) / 2 - 4}
                                   fill={color}
                                   fontSize="8"
                                   textAnchor="middle"
                                   opacity={0.7}
                                 >
-                                  {edge.relationship}
+                                  {edge.type}
                                 </text>
                               </g>
                             );
@@ -237,6 +264,8 @@ export default function ADAttackPathGraph() {
                           {filteredNodes.map((node: any) => {
                             const colors = nodeColors[node.type] || nodeColors.user;
                             const isSelected = selectedNode?.id === node.id;
+                            // FIX: Use riskScore (number) to derive risk level string
+                            const riskLevel = getRiskLevelFromScore(node.riskScore ?? 0);
                             return (
                               <g key={node.id} onClick={() => setSelectedNode(node)} style={{ cursor: "pointer" }}>
                                 <circle
@@ -246,7 +275,7 @@ export default function ADAttackPathGraph() {
                                   stroke={isSelected ? "#fff" : colors.stroke}
                                   strokeWidth={isSelected ? 3 : 2}
                                 />
-                                {node.risk === "critical" && (
+                                {riskLevel === "critical" && (
                                   <circle cx={node.x + 14} cy={node.y - 14} r={5} fill="#ef4444" stroke="#991b1b" strokeWidth={1} />
                                 )}
                                 <text x={node.x} y={node.y + 30} fill={colors.text} fontSize="9" textAnchor="middle" fontWeight="500">
@@ -272,13 +301,9 @@ export default function ADAttackPathGraph() {
                       {Object.entries(nodeColors).map(([type, colors]) => (
                         <div key={type} className="flex items-center gap-1.5">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors.stroke }} />
-                          <span className="text-xs text-muted-foreground capitalize">{type}</span>
+                          <span className="text-xs text-muted-foreground capitalize">{type.replace(/_/g, " ")}</span>
                         </div>
                       ))}
-                      <div className="flex items-center gap-1.5 ml-4">
-                        <div className="w-6 h-0 border-t-2 border-dashed border-red-500" />
-                        <span className="text-xs text-muted-foreground">Attack Path</span>
-                      </div>
                     </div>
 
                     {/* Selected Node Detail */}
@@ -288,17 +313,26 @@ export default function ADAttackPathGraph() {
                           <div className="flex items-center justify-between">
                             <div>
                               <div className="font-medium">{selectedNode.label || selectedNode.id}</div>
-                              <div className="text-sm text-muted-foreground capitalize">{selectedNode.type}</div>
+                              <div className="text-sm text-muted-foreground capitalize">{selectedNode.type?.replace(/_/g, " ")}</div>
                             </div>
-                            {selectedNode.risk && (
-                              <Badge className={selectedNode.risk === "critical" ? "bg-red-500/20 text-red-400" : selectedNode.risk === "high" ? "bg-orange-500/20 text-orange-400" : "bg-yellow-500/20 text-yellow-400"}>
-                                {selectedNode.risk} risk
-                              </Badge>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {/* FIX: Use riskScore to show risk badge */}
+                              {selectedNode.riskScore != null && selectedNode.riskScore > 0 && (
+                                <Badge className={RISK_COLORS[getRiskLevelFromScore(selectedNode.riskScore)]}>
+                                  {getRiskLevelFromScore(selectedNode.riskScore)} risk ({selectedNode.riskScore})
+                                </Badge>
+                              )}
+                              {selectedNode.isHighValue && (
+                                <Badge className="bg-amber-500/20 text-amber-400">High Value</Badge>
+                              )}
+                              {selectedNode.isCompromised && (
+                                <Badge className="bg-red-500/20 text-red-400">Compromised</Badge>
+                              )}
+                            </div>
                           </div>
                           {selectedNode.properties && (
                             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                              {Object.entries(selectedNode.properties).map(([k, v]) => (
+                              {Object.entries(selectedNode.properties).filter(([, v]) => v != null && v !== false && v !== "").map(([k, v]) => (
                                 <div key={k}><span className="text-muted-foreground">{k}:</span> {String(v)}</div>
                               ))}
                             </div>
@@ -324,21 +358,37 @@ export default function ADAttackPathGraph() {
                       <CardContent className="py-4 px-5">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <Badge className={path.riskScore >= 8 ? "bg-red-500/20 text-red-400" : path.riskScore >= 5 ? "bg-orange-500/20 text-orange-400" : "bg-yellow-500/20 text-yellow-400"}>
-                              Risk: {path.riskScore}/10
+                            {/* FIX: Use path.riskLevel (string) instead of path.riskScore */}
+                            <Badge className={RISK_COLORS[path.riskLevel] || RISK_COLORS.medium}>
+                              {path.riskLevel}
                             </Badge>
-                            <span className="font-medium">{path.description || `Path ${i + 1}`}</span>
+                            <span className="font-medium">{path.id || `Path ${i + 1}`}</span>
                           </div>
-                          <span className="text-xs text-muted-foreground">{path.nodeIds?.length || 0} hops</span>
+                          {/* FIX: Use path.hops (number) instead of path.nodeIds?.length */}
+                          <span className="text-xs text-muted-foreground">{path.hops} hops · weight {path.totalWeight}</span>
                         </div>
+                        {/* FIX: Use path.nodes (string[]) instead of path.nodeIds */}
                         <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-                          {path.nodeIds?.map((nodeId: string, j: number) => (
-                            <span key={j} className="flex items-center gap-1">
-                              {j > 0 && <span className="text-red-400">→</span>}
-                              <span>{nodeId}</span>
-                            </span>
-                          ))}
+                          {path.nodes?.map((nodeId: string, j: number) => {
+                            const node = nodes.find((n: any) => n.id === nodeId);
+                            const label = node?.label || nodeId;
+                            const shortLabel = label.length > 20 ? label.slice(0, 18) + "..." : label;
+                            return (
+                              <span key={j} className="flex items-center gap-1">
+                                {j > 0 && <span className="text-red-400">→</span>}
+                                <span title={label}>{shortLabel}</span>
+                              </span>
+                            );
+                          })}
                         </div>
+                        {/* Show techniques used in this path */}
+                        {path.techniques && path.techniques.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {path.techniques.map((t: string, j: number) => (
+                              <Badge key={j} variant="outline" className="text-xs">{t}</Badge>
+                            ))}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))
@@ -385,15 +435,18 @@ export default function ADAttackPathGraph() {
                         <CardContent className="py-4 px-5">
                           <div className="flex items-center gap-2 mb-3">
                             <Badge className="bg-green-500/20 text-green-400">Path Found</Badge>
-                            <span className="text-sm text-muted-foreground">{foundPath.hops} hops, Risk: {foundPath.riskLevel}</span>
+                            <span className="text-sm text-muted-foreground">{foundPath.hops} hops · {foundPath.riskLevel} risk</span>
                           </div>
                           <div className="flex items-center gap-2 text-sm flex-wrap">
-                            {foundPath.nodes.map((nodeId: string, j: number) => (
-                              <span key={j} className="flex items-center gap-1">
-                                {j > 0 && <span className="text-red-400">→</span>}
-                                <Badge variant="outline">{nodeId}</Badge>
-                              </span>
-                            ))}
+                            {foundPath.nodes.map((nodeId: string, j: number) => {
+                              const node = nodes.find((n: any) => n.id === nodeId);
+                              return (
+                                <span key={j} className="flex items-center gap-1">
+                                  {j > 0 && <span className="text-red-400">→</span>}
+                                  <Badge variant="outline">{node?.label || nodeId}</Badge>
+                                </span>
+                              );
+                            })}
                           </div>
                           {foundPath.techniques && foundPath.techniques.length > 0 && (
                             <div className="mt-3">
@@ -416,6 +469,7 @@ export default function ADAttackPathGraph() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {filteredNodes.map((node: any) => {
                     const colors = nodeColors[node.type] || nodeColors.user;
+                    const riskLevel = getRiskLevelFromScore(node.riskScore ?? 0);
                     return (
                       <Card key={node.id} className="bg-card/50 border-border/50 cursor-pointer hover:border-primary/30" onClick={() => { setSelectedNode(node); setActiveTab("graph"); }}>
                         <CardContent className="py-3 px-4">
@@ -425,11 +479,11 @@ export default function ADAttackPathGraph() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="font-medium text-sm truncate">{node.label || node.id}</div>
-                              <div className="text-xs text-muted-foreground capitalize">{node.type}</div>
+                              <div className="text-xs text-muted-foreground capitalize">{node.type?.replace(/_/g, " ")}</div>
                             </div>
-                            {node.risk && (
-                              <Badge className={`shrink-0 ${node.risk === "critical" ? "bg-red-500/20 text-red-400" : node.risk === "high" ? "bg-orange-500/20 text-orange-400" : "bg-yellow-500/20 text-yellow-400"}`}>
-                                {node.risk}
+                            {node.riskScore > 0 && (
+                              <Badge className={`shrink-0 ${RISK_COLORS[riskLevel]}`}>
+                                {riskLevel}
                               </Badge>
                             )}
                           </div>

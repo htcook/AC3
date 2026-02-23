@@ -13,7 +13,6 @@ import { toast } from "sonner";
 
 interface Node {
   id: number;
-  tenantId: string;
   nodeType: string;
   name: string;
   properties: string | null;
@@ -26,7 +25,7 @@ interface Node {
 const AddNodeForm = ({ onNodeAdded }: { onNodeAdded: () => void }) => {
   const utils = trpc.useUtils();
   const { register, handleSubmit, control, reset, formState: { errors } } = useForm<{
-    nodeType: 'user'|'computer'|'group'|'service'|'database'|'application'|'cloud_resource';
+    nodeType: 'user'|'computer'|'group'|'service'|'cloud_identity'|'vulnerability'|'crown_jewel';
     name: string;
     properties?: string;
     riskScore?: number;
@@ -68,9 +67,9 @@ const AddNodeForm = ({ onNodeAdded }: { onNodeAdded: () => void }) => {
               <SelectItem value="computer">Computer</SelectItem>
               <SelectItem value="group">Group</SelectItem>
               <SelectItem value="service">Service</SelectItem>
-              <SelectItem value="database">Database</SelectItem>
-              <SelectItem value="application">Application</SelectItem>
-              <SelectItem value="cloud_resource">Cloud Resource</SelectItem>
+              <SelectItem value="cloud_identity">Cloud Identity</SelectItem>
+              <SelectItem value="vulnerability">Vulnerability</SelectItem>
+              <SelectItem value="crown_jewel">Crown Jewel</SelectItem>
             </SelectContent>
           </Select>
         )}
@@ -103,7 +102,7 @@ const AddEdgeForm = ({ nodes, onEdgeAdded }: { nodes: Node[], onEdgeAdded: () =>
     const addEdgeMutation = trpc.attackPathDiscovery.addEdge.useMutation({
         onSuccess: () => {
             toast.success("Edge added successfully!");
-            utils.attackPathDiscovery.listNodes.invalidate(); // To reflect changes if edge data affects node views
+            utils.attackPathDiscovery.listNodes.invalidate();
             reset();
             onEdgeAdded();
         },
@@ -281,12 +280,31 @@ export default function AttackPathDiscoveryPage() {
                     {discoverPathsMutation.data && (
                         discoverPathsMutation.data.paths.length > 0 ? (
                             <ul className="space-y-2">
-                                {discoverPathsMutation.data.paths.map((path: any, index: number) => (
-                                    <li key={index} className="p-2 border rounded-md">
-                                        <p className="font-semibold">{path.name}</p>
-                                        <p className="text-sm text-gray-400">{path.pathNodes.join(' -> ')}</p>
-                                    </li>
-                                ))}
+                                {discoverPathsMutation.data.paths.map((path: any, index: number) => {
+                                    // FIX: pathNodes may be a JSON string or an array of node IDs (numbers)
+                                    let pathNodeDisplay: string;
+                                    try {
+                                      const pathNodes = typeof path.pathNodes === "string"
+                                        ? JSON.parse(path.pathNodes)
+                                        : (path.nodes || path.pathNodes || []);
+                                      pathNodeDisplay = Array.isArray(pathNodes)
+                                        ? pathNodes.join(" → ")
+                                        : String(pathNodes);
+                                    } catch {
+                                      pathNodeDisplay = path.name || `Path ${index + 1}`;
+                                    }
+                                    return (
+                                      <li key={index} className="p-2 border rounded-md">
+                                          <p className="font-semibold">{path.name}</p>
+                                          <p className="text-sm text-gray-400">{pathNodeDisplay}</p>
+                                          {path.riskScore != null && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                              Risk: {path.riskScore} · Hops: {path.totalHops ?? path.nodes?.length ?? 0}
+                                            </p>
+                                          )}
+                                      </li>
+                                    );
+                                })}
                             </ul>
                         ) : (
                            !discoverPathsMutation.isPending && <p>No paths found.</p>

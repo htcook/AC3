@@ -63,6 +63,11 @@ export default function CloudAttackPaths() {
   const attackPaths = trpc.cloudAttackPaths.listAttackPaths.useQuery({});
   const stats = trpc.cloudAttackPaths.getStats.useQuery({});
 
+  // Derive selected provider ID from providers list for the new path form
+  const selectedProviderId = newPath.providerId > 0
+    ? newPath.providerId
+    : providers.data?.find(p => p.provider === newPath.provider)?.id ?? providers.data?.[0]?.id ?? 0;
+
   const addProviderMut = trpc.cloudAttackPaths.addProvider.useMutation({
     onSuccess: () => {
       toast.success("Cloud provider configuration saved.");
@@ -235,10 +240,33 @@ export default function CloudAttackPaths() {
                     <Label>Risk Score (0-10)</Label>
                     <Input type="number" min={0} max={10} step={0.1} value={newPath.riskScore} onChange={(e) => setNewPath(p => ({ ...p, riskScore: parseFloat(e.target.value) || 0 }))} />
                   </div>
+                  {/* Provider selection for the attack path */}
+                  {providers.data && providers.data.length > 1 && (
+                    <div>
+                      <Label>Target Provider Account</Label>
+                      <Select
+                        value={String(newPath.providerId || "")}
+                        onValueChange={(v) => setNewPath(p => ({ ...p, providerId: parseInt(v) || 0 }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Auto-select by provider type" /></SelectTrigger>
+                        <SelectContent>
+                          {providers.data.map(prov => (
+                            <SelectItem key={prov.id} value={String(prov.id)}>
+                              {PROVIDER_ICONS[prov.provider]} {prov.accountAlias || prov.accountId}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <Button className="w-full" onClick={() => {
                     if (!newPath.pathName) return;
+                    if (selectedProviderId === 0 && (!providers.data || providers.data.length === 0)) {
+                      toast.error("Add a cloud provider configuration first before recording attack paths.");
+                      return;
+                    }
                     addPathMut.mutate({
-                      providerId: providers.data?.[0]?.id ?? 0,
+                      providerId: selectedProviderId,
                       pathName: newPath.pathName,
                       attackType: newPath.attackType,
                       provider: newPath.provider,
