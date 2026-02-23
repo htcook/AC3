@@ -239,6 +239,13 @@
       "when": 1771833354703,
       "tag": "0033_wealthy_george_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1771869604721,
+      "tag": "0034_spotty_nightmare",
+      "breakpoints": true
     }
   ]
 }

@@ -56,7 +56,84 @@ export const vulnScannerRouter = router({
         await db.insert(vulnScanFindings).values(findingsToInsert);
       }
 
-      return { id: importId, totalVulns: result.totalVulns, totalHosts: result.totalHosts };
+      // --- Auto-corroboration pipeline ---
+      // Fetch ALL findings across ALL imports for this host set to enable cross-source corroboration
+      const { corroborateFindings, estimateFPReduction } = await import("../lib/corroboration-engine");
+      const { corroborationResults } = await import("../../drizzle/schema");
+      const { eq: eqOp, inArray } = await import("drizzle-orm");
+      
+      // Get all findings for the hosts in this import
+      const importedFindings = await db.select().from(vulnScanFindings).where(eqOp(vulnScanFindings.importId, importId));
+      
+      // Get all other findings for the same hosts (cross-source)
+      const hostIps = Array.from(new Set(importedFindings.map(f => f.hostIp).filter(Boolean))) as string[];
+      let allFindings = importedFindings;
+      if (hostIps.length > 0) {
+        const crossSourceFindings = await db.select().from(vulnScanFindings).where(inArray(vulnScanFindings.hostIp, hostIps));
+        allFindings = crossSourceFindings;
+      }
+      
+      // Map DB findings to corroboration engine Finding interface
+      const engineFindings = allFindings.map(f => ({
+        id: String(f.id),
+        title: f.title,
+        source: input.scannerType,
+        severity: f.severity as "critical" | "high" | "medium" | "low" | "info",
+        cveId: f.cveId ?? undefined,
+        hostOrAsset: f.hostIp || f.hostName || "unknown",
+        port: f.port ?? undefined,
+        service: f.protocol ?? undefined,
+        rawConfidence: f.cvssScore ? Math.min(100, Math.round(f.cvssScore * 10)) : 50,
+        timestamp: f.createdAt ? new Date(f.createdAt).getTime() : Date.now(),
+      }));
+      
+      // Run corroboration
+      const corroborationReport = corroborateFindings(engineFindings);
+      
+      // Update findings with corroboration scores and store detailed results
+      for (const cr of corroborationReport.results) {
+        const findingId = parseInt(cr.findingId);
+        if (isNaN(findingId)) continue;
+        
+        // Update the finding row with corroboration data
+        await db.update(vulnScanFindings)
+          .set({
+            corroborationScore: cr.adjustedConfidence,
+            corroborationVerdict: cr.verdict,
+            corroborationSources: cr.corroboratingSourceCount,
+            suppressRecommended: cr.suppressRecommendation,
+          })
+          .where(eqOp(vulnScanFindings.id, findingId));
+        
+        // Store detailed corroboration result
+        await db.insert(corroborationResults).values({
+          importId,
+          findingId,
+          originalConfidence: cr.originalConfidence,
+          adjustedConfidence: cr.adjustedConfidence,
+          corroboratingCount: cr.corroboratingSourceCount,
+          contradictingCount: cr.contradictingSourceCount,
+          corroboratingSources: cr.corroboratingSources.join(","),
+          contradictingSources: cr.contradictingSources.join(","),
+          verdict: cr.verdict,
+          reasoning: cr.reasoning,
+          suppressRecommendation: cr.suppressRecommendation,
+        });
+      }
+      
+      const fpReduction = estimateFPReduction(corroborationReport);
+
+      return {
+        id: importId,
+        totalVulns: result.totalVulns,
+        totalHosts: result.totalHosts,
+        corroboration: {
+          totalAnalyzed: corroborationReport.totalFindings,
+          corroborated: corroborationReport.corroboratedFindings,
+          suppressed: corroborationReport.suppressedFindings,
+          estimatedFPReduction: fpReduction,
+        },
+      };
     }),
 
   getImportDetails: protectedProcedure
@@ -110,14 +187,96 @@ export const vulnScannerRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
-      const { vulnScanImports, vulnScanFindings } = await import("../../drizzle/schema");
+      const { vulnScanImports, vulnScanFindings, corroborationResults } = await import("../../drizzle/schema");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const { eq } = await import("drizzle-orm");
       await db.transaction(async (tx) => {
+        await tx.delete(corroborationResults).where(eq(corroborationResults.importId, input.id));
         await tx.delete(vulnScanFindings).where(eq(vulnScanFindings.importId, input.id));
         await tx.delete(vulnScanImports).where(eq(vulnScanImports.id, input.id));
       });
       return { success: true };
     }),
+
+  // Corroboration-specific endpoints
+  getCorroborationSummary: protectedProcedure
+    .input(z.object({ importId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { corroborationResults } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq, sql } = await import("drizzle-orm");
+      
+      const results = await db.select().from(corroborationResults).where(eq(corroborationResults.importId, input.importId));
+      
+      const summary = {
+        totalAnalyzed: results.length,
+        confirmed: results.filter(r => r.verdict === "confirmed").length,
+        likely: results.filter(r => r.verdict === "likely").length,
+        unverified: results.filter(r => r.verdict === "unverified").length,
+        likelyFP: results.filter(r => r.verdict === "likely_false_positive").length,
+        falsePositive: results.filter(r => r.verdict === "false_positive").length,
+        suppressed: results.filter(r => r.suppressRecommendation).length,
+        avgConfidence: results.length > 0 ? Math.round(results.reduce((sum, r) => sum + r.adjustedConfidence, 0) / results.length) : 0,
+        fpReductionPercent: results.length > 0 ? Math.round((results.filter(r => r.suppressRecommendation).length / results.length) * 100) : 0,
+      };
+      return summary;
+    }),
+
+  getCorroborationDetails: protectedProcedure
+    .input(z.object({ importId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { corroborationResults, vulnScanFindings } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      
+      const results = await db.select().from(corroborationResults).where(eq(corroborationResults.importId, input.importId));
+      const findings = await db.select().from(vulnScanFindings).where(eq(vulnScanFindings.importId, input.importId));
+      
+      // Join corroboration results with finding details
+      return results.map(cr => {
+        const finding = findings.find(f => f.id === cr.findingId);
+        return {
+          ...cr,
+          findingTitle: finding?.title ?? "Unknown",
+          findingCve: finding?.cveId ?? null,
+          findingSeverity: finding?.severity ?? "info",
+          findingHost: finding?.hostIp ?? finding?.hostName ?? "unknown",
+        };
+      });
+    }),
+
+  getGlobalCorroborationStats: protectedProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { corroborationResults } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const { sql } = await import("drizzle-orm");
+    
+    const stats = await db.select({
+      totalResults: sql<number>`count(*)`,
+      avgOriginal: sql<number>`COALESCE(AVG(${corroborationResults.originalConfidence}), 0)`,
+      avgAdjusted: sql<number>`COALESCE(AVG(${corroborationResults.adjustedConfidence}), 0)`,
+      totalSuppressed: sql<number>`SUM(CASE WHEN ${corroborationResults.suppressRecommendation} = true THEN 1 ELSE 0 END)`,
+      confirmed: sql<number>`SUM(CASE WHEN ${corroborationResults.verdict} = 'confirmed' THEN 1 ELSE 0 END)`,
+      likely: sql<number>`SUM(CASE WHEN ${corroborationResults.verdict} = 'likely' THEN 1 ELSE 0 END)`,
+      falsePositive: sql<number>`SUM(CASE WHEN ${corroborationResults.verdict} = 'false_positive' THEN 1 ELSE 0 END)`,
+    }).from(corroborationResults);
+    
+    const s = stats[0];
+    return {
+      totalFindings: s.totalResults,
+      avgOriginalConfidence: Math.round(s.avgOriginal),
+      avgAdjustedConfidence: Math.round(s.avgAdjusted),
+      totalSuppressed: s.totalSuppressed,
+      confirmedCount: s.confirmed,
+      likelyCount: s.likely,
+      falsePositiveCount: s.falsePositive,
+      fpReductionPercent: s.totalResults > 0 ? Math.round((s.totalSuppressed / s.totalResults) * 100) : 0,
+    };
+  }),
 });

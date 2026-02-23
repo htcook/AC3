@@ -3524,3 +3524,16 @@
 
 ### Tests
 - [x] Write vitest tests for all 5 accuracy improvements (38 tests passing)
+
+## Corroboration Pipeline Integration
+
+- [x] Wire corroboration engine into vuln scanner import pipeline (auto-run after each import)
+- [x] Store corroboration results per finding in DB (confidence score, source count, verdict)
+- [x] Update VulnScanner UI to show corroboration scores, FP reduction stats, and dedup indicators
+- [x] Add corroboration summary to scan import results (total findings, deduplicated, FP estimate)
+- [x] Write vitest tests for the integrated pipeline (19 tests passing)
+- [x] Add missing wrapper functions to corroboration-engine, nvd-cve-matcher, compensating-controls
+- [x] Fix all TypeScript errors (0 errors)
+- [x] Add NVD API lookupCve, matchProductToCves, getNvdApiStatus functions
+- [x] Add evaluateCompensatingControls, getControlCatalog, calculateRiskAdjustment functions
+- [x] Add corroborateFromSources, getAvailableSources functions

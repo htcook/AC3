@@ -480,3 +480,129 @@ export function batchAssessControls(
   
   return results;
 }
+
+
+// ─── Router-facing wrapper functions ──────────────────────────────
+
+/**
+ * Evaluate compensating controls for a given vulnerability context.
+ * Used by the compensating-controls router.
+ */
+export async function evaluateCompensatingControls(params: {
+  cveId?: string;
+  techniqueId?: string;
+  targetService?: string;
+  targetPort?: number;
+  existingControls: string[];
+}): Promise<{
+  controls: DetectedControl[];
+  assessment: ControlAssessment;
+  recommendations: string[];
+}> {
+  // Build simulated controls from the existingControls list
+  const controls: DetectedControl[] = [];
+  
+  for (const controlName of params.existingControls) {
+    const lower = controlName.toLowerCase();
+    let category: ControlCategory = "waf";
+    let mitigationFactor = 0.15;
+    const affectedVectors: string[] = [];
+    
+    if (lower.includes("waf")) { category = "waf"; mitigationFactor = 0.35; affectedVectors.push("T1190", "T1189"); }
+    else if (lower.includes("edr")) { category = "edr"; mitigationFactor = 0.25; affectedVectors.push("T1059", "T1203"); }
+    else if (lower.includes("ips")) { category = "ips"; mitigationFactor = 0.20; affectedVectors.push("T1190"); }
+    else if (lower.includes("mfa")) { category = "mfa"; mitigationFactor = 0.30; affectedVectors.push("T1078", "T1110"); }
+    else if (lower.includes("hsts")) { category = "hsts"; mitigationFactor = 0.10; affectedVectors.push("T1557"); }
+    else if (lower.includes("csp")) { category = "csp"; mitigationFactor = 0.15; affectedVectors.push("T1189"); }
+    else if (lower.includes("segment")) { category = "network_segmentation"; mitigationFactor = 0.25; affectedVectors.push("T1021"); }
+    else if (lower.includes("cdn")) { category = "cdn"; mitigationFactor = 0.15; affectedVectors.push("T1499"); }
+    else if (lower.includes("rate")) { category = "rate_limiting"; mitigationFactor = 0.10; affectedVectors.push("T1110", "T1499"); }
+    
+    controls.push({
+      category,
+      name: controlName,
+      confidence: "medium",
+      evidence: `User-declared control: ${controlName}`,
+      mitigationFactor,
+      affectedAttackVectors: affectedVectors,
+    });
+  }
+  
+  const assessment = assessControls(controls, "high", params.techniqueId);
+  
+  const recommendations: string[] = [];
+  if (!controls.some(c => c.category === "waf")) recommendations.push("Consider deploying a WAF to protect web-facing assets.");
+  if (!controls.some(c => c.category === "edr")) recommendations.push("Consider deploying EDR for endpoint protection.");
+  if (!controls.some(c => c.category === "mfa")) recommendations.push("Enable MFA for all privileged accounts.");
+  if (!controls.some(c => c.category === "hsts")) recommendations.push("Enable HSTS to prevent protocol downgrade attacks.");
+  
+  return { controls, assessment, recommendations };
+}
+
+/**
+ * Get the full catalog of recognized compensating controls.
+ * Used by the compensating-controls router.
+ */
+export function getControlCatalog(): Array<{
+  category: ControlCategory;
+  name: string;
+  description: string;
+  typicalMitigationFactor: number;
+  affectedAttackVectors: string[];
+}> {
+  return [
+    { category: "waf", name: "Web Application Firewall", description: "Filters malicious HTTP traffic (SQL injection, XSS, etc.)", typicalMitigationFactor: 0.35, affectedAttackVectors: ["T1190", "T1189", "T1059"] },
+    { category: "cdn", name: "CDN with DDoS Protection", description: "Content delivery with DDoS mitigation", typicalMitigationFactor: 0.15, affectedAttackVectors: ["T1499"] },
+    { category: "ips", name: "Intrusion Prevention System", description: "Network-based attack detection and prevention", typicalMitigationFactor: 0.20, affectedAttackVectors: ["T1190", "T1059"] },
+    { category: "edr", name: "Endpoint Detection & Response", description: "Endpoint monitoring, detection, and response", typicalMitigationFactor: 0.25, affectedAttackVectors: ["T1059", "T1203", "T1068", "T1105"] },
+    { category: "network_segmentation", name: "Network Segmentation", description: "Isolates critical assets from general network", typicalMitigationFactor: 0.25, affectedAttackVectors: ["T1021", "T1570"] },
+    { category: "mfa", name: "Multi-Factor Authentication", description: "Requires multiple authentication factors", typicalMitigationFactor: 0.30, affectedAttackVectors: ["T1078", "T1110", "T1133"] },
+    { category: "rate_limiting", name: "Rate Limiting", description: "Limits request frequency to prevent brute force", typicalMitigationFactor: 0.10, affectedAttackVectors: ["T1110", "T1499"] },
+    { category: "hsts", name: "HTTP Strict Transport Security", description: "Enforces HTTPS connections", typicalMitigationFactor: 0.10, affectedAttackVectors: ["T1557"] },
+    { category: "csp", name: "Content Security Policy", description: "Restricts content sources to prevent XSS", typicalMitigationFactor: 0.15, affectedAttackVectors: ["T1189", "T1059.007"] },
+    { category: "cors_strict", name: "Strict CORS Policy", description: "Restricts cross-origin requests", typicalMitigationFactor: 0.10, affectedAttackVectors: ["T1189"] },
+    { category: "api_gateway", name: "API Gateway", description: "Centralized API management with auth and rate limiting", typicalMitigationFactor: 0.20, affectedAttackVectors: ["T1190", "T1110"] },
+    { category: "bot_protection", name: "Bot Protection", description: "CAPTCHA and bot detection mechanisms", typicalMitigationFactor: 0.10, affectedAttackVectors: ["T1110", "T1499"] },
+    { category: "geo_blocking", name: "Geographic IP Blocking", description: "Blocks traffic from specific regions", typicalMitigationFactor: 0.10, affectedAttackVectors: ["T1190"] },
+    { category: "vpn_required", name: "VPN / Zero Trust Access", description: "Requires VPN or zero-trust network access", typicalMitigationFactor: 0.35, affectedAttackVectors: ["T1190", "T1133", "T1078"] },
+  ];
+}
+
+/**
+ * Calculate risk adjustment based on active control IDs.
+ * Used by the compensating-controls router.
+ */
+export function calculateRiskAdjustment(
+  baseRiskScore: number,
+  activeControlIds: string[]
+): {
+  baseRiskScore: number;
+  adjustedRiskScore: number;
+  reduction: number;
+  reductionPercent: number;
+  activeControls: string[];
+  rationale: string;
+} {
+  const catalog = getControlCatalog();
+  let cumulativeMitigation = 0;
+  
+  for (const controlId of activeControlIds) {
+    const control = catalog.find(c => c.category === controlId || c.name.toLowerCase().includes(controlId.toLowerCase()));
+    if (control) {
+      const effectiveFactor = (1 - cumulativeMitigation) * control.typicalMitigationFactor;
+      cumulativeMitigation += effectiveFactor;
+    }
+  }
+  
+  const reduction = baseRiskScore * cumulativeMitigation;
+  const adjustedRiskScore = Math.max(0, Math.round((baseRiskScore - reduction) * 10) / 10);
+  
+  return {
+    baseRiskScore,
+    adjustedRiskScore,
+    reduction: Math.round(reduction * 10) / 10,
+    reductionPercent: Math.round(cumulativeMitigation * 100),
+    activeControls: activeControlIds,
+    rationale: `${activeControlIds.length} control(s) applied. Cumulative mitigation: ${Math.round(cumulativeMitigation * 100)}%. Risk reduced from ${baseRiskScore} to ${adjustedRiskScore}.`,
+  };
+}

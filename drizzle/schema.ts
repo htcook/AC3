@@ -3234,6 +3234,10 @@ export const vulnScanFindings = mysqlTable("vuln_scan_findings", {
   pluginId: varchar("vsf_plugin_id", { length: 64 }),
   exploitAvailable: boolean("vsf_exploit_available").default(false),
   attackPathLinked: boolean("vsf_attack_path_linked").default(false),
+  corroborationScore: int("vsf_corroboration_score"),
+  corroborationVerdict: varchar("vsf_corroboration_verdict", { length: 32 }),
+  corroborationSources: int("vsf_corroboration_sources").default(0),
+  suppressRecommended: boolean("vsf_suppress_recommended").default(false),
   createdAt: timestamp("vsf_created_at").defaultNow().notNull(),
 });
 
@@ -3493,4 +3497,24 @@ export const aiAttackPlans = mysqlTable("ai_attack_plans", {
   acceptedAt: timestamp("aap_accepted_at"),
   createdBy: varchar("aap_created_by", { length: 255 }),
   createdAt: timestamp("aap_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Corroboration Pipeline Integration
+// ============================================================
+
+export const corroborationResults = mysqlTable("corroboration_results", {
+  id: int("id").autoincrement().primaryKey(),
+  importId: int("cr_import_id").notNull(),
+  findingId: int("cr_finding_id").notNull(),
+  originalConfidence: int("cr_original_confidence").notNull(),
+  adjustedConfidence: int("cr_adjusted_confidence").notNull(),
+  corroboratingCount: int("cr_corroborating_count").default(0),
+  contradictingCount: int("cr_contradicting_count").default(0),
+  corroboratingSources: text("cr_corroborating_sources"),
+  contradictingSources: text("cr_contradicting_sources"),
+  verdict: varchar("cr_verdict", { length: 32 }).notNull(),
+  reasoning: text("cr_reasoning"),
+  suppressRecommendation: boolean("cr_suppress_recommendation").default(false),
+  createdAt: timestamp("cr_created_at").defaultNow().notNull(),
 });

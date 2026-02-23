@@ -64,14 +64,10 @@ export default function NvdCveMatcher() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-4">
-              <div className={`w-3 h-3 rounded-full ${statusQuery.data.available ? "bg-green-500" : "bg-red-500"}`} />
-              <span className="text-sm font-medium">NVD API: {statusQuery.data.available ? "Connected" : "Unavailable"}</span>
-              {statusQuery.data.rateLimitRemaining !== undefined && (
-                <Badge variant="outline">Rate Limit: {statusQuery.data.rateLimitRemaining} remaining</Badge>
-              )}
-              {statusQuery.data.lastSync && (
-                <span className="text-xs text-muted-foreground">Last sync: {new Date(statusQuery.data.lastSync).toLocaleString()}</span>
-              )}
+              <div className={`w-3 h-3 rounded-full ${statusQuery.data.hasApiKey ? "bg-green-500" : "bg-yellow-500"}`} />
+              <span className="text-sm font-medium">NVD API: {statusQuery.data.hasApiKey ? "API Key Configured" : "No API Key (rate limited)"}</span>
+              <Badge variant="outline">Cache: {statusQuery.data.cacheSize} entries</Badge>
+              <span className="text-xs text-muted-foreground">TTL: {Math.round(statusQuery.data.cacheTtlMs / 60000)}min</span>
             </div>
           </CardContent>
         </Card>

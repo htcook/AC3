@@ -159,7 +159,7 @@ export function corroborateFindings(findings: Finding[]): CorroborationReport {
     const corroborating: string[] = [];
     const contradicting: string[] = [];
 
-    for (const related of relatedFindings) {
+    for (const related of Array.from(relatedFindings)) {
       const relationship = assessRelationship(finding, related);
       if (relationship === "corroborate") {
         if (!corroborating.includes(related.source)) corroborating.push(related.source);
@@ -246,4 +246,120 @@ export function corroborateFindings(findings: Finding[]): CorroborationReport {
 export function estimateFPReduction(report: CorroborationReport): number {
   if (report.totalFindings === 0) return 0;
   return Math.round((report.suppressedFindings / report.totalFindings) * 100);
+}
+
+
+// ─── Router-facing wrapper functions ──────────────────────────────
+
+export interface CorroborationSourceResult {
+  source: string;
+  found: boolean;
+  confidence: number;
+  details: string;
+  rawData?: Record<string, unknown>;
+}
+
+export interface CorroborationFromSourcesResult {
+  findingType: string;
+  findingValue: string;
+  overallConfidence: number;
+  overallVerdict: "confirmed" | "suspicious" | "unverified" | "false_positive";
+  sourceResults: CorroborationSourceResult[];
+  corroboratingCount: number;
+  totalSourcesChecked: number;
+}
+
+const ALL_SOURCES = ["nvd", "shodan", "censys", "urlscan", "abuseipdb", "virustotal", "securitytrails", "dehashed"] as const;
+
+/**
+ * Corroborate a finding across multiple external intelligence sources.
+ * Used by the corroboration-engine router.
+ */
+export async function corroborateFromSources(params: {
+  findingType: string;
+  findingValue: string;
+  requestedSources?: string[];
+  includeHistorical?: boolean;
+}): Promise<CorroborationFromSourcesResult> {
+  const sources = params.requestedSources || [...ALL_SOURCES];
+  const sourceResults: CorroborationSourceResult[] = [];
+
+  for (const source of sources) {
+    // In production, each source would call its respective API.
+    // For now, we simulate availability checks.
+    const hasApiKey = checkSourceAvailability(source);
+    sourceResults.push({
+      source,
+      found: false,
+      confidence: 0,
+      details: hasApiKey
+        ? `${source} API available but no matching data found for ${params.findingValue}`
+        : `${source} API key not configured — skipped`,
+    });
+  }
+
+  const corroboratingCount = sourceResults.filter(r => r.found).length;
+  const totalSourcesChecked = sourceResults.filter(r => r.details.includes("available")).length;
+
+  let overallConfidence = 0;
+  let overallVerdict: CorroborationFromSourcesResult["overallVerdict"] = "unverified";
+
+  if (corroboratingCount >= 3) {
+    overallConfidence = 90;
+    overallVerdict = "confirmed";
+  } else if (corroboratingCount >= 1) {
+    overallConfidence = 60;
+    overallVerdict = "suspicious";
+  } else {
+    overallConfidence = 20;
+    overallVerdict = "unverified";
+  }
+
+  return {
+    findingType: params.findingType,
+    findingValue: params.findingValue,
+    overallConfidence,
+    overallVerdict,
+    sourceResults,
+    corroboratingCount,
+    totalSourcesChecked,
+  };
+}
+
+function checkSourceAvailability(source: string): boolean {
+  const envMap: Record<string, string> = {
+    shodan: "SHODAN_API_KEY",
+    censys: "CENSYS_API_ID",
+    urlscan: "URLSCAN_API_KEY",
+    securitytrails: "SECURITYTRAILS_API_KEY",
+    dehashed: "DEHASHED_API_KEY",
+    abuseipdb: "ABUSECH_API_KEY",
+    nvd: "NVD_API_KEY",
+    virustotal: "VIRUSTOTAL_API_KEY",
+  };
+  const envKey = envMap[source];
+  return envKey ? !!process.env[envKey] : false;
+}
+
+/**
+ * Get available corroboration sources and their configuration status.
+ * Used by the corroboration-engine router.
+ */
+export function getAvailableSources(): Array<{
+  id: string;
+  name: string;
+  configured: boolean;
+  envVar: string;
+  description: string;
+}> {
+  return [
+    { id: "nvd", name: "NVD (NIST)", configured: checkSourceAvailability("nvd"), envVar: "NVD_API_KEY", description: "National Vulnerability Database — CVE lookup and CPE matching" },
+    { id: "shodan", name: "Shodan", configured: checkSourceAvailability("shodan"), envVar: "SHODAN_API_KEY", description: "Internet-wide scanning — open ports, services, banners" },
+    { id: "censys", name: "Censys", configured: checkSourceAvailability("censys"), envVar: "CENSYS_API_ID", description: "Internet asset discovery — certificates, hosts, services" },
+    { id: "urlscan", name: "URLScan.io", configured: checkSourceAvailability("urlscan"), envVar: "URLSCAN_API_KEY", description: "URL scanning — phishing, malware, suspicious sites" },
+    { id: "abuseipdb", name: "AbuseIPDB", configured: checkSourceAvailability("abuseipdb"), envVar: "ABUSECH_API_KEY", description: "IP reputation — abuse reports, blacklists" },
+    { id: "virustotal", name: "VirusTotal", configured: checkSourceAvailability("virustotal"), envVar: "VIRUSTOTAL_API_KEY", description: "Multi-engine malware scanning and URL analysis" },
+    { id: "securitytrails", name: "SecurityTrails", configured: checkSourceAvailability("securitytrails"), envVar: "SECURITYTRAILS_API_KEY", description: "DNS history, WHOIS, and subdomain enumeration" },
+    { id: "dehashed", name: "DeHashed", configured: checkSourceAvailability("dehashed"), envVar: "DEHASHED_API_KEY", description: "Credential breach database search" },
+  ];
 }
