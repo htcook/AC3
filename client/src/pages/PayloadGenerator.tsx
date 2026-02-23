@@ -43,6 +43,7 @@ import {
   FileCode,
   Eye,
 } from "lucide-react";
+import ROEWarningBanner from "@/components/ROEWarningBanner";
 
 // ─── Common payload presets ─────────────────────────────────────────────────
 
@@ -248,6 +249,9 @@ export default function PayloadGenerator() {
 
   return (
     <div className="space-y-6">
+      {/* ROE Warning Banner */}
+      <ROEWarningBanner riskTier="red" operationName="Payload Generation" />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

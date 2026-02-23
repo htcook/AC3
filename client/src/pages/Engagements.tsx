@@ -15,6 +15,7 @@ import { Scan, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import AppShell from "@/components/AppShell";
 import ShareLinkManager from "@/components/ShareLinkManager";
+import ROEPanel from "@/components/ROEPanel";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const ENGAGEMENT_TYPES = [
@@ -781,6 +782,13 @@ export default function Engagements() {
                     {/* Expanded campaign links */}
                     {expandedEngagement === engagement.id && (
                       <div className="mt-3 pt-3 border-t border-border space-y-4">
+                        {/* Rules of Engagement */}
+                        <ROEPanel
+                          engagementId={engagement.id}
+                          engagementName={engagement.name}
+                          targetDomain={engagement.targetDomain}
+                        />
+
                         {/* Client Portal Share Links */}
                         <ShareLinkManager engagementId={engagement.id} />
 

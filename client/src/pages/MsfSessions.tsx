@@ -25,6 +25,7 @@ import {
   Minimize2,
   ChevronRight,
 } from "lucide-react";
+import ROEWarningBanner from "@/components/ROEWarningBanner";
 
 interface SessionEntry {
   serverId: number;
@@ -308,6 +309,9 @@ export default function MsfSessions() {
 
   return (
     <div className="space-y-6">
+      {/* ROE Warning Banner */}
+      <ROEWarningBanner riskTier="red" operationName="Exploitation / Session Interaction" />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

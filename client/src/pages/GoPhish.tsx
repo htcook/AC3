@@ -17,6 +17,7 @@ import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@/data/phishing-temp
 import TemplatePreview, { TemplatePreviewThumbnail, TemplatePreviewModal } from "@/components/TemplatePreview";
 
 import AppShell from "@/components/AppShell";
+import ROEWarningBanner from "@/components/ROEWarningBanner";
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const NAV_ITEMS = [
   { href: "/dashboard", icon: <Activity className="w-4 h-4" />, label: "DASHBOARD" },
@@ -81,6 +82,8 @@ export default function GoPhish() {
 
   return (
     <AppShell activePath="/gophish">
+      {/* ROE Warning Banner */}
+      <ROEWarningBanner riskTier="red" operationName="GoPhish Campaign" />
 {/* Sidebar */}
 {/* Header */}
         <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-sm border-b border-border px-4 sm:px-6 py-3 sm:py-4">

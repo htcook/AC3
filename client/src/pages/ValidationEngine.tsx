@@ -42,6 +42,7 @@ import {
   ShieldOff,
 } from "lucide-react";
 import { exportToCsv, exportToPdf } from "@/lib/export-utils";
+import ROEWarningBanner from "@/components/ROEWarningBanner";
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 function statusBadge(status: string) {
@@ -173,6 +174,9 @@ export default function ValidationEngine() {
 
   return (
     <div className="space-y-6">
+      {/* ROE Warning Banner */}
+      <ROEWarningBanner riskTier="orange" operationName="Vulnerability Validation" />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -19,6 +19,8 @@ export interface ReportInput {
   clientName?: string;
   engagementType?: string;
   customNotes?: string;
+  roeData?: any;
+  auditLogEntries?: any[];
 }
 
 export interface ReportSection {
@@ -96,6 +98,28 @@ export interface ReportData {
   }>;
   recommendations: string[];
   conclusion: string;
+  complianceAuthorization?: {
+    roeStatus: string;
+    roeSignedDate: string | null;
+    roeExpiryDate: string | null;
+    roeSignerName: string | null;
+    roeSignerEmail: string | null;
+    roeDocumentUrl: string | null;
+    roeScope: any;
+    auditLogEntries: Array<{
+      timestamp: string;
+      operator: string;
+      actionType: string;
+      riskTier: string;
+      target: string;
+      module: string;
+      result: string;
+      roeStatus: string;
+    }>;
+    totalActions: number;
+    actionsUnderROE: number;
+    blockedActions: number;
+  };
 }
 
 // ─── MITRE Tactic Order ─────────────────────────────────────────────────────
@@ -338,7 +362,7 @@ function getSeverityForTactic(tactic: string): string {
 // ─── HTML Report Renderer ───────────────────────────────────────────────────
 
 export function renderReportHTML(report: ReportData): string {
-  const { metadata, executiveSummary, scopeAndMethodology, operationTimeline, attackChainResults, metrics, detectionCoverage, mitreMapping, findings, recommendations, conclusion } = report;
+  const { metadata, executiveSummary, scopeAndMethodology, operationTimeline, attackChainResults, metrics, detectionCoverage, mitreMapping, findings, recommendations, conclusion, complianceAuthorization } = report;
 
   const severityColor = (s: string) => {
     if (s === 'critical') return '#ef4444';
@@ -611,14 +635,90 @@ findings.map(f => `
   <p style="font-size: 13px; color: #334155;"><strong>Recommendation:</strong> ${f.recommendation}</p>
 </div>`).join('')}
 
+<!-- Compliance & Authorization -->
+${complianceAuthorization ? `
+<h2>8. Compliance &amp; Authorization</h2>
+<p>This section documents the Rules of Engagement (ROE) authorization and provides an audit trail of all offensive actions conducted during this engagement.</p>
+
+<h3 style="font-size: 16px; margin: 24px 0 12px; color: #1e293b;">8.1 Rules of Engagement Status</h3>
+<table>
+  <tbody>
+    <tr><td style="font-weight: 600; width: 200px;">ROE Status</td><td><span class="badge badge-${complianceAuthorization.roeStatus === 'signed' ? 'low' : complianceAuthorization.roeStatus === 'expired' ? 'critical' : 'medium'}">${complianceAuthorization.roeStatus.toUpperCase()}</span></td></tr>
+    <tr><td style="font-weight: 600;">Signed Date</td><td>${complianceAuthorization.roeSignedDate || 'N/A'}</td></tr>
+    <tr><td style="font-weight: 600;">Expiry Date</td><td>${complianceAuthorization.roeExpiryDate || 'N/A'}</td></tr>
+    <tr><td style="font-weight: 600;">Signer</td><td>${complianceAuthorization.roeSignerName || 'N/A'} ${complianceAuthorization.roeSignerEmail ? '(' + complianceAuthorization.roeSignerEmail + ')' : ''}</td></tr>
+    <tr><td style="font-weight: 600;">Document</td><td>${complianceAuthorization.roeDocumentUrl ? '<a href="' + complianceAuthorization.roeDocumentUrl + '" style="color: #38bdf8;">View Signed ROE Document</a>' : 'Not uploaded'}</td></tr>
+  </tbody>
+</table>
+
+${complianceAuthorization.roeScope ? `
+<h3 style="font-size: 16px; margin: 24px 0 12px; color: #1e293b;">8.2 Authorized Scope</h3>
+<table>
+  <tbody>
+    ${(complianceAuthorization.roeScope.domains || []).length > 0 ? '<tr><td style="font-weight: 600; width: 200px;">Domains</td><td>' + complianceAuthorization.roeScope.domains.join(', ') + '</td></tr>' : ''}
+    ${(complianceAuthorization.roeScope.ipRanges || []).length > 0 ? '<tr><td style="font-weight: 600;">IP Ranges</td><td>' + complianceAuthorization.roeScope.ipRanges.join(', ') + '</td></tr>' : ''}
+    ${(complianceAuthorization.roeScope.exclusions || []).length > 0 ? '<tr><td style="font-weight: 600;">Exclusions</td><td>' + complianceAuthorization.roeScope.exclusions.join(', ') + '</td></tr>' : ''}
+    ${complianceAuthorization.roeScope.restrictions ? '<tr><td style="font-weight: 600;">Restrictions</td><td>' + complianceAuthorization.roeScope.restrictions + '</td></tr>' : ''}
+  </tbody>
+</table>` : ''}
+
+<h3 style="font-size: 16px; margin: 24px 0 12px; color: #1e293b;">8.3 Authorization Summary</h3>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; text-align: center;">
+    <div style="font-size: 24px; font-weight: 700; color: #16a34a;">${complianceAuthorization.actionsUnderROE}</div>
+    <div style="font-size: 12px; color: #166534;">Actions Under Valid ROE</div>
+  </div>
+  <div style="background: ${complianceAuthorization.blockedActions > 0 ? '#fef2f2' : '#f0fdf4'}; border: 1px solid ${complianceAuthorization.blockedActions > 0 ? '#fecaca' : '#bbf7d0'}; border-radius: 8px; padding: 16px; text-align: center;">
+    <div style="font-size: 24px; font-weight: 700; color: ${complianceAuthorization.blockedActions > 0 ? '#dc2626' : '#16a34a'};">${complianceAuthorization.blockedActions}</div>
+    <div style="font-size: 12px; color: ${complianceAuthorization.blockedActions > 0 ? '#991b1b' : '#166534'};">Blocked (No/Expired ROE)</div>
+  </div>
+  <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; text-align: center;">
+    <div style="font-size: 24px; font-weight: 700; color: #2563eb;">${complianceAuthorization.totalActions}</div>
+    <div style="font-size: 12px; color: #1e40af;">Total Logged Actions</div>
+  </div>
+</div>
+
+${complianceAuthorization.auditLogEntries.length > 0 ? `
+<h3 style="font-size: 16px; margin: 24px 0 12px; color: #1e293b;">8.4 Offensive Action Audit Trail</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Timestamp</th>
+      <th>Operator</th>
+      <th>Action</th>
+      <th>Risk Tier</th>
+      <th>Target</th>
+      <th>Result</th>
+      <th>ROE</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${complianceAuthorization.auditLogEntries.slice(0, 50).map(e => `
+    <tr>
+      <td style="font-size: 11px; white-space: nowrap;">${e.timestamp}</td>
+      <td style="font-size: 12px;">${e.operator}</td>
+      <td style="font-size: 12px;">${e.actionType.replace(/_/g, ' ')}</td>
+      <td><span class="badge badge-${e.riskTier === 'red' ? 'critical' : e.riskTier === 'orange' ? 'high' : 'medium'}">${e.riskTier}</span></td>
+      <td style="font-size: 12px; font-family: monospace;">${e.target}</td>
+      <td><span class="badge badge-${e.result === 'success' ? 'low' : e.result === 'blocked' ? 'critical' : 'medium'}">${e.result}</span></td>
+      <td style="font-size: 12px;">${e.roeStatus}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>
+${complianceAuthorization.auditLogEntries.length > 50 ? '<p style="font-size: 12px; color: #64748b; margin-top: 8px;">Showing 50 of ' + complianceAuthorization.auditLogEntries.length + ' total audit log entries.</p>' : ''}
+` : '<p>No offensive actions were logged for this engagement.</p>'}
+
+<p style="margin-top: 16px;"><strong>Compliance Statement:</strong> ${complianceAuthorization.roeStatus === 'signed' ? 'All offensive actions documented in this report were conducted under a valid, signed Rules of Engagement document. The engagement team operated within the authorized scope and timeframe as defined by the ROE.' : complianceAuthorization.roeStatus === 'expired' ? 'WARNING: The Rules of Engagement for this engagement have expired. Some actions may have been conducted after ROE expiry. Review the audit trail above for details.' : 'WARNING: No signed Rules of Engagement document was found for this engagement. This may indicate a compliance gap that should be addressed.'}</p>
+` : ''}
+
 <!-- Recommendations -->
-<h2>8. Recommendations</h2>
+<h2>${complianceAuthorization ? '9' : '8'}. Recommendations</h2>
 <ol class="rec-list">
   ${recommendations.map(r => `<li>${r}</li>`).join('')}
 </ol>
 
 <!-- Conclusion -->
-<h2>9. Conclusion</h2>
+<h2>${complianceAuthorization ? '10' : '9'}. Conclusion</h2>
 ${conclusion.split('\n').filter(Boolean).map(p => `<p>${p}</p>`).join('')}
 
 <!-- Footer -->

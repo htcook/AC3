@@ -14,6 +14,7 @@ import {
   Play, Plus, Search, BookOpen, Zap, Clock, Target,
   ChevronDown, ChevronRight, Trash2, Edit, Rocket, Shield
 } from "lucide-react";
+import ROEWarningBanner from "@/components/ROEWarningBanner";
 
 function AdversaryProfileCard({ profile: raw }: { profile: unknown }) {
   if (!raw) return null;
@@ -131,6 +132,9 @@ export default function EmulationPlaybooks() {
 
   return (
     <div className="space-y-6">
+      {/* ROE Warning Banner */}
+      <ROEWarningBanner riskTier="red" operationName="Adversary Emulation" />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

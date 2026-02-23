@@ -14,6 +14,7 @@ import {
   Shield, Plus, Search, Eye, EyeOff, AlertTriangle,
   CheckCircle, XCircle, BarChart3, Target, Trash2
 } from "lucide-react";
+import ROEWarningBanner from "@/components/ROEWarningBanner";
 
 const TACTICS = [
   "reconnaissance", "resource-development", "initial-access",
@@ -84,6 +85,9 @@ export default function PurpleTeam() {
 
   return (
     <div className="space-y-6">
+      {/* ROE Warning Banner */}
+      <ROEWarningBanner riskTier="orange" operationName="Purple Team Testing" />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

@@ -3448,6 +3448,33 @@ Respond in JSON format as an array of 3 campaign objects.`;
           }
         } catch (e) { /* skip */ }
 
+        // Fetch ROE status and audit log for Compliance & Authorization section
+        let roeData: any = null;
+        let auditLogEntries: any[] = [];
+        try {
+          const { engagements: engTable, offensiveAuditLog } = await import('../drizzle/schema');
+          const { eq: eqOp, desc: descOp } = await import('drizzle-orm');
+          const { getDb: getDbConn } = await import('./db');
+          const dbConn = await getDbConn();
+          if (dbConn) {
+            const [engRoe] = await dbConn.select({
+              roeStatus: engTable.roeStatus,
+              roeSignedDate: engTable.roeSignedDate,
+              roeExpiryDate: engTable.roeExpiryDate,
+              roeDocumentUrl: engTable.roeDocumentUrl,
+              roeScope: engTable.roeScope,
+              roeSignerName: engTable.roeSignerName,
+              roeSignerEmail: engTable.roeSignerEmail,
+            }).from(engTable).where(eqOp(engTable.id, input.engagementId)).limit(1);
+            roeData = engRoe || null;
+
+            auditLogEntries = await dbConn.select().from(offensiveAuditLog)
+              .where(eqOp(offensiveAuditLog.engagementId, input.engagementId))
+              .orderBy(descOp(offensiveAuditLog.createdAt))
+              .limit(200);
+          }
+        } catch (e) { console.error('ROE/audit fetch for report failed:', e); }
+
         // Use LLM to generate report content
         const { invokeLLM } = await import('./_core/llm');
 
@@ -3551,6 +3578,26 @@ TTP Knowledge Base Insights (${ttpInsights.length} techniques analyzed):
 ${ttpInsights.map(t => "- " + t.id + " " + t.name + " (" + t.detectionRules + " detection rule types, " + t.tools + " tools)").join('\n')}
 
 IMPORTANT: Include a Detection Gap Analysis section that identifies which techniques were successfully executed vs blocked. Include specific remediation recommendations for each gap. Map findings to MITRE ATT&CK framework. Include a risk matrix table.
+
+## COMPLIANCE & AUTHORIZATION DATA
+
+ROE Status: ${roeData?.roeStatus || 'none'}
+ROE Signed Date: ${roeData?.roeSignedDate ? new Date(roeData.roeSignedDate).toLocaleDateString() : 'N/A'}
+ROE Expiry Date: ${roeData?.roeExpiryDate ? new Date(roeData.roeExpiryDate).toLocaleDateString() : 'N/A'}
+ROE Signer: ${roeData?.roeSignerName || 'N/A'} (${roeData?.roeSignerEmail || 'N/A'})
+ROE Document: ${roeData?.roeDocumentUrl ? 'Uploaded' : 'Not uploaded'}
+ROE Scope: ${roeData?.roeScope ? JSON.stringify(roeData.roeScope) : 'Not defined'}
+
+Offensive Audit Log (${auditLogEntries.length} entries):
+${auditLogEntries.slice(0, 50).map((e: any) => `- [${new Date(e.createdAt).toISOString()}] ${e.operatorName || e.operatorId} | ${e.actionType} | ${e.riskTier} tier | Target: ${e.target} | Module: ${e.moduleOrTool || 'N/A'} | Result: ${e.resultStatus} | ROE: ${e.roeStatus || 'N/A'}`).join('\n')}
+${auditLogEntries.length > 50 ? `... and ${auditLogEntries.length - 50} more entries` : ''}
+
+IMPORTANT: You MUST include a "Compliance & Authorization" section in the report that:
+1. States the ROE status, signed date, expiry date, and signer information
+2. Confirms whether all offensive actions were conducted under valid ROE
+3. Lists a summary table of offensive actions from the audit log (action type, risk tier, target, result, timestamp)
+4. Notes any actions that were blocked due to missing/expired ROE
+5. Includes the authorized scope (domains, IP ranges, exclusions) from the ROE
 
 Instructions: ${reportPrompt}`,
               },

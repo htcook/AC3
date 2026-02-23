@@ -3,6 +3,7 @@
  * 
  * Provides procedures for:
  * - Managing ROE status on engagements (upload, sign, expire)
+ * - Uploading signed ROE documents (PDF) to S3
  * - Viewing the unified offensive audit trail
  * - Checking ROE validity for a given engagement
  */
@@ -91,6 +92,43 @@ export const roeAuditRouter = router({
       await db.update(engagements).set(updateData).where(eq(engagements.id, input.engagementId));
 
       return { success: true, engagementId: input.engagementId, roeStatus: input.roeStatus };
+    }),
+
+  /** Upload ROE document (PDF) to S3 and update engagement */
+  uploadROEDocument: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      fileName: z.string(),
+      fileData: z.string(), // base64 encoded PDF
+      mimeType: z.string().default("application/pdf"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const { engagements } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { storagePut } = await import("../storage");
+      const crypto = await import("crypto");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const [eng] = await db.select({ id: engagements.id, name: engagements.name })
+        .from(engagements).where(eq(engagements.id, input.engagementId)).limit(1);
+      if (!eng) throw new TRPCError({ code: "NOT_FOUND", message: "Engagement not found" });
+
+      const buffer = Buffer.from(input.fileData, "base64");
+      if (buffer.length > 20 * 1024 * 1024) {
+        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "ROE document must be under 20 MB" });
+      }
+
+      const suffix = crypto.randomBytes(4).toString("hex");
+      const fileKey = `roe-documents/${input.engagementId}/${input.fileName}-${suffix}`;
+      const { url } = await storagePut(fileKey, buffer, input.mimeType);
+
+      await db.update(engagements)
+        .set({ roeDocumentUrl: url })
+        .where(eq(engagements.id, input.engagementId));
+
+      return { url, fileSize: buffer.length, fileName: input.fileName };
     }),
 
   /** Validate ROE for an engagement (used by frontend before starting operations) */

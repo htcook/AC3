@@ -3263,3 +3263,22 @@
 - [x] Add logOffensiveAction() to payload generator
 - [x] Add logOffensiveAction() to MSF session interactions (write, stop, meterpreterRun, upgradeToMeterpreter)
 - [x] Verify all tests pass — 18/18 ROE guardrails tests pass
+
+## ROE Upload UI in Engagement Manager
+- [x] Add ROE document upload (PDF) to engagement detail page
+- [x] Add ROE start/expiry date pickers
+- [x] Add ROE scope text field
+- [x] Add ROE status indicator (none/pending/active/expired)
+- [x] Wire upload to S3 storage and save metadata to engagement record
+
+## ROE Required Warning Banners
+- [x] Add warning banner to Phishing pages (GoPhish, Template Gen, Page Builder)
+- [x] Add warning banner to Exploitation pages (MSF Sessions, Payload Generator)
+- [x] Add warning banner to Emulation pages (Emulation Playbooks, Purple Team)
+- [x] Banner should show when no engagement with active ROE is selected
+
+## Audit Log in Executive Report Generator
+- [x] Add "Compliance & Authorization" section to report generator
+- [x] Pull offensive_audit_log entries for the engagement
+- [x] Include ROE status, dates, and scope in the section
+- [x] List all offensive actions with operator, timestamp, and result

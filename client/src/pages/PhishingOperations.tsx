@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { GoPhishManagerContent } from "./GoPhish";
 import TyposquatManagerComponent from "@/components/TyposquatManager";
+import ROEWarningBanner from "@/components/ROEWarningBanner";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // ─── Priority badge colors ───
@@ -1523,6 +1524,9 @@ export default function PhishingOperations() {
   return (
     <AppShell>
     <div className="space-y-6">
+      {/* ROE Warning Banner */}
+      <ROEWarningBanner riskTier="red" operationName="Phishing" />
+
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
