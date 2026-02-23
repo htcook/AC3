@@ -33,6 +33,8 @@ import { sessionAlerterRouter } from "./routers/session-alerter";
 import { payloadGeneratorRouter } from "./routers/payload-generator";
 import { evasionEngineRouter } from "./routers/evasion-engine";
 import { siemConnectorsRouter } from "./routers/siem-connectors";
+import { detectionRulesRouter } from "./routers/detection-rules";
+import { validationSchedulerRouter } from "./routers/validation-scheduler";
 import { darkwebIntelRouter } from "./routers/darkweb-intel";
 import { threatIntelTrainingRouter } from "./routers/threat-intel-training";
 
@@ -150,6 +152,8 @@ export const appRouter = router({
   accuracyEngine: accuracyEngineRouter,
   evasionEngine: evasionEngineRouter,
   siemConnectors: siemConnectorsRouter,
+  detectionRules: detectionRulesRouter,
+  validationScheduler: validationSchedulerRouter,
   darkwebIntel: darkwebIntelRouter,
   threatIntelTraining: threatIntelTrainingRouter,
   

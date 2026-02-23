@@ -268,6 +268,136 @@ export const purpleTeamRouter = router({
       return { scoreId, overallScore };
     }),
 
+  // ─── Update Blue Team Outcome ───
+  updateBlueTeamOutcome: protectedProcedure
+    .input(z.object({
+      testId: z.string(),
+      blueTeamOutcome: z.enum(["detected", "blocked", "missed", "partial", "not_tested"]),
+      blueTeamNotes: z.string().optional(),
+      blueTeamAnalyst: z.string().optional(),
+      detectionMethod: z.string().optional(),
+      responseAction: z.string().optional(),
+      timeToDetect: z.number().optional(),
+      timeToRespond: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const updates: any = {
+        blueTeamOutcome: input.blueTeamOutcome,
+        blueTeamUpdatedAt: new Date(),
+      };
+      // Auto-set detected and isGap based on outcome
+      if (input.blueTeamOutcome === "detected" || input.blueTeamOutcome === "blocked") {
+        updates.detected = true;
+        updates.isGap = false;
+      } else if (input.blueTeamOutcome === "missed") {
+        updates.detected = false;
+        updates.isGap = true;
+      } else if (input.blueTeamOutcome === "partial") {
+        updates.detected = true;
+        updates.isGap = true; // partial detection is still a gap
+      }
+      if (input.blueTeamNotes !== undefined) updates.blueTeamNotes = input.blueTeamNotes;
+      if (input.blueTeamAnalyst !== undefined) updates.blueTeamAnalyst = input.blueTeamAnalyst;
+      else updates.blueTeamAnalyst = ctx.user.name || ctx.user.openId;
+      if (input.detectionMethod !== undefined) updates.detectionMethod = input.detectionMethod;
+      if (input.responseAction !== undefined) updates.responseAction = input.responseAction;
+      if (input.timeToDetect !== undefined) {
+        updates.timeToDetect = input.timeToDetect;
+        updates.detectionTime = input.timeToDetect;
+      }
+      if (input.timeToRespond !== undefined) updates.timeToRespond = input.timeToRespond;
+
+      await db.update(detectionTests).set(updates)
+        .where(eq(detectionTests.testId, input.testId));
+      return { success: true };
+    }),
+
+  // ─── Detection Gap Summary ───
+  detectionGapSummary: protectedProcedure
+    .input(z.object({ engagementId: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const filters: any[] = [];
+      if (input?.engagementId) filters.push(eq(detectionTests.engagementId, input.engagementId));
+      const where = filters.length > 0 ? and(...filters) : undefined;
+
+      const tests = await db.select().from(detectionTests).where(where);
+
+      // Outcome distribution
+      const outcomes = { detected: 0, blocked: 0, missed: 0, partial: 0, not_tested: 0 };
+      tests.forEach(t => {
+        const o = (t as any).blueTeamOutcome || "not_tested";
+        if (o in outcomes) (outcomes as any)[o]++;
+      });
+
+      // Detection method breakdown
+      const methodMap = new Map<string, number>();
+      tests.forEach(t => {
+        const m = (t as any).detectionMethod;
+        if (m) methodMap.set(m, (methodMap.get(m) || 0) + 1);
+      });
+      const detectionMethods = Array.from(methodMap.entries())
+        .map(([method, count]) => ({ method, count }))
+        .sort((a, b) => b.count - a.count);
+
+      // Average response times
+      const detectedTests = tests.filter(t => (t as any).timeToDetect != null);
+      const respondedTests = tests.filter(t => (t as any).timeToRespond != null);
+      const avgTimeToDetect = detectedTests.length > 0
+        ? Math.round(detectedTests.reduce((sum, t) => sum + ((t as any).timeToDetect || 0), 0) / detectedTests.length)
+        : null;
+      const avgTimeToRespond = respondedTests.length > 0
+        ? Math.round(respondedTests.reduce((sum, t) => sum + ((t as any).timeToRespond || 0), 0) / respondedTests.length)
+        : null;
+
+      // Gaps by tactic
+      const tactics = [
+        "reconnaissance", "resource-development", "initial-access",
+        "execution", "persistence", "privilege-escalation",
+        "defense-evasion", "credential-access", "discovery",
+        "lateral-movement", "collection", "command-and-control",
+        "exfiltration", "impact"
+      ];
+      const gapsByTactic = tactics.map(tactic => {
+        const tacticTests = tests.filter(t => t.tactic === tactic);
+        const missed = tacticTests.filter(t => (t as any).blueTeamOutcome === "missed");
+        const partial = tacticTests.filter(t => (t as any).blueTeamOutcome === "partial");
+        return {
+          tactic,
+          total: tacticTests.length,
+          missed: missed.length,
+          partial: partial.length,
+          gapRate: tacticTests.length > 0
+            ? Math.round(((missed.length + partial.length) / tacticTests.length) * 100)
+            : 0,
+        };
+      }).filter(t => t.total > 0);
+
+      // Top undetected techniques
+      const missedTests = tests
+        .filter(t => (t as any).blueTeamOutcome === "missed")
+        .map(t => ({
+          testId: t.testId,
+          techniqueId: t.techniqueId,
+          techniqueName: t.techniqueName,
+          tactic: t.tactic,
+          gapSeverity: t.gapSeverity,
+        }))
+        .slice(0, 20);
+
+      return {
+        outcomes,
+        detectionMethods,
+        avgTimeToDetect,
+        avgTimeToRespond,
+        gapsByTactic,
+        missedTests,
+        totalAssessed: tests.filter(t => (t as any).blueTeamOutcome !== "not_tested").length,
+        totalTests: tests.length,
+      };
+    }),
+
   // ─── Stats ───
   stats: protectedProcedure.query(async () => {
     const db = await getDbSafe();

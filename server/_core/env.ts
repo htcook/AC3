@@ -63,6 +63,10 @@ export const ENV = {
   DEHASHED_API_KEY: process.env.DEHASHED_API_KEY ?? "",
   BINARYEDGE_API_KEY: process.env.BINARYEDGE_API_KEY ?? "",
   GREYNOISE_API_KEY: process.env.GREYNOISE_API_KEY ?? "",
+  // Bug Bounty Platforms
+  HACKERONE_API_USERNAME: process.env.HACKERONE_API_USERNAME ?? "",
+  HACKERONE_API_TOKEN: process.env.HACKERONE_API_TOKEN ?? "",
+  BUGCROWD_API_TOKEN: process.env.BUGCROWD_API_TOKEN ?? "",
   // DigitalOcean — domain purchasing
   DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
   // Metasploit MSGRPC

@@ -56,6 +56,7 @@ import {
   Scan,
   Fish,
   Hammer,
+  Calendar,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -162,6 +163,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
       { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
       { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
+      { href: "/validation-scheduler", icon: Calendar, label: "CONTINUOUS VALIDATION" },
     ],
   },
   // ── Phase 7: Document and deliver results ──

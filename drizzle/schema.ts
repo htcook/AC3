@@ -1533,6 +1533,15 @@ export const detectionTests = mysqlTable("detection_tests", {
   mitigationStatus: varchar("mitigationStatus", { length: 32 }).default("open"),
   notes: text("notes"),
   evidence: json("evidence"),
+  // Blue team outcome tracking
+  blueTeamOutcome: varchar("blueTeamOutcome", { length: 32 }).default("not_tested"), // detected, blocked, missed, partial, not_tested
+  blueTeamNotes: text("blueTeamNotes"),
+  blueTeamAnalyst: varchar("blueTeamAnalyst", { length: 255 }),
+  detectionMethod: varchar("detectionMethod", { length: 128 }), // SIEM, EDR, NDR, manual, honeypot, etc.
+  responseAction: varchar("responseAction", { length: 128 }), // isolated, contained, escalated, ignored, etc.
+  timeToDetect: int("timeToDetect"), // seconds from execution to detection
+  timeToRespond: int("timeToRespond"), // seconds from detection to response
+  blueTeamUpdatedAt: timestamp("blueTeamUpdatedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -2460,3 +2469,25 @@ export const exploitIntelligence = mysqlTable("exploit_intelligence", {
 });
 export type ExploitIntelligence = typeof exploitIntelligence.$inferSelect;
 export type InsertExploitIntelligence = typeof exploitIntelligence.$inferInsert;
+
+
+// ─── Continuous Validation Schedules ─────────────────────────────────────
+export const validationSchedules = mysqlTable("validation_schedules", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 255 }).notNull(),
+  scheduleType: varchar("schedule_type", { length: 50 }).notNull(), // domain_scan, emulation, campaign_retest, detection_retest
+  targetId: varchar("target_id", { length: 255 }), // e.g. domain name, playbook ID, campaign ID
+  targetLabel: varchar("target_label", { length: 255 }), // human-readable label
+  intervalHours: int("interval_hours").notNull().default(168), // default weekly
+  cronExpression: varchar("cron_expression", { length: 100 }), // optional cron override
+  enabled: boolean("enabled").notNull().default(true),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  lastStatus: varchar("last_status", { length: 50 }), // success, failed, running
+  lastError: text("last_error"),
+  runCount: int("run_count").notNull().default(0),
+  config: json("config"), // schedule-specific config (scan depth, emulation options, etc.)
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
