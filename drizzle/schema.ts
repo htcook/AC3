@@ -3099,3 +3099,41 @@ export const forestTrusts = mysqlTable("forest_trusts", {
   discoveredAt: timestamp("trust_discovered_at").defaultNow(),
   createdAt: timestamp("forest_trust_created_at").defaultNow(),
 });
+
+// ============================================================
+// Credential Auto-Rotation Policies
+// ============================================================
+
+export const credentialRotationPolicies = mysqlTable("credential_rotation_policies", {
+  id: int("id").autoincrement().primaryKey(),
+  credentialId: int("rotation_credential_id").notNull(),
+  provider: mysqlEnum("rotation_provider", ["aws", "azure", "gcp"]).notNull(),
+  credentialName: varchar("rotation_cred_name", { length: 255 }).notNull(),
+  enabled: boolean("rotation_enabled").default(false).notNull(),
+  rotationIntervalDays: int("rotation_interval_days").default(90).notNull(),
+  lastRotatedAt: timestamp("last_rotated_at"),
+  nextRotationAt: timestamp("next_rotation_at"),
+  maxRetries: int("rotation_max_retries").default(3).notNull(),
+  retryCount: int("rotation_retry_count").default(0).notNull(),
+  createdBy: varchar("rotation_created_by", { length: 255 }),
+  createdAt: timestamp("rotation_policy_created_at").defaultNow(),
+  updatedAt: timestamp("rotation_policy_updated_at").defaultNow(),
+});
+
+// ============================================================
+// Credential Rotation Audit Log
+// ============================================================
+
+export const credentialRotationAudit = mysqlTable("credential_rotation_audit", {
+  id: int("id").autoincrement().primaryKey(),
+  policyId: int("rotation_audit_policy_id").notNull(),
+  credentialId: int("rotation_audit_credential_id").notNull(),
+  provider: mysqlEnum("rotation_audit_provider", ["aws", "azure", "gcp"]).notNull(),
+  status: mysqlEnum("rotation_status", ["pending", "in_progress", "success", "failed", "rollback"]).notNull(),
+  oldKeyIdentifier: varchar("old_key_identifier", { length: 255 }),
+  newKeyIdentifier: varchar("new_key_identifier", { length: 255 }),
+  errorMessage: text("rotation_error_message"),
+  durationMs: int("rotation_duration_ms").default(0).notNull(),
+  initiatedBy: varchar("rotation_initiated_by", { length: 255 }).notNull(),
+  createdAt: timestamp("rotation_audit_created_at").defaultNow(),
+});

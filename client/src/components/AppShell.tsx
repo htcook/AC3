@@ -57,6 +57,7 @@ import {
   Network,
   Bell,
   TreePine,
+  RefreshCw,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -102,6 +103,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/ad-domain-connector", icon: Network, label: "AD DOMAIN CONNECTOR" },
       { href: "/ad-attack-path-graph", icon: GitBranch, label: "ATTACK PATH GRAPH" },
       { href: "/forest-mapper", icon: TreePine, label: "FOREST MAPPER" },
+      { href: "/bloodhound-import", icon: Crosshair, label: "BLOODHOUND IMPORT" },
+      { href: "/credential-auto-rotation", icon: RefreshCw, label: "AUTO-ROTATION" },
       { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },
       { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
       { href: "/continuous-validation", icon: Calendar, label: "CONTINUOUS VALIDATION" },

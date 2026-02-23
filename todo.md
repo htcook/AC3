@@ -3429,3 +3429,27 @@
 - [x] Create dedicated Forest Mapping page
 - [x] Wire route in App.tsx and add sidebar navigation entry
 - [x] Write tests for multi-domain and forest mapping logic
+
+## BloodHound Data Import
+- [x] Build SharpHound JSON parser (users, groups, computers, domains, GPOs, OUs, containers)
+- [x] Build SharpHound ZIP extractor (handle multi-file ZIP collections)
+- [x] Map BloodHound v4/v5 schema to internal AD graph model (nodes + edges)
+- [x] Parse BloodHound ACE/ACL relationships (GenericAll, WriteDacl, ForceChangePassword, etc.)
+- [x] Parse session data, local admin data, and group membership chains
+- [x] Build import pipeline (parse → validate → deduplicate → insert into AD graph)
+- [x] Create BloodHound import tRPC router (upload, parse, import, status)
+- [x] Create BloodHound Import UI page (file upload, preview, import progress, results)
+- [x] Wire route in App.tsx and add sidebar navigation entry
+- [x] Write tests for SharpHound parser and data mapping
+
+## Credential Auto-Rotation
+- [x] Add credential_rotation_policies schema table (policy ID, credential ID, provider, interval, status)
+- [x] Add credential_rotation_audit schema table (rotation ID, old/new key metadata, result)
+- [x] Build AWS IAM key rotation engine (CreateAccessKey, DeleteAccessKey, update stored credential)
+- [x] Build Azure credential rotation engine (resetPassword, update client secret)
+- [x] Build rotation orchestrator (pre-rotation validation, rotate, post-rotation validation, rollback)
+- [x] Build rotation scheduling (immediate, on-expiry, periodic)
+- [x] Create auto-rotation tRPC router (configure, trigger, history, rollback)
+- [x] Create Auto-Rotation UI page (rotation config, one-click rotate, history, rollback)
+- [x] Wire route in App.tsx and add sidebar navigation entry
+- [x] Write tests for rotation engine and orchestrator logic

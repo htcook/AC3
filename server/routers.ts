@@ -48,6 +48,8 @@ import { adDomainConnectorRouter } from "./routers/ad-domain-connector";
 import { credentialAlertsRouter } from "./routers/credential-alerts";
 import { adAttackPathGraphRouter } from "./routers/ad-attack-path-graph";
 import { forestMapperRouter } from "./routers/forest-mapper";
+import { bloodhoundImportRouter } from "./routers/bloodhound-import";
+import { credentialAutoRotationRouter } from "./routers/credential-auto-rotation";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -178,6 +180,8 @@ export const appRouter = router({
   credentialAlerts: credentialAlertsRouter,
   adAttackPathGraph: adAttackPathGraphRouter,
   forestMapper: forestMapperRouter,
+  bloodhoundImport: bloodhoundImportRouter,
+  credentialAutoRotation: credentialAutoRotationRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

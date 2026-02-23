@@ -90,6 +90,8 @@ const ADDomainConnector = lazy(() => import("./pages/ADDomainConnector"));
 const CredentialAlerts = lazy(() => import("./pages/CredentialAlerts"));
 const ADAttackPathGraph = lazy(() => import("./pages/ADAttackPathGraph"));
 const ForestMapper = lazy(() => import("./pages/ForestMapper"));
+const BloodHoundImport = lazy(() => import("./pages/BloodHoundImport"));
+const CredentialAutoRotation = lazy(() => import("./pages/CredentialAutoRotation"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -416,6 +418,12 @@ function Router() {
         </Route>
         <Route path="/forest-mapper">
           <ProtectedRoute component={ForestMapper} />
+        </Route>
+        <Route path="/bloodhound-import">
+          <ProtectedRoute component={BloodHoundImport} />
+        </Route>
+        <Route path="/credential-auto-rotation">
+          <ProtectedRoute component={CredentialAutoRotation} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

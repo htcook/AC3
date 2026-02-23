@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `credential_rotation_audit` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `rotation_audit_policy_id` int NOT NULL,\n  `rotation_audit_credential_id` int NOT NULL,\n  `rotation_audit_provider` enum('aws','azure','gcp') NOT NULL,\n  `rotation_status` enum('pending','in_progress','success','failed','rollback') NOT NULL,\n  `old_key_identifier` varchar(255),\n  `new_key_identifier` varchar(255),\n  `rotation_error_message` text,\n  `rotation_duration_ms` int NOT NULL DEFAULT 0,\n  `rotation_initiated_by` varchar(255) NOT NULL,\n  `rotation_audit_created_at` timestamp DEFAULT (now()),\n  CONSTRAINT `credential_rotation_audit_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `credential_rotation_audit` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `rotation_audit_policy_id` int NOT NULL,\n  `rotation_audit_credential_id` int NOT NULL,\n  `rotation_audit_provider` enum('aws','azure','gcp') NOT NULL,\n  `rotation_status` enum('pending','in_progress','success','failed','rollback') NOT NULL,\n  `old_key_identifier` varchar(255),\n  `new_key_identifier` varchar(255),\n  `rotation_error_message` text,\n  `rotation_duration_ms` int NOT NULL DEFAULT 0,\n  `rotation_initiated_by` varchar(255) NOT NULL,\n  `rotation_audit_created_at` timestamp DEFAULT (now()),\n  CONSTRAINT `credential_rotation_audit_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 175
+}
