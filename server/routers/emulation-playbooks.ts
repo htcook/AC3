@@ -217,10 +217,29 @@ export const emulationPlaybooksRouter = router({
       engagementId: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ─── ROE Enforcement (RED tier) ───
+      const { enforceROE, getEngagementROE, logOffensiveAction } = await import("../lib/roe-guard");
+      if (input.engagementId) {
+        const roe = await getEngagementROE(Number(input.engagementId));
+        if (roe) enforceROE(roe, 'red', `Caldera emulation playbook launch: ${input.playbookId}`);
+      }
+
       const db = await getDbSafe();
       const [playbook] = await db.select().from(emulationPlaybooks)
         .where(eq(emulationPlaybooks.id, Number(input.playbookId)));
       if (!playbook) throw new TRPCError({ code: "NOT_FOUND", message: "Playbook not found" });
+
+      // Log the offensive action
+      logOffensiveAction({
+        engagementId: input.engagementId ? Number(input.engagementId) : null,
+        operatorId: ctx.user.openId,
+        operatorName: ctx.user.name ?? null,
+        actionType: 'caldera_operation',
+        riskTier: 'red',
+        target: `playbook:${playbook.name}`,
+        moduleOrTool: `Caldera Emulation: ${playbook.name}`,
+        resultStatus: 'success',
+      }).catch(() => {});
 
       // Create execution record
       await db.insert(playbookExecutions).values({

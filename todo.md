@@ -3242,9 +3242,9 @@
 - [x] Verify fix works correctly
 
 ## ROE / Legal Guardrails Audit
-- [ ] Audit all code paths that make outbound network contact to user-specified targets
-- [ ] Classify each operation by legal risk level (safe / gray area / requires ROE)
-- [ ] Recommend and implement guardrails to prevent unauthorized active testing
+- [x] Audit all code paths that make outbound network contact to user-specified targets
+- [x] Classify each operation by legal risk level (safe / gray area / requires ROE)
+- [x] Recommend and implement guardrails to prevent unauthorized active testing
 
 ## ROE Guardrails Implementation
 - [x] Add ROE fields to engagements schema (roeStatus, roeSignedDate, roeExpiryDate, roeDocumentUrl, roeScope)
@@ -3255,3 +3255,11 @@
 - [x] Add audit logging to all Orange/Red operations (validation, exploitation, phishing, emulation)
 - [x] Add audit log viewer page in Admin section
 - [x] Write tests for ROE gate and audit trail — 18 tests pass
+
+## Wire enforceROE() into Offensive Procedures
+- [x] Add enforceROE() to MSF validation run (startRun) procedure
+- [x] Add enforceROE() to GoPhish launchCampaign procedure
+- [x] Add enforceROE() to Caldera emulation playbook launch procedure
+- [x] Add logOffensiveAction() to payload generator
+- [x] Add logOffensiveAction() to MSF session interactions (write, stop, meterpreterRun, upgradeToMeterpreter)
+- [x] Verify all tests pass — 18/18 ROE guardrails tests pass

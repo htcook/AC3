@@ -179,7 +179,7 @@ export const msfSessionsRouter = router({
       }
     }),
 
-  // ─── Write command to session (interact) ───────────────────────────────────
+  //  // ─── Write command to session (interact) ───────────────────────────────
   write: protectedProcedure
     .input(z.object({
       serverId: z.number(),
@@ -187,7 +187,20 @@ export const msfSessionsRouter = router({
       sessionType: z.enum(["shell", "meterpreter"]),
       command: z.string().min(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ─── Audit Log (RED tier — session interaction) ───
+      const { logOffensiveAction } = await import("../lib/roe-guard");
+      logOffensiveAction({
+        engagementId: null,
+        operatorId: ctx.user.openId,
+        operatorName: ctx.user.name ?? null,
+        actionType: 'session_interaction',
+        riskTier: 'red',
+        target: `session:${input.sessionId}@server:${input.serverId}`,
+        moduleOrTool: `${input.sessionType} command: ${input.command.slice(0, 100)}`,
+        resultStatus: 'success',
+      }).catch(() => {});
+
       const client = await getClientForServer(input.serverId);
 
       try {
@@ -222,13 +235,26 @@ export const msfSessionsRouter = router({
       }
     }),
 
-  // ─── Stop/kill a session ───────────────────────────────────────────────────
+  // ─── Stop/kill a session ─────────────────────────────────────────
   stop: protectedProcedure
     .input(z.object({
       serverId: z.number(),
       sessionId: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ─── Audit Log (RED tier — session termination) ───
+      const { logOffensiveAction } = await import("../lib/roe-guard");
+      logOffensiveAction({
+        engagementId: null,
+        operatorId: ctx.user.openId,
+        operatorName: ctx.user.name ?? null,
+        actionType: 'session_interaction',
+        riskTier: 'red',
+        target: `session:${input.sessionId}@server:${input.serverId}`,
+        moduleOrTool: 'Session termination',
+        resultStatus: 'success',
+      }).catch(() => {});
+
       const client = await getClientForServer(input.serverId);
 
       try {
@@ -281,14 +307,27 @@ export const msfSessionsRouter = router({
       };
     }),
 
-  // ─── Run a Meterpreter command and get output ─────────────────────────────
+  //  // ─── Run a Meterpreter command and get output ─────────────────────────
   meterpreterRun: protectedProcedure
     .input(z.object({
       serverId: z.number(),
       sessionId: z.string(),
       command: z.string().min(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ─── Audit Log (RED tier — meterpreter command) ───
+      const { logOffensiveAction } = await import("../lib/roe-guard");
+      logOffensiveAction({
+        engagementId: null,
+        operatorId: ctx.user.openId,
+        operatorName: ctx.user.name ?? null,
+        actionType: 'session_interaction',
+        riskTier: 'red',
+        target: `session:${input.sessionId}@server:${input.serverId}`,
+        moduleOrTool: `meterpreter: ${input.command.slice(0, 100)}`,
+        resultStatus: 'success',
+      }).catch(() => {});
+
       const client = await getClientForServer(input.serverId);
 
       try {
@@ -341,13 +380,26 @@ export const msfSessionsRouter = router({
       return { success: true };
     }),
 
-  // ─── Upgrade shell to meterpreter ─────────────────────────────────────────
+  // ─── U  // ─── Upgrade shell to meterpreter ───────────────────────────────
   upgradeToMeterpreter: protectedProcedure
     .input(z.object({
       serverId: z.number(),
       sessionId: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ─── Audit Log (RED tier — session upgrade) ───
+      const { logOffensiveAction } = await import("../lib/roe-guard");
+      logOffensiveAction({
+        engagementId: null,
+        operatorId: ctx.user.openId,
+        operatorName: ctx.user.name ?? null,
+        actionType: 'session_interaction',
+        riskTier: 'red',
+        target: `session:${input.sessionId}@server:${input.serverId}`,
+        moduleOrTool: 'Shell to Meterpreter upgrade',
+        resultStatus: 'success',
+      }).catch(() => {});
+
       const client = await getClientForServer(input.serverId);
 
       try {

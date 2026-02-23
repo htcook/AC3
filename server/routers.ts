@@ -1685,8 +1685,26 @@ export const appRouter = router({
         groups: z.array(z.object({ name: z.string() })),
         launch_date: z.string().optional(),
         send_by_date: z.string().optional(),
+        engagementId: z.number().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // ─── ROE Enforcement (RED tier) ───
+        const { enforceROE, getEngagementROE, logOffensiveAction } = await import('./lib/roe-guard');
+        if (input.engagementId) {
+          const roe = await getEngagementROE(input.engagementId);
+          if (roe) enforceROE(roe, 'red', `Phishing campaign launch: ${input.name}`);
+        }
+        logOffensiveAction({
+          engagementId: input.engagementId ?? null,
+          operatorId: ctx.user.openId,
+          operatorName: ctx.user.name ?? null,
+          actionType: 'phishing_launch',
+          riskTier: 'red',
+          target: input.url,
+          moduleOrTool: `GoPhish Campaign: ${input.name}`,
+          resultStatus: 'success',
+        }).catch(() => {});
+
         const result = await fetchGophishAPI('/api/campaigns/', 'POST', input);
         // Emit campaign launched event
         try {
@@ -6063,7 +6081,26 @@ Make the phishing content highly realistic and tailored to the target domain and
         const { eq } = await import('drizzle-orm');
         const { selectCandidates, validateCandidate, computeAssetValidationScore } = await import('./lib/validation-engine');
         const { MsfClient } = await import('./lib/msf-client');
+        const { enforceROE, getEngagementROE, logOffensiveAction, ACTION_RISK_MAP } = await import('./lib/roe-guard');
         const dbConn = await getDbRequired();
+
+        // ─── ROE Enforcement ───
+        const riskTier = input.mode === 'safe_exploit' ? 'red' as const : 'orange' as const;
+        if (input.engagementId) {
+          const roe = await getEngagementROE(input.engagementId);
+          if (roe) enforceROE(roe, riskTier, `Validation run (${input.mode}) on scan #${input.scanId}`);
+        }
+        // Log the offensive action
+        logOffensiveAction({
+          engagementId: input.engagementId ?? null,
+          operatorId: ctx.user.openId,
+          operatorName: ctx.user.name ?? null,
+          actionType: input.mode === 'safe_exploit' ? 'msf_exploit' : input.mode === 'auxiliary_scan' ? 'msf_auxiliary' : 'msf_check',
+          riskTier,
+          target: `scan:${input.scanId}`,
+          moduleOrTool: `MSF Validation Engine (${input.mode})`,
+          resultStatus: 'pending_approval',
+        }).catch(() => {});
 
         // Verify MSF server is online
         const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.msfServerId)).limit(1);

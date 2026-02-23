@@ -231,7 +231,20 @@ export const payloadGeneratorRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { generatedPayloads, metasploitServers } = await import("../../drizzle/schema");
       const { getDbRequired } = await import("../db");
+      const { logOffensiveAction } = await import("../lib/roe-guard");
       const db = await getDbRequired();
+
+      // ─── Audit Log (RED tier — payload generation) ───
+      logOffensiveAction({
+        engagementId: null,
+        operatorId: ctx.user.openId,
+        operatorName: ctx.user.name ?? null,
+        actionType: 'payload_delivery',
+        riskTier: 'red',
+        target: `${input.lhost}:${input.lport}`,
+        moduleOrTool: `msfvenom: ${input.payload} (${input.format})`,
+        resultStatus: 'success',
+      }).catch(() => {});
 
       // Get the server
       const [server] = await db
