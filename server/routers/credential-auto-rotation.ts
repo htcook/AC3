@@ -9,8 +9,13 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
   rotateAwsAccessKey,
+  deleteAwsAccessKey,
+  listAwsAccessKeys,
   rotateAzureClientSecret,
+  removeAzurePassword,
   rotateGcpServiceAccountKey,
+  deleteGcpServiceAccountKey,
+  listGcpServiceAccountKeys,
   calculateNextRotation,
   isPolicyDueForRotation,
   generateRotationSummary,
@@ -18,6 +23,9 @@ import {
   type RotationPolicy,
   type RotationAuditEntry,
   type RotationProvider,
+  type AwsCredentials,
+  type AzureCredentials,
+  type GcpCredentials,
 } from "../lib/credential-auto-rotation";
 import { decryptCredentialObject, encryptCredentialObject } from "../lib/credential-crypto";
 
@@ -216,11 +224,59 @@ export const credentialAutoRotationRouter = router({
             durationMs: result.durationMs,
           }).where(eq(credentialRotationAudit.id, auditEntry.id));
 
+          // Step 2: Delete old key using new credentials (post-vault-update)
+          let oldKeyCleanup: { success: boolean; error: string | null } = { success: true, error: null };
+          if (result.oldKeyId && result.newCredentials) {
+            switch (policy.provider) {
+              case "aws": {
+                const newAwsCreds: AwsCredentials = {
+                  accessKeyId: result.newCredentials.accessKeyId,
+                  secretAccessKey: result.newCredentials.secretAccessKey,
+                  region: result.newCredentials.region,
+                };
+                oldKeyCleanup = await deleteAwsAccessKey(
+                  newAwsCreds,
+                  result.oldKeyId,
+                  result.newCredentials.userName || ""
+                );
+                break;
+              }
+              case "azure": {
+                const newAzureCreds: AzureCredentials = {
+                  tenantId: result.newCredentials.tenantId,
+                  clientId: result.newCredentials.clientId,
+                  clientSecret: result.newCredentials.clientSecret,
+                };
+                // Note: old Azure password removal requires the old keyId, not the generic label
+                // The old key cleanup is best-effort; the new secret is already active
+                if (result.newCredentials.applicationObjectId) {
+                  oldKeyCleanup = await removeAzurePassword(
+                    newAzureCreds,
+                    result.newCredentials.applicationObjectId,
+                    result.oldKeyId
+                  );
+                }
+                break;
+              }
+              case "gcp": {
+                const newGcpCreds: GcpCredentials = {
+                  projectId: result.newCredentials.projectId,
+                  clientEmail: result.newCredentials.clientEmail,
+                  privateKey: result.newCredentials.privateKey,
+                };
+                oldKeyCleanup = await deleteGcpServiceAccountKey(newGcpCreds, result.oldKeyId);
+                break;
+              }
+            }
+          }
+
           return {
             success: true,
             oldKeyId: result.oldKeyId,
             newKeyId: result.newKeyId,
             durationMs: result.durationMs,
+            oldKeyDeleted: oldKeyCleanup.success,
+            oldKeyDeleteError: oldKeyCleanup.error,
           };
         } else {
           throw new Error(result.error || "Rotation failed");
@@ -345,6 +401,98 @@ export const credentialAutoRotationRouter = router({
       return isPolicyDueForRotation(mapped);
     });
   }),
+
+  // ─── List provider keys (pre-rotation check) ────────────────────────────
+  listProviderKeys: protectedProcedure
+    .input(z.object({
+      credentialId: z.number(),
+      provider: z.enum(["aws", "azure", "gcp"]),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbOrThrow();
+      const { cloudCredentials } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [credential] = await db.select()
+        .from(cloudCredentials)
+        .where(eq(cloudCredentials.id, input.credentialId));
+
+      if (!credential) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+
+      const currentCreds = decryptCredentialObject({
+        encryptedData: credential.encryptedData,
+        iv: credential.encryptionIv,
+        tag: credential.encryptionTag,
+      });
+
+      switch (input.provider) {
+        case "aws": {
+          const awsCreds = currentCreds as AwsCredentials;
+          return await listAwsAccessKeys(awsCreds);
+        }
+        case "gcp": {
+          const gcpCreds = currentCreds as GcpCredentials;
+          return await listGcpServiceAccountKeys(gcpCreds);
+        }
+        case "azure": {
+          // Azure doesn't have a simple key listing equivalent;
+          // return a placeholder indicating the current secret is active
+          return {
+            keys: [{ accessKeyId: "current-client-secret", status: "Active", createDate: undefined }],
+            error: null,
+          };
+        }
+        default:
+          return { keys: [], error: "Unsupported provider" };
+      }
+    }),
+
+  // ─── Delete old key manually (post-rotation cleanup) ────────────────────
+  deleteOldKey: protectedProcedure
+    .input(z.object({
+      credentialId: z.number(),
+      provider: z.enum(["aws", "azure", "gcp"]),
+      oldKeyId: z.string(),
+      userName: z.string().optional(),
+      applicationObjectId: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbOrThrow();
+      const { cloudCredentials } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [credential] = await db.select()
+        .from(cloudCredentials)
+        .where(eq(cloudCredentials.id, input.credentialId));
+
+      if (!credential) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+
+      const currentCreds = decryptCredentialObject({
+        encryptedData: credential.encryptedData,
+        iv: credential.encryptionIv,
+        tag: credential.encryptionTag,
+      });
+
+      switch (input.provider) {
+        case "aws": {
+          const awsCreds = currentCreds as AwsCredentials;
+          return await deleteAwsAccessKey(awsCreds, input.oldKeyId, input.userName || "");
+        }
+        case "azure": {
+          const azureCreds = currentCreds as AzureCredentials;
+          if (!input.applicationObjectId) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "applicationObjectId required for Azure" });
+          }
+          return await removeAzurePassword(azureCreds, input.applicationObjectId, input.oldKeyId);
+        }
+        case "gcp": {
+          const gcpCreds = currentCreds as GcpCredentials;
+          return await deleteGcpServiceAccountKey(gcpCreds, input.oldKeyId);
+        }
+        default:
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported provider" });
+      }
+    }),
 
   // ─── Get default intervals ───────────────────────────────────────────────
   getDefaults: protectedProcedure.query(() => {

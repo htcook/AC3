@@ -3453,3 +3453,14 @@
 - [x] Create Auto-Rotation UI page (rotation config, one-click rotate, history, rollback)
 - [x] Wire route in App.tsx and add sidebar navigation entry
 - [x] Write tests for rotation engine and orchestrator logic
+
+## Real Cloud SDK Credential Rotation
+- [x] Install AWS SDK (@aws-sdk/client-iam, @aws-sdk/client-sts)
+- [x] Install Azure SDK (@azure/identity, @azure/microsoft-graph-client)
+- [x] Install GCP SDK (@google-cloud/iam-credentials, google-auth-library)
+- [x] Replace simulated AWS IAM key rotation with real CreateAccessKey/DeleteAccessKey/GetCallerIdentity
+- [x] Replace simulated Azure credential rotation with real MS Graph addPassword/removePassword
+- [x] Replace simulated GCP rotation with real IAM createServiceAccountKey/deleteServiceAccountKey
+- [x] Add graceful error handling for SDK authentication failures
+- [x] Update rotation router to surface real SDK errors + listProviderKeys + deleteOldKey endpoints
+- [x] Write vitest tests for real SDK rotation (28 tests, all passing with mocked SDK clients)

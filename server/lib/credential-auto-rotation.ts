@@ -1,13 +1,28 @@
 /**
  * Credential Auto-Rotation Engine
  *
- * Automates the rotation of cloud provider credentials:
- *   - AWS IAM: CreateAccessKey → update vault → DeleteAccessKey (old key)
- *   - Azure: resetPassword on service principal → update vault
- *   - GCP: createKey on service account → update vault → delete old key
+ * Live cloud SDK integration for rotating credentials:
+ *   - AWS IAM: CreateAccessKey → validate via STS → update vault → DeleteAccessKey (old key)
+ *   - Azure: MS Graph addPassword → validate via ClientSecretCredential → update vault → removePassword
+ *   - GCP: IAM createServiceAccountKey → update vault → deleteServiceAccountKey (old key)
  *
  * Each rotation is fully audited and the encrypted vault is updated atomically.
  */
+
+import {
+  IAMClient,
+  CreateAccessKeyCommand,
+  DeleteAccessKeyCommand,
+  ListAccessKeysCommand,
+  GetUserCommand,
+} from "@aws-sdk/client-iam";
+import {
+  STSClient,
+  GetCallerIdentityCommand,
+} from "@aws-sdk/client-sts";
+import { ClientSecretCredential } from "@azure/identity";
+import { Client as GraphClient } from "@microsoft/microsoft-graph-client";
+import { IAMCredentialsClient } from "@google-cloud/iam-credentials";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,52 +84,113 @@ export interface AwsCredentials {
 }
 
 /**
- * Simulate AWS IAM access key rotation.
+ * Rotate an AWS IAM access key using the real AWS SDK.
  *
- * Real flow:
- *   1. IAM.CreateAccessKey(UserName) → new key pair
- *   2. Validate new key (STS.GetCallerIdentity)
- *   3. Update encrypted vault with new key
- *   4. IAM.DeleteAccessKey(UserName, old AccessKeyId)
- *
- * This implementation provides the rotation logic framework.
- * In production, replace the simulated API calls with actual AWS SDK calls.
+ * Flow:
+ *   1. Authenticate with current credentials and resolve the IAM user name
+ *   2. IAM.CreateAccessKey(UserName) → new key pair
+ *   3. Validate new key via STS.GetCallerIdentity
+ *   4. Return new credentials for vault update
+ *   5. Caller deletes old key after vault update succeeds (via deleteAwsAccessKey)
  */
 export async function rotateAwsAccessKey(
   currentCreds: AwsCredentials,
-  _userName?: string
+  userName?: string
 ): Promise<RotationResult> {
   const startTime = Date.now();
 
   try {
-    // Step 1: Validate current credentials exist
     if (!currentCreds.accessKeyId || !currentCreds.secretAccessKey) {
       throw new Error("Current AWS credentials are incomplete");
     }
 
+    const region = currentCreds.region || "us-east-1";
     const oldKeyId = currentCreds.accessKeyId;
 
-    // Step 2: Create new access key via AWS IAM API
-    // In production: const iam = new IAMClient({ credentials: currentCreds });
-    // const { AccessKey } = await iam.send(new CreateAccessKeyCommand({ UserName }));
-    const newAccessKeyId = `AKIA${generateRandomId(16)}`;
-    const newSecretKey = generateRandomSecret(40);
+    const credentials = {
+      accessKeyId: currentCreds.accessKeyId,
+      secretAccessKey: currentCreds.secretAccessKey,
+    };
 
-    // Step 3: Validate new key works (STS GetCallerIdentity)
-    // In production: const sts = new STSClient({ credentials: newCreds });
-    // await sts.send(new GetCallerIdentityCommand({}));
+    const iamClient = new IAMClient({ region, credentials });
 
-    // Step 4: Return new credentials for vault update
-    // Step 5: Old key deletion happens after vault update succeeds
+    // Step 1: Resolve the IAM user name if not provided
+    let resolvedUserName = userName;
+    if (!resolvedUserName) {
+      try {
+        const getUserResp = await iamClient.send(new GetUserCommand({}));
+        resolvedUserName = getUserResp.User?.UserName;
+      } catch {
+        // If GetUser fails (e.g. assumed role), try STS to get the ARN
+        const stsClient = new STSClient({ region, credentials });
+        const identity = await stsClient.send(new GetCallerIdentityCommand({}));
+        // Extract user name from ARN: arn:aws:iam::123456789012:user/MyUser
+        const arnParts = identity.Arn?.split("/");
+        resolvedUserName = arnParts?.[arnParts.length - 1];
+      }
+    }
+
+    if (!resolvedUserName) {
+      throw new Error("Could not resolve IAM user name for key rotation");
+    }
+
+    // Step 2: Create new access key
+    const createResp = await iamClient.send(
+      new CreateAccessKeyCommand({ UserName: resolvedUserName })
+    );
+
+    const newKey = createResp.AccessKey;
+    if (!newKey?.AccessKeyId || !newKey?.SecretAccessKey) {
+      throw new Error("AWS CreateAccessKey returned incomplete key data");
+    }
+
+    // Step 3: Validate new key works via STS GetCallerIdentity
+    const newStsClient = new STSClient({
+      region,
+      credentials: {
+        accessKeyId: newKey.AccessKeyId,
+        secretAccessKey: newKey.SecretAccessKey,
+      },
+    });
+
+    // New keys can take a few seconds to propagate; retry up to 3 times
+    let validated = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await newStsClient.send(new GetCallerIdentityCommand({}));
+        validated = true;
+        break;
+      } catch {
+        // Wait 2 seconds before retrying (eventual consistency)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    if (!validated) {
+      // Rollback: delete the newly created key since it failed validation
+      try {
+        await iamClient.send(
+          new DeleteAccessKeyCommand({
+            UserName: resolvedUserName,
+            AccessKeyId: newKey.AccessKeyId,
+          })
+        );
+      } catch {
+        // Best-effort rollback
+      }
+      throw new Error("New AWS access key failed STS validation after 3 attempts");
+    }
+
     return {
       success: true,
       provider: "aws",
       oldKeyId,
-      newKeyId: newAccessKeyId,
+      newKeyId: newKey.AccessKeyId,
       newCredentials: {
-        accessKeyId: newAccessKeyId,
-        secretAccessKey: newSecretKey,
-        region: currentCreds.region || "us-east-1",
+        accessKeyId: newKey.AccessKeyId,
+        secretAccessKey: newKey.SecretAccessKey,
+        region,
+        userName: resolvedUserName,
       },
       error: null,
       durationMs: Date.now() - startTime,
@@ -132,6 +208,70 @@ export async function rotateAwsAccessKey(
   }
 }
 
+/**
+ * Delete an old AWS access key after the vault has been updated with the new one.
+ * Should be called only after the new key has been validated and persisted.
+ */
+export async function deleteAwsAccessKey(
+  creds: AwsCredentials,
+  oldAccessKeyId: string,
+  userName: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const iamClient = new IAMClient({
+      region: creds.region || "us-east-1",
+      credentials: {
+        accessKeyId: creds.accessKeyId,
+        secretAccessKey: creds.secretAccessKey,
+      },
+    });
+
+    await iamClient.send(
+      new DeleteAccessKeyCommand({
+        UserName: userName,
+        AccessKeyId: oldAccessKeyId,
+      })
+    );
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to delete old AWS key" };
+  }
+}
+
+/**
+ * List all access keys for an IAM user (useful for pre-rotation checks).
+ * AWS limits each user to 2 active keys.
+ */
+export async function listAwsAccessKeys(
+  creds: AwsCredentials,
+  userName?: string
+): Promise<{ keys: Array<{ accessKeyId: string; status: string; createDate: Date | undefined }>; error: string | null }> {
+  try {
+    const iamClient = new IAMClient({
+      region: creds.region || "us-east-1",
+      credentials: {
+        accessKeyId: creds.accessKeyId,
+        secretAccessKey: creds.secretAccessKey,
+      },
+    });
+
+    const resp = await iamClient.send(
+      new ListAccessKeysCommand({ UserName: userName })
+    );
+
+    const keys = (resp.AccessKeyMetadata || []).map(k => ({
+      accessKeyId: k.AccessKeyId || "",
+      status: k.Status || "Unknown",
+      createDate: k.CreateDate,
+    }));
+
+    return { keys, error: null };
+  } catch (err: any) {
+    return { keys: [], error: err.message || "Failed to list AWS access keys" };
+  }
+}
+
 // ─── Azure Credential Reset ──────────────────────────────────────────────────
 
 export interface AzureCredentials {
@@ -141,17 +281,18 @@ export interface AzureCredentials {
 }
 
 /**
- * Simulate Azure service principal credential reset.
+ * Rotate an Azure service principal client secret using MS Graph API.
  *
- * Real flow:
- *   1. Graph API: POST /applications/{appId}/addPassword → new secret
- *   2. Validate new secret (acquire token with new credentials)
- *   3. Update encrypted vault with new secret
- *   4. Graph API: POST /applications/{appId}/removePassword (old keyId)
+ * Flow:
+ *   1. Authenticate with current credentials via ClientSecretCredential
+ *   2. MS Graph: POST /applications/{objectId}/addPassword → new secret
+ *   3. Validate new secret by acquiring a token
+ *   4. Return new credentials for vault update
+ *   5. Caller removes old password after vault update (via removeAzurePassword)
  */
 export async function rotateAzureClientSecret(
   currentCreds: AzureCredentials,
-  _applicationObjectId?: string
+  applicationObjectId?: string
 ): Promise<RotationResult> {
   const startTime = Date.now();
 
@@ -160,25 +301,111 @@ export async function rotateAzureClientSecret(
       throw new Error("Current Azure credentials are incomplete");
     }
 
-    const oldKeyId = `azure-secret-${currentCreds.clientId.slice(0, 8)}`;
+    // Step 1: Authenticate with current credentials
+    const credential = new ClientSecretCredential(
+      currentCreds.tenantId,
+      currentCreds.clientId,
+      currentCreds.clientSecret
+    );
 
-    // Step 1: Add new password to application
-    // In production: POST https://graph.microsoft.com/v1.0/applications/{id}/addPassword
-    const newSecret = generateRandomSecret(48);
-    const newKeyId = `azure-secret-${generateRandomId(8)}`;
+    // Acquire token to verify current credentials and get auth for Graph API
+    const tokenResponse = await credential.getToken("https://graph.microsoft.com/.default");
+    if (!tokenResponse?.token) {
+      throw new Error("Failed to authenticate with current Azure credentials");
+    }
 
-    // Step 2: Validate new credentials (acquire token)
-    // In production: new ClientSecretCredential(tenantId, clientId, newSecret).getToken(...)
+    // Step 2: Initialize MS Graph client
+    const graphClient = GraphClient.init({
+      authProvider: (done) => {
+        done(null, tokenResponse.token);
+      },
+    });
+
+    // Step 3: Resolve the application object ID if not provided
+    let resolvedObjectId = applicationObjectId;
+    if (!resolvedObjectId) {
+      // Look up the application by its clientId (appId)
+      const apps = await graphClient
+        .api("/applications")
+        .filter(`appId eq '${currentCreds.clientId}'`)
+        .select("id")
+        .get();
+
+      if (!apps?.value?.[0]?.id) {
+        throw new Error(
+          `Could not find Azure application with appId ${currentCreds.clientId}. ` +
+          `Provide the applicationObjectId parameter or ensure the service principal has Application.ReadWrite.All permission.`
+        );
+      }
+      resolvedObjectId = apps.value[0].id;
+    }
+
+    // Step 4: Add a new password credential to the application
+    const passwordPayload = {
+      passwordCredential: {
+        displayName: `auto-rotated-${new Date().toISOString().slice(0, 10)}`,
+        endDateTime: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+      },
+    };
+
+    const addPasswordResp = await graphClient
+      .api(`/applications/${resolvedObjectId}/addPassword`)
+      .post(passwordPayload);
+
+    const newSecret = addPasswordResp?.secretText;
+    const newKeyId = addPasswordResp?.keyId;
+
+    if (!newSecret || !newKeyId) {
+      throw new Error("Azure addPassword returned incomplete response (no secretText or keyId)");
+    }
+
+    // Step 5: Validate the new secret by acquiring a token with it
+    const newCredential = new ClientSecretCredential(
+      currentCreds.tenantId,
+      currentCreds.clientId,
+      newSecret
+    );
+
+    let validated = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const newToken = await newCredential.getToken("https://graph.microsoft.com/.default");
+        if (newToken?.token) {
+          validated = true;
+          break;
+        }
+      } catch {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    if (!validated) {
+      // Rollback: remove the newly added password
+      try {
+        const freshToken = await credential.getToken("https://graph.microsoft.com/.default");
+        const rollbackClient = GraphClient.init({
+          authProvider: (done) => done(null, freshToken!.token),
+        });
+        await rollbackClient
+          .api(`/applications/${resolvedObjectId}/removePassword`)
+          .post({ keyId: newKeyId });
+      } catch {
+        // Best-effort rollback
+      }
+      throw new Error("New Azure client secret failed token validation after 3 attempts");
+    }
 
     return {
       success: true,
       provider: "azure",
-      oldKeyId,
+      oldKeyId: `current-secret`,
       newKeyId,
       newCredentials: {
         tenantId: currentCreds.tenantId,
         clientId: currentCreds.clientId,
         clientSecret: newSecret,
+        applicationObjectId: resolvedObjectId || "",
+        keyId: newKeyId,
       },
       error: null,
       durationMs: Date.now() - startTime,
@@ -196,6 +423,40 @@ export async function rotateAzureClientSecret(
   }
 }
 
+/**
+ * Remove an old Azure password credential after the vault has been updated.
+ */
+export async function removeAzurePassword(
+  creds: AzureCredentials,
+  applicationObjectId: string,
+  oldKeyId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const credential = new ClientSecretCredential(
+      creds.tenantId,
+      creds.clientId,
+      creds.clientSecret
+    );
+
+    const tokenResponse = await credential.getToken("https://graph.microsoft.com/.default");
+    if (!tokenResponse?.token) {
+      throw new Error("Failed to authenticate for old password removal");
+    }
+
+    const graphClient = GraphClient.init({
+      authProvider: (done) => done(null, tokenResponse.token),
+    });
+
+    await graphClient
+      .api(`/applications/${applicationObjectId}/removePassword`)
+      .post({ keyId: oldKeyId });
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to remove old Azure password" };
+  }
+}
+
 // ─── GCP Service Account Key Rotation ────────────────────────────────────────
 
 export interface GcpCredentials {
@@ -206,13 +467,13 @@ export interface GcpCredentials {
 }
 
 /**
- * Simulate GCP service account key rotation.
+ * Rotate a GCP service account key using the real IAM Credentials API.
  *
- * Real flow:
- *   1. IAM.createServiceAccountKey(name) → new key JSON
- *   2. Validate new key (authenticate and call a GCP API)
- *   3. Update encrypted vault with new key
- *   4. IAM.deleteServiceAccountKey(name, old key ID)
+ * Flow:
+ *   1. Authenticate with current service account credentials
+ *   2. IAM: projects.serviceAccounts.keys.create → new key JSON
+ *   3. Return new credentials for vault update
+ *   4. Caller deletes old key after vault update (via deleteGcpServiceAccountKey)
  */
 export async function rotateGcpServiceAccountKey(
   currentCreds: GcpCredentials
@@ -224,12 +485,64 @@ export async function rotateGcpServiceAccountKey(
       throw new Error("Current GCP credentials are incomplete");
     }
 
-    const oldKeyId = currentCreds.privateKeyId || `gcp-key-${currentCreds.clientEmail.slice(0, 8)}`;
+    const oldKeyId = currentCreds.privateKeyId || null;
 
-    // Step 1: Create new service account key
-    // In production: iam.projects.serviceAccounts.keys.create(...)
-    const newKeyId = `gcp-key-${generateRandomId(12)}`;
-    const newPrivateKey = `-----BEGIN RSA PRIVATE KEY-----\n${generateRandomSecret(64)}\n-----END RSA PRIVATE KEY-----`;
+    // The service account resource name for IAM API
+    const serviceAccountName = `projects/-/serviceAccounts/${currentCreds.clientEmail}`;
+
+    // Authenticate using the current service account credentials
+    const { GoogleAuth } = await import("google-auth-library");
+    const auth = new GoogleAuth({
+      credentials: {
+        client_email: currentCreds.clientEmail,
+        private_key: currentCreds.privateKey,
+        type: "service_account",
+      },
+      scopes: ["https://www.googleapis.com/auth/iam"],
+    });
+
+    const authClient = await auth.getClient();
+    const accessToken = await authClient.getAccessToken();
+
+    if (!accessToken?.token) {
+      throw new Error("Failed to authenticate with current GCP credentials");
+    }
+
+    // Step 2: Create a new service account key via REST API
+    // Using REST directly for more control over the key creation
+    const createKeyUrl = `https://iam.googleapis.com/v1/projects/${currentCreds.projectId}/serviceAccounts/${currentCreds.clientEmail}/keys`;
+
+    const createResp = await fetch(createKeyUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        privateKeyType: "TYPE_GOOGLE_CREDENTIALS_FILE",
+        keyAlgorithm: "KEY_ALG_RSA_2048",
+      }),
+    });
+
+    if (!createResp.ok) {
+      const errBody = await createResp.text();
+      throw new Error(`GCP IAM createKey failed (${createResp.status}): ${errBody}`);
+    }
+
+    const createData = await createResp.json();
+
+    // The response contains the full key JSON as base64-encoded privateKeyData
+    if (!createData.privateKeyData) {
+      throw new Error("GCP createKey returned no privateKeyData");
+    }
+
+    // Decode the base64 key JSON
+    const keyJsonStr = Buffer.from(createData.privateKeyData, "base64").toString("utf-8");
+    const keyJson = JSON.parse(keyJsonStr);
+
+    // Extract the new key name (format: projects/{project}/serviceAccounts/{email}/keys/{keyId})
+    const newKeyResourceName = createData.name || "";
+    const newKeyId = newKeyResourceName.split("/").pop() || createData.name;
 
     return {
       success: true,
@@ -237,10 +550,12 @@ export async function rotateGcpServiceAccountKey(
       oldKeyId,
       newKeyId,
       newCredentials: {
-        projectId: currentCreds.projectId,
-        clientEmail: currentCreds.clientEmail,
-        privateKey: newPrivateKey,
-        privateKeyId: newKeyId,
+        projectId: keyJson.project_id || currentCreds.projectId,
+        clientEmail: keyJson.client_email || currentCreds.clientEmail,
+        privateKey: keyJson.private_key,
+        privateKeyId: keyJson.private_key_id || newKeyId,
+        type: "service_account",
+        tokenUri: keyJson.token_uri || "https://oauth2.googleapis.com/token",
       },
       error: null,
       durationMs: Date.now() - startTime,
@@ -255,6 +570,104 @@ export async function rotateGcpServiceAccountKey(
       error: err.message || "GCP key rotation failed",
       durationMs: Date.now() - startTime,
     };
+  }
+}
+
+/**
+ * Delete an old GCP service account key after the vault has been updated.
+ */
+export async function deleteGcpServiceAccountKey(
+  creds: GcpCredentials,
+  keyResourceName: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { GoogleAuth } = await import("google-auth-library");
+    const auth = new GoogleAuth({
+      credentials: {
+        client_email: creds.clientEmail,
+        private_key: creds.privateKey,
+        type: "service_account",
+      },
+      scopes: ["https://www.googleapis.com/auth/iam"],
+    });
+
+    const authClient = await auth.getClient();
+    const accessToken = await authClient.getAccessToken();
+
+    if (!accessToken?.token) {
+      throw new Error("Failed to authenticate for old key deletion");
+    }
+
+    // Construct the full resource name if only a key ID was provided
+    let fullKeyName = keyResourceName;
+    if (!keyResourceName.startsWith("projects/")) {
+      fullKeyName = `projects/${creds.projectId}/serviceAccounts/${creds.clientEmail}/keys/${keyResourceName}`;
+    }
+
+    const deleteUrl = `https://iam.googleapis.com/v1/${fullKeyName}`;
+    const deleteResp = await fetch(deleteUrl, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken.token}`,
+      },
+    });
+
+    if (!deleteResp.ok) {
+      const errBody = await deleteResp.text();
+      throw new Error(`GCP IAM deleteKey failed (${deleteResp.status}): ${errBody}`);
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to delete old GCP key" };
+  }
+}
+
+/**
+ * List all keys for a GCP service account (useful for pre-rotation checks).
+ */
+export async function listGcpServiceAccountKeys(
+  creds: GcpCredentials
+): Promise<{ keys: Array<{ name: string; validAfterTime: string; validBeforeTime: string; keyType: string }>; error: string | null }> {
+  try {
+    const { GoogleAuth } = await import("google-auth-library");
+    const auth = new GoogleAuth({
+      credentials: {
+        client_email: creds.clientEmail,
+        private_key: creds.privateKey,
+        type: "service_account",
+      },
+      scopes: ["https://www.googleapis.com/auth/iam"],
+    });
+
+    const authClient = await auth.getClient();
+    const accessToken = await authClient.getAccessToken();
+
+    if (!accessToken?.token) {
+      throw new Error("Failed to authenticate for key listing");
+    }
+
+    const listUrl = `https://iam.googleapis.com/v1/projects/${creds.projectId}/serviceAccounts/${creds.clientEmail}/keys`;
+    const resp = await fetch(listUrl, {
+      headers: { Authorization: `Bearer ${accessToken.token}` },
+    });
+
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      throw new Error(`GCP IAM listKeys failed (${resp.status}): ${errBody}`);
+    }
+
+    const data = await resp.json();
+    const keys = (data.keys || []).map((k: any) => ({
+      name: k.name || "",
+      validAfterTime: k.validAfterTime || "",
+      validBeforeTime: k.validBeforeTime || "",
+      keyType: k.keyType || "UNKNOWN",
+    }));
+
+    return { keys, error: null };
+  } catch (err: any) {
+    return { keys: [], error: err.message || "Failed to list GCP service account keys" };
   }
 }
 
@@ -350,24 +763,4 @@ export function generateRotationSummary(
     failedRotations: failed.length,
     nextRotationDate: upcomingDates[0] || null,
   };
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function generateRandomId(length: number): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
-function generateRandomSecret(length: number): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
 }
