@@ -3464,3 +3464,22 @@
 - [x] Add graceful error handling for SDK authentication failures
 - [x] Update rotation router to surface real SDK errors + listProviderKeys + deleteOldKey endpoints
 - [x] Write vitest tests for real SDK rotation (28 tests, all passing with mocked SDK clients)
+
+## Phase 1: Enterprise Readiness
+- [x] Real-time detection feedback loop — SIEM query integration (Splunk, Elastic, Sentinel)
+- [x] Multi-tenancy with tenant-scoped RBAC — tenant isolation, tenant switcher UI
+- [x] Vulnerability scanner import — Nessus (.nessus XML), Qualys (CSV/XML), Rapid7 (CSV) parsers
+- [x] Executive risk trending dashboard — time-series risk scores, ATT&CK tactic drill-down
+
+## Phase 2: Validation Depth
+- [x] Agentless BAS testing mode — API-based simulation without endpoint agents
+- [x] Automated attack path discovery engine — graph-based path computation from AD/cloud/vuln data
+- [x] Customizable Jinja2 report templates — Word/PDF export with client branding
+- [x] Email security gateway validation — test email gateway controls (Proofpoint, Mimecast, Defender)
+
+## Phase 3: Market Expansion
+- [x] NGFW / network control validation — firewall rule testing, segmentation validation
+- [x] Automated remediation verification — re-validate findings after remediation
+- [x] CI/CD pipeline integration — GitHub Actions / Jenkins trigger for validation runs
+- [x] SOAR bidirectional connectors — Splunk SOAR, Cortex XSOAR webhook integration
+- [x] AI-driven attack planning — LLM-powered autonomous attack sequence recommendation

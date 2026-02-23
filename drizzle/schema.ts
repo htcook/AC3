@@ -3137,3 +3137,360 @@ export const credentialRotationAudit = mysqlTable("credential_rotation_audit", {
   initiatedBy: varchar("rotation_initiated_by", { length: 255 }).notNull(),
   createdAt: timestamp("rotation_audit_created_at").defaultNow(),
 });
+
+
+// ============================================================
+// Phase 1: SIEM Detection Feedback Loop
+// ============================================================
+
+export const siemIntegrations = mysqlTable("siem_integrations", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("siem_tenant_id"),
+  name: varchar("siem_name", { length: 255 }).notNull(),
+  provider: mysqlEnum("siem_provider", ["splunk", "elastic", "sentinel", "qradar", "custom"]).notNull(),
+  baseUrl: varchar("siem_base_url", { length: 512 }).notNull(),
+  apiKeyEncrypted: text("siem_api_key_enc"),
+  queryTemplate: text("siem_query_template"),
+  isActive: boolean("siem_is_active").default(true).notNull(),
+  lastTestedAt: timestamp("siem_last_tested"),
+  createdAt: timestamp("siem_created_at").defaultNow().notNull(),
+});
+
+export const detectionFeedbackResults = mysqlTable("detection_feedback_results", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("dfr_tenant_id"),
+  siemIntegrationId: int("dfr_siem_id").notNull(),
+  techniqueId: varchar("dfr_technique_id", { length: 32 }).notNull(),
+  techniqueName: varchar("dfr_technique_name", { length: 255 }),
+  campaignId: int("dfr_campaign_id"),
+  executedAt: timestamp("dfr_executed_at").notNull(),
+  queryWindowSec: int("dfr_query_window_sec").default(300).notNull(),
+  alertsFound: int("dfr_alerts_found").default(0).notNull(),
+  detectionResult: mysqlEnum("dfr_result", ["detected", "missed", "partial", "error"]).notNull(),
+  alertDetails: json("dfr_alert_details"),
+  queryUsed: text("dfr_query_used"),
+  latencyMs: int("dfr_latency_ms"),
+  createdAt: timestamp("dfr_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 1: Multi-Tenancy
+// ============================================================
+
+export const tenants = mysqlTable("tenants", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("tenant_name", { length: 255 }).notNull(),
+  slug: varchar("tenant_slug", { length: 128 }).notNull(),
+  logoUrl: varchar("tenant_logo_url", { length: 512 }),
+  primaryColor: varchar("tenant_primary_color", { length: 16 }),
+  isActive: boolean("tenant_is_active").default(true).notNull(),
+  maxUsers: int("tenant_max_users").default(50).notNull(),
+  plan: mysqlEnum("tenant_plan", ["free", "pro", "enterprise"]).default("free").notNull(),
+  createdAt: timestamp("tenant_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("tenant_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export const tenantMemberships = mysqlTable("tenant_memberships", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tm_tenant_id").notNull(),
+  userId: int("tm_user_id").notNull(),
+  role: mysqlEnum("tm_role", ["owner", "admin", "operator", "viewer"]).default("viewer").notNull(),
+  joinedAt: timestamp("tm_joined_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 1: Vulnerability Scanner Import
+// ============================================================
+
+export const vulnScanImports = mysqlTable("vuln_scan_imports", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("vsi_tenant_id"),
+  scannerType: mysqlEnum("vsi_scanner_type", ["nessus", "qualys", "rapid7", "openvas", "custom"]).notNull(),
+  fileName: varchar("vsi_file_name", { length: 512 }).notNull(),
+  importedAt: timestamp("vsi_imported_at").defaultNow().notNull(),
+  totalHosts: int("vsi_total_hosts").default(0).notNull(),
+  totalVulns: int("vsi_total_vulns").default(0).notNull(),
+  criticalCount: int("vsi_critical").default(0).notNull(),
+  highCount: int("vsi_high").default(0).notNull(),
+  mediumCount: int("vsi_medium").default(0).notNull(),
+  lowCount: int("vsi_low").default(0).notNull(),
+  importedBy: varchar("vsi_imported_by", { length: 255 }),
+});
+
+export const vulnScanFindings = mysqlTable("vuln_scan_findings", {
+  id: int("id").autoincrement().primaryKey(),
+  importId: int("vsf_import_id").notNull(),
+  tenantId: int("vsf_tenant_id"),
+  cveId: varchar("vsf_cve_id", { length: 32 }),
+  title: varchar("vsf_title", { length: 512 }).notNull(),
+  severity: mysqlEnum("vsf_severity", ["critical", "high", "medium", "low", "info"]).notNull(),
+  cvssScore: double("vsf_cvss_score"),
+  hostIp: varchar("vsf_host_ip", { length: 45 }),
+  hostName: varchar("vsf_host_name", { length: 255 }),
+  port: int("vsf_port"),
+  protocol: varchar("vsf_protocol", { length: 16 }),
+  description: text("vsf_description"),
+  solution: text("vsf_solution"),
+  pluginId: varchar("vsf_plugin_id", { length: 64 }),
+  exploitAvailable: boolean("vsf_exploit_available").default(false),
+  attackPathLinked: boolean("vsf_attack_path_linked").default(false),
+  createdAt: timestamp("vsf_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 1: Executive Risk Trending Dashboard
+// ============================================================
+
+export const riskTrendSnapshots = mysqlTable("risk_trend_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("rts_tenant_id"),
+  snapshotDate: timestamp("rts_snapshot_date").notNull(),
+  overallScore: double("rts_overall_score").notNull(),
+  detectionCoveragePercent: double("rts_detection_coverage"),
+  preventionCoveragePercent: double("rts_prevention_coverage"),
+  criticalVulnCount: int("rts_critical_vulns").default(0),
+  openFindingsCount: int("rts_open_findings").default(0),
+  meanTimeToDetectMs: int("rts_mttd_ms"),
+  meanTimeToRespondMs: int("rts_mttr_ms"),
+  tacticScores: json("rts_tactic_scores"),
+  source: varchar("rts_source", { length: 64 }),
+  createdAt: timestamp("rts_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 2: Agentless BAS Testing
+// ============================================================
+
+export const agentlessBASTests = mysqlTable("agentless_bas_tests", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("abt_tenant_id"),
+  name: varchar("abt_name", { length: 255 }).notNull(),
+  testType: mysqlEnum("abt_type", ["cloud_api", "network_probe", "email_payload", "dns_exfil", "http_c2_sim"]).notNull(),
+  targetDescription: text("abt_target_desc"),
+  techniqueId: varchar("abt_technique_id", { length: 32 }),
+  techniqueName: varchar("abt_technique_name", { length: 255 }),
+  status: mysqlEnum("abt_status", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
+  result: mysqlEnum("abt_result", ["blocked", "detected", "missed", "error"]),
+  resultDetails: json("abt_result_details"),
+  executedAt: timestamp("abt_executed_at"),
+  durationMs: int("abt_duration_ms"),
+  createdBy: varchar("abt_created_by", { length: 255 }),
+  createdAt: timestamp("abt_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 2: Automated Attack Path Discovery
+// ============================================================
+
+export const attackPathGraphNodes = mysqlTable("attack_path_graph_nodes", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("apgn_tenant_id"),
+  nodeType: mysqlEnum("apgn_type", ["user", "computer", "group", "service", "cloud_identity", "vulnerability", "crown_jewel"]).notNull(),
+  name: varchar("apgn_name", { length: 512 }).notNull(),
+  properties: json("apgn_properties"),
+  riskScore: double("apgn_risk_score"),
+  isCrownJewel: boolean("apgn_is_crown_jewel").default(false),
+  source: varchar("apgn_source", { length: 64 }),
+  createdAt: timestamp("apgn_created_at").defaultNow().notNull(),
+});
+
+export const attackPathGraphEdges = mysqlTable("attack_path_graph_edges", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("apge_tenant_id"),
+  sourceNodeId: int("apge_source_node_id").notNull(),
+  targetNodeId: int("apge_target_node_id").notNull(),
+  edgeType: varchar("apge_edge_type", { length: 128 }).notNull(),
+  technique: varchar("apge_technique", { length: 32 }),
+  probability: double("apge_probability"),
+  properties: json("apge_properties"),
+  createdAt: timestamp("apge_created_at").defaultNow().notNull(),
+});
+
+export const discoveredAttackPaths = mysqlTable("discovered_attack_paths", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("dap_tenant_id"),
+  name: varchar("dap_name", { length: 512 }),
+  pathNodes: json("dap_path_nodes").notNull(),
+  pathEdges: json("dap_path_edges").notNull(),
+  totalHops: int("dap_total_hops").notNull(),
+  riskScore: double("dap_risk_score").notNull(),
+  crownJewelTarget: varchar("dap_crown_jewel", { length: 255 }),
+  chokePoints: json("dap_choke_points"),
+  status: mysqlEnum("dap_status", ["active", "mitigated", "accepted"]).default("active").notNull(),
+  discoveredAt: timestamp("dap_discovered_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 2: Customizable Report Templates
+// ============================================================
+
+export const reportTemplates = mysqlTable("report_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("rt_tenant_id"),
+  name: varchar("rt_name", { length: 255 }).notNull(),
+  description: text("rt_description"),
+  templateType: mysqlEnum("rt_type", ["engagement", "executive", "compliance", "vulnerability", "custom"]).notNull(),
+  templateContent: text("rt_content").notNull(),
+  headerHtml: text("rt_header_html"),
+  footerHtml: text("rt_footer_html"),
+  cssOverrides: text("rt_css_overrides"),
+  logoUrl: varchar("rt_logo_url", { length: 512 }),
+  primaryColor: varchar("rt_primary_color", { length: 16 }),
+  isDefault: boolean("rt_is_default").default(false),
+  createdBy: varchar("rt_created_by", { length: 255 }),
+  createdAt: timestamp("rt_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("rt_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+// ============================================================
+// Phase 2: Email Security Gateway Validation
+// ============================================================
+
+export const emailSecurityTests = mysqlTable("email_security_tests", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("est_tenant_id"),
+  name: varchar("est_name", { length: 255 }).notNull(),
+  gatewayType: mysqlEnum("est_gateway", ["proofpoint", "mimecast", "defender", "barracuda", "custom"]).notNull(),
+  targetEmail: varchar("est_target_email", { length: 320 }).notNull(),
+  payloadType: mysqlEnum("est_payload_type", ["phishing_link", "malware_attachment", "credential_harvest", "bec_impersonation", "macro_doc"]).notNull(),
+  status: mysqlEnum("est_status", ["pending", "sent", "delivered", "blocked", "quarantined", "error"]).default("pending").notNull(),
+  deliveryResult: mysqlEnum("est_delivery_result", ["blocked", "quarantined", "delivered", "unknown"]),
+  gatewayResponse: text("est_gateway_response"),
+  sentAt: timestamp("est_sent_at"),
+  resultReceivedAt: timestamp("est_result_received_at"),
+  createdBy: varchar("est_created_by", { length: 255 }),
+  createdAt: timestamp("est_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 3: NGFW / Network Control Validation
+// ============================================================
+
+export const ngfwValidationTests = mysqlTable("ngfw_validation_tests", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("nvt_tenant_id"),
+  name: varchar("nvt_name", { length: 255 }).notNull(),
+  testType: mysqlEnum("nvt_type", ["port_probe", "protocol_test", "lateral_movement", "exfiltration", "c2_callback", "segmentation"]).notNull(),
+  sourceIp: varchar("nvt_source_ip", { length: 45 }),
+  targetIp: varchar("nvt_target_ip", { length: 45 }),
+  targetPort: int("nvt_target_port"),
+  protocol: varchar("nvt_protocol", { length: 16 }),
+  expectedResult: mysqlEnum("nvt_expected", ["blocked", "allowed"]).notNull(),
+  actualResult: mysqlEnum("nvt_actual", ["blocked", "allowed", "timeout", "error"]),
+  status: mysqlEnum("nvt_status", ["pending", "running", "completed", "error"]).default("pending").notNull(),
+  firewallVendor: varchar("nvt_fw_vendor", { length: 128 }),
+  ruleMatched: varchar("nvt_rule_matched", { length: 255 }),
+  executedAt: timestamp("nvt_executed_at"),
+  durationMs: int("nvt_duration_ms"),
+  createdBy: varchar("nvt_created_by", { length: 255 }),
+  createdAt: timestamp("nvt_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 3: Automated Remediation Verification
+// ============================================================
+
+export const remediationVerifications = mysqlTable("remediation_verifications", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("rv_tenant_id"),
+  originalFindingId: int("rv_original_finding_id").notNull(),
+  originalFindingType: varchar("rv_finding_type", { length: 64 }).notNull(),
+  techniqueId: varchar("rv_technique_id", { length: 32 }),
+  verificationMethod: mysqlEnum("rv_method", ["re_exploit", "scan_recheck", "config_audit", "manual"]).notNull(),
+  status: mysqlEnum("rv_status", ["pending", "running", "verified_fixed", "still_vulnerable", "error"]).default("pending").notNull(),
+  previousResult: text("rv_previous_result"),
+  currentResult: text("rv_current_result"),
+  verifiedAt: timestamp("rv_verified_at"),
+  verifiedBy: varchar("rv_verified_by", { length: 255 }),
+  createdAt: timestamp("rv_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 3: CI/CD Pipeline Integration
+// ============================================================
+
+export const cicdPipelines = mysqlTable("cicd_pipelines", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("cicd_tenant_id"),
+  name: varchar("cicd_name", { length: 255 }).notNull(),
+  provider: mysqlEnum("cicd_provider", ["github_actions", "jenkins", "gitlab_ci", "azure_devops", "custom"]).notNull(),
+  webhookUrl: varchar("cicd_webhook_url", { length: 512 }),
+  webhookSecret: text("cicd_webhook_secret"),
+  triggerOn: mysqlEnum("cicd_trigger", ["push", "pull_request", "release", "manual", "schedule"]).default("manual").notNull(),
+  validationProfileId: int("cicd_validation_profile_id"),
+  failThreshold: double("cicd_fail_threshold").default(7.0),
+  isActive: boolean("cicd_is_active").default(true).notNull(),
+  lastTriggeredAt: timestamp("cicd_last_triggered"),
+  createdBy: varchar("cicd_created_by", { length: 255 }),
+  createdAt: timestamp("cicd_created_at").defaultNow().notNull(),
+});
+
+export const cicdRuns = mysqlTable("cicd_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  pipelineId: int("cicd_run_pipeline_id").notNull(),
+  tenantId: int("cicd_run_tenant_id"),
+  commitSha: varchar("cicd_commit_sha", { length: 64 }),
+  branch: varchar("cicd_branch", { length: 255 }),
+  status: mysqlEnum("cicd_run_status", ["pending", "running", "passed", "failed", "error"]).default("pending").notNull(),
+  totalTests: int("cicd_total_tests").default(0),
+  passedTests: int("cicd_passed_tests").default(0),
+  failedTests: int("cicd_failed_tests").default(0),
+  riskScore: double("cicd_risk_score"),
+  reportUrl: varchar("cicd_report_url", { length: 512 }),
+  startedAt: timestamp("cicd_started_at"),
+  completedAt: timestamp("cicd_completed_at"),
+  createdAt: timestamp("cicd_run_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 3: SOAR Bidirectional Connectors
+// ============================================================
+
+export const soarConnectors = mysqlTable("soar_connectors", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("soar_tenant_id"),
+  name: varchar("soar_name", { length: 255 }).notNull(),
+  platform: mysqlEnum("soar_platform", ["splunk_soar", "cortex_xsoar", "swimlane", "tines", "custom"]).notNull(),
+  webhookUrl: varchar("soar_webhook_url", { length: 512 }).notNull(),
+  apiKeyEncrypted: text("soar_api_key_enc"),
+  inboundEnabled: boolean("soar_inbound").default(true).notNull(),
+  outboundEnabled: boolean("soar_outbound").default(true).notNull(),
+  eventTypes: json("soar_event_types"),
+  isActive: boolean("soar_is_active").default(true).notNull(),
+  lastSyncAt: timestamp("soar_last_sync"),
+  createdBy: varchar("soar_created_by", { length: 255 }),
+  createdAt: timestamp("soar_created_at").defaultNow().notNull(),
+});
+
+export const soarEvents = mysqlTable("soar_events", {
+  id: int("id").autoincrement().primaryKey(),
+  connectorId: int("soar_evt_connector_id").notNull(),
+  tenantId: int("soar_evt_tenant_id"),
+  direction: mysqlEnum("soar_evt_direction", ["inbound", "outbound"]).notNull(),
+  eventType: varchar("soar_evt_type", { length: 128 }).notNull(),
+  payload: json("soar_evt_payload"),
+  status: mysqlEnum("soar_evt_status", ["pending", "delivered", "failed"]).default("pending").notNull(),
+  responseCode: int("soar_evt_response_code"),
+  errorMessage: text("soar_evt_error"),
+  createdAt: timestamp("soar_evt_created_at").defaultNow().notNull(),
+});
+
+// ============================================================
+// Phase 3: AI-Driven Attack Planning
+// ============================================================
+
+export const aiAttackPlans = mysqlTable("ai_attack_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("aap_tenant_id"),
+  name: varchar("aap_name", { length: 255 }).notNull(),
+  targetDescription: text("aap_target_desc").notNull(),
+  threatActorProfile: varchar("aap_threat_actor", { length: 255 }),
+  environmentContext: json("aap_env_context"),
+  generatedPlan: json("aap_generated_plan"),
+  attackSteps: json("aap_attack_steps"),
+  estimatedRiskScore: double("aap_risk_score"),
+  status: mysqlEnum("aap_status", ["generating", "ready", "executing", "completed"]).default("generating").notNull(),
+  acceptedAt: timestamp("aap_accepted_at"),
+  createdBy: varchar("aap_created_by", { length: 255 }),
+  createdAt: timestamp("aap_created_at").defaultNow().notNull(),
+});

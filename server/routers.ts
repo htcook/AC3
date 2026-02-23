@@ -50,6 +50,19 @@ import { adAttackPathGraphRouter } from "./routers/ad-attack-path-graph";
 import { forestMapperRouter } from "./routers/forest-mapper";
 import { bloodhoundImportRouter } from "./routers/bloodhound-import";
 import { credentialAutoRotationRouter } from "./routers/credential-auto-rotation";
+import { siemFeedbackRouter } from "./routers/siem-feedback";
+import { tenantRouter } from "./routers/tenants";
+import { vulnScannerRouter } from "./routers/vuln-scanner";
+import { riskTrendingRouter } from "./routers/risk-trending";
+import { agentlessBASRouter } from "./routers/agentless-bas";
+import { attackPathDiscoveryRouter } from "./routers/attack-path-discovery";
+import { reportTemplatesRouter } from "./routers/report-templates";
+import { emailSecurityRouter } from "./routers/email-security";
+import { ngfwValidationRouter } from "./routers/ngfw-validation";
+import { remediationVerificationRouter } from "./routers/remediation-verification";
+import { cicdPipelineRouter } from "./routers/cicd-pipeline";
+import { soarConnectorRouter } from "./routers/soar-connectors";
+import { aiAttackPlannerRouter } from "./routers/ai-attack-planner";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -182,6 +195,19 @@ export const appRouter = router({
   forestMapper: forestMapperRouter,
   bloodhoundImport: bloodhoundImportRouter,
   credentialAutoRotation: credentialAutoRotationRouter,
+  siemFeedback: siemFeedbackRouter,
+  tenants: tenantRouter,
+  vulnScanner: vulnScannerRouter,
+  riskTrending: riskTrendingRouter,
+  agentlessBAS: agentlessBASRouter,
+  attackPathDiscovery: attackPathDiscoveryRouter,
+  reportTemplates: reportTemplatesRouter,
+  emailSecurity: emailSecurityRouter,
+  ngfwValidation: ngfwValidationRouter,
+  remediationVerification: remediationVerificationRouter,
+  cicdPipeline: cicdPipelineRouter,
+  soarConnector: soarConnectorRouter,
+  aiAttackPlanner: aiAttackPlannerRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

@@ -92,6 +92,19 @@ const ADAttackPathGraph = lazy(() => import("./pages/ADAttackPathGraph"));
 const ForestMapper = lazy(() => import("./pages/ForestMapper"));
 const BloodHoundImport = lazy(() => import("./pages/BloodHoundImport"));
 const CredentialAutoRotation = lazy(() => import("./pages/CredentialAutoRotation"));
+const SiemFeedback = lazy(() => import("./pages/SiemFeedback"));
+const Tenants = lazy(() => import("./pages/Tenants"));
+const VulnScanner = lazy(() => import("./pages/VulnScanner"));
+const RiskTrending = lazy(() => import("./pages/RiskTrending"));
+const AgentlessBAS = lazy(() => import("./pages/AgentlessBAS"));
+const AttackPathDiscovery = lazy(() => import("./pages/AttackPathDiscovery"));
+const ReportTemplates = lazy(() => import("./pages/ReportTemplates"));
+const EmailSecurity = lazy(() => import("./pages/EmailSecurity"));
+const NgfwValidation = lazy(() => import("./pages/NgfwValidation"));
+const RemediationVerification = lazy(() => import("./pages/RemediationVerification"));
+const CicdPipeline = lazy(() => import("./pages/CicdPipeline"));
+const SoarConnectors = lazy(() => import("./pages/SoarConnectors"));
+const AiAttackPlanner = lazy(() => import("./pages/AiAttackPlanner"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -424,6 +437,45 @@ function Router() {
         </Route>
         <Route path="/credential-auto-rotation">
           <ProtectedRoute component={CredentialAutoRotation} />
+        </Route>
+        <Route path="/siem-feedback">
+          <ProtectedRoute component={SiemFeedback} />
+        </Route>
+        <Route path="/tenants">
+          <ProtectedRoute component={Tenants} />
+        </Route>
+        <Route path="/vuln-scanner">
+          <ProtectedRoute component={VulnScanner} />
+        </Route>
+        <Route path="/risk-trending">
+          <ProtectedRoute component={RiskTrending} />
+        </Route>
+        <Route path="/agentless-bas">
+          <ProtectedRoute component={AgentlessBAS} />
+        </Route>
+        <Route path="/attack-path-discovery">
+          <ProtectedRoute component={AttackPathDiscovery} />
+        </Route>
+        <Route path="/report-templates">
+          <ProtectedRoute component={ReportTemplates} />
+        </Route>
+        <Route path="/email-security">
+          <ProtectedRoute component={EmailSecurity} />
+        </Route>
+        <Route path="/ngfw-validation">
+          <ProtectedRoute component={NgfwValidation} />
+        </Route>
+        <Route path="/remediation-verification">
+          <ProtectedRoute component={RemediationVerification} />
+        </Route>
+        <Route path="/cicd-pipeline">
+          <ProtectedRoute component={CicdPipeline} />
+        </Route>
+        <Route path="/soar-connectors">
+          <ProtectedRoute component={SoarConnectors} />
+        </Route>
+        <Route path="/ai-attack-planner">
+          <ProtectedRoute component={AiAttackPlanner} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
