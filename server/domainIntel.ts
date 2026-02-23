@@ -224,6 +224,21 @@ export interface PipelineResult {
     remoteAccessCount: number;
   };
   rescoringTimeline?: RescoringTimelineEntry[];
+  emailSecurity?: {
+    domain: string;
+    analyzedAt: string;
+    overallScore: number;
+    overallGrade: string;
+    totalWeaknesses: number;
+    criticalWeaknesses: number;
+    phishingDifficultyRating: string;
+    phishingSummary: string;
+    recommendations: string[];
+    spf: { exists: boolean; record: string | null; score: number; weaknesses: Array<{ id: string; severity: string; title: string; description: string; phishingRelevance: string }> };
+    dkim: { selectorsFound: string[]; score: number; weaknesses: Array<{ id: string; severity: string; title: string; description: string; phishingRelevance: string }> };
+    dmarc: { exists: boolean; record: string | null; policy: string | null; score: number; weaknesses: Array<{ id: string; severity: string; title: string; description: string; phishingRelevance: string }> };
+    mx: { records: Array<{ priority: number; exchange: string }>; provider: string | null; weaknesses: Array<{ id: string; severity: string; title: string; description: string; phishingRelevance: string }> };
+  };
   discoveryCoverage?: {
     coverageScore: number;
     prioritiesCovered: number;
@@ -1961,7 +1976,45 @@ export async function runDomainIntelPipeline(
     }
   }
 
-  // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan + PORT) are in place
+  // Stage 3.9: Email Security Analysis — check SPF/DKIM/DMARC for phishing weaknesses
+  let emailSecurityReport: any = undefined;
+  try {
+    const { analyzeEmailSecurity, generateEmailPostureFindings } = await import('./lib/email-security-analyzer');
+    emailSecurityReport = await analyzeEmailSecurity(org.primaryDomain);
+    console.log(`[DomainIntel] Email security: grade=${emailSecurityReport.overallGrade}, score=${emailSecurityReport.overallScore}, weaknesses=${emailSecurityReport.totalWeaknesses}, phishing=${emailSecurityReport.phishingDifficultyRating}`);
+
+    // Generate posture findings from email security weaknesses
+    const emailFindings = generateEmailPostureFindings(org.primaryDomain, emailSecurityReport);
+    if (emailFindings.length > 0) {
+      // Add email security findings to the primary domain asset (or first asset)
+      const primaryAsset = analyses.find(a =>
+        a.asset.hostname === org.primaryDomain ||
+        a.asset.assetId.includes(org.primaryDomain)
+      ) || analyses[0];
+      if (primaryAsset) {
+        for (const ef of emailFindings) {
+          primaryAsset.postureFindings.push({
+            id: ef.id,
+            assetRef: ef.assetRef,
+            assetHostname: org.primaryDomain,
+            category: ef.category,
+            title: ef.title,
+            severity: ef.severity,
+            confidence: ef.confidence,
+            evidenceDetail: ef.evidenceDetail,
+            corroborationTier: ef.corroborationTier,
+            evidenceChain: [`DNS lookup verified: ${ef.evidenceDetail}`, `Phishing relevance: ${ef.phishingRelevance}`],
+            remediation: ef.remediation,
+          } as any);
+        }
+        console.log(`[DomainIntel] Added ${emailFindings.length} email security findings to ${primaryAsset.asset.hostname}`);
+      }
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] Email security analysis failed (non-fatal): ${err.message}`);
+  }
+
+  // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan + PORT + EMAIL) are in place
   for (const a of analyses) {
     const vulnRisk = computeVulnRisk(a.postureFindings);
     a.vulnRiskScore = vulnRisk.score;
@@ -2125,5 +2178,6 @@ export async function runDomainIntelPipeline(
     exploitMatches: exploitMatchResult,
     rescoringTimeline,
     discoveryCoverage: passiveRecon?.discoveryCoverage || undefined,
+    emailSecurity: emailSecurityReport || undefined,
   };
 }

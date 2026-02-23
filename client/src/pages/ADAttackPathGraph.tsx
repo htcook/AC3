@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GitBranch, ZoomIn, ZoomOut, Maximize2, Search, Target, Network } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { GitBranch, ZoomIn, ZoomOut, Maximize2, Search, Target, Network, Wand2, Loader2 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
 const nodeColors: Record<string, { fill: string; stroke: string; text: string }> = {
@@ -69,6 +70,8 @@ export default function ADAttackPathGraph() {
   const [sourceNodeId, setSourceNodeId] = useState("");
   const [targetNodeId, setTargetNodeId] = useState("");
   const svgRef = useRef<SVGSVGElement>(null);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [selectedScanId, setSelectedScanId] = useState<string>("");
 
   const envId = selectedEnvId ? parseInt(selectedEnvId) : 0;
 
@@ -85,6 +88,16 @@ export default function ADAttackPathGraph() {
     { environmentId: envId, sourceNodeId, targetNodeId },
     { enabled: envId > 0 && !!sourceNodeId && !!targetNodeId }
   );
+
+  const scansQuery = trpc.attackPaths.listScansForGeneration.useQuery({});
+  const generateMutation = trpc.attackPaths.generateFromScan.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Attack path generated: ${result.nodeCount} nodes, ${result.edgeCount} edges, risk score ${result.riskScore}`);
+      setGenerateDialogOpen(false);
+      setSelectedScanId("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const environments = envsQuery.data || [];
   const graph = graphQuery.data;
@@ -134,6 +147,45 @@ export default function ADAttackPathGraph() {
             <p className="text-muted-foreground mt-1">Interactive visualization of Active Directory attack escalation paths</p>
           </div>
           <div className="flex items-center gap-3">
+            <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
+                  <Wand2 className="h-4 w-4 mr-2" />Auto-Generate from Scan
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Generate Attack Path from Scan</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground">Select a domain intelligence scan to automatically generate an attack path graph from its discovered assets and vulnerabilities.</p>
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">Domain Scan</label>
+                  <Select value={selectedScanId} onValueChange={setSelectedScanId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a completed scan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Array.isArray(scansQuery.data) ? scansQuery.data : []).map((scan: any) => (
+                        <SelectItem key={scan.id} value={String(scan.id)}>
+                          {scan.primaryDomain || `Scan #${scan.id}`} — {scan.status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setGenerateDialogOpen(false)}>Cancel</Button>
+                  <Button
+                    onClick={() => generateMutation.mutate({ scanId: selectedScanId })}
+                    disabled={!selectedScanId || generateMutation.isPending}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {generateMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                    Generate Attack Path
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <Select value={selectedEnvId} onValueChange={setSelectedEnvId}>
               <SelectTrigger className="w-64">
                 <SelectValue placeholder="Select AD Environment" />

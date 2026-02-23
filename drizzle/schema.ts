@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -3518,3 +3518,113 @@ export const corroborationResults = mysqlTable("corroboration_results", {
   suppressRecommendation: boolean("cr_suppress_recommendation").default(false),
   createdAt: timestamp("cr_created_at").defaultNow().notNull(),
 });
+
+// ============================================================
+// Exploit Arsenal — Raw Exploit Script Storage & Ingestion
+// ============================================================
+
+/**
+ * Stores actual exploit source code fetched from ExploitDB, Metasploit GitHub,
+ * GitHub PoC repos, and Nuclei templates. Each script is linked to the unified
+ * exploit catalog for deployment in engagements and Caldera ability generation.
+ */
+export const exploitScripts = mysqlTable("exploit_scripts", {
+  id: int("id").autoincrement().primaryKey(),
+  // Identity & Source
+  sourceType: mysqlEnum("es_source_type", [
+    "exploitdb", "metasploit", "github_poc", "nuclei_template", "custom", "packetstorm"
+  ]).notNull(),
+  sourceId: varchar("es_source_id", { length: 255 }).notNull(),       // EDB-ID, MSF module path, GitHub repo+path, nuclei template ID
+  sourceUrl: text("es_source_url"),                                     // Original URL where the script was fetched from
+  // CVE & Vulnerability Mapping
+  cveId: varchar("es_cve_id", { length: 32 }),                         // Primary CVE this exploit targets
+  additionalCves: json("es_additional_cves"),                           // string[] of additional CVEs
+  // Script Content
+  filename: varchar("es_filename", { length: 512 }).notNull(),         // Original filename (e.g., "50383.py", "exchange_proxyshell_rce.rb")
+  language: mysqlEnum("es_language", [
+    "ruby", "python", "c", "cpp", "perl", "bash", "powershell",
+    "javascript", "go", "java", "yaml", "html", "php", "csharp", "other"
+  ]).notNull(),
+  code: mediumtext("es_code").notNull(),                                // Actual exploit source code
+  codeHash: varchar("es_code_hash", { length: 64 }).notNull(),         // SHA-256 hash for dedup
+  codeSize: int("es_code_size").notNull(),                              // Size in bytes
+  // Exploit Metadata
+  title: varchar("es_title", { length: 512 }).notNull(),
+  description: text("es_description"),
+  author: varchar("es_author", { length: 255 }),
+  datePublished: varchar("es_date_published", { length: 32 }),
+  platform: varchar("es_platform", { length: 64 }),                     // windows, linux, multi, web, etc.
+  architecture: varchar("es_architecture", { length: 32 }),             // x86, x64, arm, multi
+  exploitType: varchar("es_exploit_type", { length: 64 }),              // remote, local, webapps, dos, privesc, shellcode
+  // Quality & Safety
+  verified: boolean("es_verified").default(false),                      // Has been reviewed for safety
+  reliability: mysqlEnum("es_reliability", [
+    "excellent", "great", "good", "normal", "average", "low", "unknown"
+  ]).default("unknown"),
+  destructive: boolean("es_destructive").default(false),                // Could cause damage (DoS, data loss)
+  requiresAuth: boolean("es_requires_auth").default(false),             // Needs valid credentials
+  requiresInteraction: boolean("es_requires_interaction").default(false), // Needs user interaction
+  // MITRE ATT&CK Mapping
+  mitreAttackId: varchar("es_mitre_id", { length: 32 }),
+  mitreAttackTactic: varchar("es_mitre_tactic", { length: 64 }),
+  mitreAttackTechnique: varchar("es_mitre_technique", { length: 255 }),
+  // Caldera Integration
+  calderaAbilityGenerated: boolean("es_caldera_generated").default(false),
+  calderaAbilityYaml: text("es_caldera_ability_yaml"),                  // Generated Caldera ability YAML
+  calderaExecutorType: varchar("es_caldera_executor", { length: 32 }),  // psh, sh, cmd, proc
+  calderaCommand: text("es_caldera_command"),                           // Extracted/generated command for Caldera
+  calderaCleanup: text("es_caldera_cleanup"),                           // Cleanup command
+  calderaPlatform: varchar("es_caldera_platform", { length: 32 }),      // windows, linux, darwin
+  // Catalog Link
+  catalogId: int("es_catalog_id"),                                      // FK to unified_exploit_catalog
+  // Engagement Usage
+  timesDeployed: int("es_times_deployed").default(0),
+  lastDeployedAt: timestamp("es_last_deployed"),
+  successRate: double("es_success_rate"),                                // 0.0-1.0 based on deployment outcomes
+  // Tags & Search
+  tags: json("es_tags"),                                                // string[] for search/filtering
+  dependencies: json("es_dependencies"),                                // string[] required tools/libs
+  targetProducts: json("es_target_products"),                           // string[] specific products this targets
+  // Ingestion Metadata
+  ingestedBy: varchar("es_ingested_by", { length: 255 }),               // User who triggered ingestion
+  ingestedAt: timestamp("es_ingested_at").defaultNow().notNull(),
+  lastUpdatedAt: timestamp("es_last_updated").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExploitScript = typeof exploitScripts.$inferSelect;
+export type InsertExploitScript = typeof exploitScripts.$inferInsert;
+
+/**
+ * Tracks bulk ingestion jobs — fetching batches of exploits from sources
+ */
+export const exploitIngestionJobs = mysqlTable("exploit_ingestion_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  // Job Config
+  source: mysqlEnum("eij_source", [
+    "exploitdb", "metasploit", "github_poc", "nuclei_template", "mixed"
+  ]).notNull(),
+  query: varchar("eij_query", { length: 512 }),                         // CVE ID, keyword, or module path used to search
+  scope: mysqlEnum("eij_scope", [
+    "single_cve", "cve_batch", "module_path", "keyword_search", "full_sync"
+  ]).notNull(),
+  // Progress
+  status: mysqlEnum("eij_status", [
+    "pending", "running", "completed", "partial", "failed"
+  ]).default("pending").notNull(),
+  totalFound: int("eij_total_found").default(0),
+  totalIngested: int("eij_total_ingested").default(0),
+  totalSkipped: int("eij_total_skipped").default(0),
+  totalErrors: int("eij_total_errors").default(0),
+  errorLog: json("eij_error_log"),                                      // string[]
+  // Results
+  scriptIds: json("eij_script_ids"),                                    // int[] IDs of ingested scripts
+  calderaAbilitiesGenerated: int("eij_caldera_generated").default(0),
+  // Metadata
+  triggeredBy: varchar("eij_triggered_by", { length: 255 }),
+  startedAt: timestamp("eij_started_at"),
+  completedAt: timestamp("eij_completed_at"),
+  createdAt: timestamp("eij_created_at").defaultNow().notNull(),
+});
+
+export type ExploitIngestionJob = typeof exploitIngestionJobs.$inferSelect;
+export type InsertExploitIngestionJob = typeof exploitIngestionJobs.$inferInsert;

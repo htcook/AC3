@@ -70,6 +70,43 @@ export const emailSecurityRouter = router({
     }).from(emailSecurityTests).groupBy(emailSecurityTests.gatewayType, emailSecurityTests.deliveryResult);
     return stats;
   }),
+  analyzeDomain: protectedProcedure
+    .input(z.object({ domain: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const { analyzeEmailSecurity } = await import("../lib/email-security-analyzer");
+      const report = await analyzeEmailSecurity(input.domain);
+      return report;
+    }),
+  analyzeMultipleDomains: protectedProcedure
+    .input(z.object({ domains: z.array(z.string().min(1)).min(1).max(20) }))
+    .mutation(async ({ input }) => {
+      const { analyzeEmailSecurity } = await import("../lib/email-security-analyzer");
+      const results = await Promise.all(
+        input.domains.map(async (domain) => {
+          try {
+            return await analyzeEmailSecurity(domain);
+          } catch (err: any) {
+            return {
+              domain,
+              analyzedAt: new Date().toISOString(),
+              overallScore: 0,
+              overallGrade: "F",
+              totalWeaknesses: 0,
+              criticalWeaknesses: 0,
+              phishingDifficultyRating: "unknown" as const,
+              phishingSummary: `Analysis failed: ${err.message}`,
+              recommendations: [],
+              spf: { exists: false, record: null, score: 0, mechanisms: [], includes: [], allMechanism: null, weaknesses: [] },
+              dkim: { selectorsFound: [], selectorsChecked: [], selectorResults: [], weaknesses: [], score: 0 },
+              dmarc: { exists: false, record: null, policy: null, subdomainPolicy: null, percentage: 100, reportingEnabled: false, ruaAddresses: [], rufAddresses: [], weaknesses: [], score: 0 },
+              mx: { records: [], provider: null, supportsStartTls: null, weaknesses: [] },
+              error: err.message,
+            };
+          }
+        })
+      );
+      return results;
+    }),
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {

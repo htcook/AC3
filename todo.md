@@ -3566,3 +3566,53 @@
 - [x] ADAttackPathGraph.tsx: Added missing dc/service_account nodeColors and 10 missing edgeColors
 - [x] AttackPathDiscovery.tsx: Fixed pathNodes JSON string display crash, added missing node types
 - [x] CloudAttackPaths.tsx: Added provider selection for new paths, prevented FK violation on empty providers
+
+## Task 1: AD Domain Connector Audit (February 23, 2026)
+
+- [x] Identify all AD Domain Connector files (page, router, lib)
+- [x] Audit client-side AD Domain Connector page for UI/TS errors
+- [x] Audit server-side AD connector router for logic/TS errors
+- [x] Audit server-side AD connector library for logic/TS errors
+- [x] Verify LDAP enumeration output format matches AD Attack Path Graph expected input
+- [x] Fix shared enumScope state bug (per-connection scope tracking)
+
+## Task 2: Auto-Generate from Scan Button (February 23, 2026)
+
+- [x] Add "Auto-Generate Attack Path from Scan" button/dialog to AD Attack Path Graph page
+- [x] Wire button to existing generateFromScan procedure in attack-paths router
+- [x] Added listScansForGeneration procedure to populate scan dropdown
+- [x] Show generation results (node count, edge count, risk score)
+
+## Task 3: GoPhish/Phishing Campaign Module Audit (February 23, 2026)
+
+- [x] Identify all GoPhish/Phishing Campaign files (5 files: GoPhish.tsx, PhishingOperations.tsx, TyposquatManager.tsx, phishing-ops.ts, gophish proxy)
+- [x] Audit client-side Phishing Campaign pages for UI/TS errors
+- [x] Audit server-side GoPhish router for logic/TS errors
+- [x] Audit server-side GoPhish library for logic/TS errors
+- [x] Fix GoPhish.tsx duplicate Tailwind grid classes
+- [x] Fix TyposquatManager.tsx typosquatId:0 placeholder bug
+- [x] Write tests for all three tasks
+
+## Exploit Ingestion Pipeline & Arsenal (February 23, 2026)
+
+- [x] Audit current exploit module and catalog structure
+- [x] Research ExploitDB API, Metasploit module structure, GitHub raw fetching
+- [x] Design DB schema for exploit scripts (exploit_scripts + exploit_ingestion_jobs tables)
+- [x] Build exploit ingestion library with ExploitDB, Metasploit, GitHub PoC, and Nuclei fetchers
+- [x] Build tRPC router: ingestExploitDb, ingestMetasploit, ingestByCve, ingestBatch, generateCalderaAbility, browse, search
+- [x] Enhance Exploit Arsenal UI: script ingestion panel, source-specific inputs, code viewer, Caldera ability generation
+- [x] Add LLM-powered Caldera ability generation from exploit code
+- [x] Write tests for ingestion pipeline and Caldera ability generation (19/19 passing)
+- [x] Verify zero TypeScript errors and save checkpoint
+
+## Email Security Analysis in Domain Intel Scans (February 23, 2026)
+
+- [x] Audit current domain intelligence scan pipeline to find where to add email checks
+- [x] Add SPF record analysis (missing, permissive ~all, +all, ?all, broad IP ranges, lookup limit)
+- [x] Add DKIM record analysis (missing selectors, weak key length, 15 common selectors probed)
+- [x] Add DMARC record analysis (missing, p=none, subdomain policy, low percentage, no reporting)
+- [x] Add MX record analysis (mail server identification, provider detection, single MX warning)
+- [x] Calculate email spoofability score and phishing difficulty rating (trivial/easy/moderate/difficult/very_difficult)
+- [x] Store email security findings in domain scan results (Stage 3.9 in pipeline)
+- [x] Surface email security weaknesses in domain intel UI with Email Security tab
+- [x] Add on-demand analyzeDomain procedure to email-security router

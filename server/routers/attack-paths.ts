@@ -266,6 +266,22 @@ export const attackPathsRouter = router({
       return { pathId, nodeCount: nodes.length, edgeCount: edges.length, riskScore: avgRisk };
     }),
 
+  // ─── List scans available for attack path generation ───
+  listScansForGeneration: protectedProcedure
+    .input(z.object({}).optional())
+    .query(async () => {
+      const db = await getDbSafe();
+      const scans = await db.select({
+        id: domainIntelScans.id,
+        primaryDomain: domainIntelScans.primaryDomain,
+        status: domainIntelScans.status,
+        createdAt: domainIntelScans.createdAt,
+      }).from(domainIntelScans)
+        .orderBy(desc(domainIntelScans.createdAt))
+        .limit(50);
+      return scans;
+    }),
+
   // ─── Stats ───
   stats: protectedProcedure.query(async () => {
     const db = await getDbSafe();

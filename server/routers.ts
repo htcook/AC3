@@ -68,6 +68,7 @@ import { nvdCveMatcherRouter } from "./routers/nvd-cve-matcher";
 import { compensatingControlsRouter } from "./routers/compensating-controls";
 import { preflightChecksRouter } from "./routers/preflight-checks";
 import { activeVerificationRouter } from "./routers/active-verification";
+import { exploitArsenalRouter } from "./routers/exploit-arsenal";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -218,6 +219,7 @@ export const appRouter = router({
   compensatingControls: compensatingControlsRouter,
   preflightChecks: preflightChecksRouter,
   activeVerification: activeVerificationRouter,
+  exploitArsenal: exploitArsenalRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

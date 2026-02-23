@@ -75,11 +75,14 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
   const [integrationStep, setIntegrationStep] = useState<"confirm" | "purchasing" | "configuring" | "done">("confirm");
   const [fromName, setFromName] = useState("IT Support");
   const [registrar, setRegistrar] = useState("namecheap");
+  const [lastTyposquatId, setLastTyposquatId] = useState<number>(0);
 
   // Mutations
   const generateMutation = trpc.typosquat.generateVariants.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setResult(data);
+      // Store the typosquatId if returned from the server for later integration
+      if (data.typosquatId) setLastTyposquatId(data.typosquatId);
       toast.success(`Generated ${data.recommendedVariants.length} typosquat variants`);
     },
     onError: (err) => toast.error(`Generation failed: ${sanitizeErrorForToast(err)}`),
@@ -120,7 +123,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
       try {
         const res = await autoIntegrateMutation.mutateAsync({
           domain: selectedDomain.domain,
-          typosquatId: 0, // Will use domain name for lookup
+          typosquatId: lastTyposquatId, // Use the ID from the generation result
           engagementId,
           fromName,
           mailServerIp: "137.184.7.224",

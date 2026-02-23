@@ -20,7 +20,9 @@ import {
 export default function ADDomainConnector() {
   const [activeTab, setActiveTab] = useState<string>("connections");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [enumScope, setEnumScope] = useState<string>("full");
+  const [enumScopes, setEnumScopes] = useState<Record<number, string>>({});
+  const getEnumScope = (connId: number) => enumScopes[connId] || "full";
+  const setEnumScope = (connId: number, scope: string) => setEnumScopes(prev => ({ ...prev, [connId]: scope }));
   const [newConn, setNewConn] = useState({
     connectionName: "",
     serverHost: "",
@@ -324,7 +326,7 @@ export default function ADDomainConnector() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Label className="text-xs text-muted-foreground">Scope:</Label>
-                            <Select value={enumScope} onValueChange={setEnumScope}>
+                            <Select value={getEnumScope(conn.id)} onValueChange={(v) => setEnumScope(conn.id, v)}>
                               <SelectTrigger className="w-[140px] h-8 text-xs"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="full">Full Domain</SelectItem>
@@ -351,7 +353,7 @@ export default function ADDomainConnector() {
                             <Button
                               size="sm"
                               className="bg-purple-600 hover:bg-purple-700"
-                              onClick={() => enumMutation.mutate({ connectionId: conn.id, scope: enumScope as any })}
+                              onClick={() => enumMutation.mutate({ connectionId: conn.id, scope: getEnumScope(conn.id) as any })}
                               disabled={enumMutation.isPending}
                             >
                               {enumMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}

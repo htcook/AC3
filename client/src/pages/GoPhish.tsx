@@ -183,7 +183,7 @@ export default function GoPhish() {
               </div>
 
               {/* Quick Actions */}
-              <div className="grid md:grid-cols-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <Button className="h-20 font-display tracking-wider bg-blue-600 hover:bg-blue-700" onClick={() => setActiveTab('templates')}>
                   <div className="text-center"><Mail className="w-6 h-6 mx-auto mb-1" /><span className="text-xs">CREATE TEMPLATE</span></div>
                 </Button>
