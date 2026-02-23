@@ -253,6 +253,13 @@
       "when": 1771886854794,
       "tag": "0035_broad_ricochet",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1771889867644,
+      "tag": "0036_plain_sentinel",
+      "breakpoints": true
     }
   ]
 }

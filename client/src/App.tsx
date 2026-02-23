@@ -110,6 +110,7 @@ const NvdCveMatcher = lazy(() => import("./pages/NvdCveMatcher"));
 const CompensatingControls = lazy(() => import("./pages/CompensatingControls"));
 const PreFlightChecks = lazy(() => import("./pages/PreFlightChecks"));
 const ActiveVerification = lazy(() => import("./pages/ActiveVerification"));
+const IcsOtSecurity = lazy(() => import("./pages/IcsOtSecurity"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -409,6 +410,9 @@ function Router() {
         <Route path="/portal/:token" component={ClientPortal} />
         <Route path="/cloud-attack-paths">
           <ProtectedRoute component={CloudAttackPaths} />
+        </Route>
+        <Route path="/ics-ot-security">
+          <ProtectedRoute component={IcsOtSecurity} />
         </Route>
         <Route path="/ad-attack-sim">
           <ProtectedRoute component={ADAttackSim} />

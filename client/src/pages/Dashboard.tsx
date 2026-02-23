@@ -8,7 +8,7 @@ import {
   Fish, Mail, MousePointerClick, Eye, FileWarning, Send, Globe, Shield,
   Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert,
   Rocket, Building2, ArrowRight, Layers, BarChart3, Play, Pause,
-  CheckCircle2, XCircle, Loader2, Plus, History, Radar, Flame
+  CheckCircle2, XCircle, Loader2, Plus, History, Radar, Flame, Radio
 } from "lucide-react";
 import ZeroDayFeed from "@/components/ZeroDayFeed";
 import { useState, useEffect, useMemo } from "react";
@@ -710,6 +710,7 @@ export default function Dashboard() {
             <ToolCard icon={<Globe />} label="Page Builder" desc="Visual landing pages" href="/landing-page-builder" />
             <ToolCard icon={<ShieldAlert />} label="IOC Feeds" desc="Aggregated threat intelligence" href="/ioc-feed" />
             <ToolCard icon={<Terminal />} label="Offensive Tools" desc="Exploit framework catalog" href="/infra-reference" />
+            <ToolCard icon={<Radio />} label="ICS/OT Security" desc="SCADA/IoT assessment" href="/ics-ot-security" />
           </div>
         </section>
 

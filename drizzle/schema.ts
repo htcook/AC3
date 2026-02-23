@@ -3628,3 +3628,238 @@ export const exploitIngestionJobs = mysqlTable("exploit_ingestion_jobs", {
 
 export type ExploitIngestionJob = typeof exploitIngestionJobs.$inferSelect;
 export type InsertExploitIngestionJob = typeof exploitIngestionJobs.$inferInsert;
+
+
+// ─── ICS/IoT/OT Security Module ──────────────────────────────────────────────
+
+/**
+ * Discovered ICS/IoT devices from Shodan, Censys, and protocol scanning
+ */
+export const icsDevices = mysqlTable("ics_devices", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("icd_user_id").notNull(),
+  assessmentId: int("icd_assessment_id"),
+  // Device identification
+  ipAddress: varchar("icd_ip_address", { length: 45 }).notNull(),
+  hostname: varchar("icd_hostname", { length: 255 }),
+  macAddress: varchar("icd_mac_address", { length: 17 }),
+  // Classification
+  deviceType: mysqlEnum("icd_device_type", [
+    "plc", "rtu", "hmi", "dcs", "scada_server", "historian",
+    "engineering_workstation", "safety_system", "gateway", "switch",
+    "sensor", "actuator", "iot_device", "camera", "building_automation",
+    "medical_device", "smart_meter", "unknown"
+  ]).notNull().default("unknown"),
+  // Vendor/product info
+  vendor: varchar("icd_vendor", { length: 255 }),
+  model: varchar("icd_model", { length: 255 }),
+  firmwareVersion: varchar("icd_firmware_version", { length: 128 }),
+  serialNumber: varchar("icd_serial_number", { length: 128 }),
+  // Network/protocol
+  protocols: json("icd_protocols").$type<string[]>(),
+  openPorts: json("icd_open_ports").$type<number[]>(),
+  purdueLevel: mysqlEnum("icd_purdue_level", [
+    "level_0", "level_1", "level_2", "level_3", "level_3_5", "level_4", "level_5"
+  ]),
+  networkSegment: varchar("icd_network_segment", { length: 255 }),
+  // Location/context
+  facilityName: varchar("icd_facility_name", { length: 255 }),
+  sector: mysqlEnum("icd_sector", [
+    "energy", "water", "oil_gas", "manufacturing", "transportation",
+    "chemical", "nuclear", "building_automation", "healthcare",
+    "food_agriculture", "mining", "telecom", "defense", "other"
+  ]),
+  geolocation: json("icd_geolocation").$type<{ lat: number; lon: number; country: string; city: string }>(),
+  // Risk
+  criticality: mysqlEnum("icd_criticality", ["critical", "high", "medium", "low"]).default("medium"),
+  exposedToInternet: boolean("icd_exposed_to_internet").default(false),
+  hasDefaultCredentials: boolean("icd_has_default_creds").default(false),
+  hasKnownVulns: boolean("icd_has_known_vulns").default(false),
+  riskScore: double("icd_risk_score"),
+  // Discovery source
+  discoverySource: mysqlEnum("icd_discovery_source", [
+    "shodan", "censys", "nmap", "protocol_scan", "manual", "caldera"
+  ]).default("manual"),
+  shodanData: json("icd_shodan_data"),
+  censysData: json("icd_censys_data"),
+  // Metadata
+  lastSeen: timestamp("icd_last_seen"),
+  createdAt: timestamp("icd_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("icd_updated_at").defaultNow().notNull(),
+});
+export type IcsDevice = typeof icsDevices.$inferSelect;
+export type InsertIcsDevice = typeof icsDevices.$inferInsert;
+
+/**
+ * OT network segments and topology
+ */
+export const otNetworks = mysqlTable("ot_networks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("otn_user_id").notNull(),
+  name: varchar("otn_name", { length: 255 }).notNull(),
+  description: text("otn_description"),
+  // Network info
+  cidr: varchar("otn_cidr", { length: 45 }),
+  vlan: int("otn_vlan"),
+  purdueLevel: mysqlEnum("otn_purdue_level", [
+    "level_0", "level_1", "level_2", "level_3", "level_3_5", "level_4", "level_5"
+  ]),
+  networkType: mysqlEnum("otn_network_type", [
+    "process_control", "safety", "supervisory", "dmz", "enterprise", "field_bus", "iot_segment"
+  ]),
+  // Topology
+  parentNetworkId: int("otn_parent_network_id"),
+  connectedNetworkIds: json("otn_connected_network_ids").$type<number[]>(),
+  // Protocol distribution
+  protocolDistribution: json("otn_protocol_distribution").$type<Record<string, number>>(),
+  deviceCount: int("otn_device_count").default(0),
+  // Security posture
+  hasFirewall: boolean("otn_has_firewall").default(false),
+  hasDataDiode: boolean("otn_has_data_diode").default(false),
+  hasIDS: boolean("otn_has_ids").default(false),
+  segmentationScore: double("otn_segmentation_score"),
+  createdAt: timestamp("otn_created_at").defaultNow().notNull(),
+});
+export type OtNetwork = typeof otNetworks.$inferSelect;
+export type InsertOtNetwork = typeof otNetworks.$inferInsert;
+
+/**
+ * ICS-specific exploits and vulnerabilities
+ */
+export const icsExploits = mysqlTable("ics_exploits", {
+  id: int("id").autoincrement().primaryKey(),
+  // CVE/advisory info
+  cveId: varchar("ice_cve_id", { length: 20 }),
+  icsCertAdvisoryId: varchar("ice_ics_cert_advisory_id", { length: 30 }),
+  title: varchar("ice_title", { length: 500 }).notNull(),
+  description: text("ice_description"),
+  // Affected products
+  affectedVendor: varchar("ice_affected_vendor", { length: 255 }),
+  affectedProduct: varchar("ice_affected_product", { length: 255 }),
+  affectedVersions: json("ice_affected_versions").$type<string[]>(),
+  affectedProtocols: json("ice_affected_protocols").$type<string[]>(),
+  affectedDeviceTypes: json("ice_affected_device_types").$type<string[]>(),
+  // Scoring
+  cvssScore: double("ice_cvss_score"),
+  cvssVector: varchar("ice_cvss_vector", { length: 128 }),
+  // ICS-specific impact
+  safetyImpact: mysqlEnum("ice_safety_impact", ["none", "low", "medium", "high", "critical"]).default("none"),
+  availabilityImpact: mysqlEnum("ice_availability_impact", ["none", "low", "medium", "high", "critical"]).default("none"),
+  processIntegrityImpact: mysqlEnum("ice_process_integrity_impact", ["none", "low", "medium", "high", "critical"]).default("none"),
+  physicalImpact: boolean("ice_physical_impact").default(false),
+  // Exploit details
+  exploitAvailable: boolean("ice_exploit_available").default(false),
+  exploitSource: varchar("ice_exploit_source", { length: 255 }),
+  exploitScriptId: int("ice_exploit_script_id"),
+  // Metadata
+  publishedDate: timestamp("ice_published_date"),
+  sector: json("ice_sector").$type<string[]>(),
+  references: json("ice_references").$type<string[]>(),
+  mitigations: text("ice_mitigations"),
+  createdAt: timestamp("ice_created_at").defaultNow().notNull(),
+});
+export type IcsExploit = typeof icsExploits.$inferSelect;
+export type InsertIcsExploit = typeof icsExploits.$inferInsert;
+
+/**
+ * APT groups that target ICS/OT systems with their TTPs and targeted sectors
+ */
+export const aptIcsMappings = mysqlTable("apt_ics_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  // APT identification
+  aptGroupName: varchar("aim_apt_group_name", { length: 255 }).notNull(),
+  aliases: json("aim_aliases").$type<string[]>(),
+  attribution: varchar("aim_attribution", { length: 128 }),
+  // ICS targeting
+  targetedVendors: json("aim_targeted_vendors").$type<string[]>(),
+  targetedProtocols: json("aim_targeted_protocols").$type<string[]>(),
+  targetedDeviceTypes: json("aim_targeted_device_types").$type<string[]>(),
+  targetedSectors: json("aim_targeted_sectors").$type<string[]>(),
+  targetedCountries: json("aim_targeted_countries").$type<string[]>(),
+  // TTPs
+  mitreAttackIcsTechniques: json("aim_mitre_attack_ics_techniques").$type<string[]>(),
+  mitreAttackEnterpriseTechniques: json("aim_mitre_attack_enterprise_techniques").$type<string[]>(),
+  malwareTools: json("aim_malware_tools").$type<{ name: string; description: string; type: string }[]>(),
+  initialAccessMethods: json("aim_initial_access_methods").$type<string[]>(),
+  // Campaigns
+  knownCampaigns: json("aim_known_campaigns").$type<{
+    name: string;
+    year: number;
+    target: string;
+    impact: string;
+    description: string;
+  }[]>(),
+  // Assessment
+  threatLevel: mysqlEnum("aim_threat_level", ["critical", "high", "medium", "low"]).default("medium"),
+  activeStatus: mysqlEnum("aim_active_status", ["active", "dormant", "disbanded", "unknown"]).default("active"),
+  lastKnownActivity: varchar("aim_last_known_activity", { length: 255 }),
+  description: text("aim_description"),
+  references: json("aim_references").$type<string[]>(),
+  createdAt: timestamp("aim_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("aim_updated_at").defaultNow().notNull(),
+});
+export type AptIcsMapping = typeof aptIcsMappings.$inferSelect;
+export type InsertAptIcsMapping = typeof aptIcsMappings.$inferInsert;
+
+/**
+ * ICS security assessments (scan sessions)
+ */
+export const icsAssessments = mysqlTable("ics_assessments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("ica_user_id").notNull(),
+  name: varchar("ica_name", { length: 255 }).notNull(),
+  description: text("ica_description"),
+  // Target
+  targetNetwork: varchar("ica_target_network", { length: 255 }),
+  targetSector: varchar("ica_target_sector", { length: 128 }),
+  // Results summary
+  devicesDiscovered: int("ica_devices_discovered").default(0),
+  vulnerabilitiesFound: int("ica_vulnerabilities_found").default(0),
+  criticalFindings: int("ica_critical_findings").default(0),
+  aptGroupsMatched: int("ica_apt_groups_matched").default(0),
+  overallRiskScore: double("ica_overall_risk_score"),
+  riskLevel: mysqlEnum("ica_risk_level", ["critical", "high", "medium", "low"]).default("medium"),
+  // Protocol analysis results
+  protocolAnalysis: json("ica_protocol_analysis"),
+  // Status
+  status: mysqlEnum("ica_status", ["pending", "running", "completed", "failed"]).default("pending"),
+  startedAt: timestamp("ica_started_at"),
+  completedAt: timestamp("ica_completed_at"),
+  createdAt: timestamp("ica_created_at").defaultNow().notNull(),
+});
+export type IcsAssessment = typeof icsAssessments.$inferSelect;
+export type InsertIcsAssessment = typeof icsAssessments.$inferInsert;
+
+/**
+ * Protocol analysis findings from OT protocol scans
+ */
+export const protocolFindings = mysqlTable("protocol_findings", {
+  id: int("id").autoincrement().primaryKey(),
+  assessmentId: int("pf_assessment_id").notNull(),
+  deviceId: int("pf_device_id"),
+  // Finding details
+  protocol: varchar("pf_protocol", { length: 50 }).notNull(),
+  findingType: mysqlEnum("pf_finding_type", [
+    "unauthenticated_access", "default_credentials", "cleartext_protocol",
+    "firmware_vulnerability", "configuration_weakness", "exposed_service",
+    "information_disclosure", "command_injection", "denial_of_service",
+    "replay_attack", "man_in_the_middle", "unauthorized_write",
+    "safety_bypass", "logic_manipulation", "other"
+  ]).notNull(),
+  severity: mysqlEnum("pf_severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  title: varchar("pf_title", { length: 500 }).notNull(),
+  description: text("pf_description"),
+  evidence: text("pf_evidence"),
+  // ICS-specific impact
+  safetyImpact: boolean("pf_safety_impact").default(false),
+  processImpact: boolean("pf_process_impact").default(false),
+  // Remediation
+  remediation: text("pf_remediation"),
+  compensatingControls: text("pf_compensating_controls"),
+  // APT relevance
+  relevantAptGroups: json("pf_relevant_apt_groups").$type<string[]>(),
+  relevantMitreTechniques: json("pf_relevant_mitre_techniques").$type<string[]>(),
+  createdAt: timestamp("pf_created_at").defaultNow().notNull(),
+});
+export type ProtocolFinding = typeof protocolFindings.$inferSelect;
+export type InsertProtocolFinding = typeof protocolFindings.$inferInsert;

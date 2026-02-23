@@ -3616,3 +3616,68 @@
 - [x] Store email security findings in domain scan results (Stage 3.9 in pipeline)
 - [x] Surface email security weaknesses in domain intel UI with Email Security tab
 - [x] Add on-demand analyzeDomain procedure to email-security router
+
+## IoT/ICS/OT Security Module with APT Matching (February 23, 2026)
+
+### ICS/IoT Device Discovery
+- [x] Build ICS device discovery library (Shodan ICS queries, Censys IoT, protocol fingerprinting)
+- [x] Support 18 ICS protocols: Modbus, BACnet, DNP3, S7comm, EtherNet/IP, MQTT, CoAP, OPC-UA, IEC 104, Niagara Fox, GE SRTP, HART-IP, MELSEC, OMRON FINS, CODESYS, PCWorx, Red Lion Crimson
+- [x] Device fingerprinting: vendor, model, firmware version, PLC/RTU/HMI/DCS classification
+- [x] Network topology mapping for OT/IT convergence zones (Purdue model levels)
+
+### ICS Exploit Catalog
+- [x] Build ICS exploit catalog library (ICS-CERT advisories, ExploitDB SCADA category, NVD ICS CVEs)
+- [x] CVE-to-ICS-device mapping (vendor/product/firmware version matching)
+- [x] Exploit severity scoring with ICS-specific impact analysis (safety, availability, process integrity)
+- [x] Integration with existing exploit ingestion pipeline for ICS-specific scripts
+
+### APT-ICS Threat Intelligence
+- [x] Build APT-ICS threat matching library with 11 ICS-targeting APT groups
+- [x] Include SANDWORM, XENOTIME, VOLT TYPHOON, CHERNOVITE, KAMACITE, ELECTRUM, RASPITE, COVELLITE, ERYTHRITE, KOSTOVITE, BENTONITE
+- [x] Map APT groups to targeted ICS vendors, protocols, and sectors (energy, water, manufacturing, transport)
+- [x] TTP mapping to MITRE ATT&CK for ICS framework (40+ techniques across 4 tactics)
+- [x] Threat scenario generation based on discovered devices + APT capabilities
+
+### OT Protocol Analysis
+- [x] Modbus TCP/RTU analysis (no-auth detection, function code exposure, coil/register access)
+- [x] BACnet analysis (broadcast vulnerability, no-auth, object enumeration)
+- [x] DNP3 analysis (no-auth, unsolicited response, outstation enumeration)
+- [x] S7comm analysis (Siemens PLC identification, no-auth, replay attacks)
+- [x] EtherNet/IP analysis (CIP device identification, no-auth, identity enumeration)
+- [x] MQTT analysis (broker discovery, non-TLS detection, anonymous access, topic enumeration)
+- [x] CoAP analysis (resource discovery, no-DTLS, /.well-known/core enumeration)
+- [x] OPC-UA analysis (endpoint discovery, security policy enumeration, no-auth)
+- [x] IEC 60870-5-104 analysis (no-auth, unencrypted SCADA, station address enumeration)
+
+### Database Schema
+- [x] ICS devices table (vendor, model, firmware, protocol, Purdue level, location, criticality)
+- [x] OT networks table (network segments, IT/OT boundaries, protocol distribution, Purdue level)
+- [x] ICS exploits table (CVE, affected devices, ICS-specific severity, safety impact)
+- [x] APT-ICS mappings table (APT group, targeted vendors/protocols/sectors, TTPs, campaigns)
+- [x] ICS assessment results table (scan results, findings, risk scores)
+- [x] Protocol findings table (protocol-specific vulnerability findings)
+
+### tRPC Routers
+- [x] ICS discovery router (discoverDevices, fingerprintDevice, listDevices, getSupportedProtocols)
+- [x] ICS exploit catalog router (searchExploits, seedExploits, getExploitStats)
+- [x] APT threat matching router (matchAptForNetwork, getAptGroups, seedAptGroups)
+- [x] OT assessment router (createAssessment, analyzeDeviceProtocols, getOverviewStats)
+- [x] OT network management (createNetwork, listNetworks, getNetworkStats)
+
+### ICS/OT Security Dashboard UI
+- [x] Device inventory view with Purdue model level visualization
+- [x] OT network management with Purdue level and sector classification
+- [x] ICS exploit browser with vendor/protocol search
+- [x] APT threat map showing which groups target discovered devices
+- [x] Protocol analysis results with finding details
+- [x] Risk assessment dashboard with ICS-specific scoring
+- [x] Overview stats dashboard with device/network/exploit/APT counts
+- [x] Dashboard tool card added for navigation
+
+### Tests
+- [x] Write tests for ICS device discovery and fingerprinting (18 tests)
+- [x] Write tests for ICS exploit catalog and APT matching (28 tests)
+- [x] Write tests for OT protocol analysis (20 tests)
+- [x] Write integration tests (4 tests)
+- [x] All 70 tests passing
+- [x] Zero TypeScript errors verified
