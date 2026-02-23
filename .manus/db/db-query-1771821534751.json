@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `credential_alert_history` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `alert_rule_id` int NOT NULL,\n  `alert_hist_credential_id` int NOT NULL,\n  `alert_type` enum('expiring_soon','expired','rotation_due','validation_failed') NOT NULL,\n  `alert_severity` enum('critical','high','medium','low') NOT NULL DEFAULT 'medium',\n  `alert_message` text NOT NULL,\n  `notification_sent` boolean NOT NULL DEFAULT false,\n  `notification_result` varchar(255),\n  `alert_acknowledged_at` timestamp NULL,\n  `alert_acknowledged_by` varchar(255),\n  `alert_cred_provider` varchar(32),\n  `alert_cred_name` varchar(255),\n  `alert_expires_at` timestamp NULL,\n  `days_until_expiry` int,\n  `alert_hist_created_at` timestamp DEFAULT CURRENT_TIMESTAMP\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `credential_alert_history` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `alert_rule_id` int NOT NULL,\n  `alert_hist_credential_id` int NOT NULL,\n  `alert_type` enum('expiring_soon','expired','rotation_due','validation_failed') NOT NULL,\n  `alert_severity` enum('critical','high','medium','low') NOT NULL DEFAULT 'medium',\n  `alert_message` text NOT NULL,\n  `notification_sent` boolean NOT NULL DEFAULT false,\n  `notification_result` varchar(255),\n  `alert_acknowledged_at` timestamp NULL,\n  `alert_acknowledged_by` varchar(255),\n  `alert_cred_provider` varchar(32),\n  `alert_cred_name` varchar(255),\n  `alert_expires_at` timestamp NULL,\n  `days_until_expiry` int,\n  `alert_hist_created_at` timestamp DEFAULT CURRENT_TIMESTAMP\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 202
+}

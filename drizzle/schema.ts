@@ -3014,3 +3014,88 @@ export const adEnumerationRuns = mysqlTable("ad_enumeration_runs", {
   completedAt: timestamp("ad_enum_completed_at"),
   createdAt: timestamp("ad_enum_created_at").defaultNow(),
 });
+
+
+// ============================================================
+// Credential Alert Rules
+// ============================================================
+
+export const credentialAlertRules = mysqlTable("credential_alert_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  credentialId: int("cred_alert_credential_id").notNull(),
+  alertName: varchar("alert_name", { length: 255 }).notNull(),
+  thresholdDays: int("threshold_days").default(30).notNull(),
+  isEnabled: boolean("alert_is_enabled").default(true).notNull(),
+  notifyOwner: boolean("alert_notify_owner").default(true).notNull(),
+  lastCheckedAt: timestamp("alert_last_checked_at"),
+  lastAlertedAt: timestamp("alert_last_alerted_at"),
+  nextAlertAt: timestamp("alert_next_alert_at"),
+  createdBy: varchar("alert_created_by", { length: 255 }),
+  createdAt: timestamp("alert_created_at").defaultNow(),
+});
+
+// ============================================================
+// Credential Alert History
+// ============================================================
+
+export const credentialAlertHistory = mysqlTable("credential_alert_history", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: int("alert_rule_id").notNull(),
+  credentialId: int("alert_hist_credential_id").notNull(),
+  alertType: mysqlEnum("alert_type", ["expiring_soon", "expired", "rotation_due", "validation_failed"]).notNull(),
+  severity: mysqlEnum("alert_severity", ["critical", "high", "medium", "low"]).default("medium").notNull(),
+  message: text("alert_message").notNull(),
+  notificationSent: boolean("notification_sent").default(false).notNull(),
+  notificationResult: varchar("notification_result", { length: 255 }),
+  acknowledgedAt: timestamp("alert_acknowledged_at"),
+  acknowledgedBy: varchar("alert_acknowledged_by", { length: 255 }),
+  credentialProvider: varchar("alert_cred_provider", { length: 32 }),
+  credentialName: varchar("alert_cred_name", { length: 255 }),
+  expiresAt: timestamp("alert_expires_at"),
+  daysUntilExpiry: int("days_until_expiry"),
+  createdAt: timestamp("alert_hist_created_at").defaultNow(),
+});
+
+// ============================================================
+// Forest Domains (Multi-Domain Forest Mapping)
+// ============================================================
+
+export const forestDomains = mysqlTable("forest_domains", {
+  id: int("id").autoincrement().primaryKey(),
+  forestName: varchar("forest_name", { length: 255 }).notNull(),
+  domainName: varchar("forest_domain_name", { length: 255 }).notNull(),
+  connectionId: int("forest_connection_id"),
+  parentDomainId: int("parent_domain_id"),
+  engagementId: int("forest_engagement_id"),
+  domainSid: varchar("domain_sid", { length: 128 }),
+  domainFunctionalLevel: varchar("domain_functional_level", { length: 64 }),
+  forestFunctionalLevel: varchar("forest_functional_level", { length: 64 }),
+  isForestRoot: boolean("is_forest_root").default(false).notNull(),
+  totalUsers: int("forest_total_users").default(0),
+  totalGroups: int("forest_total_groups").default(0),
+  totalComputers: int("forest_total_computers").default(0),
+  privilegedUsers: int("forest_privileged_users").default(0),
+  lastEnumeratedAt: timestamp("forest_last_enumerated_at"),
+  metadata: json("forest_metadata"),
+  createdAt: timestamp("forest_domain_created_at").defaultNow(),
+});
+
+// ============================================================
+// Forest Trust Relationships
+// ============================================================
+
+export const forestTrusts = mysqlTable("forest_trusts", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceDomainId: int("trust_source_domain_id").notNull(),
+  targetDomainId: int("trust_target_domain_id").notNull(),
+  trustDirection: mysqlEnum("trust_direction", ["inbound", "outbound", "bidirectional"]).notNull(),
+  trustType: mysqlEnum("trust_type", ["parent_child", "tree_root", "shortcut", "forest", "external", "realm"]).notNull(),
+  isTransitive: boolean("trust_is_transitive").default(true).notNull(),
+  sidFilteringEnabled: boolean("sid_filtering_enabled").default(true).notNull(),
+  selectiveAuth: boolean("selective_auth").default(false).notNull(),
+  trustAttributes: int("trust_attributes").default(0),
+  isVulnerable: boolean("trust_is_vulnerable").default(false).notNull(),
+  vulnerabilityNotes: text("trust_vulnerability_notes"),
+  discoveredAt: timestamp("trust_discovered_at").defaultNow(),
+  createdAt: timestamp("forest_trust_created_at").defaultNow(),
+});

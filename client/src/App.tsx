@@ -87,6 +87,9 @@ const ComplianceMapper = lazy(() => import("./pages/ComplianceMapper"));
 const APISecurityTesting = lazy(() => import("./pages/APISecurityTesting"));
 const CloudCredentials = lazy(() => import("./pages/CloudCredentials"));
 const ADDomainConnector = lazy(() => import("./pages/ADDomainConnector"));
+const CredentialAlerts = lazy(() => import("./pages/CredentialAlerts"));
+const ADAttackPathGraph = lazy(() => import("./pages/ADAttackPathGraph"));
+const ForestMapper = lazy(() => import("./pages/ForestMapper"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -404,6 +407,15 @@ function Router() {
         </Route>
         <Route path="/ad-domain-connector">
           <ProtectedRoute component={ADDomainConnector} />
+        </Route>
+        <Route path="/credential-alerts">
+          <ProtectedRoute component={CredentialAlerts} />
+        </Route>
+        <Route path="/ad-attack-path-graph">
+          <ProtectedRoute component={ADAttackPathGraph} />
+        </Route>
+        <Route path="/forest-mapper">
+          <ProtectedRoute component={ForestMapper} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

@@ -45,6 +45,9 @@ import { complianceMapperRouter } from "./routers/compliance-mapper";
 import { apiSecurityRouter } from "./routers/api-security";
 import { cloudCredentialsRouter } from "./routers/cloud-credentials";
 import { adDomainConnectorRouter } from "./routers/ad-domain-connector";
+import { credentialAlertsRouter } from "./routers/credential-alerts";
+import { adAttackPathGraphRouter } from "./routers/ad-attack-path-graph";
+import { forestMapperRouter } from "./routers/forest-mapper";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -172,6 +175,9 @@ export const appRouter = router({
   apiSecurity: apiSecurityRouter,
   cloudCredentials: cloudCredentialsRouter,
   adDomainConnector: adDomainConnectorRouter,
+  credentialAlerts: credentialAlertsRouter,
+  adAttackPathGraph: adAttackPathGraphRouter,
+  forestMapper: forestMapperRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

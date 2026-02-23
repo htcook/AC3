@@ -55,6 +55,8 @@ import {
   Calendar,
   Key,
   Network,
+  Bell,
+  TreePine,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -95,8 +97,11 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
       { href: "/cloud-attack-paths", icon: Cloud, label: "CLOUD ATTACK PATHS" },
       { href: "/cloud-credentials", icon: Key, label: "CLOUD CREDENTIALS" },
+      { href: "/credential-alerts", icon: Bell, label: "CREDENTIAL ALERTS" },
       { href: "/ad-attack-sim", icon: Server, label: "AD ATTACK SIM" },
       { href: "/ad-domain-connector", icon: Network, label: "AD DOMAIN CONNECTOR" },
+      { href: "/ad-attack-path-graph", icon: GitBranch, label: "ATTACK PATH GRAPH" },
+      { href: "/forest-mapper", icon: TreePine, label: "FOREST MAPPER" },
       { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },
       { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
       { href: "/continuous-validation", icon: Calendar, label: "CONTINUOUS VALIDATION" },

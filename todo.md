@@ -3395,3 +3395,37 @@
 - [x] Build AD enumeration results UI (object browser, group chain visualizer)
 - [x] Wire enumeration results into existing AD Attack Simulation module
 - [x] Add connection health monitoring and auto-reconnect
+
+## Credential Rotation Alerts
+- [x] Add credential_alert_rules schema table (credential ID, threshold days, notification channel)
+- [x] Add credential_alert_history schema table (alert ID, sent timestamp, status)
+- [x] Build credential expiry detection engine (scan credentials, compare against thresholds)
+- [x] Build notification dispatch (owner notification via notifyOwner helper)
+- [x] Add rotation alert settings UI on Cloud Credentials page (threshold config per credential)
+- [x] Add alert history view showing past notifications and upcoming expirations
+- [x] Add background scheduler for periodic credential expiry checks
+- [x] Write tests for credential rotation alert logic
+
+## AD Attack Path Graph Visualizer
+- [x] Build graph data model (nodes: users/groups/computers/DCs, edges: memberOf/adminTo/canRDP/trustedBy)
+- [x] Build path-finding engine (shortest path to Domain Admin, all paths to high-value targets)
+- [x] Build graph layout algorithm (hierarchical layout for attack chains)
+- [x] Create interactive graph UI component with zoom, pan, node selection
+- [x] Add node detail panel (click node to see properties, group memberships, attack vectors)
+- [x] Add path highlighting (click target to highlight all paths from compromised user)
+- [x] Add risk scoring overlay (color nodes by privilege level and attack surface)
+- [x] Create dedicated Attack Path Graph page with filters and controls
+- [x] Wire route in App.tsx and add sidebar navigation entry
+- [x] Write tests for graph data model and path-finding engine
+
+## Multi-Domain Forest Mapping
+- [x] Add forest_domains schema table (forest name, domain connections, trust relationships)
+- [x] Build multi-domain connection manager (connect to multiple DCs simultaneously)
+- [x] Build cross-forest trust discovery (enumerate trusts between domains)
+- [x] Build forest topology builder (domain → trust → domain graph)
+- [x] Build unified object namespace (resolve cross-domain group memberships)
+- [x] Create forest map visualization UI (domains as clusters, trusts as edges)
+- [x] Add domain comparison view (side-by-side object counts, privilege analysis)
+- [x] Create dedicated Forest Mapping page
+- [x] Wire route in App.tsx and add sidebar navigation entry
+- [x] Write tests for multi-domain and forest mapping logic
