@@ -211,6 +211,13 @@
       "when": 1771818764342,
       "tag": "0029_ambiguous_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1771821032728,
+      "tag": "0030_gifted_vengeance",
+      "breakpoints": true
     }
   ]
 }

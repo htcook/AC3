@@ -85,6 +85,8 @@ const ADAttackSim = lazy(() => import("./pages/ADAttackSim"));
 const EDRValidation = lazy(() => import("./pages/EDRValidation"));
 const ComplianceMapper = lazy(() => import("./pages/ComplianceMapper"));
 const APISecurityTesting = lazy(() => import("./pages/APISecurityTesting"));
+const CloudCredentials = lazy(() => import("./pages/CloudCredentials"));
+const ADDomainConnector = lazy(() => import("./pages/ADDomainConnector"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -396,6 +398,12 @@ function Router() {
         </Route>
         <Route path="/api-security-testing">
           <ProtectedRoute component={APISecurityTesting} />
+        </Route>
+        <Route path="/cloud-credentials">
+          <ProtectedRoute component={CloudCredentials} />
+        </Route>
+        <Route path="/ad-domain-connector">
+          <ProtectedRoute component={ADDomainConnector} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

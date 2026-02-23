@@ -3366,3 +3366,32 @@
 - [x] Add CMMC 2.0 compliance framework controls to compliance mapper
 - [x] Update schema enum to include fedramp, dod_stig, cmmc types
 - [x] Update compliance UI to support new frameworks
+
+## Cloud Provider Credential Integration
+- [x] Add cloud_credentials schema table (encrypted storage for AWS/Azure/GCP keys)
+- [x] Build credential encryption/decryption helpers (AES-256-GCM)
+- [x] Build AWS STS credential integration (access key, secret key, session token, assume-role)
+- [x] Build Azure credential integration (client ID, client secret, tenant ID, subscription ID)
+- [x] Build GCP credential integration (service account JSON key, project ID)
+- [x] Build live AWS IAM enumeration engine (list users, roles, policies, groups, access keys)
+- [x] Build live Azure Entra ID enumeration engine (users, groups, app registrations, service principals, roles)
+- [x] Build live GCP IAM enumeration engine (service accounts, roles, bindings, org policies)
+- [x] Create tRPC router for credential CRUD and live enumeration triggers
+- [x] Build credential management UI (add/edit/delete credentials per provider)
+- [x] Build live enumeration results UI (discovered identities, roles, permissions)
+- [x] Add credential validation/test-connection endpoint
+- [x] Wire enumeration results into existing Cloud Attack Paths module
+
+## AD Domain Connector (LDAP/LDAPS)
+- [x] Add ad_domain_connections schema table (server, port, bind DN, credentials, TLS config)
+- [x] Build LDAP/LDAPS connection manager (connect, bind, search, disconnect)
+- [x] Build AD object enumeration (users, groups, computers, OUs, GPOs)
+- [x] Build SPN enumeration for Kerberoasting targets
+- [x] Build trust relationship discovery
+- [x] Build group membership chain resolution (nested groups → effective permissions)
+- [x] Build AD object import pipeline (LDAP results → database records)
+- [x] Create tRPC router for domain connection CRUD and enumeration triggers
+- [x] Build domain connector UI (add/edit/test connections)
+- [x] Build AD enumeration results UI (object browser, group chain visualizer)
+- [x] Wire enumeration results into existing AD Attack Simulation module
+- [x] Add connection health monitoring and auto-reconnect

@@ -43,6 +43,8 @@ import { adAttackSimRouter } from "./routers/ad-attack-sim";
 import { edrValidationRouter } from "./routers/edr-validation";
 import { complianceMapperRouter } from "./routers/compliance-mapper";
 import { apiSecurityRouter } from "./routers/api-security";
+import { cloudCredentialsRouter } from "./routers/cloud-credentials";
+import { adDomainConnectorRouter } from "./routers/ad-domain-connector";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -168,6 +170,8 @@ export const appRouter = router({
   edrValidation: edrValidationRouter,
   complianceMapper: complianceMapperRouter,
   apiSecurity: apiSecurityRouter,
+  cloudCredentials: cloudCredentialsRouter,
+  adDomainConnector: adDomainConnectorRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

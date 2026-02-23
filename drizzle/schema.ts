@@ -2895,3 +2895,122 @@ export const apiFuzzingRuns = mysqlTable("api_fuzzing_runs", {
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ============================================================
+// Cloud Provider Credentials (encrypted at-rest)
+// ============================================================
+
+export const cloudCredentials = mysqlTable("cloud_credentials", {
+  id: int("id").autoincrement().primaryKey(),
+  providerId: int("provider_id"),
+  engagementId: int("engagement_id"),
+  provider: mysqlEnum("cred_provider", ["aws", "azure", "gcp"]).notNull(),
+  credentialName: varchar("credential_name", { length: 255 }).notNull(),
+  credentialType: mysqlEnum("credential_type", [
+    "aws_access_key", "aws_assume_role", "aws_session_token",
+    "azure_client_secret", "azure_managed_identity", "azure_cli",
+    "gcp_service_account_key", "gcp_workload_identity", "gcp_oauth"
+  ]).notNull(),
+  // Encrypted credential blob (AES-256-GCM)
+  encryptedData: text("encrypted_data").notNull(),
+  encryptionIv: varchar("encryption_iv", { length: 64 }).notNull(),
+  encryptionTag: varchar("encryption_tag", { length: 64 }).notNull(),
+  // Metadata (not encrypted)
+  accountId: varchar("cred_account_id", { length: 255 }),
+  region: varchar("cred_region", { length: 64 }),
+  roleArn: varchar("role_arn", { length: 512 }),
+  externalId: varchar("external_id", { length: 255 }),
+  tenantId: varchar("tenant_id", { length: 255 }),
+  subscriptionId: varchar("subscription_id", { length: 255 }),
+  projectId: varchar("project_id", { length: 255 }),
+  status: mysqlEnum("cred_status", ["active", "expired", "revoked", "testing", "error"]).default("active").notNull(),
+  lastValidatedAt: timestamp("last_validated_at"),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+  createdBy: varchar("cred_created_by", { length: 255 }),
+  createdAt: timestamp("cred_created_at").defaultNow(),
+  updatedAt: timestamp("cred_updated_at").defaultNow(),
+});
+
+// ============================================================
+// Cloud Enumeration Results
+// ============================================================
+
+export const cloudEnumerationRuns = mysqlTable("cloud_enumeration_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  credentialId: int("credential_id").notNull(),
+  providerId: int("enum_provider_id"),
+  engagementId: int("enum_engagement_id"),
+  provider: mysqlEnum("enum_provider", ["aws", "azure", "gcp"]).notNull(),
+  status: mysqlEnum("enum_status", ["pending", "running", "completed", "error", "partial"]).default("pending").notNull(),
+  scope: json("enum_scope"),
+  totalUsersFound: int("total_users_found").default(0),
+  totalRolesFound: int("total_roles_found").default(0),
+  totalPoliciesFound: int("total_policies_found").default(0),
+  totalGroupsFound: int("total_groups_found").default(0),
+  totalServiceAccountsFound: int("total_service_accounts_found").default(0),
+  totalMisconfigsFound: int("total_misconfigs_found").default(0),
+  results: json("enum_results"),
+  errorLog: json("enum_error_log"),
+  startedAt: timestamp("enum_started_at"),
+  completedAt: timestamp("enum_completed_at"),
+  createdAt: timestamp("enum_created_at").defaultNow(),
+});
+
+// ============================================================
+// AD Domain Connections (LDAP/LDAPS)
+// ============================================================
+
+export const adDomainConnections = mysqlTable("ad_domain_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  environmentId: int("ad_environment_id"),
+  engagementId: int("ad_conn_engagement_id"),
+  connectionName: varchar("connection_name", { length: 255 }).notNull(),
+  serverHost: varchar("server_host", { length: 255 }).notNull(),
+  serverPort: int("server_port").default(389).notNull(),
+  useTls: boolean("use_tls").default(false),
+  tlsRejectUnauthorized: boolean("tls_reject_unauthorized").default(true),
+  baseDn: varchar("base_dn", { length: 1024 }).notNull(),
+  bindDn: varchar("bind_dn", { length: 1024 }),
+  // Encrypted bind password (AES-256-GCM)
+  encryptedBindPassword: text("encrypted_bind_password"),
+  bindPasswordIv: varchar("bind_password_iv", { length: 64 }),
+  bindPasswordTag: varchar("bind_password_tag", { length: 64 }),
+  domainName: varchar("ldap_domain_name", { length: 255 }).notNull(),
+  searchScope: mysqlEnum("search_scope", ["base", "one", "sub"]).default("sub"),
+  status: mysqlEnum("conn_status", ["connected", "disconnected", "testing", "error"]).default("disconnected").notNull(),
+  lastConnectedAt: timestamp("last_connected_at"),
+  lastEnumerationAt: timestamp("last_enumeration_at"),
+  errorMessage: text("conn_error_message"),
+  createdBy: varchar("conn_created_by", { length: 255 }),
+  createdAt: timestamp("conn_created_at").defaultNow(),
+  updatedAt: timestamp("conn_updated_at").defaultNow(),
+});
+
+// ============================================================
+// AD Enumeration Runs
+// ============================================================
+
+export const adEnumerationRuns = mysqlTable("ad_enumeration_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  connectionId: int("ad_connection_id").notNull(),
+  environmentId: int("ad_enum_environment_id"),
+  engagementId: int("ad_enum_engagement_id"),
+  status: mysqlEnum("ad_enum_status", ["pending", "running", "completed", "error", "partial"]).default("pending").notNull(),
+  scope: mysqlEnum("ad_enum_scope", ["full", "users", "groups", "computers", "gpos", "ous", "trusts", "spns", "certificates"]).default("full"),
+  totalUsersFound: int("ad_total_users_found").default(0),
+  totalGroupsFound: int("ad_total_groups_found").default(0),
+  totalComputersFound: int("ad_total_computers_found").default(0),
+  totalGposFound: int("ad_total_gpos_found").default(0),
+  totalOusFound: int("ad_total_ous_found").default(0),
+  totalTrustsFound: int("ad_total_trusts_found").default(0),
+  totalSpnsFound: int("ad_total_spns_found").default(0),
+  privilegedUsersFound: int("privileged_users_found").default(0),
+  kerberoastableFound: int("kerberoastable_found").default(0),
+  asrepRoastableFound: int("asrep_roastable_found").default(0),
+  results: json("ad_enum_results"),
+  errorLog: json("ad_enum_error_log"),
+  startedAt: timestamp("ad_enum_started_at"),
+  completedAt: timestamp("ad_enum_completed_at"),
+  createdAt: timestamp("ad_enum_created_at").defaultNow(),
+});

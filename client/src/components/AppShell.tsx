@@ -53,6 +53,8 @@ import {
   ShieldOff,
   ClipboardList,
   Calendar,
+  Key,
+  Network,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -92,7 +94,9 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
       { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
       { href: "/cloud-attack-paths", icon: Cloud, label: "CLOUD ATTACK PATHS" },
+      { href: "/cloud-credentials", icon: Key, label: "CLOUD CREDENTIALS" },
       { href: "/ad-attack-sim", icon: Server, label: "AD ATTACK SIM" },
+      { href: "/ad-domain-connector", icon: Network, label: "AD DOMAIN CONNECTOR" },
       { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },
       { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
       { href: "/continuous-validation", icon: Calendar, label: "CONTINUOUS VALIDATION" },
