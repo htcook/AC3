@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { trpc } from "@/lib/trpc";
 import {
   Activity,
   Target,
@@ -53,9 +52,6 @@ import {
   Package,
   ShieldOff,
   ClipboardList,
-  Scan,
-  Fish,
-  Hammer,
   Calendar,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
@@ -78,121 +74,91 @@ interface NavGroup {
 // ─── Navigation Structure ──────────────────────────────────────────────────────
 
 const NAV_GROUPS: NavGroup[] = [
-  // ── Phase 1: Where every engagement starts ──
   {
-    id: "recon",
-    label: "RECON & SCANNING",
-    icon: Scan,
+    id: "operations",
+    label: "OPERATIONS",
+    icon: Swords,
     items: [
-      { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
-      { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
-      { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
-      { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
-    ],
-  },
-  // ── Phase 2: Analyze what you found ──
-  {
-    id: "intelligence",
-    label: "THREAT INTELLIGENCE",
-    icon: Shield,
-    items: [
-      { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
-      { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
-      { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
-      { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
-      { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
-      { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
-      { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
-    ],
-  },
-  // ── Phase 3: Design the campaign from intel ──
-  {
-    id: "planning",
-    label: "ENGAGEMENT PLANNING",
-    icon: Briefcase,
-    items: [
-      { href: "/dashboard", icon: Activity, label: "COMMAND CENTER" },
+      { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
       { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
-      { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
+      { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
+      { href: "/agents", icon: Cpu, label: "AGENTS" },
+      { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
+      { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
+      { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
+      { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
+      { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
+      { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
+      { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
       { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
       { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
-      { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
+      { href: "/continuous-validation", icon: Calendar, label: "CONTINUOUS VALIDATION" },
     ],
   },
-  // ── Phase 4: Build and launch phishing campaigns ──
   {
     id: "phishing",
-    label: "PHISHING & SOCIAL ENG",
-    icon: Fish,
+    label: "PHISHING & EXPLOITS",
+    icon: Zap,
     items: [
       { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
-      { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
-      { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
-      { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
-      { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
-    ],
-  },
-  // ── Phase 5: Execute technical attacks ──
-  {
-    id: "exploitation",
-    label: "EXPLOITATION & C2",
-    icon: Hammer,
-    items: [
       { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
       { href: "/validation-engine", icon: FlaskConical, label: "VALIDATION ENGINE" },
-      { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
       { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
       { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
       { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
       { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
       { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
       { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
-      { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
+      { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
+      { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
+      { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
+      { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
+      { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
     ],
   },
-  // ── Phase 6: Adversary emulation and blue team validation ──
   {
-    id: "emulation",
-    label: "EMULATION & DETECTION",
-    icon: Swords,
+    id: "intelligence",
+    label: "INTELLIGENCE",
+    icon: Search,
     items: [
-      { href: "/agents", icon: Cpu, label: "AGENTS" },
-      { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
-      { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
-      { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
-      { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
-      { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
-      { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
-      { href: "/validation-scheduler", icon: Calendar, label: "CONTINUOUS VALIDATION" },
+      { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
+      { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
+      { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
+      { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
+      { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
+      { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+      { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
+      { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
+      { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
+      { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
+      { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
     ],
   },
-  // ── Phase 7: Document and deliver results ──
-  {
-    id: "reports",
-    label: "REPORTING",
-    icon: BarChart3,
-    items: [
-      { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
-      { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
-      { href: "/bia-report", icon: ClipboardCheck, label: "AUTO-BIA REPORT" },
-      { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
-    ],
-  },
-  // ── Reference material and guides ──
   {
     id: "knowledge",
     label: "KNOWLEDGE BASE",
     icon: GraduationCap,
     items: [
+      { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
       { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
       { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
       { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
       { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
-      { href: "/guide/gophish", icon: BookOpen, label: "PHISHING OPS GUIDE" },
-      { href: "/guide/caldera", icon: BookOpen, label: "EMULATION GUIDE" },
     ],
   },
-  // ── Platform management ──
+  {
+    id: "reports",
+    label: "REPORTS & GUIDES",
+    icon: BarChart3,
+    items: [
+      { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
+      { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
+      { href: "/bia-report", icon: ClipboardCheck, label: "AUTO-BIA REPORT" },
+      { href: "/guide/gophish", icon: BookOpen, label: "PHISHING OPS GUIDE" },
+      { href: "/guide/caldera", icon: BookOpen, label: "EMULATION GUIDE" },
+      { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
+    ],
+  },
   {
     id: "admin",
     label: "ADMIN",
@@ -200,8 +166,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/team", icon: Users, label: "TEAM" },
       { href: "/activity", icon: FileText, label: "ACTIVITY" },
+      { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
       { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
-      { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
+      { href: "/audit-log", icon: FileText, label: "AUDIT LOG" },
     ],
   },
 ];
@@ -215,8 +182,7 @@ function loadExpandedGroups(): Record<string, boolean> {
     const stored = localStorage.getItem(SIDEBAR_STATE_KEY);
     if (stored) return JSON.parse(stored);
   } catch {}
-  // Fresh login — auto-expand Recon & Scanning so Domain Intel is immediately visible
-  return { recon: true };
+  return {};
 }
 
 function saveExpandedGroups(state: Record<string, boolean>) {
@@ -275,14 +241,12 @@ function NavGroupSection({
   onToggle,
   currentPath,
   onNavClick,
-  badgeText,
 }: {
   group: NavGroup;
   expanded: boolean;
   onToggle: () => void;
   currentPath: string;
   onNavClick: () => void;
-  badgeText?: string;
 }) {
   const GroupIcon = group.icon;
   const hasActiveItem = group.items.some(
@@ -301,11 +265,6 @@ function NavGroupSection({
       >
         <GroupIcon className="w-4 h-4 shrink-0" />
         <span className="flex-1 text-left truncate">{group.label}</span>
-        {badgeText && (
-          <span className="px-1.5 py-0.5 text-[9px] font-mono leading-none rounded bg-primary/15 text-primary border border-primary/20 shrink-0">
-            {badgeText}
-          </span>
-        )}
         {expanded ? (
           <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
         ) : (
@@ -353,45 +312,6 @@ export default function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [location] = useLocation();
   const currentPath = activePath || location;
-
-  // First-time onboarding tooltip
-  const ONBOARDING_KEY = "ace-c3-onboarding-seen";
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    try {
-      return !localStorage.getItem(ONBOARDING_KEY);
-    } catch { return false; }
-  });
-
-  const dismissOnboarding = useCallback(() => {
-    setShowOnboarding(false);
-    try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
-  }, []);
-
-  // Fetch sidebar badge counts (silent — never blocks UI)
-  const { data: badges } = trpc.platformStats.getSidebarBadges.useQuery(undefined, {
-    staleTime: 60_000, // refresh every 60s
-    refetchInterval: 120_000, // auto-refetch every 2 min
-    retry: false,
-  });
-
-  // Compute badge text per group from the fetched data
-  const badgeTexts = useMemo<Record<string, string | undefined>>(() => {
-    if (!badges) return {};
-    const b: Record<string, string | undefined> = {};
-    const r = badges.recon as any;
-    if (r?.total) b.recon = `${r.completed ?? r.total} scans`;
-    const i = badges.intelligence as any;
-    if (i?.actors) b.intelligence = `${i.actors} actors`;
-    const p = badges.planning as any;
-    if (p?.engagements) b.planning = `${p.engagements} eng`;
-    const ph = badges.phishing as any;
-    if (ph?.active) b.phishing = `${ph.active} active`;
-    else if (ph?.campaigns) b.phishing = `${ph.campaigns} camp`;
-    const em = badges.emulation as any;
-    if (em?.active) b.emulation = `${em.active} running`;
-    else if (em?.operations) b.emulation = `${em.operations} ops`;
-    return b;
-  }, [badges]);
 
   // Expanded groups state — initialize from localStorage + auto-expand active group
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
@@ -525,46 +445,15 @@ export default function AppShell({
               </button>
             </div>
 
-            {NAV_GROUPS.map((group, idx) => (
-              <div key={group.id} className="relative">
-                <NavGroupSection
-                  group={group}
-                  expanded={!!expandedGroups[group.id]}
-                  onToggle={() => toggleGroup(group.id)}
-                  currentPath={currentPath}
-                  onNavClick={closeSidebar}
-                  badgeText={badgeTexts[group.id]}
-                />
-                {/* First-time onboarding tooltip on the Recon group */}
-                {idx === 0 && showOnboarding && (
-                  <div className="absolute left-full top-0 ml-3 z-[60] w-64 animate-in fade-in slide-in-from-left-2 duration-300">
-                    <div className="relative bg-primary text-primary-foreground rounded-lg shadow-xl p-4">
-                      {/* Arrow pointing left */}
-                      <div className="absolute -left-2 top-4 w-0 h-0 border-t-[8px] border-t-transparent border-b-[8px] border-b-transparent border-r-[8px] border-r-primary" />
-                      <p className="font-display text-xs tracking-wider mb-1 opacity-80">GETTING STARTED</p>
-                      <p className="text-sm font-medium mb-2">Start your first domain scan</p>
-                      <p className="text-xs opacity-80 mb-3">Every engagement begins here. Enter a target domain to discover assets, vulnerabilities, and attack surface.</p>
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href="/domain-intel"
-                          onClick={() => { dismissOnboarding(); closeSidebar(); }}
-                        >
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-display tracking-wider bg-primary-foreground text-primary rounded hover:opacity-90 transition-opacity cursor-pointer">
-                            <Scan className="w-3 h-3" />
-                            SCAN NOW
-                          </span>
-                        </Link>
-                        <button
-                          onClick={dismissOnboarding}
-                          className="text-xs opacity-70 hover:opacity-100 transition-opacity font-display tracking-wider"
-                        >
-                          DISMISS
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+            {NAV_GROUPS.map((group) => (
+              <NavGroupSection
+                key={group.id}
+                group={group}
+                expanded={!!expandedGroups[group.id]}
+                onToggle={() => toggleGroup(group.id)}
+                currentPath={currentPath}
+                onNavClick={closeSidebar}
+              />
             ))}
           </nav>
 

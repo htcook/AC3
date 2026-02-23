@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE detection_tests \n  ADD COLUMN IF NOT EXISTS blueTeamOutcome VARCHAR(32) DEFAULT 'not_tested',\n  ADD COLUMN IF NOT EXISTS blueTeamNotes TEXT,\n  ADD COLUMN IF NOT EXISTS blueTeamAnalyst VARCHAR(255),\n  ADD COLUMN IF NOT EXISTS detectionMethod VARCHAR(128),\n  ADD COLUMN IF NOT EXISTS responseAction VARCHAR(128),\n  ADD COLUMN IF NOT EXISTS timeToDetect INT,\n  ADD COLUMN IF NOT EXISTS timeToRespond INT,\n  ADD COLUMN IF NOT EXISTS blueTeamUpdatedAt TIMESTAMP NULL;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute ALTER TABLE detection_tests \n  ADD COLUMN IF NOT EXISTS blueTeamOutcome VARCHAR(32) DEFAULT 'not_tested',\n  ADD COLUMN IF NOT EXISTS blueTeamNotes TEXT,\n  ADD COLUMN IF NOT EXISTS blueTeamAnalyst VARCHAR(255),\n  ADD COLUMN IF NOT EXISTS detectionMethod VARCHAR(128),\n  ADD COLUMN IF NOT EXISTS responseAction VARCHAR(128),\n  ADD COLUMN IF NOT EXISTS timeToDetect INT,\n  ADD COLUMN IF NOT EXISTS timeToRespond INT,\n  ADD COLUMN IF NOT EXISTS blueTeamUpdatedAt TIMESTAMP NULL;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 2522
-}

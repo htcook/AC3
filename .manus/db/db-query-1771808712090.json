@@ -1,0 +1,13 @@
+{
+  "query": "SHOW TABLES LIKE '%validation_schedule%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SHOW TABLES LIKE '%validation_schedule%';",
+  "rows": [
+    {
+      "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (%validation_schedule%)": "validation_schedules"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (%validation_schedule%)\nvalidation_schedules\n",
+  "stderr": "",
+  "execution_time_ms": 107
+}

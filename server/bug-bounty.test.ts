@@ -27,16 +27,6 @@ function createAuthContext(): { ctx: TrpcContext } {
 const caller = appRouter.createCaller(createAuthContext().ctx);
 
 describe("bugBounty router", () => {
-  it("returns credential status", async () => {
-    const status = await caller.bugBounty.credentialStatus();
-    expect(status).toHaveProperty("hackerOne");
-    expect(status).toHaveProperty("bugcrowd");
-    expect(status.hackerOne).toHaveProperty("configured");
-    expect(status.bugcrowd).toHaveProperty("configured");
-    expect(typeof status.hackerOne.configured).toBe("boolean");
-    expect(typeof status.bugcrowd.configured).toBe("boolean");
-  });
-
   it("returns empty stats initially", async () => {
     const stats = await caller.bugBounty.stats();
     expect(stats).toHaveProperty("programs");
@@ -120,15 +110,8 @@ describe("bugBounty router", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("matches domains to programs", async () => {
-    const result = await caller.bugBounty.matchDomainsToPrograms();
-    expect(result).toHaveProperty("matches");
-    expect(result).toHaveProperty("total");
-    expect(Array.isArray(result.matches)).toBe(true);
-    expect(typeof result.total).toBe("number");
-  });
-
   it("deletes a finding", async () => {
+    // First add one to delete
     const added = await caller.bugBounty.addFinding({
       platform: "manual",
       title: "To be deleted",

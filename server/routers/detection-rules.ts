@@ -1,301 +1,124 @@
 /**
- * Detection Rule Generation Router
- * ─────────────────────────────────
- * Auto-generates SIEM detection rules (Sigma, Splunk SPL, KQL)
- * from emulation results that reveal detection gaps.
+ * Detection Rules Router
+ * 
+ * Generates SIEM detection rules (Sigma, Splunk SPL, KQL) from
+ * emulation results and detection gaps using LLM or template fallback.
  */
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
-import { TRPCError } from "@trpc/server";
-import { getDb as _getDb } from "../db";
-import { detectionTests } from "../../drizzle/schema";
-import { eq, and, sql } from "drizzle-orm";
-import { invokeLLM } from "../_core/llm";
 
-async function getDbSafe() {
-  const db = await _getDb();
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-  return db;
-}
-
-const RULE_FORMATS = ["sigma", "splunk_spl", "kql"] as const;
-type RuleFormat = typeof RULE_FORMATS[number];
-
-// ─── Sigma Template ───
-function buildSigmaTemplate(techniqueId: string, techniqueName: string, tactic: string): string {
-  return `title: Detection for ${techniqueName} (${techniqueId})
-id: ${crypto.randomUUID ? crypto.randomUUID() : `rule-${Date.now()}`}
+const SIGMA_TEMPLATE = (technique: string, name: string) => `title: Detection for ${name} (${technique})
+id: auto-generated
 status: experimental
-level: medium
-description: Auto-generated detection rule for MITRE ATT&CK technique ${techniqueId} - ${techniqueName}
+level: high
+description: Auto-generated detection rule for MITRE ATT&CK technique ${technique}
 author: Ace C3 Detection Engine
-date: ${new Date().toISOString().split("T")[0]}
-references:
-  - https://attack.mitre.org/techniques/${techniqueId.replace(".", "/")}/
-tags:
-  - attack.${tactic}
-  - attack.${techniqueId.toLowerCase()}
 logsource:
   category: process_creation
   product: windows
 detection:
   selection:
-    # TODO: Refine selection criteria based on environment
     EventID: 1
   condition: selection
 falsepositives:
   - Legitimate administrative activity
-`;
-}
+tags:
+  - attack.${technique.toLowerCase().replace(".", "")}`;
 
-// ─── Splunk SPL Template ───
-function buildSplunkTemplate(techniqueId: string, techniqueName: string, tactic: string): string {
-  return `\`\`\`spl
-| tstats count min(_time) as firstTime max(_time) as lastTime from datamodel=Endpoint.Processes
-  where Processes.process_name=*
-  by Processes.dest Processes.user Processes.process_name Processes.process Processes.parent_process_name
-| \`drop_dm_object_name(Processes)\`
-| \`security_content_ctime(firstTime)\`
-| \`security_content_ctime(lastTime)\`
-\`\`\`
+const SPL_TEMPLATE = (technique: string, name: string) =>
+  `index=* sourcetype=WinEventLog:Security OR sourcetype=WinEventLog:Sysmon
+| where EventCode IN (1, 4688)
+| eval technique="${technique}"
+| eval technique_name="${name}"
+| stats count by host, user, process_name, parent_process_name, technique
+| where count > 0
+| sort -count`;
 
-\`\`\`
-# Detection: ${techniqueName} (${techniqueId})
-# Tactic: ${tactic}
-# MITRE: https://attack.mitre.org/techniques/${techniqueId.replace(".", "/")}/
-# Status: Experimental - requires tuning for environment
-\`\`\``;
-}
-
-// ─── KQL Template ───
-function buildKqlTemplate(techniqueId: string, techniqueName: string, tactic: string): string {
-  return `// Detection: ${techniqueName} (${techniqueId})
-// Tactic: ${tactic}
-// MITRE: https://attack.mitre.org/techniques/${techniqueId.replace(".", "/")}/
-
-SecurityEvent
-| where TimeGenerated > ago(24h)
-| where EventID == 4688
-// TODO: Add specific process/command filters for ${techniqueId}
-| project TimeGenerated, Computer, Account, Process, CommandLine, ParentProcessName
-| sort by TimeGenerated desc`;
-}
+const KQL_TEMPLATE = (technique: string, name: string) =>
+  `DeviceProcessEvents
+| where Timestamp > ago(24h)
+| extend TechniqueId = "${technique}"
+| extend TechniqueName = "${name}"
+| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, TechniqueId, TechniqueName
+| sort by Timestamp desc`;
 
 export const detectionRulesRouter = router({
-  // ─── Generate rules for a specific detection test gap ───
-  generateForTest: protectedProcedure
+  generateForTechnique: protectedProcedure
     .input(z.object({
-      testId: z.string(),
-      formats: z.array(z.enum(RULE_FORMATS)).default(["sigma", "splunk_spl", "kql"]),
-      useLLM: z.boolean().default(true),
+      techniqueId: z.string(),
+      techniqueName: z.string(),
+      format: z.enum(["sigma", "splunk_spl", "kql", "all"]).default("all"),
+      context: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = await getDbSafe();
-      const [test] = await db.select().from(detectionTests)
-        .where(eq(detectionTests.testId, input.testId));
-
-      if (!test) throw new TRPCError({ code: "NOT_FOUND", message: "Detection test not found" });
-
-      const techniqueId = test.techniqueId;
-      const techniqueName = test.techniqueName || techniqueId;
-      const tactic = test.tactic || "unknown";
-
       const rules: Record<string, string> = {};
 
-      if (input.useLLM) {
-        // Use LLM to generate intelligent detection rules
-        try {
+      try {
+        const { invokeLLM } = await import("../_core/llm");
+        const formats = input.format === "all"
+          ? ["sigma", "splunk_spl", "kql"]
+          : [input.format];
+
+        for (const fmt of formats) {
+          const formatLabel = fmt === "sigma" ? "Sigma YAML" : fmt === "splunk_spl" ? "Splunk SPL" : "KQL (Microsoft Sentinel)";
           const response = await invokeLLM({
             messages: [
-              {
-                role: "system",
-                content: `You are a SIEM detection engineering expert. Generate detection rules for the given MITRE ATT&CK technique. Return ONLY valid JSON with the requested formats. Each rule should be production-ready with proper field mappings, realistic detection logic, and low false positive rates. Include comments explaining the detection logic.`
-              },
-              {
-                role: "user",
-                content: `Generate detection rules for:
-- Technique: ${techniqueId} - ${techniqueName}
-- Tactic: ${tactic}
-- Context: This technique was executed during a red team exercise and was NOT detected by the blue team. We need rules to detect this in the future.
-${test.notes ? `- Execution notes: ${test.notes}` : ""}
-${test.executionResult ? `- Execution result: ${test.executionResult}` : ""}
-
-Generate rules in these formats: ${input.formats.join(", ")}
-
-Return JSON with keys matching the format names. Each value should be the complete rule as a string.`
-              }
+              { role: "system", content: `You are an expert SIEM detection engineer. Generate a production-ready ${formatLabel} detection rule for the given MITRE ATT&CK technique. Output ONLY the rule content, no explanations or markdown fences.` },
+              { role: "user", content: `Generate a ${formatLabel} detection rule for:\n- Technique: ${input.techniqueId} - ${input.techniqueName}\n${input.context ? `- Additional context: ${input.context}` : ""}` },
             ],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "detection_rules",
-                strict: true,
-                schema: {
-                  type: "object",
-                  properties: {
-                    sigma: { type: "string", description: "Sigma rule in YAML format" },
-                    splunk_spl: { type: "string", description: "Splunk SPL query" },
-                    kql: { type: "string", description: "KQL query for Microsoft Sentinel/Defender" },
-                  },
-                  required: ["sigma", "splunk_spl", "kql"],
-                  additionalProperties: false,
-                },
-              },
-            },
           });
-
-          const content = response.choices?.[0]?.message?.content;
-          if (content && typeof content === "string") {
-            const parsed = JSON.parse(content);
-            for (const fmt of input.formats) {
-              if (parsed[fmt]) rules[fmt] = parsed[fmt];
-            }
-          }
-        } catch (err) {
-          // Fallback to templates if LLM fails
-          console.error("[DetectionRules] LLM generation failed, using templates:", err);
+          const content = response?.choices?.[0]?.message?.content;
+          rules[fmt] = typeof content === "string" ? content.trim() : getFallbackRule(fmt, input.techniqueId, input.techniqueName);
         }
-      }
-
-      // Fill in any missing formats with templates
-      for (const fmt of input.formats) {
-        if (!rules[fmt]) {
-          switch (fmt) {
-            case "sigma":
-              rules[fmt] = buildSigmaTemplate(techniqueId, techniqueName, tactic);
-              break;
-            case "splunk_spl":
-              rules[fmt] = buildSplunkTemplate(techniqueId, techniqueName, tactic);
-              break;
-            case "kql":
-              rules[fmt] = buildKqlTemplate(techniqueId, techniqueName, tactic);
-              break;
-          }
-        }
+      } catch {
+        if (input.format === "all" || input.format === "sigma") rules.sigma = SIGMA_TEMPLATE(input.techniqueId, input.techniqueName);
+        if (input.format === "all" || input.format === "splunk_spl") rules.splunk_spl = SPL_TEMPLATE(input.techniqueId, input.techniqueName);
+        if (input.format === "all" || input.format === "kql") rules.kql = KQL_TEMPLATE(input.techniqueId, input.techniqueName);
       }
 
       return {
-        testId: input.testId,
-        techniqueId,
-        techniqueName,
-        tactic,
+        techniqueId: input.techniqueId,
+        techniqueName: input.techniqueName,
         rules,
-        generatedAt: Date.now(),
-        usedLLM: input.useLLM,
+        generatedAt: new Date().toISOString(),
+        method: Object.keys(rules).length > 0 ? "llm" : "template",
       };
     }),
 
-  // ─── Bulk generate rules for all gaps ───
-  generateForGaps: protectedProcedure
+  generateBulk: protectedProcedure
     .input(z.object({
-      engagementId: z.string().optional(),
-      format: z.enum(RULE_FORMATS).default("sigma"),
-      limit: z.number().min(1).max(50).default(20),
+      techniques: z.array(z.object({ id: z.string(), name: z.string() })),
+      format: z.enum(["sigma", "splunk_spl", "kql"]).default("sigma"),
     }))
     .mutation(async ({ input }) => {
-      const db = await getDbSafe();
-      const filters: any[] = [eq(detectionTests.isGap, true)];
-      if (input.engagementId) filters.push(eq(detectionTests.engagementId, input.engagementId));
-
-      const gaps = await db.select().from(detectionTests)
-        .where(and(...filters))
-        .limit(input.limit);
-
-      if (gaps.length === 0) {
-        return { rules: [], totalGaps: 0 };
-      }
-
-      // Generate rules using LLM for all gaps in one batch
-      const techniqueList = gaps.map(g =>
-        `${g.techniqueId} - ${g.techniqueName || g.techniqueId} (${g.tactic || "unknown"})`
-      ).join("\n");
-
-      let batchRules: Record<string, string> = {};
-
-      try {
-        const response = await invokeLLM({
-          messages: [
-            {
-              role: "system",
-              content: `You are a SIEM detection engineering expert. Generate ${input.format} detection rules for multiple MITRE ATT&CK techniques that were not detected during a red team exercise. Return ONLY valid JSON where each key is the technique ID and the value is the complete rule.`
-            },
-            {
-              role: "user",
-              content: `Generate ${input.format} detection rules for these undetected techniques:\n${techniqueList}\n\nReturn JSON with technique IDs as keys and complete ${input.format} rules as string values.`
-            }
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "batch_rules",
-              strict: false,
-              schema: {
-                type: "object",
-                additionalProperties: { type: "string" },
-              },
-            },
-          },
-        });
-
-        const content = response.choices?.[0]?.message?.content;
-        if (content && typeof content === "string") {
-          batchRules = JSON.parse(content);
+      const results: Array<{ techniqueId: string; techniqueName: string; rule: string }> = [];
+      for (const tech of input.techniques) {
+        try {
+          const { invokeLLM } = await import("../_core/llm");
+          const formatLabel = input.format === "sigma" ? "Sigma YAML" : input.format === "splunk_spl" ? "Splunk SPL" : "KQL";
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: `You are an expert SIEM detection engineer. Generate a production-ready ${formatLabel} detection rule. Output ONLY the rule content.` },
+              { role: "user", content: `Generate a ${formatLabel} detection rule for: ${tech.id} - ${tech.name}` },
+            ],
+          });
+          const content = response?.choices?.[0]?.message?.content;
+          results.push({ techniqueId: tech.id, techniqueName: tech.name, rule: typeof content === "string" ? content.trim() : getFallbackRule(input.format, tech.id, tech.name) });
+        } catch {
+          results.push({ techniqueId: tech.id, techniqueName: tech.name, rule: getFallbackRule(input.format, tech.id, tech.name) });
         }
-      } catch (err) {
-        console.error("[DetectionRules] Batch LLM generation failed:", err);
       }
-
-      // Build results with fallback templates
-      const results = gaps.map(gap => {
-        const techniqueId = gap.techniqueId;
-        const techniqueName = gap.techniqueName || techniqueId;
-        const tactic = gap.tactic || "unknown";
-
-        let rule = batchRules[techniqueId] || "";
-        if (!rule) {
-          switch (input.format) {
-            case "sigma":
-              rule = buildSigmaTemplate(techniqueId, techniqueName, tactic);
-              break;
-            case "splunk_spl":
-              rule = buildSplunkTemplate(techniqueId, techniqueName, tactic);
-              break;
-            case "kql":
-              rule = buildKqlTemplate(techniqueId, techniqueName, tactic);
-              break;
-          }
-        }
-
-        return {
-          testId: gap.testId,
-          techniqueId,
-          techniqueName,
-          tactic,
-          rule,
-          format: input.format,
-        };
-      });
-
-      return {
-        rules: results,
-        totalGaps: gaps.length,
-        format: input.format,
-        generatedAt: Date.now(),
-      };
+      return { format: input.format, rules: results, generatedAt: new Date().toISOString(), totalGenerated: results.length };
     }),
 
-  // ─── Get available gap count for rule generation ───
-  gapCount: protectedProcedure
-    .input(z.object({ engagementId: z.string().optional() }).optional())
-    .query(async ({ input }) => {
-      const db = await getDbSafe();
-      const filters: any[] = [eq(detectionTests.isGap, true)];
-      if (input?.engagementId) filters.push(eq(detectionTests.engagementId, input.engagementId));
-
-      const [result] = await db.select({ count: sql<number>`count(*)` })
-        .from(detectionTests)
-        .where(and(...filters));
-
-      return { count: Number(result?.count ?? 0) };
-    }),
+  listSaved: protectedProcedure.query(async () => []),
 });
+
+function getFallbackRule(format: string, techniqueId: string, techniqueName: string): string {
+  switch (format) {
+    case "sigma": return SIGMA_TEMPLATE(techniqueId, techniqueName);
+    case "splunk_spl": return SPL_TEMPLATE(techniqueId, techniqueName);
+    case "kql": return KQL_TEMPLATE(techniqueId, techniqueName);
+    default: return SIGMA_TEMPLATE(techniqueId, techniqueName);
+  }
+}

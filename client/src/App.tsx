@@ -69,7 +69,6 @@ const EmulationPlaybooks = lazy(() => import("./pages/EmulationPlaybooks"));
 const EvidenceCollection = lazy(() => import("./pages/EvidenceCollection"));
 const AttackPaths = lazy(() => import("./pages/AttackPaths"));
 const PurpleTeam = lazy(() => import("./pages/PurpleTeam"));
-const ValidationScheduler = lazy(() => import("./pages/ValidationScheduler"));
 const Webhooks = lazy(() => import("./pages/Webhooks"));
 const BugBountyHub = lazy(() => import("./pages/BugBountyHub"));
 const ScoringHub = lazy(() => import("./pages/ScoringHub"));
@@ -79,6 +78,8 @@ const EvasionEngine = lazy(() => import("./pages/EvasionEngine"));
 const SiemConnectors = lazy(() => import("./pages/SiemConnectors"));
 const ScanHistory = lazy(() => import("./pages/ScanHistory"));
 const TrainingDashboard = lazy(() => import("./pages/TrainingDashboard"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
+const ValidationScheduler = lazy(() => import("./pages/ValidationScheduler"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -348,14 +349,17 @@ function Router() {
         <Route path="/purple-team">
           <ProtectedRoute component={PurpleTeam} />
         </Route>
-        <Route path="/validation-scheduler">
-          <ProtectedRoute component={ValidationScheduler} />
-        </Route>
         <Route path="/evasion-engine">
           <ProtectedRoute component={EvasionEngine} />
         </Route>
         <Route path="/training-dashboard">
           <ProtectedRoute component={TrainingDashboard} />
+        </Route>
+        <Route path="/audit-log">
+          <ProtectedRoute component={AuditLog} />
+        </Route>
+        <Route path="/continuous-validation">
+          <ProtectedRoute component={ValidationScheduler} />
         </Route>
         <Route path="/siem-connectors">
           <ProtectedRoute component={SiemConnectors} />

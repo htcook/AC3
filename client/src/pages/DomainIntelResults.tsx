@@ -110,8 +110,6 @@ export default function DomainIntelResults() {
   const [, navigate] = useLocation();
   const scanId = Number(params.id);
   const [expandedAsset, setExpandedAsset] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("overview");
-  const [scrollToAssetId, setScrollToAssetId] = useState<number | null>(null);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [heatmapExpandedAsset, setHeatmapExpandedAsset] = useState<number | null>(null);
   const [fpDialogOpen, setFpDialogOpen] = useState(false);
@@ -593,7 +591,7 @@ export default function DomainIntelResults() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         {scan.status === 'scan_complete' ? (
           <TabsList className="flex flex-wrap gap-1 w-full max-w-5xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -935,8 +933,8 @@ export default function DomainIntelResults() {
                     <div className="flex justify-end pt-1">
                       <Button variant="outline" size="sm" className="text-xs" onClick={() => {
                         setExpandedAsset(asset.id);
-                        setScrollToAssetId(asset.id);
-                        setActiveTab("assets");
+                        const tabsTrigger = document.querySelector('[data-value="assets"]') as HTMLElement;
+                        if (tabsTrigger) tabsTrigger.click();
                       }}>
                         <Eye className="h-3 w-3 mr-1" />
                         View Full Asset Details
@@ -991,14 +989,7 @@ export default function DomainIntelResults() {
             const vectors = (asset.testVectors || []) as any[];
 
             return (
-              <Card key={asset.id} data-asset-id={asset.id} ref={(el) => {
-                if (el && scrollToAssetId === asset.id && activeTab === 'assets') {
-                  setTimeout(() => {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setScrollToAssetId(null);
-                  }, 100);
-                }
-              }} className={`transition-all ${isExpanded ? "ring-1 ring-purple-500/40" : ""}`}>
+              <Card key={asset.id} className={`transition-all ${isExpanded ? "ring-1 ring-purple-500/40" : ""}`}>
                 <div
                   className="p-4 cursor-pointer flex items-center gap-4"
                   onClick={() => setExpandedAsset(isExpanded ? null : asset.id)}

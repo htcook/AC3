@@ -205,12 +205,48 @@ export const engagements = mysqlTable("engagements", {
   gophishCampaignId: int("gophishCampaignId"),
   notes: text("notes"),
   createdBy: int("createdBy"),
+  // ROE (Rules of Engagement) fields
+  roeStatus: mysqlEnum("roe_status", ["none", "pending", "signed", "expired"]).default("none").notNull(),
+  roeSignedDate: timestamp("roe_signed_date"),
+  roeExpiryDate: timestamp("roe_expiry_date"),
+  roeDocumentUrl: text("roe_document_url"),
+  roeScope: json("roe_scope"),
+  roeSignerName: varchar("roe_signer_name", { length: 255 }),
+  roeSignerEmail: varchar("roe_signer_email", { length: 320 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Engagement = typeof engagements.$inferSelect;
 export type InsertEngagement = typeof engagements.$inferInsert;
+
+/**
+ * Offensive operations audit log — tracks all Orange/Red tier actions
+ */
+export const offensiveAuditLog = mysqlTable("offensive_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  operatorId: varchar("operator_id", { length: 64 }).notNull(),
+  operatorName: varchar("operator_name", { length: 255 }),
+  actionType: mysqlEnum("action_type", [
+    "active_probe", "msf_check", "msf_auxiliary", "msf_exploit",
+    "phishing_launch", "caldera_operation", "payload_delivery", "session_interaction"
+  ]).notNull(),
+  riskTier: mysqlEnum("risk_tier", ["yellow", "orange", "red"]).notNull(),
+  target: varchar("target", { length: 512 }).notNull(),
+  targetPort: int("target_port"),
+  moduleOrTool: varchar("module_or_tool", { length: 512 }),
+  roeStatus: varchar("roe_status", { length: 32 }),
+  roeDocumentUrl: text("roe_document_url"),
+  actionDetail: json("action_detail"),
+  resultStatus: mysqlEnum("result_status", ["success", "failure", "blocked", "pending_approval"]).default("pending_approval").notNull(),
+  resultDetail: text("result_detail"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type OffensiveAuditLog = typeof offensiveAuditLog.$inferSelect;
+export type InsertOffensiveAuditLog = typeof offensiveAuditLog.$inferInsert;
 
 /**
  * Links GoPhish campaigns to engagements for filtering and isolation
@@ -1533,15 +1569,6 @@ export const detectionTests = mysqlTable("detection_tests", {
   mitigationStatus: varchar("mitigationStatus", { length: 32 }).default("open"),
   notes: text("notes"),
   evidence: json("evidence"),
-  // Blue team outcome tracking
-  blueTeamOutcome: varchar("blueTeamOutcome", { length: 32 }).default("not_tested"), // detected, blocked, missed, partial, not_tested
-  blueTeamNotes: text("blueTeamNotes"),
-  blueTeamAnalyst: varchar("blueTeamAnalyst", { length: 255 }),
-  detectionMethod: varchar("detectionMethod", { length: 128 }), // SIEM, EDR, NDR, manual, honeypot, etc.
-  responseAction: varchar("responseAction", { length: 128 }), // isolated, contained, escalated, ignored, etc.
-  timeToDetect: int("timeToDetect"), // seconds from execution to detection
-  timeToRespond: int("timeToRespond"), // seconds from detection to response
-  blueTeamUpdatedAt: timestamp("blueTeamUpdatedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -2470,23 +2497,22 @@ export const exploitIntelligence = mysqlTable("exploit_intelligence", {
 export type ExploitIntelligence = typeof exploitIntelligence.$inferSelect;
 export type InsertExploitIntelligence = typeof exploitIntelligence.$inferInsert;
 
-
-// ─── Continuous Validation Schedules ─────────────────────────────────────
+// ─── Validation Schedules ───────────────────────────────────────────────────
 export const validationSchedules = mysqlTable("validation_schedules", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 255 }).notNull(),
-  scheduleType: varchar("schedule_type", { length: 50 }).notNull(), // domain_scan, emulation, campaign_retest, detection_retest
-  targetId: varchar("target_id", { length: 255 }), // e.g. domain name, playbook ID, campaign ID
-  targetLabel: varchar("target_label", { length: 255 }), // human-readable label
-  intervalHours: int("interval_hours").notNull().default(168), // default weekly
-  cronExpression: varchar("cron_expression", { length: 100 }), // optional cron override
+  scheduleType: varchar("schedule_type", { length: 50 }).notNull(),
+  targetId: varchar("target_id", { length: 255 }),
+  targetLabel: varchar("target_label", { length: 255 }),
+  intervalHours: int("interval_hours").notNull().default(168),
+  cronExpression: varchar("cron_expression", { length: 100 }),
   enabled: boolean("enabled").notNull().default(true),
   lastRunAt: timestamp("last_run_at"),
   nextRunAt: timestamp("next_run_at"),
-  lastStatus: varchar("last_status", { length: 50 }), // success, failed, running
+  lastStatus: varchar("last_status", { length: 50 }),
   lastError: text("last_error"),
   runCount: int("run_count").notNull().default(0),
-  config: json("config"), // schedule-specific config (scan depth, emulation options, etc.)
+  config: json("config"),
   createdBy: varchar("created_by", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

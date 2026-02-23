@@ -6,7 +6,6 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { ENV } from "../_core/env";
 import { getDb as _getDb } from "../db";
 import {
   bugBountyPrograms,
@@ -15,7 +14,6 @@ import {
   bugBountySyncLogs,
   discoveredAssets,
   iocFeeds,
-  domainIntelScans,
 } from "../../drizzle/schema";
 import { eq, desc, like, and, or, sql, inArray } from "drizzle-orm";
 
@@ -28,9 +26,7 @@ async function getDbSafe() {
 
 const H1_BASE = "https://api.hackerone.com/v1/hackers";
 
-async function h1Fetch(path: string) {
-  const username = ENV.HACKERONE_API_USERNAME;
-  const token = ENV.HACKERONE_API_TOKEN;
+async function h1Fetch(path: string, username?: string, token?: string) {
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
@@ -38,43 +34,9 @@ async function h1Fetch(path: string) {
     headers.Authorization =
       "Basic " + Buffer.from(`${username}:${token}`).toString("base64");
   }
-  const res = await fetch(`${H1_BASE}${path}`, {
-    headers,
-    signal: AbortSignal.timeout(20000),
-  });
+  const res = await fetch(`${H1_BASE}${path}`, { headers, signal: AbortSignal.timeout(15000) });
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `HackerOne API ${res.status}: ${res.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`
-    );
-  }
-  return res.json();
-}
-
-// ─── Bugcrowd API Client ───
-
-const BC_BASE = "https://api.bugcrowd.com";
-
-async function bcFetch(path: string) {
-  const token = ENV.BUGCROWD_API_TOKEN;
-  if (!token) {
-    throw new Error(
-      "Bugcrowd API token not configured. Set BUGCROWD_API_TOKEN in secrets."
-    );
-  }
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.bugcrowd+json",
-    Authorization: `Token ${token}`,
-  };
-  const res = await fetch(`${BC_BASE}${path}`, {
-    headers,
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(
-      `Bugcrowd API ${res.status}: ${res.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`
-    );
+    throw new Error(`HackerOne API ${res.status}: ${res.statusText}`);
   }
   return res.json();
 }
@@ -91,9 +53,7 @@ interface CorrelationResult {
   details: Record<string, unknown>;
 }
 
-async function correlateFindings(
-  findingIds?: number[]
-): Promise<CorrelationResult[]> {
+async function correlateFindings(findingIds?: number[]): Promise<CorrelationResult[]> {
   const db = await getDbSafe();
   const correlations: CorrelationResult[] = [];
 
@@ -169,7 +129,8 @@ async function correlateFindings(
             matchedEntityType: "discovered_asset",
             matchedEntityId: asset.id,
             matchedEntityName: asset.hostname,
-            confidenceScore: hostname === findingAsset ? 0.98 : 0.75,
+            confidenceScore:
+              hostname === findingAsset ? 0.98 : 0.75,
             details: {
               matchField: "hostname",
               matchValue: findingAsset,
@@ -199,12 +160,10 @@ async function correlateFindings(
       }
     }
 
-    // 3. CWE Match: match finding CWE against asset posture findings
+    // 3. CWE Match: match finding CWE against IOC feeds or asset posture findings
     if (finding.cweId) {
       for (const asset of assets) {
-        const postureFindings =
-          (asset.postureFindings as Array<{ cwe?: string; title?: string }>) ||
-          [];
+        const postureFindings = (asset.postureFindings as Array<{ cwe?: string; title?: string }>) || [];
         for (const pf of postureFindings) {
           if (pf.cwe && pf.cwe === finding.cweId) {
             correlations.push({
@@ -232,28 +191,11 @@ async function correlateFindings(
 // ─── Router ───
 
 export const bugBountyRouter = router({
-  // Check API credential status
-  credentialStatus: protectedProcedure.query(async () => {
-    return {
-      hackerOne: {
-        configured: !!(ENV.HACKERONE_API_USERNAME && ENV.HACKERONE_API_TOKEN),
-        username: ENV.HACKERONE_API_USERNAME
-          ? ENV.HACKERONE_API_USERNAME.slice(0, 3) + "***"
-          : null,
-      },
-      bugcrowd: {
-        configured: !!ENV.BUGCROWD_API_TOKEN,
-      },
-    };
-  }),
-
   // List programs with search and filtering
   listPrograms: protectedProcedure
     .input(
       z.object({
-        platform: z
-          .enum(["hackerone", "bugcrowd", "manual", "all"])
-          .default("all"),
+        platform: z.enum(["hackerone", "bugcrowd", "manual", "all"]).default("all"),
         search: z.string().optional(),
         state: z.string().optional(),
         limit: z.number().min(1).max(100).default(25),
@@ -298,9 +240,7 @@ export const bugBountyRouter = router({
   listFindings: protectedProcedure
     .input(
       z.object({
-        platform: z
-          .enum(["hackerone", "bugcrowd", "manual", "all"])
-          .default("all"),
+        platform: z.enum(["hackerone", "bugcrowd", "manual", "all"]).default("all"),
         severity: z.string().optional(),
         search: z.string().optional(),
         programId: z.number().optional(),
@@ -355,19 +295,13 @@ export const bugBountyRouter = router({
       const db = await getDbSafe();
       const conditions = [];
       if (input.findingId) {
-        conditions.push(
-          eq(bugBountyCorrelations.findingId, input.findingId)
-        );
+        conditions.push(eq(bugBountyCorrelations.findingId, input.findingId));
       }
       if (input.correlationType) {
-        conditions.push(
-          eq(bugBountyCorrelations.correlationType, input.correlationType)
-        );
+        conditions.push(eq(bugBountyCorrelations.correlationType, input.correlationType));
       }
       if (input.minConfidence > 0) {
-        conditions.push(
-          sql`${bugBountyCorrelations.confidenceScore} >= ${input.minConfidence}`
-        );
+        conditions.push(sql`${bugBountyCorrelations.confidenceScore} >= ${input.minConfidence}`);
       }
       const where = conditions.length > 0 ? and(...conditions) : undefined;
       const rows = await db
@@ -380,27 +314,20 @@ export const bugBountyRouter = router({
       return rows;
     }),
 
-  // ─── HackerOne Sync ───
-
+  // Sync HackerOne hacktivity feed
   syncHackerOneHacktivity: protectedProcedure
     .input(
       z.object({
-        queryString: z
-          .string()
-          .default("severity_rating:critical OR severity_rating:high"),
+        queryString: z.string().default("severity_rating:critical OR severity_rating:high"),
         pages: z.number().min(1).max(10).default(3),
+        apiUsername: z.string().optional(),
+        apiToken: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
-      if (!ENV.HACKERONE_API_USERNAME || !ENV.HACKERONE_API_TOKEN) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "HackerOne API credentials not configured. Add HACKERONE_API_USERNAME and HACKERONE_API_TOKEN in Settings > Secrets.",
-        });
-      }
-
       const db = await getDbSafe();
+
+      // Create sync log
       const [logResult] = await db.insert(bugBountySyncLogs).values({
         platform: "hackerone",
         syncType: "hacktivity",
@@ -413,16 +340,14 @@ export const bugBountyRouter = router({
 
         for (let page = 1; page <= input.pages; page++) {
           const path = `/hacktivity?queryString=${encodeURIComponent(input.queryString)}&page[number]=${page}&page[size]=25`;
-          const data = await h1Fetch(path);
+          const data = await h1Fetch(path, input.apiUsername, input.apiToken);
 
           if (!data?.data?.length) break;
 
           for (const item of data.data) {
             const attrs = item.attributes || {};
-            const reporter =
-              item.relationships?.reporter?.data?.attributes;
-            const program =
-              item.relationships?.program?.data?.attributes;
+            const reporter = item.relationships?.reporter?.data?.attributes;
+            const program = item.relationships?.program?.data?.attributes;
 
             // Upsert by external ID
             const existing = await db
@@ -446,9 +371,7 @@ export const bugBountyRouter = router({
                 cweId: attrs.cwe || null,
                 substate: attrs.substate || null,
                 reportUrl: attrs.url || null,
-                disclosedAt: attrs.disclosed_at
-                  ? new Date(attrs.disclosed_at)
-                  : null,
+                disclosedAt: attrs.disclosed_at ? new Date(attrs.disclosed_at) : null,
                 awardedAmount: attrs.total_awarded_amount || null,
                 reporterUsername: reporter?.username || null,
                 reporterReputation: reporter?.reputation || null,
@@ -461,6 +384,7 @@ export const bugBountyRouter = router({
           }
         }
 
+        // Update sync log
         await db
           .update(bugBountySyncLogs)
           .set({
@@ -487,22 +411,18 @@ export const bugBountyRouter = router({
       }
     }),
 
+  // Sync HackerOne programs
   syncHackerOnePrograms: protectedProcedure
     .input(
       z.object({
         pages: z.number().min(1).max(10).default(3),
+        apiUsername: z.string().optional(),
+        apiToken: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
-      if (!ENV.HACKERONE_API_USERNAME || !ENV.HACKERONE_API_TOKEN) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "HackerOne API credentials not configured. Add HACKERONE_API_USERNAME and HACKERONE_API_TOKEN in Settings > Secrets.",
-        });
-      }
-
       const db = await getDbSafe();
+
       const [logResult] = await db.insert(bugBountySyncLogs).values({
         platform: "hackerone",
         syncType: "programs",
@@ -515,7 +435,7 @@ export const bugBountyRouter = router({
 
         for (let page = 1; page <= input.pages; page++) {
           const path = `/programs?page[number]=${page}&page[size]=25`;
-          const data = await h1Fetch(path);
+          const data = await h1Fetch(path, input.apiUsername, input.apiToken);
 
           if (!data?.data?.length) break;
 
@@ -528,10 +448,7 @@ export const bugBountyRouter = router({
               .where(
                 and(
                   eq(bugBountyPrograms.platform, "hackerone"),
-                  eq(
-                    bugBountyPrograms.handle,
-                    attrs.handle || String(item.id)
-                  )
+                  eq(bugBountyPrograms.handle, attrs.handle || String(item.id))
                 )
               )
               .limit(1);
@@ -555,8 +472,7 @@ export const bugBountyRouter = router({
                 .set({
                   name: attrs.name || existing[0].name,
                   state: attrs.state || existing[0].state,
-                  submissionState:
-                    attrs.submission_state || existing[0].submissionState,
+                  submissionState: attrs.submission_state || existing[0].submissionState,
                   lastSyncedAt: new Date(),
                 })
                 .where(eq(bugBountyPrograms.id, existing[0].id));
@@ -567,22 +483,14 @@ export const bugBountyRouter = router({
 
         await db
           .update(bugBountySyncLogs)
-          .set({
-            status: "completed",
-            itemsSynced: totalSynced,
-            completedAt: new Date(),
-          })
+          .set({ status: "completed", itemsSynced: totalSynced, completedAt: new Date() })
           .where(eq(bugBountySyncLogs.id, Number(logId)));
 
         return { success: true, synced: totalSynced };
       } catch (err: any) {
         await db
           .update(bugBountySyncLogs)
-          .set({
-            status: "failed",
-            errorMessage: err.message,
-            completedAt: new Date(),
-          })
+          .set({ status: "failed", errorMessage: err.message, completedAt: new Date() })
           .where(eq(bugBountySyncLogs.id, Number(logId)));
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -591,310 +499,7 @@ export const bugBountyRouter = router({
       }
     }),
 
-  // ─── Bugcrowd Sync ───
-
-  syncBugcrowdPrograms: protectedProcedure
-    .input(
-      z.object({
-        pages: z.number().min(1).max(10).default(3),
-      })
-    )
-    .mutation(async ({ input }) => {
-      if (!ENV.BUGCROWD_API_TOKEN) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "Bugcrowd API token not configured. Add BUGCROWD_API_TOKEN in Settings > Secrets.",
-        });
-      }
-
-      const db = await getDbSafe();
-      const [logResult] = await db.insert(bugBountySyncLogs).values({
-        platform: "bugcrowd",
-        syncType: "programs",
-        status: "running",
-      });
-      const logId = logResult.insertId;
-
-      try {
-        let totalSynced = 0;
-        let nextUrl: string | null = `/programs?page[limit]=25`;
-
-        for (let page = 0; page < input.pages && nextUrl; page++) {
-          const data = await bcFetch(nextUrl);
-          const items = data?.data || [];
-
-          for (const item of items) {
-            const attrs = item.attributes || {};
-            const handle = attrs.code || item.id;
-
-            const existing = await db
-              .select()
-              .from(bugBountyPrograms)
-              .where(
-                and(
-                  eq(bugBountyPrograms.platform, "bugcrowd"),
-                  eq(bugBountyPrograms.handle, handle)
-                )
-              )
-              .limit(1);
-
-            if (existing.length === 0) {
-              await db.insert(bugBountyPrograms).values({
-                platform: "bugcrowd",
-                handle,
-                name: attrs.name || handle,
-                url: attrs.program_url || `https://bugcrowd.com/${handle}`,
-                logoUrl: attrs.logo || null,
-                state: attrs.status || null,
-                submissionState: attrs.submission_state || null,
-                currency: "USD",
-                lastSyncedAt: new Date(),
-              });
-              totalSynced++;
-            } else {
-              await db
-                .update(bugBountyPrograms)
-                .set({
-                  name: attrs.name || existing[0].name,
-                  state: attrs.status || existing[0].state,
-                  lastSyncedAt: new Date(),
-                })
-                .where(eq(bugBountyPrograms.id, existing[0].id));
-              totalSynced++;
-            }
-          }
-
-          // Pagination via JSON API links
-          nextUrl = data?.links?.next || null;
-        }
-
-        await db
-          .update(bugBountySyncLogs)
-          .set({
-            status: "completed",
-            itemsSynced: totalSynced,
-            completedAt: new Date(),
-          })
-          .where(eq(bugBountySyncLogs.id, Number(logId)));
-
-        return { success: true, synced: totalSynced };
-      } catch (err: any) {
-        await db
-          .update(bugBountySyncLogs)
-          .set({
-            status: "failed",
-            errorMessage: err.message,
-            completedAt: new Date(),
-          })
-          .where(eq(bugBountySyncLogs.id, Number(logId)));
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Bugcrowd programs sync failed: ${err.message}`,
-        });
-      }
-    }),
-
-  syncBugcrowdSubmissions: protectedProcedure
-    .input(
-      z.object({
-        pages: z.number().min(1).max(10).default(3),
-      })
-    )
-    .mutation(async ({ input }) => {
-      if (!ENV.BUGCROWD_API_TOKEN) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "Bugcrowd API token not configured. Add BUGCROWD_API_TOKEN in Settings > Secrets.",
-        });
-      }
-
-      const db = await getDbSafe();
-      const [logResult] = await db.insert(bugBountySyncLogs).values({
-        platform: "bugcrowd",
-        syncType: "submissions",
-        status: "running",
-      });
-      const logId = logResult.insertId;
-
-      try {
-        let totalSynced = 0;
-        let nextUrl: string | null = `/submissions?page[limit]=25&filter[state]=accepted&filter[disclosed]=true&sort=-submitted_at`;
-
-        for (let page = 0; page < input.pages && nextUrl; page++) {
-          const data = await bcFetch(nextUrl);
-          const items = data?.data || [];
-
-          for (const item of items) {
-            const attrs = item.attributes || {};
-            const externalId = item.id;
-
-            const existing = await db
-              .select()
-              .from(bugBountyFindings)
-              .where(
-                and(
-                  eq(bugBountyFindings.platform, "bugcrowd"),
-                  eq(bugBountyFindings.externalId, String(externalId))
-                )
-              )
-              .limit(1);
-
-            if (existing.length === 0) {
-              // Map Bugcrowd priority to severity
-              const priorityMap: Record<number, string> = {
-                1: "critical",
-                2: "high",
-                3: "medium",
-                4: "low",
-                5: "none",
-              };
-              const severity =
-                priorityMap[attrs.priority] || attrs.severity || null;
-
-              await db.insert(bugBountyFindings).values({
-                platform: "bugcrowd",
-                externalId: String(externalId),
-                title: attrs.title || "Untitled Submission",
-                severityRating: severity,
-                cveIds: attrs.cve_ids || null,
-                cweId: attrs.cwe || null,
-                substate: attrs.state || null,
-                reportUrl: attrs.bug_url || null,
-                disclosedAt: attrs.disclosed_at
-                  ? new Date(attrs.disclosed_at)
-                  : attrs.submitted_at
-                    ? new Date(attrs.submitted_at)
-                    : null,
-                awardedAmount: attrs.amount || null,
-                reporterUsername: attrs.researcher?.username || null,
-                programHandle: attrs.program?.code || null,
-                programName: attrs.program?.name || null,
-                assetIdentifier: attrs.target?.name || null,
-                assetType: attrs.target?.category || null,
-                votes: 0,
-              });
-              totalSynced++;
-            }
-          }
-
-          nextUrl = data?.links?.next || null;
-        }
-
-        await db
-          .update(bugBountySyncLogs)
-          .set({
-            status: "completed",
-            itemsSynced: totalSynced,
-            completedAt: new Date(),
-          })
-          .where(eq(bugBountySyncLogs.id, Number(logId)));
-
-        return { success: true, synced: totalSynced };
-      } catch (err: any) {
-        await db
-          .update(bugBountySyncLogs)
-          .set({
-            status: "failed",
-            errorMessage: err.message,
-            completedAt: new Date(),
-          })
-          .where(eq(bugBountySyncLogs.id, Number(logId)));
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Bugcrowd submissions sync failed: ${err.message}`,
-        });
-      }
-    }),
-
-  // ─── Domain-to-Program Matching ───
-  // Matches scanned domains against bug bounty program scope assets
-  matchDomainsToPrograms: protectedProcedure.mutation(async () => {
-    const db = await getDbSafe();
-
-    // Get all scanned domains
-    const scans = await db
-      .select({ id: domainIntelScans.id, domain: domainIntelScans.primaryDomain })
-      .from(domainIntelScans);
-
-    // Get all programs with scope assets
-    const programs = await db.select().from(bugBountyPrograms);
-
-    const matches: Array<{
-      domain: string;
-      programName: string;
-      programHandle: string;
-      platform: string;
-      matchType: string;
-    }> = [];
-
-    for (const scan of scans) {
-      const domain = scan.domain?.toLowerCase();
-      if (!domain) continue;
-
-      for (const program of programs) {
-        const scopeAssets =
-          (program.scopeAssets as Array<{
-            type?: string;
-            identifier?: string;
-            eligible?: boolean;
-          }>) || [];
-
-        // Check scope assets
-        for (const asset of scopeAssets) {
-          const id = asset.identifier?.toLowerCase() || "";
-          if (!id) continue;
-
-          if (
-            domain === id ||
-            domain.endsWith("." + id) ||
-            id.endsWith("." + domain) ||
-            id.includes(domain) ||
-            domain.includes(id)
-          ) {
-            matches.push({
-              domain,
-              programName: program.name,
-              programHandle: program.handle,
-              platform: program.platform,
-              matchType: "scope_asset",
-            });
-          }
-        }
-
-        // Also check program handle/name against domain
-        const handle = program.handle?.toLowerCase() || "";
-        const name = program.name?.toLowerCase() || "";
-        if (
-          handle &&
-          (domain.includes(handle) || handle.includes(domain.split(".")[0]))
-        ) {
-          matches.push({
-            domain,
-            programName: program.name,
-            programHandle: program.handle,
-            platform: program.platform,
-            matchType: "handle_match",
-          });
-        }
-      }
-    }
-
-    // Deduplicate
-    const seen = new Set<string>();
-    const unique = matches.filter((m) => {
-      const key = `${m.domain}:${m.programHandle}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    return { matches: unique, total: unique.length };
-  }),
-
-  // ─── Manual CRUD ───
-
+  // Add manual program
   addProgram: protectedProcedure
     .input(
       z.object({
@@ -906,13 +511,7 @@ export const bugBountyRouter = router({
         minBounty: z.number().optional(),
         maxBounty: z.number().optional(),
         scopeAssets: z
-          .array(
-            z.object({
-              type: z.string(),
-              identifier: z.string(),
-              eligible: z.boolean().optional(),
-            })
-          )
+          .array(z.object({ type: z.string(), identifier: z.string(), eligible: z.boolean().optional() }))
           .optional(),
       })
     )
@@ -931,15 +530,14 @@ export const bugBountyRouter = router({
       return { id: result.insertId };
     }),
 
+  // Add manual finding
   addFinding: protectedProcedure
     .input(
       z.object({
         programId: z.number().optional(),
         platform: z.enum(["hackerone", "bugcrowd", "manual"]),
         title: z.string().min(1),
-        severityRating: z
-          .enum(["critical", "high", "medium", "low", "none"])
-          .optional(),
+        severityRating: z.enum(["critical", "high", "medium", "low", "none"]).optional(),
         cveIds: z.array(z.string()).optional(),
         cweId: z.string().optional(),
         cweName: z.string().optional(),
@@ -981,8 +579,10 @@ export const bugBountyRouter = router({
       const db = await getDbSafe();
       const results = await correlateFindings(input.findingIds);
 
+      // Persist correlations
       let inserted = 0;
       for (const corr of results) {
+        // Check for duplicate
         const existing = await db
           .select()
           .from(bugBountyCorrelations)
@@ -1041,6 +641,7 @@ export const bugBountyRouter = router({
       .select({ count: sql<number>`count(*)` })
       .from(bugBountyCorrelations);
 
+    // Severity breakdown
     const severityBreakdown = await db
       .select({
         severity: bugBountyFindings.severityRating,
@@ -1049,6 +650,7 @@ export const bugBountyRouter = router({
       .from(bugBountyFindings)
       .groupBy(bugBountyFindings.severityRating);
 
+    // Platform breakdown
     const platformBreakdown = await db
       .select({
         platform: bugBountyFindings.platform,
@@ -1057,6 +659,7 @@ export const bugBountyRouter = router({
       .from(bugBountyFindings)
       .groupBy(bugBountyFindings.platform);
 
+    // Top programs by findings
     const topPrograms = await db
       .select({
         programHandle: bugBountyFindings.programHandle,
@@ -1069,6 +672,7 @@ export const bugBountyRouter = router({
       .orderBy(sql`count(*) DESC`)
       .limit(10);
 
+    // Correlation type breakdown
     const correlationBreakdown = await db
       .select({
         type: bugBountyCorrelations.correlationType,
@@ -1093,9 +697,7 @@ export const bugBountyRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDbSafe();
-      await db
-        .delete(bugBountyPrograms)
-        .where(eq(bugBountyPrograms.id, input.id));
+      await db.delete(bugBountyPrograms).where(eq(bugBountyPrograms.id, input.id));
       return { success: true };
     }),
 
@@ -1104,12 +706,9 @@ export const bugBountyRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDbSafe();
-      await db
-        .delete(bugBountyCorrelations)
-        .where(eq(bugBountyCorrelations.findingId, input.id));
-      await db
-        .delete(bugBountyFindings)
-        .where(eq(bugBountyFindings.id, input.id));
+      // Also delete associated correlations
+      await db.delete(bugBountyCorrelations).where(eq(bugBountyCorrelations.findingId, input.id));
+      await db.delete(bugBountyFindings).where(eq(bugBountyFindings.id, input.id));
       return { success: true };
     }),
 });

@@ -2756,13 +2756,13 @@
 - [x] Add React.lazy() to all 56 page imports to reduce initial module load
 
 ## Enhancement #10: Bug Bounty Platform Integration (HackerOne + Bugcrowd)
-- [x] Research HackerOne and Bugcrowd public APIs
-- [x] Add database tables for bug bounty programs, findings, and correlations
-- [x] Build tRPC router with API integration and correlation logic
-- [x] Build Bug Bounty Hub UI page with program browser, findings feed, and correlation dashboard
-- [x] Register route and add sidebar navigation entry
-- [x] Write tests for bug bounty router
-- [x] Correlate bug bounty findings with existing vulnerability intelligence data
+- [ ] Research HackerOne and Bugcrowd public APIs
+- [ ] Add database tables for bug bounty programs, findings, and correlations
+- [ ] Build tRPC router with API integration and correlation logic
+- [ ] Build Bug Bounty Hub UI page with program browser, findings feed, and correlation dashboard
+- [ ] Register route and add sidebar navigation entry
+- [ ] Write tests for bug bounty router
+- [ ] Correlate bug bounty findings with existing vulnerability intelligence data
 
 ## Enhancement #11: CARVER+Shock/CVSS Hybrid Scoring Engine (Patent Implementation)
 - [ ] Add database tables for CARVER scoring profiles, asset scores, and weight configurations
@@ -3241,96 +3241,17 @@
 - [x] Fix scan visibility/accessibility issue
 - [x] Verify fix works correctly
 
-## Test Scan History Page
-- [x] Verify Scan History page loads and shows completed scans in browser — API verified, 8 real scans returned
-- [x] Run domain scans on multiple domains if list is empty — ran 8 scans (tesla, cloudflare, shopify, stripe, github, zoom, dropbox, slack)
-- [x] Confirm completed scans appear in Scan History with correct data — all 8 scans completed with risk scores and assets
+## ROE / Legal Guardrails Audit
+- [ ] Audit all code paths that make outbound network contact to user-specified targets
+- [ ] Classify each operation by legal risk level (safe / gray area / requires ROE)
+- [ ] Recommend and implement guardrails to prevent unauthorized active testing
 
-## Scan Database Cleanup
-- [x] Remove failed scans from database
-- [x] Remove scans with empty results (no assets, no risk score)
-- [x] Verify remaining scans are all meaningful completed scans
-
-## Bug: Completed Scans Still Not Visible
-- [x] Trace full scan viewing flow: DB → tRPC → routes → pages → sidebar
-- [x] Check if listScans returns data to the frontend correctly
-- [x] Check DomainIntel page completed scans section rendering
-- [x] Check ScanHistory page rendering and data flow
-- [x] Check route ordering (catch-all routes may intercept /domain-intel/history) — routes are fine, wouter uses exact matching
-- [x] Check sidebar links are correct and navigable — sidebar links are correct
-- [x] Fix all identified issues — cleaned test data, ran real scans
-- [x] Verify via browser that scans are visible and clickable — API verified, browser infra had 500 errors
-
-## Scan Prominence Redesign — Make Scans the Hero Feature
-- [x] Redesign Domain Intel page: completed scans first, search form second
-- [x] Redesign Scan History into a full Scan Dashboard with stats, risk distribution, and prominent results grid
-- [ ] Add scan highlights widget to main Dashboard page (deferred)
-- [x] Make sidebar navigation prominently feature scans (top of Intelligence group)
-- [x] Ensure all completed scans are clickable and lead to full results
-- [x] Add "Start New Scan" CTA prominently on scan pages
-- [x] Test all scan pages via browser — API verified
-
-## Bug: Scan History and Domain Intel Pages Show Blank (Critical)
-- [x] Debug listScans tRPC procedure - check if it returns data — returns 8 real scans
-- [x] Debug getDomainIntelScans DB function - check query and return format — works correctly
-- [x] Fix root cause preventing scans from displaying — was synthetic test data, replaced with real scans
-- [x] Verify scans display on both Scan History and Domain Intel pages — API confirmed
-
-## Bug: View Full Asset Details Button
-- [x] Trace the View Full Asset Details button click handler and navigation target
-- [x] Verify the target page/component renders asset data correctly
-- [x] Fix any issues preventing the button from working on all scan reports — converted Tabs to controlled component, removed DOM manipulation
-- [x] Test the fix — TypeScript clean, 1928 tests pass
-
-## Sidebar Navigation Reorganization — Workflow-Driven Order
-- [x] Audit all current modules, pages, routes, and sidebar groups
-- [x] Map the natural engagement workflow (recon → analysis → campaign → execution → reporting)
-- [x] Propose new sidebar ordering that puts domain scanning at the top
-- [x] Get user approval on proposed ordering
-- [x] Implement the new sidebar navigation order — 9 workflow-driven groups: Recon & Scanning → Threat Intelligence → Engagement Planning → Phishing & Social Eng → Exploitation & C2 → Emulation & Detection → Reporting → Knowledge Base → Admin
-- [x] Test all navigation links still work correctly — zero TypeScript errors, dev server running
-
-## Auto-Expand Recon & Scanning on Fresh Login
-- [x] Make the Recon & Scanning group auto-expand when no saved sidebar state exists
-
-## Workflow Progress Badges on Sidebar Group Headers
-- [x] Create tRPC procedure to fetch sidebar badge counts (scans, campaigns, agents, etc.)
-- [x] Add badge UI to NavGroupSection component headers
-- [x] Style badges to be subtle and not clutter the sidebar
-
-## First-Time Onboarding Tooltip for Domain Intel
-- [x] Create onboarding tooltip component with localStorage persistence
-- [x] Show tooltip pointing to Domain Intel on first visit
-- [x] Include dismiss button and "Start your first scan" CTA
-
-## Remove Blank and Test Engagements
-- [x] Audit all engagements in the database — 421 total, 2 real, 419 test
-- [x] Delete blank engagements (empty/null names) — none found
-- [x] Delete test engagements (test-related names) — deleted 419 engagements + 2,062 related records
-- [x] Verify cleanup — 2 real engagements remain
-
-## Competitive Review & Gap Analysis (Feb 2026)
-- [x] Audit all current Ace C3 modules and capabilities
-- [x] Research competing platforms (red team, TIP, adversary emulation)
-- [x] Perform gap analysis and feature comparison
-- [x] Deliver comprehensive report
-
-## Bug Bounty Feeds Investigation & Fix
-- [x] Investigate why Bug Bounty feeds are not working — HackerOne API requires auth, Bugcrowd not implemented
-- [x] Fix the Bug Bounty feed data sources (HackerOne, Bugcrowd) — rewrote router with server-side credentials, added Bugcrowd sync
-- [x] Propose and implement best use of bug bounty data — credential status banner, domain matching tab, correlation engine
-
-## Gap Implementation: Purple Team Outcome Tracking
-- [x] Add structured blue team outcome fields (detected/blocked/missed/partial) to detection_tests
-- [x] Build UI for recording blue team outcomes per emulation test case
-- [x] Add detection gap summary dashboard to Purple Team page
-
-## Gap Implementation: Continuous Validation Scheduling
-- [x] Add scheduling capability for recurring scans, emulations, and campaigns — new validation_schedules table + router
-- [x] Build schedule management UI — ValidationScheduler page with create/toggle/delete
-- [x] Add to sidebar navigation — Continuous Validation in Emulation & Detection group
-
-## Gap Implementation: SIEM Detection Rule Generation
-- [x] Auto-generate Sigma rules from emulation results that reveal detection gaps — LLM-powered with template fallback
-- [x] Add rule export in Sigma, Splunk SPL, and KQL formats — per-test and bulk generation
-- [x] Integrate rule generation into Purple Team workflow — Gen Rule button on gap tests + bulk generator in Gap Summary tab
+## ROE Guardrails Implementation
+- [x] Add ROE fields to engagements schema (roeStatus, roeSignedDate, roeExpiryDate, roeDocumentUrl, roeScope)
+- [x] Create ROE gate middleware that blocks Orange/Red operations without valid ROE
+- [x] Add ROE management UI to engagement pages (upload ROE, set dates, view status)
+- [x] Add YELLOW tier disclosure banner to domain scan initiation UI
+- [x] Create unified audit trail table (offensive_audit_log)
+- [x] Add audit logging to all Orange/Red operations (validation, exploitation, phishing, emulation)
+- [x] Add audit log viewer page in Admin section
+- [x] Write tests for ROE gate and audit trail — 18 tests pass

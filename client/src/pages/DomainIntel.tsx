@@ -516,162 +516,82 @@ export default function DomainIntel() {
   return (
     <AppShell>
     <div className="space-y-6">
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* HERO HEADER — Domain Intelligence Command Center                  */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Brain className="h-7 w-7 text-purple-400" />
-            Domain Intelligence
+            Full-Scope Domain Intelligence
           </h1>
           <p className="text-muted-foreground mt-1 max-w-2xl">
-            AI-powered reconnaissance, vulnerability discovery, risk scoring, and campaign design. Every finding includes source attribution for independent verification.
+            A single unified scan that performs passive reconnaissance, active DNS verification, vulnerability matching, risk scoring, threat actor profiling, and campaign design — all in one pipeline. Every finding includes clear attribution so you can verify it independently.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {scansQuery.data && scansQuery.data.length > 0 && !isRunning && (
           <Button variant="outline" onClick={() => navigate("/domain-intel/history")}>
             <FileText className="h-4 w-4 mr-2" />
-            All Scans
+            Past Scans ({scansQuery.data.length})
           </Button>
-          <Button className="bg-purple-600 hover:bg-purple-700" onClick={() => {
-            const el = document.getElementById('new-scan-form');
-            el?.scrollIntoView({ behavior: 'smooth' });
-          }}>
-            <Zap className="h-4 w-4 mr-2" />
-            New Scan
-          </Button>
-        </div>
+        )}
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* SCAN STATS BANNER — Aggregate metrics at a glance                */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {!isRunning && scansQuery.data && scansQuery.data.length > 0 && (() => {
-        const allScans = scansQuery.data;
-        const viewable = allScans.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete');
-        const avgRisk = viewable.length > 0 ? Math.round(viewable.reduce((sum: number, s: any) => sum + (s.overallRiskScore || 0), 0) / viewable.length) : 0;
-        const totalAssets = viewable.reduce((sum: number, s: any) => sum + (s.totalAssets || 0), 0);
-        const highRisk = viewable.filter((s: any) => (s.overallRiskScore || 0) >= 70).length;
-        const uniqueDomains = new Set(viewable.map((s: any) => s.primaryDomain)).size;
-        return (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <Card className="border-purple-500/30 bg-purple-500/5">
-              <CardContent className="p-3 text-center">
-                <p className="text-2xl font-bold text-purple-400">{viewable.length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Completed Scans</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-3 text-center">
-                <p className="text-2xl font-bold text-foreground">{uniqueDomains}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Unique Domains</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-3 text-center">
-                <p className={`text-2xl font-bold ${avgRisk >= 70 ? 'text-red-400' : avgRisk >= 40 ? 'text-orange-400' : 'text-green-400'}`}>{avgRisk}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Risk Score</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-3 text-center">
-                <p className="text-2xl font-bold text-cyan-400">{totalAssets.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Assets</p>
-              </CardContent>
-            </Card>
-            <Card className={highRisk > 0 ? 'border-red-500/30 bg-red-500/5' : ''}>
-              <CardContent className="p-3 text-center">
-                <p className={`text-2xl font-bold ${highRisk > 0 ? 'text-red-400' : 'text-green-400'}`}>{highRisk}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">High Risk (70+)</p>
-              </CardContent>
-            </Card>
-          </div>
-        );
-      })()}
-
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* COMPLETED SCANS — Hero Grid with large, prominent cards          */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ─── Completed Scans (Prominent) ──────────────────────────── */}
       {!isRunning && scansQuery.data && scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length > 0 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               Completed Scan Reports
-            </h2>
-            <Button variant="ghost" size="sm" className="text-sm text-purple-400 hover:text-purple-300" onClick={() => navigate("/domain-intel/history")}>
-              View All {scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length} Scans →
+            </h3>
+            <Button variant="ghost" size="sm" className="text-xs text-purple-400 hover:text-purple-300" onClick={() => navigate("/domain-intel/history")}>
+              View All {scansQuery.data.length} Scans →
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {scansQuery.data
               .filter((s: any) => s.status === 'completed' || s.status === 'scan_complete')
-              .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-              .slice(0, 12)
+              .slice(0, 6)
               .map((scan: any) => {
                 const output = scan.pipelineOutput as any;
                 const riskScore = output?.riskScore || scan.overallRiskScore || 0;
                 const assetCount = output?.assets?.length || scan.totalAssets || 0;
-                const findingCount = output?.postureFindings?.length || 0;
-                const confirmedCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'confirmed').length || 0;
-                const riskBorder = riskScore >= 70 ? 'border-red-500/40 hover:border-red-500/70' : riskScore >= 40 ? 'border-orange-500/40 hover:border-orange-500/70' : 'border-green-500/40 hover:border-green-500/70';
-                const riskBg = riskScore >= 70 ? 'bg-red-500/5' : riskScore >= 40 ? 'bg-orange-500/5' : 'bg-green-500/5';
-                const riskText = riskScore >= 70 ? 'text-red-400' : riskScore >= 40 ? 'text-orange-400' : 'text-green-400';
+                const displayStatus = scan.status === 'scan_complete' ? 'scan complete' : scan.status;
                 return (
                   <Card
                     key={scan.id}
-                    className={`cursor-pointer transition-all ${riskBorder} ${riskBg} hover:shadow-lg hover:shadow-purple-500/5`}
+                    className="cursor-pointer hover:border-purple-500/50 transition-all"
                     onClick={() => navigate(`/domain-intel/${scan.id}`)}
                   >
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-mono text-base font-bold truncate">{scan.primaryDomain}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {scan.customerName || scan.clientType?.toUpperCase() || 'SCAN'}
-                            {scan.sector ? ` · ${scan.sector}` : ''}
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-mono text-sm font-semibold">{scan.primaryDomain}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {scan.clientType?.toUpperCase() || 'SCAN'} &middot; Risk: <span className={riskScore >= 70 ? 'text-red-400 font-bold' : riskScore >= 40 ? 'text-orange-400 font-bold' : 'text-green-400 font-bold'}>{riskScore || 'N/A'}</span>
                           </p>
                         </div>
-                        <div className={`text-3xl font-bold font-mono ${riskText} ml-3`}>
-                          {riskScore || '—'}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap mb-3">
-                        <span className="text-xs bg-muted px-2 py-1 rounded font-medium">{assetCount} assets</span>
-                        {findingCount > 0 && <span className="text-xs bg-muted px-2 py-1 rounded">{findingCount} findings</span>}
-                        {confirmedCount > 0 && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded">{confirmedCount} confirmed</span>}
-                        <Badge variant="outline" className={
-                          scan.status === 'completed' ? 'text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'text-[10px] bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                        <Badge variant="default" className={
+                          scan.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'
                         }>
-                          {scan.status === 'scan_complete' ? 'scan complete' : scan.status}
+                          {displayStatus}
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between pt-3 border-t border-border">
-                        <span className="text-xs text-muted-foreground">
-                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{assetCount} assets</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                        <span className="text-[10px] text-muted-foreground">
+                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
                         </span>
-                        <Button variant="ghost" size="sm" className="h-7 px-3 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10">
-                          <Target className="h-3.5 w-3.5 mr-1.5" />
-                          View Full Report
-                        </Button>
+                        <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
                       </div>
                     </CardContent>
                   </Card>
                 );
               })}
           </div>
-          {scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length > 12 && (
-            <div className="text-center">
-              <Button variant="outline" onClick={() => navigate("/domain-intel/history")} className="px-8">
-                View All {scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length} Completed Scans
-              </Button>
-            </div>
-          )}
         </div>
       )}
-
-      <div className="w-full h-px bg-border" />
 
       {/* ─── Scan Methods Explainer ─────────────────────────────────── */}
       <Collapsible open={showMethods} onOpenChange={setShowMethods}>
@@ -871,9 +791,10 @@ export default function DomainIntel() {
             </div>
           </CardContent>
         </Card>
-      )}      {/* ─── New Scan Form ──────────────────────────────────────────────── */}
+      )}
+
+      {/* ─── Unified Search Form ───────────────────────────────────── */}
       {!isRunning && (
-        <div id="new-scan-form">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Form */}
           <div className="lg:col-span-2 space-y-5">
@@ -1101,6 +1022,48 @@ export default function DomainIntel() {
                   </CollapsibleContent>
                 </Collapsible>
 
+                {/* ─── YELLOW Tier Disclosure Banner ──────────────── */}
+                {scanMode !== 'passive_only' && (
+                  <Card className="border-amber-500/40 bg-amber-500/5">
+                    <CardContent className="p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-1.5 rounded-md bg-amber-500/10 mt-0.5 shrink-0">
+                          <AlertTriangle className="h-4 w-4 text-amber-400" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-sm font-semibold text-amber-400 flex items-center gap-2">
+                            Target Contact Disclosure
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/40 text-amber-400">YELLOW TIER</Badge>
+                          </p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {scanMode === 'passive_plus_dns'
+                              ? 'The "Passive + DNS" mode will send DNS queries and lightweight banner-grab requests directly to the target\'s infrastructure. While this is equivalent to normal internet traffic, the target\'s DNS servers and web servers will receive and log these requests.'
+                              : 'The "Full Scope" mode includes HTTP HEAD requests to the target for security header analysis and cloud asset discovery, plus DNS resolution and banner grabbing. These are lightweight, non-intrusive requests equivalent to visiting a website in a browser, but the target\'s servers will receive and log them.'
+                            }
+                          </p>
+                          <div className="flex items-center gap-4 pt-1">
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                              <span className="text-muted-foreground">No exploit payloads sent</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                              <span className="text-muted-foreground">No authentication attempted</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <div className="h-2 w-2 rounded-full bg-amber-400" />
+                              <span className="text-muted-foreground">Target will see requests</span>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground/70 pt-1">
+                            For zero-contact reconnaissance, select <button onClick={() => setScanMode('passive_only')} className="text-cyan-400 hover:underline font-medium">Passive Only</button> mode which queries only third-party databases.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Error */}
                 {(startScan.error || pipelineError) && (
                   <Card className="border-destructive bg-destructive/10">
@@ -1208,7 +1171,6 @@ export default function DomainIntel() {
               </CardContent>
             </Card>
           </div>
-        </div>
         </div>
       )}
 
