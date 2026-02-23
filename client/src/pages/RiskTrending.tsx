@@ -1,223 +1,258 @@
-import { useState, useMemo, useCallback } from "react";
-import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
-import { ShieldCheck, TrendingUp, AlertTriangle, Clock, Target, Trash2, PlusCircle, Loader2, Info, LineChart } from "lucide-react";
 
-const StatCard = ({ title, value, icon: Icon, change, unit }) => (
-  <Card className="bg-slate-800/50 border-slate-700">
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium text-slate-300">{title}</CardTitle>
-      <Icon className="h-4 w-4 text-slate-400" />
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold text-white">{value}{unit}</div>
-      {change && <p className="text-xs text-slate-400">{change}</p>}
-    </CardContent>
-  </Card>
-);
+import React, { useState } from 'react';
+import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { TrendingUp, TrendingDown, Minus, AlertCircle, PlusCircle, Trash2, Loader2 } from 'lucide-react';
 
-const CreateSnapshotForm = ({ setOpen }) => {
-  const [overallScore, setOverallScore] = useState(0);
+const RiskTrendingPage: React.FC = () => {
+  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newSnapshotScore, setNewSnapshotScore] = useState(850);
+
   const utils = trpc.useUtils();
 
+  const snapshotsQuery = trpc.riskTrending.listSnapshots.useQuery({ limit: 20 });
+  const latestSnapshotQuery = trpc.riskTrending.getLatest.useQuery();
+  const trendQuery = trpc.riskTrending.getTrend.useQuery({ days: 30 });
+
   const createSnapshotMutation = trpc.riskTrending.createSnapshot.useMutation({
-    onSuccess: () => {
-      toast.success("Snapshot created successfully.");
+    onSuccess: (data) => {
+      toast.success(`Snapshot created successfully with ID: ${data.id}`);
       utils.riskTrending.listSnapshots.invalidate();
       utils.riskTrending.getLatest.invalidate();
       utils.riskTrending.getTrend.invalidate();
-      setOpen(false);
+      setCreateDialogOpen(false);
     },
     onError: (error) => {
-      toast.error("Failed to create snapshot:", { description: error.message });
+      toast.error('Failed to create snapshot', { description: error.message });
     },
   });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    createSnapshotMutation.mutate({ overallScore });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="overallScore" className="text-slate-300">Overall Risk Score</Label>
-        <Input
-          id="overallScore"
-          type="number"
-          value={overallScore}
-          onChange={(e) => setOverallScore(Number(e.target.value))}
-          className="bg-slate-700 border-slate-600 text-white"
-          required
-        />
-      </div>
-      <DialogFooter>
-        <Button type="submit" disabled={createSnapshotMutation.isPending}>
-          {createSnapshotMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Create Snapshot
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-};
-
-export default function RiskTrending() {
-  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
-
-  const { data: latestSnapshot, isLoading: isLoadingLatest, error: latestError } = trpc.riskTrending.getLatest.useQuery();
-  const { data: trendData, isLoading: isLoadingTrend, error: trendError } = trpc.riskTrending.getTrend.useQuery({ days: 30 });
-  const { data: snapshots, isLoading: isLoadingSnapshots, error: snapshotsError } = trpc.riskTrending.listSnapshots.useQuery({});
-
-  const utils = trpc.useUtils();
 
   const deleteSnapshotMutation = trpc.riskTrending.deleteSnapshot.useMutation({
     onSuccess: () => {
-      toast.success("Snapshot deleted.");
+      toast.success('Snapshot deleted successfully.');
       utils.riskTrending.listSnapshots.invalidate();
       utils.riskTrending.getLatest.invalidate();
       utils.riskTrending.getTrend.invalidate();
     },
     onError: (error) => {
-      toast.error("Failed to delete snapshot:", { description: error.message });
+      toast.error('Failed to delete snapshot', { description: error.message });
     },
   });
 
-  const handleDelete = useCallback((id: string) => {
-    if (window.confirm("Are you sure you want to delete this snapshot?")) {
-      deleteSnapshotMutation.mutate({ id });
-    }
-  }, [deleteSnapshotMutation]);
+  const handleCreateSnapshot = () => {
+    createSnapshotMutation.mutate({ overallScore: newSnapshotScore });
+  };
 
-  const summaryStats = useMemo(() => {
-    if (!latestSnapshot) return [];
-    return [
-      { title: "Overall Risk Score", value: latestSnapshot.overallScore, icon: ShieldCheck, change: "↑ 2.1% from last month" },
-      { title: "Detection Coverage", value: latestSnapshot.detectionCoveragePercent, unit: '%', icon: Target, change: "↑ 5% from last month" },
-      { title: "Prevention Coverage", value: latestSnapshot.preventionCoveragePercent, unit: '%', icon: ShieldCheck, change: "↓ 1% from last month" },
-      { title: "Critical Vulnerabilities", value: latestSnapshot.criticalVulnCount, icon: AlertTriangle, change: "↓ 12 from last month" },
-      { title: "Mean Time to Detect", value: `${(latestSnapshot.meanTimeToDetectMs / 3600000).toFixed(1)}h`, icon: Clock, change: "↓ 0.5h from last month" },
-      { title: "Mean Time to Respond", value: `${(latestSnapshot.meanTimeToRespondMs / 3600000).toFixed(1)}h`, icon: Clock, change: "↑ 1.2h from last month" },
-    ];
-  }, [latestSnapshot]);
+  const TrendIndicator = () => {
+    if (trendQuery.isLoading) return <Loader2 className="h-6 w-6 animate-spin" />;
+    if (trendQuery.error) return <AlertCircle className="h-6 w-6 text-red-500" />;
+    if (!trendQuery.data) return null;
+
+    const snapshots = trendQuery.data;
+    const direction = snapshots.length >= 2 ? (snapshots[0].overallScore > snapshots[snapshots.length - 1].overallScore ? 'improving' : snapshots[0].overallScore === snapshots[snapshots.length - 1].overallScore ? 'stable' : 'declining') : 'stable';
+    const changePercent = snapshots.length >= 2 ? Math.abs(snapshots[0].overallScore - snapshots[snapshots.length - 1].overallScore) : 0;
+    const periodDays = 30;
+    const isImproving = direction === 'improving';
+    const isStable = direction === 'stable';
+    const color = isImproving ? 'text-green-500' : isStable ? 'text-yellow-500' : 'text-red-500';
+    const Icon = isImproving ? TrendingUp : isStable ? Minus : TrendingDown;
+
+    return (
+      <div className={`flex items-center gap-2 ${color}`}>
+        <Icon className="h-6 w-6" />
+        <div className="flex flex-col">
+          <span className="font-bold text-lg">{changePercent.toFixed(2)}%</span>
+          <span className="text-xs text-muted-foreground">{direction} over last {periodDays} days</span>
+        </div>
+      </div>
+    );
+  };
+
+  const LatestScoreCard = () => {
+    if (latestSnapshotQuery.isLoading) return <CardSkeleton />;
+    if (latestSnapshotQuery.error) return <CardError error={latestSnapshotQuery.error.message} />;
+    if (!latestSnapshotQuery.data) return <Card className="text-center p-6">No snapshots found.</Card>;
+
+    const { overallScore, snapshotDate, detectionCoveragePercent, preventionCoveragePercent, criticalVulnCount } = latestSnapshotQuery.data;
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Latest Risk Score</CardTitle>
+          <CardDescription>As of {new Date(snapshotDate).toLocaleDateString()}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="text-5xl font-bold text-center">{overallScore}</div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-sm text-muted-foreground">Detection</p>
+              <p className="font-semibold">{detectionCoveragePercent ?? 'N/A'}%</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Prevention</p>
+              <p className="font-semibold">{preventionCoveragePercent ?? 'N/A'}%</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Critical Vulns</p>
+              <p className="font-semibold">{criticalVulnCount ?? 'N/A'}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const SnapshotsTable = () => {
+    if (snapshotsQuery.isLoading) return <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    if (snapshotsQuery.error) return <div className="text-red-500 text-center p-10">Error loading snapshots: {snapshotsQuery.error.message}</div>;
+    if (!snapshotsQuery.data || snapshotsQuery.data.length === 0) {
+      return (
+        <div className="text-center py-10 border-2 border-dashed rounded-lg">
+          <h3 className="text-lg font-medium">No Snapshots Yet</h3>
+          <p className="text-sm text-muted-foreground">Create your first risk snapshot to start tracking trends.</p>
+          <DialogTrigger asChild>
+             <Button className="mt-4">Create Snapshot</Button>
+          </DialogTrigger>
+        </div>
+      );
+    }
+
+    return (
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Overall Score</TableHead>
+              <TableHead className="text-right">Detection</TableHead>
+              <TableHead className="text-right">Prevention</TableHead>
+              <TableHead className="text-right">Critical Vulns</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {snapshotsQuery.data.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell>{new Date(s.snapshotDate).toLocaleDateString()}</TableCell>
+                <TableCell className="text-right font-medium">{s.overallScore}</TableCell>
+                <TableCell className="text-right">{s.detectionCoveragePercent ?? 'N/A'}%</TableCell>
+                <TableCell className="text-right">{s.preventionCoveragePercent ?? 'N/A'}%</TableCell>
+                <TableCell className="text-right">{s.criticalVulnCount ?? 'N/A'}</TableCell>
+                <TableCell><Badge variant="outline">{s.source ?? 'Manual'}</Badge></TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteSnapshotMutation.mutate({ id: s.id })}
+                    disabled={deleteSnapshotMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    );
+  };
+
+  const CardSkeleton = () => (
+    <Card>
+      <CardHeader><div className="h-6 w-3/4 bg-muted rounded-md animate-pulse"></div></CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="h-12 w-1/2 mx-auto bg-muted rounded-md animate-pulse"></div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="h-8 bg-muted rounded-md animate-pulse"></div>
+          <div className="h-8 bg-muted rounded-md animate-pulse"></div>
+          <div className="h-8 bg-muted rounded-md animate-pulse"></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const CardError = ({ error }: { error: string }) => (
+    <Card className="border-red-500/50">
+      <CardHeader><CardTitle className="text-red-500">Error</CardTitle></CardHeader>
+      <CardContent className="flex items-center gap-4">
+        <AlertCircle className="h-8 w-8 text-red-500" />
+        <p className="text-sm text-red-400">{error}</p>
+      </CardContent>
+    </Card>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-8 space-y-6">
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardContent className="pt-6">
-          <div className="flex items-center space-x-3">
-            <Info className="h-5 w-5 text-blue-400" />
-            <p className="text-slate-300">
-              This executive dashboard provides a high-level overview of the organization's security posture over time. It visualizes key risk metrics, coverage percentages, and operational efficiency to track trends and inform strategic decisions.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {isLoadingLatest ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="bg-slate-800/50 border-slate-700 h-28 animate-pulse" />
-          ))
-        ) : latestError ? (
-          <div className="col-span-full text-red-400">Error loading latest stats: {latestError.message}</div>
-        ) : (
-          summaryStats.map(stat => <StatCard key={stat.title} {...stat} />)
-        )}
-      </div>
-
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader>
-          <CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5" />Risk Score Trend (Last 30 Days)</CardTitle>
-          <CardDescription className="text-slate-400">Visualizing the overall risk score trend over the past month.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-72 flex items-center justify-center bg-slate-900/50 rounded-lg border-2 border-dashed border-slate-700">
-            {isLoadingTrend ? (
-              <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
-            ) : trendError ? (
-              <div className="text-red-400">Error loading trend data: {trendError.message}</div>
-            ) : (
-              <div className="text-center text-slate-400">
-                <p className="text-lg font-semibold">Chart Placeholder</p>
-                <p className="text-sm">Data points for the last 30 days would be rendered here.</p>
-                <pre className="mt-4 text-xs text-left bg-slate-800 p-2 rounded-md overflow-auto max-h-40">
-                  {JSON.stringify(trendData, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader className="flex flex-row items-center justify-between">
+    <div className="bg-background text-foreground p-6 space-y-6">
+      <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <div className="flex justify-between items-start">
           <div>
-            <CardTitle>Snapshot History</CardTitle>
-            <CardDescription className="text-slate-400">A log of all manually and automatically generated risk snapshots.</CardDescription>
+            <h1 className="text-3xl font-bold">Risk Trending</h1>
+            <p className="text-muted-foreground">Executive dashboard for tracking risk posture over time.</p>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button><PlusCircle className="mr-2 h-4 w-4" />Create Snapshot</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-slate-800 border-slate-700 text-white">
-              <DialogHeader>
-                <DialogTitle>Create New Snapshot</DialogTitle>
-                <DialogDescription className="text-slate-400">
-                  Manually create a new risk snapshot. Only the overall score is required.
-                </DialogDescription>
-              </DialogHeader>
-              <CreateSnapshotForm setOpen={setCreateDialogOpen} />
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-700 hover:bg-slate-800/60">
-                <TableHead className="text-white">Date</TableHead>
-                <TableHead className="text-white">Risk Score</TableHead>
-                <TableHead className="text-white">Detection %</TableHead>
-                <TableHead className="text-white">Prevention %</TableHead>
-                <TableHead className="text-white">Critical Vulns</TableHead>
-                <TableHead className="text-white">Source</TableHead>
-                <TableHead className="text-right text-white">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoadingSnapshots ? (
-                <TableRow><TableCell colSpan={7} className="text-center"><Loader2 className="inline-block h-6 w-6 animate-spin text-slate-500" /></TableCell></TableRow>
-              ) : snapshotsError ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-red-400">Error: {snapshotsError.message}</TableCell></TableRow>
-              ) : snapshots && snapshots.length > 0 ? (
-                snapshots.map((snapshot) => (
-                  <TableRow key={snapshot.id} className="border-slate-700 hover:bg-slate-800/60">
-                    <TableCell>{new Date(snapshot.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell className="font-medium">{snapshot.overallScore}</TableCell>
-                    <TableCell>{snapshot.detectionCoveragePercent ?? 'N/A'}</TableCell>
-                    <TableCell>{snapshot.preventionCoveragePercent ?? 'N/A'}</TableCell>
-                    <TableCell>{snapshot.criticalVulnCount ?? 'N/A'}</TableCell>
-                    <TableCell>{snapshot.source ?? 'N/A'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(snapshot.id)} disabled={deleteSnapshotMutation.isPending && deleteSnapshotMutation.variables?.id === snapshot.id}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow><TableCell colSpan={7} className="text-center text-slate-400">No snapshots found.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          <DialogTrigger asChild>
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Snapshot
+            </Button>
+          </DialogTrigger>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <LatestScoreCard />
+          <Card>
+            <CardHeader><CardTitle>Risk Trend</CardTitle></CardHeader>
+            <CardContent className="flex items-center justify-center h-full">
+              <TrendIndicator />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>ATT&CK Tactic Scores</CardTitle></CardHeader>
+            <CardContent className="text-center text-muted-foreground">
+              <p>Tactic-level drilldown coming soon.</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">Historical Snapshots</h2>
+          <SnapshotsTable />
+        </div>
+
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Risk Snapshot</DialogTitle>
+            <DialogDescription>
+              Manually create a snapshot of the current risk score. This is useful for capturing point-in-time measurements.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <label htmlFor="score" className="text-sm font-medium">Overall Score</label>
+            <Input
+              id="score"
+              type="number"
+              value={newSnapshotScore}
+              onChange={(e) => setNewSnapshotScore(Number(e.target.value))}
+              className="col-span-3"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateSnapshot} disabled={createSnapshotMutation.isPending}>
+              {createSnapshotMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+};
+
+export default RiskTrendingPage;

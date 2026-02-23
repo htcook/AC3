@@ -3483,3 +3483,44 @@
 - [x] CI/CD pipeline integration — GitHub Actions / Jenkins trigger for validation runs
 - [x] SOAR bidirectional connectors — Splunk SOAR, Cortex XSOAR webhook integration
 - [x] AI-driven attack planning — LLM-powered autonomous attack sequence recommendation
+
+## Accuracy Improvements (P0 + P1)
+
+### P0: Cross-Source Corroboration Engine
+- [x] Build corroboration scoring library (confidence multiplier based on independent source count)
+- [x] Schema: corroboration_results table
+- [x] tRPC router: corroborate findings, get scores, bulk corroborate
+- [x] UI page: Corroboration dashboard with source overlap visualization
+- [x] Wire route + sidebar nav
+
+### P0: Dynamic CVE-to-Product Matching (NVD API)
+- [x] Build NVD API client library (search CVEs by CPE, keyword, date range)
+- [x] Build dynamic CPE matcher (replace hardcoded mappings with live NVD queries)
+- [x] Schema: cve_product_matches table
+- [x] tRPC router: match CVE to product, refresh mappings, get stale mappings
+- [x] UI page: CVE-Product Matching dashboard
+- [x] Wire route + sidebar nav
+
+### P1: Compensating Control Awareness
+- [x] Build control detection library (detect WAF/IPS/EDR, adjust CVSS contextually)
+- [x] Schema: compensating_controls table
+- [x] tRPC router: detect controls, get inventory, recalculate risk
+- [x] UI page: Compensating Controls dashboard
+- [x] Wire route + sidebar nav
+
+### P1: Exploit Confidence Pre-Flight Checks
+- [x] Build pre-flight check library (version banner, fingerprint, reachability, port state)
+- [x] Schema: preflight_results table
+- [x] tRPC router: run pre-flight, get results, bulk pre-flight
+- [x] UI page: Pre-Flight Checks dashboard
+- [x] Wire route + sidebar nav
+
+### P1: Active Verification Probes (Nuclei)
+- [x] Build Nuclei integration library (template selection, execution, result parsing)
+- [x] Schema: nuclei_scan_results table
+- [x] tRPC router: run scan, get results, manage templates
+- [x] UI page: Active Verification dashboard
+- [x] Wire route + sidebar nav
+
+### Tests
+- [x] Write vitest tests for all 5 accuracy improvements (38 tests passing)

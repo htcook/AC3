@@ -63,6 +63,11 @@ import { remediationVerificationRouter } from "./routers/remediation-verificatio
 import { cicdPipelineRouter } from "./routers/cicd-pipeline";
 import { soarConnectorRouter } from "./routers/soar-connectors";
 import { aiAttackPlannerRouter } from "./routers/ai-attack-planner";
+import { corroborationEngineRouter } from "./routers/corroboration-engine";
+import { nvdCveMatcherRouter } from "./routers/nvd-cve-matcher";
+import { compensatingControlsRouter } from "./routers/compensating-controls";
+import { preflightChecksRouter } from "./routers/preflight-checks";
+import { activeVerificationRouter } from "./routers/active-verification";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -208,6 +213,11 @@ export const appRouter = router({
   cicdPipeline: cicdPipelineRouter,
   soarConnector: soarConnectorRouter,
   aiAttackPlanner: aiAttackPlannerRouter,
+  corroborationEngine: corroborationEngineRouter,
+  nvdCveMatcher: nvdCveMatcherRouter,
+  compensatingControls: compensatingControlsRouter,
+  preflightChecks: preflightChecksRouter,
+  activeVerification: activeVerificationRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

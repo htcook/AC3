@@ -105,6 +105,11 @@ const RemediationVerification = lazy(() => import("./pages/RemediationVerificati
 const CicdPipeline = lazy(() => import("./pages/CicdPipeline"));
 const SoarConnectors = lazy(() => import("./pages/SoarConnectors"));
 const AiAttackPlanner = lazy(() => import("./pages/AiAttackPlanner"));
+const CorroborationEngine = lazy(() => import("./pages/CorroborationEngine"));
+const NvdCveMatcher = lazy(() => import("./pages/NvdCveMatcher"));
+const CompensatingControls = lazy(() => import("./pages/CompensatingControls"));
+const PreFlightChecks = lazy(() => import("./pages/PreFlightChecks"));
+const ActiveVerification = lazy(() => import("./pages/ActiveVerification"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -476,6 +481,21 @@ function Router() {
         </Route>
         <Route path="/ai-attack-planner">
           <ProtectedRoute component={AiAttackPlanner} />
+        </Route>
+        <Route path="/corroboration-engine">
+          <ProtectedRoute component={CorroborationEngine} />
+        </Route>
+        <Route path="/nvd-cve-matcher">
+          <ProtectedRoute component={NvdCveMatcher} />
+        </Route>
+        <Route path="/compensating-controls">
+          <ProtectedRoute component={CompensatingControls} />
+        </Route>
+        <Route path="/preflight-checks">
+          <ProtectedRoute component={PreFlightChecks} />
+        </Route>
+        <Route path="/active-verification">
+          <ProtectedRoute component={ActiveVerification} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

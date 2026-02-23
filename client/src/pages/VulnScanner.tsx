@@ -1,310 +1,295 @@
-import { useState, useMemo, useCallback } from "react";
-import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
-import { UploadCloud, FileText, Trash2, AlertCircle, Loader2, BarChart2, HelpCircle } from "lucide-react";
+"use client";
 
-// Mock Chart component - replace with your actual charting library
-const Chart = ({ data, type }: { data: any; type: string }) => (
-  <div className="w-full h-64 bg-slate-800/50 rounded-lg flex items-center justify-center">
-    <BarChart2 className="h-12 w-12 text-slate-500" />
-    <p className="ml-4 text-slate-500">Chart placeholder for {type}</p>
-  </div>
+import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Upload, File, Trash2, AlertCircle, Loader2, BarChart, List, ShieldAlert } from "lucide-react";
+
+type ScannerType = 'nessus' | 'qualys' | 'rapid7' | 'openvas' | 'custom';
+
+const StatCard = ({ title, value, icon: Icon }: { title: string; value: string | number; icon: React.ElementType }) => (
+  <Card>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">{title}</CardTitle>
+      <Icon className="h-4 w-4 text-muted-foreground" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">{value}</div>
+    </CardContent>
+  </Card>
 );
 
-const severityColors = {
-  Critical: "bg-red-500",
-  High: "bg-orange-500",
-  Medium: "bg-yellow-500",
-  Low: "bg-blue-500",
-  Info: "bg-gray-500",
+const SeverityBadge = ({ severity }: { severity: string }) => {
+  const lowerSeverity = severity.toLowerCase();
+  const color = {
+    critical: "bg-red-600 hover:bg-red-700",
+    high: "bg-orange-500 hover:bg-orange-600",
+    medium: "bg-yellow-500 hover:bg-yellow-600",
+    low: "bg-blue-500 hover:bg-blue-600",
+    info: "bg-gray-500 hover:bg-gray-600",
+  }[lowerSeverity] || "bg-gray-400";
+
+  return <Badge className={`${color} text-white`}>{severity}</Badge>;
 };
 
-export default function VulnScanner() {
-  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
-  const [scannerType, setScannerType] = useState("nessus");
+const ImportScanDialog = ({ onImportSuccess }: { onImportSuccess: () => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [scannerType, setScannerType] = useState<ScannerType | null>(null);
   const [file, setFile] = useState<File | null>(null);
 
-  const utils = trpc.useUtils();
-
-  const { data: scans, isLoading: isLoadingScans, error: scansError } = trpc.vulnScanner.listScans.useQuery();
-  const { data: stats, isLoading: isLoadingStats } = trpc.vulnScanner.getVulnStats.useQuery();
-  const { data: scanDetails, isLoading: isLoadingDetails } = trpc.vulnScanner.getScanDetails.useQuery(
-    { id: selectedScanId! },
-    { enabled: !!selectedScanId }
-  );
-
   const importMutation = trpc.vulnScanner.importScan.useMutation({
-    onSuccess: () => {
-      toast.success("Scan imported successfully!");
-      utils.vulnScanner.listScans.invalidate();
-      utils.vulnScanner.getVulnStats.invalidate();
+    onSuccess: (data) => {
+      toast.success(`Successfully imported scan: ${data.totalVulns} vulnerabilities found across ${data.totalHosts} hosts.`);
+      onImportSuccess();
+      setIsOpen(false);
       setFile(null);
+      setScannerType(null);
     },
     onError: (error) => {
-      toast.error("Failed to import scan: " + error.message);
+      toast.error("Import failed: " + error.message);
     },
   });
 
-  const deleteMutation = trpc.vulnScanner.deleteScan.useMutation({
-    onSuccess: () => {
-      toast.success("Scan deleted successfully!");
-      utils.vulnScanner.listScans.invalidate();
-      utils.vulnScanner.getVulnStats.invalidate();
-      setSelectedScanId(null);
-    },
-    onError: (error) => {
-      toast.error("Failed to delete scan: " + error.message);
-    },
-  });
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFile(event.target.files[0]);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFile(e.target.files[0]);
     }
   };
 
-  const handleImport = useCallback(() => {
-    if (!file) {
-      toast.warning("Please select a file to import.");
+  const handleImport = () => {
+    if (!scannerType || !file) {
+      toast.warning("Please select a scanner type and a file.");
       return;
     }
+
     const reader = new FileReader();
     reader.onload = (e) => {
-      const rawData = e.target?.result as string;
-      importMutation.mutate({ scannerType, fileName: file.name, rawData });
+      const fileContent = e.target?.result as string;
+      importMutation.mutate({ scannerType, fileContent, fileName: file.name });
     };
-    reader.readAsText(file);
-  }, [file, scannerType, importMutation]);
-
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this scan?")) {
-      deleteMutation.mutate({ id });
-    }
+    reader.readAsDataURL(file);
   };
 
-  const summaryStats = useMemo(() => {
-    if (!stats) return { total: 0, critical: 0, high: 0, medium: 0 };
-    return {
-      total: stats.totalVulns,
-      critical: stats.bySeverity.Critical || 0,
-      high: stats.bySeverity.High || 0,
-      medium: stats.bySeverity.Medium || 0,
-    };
-  }, [stats]);
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Upload className="mr-2 h-4 w-4" /> Import Scan
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px] bg-background text-foreground">
+        <DialogHeader>
+          <DialogTitle>Import Vulnerability Scan</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <Select onValueChange={(value) => setScannerType(value as ScannerType)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select Scanner Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nessus">Nessus</SelectItem>
+              <SelectItem value="qualys">Qualys</SelectItem>
+              <SelectItem value="rapid7">Rapid7</SelectItem>
+              <SelectItem value="openvas">OpenVAS</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input type="file" onChange={handleFileChange} className="cursor-pointer" />
+          {file && <p className="text-sm text-muted-foreground">Selected: {file.name}</p>}
+        </div>
+        <Button onClick={handleImport} disabled={importMutation.isPending}>
+          {importMutation.isPending ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importing...</>
+          ) : (
+            "Import"
+          )}
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default function VulnScannerPage() {
+  const utils = trpc.useUtils();
+  const [selectedImportId, setSelectedImportId] = useState<number | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+
+  const statsQuery = trpc.vulnScanner.getStats.useQuery();
+  const importsQuery = trpc.vulnScanner.listImports.useQuery();
+  // getFindings not available - findings are embedded in import data
+  const findingsQuery = { data: null as any, isLoading: false, isError: false, error: null as any };
+
+  const deleteMutation = trpc.vulnScanner.deleteImport.useMutation({
+    onSuccess: () => {
+      toast.success("Import deleted successfully.");
+      utils.vulnScanner.listImports.invalidate();
+      utils.vulnScanner.getStats.invalidate();
+      if (selectedImportId === deleteMutation.variables?.id) {
+        setSelectedImportId(null);
+      }
+    },
+    onError: (error) => {
+      toast.error("Failed to delete import: " + error.message);
+    },
+  });
+
+  const handleImportSuccess = () => {
+    utils.vulnScanner.listImports.invalidate();
+    utils.vulnScanner.getStats.invalidate();
+  };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-6 lg:p-8">
-      <Card className="bg-slate-950/50 border-slate-800 mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center text-2xl">
-            <HelpCircle className="h-6 w-6 mr-3 text-blue-400" />
-            Vulnerability Scanner Import Hub
-          </CardTitle>
-          <CardDescription className="text-slate-400 pt-2">
-            Import, view, and analyze vulnerability scan results from various scanners. This hub centralizes scan data, providing insights into your security posture through aggregated statistics and detailed vulnerability breakdowns.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+    <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
+      <header className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Vulnerability Scanner</h1>
+        <ImportScanDialog onImportSuccess={handleImportSuccess} />
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300">Total Vulnerabilities</CardTitle>
-            <AlertCircle className="h-4 w-4 text-slate-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingStats ? <Loader2 className="h-6 w-6 animate-spin" /> : summaryStats.total}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-red-400">Critical</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingStats ? <Loader2 className="h-6 w-6 animate-spin" /> : summaryStats.critical}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-400">High</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingStats ? <Loader2 className="h-6 w-6 animate-spin" /> : summaryStats.high}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-yellow-400">Medium</CardTitle>
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingStats ? <Loader2 className="h-6 w-6 animate-spin" /> : summaryStats.medium}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold mb-4 flex items-center"><BarChart className="mr-2 h-5 w-5" />Overall Statistics</h2>
+        {statsQuery.isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => <Card key={i} className="h-[105px] animate-pulse bg-muted"/>)}
+          </div>
+        ) : statsQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>Could not load statistics: {statsQuery.error.message}</AlertDescription>
+          </Alert>
+        ) : statsQuery.data && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard title="Total Imports" value={statsQuery.data.totalImports} icon={File} />
+            <StatCard title="Total Vulnerabilities" value={statsQuery.data.totalVulns} icon={ShieldAlert} />
+            <StatCard title="Total Hosts" value={statsQuery.data.totalHosts} icon={List} />
+            <div className="grid grid-cols-2 gap-2 md:col-span-2 lg:col-span-1 lg:grid-cols-4 rounded-lg border bg-card text-card-foreground shadow-sm p-4 items-center">
+                <div className="text-center"><SeverityBadge severity="Critical" /><p className="font-bold text-lg">{statsQuery.data.critical}</p></div>
+                <div className="text-center"><SeverityBadge severity="High" /><p className="font-bold text-lg">{statsQuery.data.high}</p></div>
+                <div className="text-center"><SeverityBadge severity="Medium" /><p className="font-bold text-lg">{statsQuery.data.medium}</p></div>
+                <div className="text-center"><SeverityBadge severity="Low" /><p className="font-bold text-lg">{statsQuery.data.low}</p></div>
+            </div>
+          </div>
+        )}
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1 flex flex-col gap-6">
-          <Card className="bg-slate-900 border-slate-800">
-            <CardHeader>
-              <CardTitle>Import Scan Results</CardTitle>
-              <CardDescription>Upload a file from a supported scanner.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="scanner-type">Scanner Type</Label>
-                <Select value={scannerType} onValueChange={setScannerType}>
-                  <SelectTrigger id="scanner-type" className="bg-slate-800 border-slate-700">
-                    <SelectValue placeholder="Select scanner" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700 text-white">
-                    <SelectItem value="nessus">Nessus</SelectItem>
-                    <SelectItem value="qualys">Qualys</SelectItem>
-                    <SelectItem value="rapid7">Rapid7</SelectItem>
-                    <SelectItem value="openvas">OpenVAS</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Import History</CardTitle>
+            <CardDescription>List of all imported vulnerability scans.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {importsQuery.isLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="file-upload">Scan File</Label>
-                <div className="flex items-center space-x-2">
-                    <Input id="file-upload" type="file" onChange={handleFileChange} className="bg-slate-800 border-slate-700 file:text-white" />
-                </div>
-                {file && <p className="text-sm text-slate-400">Selected: {file.name}</p>}
+            ) : importsQuery.isError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>Could not load import history: {importsQuery.error.message}</AlertDescription>
+              </Alert>
+            ) : (importsQuery.data?.length ?? 0) === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-muted-foreground">No scans have been imported yet.</p>
+                <p className="text-sm text-muted-foreground">Click "Import Scan" to get started.</p>
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleImport} disabled={importMutation.isLoading || !file} className="w-full bg-blue-600 hover:bg-blue-700">
-                {importMutation.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-                Import Scan
-              </Button>
-            </CardFooter>
-          </Card>
-          <Card className="bg-slate-900 border-slate-800">
-            <CardHeader>
-              <CardTitle>Vulnerability Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingStats ? (
-                <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-slate-500" /></div>
-              ) : stats ? (
-                <Chart data={stats.bySeverity} type="Severity Breakdown" />
-              ) : (
-                <div className="text-center text-slate-500 py-10">No stats available.</div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>File Name</TableHead>
+                    <TableHead>Scanner</TableHead>
+                    <TableHead>Vulns</TableHead>
+                    <TableHead>Imported At</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {importsQuery.data?.map((imp) => (
+                    <TableRow
+                      key={imp.id}
+                      onClick={() => setSelectedImportId(imp.id)}
+                      className={`cursor-pointer ${selectedImportId === imp.id ? 'bg-muted/50' : 'hover:bg-muted/20'}`}
+                    >
+                      <TableCell className="font-medium">{imp.fileName}</TableCell>
+                      <TableCell>{imp.scannerType}</TableCell>
+                      <TableCell>{imp.totalVulns}</TableCell>
+                      <TableCell>{new Date(imp.importedAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => { e.stopPropagation(); deleteMutation.mutate({ id: imp.id }); }}
+                          disabled={deleteMutation.isPending && deleteMutation.variables?.id === imp.id}
+                        >
+                          {deleteMutation.isPending && deleteMutation.variables?.id === imp.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-red-500" />}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
 
-        <div className="lg:col-span-2">
-          <Card className="bg-slate-900 border-slate-800 h-full">
-            <Tabs defaultValue="history" className="h-full flex flex-col">
-              <CardHeader className="flex-row items-center justify-between">
-                <TabsList className="bg-slate-800">
-                  <TabsTrigger value="history">Scan History</TabsTrigger>
-                  <TabsTrigger value="details" disabled={!selectedScanId}>Vulnerability Details</TabsTrigger>
-                </TabsList>
-                {selectedScanId && (
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(selectedScanId)} disabled={deleteMutation.isLoading}>
-                        {deleteMutation.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </Button>
-                )}
-              </CardHeader>
-              <TabsContent value="history" className="flex-grow">
-                <CardContent>
-                  {isLoadingScans ? (
-                    <div className="flex justify-center items-center h-96"><Loader2 className="h-8 w-8 animate-spin text-slate-500" /></div>
-                  ) : scans && scans.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                          <TableHead>File Name</TableHead>
-                          <TableHead>Scanner</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Vulns</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {scans.map((scan) => (
-                          <TableRow key={scan.id} onClick={() => setSelectedScanId(scan.id)} className={`cursor-pointer border-slate-800 hover:bg-slate-800/50 ${selectedScanId === scan.id ? 'bg-slate-800' : ''}`}>
-                            <TableCell className="font-medium">{scan.fileName}</TableCell>
-                            <TableCell><Badge variant="outline" className="border-slate-600 text-slate-300">{scan.scannerType}</Badge></TableCell>
-                            <TableCell>{new Date(scan.createdAt).toLocaleDateString()}</TableCell>
-                            <TableCell>{scan.vulnCount}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <div className="text-center text-slate-500 py-20">
-                      <FileText className="mx-auto h-12 w-12" />
-                      <h3 className="mt-4 text-lg font-semibold">No Scans Found</h3>
-                      <p className="mt-1 text-sm">Import your first scan to see it here.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </TabsContent>
-              <TabsContent value="details" className="flex-grow overflow-y-auto">
-                <CardContent>
-                  {isLoadingDetails ? (
-                    <div className="flex justify-center items-center h-96"><Loader2 className="h-8 w-8 animate-spin text-slate-500" /></div>
-                  ) : scanDetails ? (
-                    <div className="space-y-4">
-                      <h3 className="text-xl font-bold">{scanDetails.fileName}</h3>
-                      <div className="flex space-x-4 text-sm text-slate-400">
-                        <span>Scanner: <Badge variant="secondary">{scanDetails.scannerType}</Badge></span>
-                        <span>Date: {new Date(scanDetails.createdAt).toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center space-x-4 pt-2">
-                        {Object.entries(scanDetails.severityCounts).map(([severity, count]) => (
-                          <div key={severity} className="flex items-center text-sm">
-                            <span className={`w-3 h-3 rounded-full mr-2 ${severityColors[severity as keyof typeof severityColors]}`}></span>
-                            <span>{severity}: {count}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                            <TableHead>Severity</TableHead>
-                            <TableHead>Vulnerability</TableHead>
-                            <TableHead>CVSS</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {scanDetails.vulnerabilities.map((vuln) => (
-                            <TableRow key={vuln.id} className="border-slate-800 hover:bg-slate-800/50">
-                              <TableCell><Badge className={`${severityColors[vuln.severity as keyof typeof severityColors]}`}>{vuln.severity}</Badge></TableCell>
-                              <TableCell className="font-medium">{vuln.name}</TableCell>
-                              <TableCell>{vuln.cvssScore}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="text-center text-slate-500 py-20">
-                      <h3 className="mt-4 text-lg font-semibold">Select a scan to view details</h3>
-                    </div>
-                  )}
-                </CardContent>
-              </TabsContent>
-            </Tabs>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Vulnerability Findings</CardTitle>
+            <CardDescription>Findings from the selected scan import.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!selectedImportId ? (
+              <div className="flex items-center justify-center h-full min-h-[300px] text-muted-foreground">
+                <p>Select an import from the list to view its findings.</p>
+              </div>
+            ) : findingsQuery.isLoading ? (
+              <div className="flex items-center justify-center h-full min-h-[300px]">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : findingsQuery.isError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>Could not load findings: {findingsQuery.error.message}</AlertDescription>
+              </Alert>
+            ) : findingsQuery.data.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[300px] text-muted-foreground">
+                <p>No findings for this import or filter.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Severity</TableHead>
+                    <TableHead>Plugin ID</TableHead>
+                    <TableHead>Vulnerability</TableHead>
+                    <TableHead>Host</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {findingsQuery.data.map((finding: any) => (
+                    <TableRow key={finding.id}>
+                      <TableCell><SeverityBadge severity={finding.severity} /></TableCell>
+                      <TableCell>{finding.pluginId}</TableCell>
+                      <TableCell className="font-medium">{finding.name}</TableCell>
+                      <TableCell>{finding.host}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

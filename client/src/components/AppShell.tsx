@@ -58,6 +58,11 @@ import {
   Bell,
   TreePine,
   RefreshCw,
+  Microscope,
+  ScanSearch,
+  ShieldPlus,
+  Gauge,
+  Radar,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -116,6 +121,11 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/email-security", icon: Zap, label: "EMAIL SECURITY" },
       { href: "/remediation-verification", icon: ClipboardCheck, label: "REMEDIATION VERIFY" },
       { href: "/ai-attack-planner", icon: Brain, label: "AI ATTACK PLANNER" },
+      { href: "/corroboration-engine", icon: Microscope, label: "CORROBORATION ENGINE" },
+      { href: "/nvd-cve-matcher", icon: ScanSearch, label: "NVD CVE MATCHER" },
+      { href: "/compensating-controls", icon: ShieldPlus, label: "COMPENSATING CONTROLS" },
+      { href: "/preflight-checks", icon: Gauge, label: "PRE-FLIGHT CHECKS" },
+      { href: "/active-verification", icon: Radar, label: "ACTIVE VERIFICATION" },
     ],
   },
   {
