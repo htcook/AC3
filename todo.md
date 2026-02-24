@@ -3970,3 +3970,14 @@
 - [x] Customer digital signature capability in portal (typed signature with E-SIGN Act compliance)
 - [x] Signature storage in roe_signatures table with IP address audit trail
 - [x] Write vitest tests for PDF export and RoE-engagement linking (24 tests passing)
+
+## RoE Enhancements — Phase 3
+- [x] RoE selector dropdown in Engagement creation form (with search/filter)
+- [x] RoE selector dropdown in Engagement edit form (pre-populated)
+- [x] Display linked RoE badge on Engagement card (status + version + link)
+- [x] RoE version history database schema (roe_versions table with snapshots)
+- [x] Auto-snapshot RoE content on each save/update (tracks changed fields, before/after)
+- [x] Version history timeline UI in RoE Builder (Step 10: History)
+- [x] Side-by-side diff comparison dialog (select 2 versions to compare)
+- [x] Version restore capability (revert changed fields to previous state)
+- [x] Write vitest tests for version history and engagement RoE selector (26 tests passing)

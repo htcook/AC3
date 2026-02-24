@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb as _getDb } from "../db";
-import { roeDocuments, roePersonnel, roeSignatures, engagements } from "../../drizzle/schema";
+import { roeDocuments, roePersonnel, roeSignatures, roeVersions, engagements } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 async function getDbSafe() {
@@ -327,9 +327,15 @@ export const roeBuilderRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDbSafe();
       const { id, ...updates } = input;
-      const updateData: Record<string, unknown> = { lastModifiedBy: ctx.user.id };
 
-      // Map all provided fields
+      // Snapshot the current state BEFORE update for version history
+      const [currentDoc] = await db.select().from(roeDocuments).where(eq(roeDocuments.id, id));
+      if (!currentDoc) throw new Error("RoE document not found");
+
+      const updateData: Record<string, unknown> = { lastModifiedBy: ctx.user.id };
+      const changedFields: string[] = [];
+
+      // Map all provided fields and track changes
       for (const [key, value] of Object.entries(updates)) {
         if (value !== undefined) {
           // Convert date strings to Date objects for timestamp fields
@@ -338,7 +344,45 @@ export const roeBuilderRouter = router({
           } else {
             updateData[key] = value;
           }
+          // Track which fields changed
+          const currentVal = (currentDoc as any)[key];
+          if (JSON.stringify(currentVal) !== JSON.stringify(value)) {
+            changedFields.push(key);
+          }
         }
+      }
+
+      // Only create a version snapshot if something actually changed
+      if (changedFields.length > 0) {
+        const changeType = updates.status && updates.status !== currentDoc.status
+          ? (updates.status === "approved" ? "approved" as const : "status_change" as const)
+          : "updated" as const;
+
+        const changeSummary = changeType === "status_change"
+          ? `Status changed from ${currentDoc.status} to ${updates.status}`
+          : changeType === "approved"
+          ? `Document approved`
+          : `Updated fields: ${changedFields.join(", ")}`;
+
+        // Build a minimal previous snapshot with only changed fields
+        const previousSnapshot: Record<string, unknown> = {};
+        const currentSnapshot: Record<string, unknown> = {};
+        for (const field of changedFields) {
+          previousSnapshot[field] = (currentDoc as any)[field];
+          currentSnapshot[field] = updateData[field] ?? updates[field as keyof typeof updates];
+        }
+
+        await db.insert(roeVersions).values({
+          roeId: id,
+          versionNumber: currentDoc.version,
+          changeType,
+          changeSummary,
+          changedFields,
+          previousSnapshot,
+          currentSnapshot,
+          changedBy: ctx.user.id,
+          changedByName: ctx.user.name || `User #${ctx.user.id}`,
+        });
       }
 
       await db.update(roeDocuments).set(updateData as any).where(eq(roeDocuments.id, id));
@@ -613,6 +657,73 @@ export const roeBuilderRouter = router({
       const personnel = await db.select().from(roePersonnel).where(eq(roePersonnel.roeId, input.id));
       const signatures = await db.select().from(roeSignatures).where(eq(roeSignatures.roeId, input.id));
       return { ...doc, personnel, signatures };
+    }),
+
+  // ─── Version History ──────────────────────────────────────────────────────
+
+  getVersionHistory: protectedProcedure
+    .input(z.object({ roeId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const versions = await db.select().from(roeVersions)
+        .where(eq(roeVersions.roeId, input.roeId))
+        .orderBy(desc(roeVersions.createdAt));
+      return versions;
+    }),
+
+  getVersionDiff: protectedProcedure
+    .input(z.object({ versionId1: z.number(), versionId2: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const [v1] = await db.select().from(roeVersions).where(eq(roeVersions.id, input.versionId1));
+      const [v2] = await db.select().from(roeVersions).where(eq(roeVersions.id, input.versionId2));
+      if (!v1 || !v2) throw new Error("Version not found");
+      return { version1: v1, version2: v2 };
+    }),
+
+  restoreVersion: protectedProcedure
+    .input(z.object({ roeId: z.number(), versionId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const [version] = await db.select().from(roeVersions).where(eq(roeVersions.id, input.versionId));
+      if (!version) throw new Error("Version not found");
+
+      // Get current state for snapshot
+      const [currentDoc] = await db.select().from(roeDocuments).where(eq(roeDocuments.id, input.roeId));
+      if (!currentDoc) throw new Error("RoE document not found");
+
+      // Apply the previous snapshot fields to restore
+      const restoreData = version.previousSnapshot as Record<string, unknown> | null;
+      if (!restoreData || Object.keys(restoreData).length === 0) {
+        throw new Error("No snapshot data available to restore");
+      }
+
+      // Create a version entry for the restore action
+      const changedFields = Object.keys(restoreData);
+      const currentSnapshot: Record<string, unknown> = {};
+      for (const field of changedFields) {
+        currentSnapshot[field] = (currentDoc as any)[field];
+      }
+
+      await db.insert(roeVersions).values({
+        roeId: input.roeId,
+        versionNumber: currentDoc.version,
+        changeType: "restored",
+        changeSummary: `Restored to version ${version.versionNumber} (snapshot from ${new Date(version.createdAt).toISOString()})`,
+        changedFields,
+        previousSnapshot: currentSnapshot,
+        currentSnapshot: restoreData,
+        changedBy: ctx.user.id,
+        changedByName: ctx.user.name || `User #${ctx.user.id}`,
+      });
+
+      // Apply the restore
+      await db.update(roeDocuments).set({
+        ...restoreData,
+        lastModifiedBy: ctx.user.id,
+      } as any).where(eq(roeDocuments.id, input.roeId));
+
+      return { success: true };
     }),
 
   getStats: protectedProcedure.query(async () => {

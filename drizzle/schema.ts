@@ -4258,3 +4258,24 @@ export const roeSignatures = mysqlTable("roe_signatures", {
 });
 export type RoeSignature = typeof roeSignatures.$inferSelect;
 export type InsertRoeSignature = typeof roeSignatures.$inferInsert;
+
+/**
+ * RoE Version History — snapshots of RoE document state for audit trail
+ */
+export const roeVersions = mysqlTable("roe_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  roeId: int("roe_id").notNull(),
+  versionNumber: varchar("version_number", { length: 32 }).notNull(),
+  changeType: mysqlEnum("change_type", [
+    "created", "updated", "status_change", "approved", "restored"
+  ]).default("updated").notNull(),
+  changeSummary: text("change_summary"),
+  changedFields: json("changed_fields").$type<string[]>(),
+  previousSnapshot: json("previous_snapshot"),
+  currentSnapshot: json("current_snapshot"),
+  changedBy: int("changed_by"),
+  changedByName: varchar("changed_by_name", { length: 256 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type RoeVersion = typeof roeVersions.$inferSelect;
+export type InsertRoeVersion = typeof roeVersions.$inferInsert;

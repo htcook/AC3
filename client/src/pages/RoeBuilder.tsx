@@ -28,7 +28,7 @@ import {
   Globe, Server, Network, Cloud, Wifi, MapPin, Clock, Loader2,
   ShieldCheck, ShieldAlert, Crosshair, Zap, Brain, Bug, Skull,
   Mail, Phone, User, Briefcase, FileCheck, Download, MoreVertical,
-  Play, Pause, XCircle, RefreshCw, Search
+  Play, Pause, XCircle, RefreshCw, Search, History, RotateCcw
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -56,6 +56,7 @@ const WIZARD_STEPS = [
   { id: "legal", label: "Legal", icon: Scale, description: "Legal jurisdiction, NDA, and compliance" },
   { id: "personnel", label: "Personnel", icon: Users, description: "Points of contact and team members" },
   { id: "review", label: "Review", icon: FileCheck, description: "Final review and submission" },
+  { id: "history", label: "History", icon: History, description: "Version history and change audit trail" },
 ];
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
@@ -572,6 +573,7 @@ function RoeEditWizard({ roeId, onBack }: { roeId: number; onBack: () => void })
           {currentStep === 6 && <LegalStep roe={roe} saveField={saveField} defaults={defaults.data} />}
           {currentStep === 7 && <PersonnelStep roeId={roeId} personnel={roe.personnel} defaults={defaults.data} refetch={doc.refetch} />}
           {currentStep === 8 && <ReviewStep roe={roe} onBack={onBack} refetch={doc.refetch} />}
+          {currentStep === 9 && <VersionHistoryStep roeId={roeId} currentVersion={roe.version} refetch={doc.refetch} />}
         </CardContent>
       </Card>
 
@@ -1658,6 +1660,385 @@ function ReviewStep({ roe, onBack, refetch }: { roe: any; onBack: () => void; re
           Document must be at least 70% complete before submission
         </p>
       )}
+    </div>
+  );
+}
+
+
+// ─── Version History Step ────────────────────────────────────────────────────
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "Title", version: "Version", status: "Status",
+  organizationName: "Organization Name", organizationAddress: "Organization Address",
+  testingFirmName: "Testing Firm", testingFirmAddress: "Testing Firm Address",
+  purpose: "Purpose", scopeDescription: "Scope Description",
+  assumptions: "Assumptions", limitations: "Limitations", risks: "Risks",
+  testScheduleStart: "Test Start Date", testScheduleEnd: "Test End Date",
+  testingWindowStart: "Testing Window Start", testingWindowEnd: "Testing Window End",
+  testingDays: "Testing Days", testTimezone: "Timezone",
+  testSiteLocations: "Test Site Locations", remoteTestingAllowed: "Remote Testing",
+  vpnRequired: "VPN Required", badgeEscortRequired: "Badge/Escort Required",
+  testEquipment: "Test Equipment",
+  communicationFrequency: "Communication Frequency", communicationMethod: "Communication Method",
+  statusReportFrequency: "Status Report Frequency",
+  incidentDefinition: "Incident Definition", incidentResponseProcedure: "Incident Response",
+  emergencyHaltCriteria: "Emergency Halt Criteria", resumptionProcedure: "Resumption Procedure",
+  inScopeAssets: "In-Scope Assets", outOfScopeAssets: "Out-of-Scope Assets",
+  inScopeIpRanges: "In-Scope IP Ranges", outOfScopeIpRanges: "Out-of-Scope IP Ranges",
+  inScopeDomains: "In-Scope Domains", outOfScopeDomains: "Out-of-Scope Domains",
+  inScopeApplications: "In-Scope Applications", cloudEnvironments: "Cloud Environments",
+  wirelessNetworks: "Wireless Networks", physicalLocations: "Physical Locations",
+  testingTypes: "Testing Types", attackVectors: "Attack Vectors",
+  socialEngineeringPretexts: "Social Engineering Pretexts",
+  dosTestingAllowed: "DoS Testing", physicalTestingAllowed: "Physical Testing",
+  wirelessTestingAllowed: "Wireless Testing", socialEngineeringAllowed: "Social Engineering",
+  credentialedTesting: "Credentialed Testing", credentialAccounts: "Credential Accounts",
+  fileModificationAllowed: "File Modification", fileInstallationAllowed: "File Installation",
+  pivotingAllowed: "Pivoting", exfiltrationAllowed: "Exfiltration",
+  persistenceAllowed: "Persistence", shunningPolicy: "Shunning Policy",
+  fedrampCompliant: "FedRAMP Compliant", fedrampAttackVectors: "FedRAMP Attack Vectors",
+  fedrampImpactLevel: "FedRAMP Impact Level", serviceModel: "Service Model",
+  dataHandlingProcedure: "Data Handling Procedure", evidenceRetentionDays: "Evidence Retention (days)",
+  evidenceEncryptionRequired: "Evidence Encryption", piiHandlingPolicy: "PII Handling Policy",
+  evidenceDestructionMethod: "Evidence Destruction Method",
+  reportDeliverables: "Report Deliverables", reportFrequency: "Report Frequency",
+  criticalFindingNotification: "Critical Finding Notification",
+  legalJurisdiction: "Legal Jurisdiction", thirdPartyAgreements: "Third-Party Agreements",
+  liabilityWaiver: "Liability Waiver", ndaRequired: "NDA Required",
+  ndaReference: "NDA Reference", complianceFrameworks: "Compliance Frameworks",
+};
+
+const CHANGE_TYPE_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  created: { label: "Created", color: "text-green-400 bg-green-500/10", icon: Plus },
+  updated: { label: "Updated", color: "text-blue-400 bg-blue-500/10", icon: Pencil },
+  status_change: { label: "Status Change", color: "text-amber-400 bg-amber-500/10", icon: RefreshCw },
+  approved: { label: "Approved", color: "text-emerald-400 bg-emerald-500/10", icon: CheckCircle2 },
+  restored: { label: "Restored", color: "text-purple-400 bg-purple-500/10", icon: RotateCcw },
+};
+
+function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") {
+    // Truncate long text
+    return value.length > 120 ? value.slice(0, 120) + "..." : value;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "(empty)";
+    if (typeof value[0] === "string") return value.join(", ");
+    return `${value.length} item${value.length > 1 ? "s" : ""}`;
+  }
+  if (typeof value === "object") return JSON.stringify(value).slice(0, 100) + "...";
+  return String(value);
+}
+
+function VersionHistoryStep({ roeId, currentVersion, refetch }: { roeId: number; currentVersion: string; refetch: () => void }) {
+  const [selectedVersions, setSelectedVersions] = useState<number[]>([]);
+  const [showDiff, setShowDiff] = useState(false);
+  const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
+
+  const { data: versions, isLoading, refetch: refetchVersions } = trpc.roeBuilder.getVersionHistory.useQuery({ roeId });
+  const diffQuery = trpc.roeBuilder.getVersionDiff.useQuery(
+    { versionId1: selectedVersions[0] || 0, versionId2: selectedVersions[1] || 0 },
+    { enabled: showDiff && selectedVersions.length === 2 }
+  );
+  const restoreMut = trpc.roeBuilder.restoreVersion.useMutation({
+    onSuccess: () => {
+      toast.success("Version restored successfully");
+      refetch();
+      refetchVersions();
+    },
+    onError: (e) => toast.error(sanitizeErrorForToast(e.message)),
+  });
+
+  const toggleVersionSelect = (id: number) => {
+    setSelectedVersions(prev => {
+      if (prev.includes(id)) return prev.filter(v => v !== id);
+      if (prev.length >= 2) return [prev[1], id]; // Keep last 2
+      return [...prev, id];
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <History className="w-5 h-5 text-primary" /> Version History
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Current version: <span className="text-primary font-mono">v{currentVersion}</span> — {versions?.length || 0} change{(versions?.length || 0) !== 1 ? "s" : ""} recorded
+          </p>
+        </div>
+        {selectedVersions.length === 2 && (
+          <Button
+            size="sm"
+            onClick={() => setShowDiff(true)}
+            className="gap-1.5"
+          >
+            <Eye className="w-4 h-4" /> Compare Selected
+          </Button>
+        )}
+      </div>
+
+      {selectedVersions.length > 0 && selectedVersions.length < 2 && (
+        <p className="text-xs text-amber-400 bg-amber-500/10 px-3 py-2 rounded">
+          Select one more version to compare changes side-by-side
+        </p>
+      )}
+
+      {!versions || versions.length === 0 ? (
+        <Card className="bg-muted/30 border-dashed">
+          <CardContent className="py-12 text-center">
+            <History className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
+            <p className="text-muted-foreground">No version history yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Changes will be tracked automatically when you edit this document</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {versions.map((v: any, idx: number) => {
+            const cfg = CHANGE_TYPE_CONFIG[v.changeType] || CHANGE_TYPE_CONFIG.updated;
+            const ChangeIcon = cfg.icon;
+            const isSelected = selectedVersions.includes(v.id);
+            const isExpanded = expandedVersion === v.id;
+            const changedFields = (v.changedFields as string[]) || [];
+
+            return (
+              <div key={v.id} className="relative">
+                {/* Timeline connector */}
+                {idx < versions.length - 1 && (
+                  <div className="absolute left-[19px] top-[40px] bottom-[-12px] w-px bg-border" />
+                )}
+
+                <div
+                  className={`flex gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                    isSelected
+                      ? "border-primary/50 bg-primary/5"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                  onClick={() => toggleVersionSelect(v.id)}
+                >
+                  {/* Timeline dot */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${cfg.color}`}>
+                    <ChangeIcon className="w-4 h-4" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className={`text-[10px] ${cfg.color}`}>{cfg.label}</Badge>
+                      <span className="text-xs font-mono text-muted-foreground">v{v.versionNumber}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(v.createdAt).toLocaleString()}
+                      </span>
+                      {isSelected && (
+                        <Badge className="bg-primary/20 text-primary text-[10px]">
+                          Selected {selectedVersions.indexOf(v.id) === 0 ? "(A)" : "(B)"}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-foreground mt-1">{v.changeSummary}</p>
+
+                    {changedFields.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {changedFields.slice(0, 5).map((f: string) => (
+                          <span key={f} className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">
+                            {FIELD_LABELS[f] || f}
+                          </span>
+                        ))}
+                        {changedFields.length > 5 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-muted rounded text-muted-foreground">
+                            +{changedFields.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {v.changedByName && (
+                      <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
+                        <User className="w-3 h-3" /> {v.changedByName}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[10px]"
+                      onClick={() => setExpandedVersion(isExpanded ? null : v.id)}
+                    >
+                      <Eye className="w-3 h-3 mr-1" /> {isExpanded ? "Hide" : "Details"}
+                    </Button>
+                    {v.previousSnapshot && Object.keys(v.previousSnapshot as object).length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[10px] text-amber-400 hover:text-amber-300"
+                        onClick={() => {
+                          if (confirm("Restore this version? This will revert the changed fields to their previous state.")) {
+                            restoreMut.mutate({ roeId, versionId: v.id });
+                          }
+                        }}
+                        disabled={restoreMut.isPending}
+                      >
+                        <RotateCcw className="w-3 h-3 mr-1" /> Restore
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded detail view */}
+                {isExpanded && v.previousSnapshot && v.currentSnapshot && (
+                  <div className="ml-[52px] mt-2 p-3 bg-muted/30 rounded-lg border border-border space-y-2">
+                    <h4 className="text-xs font-bold text-muted-foreground tracking-wider">FIELD CHANGES</h4>
+                    <div className="space-y-2">
+                      {changedFields.map((field: string) => {
+                        const prev = (v.previousSnapshot as Record<string, unknown>)?.[field];
+                        const curr = (v.currentSnapshot as Record<string, unknown>)?.[field];
+                        return (
+                          <div key={field} className="text-xs space-y-1">
+                            <span className="font-medium text-foreground">{FIELD_LABELS[field] || field}</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-2 bg-red-500/5 border border-red-500/20 rounded">
+                                <span className="text-[10px] text-red-400 block mb-0.5">BEFORE</span>
+                                <span className="text-muted-foreground">{formatFieldValue(prev)}</span>
+                              </div>
+                              <div className="p-2 bg-green-500/5 border border-green-500/20 rounded">
+                                <span className="text-[10px] text-green-400 block mb-0.5">AFTER</span>
+                                <span className="text-muted-foreground">{formatFieldValue(curr)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Diff Comparison Dialog */}
+      <Dialog open={showDiff} onOpenChange={setShowDiff}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-primary" /> Version Comparison
+            </DialogTitle>
+            <DialogDescription>
+              Comparing changes between two selected versions
+            </DialogDescription>
+          </DialogHeader>
+
+          {diffQuery.isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : diffQuery.data ? (
+            <div className="space-y-4">
+              {/* Version headers */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-red-500/5 border border-red-500/20 rounded">
+                  <p className="text-xs font-bold text-red-400 mb-1">VERSION A</p>
+                  <p className="text-sm font-mono">v{diffQuery.data.version1.versionNumber}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(diffQuery.data.version1.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{diffQuery.data.version1.changeSummary}</p>
+                </div>
+                <div className="p-3 bg-green-500/5 border border-green-500/20 rounded">
+                  <p className="text-xs font-bold text-green-400 mb-1">VERSION B</p>
+                  <p className="text-sm font-mono">v{diffQuery.data.version2.versionNumber}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(diffQuery.data.version2.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{diffQuery.data.version2.changeSummary}</p>
+                </div>
+              </div>
+
+              {/* Field-by-field diff */}
+              <Separator />
+              <div className="space-y-3">
+                {(() => {
+                  const v1Fields = (diffQuery.data.version1.changedFields as string[]) || [];
+                  const v2Fields = (diffQuery.data.version2.changedFields as string[]) || [];
+                  const allFields = [...new Set([...v1Fields, ...v2Fields])];
+
+                  if (allFields.length === 0) {
+                    return <p className="text-sm text-muted-foreground text-center py-4">No overlapping field changes to compare</p>;
+                  }
+
+                  return allFields.map(field => {
+                    const v1Prev = (diffQuery.data!.version1.previousSnapshot as Record<string, unknown>)?.[field];
+                    const v1Curr = (diffQuery.data!.version1.currentSnapshot as Record<string, unknown>)?.[field];
+                    const v2Prev = (diffQuery.data!.version2.previousSnapshot as Record<string, unknown>)?.[field];
+                    const v2Curr = (diffQuery.data!.version2.currentSnapshot as Record<string, unknown>)?.[field];
+
+                    return (
+                      <div key={field} className="border border-border rounded-lg p-3">
+                        <h4 className="text-sm font-medium mb-2">{FIELD_LABELS[field] || field}</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-red-400 font-bold">VERSION A</span>
+                            {v1Prev !== undefined && (
+                              <div className="text-xs p-2 bg-red-500/5 rounded">
+                                <span className="text-[10px] text-muted-foreground block">Before:</span>
+                                {formatFieldValue(v1Prev)}
+                              </div>
+                            )}
+                            {v1Curr !== undefined && (
+                              <div className="text-xs p-2 bg-blue-500/5 rounded">
+                                <span className="text-[10px] text-muted-foreground block">After:</span>
+                                {formatFieldValue(v1Curr)}
+                              </div>
+                            )}
+                            {v1Prev === undefined && v1Curr === undefined && (
+                              <p className="text-xs text-muted-foreground italic">Not changed in this version</p>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-green-400 font-bold">VERSION B</span>
+                            {v2Prev !== undefined && (
+                              <div className="text-xs p-2 bg-red-500/5 rounded">
+                                <span className="text-[10px] text-muted-foreground block">Before:</span>
+                                {formatFieldValue(v2Prev)}
+                              </div>
+                            )}
+                            {v2Curr !== undefined && (
+                              <div className="text-xs p-2 bg-blue-500/5 rounded">
+                                <span className="text-[10px] text-muted-foreground block">After:</span>
+                                {formatFieldValue(v2Curr)}
+                              </div>
+                            )}
+                            {v2Prev === undefined && v2Curr === undefined && (
+                              <p className="text-xs text-muted-foreground italic">Not changed in this version</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDiff(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

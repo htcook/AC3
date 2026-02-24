@@ -16,6 +16,7 @@ import { Scan, ShieldAlert, ShieldCheck } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import ShareLinkManager from "@/components/ShareLinkManager";
 import ROEPanel from "@/components/ROEPanel";
+import { Scale } from "lucide-react";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const ENGAGEMENT_TYPES = [
@@ -105,7 +106,11 @@ export default function Engagements() {
     targetIpRange: '',
     phishingDomain: '',
     notes: '',
+    roeDocumentId: null as number | null,
   });
+
+  // RoE documents for the selector dropdown
+  const { data: roeDocuments } = trpc.roeBuilder.list.useQuery();
 
   // Engagement data
   const { data: engagements, refetch } = trpc.engagements.list.useQuery();
@@ -213,6 +218,7 @@ export default function Engagements() {
       name: '', customerName: '', description: '',
       engagementType: 'red_team', status: 'planning',
       targetDomain: '', targetIpRange: '', phishingDomain: '', notes: '',
+      roeDocumentId: null,
     });
   }
 
@@ -228,6 +234,7 @@ export default function Engagements() {
       targetIpRange: engagement.targetIpRange || '',
       phishingDomain: engagement.phishingDomain || '',
       notes: engagement.notes || '',
+      roeDocumentId: engagement.roeDocumentId || null,
     });
     setShowCreateForm(true);
   }
@@ -489,6 +496,26 @@ export default function Engagements() {
                     className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary resize-none"
                   />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs text-muted-foreground tracking-wider block mb-1 flex items-center gap-1.5">
+                    <Scale className="w-3.5 h-3.5" /> RULES OF ENGAGEMENT
+                  </label>
+                  <select
+                    value={formData.roeDocumentId ?? ''}
+                    onChange={(e) => setFormData(p => ({ ...p, roeDocumentId: e.target.value ? Number(e.target.value) : null }))}
+                    className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
+                  >
+                    <option value="">— No RoE linked —</option>
+                    {roeDocuments?.map((doc: any) => (
+                      <option key={doc.id} value={doc.id}>
+                        {doc.title} (v{doc.version}) — {doc.status.replace(/_/g, ' ').toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Link an existing Rules of Engagement document to this engagement. <a href="/roe-builder" className="text-primary hover:underline">Create new RoE</a>
+                  </p>
+                </div>
               </div>
               <div className="flex gap-3 mt-4">
                 <Button onClick={handleSubmit} className="font-display tracking-wider">
@@ -625,6 +652,31 @@ export default function Engagements() {
                         {engagement.description && (
                           <p className="text-sm text-muted-foreground mt-2 line-clamp-1">{engagement.description}</p>
                         )}
+                        {/* Linked RoE document */}
+                        {engagement.roeDocumentId && (() => {
+                          const linkedRoe = roeDocuments?.find((d: any) => d.id === engagement.roeDocumentId);
+                          return linkedRoe ? (
+                            <a
+                              href="/roe-builder"
+                              className="flex items-center gap-1.5 mt-2 text-xs text-teal-400 hover:text-teal-300 font-display tracking-wider"
+                            >
+                              <Scale className="w-3 h-3" />
+                              ROE: {linkedRoe.title} (v{linkedRoe.version})
+                              <span className={`px-1.5 py-0.5 text-[10px] ${
+                                linkedRoe.status === 'active' ? 'bg-green-500/20 text-green-300' :
+                                linkedRoe.status === 'approved' ? 'bg-blue-500/20 text-blue-300' :
+                                linkedRoe.status === 'draft' ? 'bg-gray-500/20 text-gray-300' :
+                                'bg-yellow-500/20 text-yellow-300'
+                              }`}>
+                                {linkedRoe.status.replace(/_/g, ' ').toUpperCase()}
+                              </span>
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground font-display tracking-wider">
+                              <Scale className="w-3 h-3" /> ROE #{engagement.roeDocumentId} (LINKED)
+                            </span>
+                          );
+                        })()}
                         {/* Linked campaigns count */}
                         {(() => {
                           const linkedCount = allCampaignLinks?.filter((l: any) => l.engagementId === engagement.id).length || 0;
