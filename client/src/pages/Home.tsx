@@ -41,16 +41,16 @@ function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: 
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
-  { date: "Feb 2026", title: "Atomic Red Team Integration", desc: "1,400+ ATT&CK-mapped atomic tests synced from Red Canary's GitHub repository. Browse by technique, tactic, or platform. Execute tests against target systems with full audit trails. Cross-module integration links atomic tests to Attack Planner, Emulation Playbooks, Purple Team exercises, Caldera operations, ZAP findings, and detection rule validation." },
-  { date: "Feb 2026", title: "OWASP ZAP DAST Server Deployed", desc: "Dedicated OWASP ZAP server deployed to DigitalOcean (sfo3, 2 vCPU / 4GB RAM) with Docker auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. LLM-powered scan configuration auto-tunes spider depth, AJAX spider, authentication handlers, and scan policies based on target tech stack detection." },
-  { date: "Feb 2026", title: "OpenAPI / GraphQL / SOAP Import", desc: "Import API specifications directly into ZAP scans for targeted API security testing. Supports OpenAPI/Swagger, GraphQL introspection endpoints, and WSDL definitions. Auto-discovers API endpoints and parameters for comprehensive coverage beyond traditional web crawling." },
-  { date: "Feb 2026", title: "Exploit, C2 & DAST Stack", desc: "Unified offensive stack: Metasploit (2,600+ exploit modules), MITRE Caldera (1,900+ abilities), OWASP ZAP (DAST scanning), Atomic Red Team (1,400+ ATT&CK tests), and GoPhish (social engineering). All tools orchestrated through a single command center with cross-tool correlation and MITRE ATT&CK mapping." },
-  { date: "Feb 2026", title: "AI-Powered ZAP Orchestrator", desc: "LLM trained on all 12 ZAP API categories (spider, ajaxSpider, ascan, pscan, authentication, context, script, forcedUser, openapi, graphql, soap, reports). Auto-configures scan policies, authentication handlers (form-based, token-based, OAuth), and technology-specific rules. AI triage reduces false positives and maps findings to MITRE ATT&CK techniques with Metasploit exploit correlation." },
-  { date: "Feb 2026", title: "SIEM/EDR Evasion Engine", desc: "Three-tier evasion architecture: SIEM Rule Mutation Engine generates 9+ evasive variants per command. Payload Transformation Pipeline chains ScareCrow, Donut, and Freeze with configurable stealth profiles. Evasion Scorecard produces Campaign Stealth Scores with per-technique detection gaps and purple team remediation actions." },
+  { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped atomic tests synced and ready to execute. Browse by technique, tactic, or platform. Run tests against target systems with full audit trails. Cross-module integration links validation tests to Attack Planner, Emulation Playbooks, Purple Team exercises, adversary operations, DAST findings, and detection rule validation." },
+  { date: "Feb 2026", title: "DAST Server Deployed", desc: "Dedicated DAST scanning server deployed with auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. AI-powered scan configuration auto-tunes spider depth, authentication handlers, and scan policies based on target tech stack detection." },
+  { date: "Feb 2026", title: "OpenAPI / GraphQL / SOAP Import", desc: "Import API specifications directly into DAST scans for targeted API security testing. Supports OpenAPI/Swagger, GraphQL introspection endpoints, and WSDL definitions. Auto-discovers API endpoints and parameters for comprehensive coverage beyond traditional web crawling." },
+  { date: "Feb 2026", title: "Unified Offensive Stack", desc: "Full exploit, C2, and DAST stack unified under one command center — 2,600+ exploit modules, 1,900+ emulation abilities, DAST scanning, 1,400+ ATT&CK validation tests, and social engineering campaigns. All orchestrated with cross-tool correlation and ATT&CK mapping." },
+  { date: "Feb 2026", title: "AI-Powered DAST Orchestrator", desc: "LLM trained on all 12 scanner API categories for full coverage. Auto-configures scan policies, authentication handlers (form-based, token-based, OAuth), and technology-specific rules. AI triage reduces false positives and maps findings to ATT&CK techniques with exploit correlation." },
+  { date: "Feb 2026", title: "SIEM/EDR Evasion Engine", desc: "Three-tier evasion architecture: SIEM Rule Mutation Engine generates 9+ evasive variants per command. Payload Transformation Pipeline chains multiple obfuscation tools with configurable stealth profiles. Evasion Scorecard produces Campaign Stealth Scores with per-technique detection gaps and purple team remediation actions." },
   { date: "Feb 2026", title: "Red Team Discovery Coverage", desc: "Maps all 10 red team discovery priorities to pipeline connectors with weighted scoring. Coverage tab shows per-priority status, quality assessment, contributing sources, and MITRE ATT&CK technique alignment." },
   { date: "Feb 2026", title: "Confirmed-Only Vulnerability Counting", desc: "Vulnerability counts show only confirmed findings by default — KEV-listed, 0-day, or version-matched with exploit evidence. Tier toggle reveals probable and potential matches." },
   { date: "Feb 2026", title: "4 New OSINT Connectors", desc: "Email Security (DMARC/SPF/DKIM/MX spoofability scoring), HTTP Security Headers (WAF, CSP, HSTS), Cloud Asset Discovery (S3/Azure/GCP buckets), and DNS Deep Analysis (A/AAAA/CNAME/NS/SOA/TXT/SRV/CAA with CDN detection)." },
-  { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "LLM-driven exploit validation runs real checks against confirmed CVEs using modules from Metasploit, ExploitDB, and other sources. Evidence capture stores console output, session data, and HTML proof reports in S3." },
+  { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "LLM-driven exploit validation runs real checks against confirmed CVEs using exploit modules from multiple sources. Evidence capture stores console output, session data, and HTML proof reports." },
   { date: "Feb 2026", title: "Kill Chain Timeline & Event Streaming", desc: "Unified engagement timeline with WebSocket-powered live updates. Exploit results, agent deployments, scan progress, and atomic test executions appear instantly across all pages." },
   { date: "Feb 2026", title: "Phishing Exploit Library", desc: "17 advanced phishing techniques (BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing) auto-injected into campaign templates based on target intelligence." },
 ];
@@ -133,9 +133,9 @@ export default function Home() {
 
   // Fallback to verified static values if API hasn't loaded yet
   const stats = useMemo(() => ({
-    exploitModules: liveStats?.metasploitModules ?? 2617,
+    exploitModules: liveStats?.metasploitModules ?? 2617, // API field name kept for backward compat
     threatActors: liveStats?.threatActors ?? 1694,
-    calderaAbilities: liveStats?.calderaAbilities ?? 1919,
+    calderaAbilities: liveStats?.calderaAbilities ?? 1919, // API field name kept for backward compat
     platformModules: liveStats?.platformModules ?? 29,
     exploitCatalogTotal: liveStats?.exploitCatalogTotal ?? 4281,
   }), [liveStats]);
@@ -183,7 +183,7 @@ export default function Home() {
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 border border-primary/40 text-primary text-xs font-display tracking-widest mb-8">
               <Shield className="w-3.5 h-3.5" />
-              EXPLOIT, C2 & DAST STACK
+              UNIFIED OFFENSIVE PLATFORM
             </div>
 
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-display leading-[0.9] tracking-tight mb-8">
@@ -195,8 +195,8 @@ export default function Home() {
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
-              Five open-source offensive tools — Metasploit, Caldera, OWASP ZAP, Atomic Red Team,
-              and GoPhish — unified under one AI-powered command center with evidence-backed reporting.
+              Exploit execution, adversary emulation, DAST scanning, ATT&CK validation,
+              and social engineering — unified under one AI-powered command center with evidence-backed reporting.
             </p>
 
             <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-10">
@@ -246,7 +246,7 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl tracking-wider mb-4">SCAN & DISCOVER</h3>
               <p className="text-muted-foreground leading-relaxed">
-                OWASP ZAP scans web applications for OWASP Top 10 vulnerabilities while 16 OSINT
+                Automated DAST scans web applications for OWASP Top 10 vulnerabilities while 16 OSINT
                 connectors map your external attack surface. AI auto-configures scan policies based
                 on detected tech stacks — including API specs, authentication flows, and SPAs.
               </p>
@@ -258,9 +258,9 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl tracking-wider mb-4">EXPLOIT & EMULATE</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Metasploit executes real exploits. Caldera runs adversary emulation with 1,900+
-                abilities. Atomic Red Team validates 1,400+ ATT&CK techniques. GoPhish launches
-                social engineering campaigns. All coordinated through one kill chain.
+                Real exploit execution with 2,600+ modules. Adversary emulation with 1,900+
+                abilities. 1,400+ ATT&CK validation tests. Social engineering campaigns with
+                17 phishing techniques. All coordinated through one kill chain.
               </p>
             </div>
 
@@ -288,7 +288,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <h2 className="text-4xl sm:text-5xl font-display mb-4">HOW IT WORKS</h2>
             <p className="text-lg text-muted-foreground">
-              Four steps from "I don't know what's vulnerable" to "here's proof of what needs fixing" — powered by five integrated open-source tools.
+              Four steps from "I don't know what's vulnerable" to "here's proof of what needs fixing."
             </p>
           </div>
 
@@ -299,25 +299,25 @@ export default function Home() {
                   step: "1",
                   icon: Radar,
                   title: "Discover Your Attack Surface",
-                  desc: "Point Ace C3 at your domain. OWASP ZAP crawls web applications while 16 OSINT connectors map exposed servers, services, and technologies. AI auto-tunes scan policies based on detected tech stacks. Import OpenAPI, GraphQL, or SOAP specs for full API coverage."
+                  desc: "Point Ace C3 at your domain. Automated DAST crawls web applications while 16 OSINT connectors map exposed servers, services, and technologies. AI auto-tunes scan policies based on detected tech stacks. Import OpenAPI, GraphQL, or SOAP specs for full API coverage."
                 },
                 {
                   step: "2",
                   icon: Bug,
                   title: "Match Vulnerabilities to Exploits",
-                  desc: "ZAP findings and confirmed CVEs are automatically matched to Metasploit modules and public exploit databases. Atomic Red Team maps 1,400+ ATT&CK techniques to executable tests. You see exactly which weaknesses have working attacks."
+                  desc: "DAST findings and confirmed CVEs are automatically matched to exploit modules and public exploit databases. 1,400+ ATT&CK techniques mapped to executable validation tests. You see exactly which weaknesses have working attacks."
                 },
                 {
                   step: "3",
                   icon: Crosshair,
                   title: "Execute Real Attacks",
-                  desc: "Metasploit runs real exploits. Caldera executes adversary emulation with APT-based profiles and 1,900+ abilities. GoPhish launches social engineering campaigns with 17 phishing techniques. Atomic Red Team validates detection coverage — all controlled and audited."
+                  desc: "Real exploit execution against confirmed vulnerabilities. Adversary emulation with APT-based profiles and 1,900+ abilities. Social engineering campaigns with 17 phishing techniques. ATT&CK validation tests confirm detection coverage — all controlled and audited."
                 },
                 {
                   step: "4",
                   icon: BarChart3,
                   title: "Validate, Measure & Report",
-                  desc: "Autonomous validation confirms which CVEs are actually exploitable. Evidence capture stores console output, session data, and HTML proof reports. Auto-generate Sigma, YARA, and Suricata detection rules from executed TTPs. Deliver compliance-ready reports with validation coverage metrics and clickable evidence artifacts."
+                  desc: "Autonomous validation confirms which CVEs are actually exploitable. Evidence capture stores console output, session data, and HTML proof reports. Auto-generate detection rules from executed TTPs. Deliver compliance-ready reports with validation coverage metrics and clickable evidence artifacts."
                 },
               ].map((item) => (
                 <div key={item.step} className="flex gap-5 p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/50">
@@ -348,9 +348,9 @@ export default function Home() {
       <section className="py-16 bg-card/50">
         <div className="container">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
-            <AnimatedStat value={stats.exploitModules} label="METASPLOIT MODULES" suffix="+" />
-            <AnimatedStat value={stats.calderaAbilities} label="CALDERA ABILITIES" suffix="" />
-            <AnimatedStat value={1400} label="ATOMIC RED TEAM TESTS" suffix="+" />
+            <AnimatedStat value={stats.exploitModules} label="EXPLOIT MODULES" suffix="+" />
+            <AnimatedStat value={stats.calderaAbilities} label="EMULATION ABILITIES" suffix="" />
+            <AnimatedStat value={1400} label="ATT&CK VALIDATION TESTS" suffix="+" />
             <AnimatedStat value={stats.threatActors} label="THREAT ACTORS" suffix="+" />
             <AnimatedStat value={5} label="INTEGRATED TOOLS" suffix="" />
             <AnimatedStat value={stats.platformModules} label="PLATFORM MODULES" suffix="" />
@@ -366,15 +366,15 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <h2 className="text-4xl sm:text-5xl font-display mb-4">WHO IT'S FOR</h2>
             <p className="text-lg text-muted-foreground">
-              Designed for teams that need to prove security works — not just check compliance boxes. One command center for your entire exploit, C2, and DAST stack.
+              Designed for teams that need to prove security works — not just check compliance boxes.
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
-              { icon: Crosshair, title: "Red Teams", desc: "Orchestrate Metasploit, Caldera, ZAP, and Atomic Red Team from one command center. Run full adversary emulation with real exploits, DAST scanning, and ATT&CK-mapped validation." },
-              { icon: Shield, title: "Penetration Testers", desc: "Scope engagements, run ZAP DAST scans, execute Metasploit exploits, launch GoPhish campaigns, and deliver evidence-backed reports — all in one workflow." },
-              { icon: ShieldCheck, title: "Purple Teams", desc: "Execute Atomic Red Team tests and Caldera operations, then immediately measure what your defenses catch. Auto-generate detection rules from executed TTPs." },
+              { icon: Crosshair, title: "Red Teams", desc: "Orchestrate exploits, emulation, DAST, and ATT&CK validation from one command center. Run full adversary emulation with real exploits, DAST scanning, and ATT&CK-mapped validation." },
+              { icon: Shield, title: "Penetration Testers", desc: "Scope engagements, run DAST scans, execute exploits, launch phishing campaigns, and deliver evidence-backed reports — all in one workflow." },
+              { icon: ShieldCheck, title: "Purple Teams", desc: "Execute ATT&CK validation tests and adversary operations, then immediately measure what your defenses catch. Auto-generate detection rules from executed TTPs." },
               { icon: Server, title: "Managed Service Providers", desc: "Scale offensive assessments across multiple clients with per-engagement tracking, automated pipelines, and branded reporting." },
               { icon: Building2, title: "Enterprise Security", desc: "Test employee awareness and infrastructure resilience with controlled attack simulations mapped to your industry's threat landscape." },
               { icon: Landmark, title: "Government & Defense", desc: "Support compliance with FedRAMP, CMMC, and NIST frameworks through evidence-based security testing and audit-ready reports." },
@@ -418,7 +418,7 @@ export default function Home() {
         <div className="container text-center">
           <h2 className="text-3xl sm:text-4xl font-display mb-4">READY TO TEST YOUR DEFENSES?</h2>
           <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-            Enter the Command Center to orchestrate your full Exploit, C2, and DAST stack — Metasploit, Caldera, ZAP, Atomic Red Team, and GoPhish from one interface.
+            Enter the Command Center to orchestrate your full offensive stack — exploits, emulation, DAST, validation, and social engineering from one interface.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/dashboard">
@@ -450,19 +450,19 @@ export default function Home() {
           </div>
           <CollapsibleSection
             title="PLATFORM CAPABILITIES"
-            subtitle="Six integrated pillars covering the full offensive execution lifecycle — powered by Metasploit, Caldera, OWASP ZAP, Atomic Red Team, and GoPhish."
+            subtitle="Six integrated pillars covering the full offensive execution lifecycle."
           >
           <div className="grid lg:grid-cols-3 gap-6">
             <PillarCard
               icon={<Target className="w-7 h-7" />}
               number="01"
               title="ADVERSARY EMULATION"
-              description={`Metasploit (${stats.exploitModules.toLocaleString()}+ modules) executes real exploits. Caldera (${stats.calderaAbilities.toLocaleString()} abilities) runs adversary emulation. Atomic Red Team validates 1,400+ ATT&CK techniques. All correlated through MITRE ATT&CK mapping.`}
+              description={`${stats.exploitModules.toLocaleString()}+ exploit modules execute real attacks. ${stats.calderaAbilities.toLocaleString()} adversary abilities run emulation campaigns. 1,400+ ATT&CK validation tests confirm detection coverage. All correlated through MITRE ATT&CK mapping.`}
               features={[
-                "Metasploit exploit execution with session management",
-                "Caldera adversary emulation with APT-based profiles",
-                "Atomic Red Team: 1,400+ ATT&CK-mapped validation tests",
-                "Cross-tool correlation: exploits → abilities → atomic tests",
+                "Real exploit execution with session management",
+                "Adversary emulation with APT-based profiles",
+                "1,400+ ATT&CK-mapped validation tests",
+                "Cross-tool correlation: exploits → abilities → validation tests",
                 "Cloud-provisioned exploit infrastructure with agent stagers",
                 "Real-time operation monitoring with ATT&CK visualization",
               ]}
@@ -474,7 +474,7 @@ export default function Home() {
               icon={<Zap className="w-7 h-7" />}
               number="02"
               title="SOCIAL ENGINEERING"
-              description="GoPhish-powered social engineering with 17 phishing exploit techniques — BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing — auto-injected into campaigns based on target intelligence."
+              description="Social engineering with 17 phishing exploit techniques — BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing — auto-injected into campaigns based on target intelligence."
               features={[
                 "17 phishing exploit techniques auto-matched to targets",
                 "BITB fake SSO, AiTM proxy, HTML smuggling, MFA bypass",
@@ -491,9 +491,9 @@ export default function Home() {
               icon={<Radar className="w-7 h-7" />}
               number="03"
               title="OSINT & RECONNAISSANCE"
-              description="OWASP ZAP DAST scanning with AI-powered configuration plus 16 passive recon connectors. Dual-mode: passive crawling for safe recon, active DAST for coordinated attack testing. Import OpenAPI, GraphQL, and SOAP specs for full API security coverage."
+              description="DAST scanning with AI-powered configuration plus 16 passive recon connectors. Dual-mode: passive crawling for safe recon, active DAST for coordinated attack testing. Import OpenAPI, GraphQL, and SOAP specs for full API security coverage."
               features={[
-                "OWASP ZAP: DAST scanning with LLM-tuned scan policies",
+                "DAST scanning with LLM-tuned scan policies",
                 "OpenAPI / GraphQL / SOAP spec import for API testing",
                 "AJAX Spider for JavaScript-heavy SPA applications",
                 "16 OSINT connectors with confirmed-only vuln counting",
@@ -525,7 +525,7 @@ export default function Home() {
               icon={<ShieldCheck className="w-7 h-7" />}
               number="05"
               title="VALIDATION & DETECTION"
-              description="Autonomous exploit validation confirms which CVEs are actually exploitable using LLM-built modules from Metasploit, ExploitDB, and other sources. Evidence capture stores proof artifacts in S3. Detection engineering auto-generates rules from executed TTPs."
+              description="Autonomous exploit validation confirms which CVEs are actually exploitable using LLM-built modules from multiple exploit sources. Evidence capture stores proof artifacts. Detection engineering auto-generates rules from executed TTPs."
               features={[
                 "Autonomous Validation Engine with KEV/CVSS prioritization",
                 "Evidence capture: console output, session info, HTML reports",
@@ -566,7 +566,7 @@ export default function Home() {
         <div className="container">
           <CollapsibleSection
             title="OPERATIONS CENTER"
-            subtitle="30+ integrated modules organized across six operational domains — orchestrating Metasploit, Caldera, OWASP ZAP, Atomic Red Team, and GoPhish."
+            subtitle="30+ integrated modules organized across six operational domains."
           >
           <div className="space-y-12">
             <ModuleSection
@@ -600,12 +600,12 @@ export default function Home() {
               title="EXPLOIT & EMULATION"
               color="text-orange-400"
               modules={[
-                { icon: Bug, name: "Exploit Arsenal", desc: `Unified catalog: ${stats.exploitModules.toLocaleString()}+ Metasploit modules + phishing exploits + Atomic Red Team tests` },
+                { icon: Bug, name: "Exploit Arsenal", desc: `Unified catalog: ${stats.exploitModules.toLocaleString()}+ exploit modules + phishing exploits + ATT&CK validation tests` },
                 { icon: Server, name: "Exploit Servers", desc: "One-click cloud provisioning with auto-configured exploit frameworks" },
-                { icon: Layers, name: "Abilities Library", desc: `${stats.calderaAbilities.toLocaleString()} adversary abilities organized by MITRE ATT&CK tactic` },
+                { icon: Layers, name: "Abilities Library", desc: `${stats.calderaAbilities.toLocaleString()} emulation abilities organized by MITRE ATT&CK tactic` },
                 { icon: Shield, name: "Threat Actors", desc: `${stats.threatActors.toLocaleString()} actor profiles with kill chains and campaign deployment` },
                 { icon: Brain, name: "TTP Knowledge", desc: "MITRE ATT&CK technique encyclopedia with offensive tool mapping" },
-                { icon: Atom, name: "Atomic Red Team", desc: "1,400+ ATT&CK-mapped tests with cross-module integration and coverage mapping" },
+                { icon: Atom, name: "ATT&CK Validation", desc: "1,400+ ATT&CK-mapped tests with cross-module integration and coverage mapping" },
               ]}
             />
 
@@ -614,7 +614,7 @@ export default function Home() {
               color="text-amber-400"
               modules={[
                 { icon: Brain, name: "Domain Intel", desc: "16 connectors with confirmed-only vuln counting and 3-tier corroboration" },
-                { icon: Scan, name: "Web App Scanner", desc: "OWASP ZAP DAST with dual-mode scanning, AI config, OpenAPI/GraphQL import" },
+                { icon: Scan, name: "Web App Scanner", desc: "DAST with dual-mode scanning, AI config, OpenAPI/GraphQL import" },
                 { icon: Radar, name: "Domain Recon", desc: "DNS deep, email security, HTTP headers, cloud assets, subdomains" },
                 { icon: Eye, name: "Scan Comparison", desc: "Side-by-side diff: new/removed assets, CVE changes, risk deltas" },
                 { icon: Radio, name: "IOC Feed", desc: "Aggregated feeds from multiple authoritative threat intelligence sources" },
@@ -625,7 +625,7 @@ export default function Home() {
               title="DETECTION & VALIDATION"
               color="text-green-400"
               modules={[
-                { icon: FlaskConical, name: "Validation Engine", desc: "LLM-driven exploit validation + Atomic Red Team test execution — KEV/CVSS prioritized, auto-rescore on confirmation" },
+                { icon: FlaskConical, name: "Validation Engine", desc: "LLM-driven exploit validation + ATT&CK test execution — KEV/CVSS prioritized, auto-rescore on confirmation" },
                 { icon: Camera, name: "Evidence Capture", desc: "Automated proof collection: console output, session info, HTML reports, text screenshots stored in S3" },
                 { icon: FileCheck2, name: "Validation Coverage", desc: "Real-time coverage metric tracking validated vs. unconfirmed findings with quality assessment tiers" },
                 { icon: ShieldCheck, name: "Rule Validator", desc: "Validate Sigma, YARA, Suricata, Splunk SPL, and KQL with LLM analysis" },
@@ -655,15 +655,15 @@ export default function Home() {
         <div className="container">
           <CollapsibleSection
             title="ENGAGEMENT WORKFLOW"
-            subtitle="Seven phases from OSINT through post-engagement reporting — powered by five integrated open-source tools."
+            subtitle="Seven phases from OSINT through post-engagement reporting."
           >
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             {[
-              { step: "01", title: "RECON", desc: "OWASP ZAP crawls web apps while 16 OSINT connectors map your attack surface with evidence-based risk scoring", icon: Radar },
-              { step: "02", title: "EXPLOIT", desc: "Match ZAP findings and confirmed CVEs to Metasploit modules and deploy with agent stagers", icon: Target },
-              { step: "03", title: "OPERATE", desc: "Run Caldera adversary operations with 1,900+ abilities and APT-based profiles", icon: Crosshair },
-              { step: "04", title: "PHISH", desc: "Launch GoPhish campaigns with 17 exploit-enhanced phishing techniques and typosquat domains", icon: Zap },
-              { step: "05", title: "VALIDATE", desc: "Run Atomic Red Team tests and autonomous exploit validation with evidence capture to S3", icon: FlaskConical },
+              { step: "01", title: "RECON", desc: "DAST crawls web apps while 16 OSINT connectors map your attack surface with evidence-based risk scoring", icon: Radar },
+              { step: "02", title: "EXPLOIT", desc: "Match DAST findings and confirmed CVEs to exploit modules and deploy with agent stagers", icon: Target },
+              { step: "03", title: "OPERATE", desc: "Run adversary emulation operations with 1,900+ abilities and APT-based profiles", icon: Crosshair },
+              { step: "04", title: "PHISH", desc: "Launch social engineering campaigns with 17 exploit-enhanced phishing techniques and typosquat domains", icon: Zap },
+              { step: "05", title: "VALIDATE", desc: "Run ATT&CK validation tests and autonomous exploit validation with evidence capture", icon: FlaskConical },
               { step: "06", title: "DETECT", desc: "Auto-generate Sigma/YARA/Suricata rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
               { step: "07", title: "REPORT", desc: "Deliver reports with validation coverage metrics, evidence artifacts, and remediation steps", icon: FileText },
             ].map((item) => (
@@ -686,16 +686,16 @@ export default function Home() {
         <div className="container">
           <CollapsibleSection
             title="ARCHITECTURE"
-            subtitle="Backend systems powering the Exploit, C2, and DAST stack."
+            subtitle="Backend systems powering the platform."
           >
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <ArchCard
               icon={<Server className="w-6 h-6" />}
               title="EXPLOIT & C2 ENGINE"
               items={[
-                `Metasploit: ${stats.exploitModules.toLocaleString()}+ exploit modules`,
-                `Caldera: ${stats.calderaAbilities.toLocaleString()} adversary abilities`,
-                "Atomic Red Team: 1,400+ ATT&CK tests",
+                `${stats.exploitModules.toLocaleString()}+ exploit modules`,
+                `${stats.calderaAbilities.toLocaleString()} adversary emulation abilities`,
+                "1,400+ ATT&CK validation tests",
                 "Cloud-provisioned exploit infrastructure",
                 "Cross-tool correlation via MITRE ATT&CK",
               ]}
@@ -715,7 +715,7 @@ export default function Home() {
               icon={<Radar className="w-6 h-6" />}
               title="DAST & RECON ENGINE"
               items={[
-                "OWASP ZAP: DAST scanning with AI-tuned policies",
+                "DAST scanning with AI-tuned policies",
                 "OpenAPI / GraphQL / SOAP spec import",
                 "16 passive recon connectors with confirmed-only counting",
                 "3-tier evidence corroboration (confirmed/probable/potential)",
@@ -737,7 +737,7 @@ export default function Home() {
               icon={<FlaskConical className="w-6 h-6" />}
               title="VALIDATION & EVIDENCE ENGINE"
               items={[
-                "LLM-driven multi-source exploit validation",
+                "LLM-driven exploit validation from multiple sources",
                 "KEV/CVSS candidate prioritization",
                 "4 evidence artifact types captured to S3",
                 "Validation Coverage metric with quality tiers",
@@ -748,7 +748,7 @@ export default function Home() {
               icon={<Sparkles className="w-6 h-6" />}
               title="AI ORCHESTRATION LAYER"
               items={[
-                "LLM-powered ZAP scan configuration",
+                "LLM-powered DAST scan configuration",
                 "AI finding triage & false positive reduction",
                 "Atomic test recommendation engine",
                 "Detection rule auto-generation from TTPs",
@@ -782,16 +782,15 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
                 Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance,
                 CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
-                Ace C3 is our unified Exploit, C2, and DAST stack — orchestrating Metasploit, Caldera,
-                OWASP ZAP, Atomic Red Team, and GoPhish through a single AI-powered command center.
+                Ace C3 is our unified offensive platform — orchestrating exploit execution, adversary emulation,
+                DAST scanning, ATT&CK validation, and social engineering through a single AI-powered command center.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                 Created by Harrison Cook, Ace C3 aligns to Gartner's CTEM framework across all five stages:
                 scoping, discovery, prioritization, validation, and mobilization. Where vulnerability scanners
-                stop at identification and BAS platforms stop at simulation, Ace C3 executes real exploits
-                via Metasploit, runs adversary emulation through Caldera, scans web applications with OWASP ZAP,
-                validates ATT&CK coverage with Atomic Red Team, and tests human defenses with GoPhish —
-                then captures evidence proving exploitability. Every finding is backed by proof, not theory.
+                stop at identification and BAS platforms stop at simulation, Ace C3 executes real exploits,
+                runs adversary emulation, scans web applications, validates ATT&CK coverage, and tests
+                human defenses — then captures evidence proving exploitability. Every finding is backed by proof, not theory.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
@@ -843,7 +842,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE C3</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
-            Ace C3 — Exploit, C2 & DAST Stack | Metasploit · Caldera · OWASP ZAP · Atomic Red Team · GoPhish | Powered by Ace of Cloud
+            Ace C3 — Unified Offensive Platform | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">

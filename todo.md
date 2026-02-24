@@ -3849,3 +3849,11 @@
 - [x] Create tRPC routers: unified-pipeline, sliver-c2, nuclei-scanner, attack-coverage
 - [x] Wire 4 new routers into appRouter
 
+
+## Homepage & What's New Text Cleanup
+- [x] Audit homepage for unnecessary software/platform name mentions
+- [x] Audit What's New popup for unnecessary software/platform name mentions
+- [x] Remove redundant tool/platform name-dropping while preserving meaning
+- [x] Replace Metasploit/Caldera/OWASP ZAP/GoPhish/Atomic Red Team with capability descriptions
+- [x] Clean hero section, value props, How It Works, stats bar, Who It's For, Platform Capabilities, Operations Center, Architecture, About, footer
+- [x] Verify no tool names appear in rendered page text (browser keyword search confirmed)
