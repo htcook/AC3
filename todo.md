@@ -3724,3 +3724,43 @@
 - [x] Produce comprehensive API key audit (configured vs missing)
 - [x] Research and recommend additional API feeds for capability enhancement
 - [x] Include web application scanning integration recommendations
+
+## API Key Provisioning & CISA KEV & Web App Scanning
+- [ ] Provision OTX_API_KEY secret (free, unlocks AlienVault OTX threat intel)
+- [ ] Provision NVD_API_KEY secret (free, 10x faster CVE lookups)
+- [ ] Provision MSF_RPC_HOST, MSF_RPC_PORT, MSF_RPC_USER, MSF_RPC_PASS secrets
+- [x] Integrate CISA KEV Catalog feed (sync service + DB schema) — already existed in ioc-sync.ts
+- [x] Wire KEV data into Remediation Dashboard for exploit prioritization
+- [x] Build OWASP ZAP scanner backend module (zap-scanner.ts)
+- [x] Create web_app_scans and web_app_findings DB tables
+- [x] Build web-app-scanning tRPC router with scan management endpoints
+- [x] Build Web App Scanner UI page with scan launcher, progress, and results
+- [ ] Wire ZAP findings into Corroboration Engine and Remediation Dashboard
+- [x] Write tests for KEV integration and ZAP scanner (33 tests, all passing)
+- [x] Update API audit document to separate free vs paid APIs with usage costs
+
+## Dual-Mode OWASP ZAP Pipeline Integration
+- [x] Register webAppScanningRouter in main routers.ts
+- [x] Add passive spider/crawl mode to domain recon pipeline (OSINT workflow)
+- [x] Add active DAST mode coordinated with attack chains and Metasploit
+- [x] Map ZAP web findings to MITRE ATT&CK techniques for attack chain integration
+- [x] Build Web App Scanner UI page with dual-mode controls (passive recon vs active DAST)
+- [x] Wire ZAP findings into Corroboration Engine for cross-source validation
+- [x] Wire ZAP findings into Remediation Dashboard as actionable items
+- [x] Write tests for dual-mode ZAP integration (33 tests, all passing)
+
+## LLM-Powered ZAP Intelligent Orchestrator
+- [x] Research all OWASP ZAP features, APIs, scan policies, and capabilities
+- [x] Build comprehensive ZAP knowledge base for LLM system prompt
+- [x] Create LLM-powered scan configuration engine (auto-tune based on target tech stack)
+- [x] Add intelligent scan policy selection (authentication-aware, SPA-aware, API-aware)
+- [x] Add AJAX Spider integration for JavaScript-heavy apps
+- [x] Add ZAP script engine integration for custom attack patterns
+- [x] Add authentication handler configuration (form-based, token-based, OAuth)
+- [x] Add fuzzer integration for parameter discovery
+- [x] Map all ZAP findings to MITRE ATT&CK web techniques
+- [x] Add AI-powered finding triage and false positive reduction
+- [x] Wire ZAP passive recon into domain intelligence OSINT workflow
+- [x] Wire ZAP active DAST into attack chain coordination pipeline
+- [x] Build Web App Scanner UI with AI assistant for scan configuration
+- [x] Write tests for LLM orchestrator and dual-mode scanning (33 tests, all passing)

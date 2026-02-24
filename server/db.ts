@@ -780,7 +780,7 @@ import {
   threatActors, InsertThreatActor, ThreatActor,
   threatActorAbilities, InsertThreatActorAbility,
   threatActorIocs, InsertThreatActorIoc,
-  iocFeeds, InsertIocFeed,
+  iocFeeds, InsertIocFeed, IocFeed,
   engagementPipelines, InsertEngagementPipeline,
   iocSyncLogs, InsertIocSyncLog
 } from "../drizzle/schema";
@@ -1478,4 +1478,62 @@ export async function getScoringTimelineByScan(scanId: number, limit = 200): Pro
     .where(eq(scoringAuditLog.scanId, scanId))
     .orderBy(desc(scoringAuditLog.computedAt))
     .limit(limit);
+}
+
+// ─── CISA KEV Lookup Helpers ────────────────────────────────────────────────
+/**
+ * Check if a CVE ID is listed in the CISA Known Exploited Vulnerabilities catalog.
+ * Returns the KEV entry if found, null otherwise.
+ */
+export async function lookupKevByCve(cveId: string): Promise<IocFeed | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [entry] = await db
+    .select()
+    .from(iocFeeds)
+    .where(and(eq(iocFeeds.feedSource, "cisa_kev"), eq(iocFeeds.cveId, cveId)))
+    .limit(1);
+  return entry || null;
+}
+
+/**
+ * Batch check multiple CVE IDs against the KEV catalog.
+ * Returns a Map of cveId → KEV entry for those that are listed.
+ */
+export async function batchLookupKev(cveIds: string[]): Promise<Map<string, IocFeed>> {
+  const db = await getDb();
+  const result = new Map<string, IocFeed>();
+  if (!db || cveIds.length === 0) return result;
+  const entries = await db
+    .select()
+    .from(iocFeeds)
+    .where(and(eq(iocFeeds.feedSource, "cisa_kev"), inArray(iocFeeds.cveId, cveIds)));
+  for (const entry of entries) {
+    if (entry.cveId) result.set(entry.cveId, entry);
+  }
+  return result;
+}
+
+/**
+ * Get KEV catalog statistics: total entries, ransomware-linked, overdue by CISA deadline.
+ */
+export async function getKevStats(): Promise<{
+  totalKev: number;
+  ransomwareLinked: number;
+  overdueByDeadline: number;
+  recentlyAdded: number;
+}> {
+  const db = await getDb();
+  if (!db) return { totalKev: 0, ransomwareLinked: 0, overdueByDeadline: 0, recentlyAdded: 0 };
+  const [total] = await db.select({ count: sql<number>`COUNT(*)` }).from(iocFeeds).where(eq(iocFeeds.feedSource, "cisa_kev"));
+  const [ransomware] = await db.select({ count: sql<number>`COUNT(*)` }).from(iocFeeds).where(and(eq(iocFeeds.feedSource, "cisa_kev"), eq(iocFeeds.knownRansomware, true)));
+  const now = new Date().toISOString().split("T")[0];
+  const [overdue] = await db.select({ count: sql<number>`COUNT(*)` }).from(iocFeeds).where(and(eq(iocFeeds.feedSource, "cisa_kev"), sql`${iocFeeds.dueDate} < ${now}`));
+  const [recent] = await db.select({ count: sql<number>`COUNT(*)` }).from(iocFeeds).where(and(eq(iocFeeds.feedSource, "cisa_kev"), sql`${iocFeeds.createdAt} > DATE_SUB(NOW(), INTERVAL 7 DAY)`));
+  return {
+    totalKev: Number(total?.count || 0),
+    ransomwareLinked: Number(ransomware?.count || 0),
+    overdueByDeadline: Number(overdue?.count || 0),
+    recentlyAdded: Number(recent?.count || 0),
+  };
 }

@@ -1,4 +1,5 @@
-import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, json, boolean, double, float, datetime } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Core user table backing auth flow.
@@ -3959,3 +3960,79 @@ export const attackChainRecords = mysqlTable("attack_chain_records", {
 });
 export type AttackChainRecord = typeof attackChainRecords.$inferSelect;
 export type InsertAttackChainRecord = typeof attackChainRecords.$inferInsert;
+
+
+// ─── Web Application Scanning (OWASP ZAP) ──────────────────────────────────
+
+export const webAppScans = mysqlTable("web_app_scans", {
+  id: int("id").autoincrement().primaryKey(),
+  targetUrl: varchar("target_url", { length: 2048 }).notNull(),
+  scanName: varchar("scan_name", { length: 255 }),
+  scanType: varchar("scan_type", { length: 50 }).notNull().default("full"),
+  scanMode: varchar("scan_mode", { length: 30 }).notNull().default("passive"),
+  status: varchar("status", { length: 50 }).notNull().default("starting"),
+  startedBy: varchar("started_by", { length: 255 }),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  zapSpiderScanId: varchar("zap_spider_scan_id", { length: 100 }),
+  zapActiveScanId: varchar("zap_active_scan_id", { length: 100 }),
+  zapAjaxSpiderScanId: varchar("zap_ajax_spider_scan_id", { length: 100 }),
+  spiderProgress: int("spider_progress").default(0),
+  activeScanProgress: int("active_scan_progress").default(0),
+  urlsDiscovered: int("urls_discovered").default(0),
+  totalAlerts: int("total_alerts").default(0),
+  alertCounts: text("alert_counts"),
+  errorMessage: text("error_message"),
+  // Dual-mode fields
+  detectedTechStack: text("detected_tech_stack"),
+  llmScanConfig: text("llm_scan_config"),
+  scanPolicyName: varchar("scan_policy_name", { length: 100 }),
+  authConfigured: boolean("auth_configured").default(false),
+  ajaxSpiderUsed: boolean("ajax_spider_used").default(false),
+  // Attack chain coordination
+  attackChainId: varchar("attack_chain_id", { length: 100 }),
+  calderaOperationId: varchar("caldera_operation_id", { length: 100 }),
+  metasploitSessionId: varchar("metasploit_session_id", { length: 100 }),
+  // Domain intel integration
+  domainIntelScanId: int("domain_intel_scan_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type WebAppScan = typeof webAppScans.$inferSelect;
+export type InsertWebAppScan = typeof webAppScans.$inferInsert;
+
+export const webAppFindings = mysqlTable("web_app_findings", {
+  id: int("id").autoincrement().primaryKey(),
+  scanId: int("scan_id").notNull(),
+  alertName: varchar("alert_name", { length: 512 }),
+  severity: varchar("severity", { length: 50 }).default("info"),
+  confidence: double("confidence").default(0.5),
+  description: text("description"),
+  solution: text("solution"),
+  reference: text("reference_links"),
+  cweId: int("cwe_id"),
+  wascId: int("wasc_id"),
+  url: varchar("url", { length: 2048 }),
+  method: varchar("method", { length: 10 }),
+  param: varchar("param", { length: 512 }),
+  attack: text("attack"),
+  evidence: text("evidence"),
+  zapPluginId: varchar("zap_plugin_id", { length: 50 }),
+  zapAlertRef: varchar("zap_alert_ref", { length: 50 }),
+  // MITRE ATT&CK mapping
+  mitreAttackId: varchar("mitre_attack_id", { length: 20 }),
+  mitreAttackName: varchar("mitre_attack_name", { length: 255 }),
+  mitreTactic: varchar("mitre_tactic", { length: 100 }),
+  // Attack chain coordination
+  exploitAvailable: boolean("exploit_available").default(false),
+  exploitModulePath: varchar("exploit_module_path", { length: 512 }),
+  calderaAbilityId: varchar("caldera_ability_id", { length: 100 }),
+  // AI triage
+  aiTriageVerdict: varchar("ai_triage_verdict", { length: 50 }),
+  aiTriageReason: text("ai_triage_reason"),
+  falsePositiveScore: double("false_positive_score"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type WebAppFinding = typeof webAppFindings.$inferSelect;
+export type InsertWebAppFinding = typeof webAppFindings.$inferInsert;

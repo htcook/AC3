@@ -151,6 +151,23 @@ export const remediationVerificationRouter = router({
     // Regression rate (items that were fixed but later found vulnerable again)
     const regressionRate = 0; // Would need historical tracking
 
+    // CISA KEV enrichment — flag findings with CVEs in the KEV catalog
+    let kevStats = { totalKev: 0, ransomwareLinked: 0, overdueByDeadline: 0, recentlyAdded: 0 };
+    let kevMatchedFindings = 0;
+    try {
+      const { getKevStats, batchLookupKev } = await import("../db");
+      kevStats = await getKevStats();
+      const cvePattern = /CVE-\d{4}-\d{4,}/gi;
+      const cveIds = all.flatMap(r => {
+        const matches = (r.findingTitle || "").match(cvePattern);
+        return matches ? matches.map((m: string) => m.toUpperCase()) : [];
+      }).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i);
+      if (cveIds.length > 0) {
+        const kevMap = await batchLookupKev(cveIds);
+        kevMatchedFindings = cveIds.filter((id: string) => kevMap.has(id)).length;
+      }
+    } catch (e) { /* KEV enrichment is optional */ }
+
     return {
       total,
       pending,
@@ -164,6 +181,8 @@ export const remediationVerificationRouter = router({
       methodBreakdown,
       avgRemediationHours,
       regressionRate,
+      kevStats,
+      kevMatchedFindings,
     };
   }),
 

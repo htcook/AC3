@@ -111,6 +111,7 @@ const CompensatingControls = lazy(() => import("./pages/CompensatingControls"));
 const PreFlightChecks = lazy(() => import("./pages/PreFlightChecks"));
 const ActiveVerification = lazy(() => import("./pages/ActiveVerification"));
 const IcsOtSecurity = lazy(() => import("./pages/IcsOtSecurity"));
+const WebAppScanner = lazy(() => import("./pages/WebAppScanner"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -500,6 +501,9 @@ function Router() {
         </Route>
         <Route path="/active-verification">
           <ProtectedRoute component={ActiveVerification} />
+        </Route>
+        <Route path="/web-app-scanner">
+          <ProtectedRoute component={WebAppScanner} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
