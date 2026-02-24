@@ -63,6 +63,7 @@ import {
   ShieldPlus,
   Gauge,
   Radar,
+  Atom,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -145,6 +146,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
       { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
       { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
+      { href: "/atomic-red-team", icon: Atom, label: "ATOMIC RED TEAM" },
       { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
       { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
       { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },

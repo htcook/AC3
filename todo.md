@@ -3786,3 +3786,28 @@
 - [x] Deploy ZAP Docker droplet to DigitalOcean (s-2vcpu-4gb, IP: 64.23.239.165)
 - [x] Configure firewall to lock ZAP API behind dashboard IP + API key auth
 - [x] Provision ZAP_BASE_URL and ZAP_API_KEY secrets with deployed values
+
+## Atomic Red Team Integration
+- [x] Research Atomic Red Team YAML structure and GitHub API for test fetching
+- [x] Create atomic_tests and atomic_test_executions database tables
+- [x] Build Atomic Red Team backend module (fetch tests, parse YAML, execute, track results)
+- [x] Build tRPC router for browsing tests by ATT&CK technique, searching, executing, viewing results
+- [x] Build Atomic Red Team UI page with test browser, execution controls, ATT&CK mapping
+- [x] Wire into sidebar navigation and App.tsx routes
+- [x] Map Atomic Red Team tests to existing MITRE ATT&CK pipeline
+- [x] Integrate with Attack Planner (suggest atomic tests for planned techniques)
+- [x] Integrate with Emulation Playbooks (link tests to playbook steps)
+- [x] Integrate with Purple Team (validation exercises)
+- [x] Integrate with Caldera Operations (map abilities to atomic tests)
+- [x] Integrate with Web App Scanner (link ZAP ATT&CK findings to atomic tests)
+- [x] Integrate with Corroboration Engine (cross-validate with atomic results)
+- [x] Integrate with Detection Rules (validate rules by running matching tests)
+- [x] Integrate with EDR Validation (use as test cases)
+- [x] Build cross-module integration service for technique lookups
+- [x] Write tests for Atomic Red Team module (27 tests, all passing)
+
+## Homepage Language Update
+- [ ] Review current homepage copy and hero section
+- [ ] Update language to reflect full Exploit, C2, and DAST stack
+- [ ] Update feature highlights to include Atomic Red Team, ZAP, and new integrations
+- [ ] Update "What's New" pop-up with latest changes

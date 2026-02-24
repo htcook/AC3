@@ -71,6 +71,7 @@ import { activeVerificationRouter } from "./routers/active-verification";
 import { exploitArsenalRouter } from "./routers/exploit-arsenal";
 import { icsOtSecurityRouter } from "./routers/ics-ot-security";
 import { webAppScanningRouter } from "./routers/web-app-scanning";
+import { atomicRedTeamRouter } from "./routers/atomic-red-team";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -224,6 +225,7 @@ export const appRouter = router({
   exploitArsenal: exploitArsenalRouter,
   icsOtSecurity: icsOtSecurityRouter,
   webAppScanning: webAppScanningRouter,
+  atomicRedTeam: atomicRedTeamRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

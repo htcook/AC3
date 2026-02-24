@@ -4036,3 +4036,67 @@ export const webAppFindings = mysqlTable("web_app_findings", {
 
 export type WebAppFinding = typeof webAppFindings.$inferSelect;
 export type InsertWebAppFinding = typeof webAppFindings.$inferInsert;
+
+
+// ─── Atomic Red Team ─────────────────────────────────────────────────────────
+
+/**
+ * Cached Atomic Red Team tests synced from GitHub.
+ * Each row is one atomic test (a technique may have many tests).
+ */
+export const atomicTests = mysqlTable("atomic_tests", {
+  id: int("id").autoincrement().primaryKey(),
+  guid: varchar("guid", { length: 64 }).notNull().unique(),
+  techniqueId: varchar("technique_id", { length: 20 }).notNull(),
+  techniqueName: varchar("technique_name", { length: 512 }).notNull(),
+  testName: varchar("test_name", { length: 512 }).notNull(),
+  description: text("description"),
+  supportedPlatforms: varchar("supported_platforms", { length: 128 }),
+  executorType: varchar("executor_type", { length: 64 }),
+  executorCommand: text("executor_command"),
+  cleanupCommand: text("cleanup_command"),
+  elevationRequired: boolean("elevation_required").default(false),
+  inputArguments: text("input_arguments"),
+  dependencies: text("dependencies"),
+  mitreTactic: varchar("mitre_tactic", { length: 255 }),
+  lastSyncedAt: timestamp("last_synced_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AtomicTest = typeof atomicTests.$inferSelect;
+export type InsertAtomicTest = typeof atomicTests.$inferInsert;
+
+/**
+ * Execution history for Atomic Red Team tests.
+ * Tracks what was run, when, against which target, and the outcome.
+ */
+export const atomicTestExecutions = mysqlTable("atomic_test_executions", {
+  id: int("id").autoincrement().primaryKey(),
+  atomicTestId: int("atomic_test_id").notNull(),
+  guid: varchar("guid", { length: 64 }).notNull(),
+  techniqueId: varchar("technique_id", { length: 20 }).notNull(),
+  testName: varchar("test_name", { length: 512 }).notNull(),
+  executedBy: varchar("executed_by", { length: 64 }).notNull(),
+  targetHost: varchar("target_host", { length: 255 }),
+  targetPlatform: varchar("target_platform", { length: 64 }),
+  status: mysqlEnum("status", ["queued", "running", "success", "failed", "blocked", "cleanup"]).default("queued").notNull(),
+  executorType: varchar("executor_type", { length: 64 }),
+  commandExecuted: text("command_executed"),
+  inputArgs: text("input_args"),
+  stdout: text("stdout"),
+  stderr: text("stderr"),
+  exitCode: int("exit_code"),
+  detectionTriggered: boolean("detection_triggered").default(false),
+  detectionDetails: text("detection_details"),
+  cleanupRan: boolean("cleanup_ran").default(false),
+  cleanupOutput: text("cleanup_output"),
+  attackChainId: varchar("attack_chain_id", { length: 100 }),
+  calderaOperationId: varchar("caldera_operation_id", { length: 100 }),
+  durationMs: int("duration_ms"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AtomicTestExecution = typeof atomicTestExecutions.$inferSelect;
+export type InsertAtomicTestExecution = typeof atomicTestExecutions.$inferInsert;
