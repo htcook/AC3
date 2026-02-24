@@ -235,6 +235,56 @@ export const aiAttackPlannerRouter = router({
       return { html, filename: `attack-plan-${plan.id}-${Date.now()}.html` };
     }),
 
+  /** Poll live Caldera operation status — returns ability execution progress */
+  operationStatus: protectedProcedure
+    .input(z.object({ operationId: z.string() }))
+    .query(async ({ input }) => {
+      const CALDERA_BASE_URL = process.env.CALDERA_BASE_URL;
+      const CALDERA_API_KEY = process.env.CALDERA_API_KEY;
+      if (!CALDERA_BASE_URL || !CALDERA_API_KEY) {
+        return { available: false, state: "unknown" as const, progress: 0, totalAbilities: 0, completedAbilities: 0, succeededAbilities: 0, failedAbilities: 0, queuedAbilities: 0, operationName: "", startedAt: null, abilities: [] as any[], message: "Caldera not configured" };
+      }
+      try {
+        const opRes = await fetch(`${CALDERA_BASE_URL}/api/v2/operations/${input.operationId}`, {
+          headers: { "KEY": CALDERA_API_KEY },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!opRes.ok) {
+          return { available: true, state: "error" as const, progress: 0, totalAbilities: 0, completedAbilities: 0, succeededAbilities: 0, failedAbilities: 0, queuedAbilities: 0, operationName: "", startedAt: null, abilities: [], message: `Caldera returned ${opRes.status}: ${opRes.statusText}` };
+        }
+        const operation = await opRes.json();
+        const chain: any[] = operation.chain || [];
+        const adversary = operation.adversary || {};
+        const totalAbilities = adversary.atomic_ordering?.length || chain.length || 1;
+        const completed = chain.filter((l: any) => l.status !== undefined && l.status !== -3);
+        const succeeded = chain.filter((l: any) => l.status === 0);
+        const failed = chain.filter((l: any) => l.status !== 0 && l.status !== -3 && l.status !== undefined);
+        const queued = chain.filter((l: any) => l.status === -3 || l.status === undefined);
+        const progress = totalAbilities > 0 ? Math.round((completed.length / totalAbilities) * 100) : 0;
+        const abilities = chain.map((link: any) => ({
+          abilityId: link.ability?.ability_id || link.ability_id || "unknown",
+          abilityName: link.ability?.name || link.name || "Unknown Ability",
+          techniqueId: link.ability?.technique_id || "",
+          techniqueName: link.ability?.technique_name || "",
+          status: link.status === 0 ? "success" : link.status === -3 ? "queued" : link.status === -2 ? "discarded" : link.status === 1 ? "failed" : link.status === 124 ? "timeout" : link.status === -1 ? "running" : "unknown",
+          paw: link.paw || "",
+          output: link.output ? Buffer.from(link.output, "base64").toString("utf-8").slice(0, 500) : "",
+          startedAt: link.decide || null,
+          finishedAt: link.finish || null,
+        }));
+        let state: "running" | "paused" | "finished" | "cleanup" | "error" | "unknown" = "unknown";
+        if (operation.state === "running") state = "running";
+        else if (operation.state === "paused") state = "paused";
+        else if (operation.state === "finished" || operation.state === "cleanup") state = "finished";
+        return {
+          available: true, state, progress, totalAbilities, completedAbilities: completed.length, succeededAbilities: succeeded.length, failedAbilities: failed.length, queuedAbilities: queued.length, operationName: operation.name || "", startedAt: operation.start || null, abilities,
+          message: state === "finished" ? `Operation complete: ${succeeded.length} succeeded, ${failed.length} failed out of ${totalAbilities} abilities.` : state === "running" ? `Running: ${completed.length}/${totalAbilities} abilities executed (${progress}%)` : state === "paused" ? `Paused: ${completed.length}/${totalAbilities} abilities executed. Start the operation to continue.` : `Status: ${operation.state || "unknown"}`,
+        };
+      } catch (err: any) {
+        return { available: true, state: "error" as const, progress: 0, totalAbilities: 0, completedAbilities: 0, succeededAbilities: 0, failedAbilities: 0, queuedAbilities: 0, operationName: "", startedAt: null, abilities: [], message: `Failed to poll Caldera: ${err.message}` };
+      }
+    }),
+
   getStats: protectedProcedure.query(async () => {
     const { getDb } = await import("../db");
     const { aiAttackPlans } = await import("../../drizzle/schema");

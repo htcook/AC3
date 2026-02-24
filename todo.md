@@ -3714,3 +3714,13 @@
 - [x] Add branded PDF export for Corroboration Engine (findings, confidence scores, source results)
 - [x] Write tests for seed data, Caldera integration, and PDF export endpoints (77 tests, all passing)
 - [x] Add [DEMO] prefix to all seed data finding titles so viewers know it's not real
+
+## Clear Demo Data & Live Operation Polling
+- [x] Add clearDemoData endpoint to remediation router (only deletes [DEMO]-prefixed items)
+- [x] Add Clear Demo Data button to Remediation Dashboard UI next to Seed Demo button
+- [x] Add Caldera operation status polling endpoint to attack planner router
+- [x] Add live progress bar to Attack Planner showing ability execution status after Accept
+- [x] Write tests for clearDemoData and operation polling endpoints (77 tests, all passing)
+- [x] Produce comprehensive API key audit (configured vs missing)
+- [x] Research and recommend additional API feeds for capability enhancement
+- [x] Include web application scanning integration recommendations

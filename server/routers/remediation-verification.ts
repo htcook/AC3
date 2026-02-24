@@ -357,6 +357,18 @@ export const remediationVerificationRouter = router({
     return { html, filename: `remediation-report-${Date.now()}.html` };
   }),
 
+  /** Clear demo data — only deletes items with [DEMO] prefix, never touches real data */
+  clearDemoData: protectedProcedure.mutation(async () => {
+    const { getDb } = await import("../db");
+    const { remediationVerifications } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const { like } = await import("drizzle-orm");
+    const deleted = await db.delete(remediationVerifications).where(like(remediationVerifications.findingTitle, "[DEMO]%"));
+    const deletedCount = (deleted as any)[0]?.affectedRows ?? 0;
+    return { success: true, deleted: deletedCount, message: `Cleared ${deletedCount} demo items` };
+  }),
+
   getStats: protectedProcedure.query(async () => {
     const { getDb } = await import("../db");
     const { remediationVerifications } = await import("../../drizzle/schema");

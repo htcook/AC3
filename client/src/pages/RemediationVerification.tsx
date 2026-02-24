@@ -120,6 +120,7 @@ const RemediationVerificationPage = () => {
         <div className="flex gap-2 flex-wrap">
           <ExportRemediationButton />
           <SeedDemoButton onSuccess={() => listQuery.refetch()} />
+          <ClearDemoButton onSuccess={() => listQuery.refetch()} />
           <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button size="lg" className="gap-2">
@@ -495,6 +496,23 @@ function SeedDemoButton({ onSuccess }: { onSuccess: () => void }) {
     <Button variant="outline" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending} className="gap-2">
       {seedMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
       Seed Demo Data
+    </Button>
+  );
+}
+
+function ClearDemoButton({ onSuccess }: { onSuccess: () => void }) {
+  const clearMutation = trpc.remediationVerification.clearDemoData.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      onSuccess();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  return (
+    <Button variant="outline" onClick={() => clearMutation.mutate()} disabled={clearMutation.isPending} className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10">
+      {clearMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+      Clear Demo Data
     </Button>
   );
 }

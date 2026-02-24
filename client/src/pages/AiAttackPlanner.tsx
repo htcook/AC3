@@ -103,9 +103,12 @@ const AiAttackPlannerPage = () => {
     },
   });
 
+  const [calderaOpId, setCalderaOpId] = useState<string | null>(null);
+
   const acceptPlanMutation = trpc.aiAttackPlanner.accept.useMutation({
-    onSuccess: () => {
-      toast.success("Plan accepted and marked ready for execution");
+    onSuccess: (data) => {
+      toast.success(data.message);
+      if (data.calderaOperationId) setCalderaOpId(data.calderaOperationId);
       utils.aiAttackPlanner.list.invalidate();
     },
   });
@@ -376,6 +379,7 @@ const AiAttackPlannerPage = () => {
               }}
               isAccepting={acceptPlanMutation.isPending}
               isDeleting={deletePlanMutation.isPending}
+              calderaOpId={calderaOpId}
             />
           )}
         </div>
@@ -391,12 +395,14 @@ function PlanDetail({
   onDelete,
   isAccepting,
   isDeleting,
+  calderaOpId,
 }: {
   plan: AttackPlan;
   onAccept: () => void;
   onDelete: () => void;
   isAccepting: boolean;
   isDeleting: boolean;
+  calderaOpId: string | null;
 }) {
   const actor = THREAT_ACTORS.find(a => a.value === plan.threatActorProfile);
 
@@ -482,6 +488,11 @@ function PlanDetail({
       </CardHeader>
 
       <CardContent>
+        {/* Live Operation Progress Bar */}
+        {(plan.status === "executing" || plan.status === "ready") && (
+          <OperationProgressBar operationId={calderaOpId} planStatus={plan.status} />
+        )}
+
         <Tabs defaultValue="killchain" className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="killchain">Kill Chain</TabsTrigger>
@@ -626,6 +637,113 @@ function ExportPlanButton({ planId }: { planId: number }) {
       {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
       Export PDF
     </Button>
+  );
+}
+
+function OperationProgressBar({ operationId, planStatus }: { operationId: string | null; planStatus: string }) {
+  const statusQuery = trpc.aiAttackPlanner.operationStatus.useQuery(
+    { operationId: operationId || "" },
+    {
+      enabled: !!operationId,
+      refetchInterval: operationId ? 5000 : false, // Poll every 5s when active
+    }
+  );
+
+  const status = statusQuery.data;
+
+  if (!operationId) {
+    return (
+      <Alert className="mb-4 border-emerald-500/30 bg-emerald-500/5">
+        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        <AlertTitle>Plan Accepted</AlertTitle>
+        <AlertDescription>Caldera not configured — plan accepted locally. Set CALDERA_BASE_URL and CALDERA_API_KEY to enable live operations.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!status || statusQuery.isLoading) {
+    return (
+      <div className="mb-4 p-4 rounded-lg border bg-card">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Connecting to Caldera operation...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const stateColors: Record<string, string> = {
+    running: "text-orange-400",
+    paused: "text-yellow-400",
+    finished: "text-green-400",
+    error: "text-red-400",
+    unknown: "text-muted-foreground",
+  };
+
+  const progressColor = status.state === "finished" ? "bg-green-500" : status.state === "running" ? "bg-orange-500" : "bg-yellow-500";
+
+  return (
+    <div className="mb-4 p-4 rounded-lg border bg-card space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {status.state === "running" ? (
+            <Zap className={`h-4 w-4 ${stateColors[status.state]} animate-pulse`} />
+          ) : status.state === "finished" ? (
+            <CheckCircle2 className={`h-4 w-4 ${stateColors[status.state]}`} />
+          ) : status.state === "paused" ? (
+            <Clock className={`h-4 w-4 ${stateColors[status.state]}`} />
+          ) : (
+            <AlertTriangle className={`h-4 w-4 ${stateColors[status.state] || stateColors.unknown}`} />
+          )}
+          <span className={`text-sm font-medium ${stateColors[status.state] || stateColors.unknown}`}>
+            {status.operationName || "Caldera Operation"}
+          </span>
+          <Badge variant="outline" className="text-xs">{status.state?.toUpperCase()}</Badge>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {status.completedAbilities}/{status.totalAbilities} abilities
+        </span>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
+          style={{ width: `${status.progress}%` }}
+        />
+      </div>
+
+      {/* Ability Breakdown */}
+      <div className="flex gap-4 text-xs">
+        <span className="text-green-400">\u2713 {status.succeededAbilities || 0} succeeded</span>
+        <span className="text-red-400">\u2717 {status.failedAbilities || 0} failed</span>
+        <span className="text-muted-foreground">\u25CB {status.queuedAbilities || 0} queued</span>
+      </div>
+
+      {/* Status Message */}
+      <p className="text-xs text-muted-foreground">{status.message}</p>
+
+      {/* Ability List (collapsed by default, expandable) */}
+      {status.abilities && status.abilities.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+            View {status.abilities.length} ability details
+          </summary>
+          <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+            {status.abilities.map((ability: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-2 text-xs p-1.5 rounded bg-muted/30">
+                <span className={ability.status === "success" ? "text-green-400" : ability.status === "running" ? "text-orange-400 animate-pulse" : ability.status === "failed" || ability.status === "timeout" ? "text-red-400" : "text-muted-foreground"}>
+                  {ability.status === "success" ? "\u2713" : ability.status === "running" ? "\u25CF" : ability.status === "failed" || ability.status === "timeout" ? "\u2717" : "\u25CB"}
+                </span>
+                <code className="font-mono text-[10px] bg-muted px-1 rounded">{ability.techniqueId || "—"}</code>
+                <span className="truncate">{ability.abilityName}</span>
+                {ability.paw && <span className="text-muted-foreground ml-auto">paw: {ability.paw}</span>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
 
