@@ -244,7 +244,7 @@ export default function CampaignWizard() {
         try {
           const internalCampaign = await createInternalCampaign.mutateAsync({
             name: campaignName,
-            description: `Phishing campaign with attack template applied. GoPhish ID: ${result?.id || 'unknown'}`,
+            description: `Phishing campaign with attack template applied. Campaign ID: ${result?.id || 'unknown'}`,
           });
           if (internalCampaign?.id) {
             const applyResult = await applyTemplateMutation.mutateAsync({

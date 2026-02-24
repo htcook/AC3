@@ -145,7 +145,7 @@ export default function AtomicRedTeam() {
                 <Atom className="h-5 w-5 text-red-400" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-foreground tracking-tight">Atomic Red Team</h1>
+                <h1 className="text-2xl font-bold text-foreground tracking-tight">ATT&CK Test Library</h1>
                 <p className="text-sm text-muted-foreground">1,400+ ATT&CK-mapped adversary emulation tests</p>
               </div>
             </div>

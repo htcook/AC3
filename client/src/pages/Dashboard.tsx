@@ -227,9 +227,9 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 mr-2">
               <div className={`w-2.5 h-2.5 rounded-full ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
-              <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">CALDERA</span>
+              <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">EMULATION</span>
               <div className={`w-2.5 h-2.5 rounded-full ml-2 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
-              <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">GOPHISH</span>
+              <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">PHISHING</span>
               <div className={`w-2.5 h-2.5 rounded-full ml-2 ${wsConnected ? 'bg-cyan-500 animate-pulse' : 'bg-gray-500'}`} />
               <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">LIVE</span>
             </div>
@@ -496,7 +496,7 @@ export default function Dashboard() {
             <QuickAccessCard icon={<Brain />} label="DOMAIN INTEL" desc="AI-powered pipeline" href="/domain-intel" color="text-cyan-400 border-cyan-500/30" />
             <QuickAccessCard icon={<Target />} label="THREAT ACTORS" desc={`${threatStats?.totalActors ?? '...'}+ actor profiles`} href="/threat-catalog" color="text-red-400 border-red-500/30" />
             <QuickAccessCard icon={<Layers />} label="ENGAGEMENTS" desc="Manage campaigns" href="/engagements" color="text-primary border-primary/30" />
-            <QuickAccessCard icon={<Fish />} label="GOPHISH" desc="Phishing campaigns" href="/phishing-ops" color="text-emerald-400 border-emerald-500/30" />
+            <QuickAccessCard icon={<Fish />} label="PHISHING" desc="Phishing campaigns" href="/phishing-ops" color="text-emerald-400 border-emerald-500/30" />
             <QuickAccessCard icon={<Activity />} label="CAMPAIGN EXEC" desc="Live operations" href="/operations/monitor" color="text-yellow-400 border-yellow-500/30" />
             <QuickAccessCard icon={<BarChart3 />} label="REPORTS" desc="Generate reports" href="/reports/engagement" color="text-purple-400 border-purple-500/30" />
           </div>
@@ -531,8 +531,8 @@ export default function Dashboard() {
           onToggle={() => toggleSection('servers')}
           badge={
             <div className="flex items-center gap-2">
-              <StatusDot status={serverStatus} label="CALDERA" />
-              <StatusDot status={gophishStatus} label="GOPHISH" />
+              <StatusDot status={serverStatus} label="EMULATION" />
+              <StatusDot status={gophishStatus} label="PHISHING" />
             </div>
           }
         >
@@ -541,7 +541,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-3 h-3 ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
                 <div className="flex-1">
-                  <h3 className="font-display text-sm">CALDERA SERVER</h3>
+                  <h3 className="font-display text-sm">EMULATION SERVER</h3>
                   <p className="text-[10px] text-muted-foreground">{DEFAULT_SERVER.ipAddress}:8888</p>
                 </div>
                 <span className={`px-2 py-0.5 text-[10px] font-display tracking-wider ${serverStatus === 'online' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
@@ -557,7 +557,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-3 h-3 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
                 <div className="flex-1">
-                  <h3 className="font-display text-sm text-emerald-500">GOPHISH SERVER</h3>
+                  <h3 className="font-display text-sm text-emerald-500">PHISHING SERVER</h3>
                   <p className="text-[10px] text-muted-foreground">{DEFAULT_SERVER.ipAddress}:3333</p>
                 </div>
                 <span className={`px-2 py-0.5 text-[10px] font-display tracking-wider ${gophishStatus === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
@@ -573,10 +573,10 @@ export default function Dashboard() {
         </CollapsibleSection>
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* GOPHISH METRICS — Collapsible                                  */}
+        {/* PHISHING METRICS — Collapsible                                  */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         <CollapsibleSection
-          title="GOPHISH EMAIL METRICS"
+          title="PHISHING EMAIL METRICS"
           expanded={expandedSections.gophish}
           onToggle={() => toggleSection('gophish')}
           icon={<Fish className="w-4 h-4 text-emerald-500" />}

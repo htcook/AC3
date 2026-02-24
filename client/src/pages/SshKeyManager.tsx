@@ -109,7 +109,7 @@ export default function SshKeyManager() {
             SSH Key Management
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage SSH keys for secure tunnel connections to Metasploit C2 servers
+            Manage SSH keys for secure tunnel connections to C2 servers
           </p>
         </div>
         <div className="flex gap-2">
@@ -247,7 +247,7 @@ export default function SshKeyManager() {
             <Key className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-semibold">No SSH Keys</h3>
             <p className="text-muted-foreground mt-1 max-w-sm">
-              Generate or upload an SSH key pair to establish secure tunnel connections to your Metasploit C2 servers.
+              Generate or upload an SSH key pair to establish secure tunnel connections to your C2 servers.
             </p>
             <Button className="mt-4" onClick={() => setGenerateOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -398,7 +398,7 @@ export default function SshKeyManager() {
             <div className="text-sm text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">SSH Key Security</p>
               <p>
-                SSH keys provide secure, password-less authentication for tunnel connections to your MSF servers.
+                SSH keys provide secure, password-less authentication for tunnel connections to your C2 servers.
                 Private keys are stored encrypted in the database. For maximum security, use Ed25519 keys and
                 rotate them regularly. After generating or rotating a key, you must add the new public key to
                 the target server's <code className="text-xs bg-muted px-1 py-0.5 rounded">~/.ssh/authorized_keys</code> file.

@@ -285,7 +285,7 @@ export default function Engagements() {
             onClick={() => window.open('https://caldera.aceofcloud.io', '_blank')}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
-            CALDERA
+            EMULATION UI
           </Button>
         </div>
       </div>
@@ -333,7 +333,7 @@ export default function Engagements() {
           }`}
         >
           <Crosshair className="w-4 h-4 inline mr-2" />
-          CALDERA OPERATIONS ({enrichedOperations.length})
+          EMULATION OPERATIONS ({enrichedOperations.length})
         </button>
       </div>
 
@@ -828,7 +828,7 @@ export default function Engagements() {
                                         rel="noopener noreferrer"
                                         className="text-xs text-orange-500 hover:text-orange-400 font-display tracking-wider flex items-center gap-1"
                                       >
-                                        <ExternalLink className="w-3 h-3" /> GOPHISH
+                                        <ExternalLink className="w-3 h-3" /> PHISHING
                                       </a>
                                       <Button
                                         variant="ghost"
@@ -859,7 +859,7 @@ export default function Engagements() {
         </>
       )}
 
-      {/* ===== CALDERA OPERATIONS TAB ===== */}
+      {/* ===== EMULATION OPERATIONS TAB ===== */}
       {activeTab === 'operations' && (
         <>
           {/* Operations Header */}

@@ -600,7 +600,7 @@ export default function LandingPageBuilder() {
               <Download className="w-3.5 h-3.5" /> Download
             </button>
             <Button size="sm" className="font-display tracking-wider bg-green-500 hover:bg-green-600 text-black" onClick={exportToGoPhish} disabled={createLandingPage.isPending}>
-              <Save className="w-4 h-4 mr-1" /> EXPORT TO GOPHISH
+              <Save className="w-4 h-4 mr-1" /> EXPORT TO CAMPAIGN
             </Button>
           </div>
         </div>
@@ -730,7 +730,7 @@ export default function LandingPageBuilder() {
 
             {/* Phishing Export Settings */}
             <div className="px-3 py-2 border-b border-border">
-              <span className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-1"><Globe className="w-3 h-3" /> GOPHISH SETTINGS</span>
+              <span className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-1"><Globe className="w-3 h-3" /> CAMPAIGN SETTINGS</span>
             </div>
             <div className="p-3 space-y-3">
               <div>

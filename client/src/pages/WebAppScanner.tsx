@@ -62,7 +62,7 @@ const MODE_CONFIG = {
     icon: Zap,
     color: "text-red-400",
     bg: "bg-red-500/10 border-red-500/30",
-    description: "Full active scanning with exploit detection. Coordinates with Metasploit/Caldera attack chains.",
+    description: "Full active scanning with exploit detection. Coordinates with exploit and emulation attack chains.",
   },
 };
 
@@ -118,7 +118,7 @@ export default function WebAppScanner() {
             Web Application Scanner
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            OWASP ZAP dual-mode scanning with LLM-powered intelligent orchestration
+            Dual-mode DAST scanning with LLM-powered intelligent orchestration
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -505,7 +505,7 @@ function FindingRow({ finding }: { finding: any }) {
             <div><span className="font-semibold text-muted-foreground">MITRE ATT&CK:</span> <span className="text-purple-400">{finding.mitreAttackId} — {finding.mitreAttackName}</span> <span className="text-muted-foreground">({finding.mitreTactic})</span></div>
           )}
           {finding.exploitModulePath && (
-            <div><span className="font-semibold text-muted-foreground">Metasploit Module:</span> <code className="bg-red-500/10 text-red-400 px-1 rounded">{finding.exploitModulePath}</code></div>
+            <div><span className="font-semibold text-muted-foreground">Exploit Module:</span> <code className="bg-red-500/10 text-red-400 px-1 rounded">{finding.exploitModulePath}</code></div>
           )}
           {finding.aiTriageReason && (
             <div className="p-2 rounded bg-muted/20 border border-border/30">
@@ -677,7 +677,7 @@ function ExploitCorrelationView({ scans }: { scans: any[] }) {
       <Alert className="border-red-500/30 bg-red-500/5">
         <ShieldAlert className="w-4 h-4 text-red-400" />
         <AlertDescription className="text-sm">
-          <strong>{exploitableFindings.length} findings</strong> have known Metasploit exploit modules. These represent the highest-priority attack vectors for coordinated exploitation.
+          <strong>{exploitableFindings.length} findings</strong> have known exploit modules. These represent the highest-priority attack vectors for coordinated exploitation.
         </AlertDescription>
       </Alert>
 
@@ -695,7 +695,7 @@ function ExploitCorrelationView({ scans }: { scans: any[] }) {
                   <div className="text-xs text-muted-foreground mt-1">{f.url}</div>
                   <div className="mt-2 flex items-center gap-4 text-xs">
                     <div>
-                      <span className="text-muted-foreground">Metasploit: </span>
+                      <span className="text-muted-foreground">Exploit: </span>
                       <code className="text-red-400 bg-red-500/10 px-1 rounded">{f.exploitModulePath}</code>
                     </div>
                     {f.mitreAttackId && (
@@ -712,8 +712,8 @@ function ExploitCorrelationView({ scans }: { scans: any[] }) {
                     )}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => toast.info("Metasploit handoff — configure MSF RPC connection to launch exploit")}>
-                  <ArrowRight className="w-3 h-3 mr-1" />Launch in MSF
+                <Button variant="outline" size="sm" className="border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => toast.info("Exploit handoff — configure C2 connection to launch exploit")}>
+                  <ArrowRight className="w-3 h-3 mr-1" />Launch Exploit
                 </Button>
               </div>
             </CardContent>
@@ -818,7 +818,7 @@ function NewScanDialog({ open, onOpenChange, onScanStarted }: {
             New Web Application Scan
           </DialogTitle>
           <DialogDescription>
-            Configure and launch an OWASP ZAP scan with AI-powered optimization.
+            Configure and launch a DAST scan with AI-powered optimization.
           </DialogDescription>
         </DialogHeader>
 

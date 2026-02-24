@@ -156,7 +156,7 @@ export default function ValidationEngine() {
 
   const handleStartRun = () => {
     if (!selectedScanId || !selectedMsfServer) {
-      toast.error("Select a scan and MSF server first.");
+      toast.error("Select a scan and exploit server first.");
       return;
     }
     startRunMutation.mutate({
@@ -187,7 +187,7 @@ export default function ValidationEngine() {
             Autonomous Validation Engine
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Safe, non-destructive exploitation validation of discovered vulnerabilities. Targets KEV-confirmed CVEs with known Metasploit modules.
+            Safe, non-destructive exploitation validation of discovered vulnerabilities. Targets KEV-confirmed CVEs with known exploit modules.
           </p>
         </div>
         {results.length > 0 && (
@@ -247,12 +247,12 @@ export default function ValidationEngine() {
                   </Select>
                 </div>
 
-                {/* MSF Server Selector */}
+                {/* Exploit Server Selector */}
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">C2 Server</Label>
                   <Select value={selectedMsfServer} onValueChange={setSelectedMsfServer}>
                     <SelectTrigger className="bg-zinc-900 border-zinc-700">
-                      <SelectValue placeholder="Select MSF server..." />
+                      <SelectValue placeholder="Select exploit server..." />
                     </SelectTrigger>
                     <SelectContent>
                       {(msfServersQuery.data || []).map((s: any) => (
@@ -280,7 +280,7 @@ export default function ValidationEngine() {
                     </SelectContent>
                   </Select>
                   <p className="text-[10px] text-muted-foreground">
-                    {mode === "check_only" && "Uses MSF 'check' command — no payload execution. Lowest risk."}
+                    {mode === "check_only" && "Uses exploit 'check' command — no payload execution. Lowest risk."}
                     {mode === "auxiliary_scan" && "Runs auxiliary scanner modules — may trigger IDS. Medium risk."}
                     {mode === "safe_exploit" && "Attempts exploitation with benign payloads. Requires approval per candidate."}
                   </p>
@@ -346,7 +346,7 @@ export default function ValidationEngine() {
                   )}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Highest-confidence targets ranked by KEV confirmation, CVSS score, and MSF module availability.
+                  Highest-confidence targets ranked by KEV confirmation, CVSS score, and exploit module availability.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -363,7 +363,7 @@ export default function ValidationEngine() {
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <ShieldCheck className="w-10 h-10 mb-3 opacity-30" />
                     <p className="text-sm">No validation candidates found</p>
-                    <p className="text-xs mt-1">This scan has no assets with KEV-confirmed CVEs or known MSF modules.</p>
+                    <p className="text-xs mt-1">This scan has no assets with KEV-confirmed CVEs or known exploit modules.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
@@ -384,7 +384,7 @@ export default function ValidationEngine() {
                           <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
                             <span>CVSS {c.cvssScore?.toFixed(1) || "N/A"}</span>
                             <span>·</span>
-                            <span className="font-mono truncate max-w-[200px]">{c.msfModule || "No MSF module"}</span>
+                            <span className="font-mono truncate max-w-[200px]">{c.msfModule || "No exploit module"}</span>
                             <span>·</span>
                             <span>Risk: {c.currentRiskScore?.toFixed(0) || "?"}</span>
                           </div>

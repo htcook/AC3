@@ -660,7 +660,7 @@ function OperationProgressBar({ operationId, planStatus }: { operationId: string
       <Alert className="mb-4 border-emerald-500/30 bg-emerald-500/5">
         <CheckCircle2 className="h-4 w-4 text-emerald-400" />
         <AlertTitle>Plan Accepted</AlertTitle>
-        <AlertDescription>Caldera not configured — plan accepted locally. Set CALDERA_BASE_URL and CALDERA_API_KEY to enable live operations.</AlertDescription>
+        <AlertDescription>Emulation server not configured — plan accepted locally. Set server credentials to enable live operations.</AlertDescription>
       </Alert>
     );
   }
@@ -670,7 +670,7 @@ function OperationProgressBar({ operationId, planStatus }: { operationId: string
       <div className="mb-4 p-4 rounded-lg border bg-card">
         <div className="flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Connecting to Caldera operation...</span>
+          <span className="text-sm text-muted-foreground">Connecting to emulation operation...</span>
         </div>
       </div>
     );
@@ -700,7 +700,7 @@ function OperationProgressBar({ operationId, planStatus }: { operationId: string
             <AlertTriangle className={`h-4 w-4 ${stateColors[status.state] || stateColors.unknown}`} />
           )}
           <span className={`text-sm font-medium ${stateColors[status.state] || stateColors.unknown}`}>
-            {status.operationName || "Caldera Operation"}
+            {status.operationName || "Emulation Operation"}
           </span>
           <Badge variant="outline" className="text-xs">{status.state?.toUpperCase()}</Badge>
         </div>

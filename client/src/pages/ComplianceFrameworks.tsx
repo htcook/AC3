@@ -582,7 +582,7 @@ export default function ComplianceFrameworks() {
                 <div className="mt-4">
                   <a href="https://gophish.aceofcloud.io/templates" target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" size="sm" className="w-full font-display tracking-wider border-pink-500/50 text-pink-400 hover:bg-pink-500/10">
-                      IMPORT TO GOPHISH TEMPLATES
+                      IMPORT TO PHISHING TEMPLATES
                     </Button>
                   </a>
                 </div>

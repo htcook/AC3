@@ -79,10 +79,10 @@ export default function SliverC2() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
               <Hexagon className="w-7 h-7 text-emerald-400" />
-              Sliver C2 Framework
+              Implant C2 Framework
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage implants, sessions, and listeners for the Sliver C2 framework. Generate cross-platform implants with mTLS, HTTPS, DNS, or WireGuard transport.
+              Manage implants, sessions, and listeners for the C2 framework. Generate cross-platform implants with mTLS, HTTPS, DNS, or WireGuard transport.
             </p>
           </div>
           <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
@@ -94,7 +94,7 @@ export default function SliverC2() {
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>Generate Implant</DialogTitle>
-                <DialogDescription>Configure and generate a new Sliver implant.</DialogDescription>
+                <DialogDescription>Configure and generate a new C2 implant.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>

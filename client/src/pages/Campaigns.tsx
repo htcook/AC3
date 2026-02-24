@@ -122,7 +122,7 @@ export default function Campaigns() {
                 onClick={handleOpenCaldera}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
-                OPEN CALDERA
+                OPEN EMULATION UI
               </Button>
             </div>
           </div>

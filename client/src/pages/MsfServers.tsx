@@ -46,7 +46,7 @@ export default function MsfServers() {
   const healthCheckMut = trpc.metasploit.checkServerHealth.useMutation({
     onSuccess: (data: any) => {
       if (data.status === "online") {
-        toast.success(`Server is online — MSF ${data.version?.version || "connected"}`);
+        toast.success(`Server is online — v${data.version?.version || "connected"}`);
       } else {
         toast.warning(`Server is offline: ${data.error || "unreachable"}`);
       }
@@ -174,7 +174,7 @@ export default function MsfServers() {
                         <div className="text-zinc-200 font-mono text-xs">{server.rpcPort || 55553}</div>
                       </div>
                       <div className="bg-zinc-800/50 rounded p-2">
-                        <div className="text-xs text-zinc-500">MSF Version</div>
+                        <div className="text-xs text-zinc-500">Framework Version</div>
                         <div className="text-zinc-200 text-xs">{server.msfVersion || "—"}</div>
                       </div>
                     </div>

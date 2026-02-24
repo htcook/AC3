@@ -143,7 +143,7 @@ export default function ThreatActorCatalogDetail() {
     { id: "techniques", label: "TECHNIQUES", count: techniques.length },
     { id: "events", label: "EVENTS", count: events.length },
     { id: "iocs", label: "IOCs", count: iocs.length },
-    ...(actor.calderaProfile ? [{ id: "caldera" as TabId, label: "CALDERA" }] : []),
+    ...(actor.calderaProfile ? [{ id: "caldera" as TabId, label: "EMULATION" }] : []),
   ];
 
   return (
@@ -533,7 +533,7 @@ export default function ThreatActorCatalogDetail() {
         {activeTab === "caldera" && actor.calderaProfile && (
           <div className="bg-card border border-cyan-500/20 p-6">
             <h3 className="text-sm font-display tracking-wider text-cyan-400 mb-4 flex items-center gap-2">
-              <Activity className="w-5 h-5" /> CALDERA ADVERSARY PROFILE
+              <Activity className="w-5 h-5" /> ADVERSARY EMULATION PROFILE
             </h3>
             <div className="grid grid-cols-2 gap-4 text-xs mb-4">
               <div>

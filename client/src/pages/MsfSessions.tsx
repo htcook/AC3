@@ -385,7 +385,7 @@ export default function MsfSessions() {
         <Card>
           <CardContent className="py-12 text-center">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground">Polling MSF servers for active sessions...</p>
+            <p className="text-muted-foreground">Polling C2 servers for active sessions...</p>
           </CardContent>
         </Card>
       ) : totalSessions === 0 ? (
@@ -394,7 +394,7 @@ export default function MsfSessions() {
             <WifiOff className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-semibold">No Active Sessions</h3>
             <p className="text-muted-foreground mt-1 max-w-md">
-              No Meterpreter or shell sessions are currently active across your MSF servers.
+              No active sessions are currently running across your C2 servers.
               Fire an exploit from the Exploit Catalog to establish a session.
             </p>
           </CardContent>

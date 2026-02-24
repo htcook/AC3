@@ -585,7 +585,7 @@ export default function TrainingDashboard() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       {exploit.hasMetasploitModule ? (
-                        <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px]">MSF</Badge>
+                        <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px]">EXP</Badge>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
@@ -600,7 +600,7 @@ export default function TrainingDashboard() {
                     <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
                       <Bug className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p className="font-display">No exploit intelligence yet</p>
-                      <p className="text-sm mt-1">Exploit data is ingested from Metasploit CVE feeds and CISA KEV</p>
+                      <p className="text-sm mt-1">Exploit data is ingested from CVE feeds and CISA KEV</p>
                     </td>
                   </tr>
                 )}

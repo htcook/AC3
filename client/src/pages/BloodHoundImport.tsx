@@ -24,7 +24,7 @@ interface FileEntry {
 
 export default function BloodHoundImport() {
   const [files, setFiles] = useState<FileEntry[]>([]);
-  const [environmentName, setEnvironmentName] = useState("BloodHound Import");
+  const [environmentName, setEnvironmentName] = useState("AD Graph Import");
   const [previewResult, setPreviewResult] = useState<any>(null);
   const [importResult, setImportResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -138,10 +138,10 @@ export default function BloodHoundImport() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Crosshair className="h-6 w-6 text-red-500" />
-            BloodHound Data Import
+            AD Graph Data Import
           </h1>
           <p className="text-muted-foreground mt-1">
-            Import SharpHound collection data to populate the AD Attack Path Graph
+            Import collection data to populate the AD Attack Path Graph
           </p>
         </div>
         {phase === "complete" && (

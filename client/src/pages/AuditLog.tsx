@@ -26,11 +26,11 @@ const RESULT_STYLES: Record<string, { bg: string; text: string }> = {
 
 const ACTION_LABELS: Record<string, string> = {
   active_probe: "Active Probe",
-  msf_check: "MSF Check",
-  msf_auxiliary: "MSF Auxiliary",
-  msf_exploit: "MSF Exploit",
+  msf_check: "Exploit Check",
+  msf_auxiliary: "Auxiliary Module",
+  msf_exploit: "Exploit Execution",
   phishing_launch: "Phishing Launch",
-  caldera_operation: "Caldera Operation",
+  caldera_operation: "Emulation Operation",
   payload_delivery: "Payload Delivery",
   session_interaction: "Session Interaction",
 };

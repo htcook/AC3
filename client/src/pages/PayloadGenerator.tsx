@@ -192,7 +192,7 @@ export default function PayloadGenerator() {
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleGenerate = () => {
     if (!serverId) {
-      toast.error("Select an MSF server first");
+      toast.error("Select an exploit server first");
       return;
     }
     if (!lhost) {
@@ -262,7 +262,7 @@ export default function PayloadGenerator() {
             Payload Generator
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Generate custom payloads via msfvenom on your MSF servers
+            Generate custom payloads on your C2 servers
           </p>
         </div>
         <Button
@@ -279,13 +279,13 @@ export default function PayloadGenerator() {
       <Card className="border-zinc-800 bg-zinc-900/50">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-zinc-400">
-            Target MSF Server
+            Target Exploit Server
           </CardTitle>
         </CardHeader>
         <CardContent>
           {onlineServers.length === 0 ? (
             <p className="text-sm text-zinc-500">
-              No online MSF servers. Go to Exploit Servers to connect one.
+              No online exploit servers. Go to Exploit Servers to connect one.
             </p>
           ) : (
             <Select
@@ -293,7 +293,7 @@ export default function PayloadGenerator() {
               onValueChange={(v) => setServerId(Number(v))}
             >
               <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Select an MSF server..." />
+                <SelectValue placeholder="Select an exploit server..." />
               </SelectTrigger>
               <SelectContent>
                 {onlineServers.map((s: any) => (
@@ -506,16 +506,16 @@ export default function PayloadGenerator() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-zinc-400 flex items-center gap-2">
                 <Shield className="h-4 w-4" />
-                About msfvenom
+                About Payload Generation
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-zinc-400 space-y-2">
               <p>
-                msfvenom is the Metasploit payload generator and encoder. It
-                combines msfpayload and msfencode into a single tool.
+                The payload generator creates custom exploit payloads with
+                various encoding options for penetration testing.
               </p>
               <p>
-                Payloads are generated on the remote MSF server via SSH tunnel,
+                Payloads are generated on the remote C2 server via SSH tunnel,
                 then downloaded and stored in S3 for easy access.
               </p>
               <div className="border-t border-zinc-800 pt-2 mt-2">

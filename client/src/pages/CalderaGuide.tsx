@@ -72,7 +72,7 @@ export default function CalderaGuide() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Crosshair className="w-8 h-8 text-primary" />
-            <h1 className="font-display text-3xl tracking-wider">CALDERA OPERATIONS GUIDE</h1>
+            <h1 className="font-display text-3xl tracking-wider">ADVERSARY EMULATION GUIDE</h1>
           </div>
           <p className="text-muted-foreground text-lg">Complete guide to adversary emulation, red team operations, and automated attack simulation using the adversary emulation framework.</p>
           <p className="text-xs text-muted-foreground mt-2">Ace C3 — AceofCloud</p>
@@ -328,7 +328,7 @@ Start-Process -FilePath $output -ArgumentList "-server $server -group red" -Wind
               <thead><tr className="bg-card"><th className="px-4 py-2 text-left border-b border-border">Plugin</th><th className="px-4 py-2 text-left border-b border-border">Purpose</th><th className="px-4 py-2 text-left border-b border-border">Key Features</th></tr></thead>
               <tbody>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Stockpile</td><td className="px-4 py-2 text-muted-foreground">Core ability library</td><td className="px-4 py-2 text-muted-foreground">Hundreds of ATT&CK techniques, adversary profiles, and facts</td></tr>
-                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Atomic</td><td className="px-4 py-2 text-muted-foreground">Atomic Red Team integration</td><td className="px-4 py-2 text-muted-foreground">Imports Atomic Red Team tests as adversary abilities</td></tr>
+                <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Atomic</td><td className="px-4 py-2 text-muted-foreground">Validation test integration</td><td className="px-4 py-2 text-muted-foreground">Imports validation tests as adversary abilities</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Sandcat</td><td className="px-4 py-2 text-muted-foreground">Default agent</td><td className="px-4 py-2 text-muted-foreground">Cross-platform GoLang agent with dynamic compilation</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Manx</td><td className="px-4 py-2 text-muted-foreground">Reverse shell agent</td><td className="px-4 py-2 text-muted-foreground">TCP-based agent for environments where HTTP is blocked</td></tr>
                 <tr className="border-b border-border"><td className="px-4 py-2 font-mono text-primary">Response</td><td className="px-4 py-2 text-muted-foreground">Blue team automation</td><td className="px-4 py-2 text-muted-foreground">Autonomous incident response abilities that fight back</td></tr>
@@ -426,7 +426,7 @@ plugins:
         <div className="mt-8 mb-8">
           <FAQ
             items={calderaFAQItems}
-            title="CALDERA TROUBLESHOOTING FAQ"
+            title="EMULATION TROUBLESHOOTING FAQ"
             description="Common issues and solutions for MITRE emulation framework agents, abilities, operations, and server configuration."
           />
         </div>

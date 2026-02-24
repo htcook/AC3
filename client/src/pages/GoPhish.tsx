@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { href: "/adversaries", icon: <Target className="w-4 h-4" />, label: "ADVERSARIES" },
   { href: "/agents", icon: <Cpu className="w-4 h-4" />, label: "AGENTS" },
   { href: "/campaigns", icon: <Crosshair className="w-4 h-4" />, label: "CAMPAIGNS" },
-  { href: "/gophish", icon: <Fish className="w-4 h-4" />, label: "GOPHISH" },
+  { href: "/gophish", icon: <Fish className="w-4 h-4" />, label: "PHISHING" },
   { href: "/campaign-wizard", icon: <Rocket className="w-4 h-4" />, label: "LAUNCH WIZARD" },
   { href: "/team", icon: <Users className="w-4 h-4" />, label: "TEAM" },
   { href: "/activity", icon: <FileText className="w-4 h-4" />, label: "ACTIVITY" },
@@ -83,7 +83,7 @@ export default function GoPhish() {
   return (
     <AppShell activePath="/gophish">
       {/* ROE Warning Banner */}
-      <ROEWarningBanner riskTier="red" operationName="GoPhish Campaign" />
+      <ROEWarningBanner riskTier="red" operationName="Phishing Campaign" />
 {/* Sidebar */}
 {/* Header */}
         <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-sm border-b border-border px-4 sm:px-6 py-3 sm:py-4">
@@ -92,9 +92,9 @@ export default function GoPhish() {
               <div>
                 <h1 className="font-display text-xl sm:text-2xl tracking-wider flex items-center gap-2">
                   <Fish className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
-                  GOPHISH MANAGER
+                  PHISHING MANAGER
                 </h1>
-                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Phishing Campaign Management & emulation framework Integration</p>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Phishing Campaign Management & Emulation Framework Integration</p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -112,7 +112,7 @@ export default function GoPhish() {
               </Link>
               <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
                 <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
-                  <ExternalLink className="w-4 h-4" /><span className="ml-1 hidden sm:inline">OPEN GOPHISH</span>
+                  <ExternalLink className="w-4 h-4" /><span className="ml-1 hidden sm:inline">OPEN CONSOLE</span>
                 </Button>
               </a>
             </div>
@@ -152,14 +152,14 @@ export default function GoPhish() {
                 <StatusCard label="LANDING PAGES" value={status?.landingPages ?? 0} icon={<Globe className="w-5 h-5" />} color="green" />
                 <StatusCard label="TARGET GROUPS" value={status?.groups ?? 0} icon={<UserPlus className="w-5 h-5" />} color="purple" />
                 <StatusCard label="SMTP PROFILES" value={status?.sendingProfiles ?? 0} icon={<Send className="w-5 h-5" />} color="cyan" />
-                <StatusCard label="CALDERA LINK" value={calderaHealth ? 'ACTIVE' : 'DOWN'} icon={<Zap className="w-5 h-5" />} color={calderaHealth ? 'emerald' : 'red'} />
+                <StatusCard label="EMULATION LINK" value={calderaHealth ? 'ACTIVE' : 'DOWN'} icon={<Zap className="w-5 h-5" />} color={calderaHealth ? 'emerald' : 'red'} />
               </div>
 
               {/* Integration Status */}
               <div className="bg-card border-2 border-border p-6">
                 <h2 className="font-display text-xl tracking-wider mb-4 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-yellow-500" />
-                  CALDERA-GOPHISH INTEGRATION
+                  PHISHING-EMULATION INTEGRATION
                 </h2>
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-3">
@@ -1147,7 +1147,7 @@ function CampaignCard({ campaign, onDelete, onComplete, onClone, campaignLinks }
           )}
         </div>
         <a href={`https://gophish.aceofcloud.io/campaigns/${campaign.id}`} target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-400 font-display tracking-wider flex items-center gap-1">
-          VIEW IN GOPHISH <ExternalLink className="w-3 h-3" />
+          VIEW IN PHISHING UI <ExternalLink className="w-3 h-3" />
         </a>
       </div>
     </div>
@@ -1203,8 +1203,8 @@ export function GoPhishManagerContent() {
         <div className="flex items-center gap-3">
           <Fish className="w-5 h-5 text-orange-500" />
           <div>
-            <h2 className="font-display text-lg tracking-wider">GOPHISH MANAGER</h2>
-            <p className="text-xs text-muted-foreground">Phishing Campaign Management & emulation framework Integration</p>
+            <h2 className="font-display text-lg tracking-wider">PHISHING MANAGER</h2>
+            <p className="text-xs text-muted-foreground">Phishing Campaign Management & Emulation Framework Integration</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -1222,7 +1222,7 @@ export function GoPhishManagerContent() {
           </Link>
           <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer">
             <Button size="sm" className="font-display tracking-wider bg-orange-500 hover:bg-orange-600 text-black">
-              <ExternalLink className="w-4 h-4" /><span className="ml-1">OPEN GOPHISH</span>
+              <ExternalLink className="w-4 h-4" /><span className="ml-1">OPEN CONSOLE</span>
             </Button>
           </a>
         </div>
@@ -1260,14 +1260,14 @@ export function GoPhishManagerContent() {
             <StatusCard label="LANDING PAGES" value={status?.landingPages ?? 0} icon={<Globe className="w-5 h-5" />} color="green" />
             <StatusCard label="TARGET GROUPS" value={status?.groups ?? 0} icon={<UserPlus className="w-5 h-5" />} color="purple" />
             <StatusCard label="SMTP PROFILES" value={status?.sendingProfiles ?? 0} icon={<Send className="w-5 h-5" />} color="cyan" />
-            <StatusCard label="CALDERA LINK" value={calderaHealth ? 'ACTIVE' : 'DOWN'} icon={<Zap className="w-5 h-5" />} color={calderaHealth ? 'emerald' : 'red'} />
+            <StatusCard label="EMULATION LINK" value={calderaHealth ? 'ACTIVE' : 'DOWN'} icon={<Zap className="w-5 h-5" />} color={calderaHealth ? 'emerald' : 'red'} />
           </div>
 
           {/* Integration Status */}
           <div className="bg-card border-2 border-border p-6 rounded-lg">
             <h2 className="font-display text-xl tracking-wider mb-4 flex items-center gap-2">
               <Zap className="w-5 h-5 text-yellow-500" />
-              CALDERA-GOPHISH INTEGRATION
+              PHISHING-EMULATION INTEGRATION
             </h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">

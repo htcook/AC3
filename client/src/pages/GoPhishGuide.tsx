@@ -73,7 +73,7 @@ export default function GoPhishGuide() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Mail className="w-8 h-8 text-primary" />
-            <h1 className="font-display text-3xl tracking-wider">GOPHISH CAMPAIGN GUIDE</h1>
+            <h1 className="font-display text-3xl tracking-wider">PHISHING CAMPAIGN GUIDE</h1>
           </div>
           <p className="text-muted-foreground text-lg">Complete guide to designing and managing phishing test campaigns for your customers using phishing platform.</p>
           <p className="text-xs text-muted-foreground mt-2">Ace C3 — AceofCloud</p>
@@ -368,7 +368,7 @@ export default function GoPhishGuide() {
           </div>
 
           <InfoBox type="important">
-            <strong>phishing platform Fingerprint Removal:</strong> Remove the <code>X-Gophish-Contact</code> header and customize the default 404 page to prevent security tools from identifying your phishing server. Edit the platform source code or use a reverse proxy (nginx) to strip these indicators.
+            <strong>phishing platform Fingerprint Removal:</strong> Remove the <code>X-Phishing-Contact</code> header and customize the default 404 page to prevent security tools from identifying your phishing server. Edit the platform source code or use a reverse proxy (nginx) to strip these indicators.
           </InfoBox>
 
           <h4 className="font-display tracking-wider text-sm mb-3 text-primary mt-6">CONTENT TIPS TO AVOID SPAM FILTERS</h4>
@@ -408,15 +408,15 @@ export default function GoPhishGuide() {
         <div className="mt-8 mb-8">
           <FAQ
             items={gophishFAQItems}
-            title="GOPHISH TROUBLESHOOTING FAQ"
-            description="Common issues and solutions for phishing platform phishing campaigns, email delivery, SMTP configuration, and landing pages."
+            title="PHISHING PLATFORM TROUBLESHOOTING FAQ"
+            description="Common issues and solutions for phishing campaigns, email delivery, SMTP configuration, and landing pages."
           />
         </div>
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">
           <p>Cyber Campaign Command Phishing Campaign Guide — AceofCloud</p>
-          <p className="mt-1">For the latest phishing platform documentation, visit <a href="https://docs.getgophish.com" target="_blank" className="text-primary underline">docs.getgophish.com</a></p>
+          <p className="mt-1">For the latest documentation, visit the platform documentation portal</p>
         </div>
       </AppShell>
   );

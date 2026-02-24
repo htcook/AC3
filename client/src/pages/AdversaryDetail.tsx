@@ -292,7 +292,7 @@ export default function AdversaryDetail() {
                     onClick={() => window.open(`https://caldera.aceofcloud.io/#/adversaries`, '_blank')}
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
-                    OPEN IN CALDERA
+                    OPEN IN EMULATION UI
                   </Button>
                   {mitreGroupId && (
                     <Button 

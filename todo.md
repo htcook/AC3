@@ -3857,3 +3857,41 @@
 - [x] Replace Metasploit/Caldera/OWASP ZAP/GoPhish/Atomic Red Team with capability descriptions
 - [x] Clean hero section, value props, How It Works, stats bar, Who It's For, Platform Capabilities, Operations Center, Architecture, About, footer
 - [x] Verify no tool names appear in rendered page text (browser keyword search confirmed)
+
+## Dashboard Sidebar & Page Header Text Cleanup
+- [x] Audit sidebar nav items (AppShell.tsx) for tool name mentions
+- [x] Audit all 26+ page files for tool name mentions
+- [x] Replace tool names with capability descriptions in sidebar and page headers
+- [x] Clean up AppShell.tsx sidebar labels
+- [x] Clean up Dashboard.tsx — status labels, quick access cards, metrics headings
+- [x] Clean up WebAppScanner.tsx — page header, Launch Exploit button
+- [x] Clean up ExploitArsenal.tsx — page header, server labels
+- [x] Clean up AiAttackPlanner.tsx — emulation references
+- [x] Clean up NucleiScanner.tsx — page header
+- [x] Clean up SliverC2.tsx — page header
+- [x] Clean up AtomicRedTeam.tsx — page header
+- [x] Clean up GoPhish.tsx — nav labels, button text
+- [x] Clean up BloodHoundImport.tsx — default environment name
+- [x] Clean up ValidationEngine.tsx — exploit server/module labels
+- [x] Clean up SshKeyManager.tsx — C2 server references
+- [x] Clean up TrainingDashboard.tsx — EXP badge
+- [x] Clean up DomainIntelResults.tsx — EXP badge, exploit module labels
+- [x] Clean up ThreatCatalog.tsx — SYNC EMULATION button
+- [x] Clean up Engagements.tsx — EMULATION UI button
+- [x] Clean up Campaigns.tsx — EMULATION UI button
+- [x] Clean up OperationDetail.tsx — OPEN IN EMULATION UI button
+- [x] Clean up OperationMonitor.tsx — heading, server constants
+- [x] Clean up ThreatActorCatalogDetail.tsx — EMULATION tab
+- [x] Clean up GoPhishGuide.tsx — guide heading
+- [x] Clean up LandingPageBuilder.tsx — export button
+- [x] Clean up ComplianceFrameworks.tsx — import button
+- [x] Clean up PayloadGenerator.tsx — generator descriptions
+- [x] Clean up AuditLog.tsx — action labels
+- [x] Clean up CalderaGuide.tsx — guide table entries
+- [x] Clean up CampaignWizard.tsx — ID label
+- [x] Clean up TtpKnowledge.tsx — technique descriptions
+- [x] Clean up MsfServers.tsx — server labels
+- [x] Clean up MsfSessions.tsx — session labels
+- [x] Clean up AgentDeploy.tsx — server constants, button labels
+- [x] Clean up AdversaryDetail.tsx — button labels
+- [x] Final sweep confirmed zero user-visible tool names remain

@@ -25,8 +25,8 @@ import {
   Filter
 } from 'lucide-react';
 
-const CALDERA_SERVER = '137.184.7.224';
-const CALDERA_PORT = '8888';
+const EMULATION_SERVER = '137.184.7.224';
+const EMULATION_PORT = '8888';
 
 interface AbilityResult {
   id: string;
@@ -282,7 +282,7 @@ export default function OperationMonitor() {
         {operations && operations.length > 0 && (
           <div className="bg-card border-2 border-border mb-6">
             <div className="p-4 border-b border-border">
-              <h3 className="font-display">CALDERA OPERATIONS</h3>
+              <h3 className="font-display">EMULATION OPERATIONS</h3>
             </div>
             <div className="divide-y divide-border">
               {operations.map((op: any) => (
@@ -302,7 +302,7 @@ export default function OperationMonitor() {
                       {op.state?.toUpperCase() || 'UNKNOWN'}
                     </Badge>
                     <a 
-                      href={`http://${CALDERA_SERVER}:${CALDERA_PORT}/operations/${op.id}`}
+                      href={`http://${EMULATION_SERVER}:${EMULATION_PORT}/operations/${op.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -379,7 +379,7 @@ export default function OperationMonitor() {
                       Deploy Agents
                     </Button>
                   </Link>
-                  <a href={`http://${CALDERA_SERVER}:${CALDERA_PORT}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`http://${EMULATION_SERVER}:${EMULATION_PORT}`} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" variant="outline">
                       <Zap className="w-4 h-4 mr-1" />
                       Open Emulation UI

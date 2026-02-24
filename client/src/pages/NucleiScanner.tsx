@@ -73,7 +73,7 @@ export default function NucleiScanner() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
               <ScanLine className="w-7 h-7 text-purple-400" />
-              Nuclei Scanner
+              Template Scanner
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Template-based vulnerability scanning with 7,900+ community templates. Covers CVEs, misconfigurations, exposures, default logins, and subdomain takeovers.
@@ -87,7 +87,7 @@ export default function NucleiScanner() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
-                <DialogTitle>Start Nuclei Scan</DialogTitle>
+                <DialogTitle>Start Template Scan</DialogTitle>
                 <DialogDescription>Configure targets and template categories for the scan.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">

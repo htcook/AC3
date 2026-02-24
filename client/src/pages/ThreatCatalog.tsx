@@ -149,7 +149,7 @@ export default function ThreatCatalog() {
               className="flex items-center gap-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-display tracking-wider hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
             >
               {syncing && syncSource === "caldera" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-              SYNC CALDERA
+              SYNC EMULATION
             </button>
             <button
               onClick={() => handleSync("all")}

@@ -42,7 +42,7 @@ export default function AttackCoverage() {
             MITRE ATT&CK Coverage
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Unified ATT&CK coverage heatmap aggregating technique coverage from all integrated tools — Caldera, Atomic Red Team, ZAP, Nuclei, Sliver C2, Metasploit, and GoPhish.
+            Unified ATT&CK coverage heatmap aggregating technique coverage from all integrated tools across the full attack lifecycle — emulation, exploitation, scanning, validation, and social engineering.
           </p>
         </div>
 

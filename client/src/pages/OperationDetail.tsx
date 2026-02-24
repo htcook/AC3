@@ -203,7 +203,7 @@ export default function OperationDetail() {
                 onClick={handleOpenInCaldera}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
-                OPEN IN CALDERA
+                OPEN IN EMULATION UI
               </Button>
             </div>
           </div>

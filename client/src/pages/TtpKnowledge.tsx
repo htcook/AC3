@@ -198,7 +198,7 @@ export default function TtpKnowledge() {
               <div className="flex-1">
                 <p className="text-sm font-medium">Ingesting from GitHub repositories...</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Downloading ATT&CK STIX, Atomic Red Team, LOLBAS, exploit modules, and mapping offensive tools
+                  Downloading ATT&CK techniques, validation tests, LOLBAS data, exploit modules, and mapping offensive tools
                 </p>
                 <Progress value={undefined} className="mt-2 h-1" />
               </div>
@@ -252,7 +252,7 @@ export default function TtpKnowledge() {
                   <Brain className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="font-semibold mb-2">No techniques in knowledge base</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Click "Ingest from GitHub" to download ATT&CK techniques, Atomic Red Team tests, LOLBAS data, and more.
+                    Click "Ingest from GitHub" to download ATT&CK techniques, validation tests, LOLBAS data, and more.
                   </p>
                   <Button onClick={() => ingestMutation.mutate({})} disabled={ingestMutation.isPending}>
                     <Download className="h-4 w-4 mr-2" />

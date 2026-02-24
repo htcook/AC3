@@ -1856,7 +1856,7 @@ export default function DomainIntelResults() {
                               {matchedExploitTechs.slice(0, 4).map((em: any, i: number) => (
                                 <Badge key={i} className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20">
                                   <Zap className="w-2.5 h-2.5 mr-1" />
-                                  {em.cveId}: {em.metasploitCount || 0} MSF + {em.exploitDbCount || 0} EDB
+                                  {em.cveId}: {em.metasploitCount || 0} exploits + {em.exploitDbCount || 0} EDB
                                 </Badge>
                               ))}
                               {matchedExploitTechs.length > 4 && (
@@ -1973,7 +1973,7 @@ export default function DomainIntelResults() {
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-amber-400">{exploitMatches.totalExploitDb}</div>
-                    <div className="text-[10px] text-muted-foreground">public exploit databases Entries</div>
+                    <div className="text-[10px] text-muted-foreground">Public Exploit DB Entries</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-purple-400">{exploitMatches.totalCalderaAbilities}</div>
@@ -2001,7 +2001,7 @@ export default function DomainIntelResults() {
                       <div className="flex items-center gap-1">
                         {m.metasploitModules?.length > 0 && (
                           <Badge className="bg-red-500/20 text-red-400 text-[10px]">
-                            <Target className="h-3 w-3 mr-0.5" /> {m.metasploitModules.length} MSF
+                            <Target className="h-3 w-3 mr-0.5" /> {m.metasploitModules.length} EXP
                           </Badge>
                         )}
                         {m.exploitDbEntries?.length > 0 && (
@@ -3790,7 +3790,7 @@ function ValidateTop10Banner({ scanId, validationSummary }: { scanId: number; va
           <div>
             <p className="font-semibold text-sm">Validate Top 10 Critical Findings</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Run safe, non-destructive exploit validation against the highest-confidence KEV matches and MSF module targets. Results feed directly into risk scores.
+              Run safe, non-destructive exploit validation against the highest-confidence KEV matches and exploit module targets. Results feed directly into risk scores.
             </p>
           </div>
         </div>
