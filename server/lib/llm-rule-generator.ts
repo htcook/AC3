@@ -2,14 +2,18 @@
  * LLM-Powered Detection Rule Generation
  * 
  * Uses the platform's LLM to automatically generate detection rules
- * (Sigma, YARA, Snort/Suricata) from validated exploit evidence.
+ * (Sigma, YARA, Snort/Suricata, KQL, SPL) from validated exploit evidence.
  * 
- * When a validation confirms an exploit works, this module analyzes
- * the exploit's network traffic, file artifacts, and behavior patterns
- * to generate detection rules that would catch the attack.
+ * Patent Innovation F-3: Automated detection rule generation from exploit evidence.
+ * 
+ * Database-backed persistence — all generated rules survive server restarts.
  * 
  * @module llm-rule-generator
  */
+
+import { getDb } from "../db";
+import { generatedDetectionRules } from "../../drizzle/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -20,9 +24,9 @@ export interface RuleGenerationRequest {
   cveIds: string[];
   targetService: string;
   targetPort: number | null;
-  attackTechnique: string;       // MITRE ATT&CK technique ID
-  exploitOutput: string | null;  // Console output from validation
-  evidenceArtifacts: string[];   // URLs to evidence artifacts
+  attackTechnique: string;
+  exploitOutput: string | null;
+  evidenceArtifacts: string[];
   severity: "critical" | "high" | "medium" | "low";
   requestedFormats: RuleFormat[];
 }
@@ -32,7 +36,7 @@ export interface GeneratedRule {
   format: RuleFormat;
   name: string;
   description: string;
-  content: string;               // The actual rule content
+  content: string;
   severity: "critical" | "high" | "medium" | "low";
   mitreTechniques: string[];
   cveIds: string[];
@@ -63,10 +67,69 @@ export interface RuleLibrary {
   recentlyGenerated: GeneratedRule[];
 }
 
-// ─── In-Memory Store ───────────────────────────────────────────────
+// ─── In-Memory Cache ──────────────────────────────────────────────
 
-const ruleStore = new Map<string, GeneratedRule>();
+const ruleCache = new Map<string, GeneratedRule>();
 let ruleCounter = 0;
+let cacheLoaded = false;
+
+// ─── DB Persistence ───────────────────────────────────────────────
+
+async function persistRule(rule: GeneratedRule): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.insert(generatedDetectionRules).values({
+      ruleId: rule.id,
+      cveId: rule.cveIds[0] || "UNKNOWN",
+      format: rule.format,
+      title: rule.name,
+      content: rule.content,
+      severity: rule.severity,
+      mitreTactics: rule.tags.filter(t => t.startsWith("attack.")),
+      mitreTechniques: rule.mitreTechniques,
+      dataSources: rule.tags,
+      validated: rule.validated,
+      validationErrors: rule.validationNotes ? [rule.validationNotes] : null,
+    });
+  } catch (err) {
+    console.error("[RuleGen] DB persist failed:", err);
+  }
+}
+
+async function loadRulesFromDb(): Promise<void> {
+  if (cacheLoaded) return;
+  const db = await getDb();
+  if (!db) { cacheLoaded = true; return; }
+
+  try {
+    const rows = await db.select().from(generatedDetectionRules).orderBy(desc(generatedDetectionRules.createdAt));
+    for (const row of rows) {
+      const rule: GeneratedRule = {
+        id: row.ruleId,
+        format: row.format as RuleFormat,
+        name: row.title,
+        description: `Auto-generated ${row.format.toUpperCase()} rule for ${row.cveId}`,
+        content: row.content,
+        severity: (row.severity || "medium") as GeneratedRule["severity"],
+        mitreTechniques: (row.mitreTechniques as string[]) || [],
+        cveIds: [row.cveId],
+        confidence: row.validated ? "high" : "medium",
+        falsePositiveRisk: "medium",
+        tags: (row.dataSources as string[]) || [],
+        generatedAt: row.createdAt ? new Date(row.createdAt).getTime() : Date.now(),
+        validated: row.validated || false,
+        validationNotes: row.validationErrors ? (row.validationErrors as string[]).join("; ") : null,
+      };
+      ruleCache.set(rule.id, rule);
+    }
+    cacheLoaded = true;
+  } catch (err) {
+    console.error("[RuleGen] DB load failed:", err);
+    cacheLoaded = true;
+  }
+}
 
 // ─── Rule Generation Prompts ───────────────────────────────────────
 
@@ -169,24 +232,24 @@ Return ONLY the SPL query, no markdown fences or explanations.`;
 
 /**
  * Generate detection rules from validated exploit evidence.
- * Uses the platform's LLM integration.
+ * Persists to DB and caches in memory.
  */
 export async function generateDetectionRules(
   request: RuleGenerationRequest,
   llmInvoke?: (params: { messages: Array<{ role: string; content: string }> }) => Promise<any>
 ): Promise<RuleGenerationResult> {
+  await loadRulesFromDb();
   const start = Date.now();
   const requestId = `rulegen-${Date.now()}-${++ruleCounter}`;
   const rules: GeneratedRule[] = [];
-  
+
   for (const format of request.requestedFormats) {
     try {
       const prompt = getPromptForFormat(format, request);
-      
+
       let ruleContent: string;
-      
+
       if (llmInvoke) {
-        // Use actual LLM
         const response = await llmInvoke({
           messages: [
             { role: "system", content: "You are a cybersecurity detection engineer specializing in writing detection rules. Generate precise, low-false-positive rules based on validated exploit evidence." },
@@ -195,12 +258,11 @@ export async function generateDetectionRules(
         });
         ruleContent = response?.choices?.[0]?.message?.content || generateFallbackRule(format, request);
       } else {
-        // Fallback: generate template-based rules
         ruleContent = generateFallbackRule(format, request);
       }
-      
+
       const rule: GeneratedRule = {
-        id: `rule-${format}-${++ruleCounter}`,
+        id: `rule-${format}-${Date.now()}-${++ruleCounter}`,
         format,
         name: `Detect ${request.exploitModule} (${request.cveIds[0] || request.attackTechnique})`,
         description: `Auto-generated ${format.toUpperCase()} rule for detecting ${request.exploitModule} targeting ${request.targetService}`,
@@ -215,14 +277,16 @@ export async function generateDetectionRules(
         validated: false,
         validationNotes: null,
       };
-      
-      ruleStore.set(rule.id, rule);
+
+      // Persist to DB
+      await persistRule(rule);
+      ruleCache.set(rule.id, rule);
       rules.push(rule);
     } catch (err: any) {
       console.error(`[RuleGen] Failed to generate ${format} rule: ${err.message}`);
     }
   }
-  
+
   return {
     requestId,
     exploitModule: request.exploitModule,
@@ -237,59 +301,72 @@ export async function generateDetectionRules(
 /**
  * Get a rule by ID.
  */
-export function getRule(ruleId: string): GeneratedRule | null {
-  return ruleStore.get(ruleId) || null;
+export async function getRule(ruleId: string): Promise<GeneratedRule | null> {
+  await loadRulesFromDb();
+  return ruleCache.get(ruleId) || null;
 }
 
 /**
  * Get all rules for a specific CVE.
  */
-export function getRulesForCve(cveId: string): GeneratedRule[] {
-  return Array.from(ruleStore.values()).filter(r => r.cveIds.includes(cveId));
+export async function getRulesForCve(cveId: string): Promise<GeneratedRule[]> {
+  await loadRulesFromDb();
+  return Array.from(ruleCache.values()).filter(r => r.cveIds.includes(cveId));
 }
 
 /**
  * Get all rules in a specific format.
  */
-export function getRulesByFormat(format: RuleFormat): GeneratedRule[] {
-  return Array.from(ruleStore.values()).filter(r => r.format === format);
+export async function getRulesByFormat(format: RuleFormat): Promise<GeneratedRule[]> {
+  await loadRulesFromDb();
+  return Array.from(ruleCache.values()).filter(r => r.format === format);
 }
 
 /**
- * Mark a rule as validated (after testing against evidence).
+ * Mark a rule as validated (after testing against evidence). Persists to DB.
  */
-export function validateRule(ruleId: string, validated: boolean, notes: string | null): GeneratedRule | null {
-  const rule = ruleStore.get(ruleId);
+export async function validateRule(ruleId: string, validated: boolean, notes: string | null): Promise<GeneratedRule | null> {
+  await loadRulesFromDb();
+  const rule = ruleCache.get(ruleId);
   if (!rule) return null;
-  
+
   rule.validated = validated;
   rule.validationNotes = notes;
-  
-  if (validated) {
-    rule.confidence = "high";
+  if (validated) rule.confidence = "high";
+
+  // Update DB
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.update(generatedDetectionRules)
+        .set({
+          validated,
+          validationErrors: notes ? [notes] : null,
+        })
+        .where(eq(generatedDetectionRules.ruleId, ruleId));
+    } catch (err) {
+      console.error("[RuleGen] DB validation update failed:", err);
+    }
   }
-  
+
   return rule;
 }
 
 /**
  * Get the rule library summary.
  */
-export function getRuleLibrary(): RuleLibrary {
-  const all = Array.from(ruleStore.values());
-  
-  const byFormat: Record<RuleFormat, number> = {
-    sigma: 0, yara: 0, snort: 0, suricata: 0, kql: 0, spl: 0,
-  };
-  const bySeverity: Record<string, number> = {
-    critical: 0, high: 0, medium: 0, low: 0,
-  };
-  
+export async function getRuleLibrary(): Promise<RuleLibrary> {
+  await loadRulesFromDb();
+  const all = Array.from(ruleCache.values());
+
+  const byFormat: Record<RuleFormat, number> = { sigma: 0, yara: 0, snort: 0, suricata: 0, kql: 0, spl: 0 };
+  const bySeverity: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+
   for (const rule of all) {
     byFormat[rule.format]++;
     bySeverity[rule.severity]++;
   }
-  
+
   return {
     totalRules: all.length,
     byFormat,
@@ -317,11 +394,11 @@ function getPromptForFormat(format: RuleFormat, request: RuleGenerationRequest):
 function generateFallbackRule(format: RuleFormat, request: RuleGenerationRequest): string {
   const cveStr = request.cveIds[0] || "UNKNOWN";
   const now = new Date().toISOString().split("T")[0];
-  
+
   switch (format) {
     case "sigma":
       return `title: Detect ${request.exploitModule}
-id: ${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`}
+id: ${Date.now()}
 status: experimental
 description: Detects exploitation attempt of ${cveStr} targeting ${request.targetService}
 author: Ace C3 Auto-Generator
@@ -386,6 +463,7 @@ DeviceNetworkEvents
  * Clear all rules (for testing).
  */
 export function clearRuleStore(): void {
-  ruleStore.clear();
+  ruleCache.clear();
   ruleCounter = 0;
+  cacheLoaded = false;
 }

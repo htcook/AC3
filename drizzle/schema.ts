@@ -3863,3 +3863,92 @@ export const protocolFindings = mysqlTable("protocol_findings", {
 });
 export type ProtocolFinding = typeof protocolFindings.$inferSelect;
 export type InsertProtocolFinding = typeof protocolFindings.$inferInsert;
+
+
+// ============================================================
+// Patent Module: Exploit Feedback Loop — Persistent Storage
+// ============================================================
+
+export const exploitFeedbackRecords = mysqlTable("exploit_feedback_records", {
+  id: int("id").autoincrement().primaryKey(),
+  exploitModule: varchar("efr_exploit_module", { length: 512 }).notNull(),
+  target: varchar("efr_target", { length: 255 }).notNull(),
+  port: int("efr_port"),
+  service: varchar("efr_service", { length: 128 }),
+  cveId: varchar("efr_cve_id", { length: 32 }),
+  success: boolean("efr_success").notNull(),
+  durationMs: int("efr_duration_ms"),
+  errorType: varchar("efr_error_type", { length: 128 }),
+  errorMessage: text("efr_error_message"),
+  output: text("efr_output"),
+  osType: varchar("efr_os_type", { length: 64 }),
+  osVersion: varchar("efr_os_version", { length: 128 }),
+  createdAt: timestamp("efr_created_at").defaultNow().notNull(),
+});
+export type ExploitFeedbackRecord = typeof exploitFeedbackRecords.$inferSelect;
+export type InsertExploitFeedbackRecord = typeof exploitFeedbackRecords.$inferInsert;
+
+// ============================================================
+// Patent Module: Exploit Preflight — Historical Attempt Tracking
+// ============================================================
+
+export const exploitPreflightHistory = mysqlTable("exploit_preflight_history", {
+  id: int("id").autoincrement().primaryKey(),
+  exploitModule: varchar("eph_exploit_module", { length: 512 }).notNull(),
+  target: varchar("eph_target", { length: 255 }).notNull(),
+  port: int("eph_port"),
+  service: varchar("eph_service", { length: 128 }),
+  success: boolean("eph_success").notNull(),
+  durationMs: int("eph_duration_ms"),
+  errorType: varchar("eph_error_type", { length: 128 }),
+  preflightScore: double("eph_preflight_score"),
+  preflightFactors: json("eph_preflight_factors"),
+  createdAt: timestamp("eph_created_at").defaultNow().notNull(),
+});
+export type ExploitPreflightHistory = typeof exploitPreflightHistory.$inferSelect;
+export type InsertExploitPreflightHistory = typeof exploitPreflightHistory.$inferInsert;
+
+// ============================================================
+// Patent Module: LLM Rule Generator — Persistent Rule Storage
+// ============================================================
+
+export const generatedDetectionRules = mysqlTable("generated_detection_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: varchar("gdr_rule_id", { length: 128 }).notNull(),
+  cveId: varchar("gdr_cve_id", { length: 32 }).notNull(),
+  format: varchar("gdr_format", { length: 32 }).notNull(),
+  title: varchar("gdr_title", { length: 512 }).notNull(),
+  content: mediumtext("gdr_content").notNull(),
+  severity: varchar("gdr_severity", { length: 16 }),
+  mitreTactics: json("gdr_mitre_tactics"),
+  mitreTechniques: json("gdr_mitre_techniques"),
+  dataSources: json("gdr_data_sources"),
+  validated: boolean("gdr_validated").default(false),
+  validationErrors: json("gdr_validation_errors"),
+  createdAt: timestamp("gdr_created_at").defaultNow().notNull(),
+});
+export type GeneratedDetectionRule = typeof generatedDetectionRules.$inferSelect;
+export type InsertGeneratedDetectionRule = typeof generatedDetectionRules.$inferInsert;
+
+// ============================================================
+// Patent Module: Attack Chain Validation — Persistent Chain Storage
+// ============================================================
+
+export const attackChainRecords = mysqlTable("attack_chain_records", {
+  id: int("id").autoincrement().primaryKey(),
+  chainId: varchar("acr_chain_id", { length: 128 }).notNull(),
+  scanId: int("acr_scan_id"),
+  chainType: varchar("acr_chain_type", { length: 64 }).notNull(),
+  patternName: varchar("acr_pattern_name", { length: 255 }),
+  steps: json("acr_steps").notNull(),
+  entryPoint: varchar("acr_entry_point", { length: 255 }),
+  finalTarget: varchar("acr_final_target", { length: 255 }),
+  overallConfidence: double("acr_overall_confidence"),
+  riskScore: double("acr_risk_score"),
+  mitreTechniques: json("acr_mitre_techniques"),
+  validated: boolean("acr_validated").default(false),
+  validationResult: json("acr_validation_result"),
+  createdAt: timestamp("acr_created_at").defaultNow().notNull(),
+});
+export type AttackChainRecord = typeof attackChainRecords.$inferSelect;
+export type InsertAttackChainRecord = typeof attackChainRecords.$inferInsert;

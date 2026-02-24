@@ -260,6 +260,13 @@
       "when": 1771889867644,
       "tag": "0036_plain_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1771896569196,
+      "tag": "0037_cheerful_radioactive_man",
+      "breakpoints": true
     }
   ]
 }
