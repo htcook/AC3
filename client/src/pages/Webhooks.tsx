@@ -14,6 +14,7 @@ import {
   Webhook, Plus, Search, Trash2, Send, CheckCircle,
   XCircle, Globe, Clock, Zap, Settings, Copy
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function Webhooks() {
   const [search, setSearch] = useState("");
@@ -81,7 +82,8 @@ export default function Webhooks() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/webhooks">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -380,5 +382,6 @@ export default function Webhooks() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
+import AppShell from "@/components/AppShell";
 
 interface Node {
   id: number;
@@ -194,7 +195,8 @@ export default function AttackPathDiscoveryPage() {
   }
 
   return (
-    <div className="p-8 bg-background text-foreground min-h-screen">
+    <AppShell activePath="/attack-path-discovery">
+      <div className="p-8 bg-background text-foreground min-h-screen">
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Attack Path Discovery</h1>
         <div className="space-x-2">
@@ -316,5 +318,6 @@ export default function AttackPathDiscoveryPage() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }

@@ -17,6 +17,7 @@ import {
   Globe, Lock, Unlock, ChevronRight, BarChart3, Bug,
   Fingerprint, Radar, Skull, Factory, Gauge, Database,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,8 @@ export default function IcsOtSecurity() {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/ics-ot-security">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -179,6 +181,7 @@ export default function IcsOtSecurity() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }
 

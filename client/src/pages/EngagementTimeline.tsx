@@ -12,6 +12,7 @@ import {
   ArrowRight, CheckCircle2, Circle, XCircle, Loader2,
   ChevronDown, ChevronUp, BarChart3, TrendingUp
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -220,7 +221,8 @@ export default function EngagementTimeline() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/engagement-timeline">
+      <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Engagement Timeline</h1>
@@ -555,6 +557,7 @@ export default function EngagementTimeline() {
       {/* Event Detail Modal */}
       <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
+    </AppShell>
   );
 }
 

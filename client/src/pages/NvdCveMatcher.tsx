@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Database, Search, Loader2, AlertTriangle, ShieldAlert, Info } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const severityColors: Record<string, string> = {
   CRITICAL: "bg-red-500 text-white",
@@ -48,7 +49,8 @@ export default function NvdCveMatcher() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/nvd-cve-matcher">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Database className="h-6 w-6 text-purple-500" />
@@ -194,5 +196,6 @@ export default function NvdCveMatcher() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }

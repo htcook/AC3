@@ -30,6 +30,7 @@ import {
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
+import AppShell from "@/components/AppShell";
 
 // ─── Risk band colors ──────────────────────────────────────────────────
 const RISK_COLORS: Record<string, string> = {
@@ -499,7 +500,8 @@ export default function ScoringHub() {
   const simResult = simQ.data;
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/scoring">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1752,5 +1754,6 @@ export default function ScoringHub() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Key, Plus, Trash2, RotateCcw, Star, Copy, Download, Server, Shield, Clock, Upload } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function SshKeyManager() {
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -98,7 +99,8 @@ export default function SshKeyManager() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/ssh-keys">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -406,5 +408,6 @@ export default function SshKeyManager() {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 }

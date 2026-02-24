@@ -15,6 +15,7 @@ import {
   Download, Trash2, Eye, CheckCircle, AlertTriangle,
   Camera, Terminal, Globe, HardDrive
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const EVIDENCE_TYPES = [
   { value: "screenshot", label: "Screenshot", icon: Camera },
@@ -99,7 +100,8 @@ export default function EvidenceCollection() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/evidence">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -380,5 +382,6 @@ export default function EvidenceCollection() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }

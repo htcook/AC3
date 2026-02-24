@@ -18,6 +18,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
+import AppShell from "@/components/AppShell";
 
 const connectorSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -104,7 +105,8 @@ const SoarConnectorsPage = () => {
   };
 
   return (
-    <div className="p-4 md:p-8 bg-background text-foreground">
+    <AppShell activePath="/soar-connectors">
+      <div className="p-4 md:p-8 bg-background text-foreground">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -261,6 +263,7 @@ const SoarConnectorsPage = () => {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 };
 

@@ -17,6 +17,7 @@ import {
   CheckCircle2, XCircle, Play, AlertCircle, ShieldCheck, FileDown, Database
 } from "lucide-react";
 import { exportToPdf } from "@/lib/export-pdf";
+import AppShell from "@/components/AppShell";
 
 const SEVERITY_CONFIG: Record<string, { color: string; bgColor: string; label: string }> = {
   critical: { color: "text-red-400", bgColor: "bg-red-500/20 border-red-500/30", label: "Critical" },
@@ -105,7 +106,8 @@ const RemediationVerificationPage = () => {
   const timeline = timelineQuery.data ?? [];
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/remediation-verification">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -451,6 +453,7 @@ const RemediationVerificationPage = () => {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 };
 

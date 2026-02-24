@@ -27,6 +27,48 @@ export const webAppScanningRouter = router({
       return generateLLMScanConfig(input);
     }),
 
+  /** Import OpenAPI/Swagger spec into ZAP */
+  importOpenApiSpec: protectedProcedure
+    .input(z.object({
+      specUrl: z.string().url(),
+      targetUrl: z.string().url().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { importOpenApiSpec } = await import("../lib/zap-scanner");
+      return importOpenApiSpec({
+        specUrl: input.specUrl,
+        targetUrl: input.targetUrl,
+      });
+    }),
+
+  /** Import GraphQL endpoint/schema into ZAP */
+  importGraphQLSpec: protectedProcedure
+    .input(z.object({
+      endpointUrl: z.string().url().optional(),
+      schemaUrl: z.string().url().optional(),
+      targetUrl: z.string().url().optional(),
+      maxQueryDepth: z.number().min(1).max(20).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { importGraphQLSpec } = await import("../lib/zap-scanner");
+      return importGraphQLSpec({
+        endpointUrl: input.endpointUrl,
+        schemaUrl: input.schemaUrl,
+        targetUrl: input.targetUrl,
+        maxQueryDepth: input.maxQueryDepth,
+      });
+    }),
+
+  /** Import SOAP/WSDL spec into ZAP */
+  importSoapSpec: protectedProcedure
+    .input(z.object({
+      wsdlUrl: z.string().url(),
+    }))
+    .mutation(async ({ input }) => {
+      const { importSoapSpec } = await import("../lib/zap-scanner");
+      return importSoapSpec({ wsdlUrl: input.wsdlUrl });
+    }),
+
   /** Start a new dual-mode web application scan */
   startScan: protectedProcedure
     .input(z.object({
@@ -40,6 +82,10 @@ export const webAppScanningRouter = router({
       domainIntelScanId: z.number().optional(),
       useLLMConfig: z.boolean().default(true),
       techStackHints: z.array(z.string()).optional(),
+      openApiSpecUrl: z.string().url().optional(),
+      graphqlEndpointUrl: z.string().url().optional(),
+      graphqlSchemaUrl: z.string().url().optional(),
+      soapWsdlUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { startScan, generateLLMScanConfig } = await import("../lib/zap-scanner");
@@ -64,6 +110,10 @@ export const webAppScanningRouter = router({
         calderaOperationId: input.calderaOperationId,
         metasploitSessionId: input.metasploitSessionId,
         domainIntelScanId: input.domainIntelScanId,
+        openApiSpecUrl: input.openApiSpecUrl,
+        graphqlEndpointUrl: input.graphqlEndpointUrl,
+        graphqlSchemaUrl: input.graphqlSchemaUrl,
+        soapWsdlUrl: input.soapWsdlUrl,
       });
     }),
 

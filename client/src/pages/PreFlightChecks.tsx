@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Rocket, Play, Loader2, CheckCircle, XCircle, AlertTriangle, MinusCircle } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const statusIcons: Record<string, typeof CheckCircle> = {
   pass: CheckCircle,
@@ -65,7 +66,8 @@ export default function PreFlightChecks() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/preflight-checks">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Rocket className="h-6 w-6 text-orange-500" />
@@ -214,5 +216,6 @@ export default function PreFlightChecks() {
         </>
       )}
     </div>
+    </AppShell>
   );
 }

@@ -44,6 +44,7 @@ import {
   Eye,
 } from "lucide-react";
 import ROEWarningBanner from "@/components/ROEWarningBanner";
+import AppShell from "@/components/AppShell";
 
 // ─── Common payload presets ─────────────────────────────────────────────────
 
@@ -248,7 +249,8 @@ export default function PayloadGenerator() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/payload-generator">
+      <div className="space-y-6">
       {/* ROE Warning Banner */}
       <ROEWarningBanner riskTier="red" operationName="Payload Generation" />
 
@@ -773,5 +775,6 @@ export default function PayloadGenerator() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }

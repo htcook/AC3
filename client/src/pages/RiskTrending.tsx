@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { TrendingUp, TrendingDown, Minus, AlertCircle, PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import AppShell from "@/components/AppShell";
 
 const RiskTrendingPage: React.FC = () => {
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
@@ -64,6 +65,7 @@ const RiskTrendingPage: React.FC = () => {
     const Icon = isImproving ? TrendingUp : isStable ? Minus : TrendingDown;
 
     return (
+    <AppShell activePath="/risk-trending">
       <div className={`flex items-center gap-2 ${color}`}>
         <Icon className="h-6 w-6" />
         <div className="flex flex-col">
@@ -71,7 +73,8 @@ const RiskTrendingPage: React.FC = () => {
           <span className="text-xs text-muted-foreground">{direction} over last {periodDays} days</span>
         </div>
       </div>
-    );
+    </AppShell>
+  );
   };
 
   const LatestScoreCard = () => {

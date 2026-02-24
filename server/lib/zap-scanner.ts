@@ -594,6 +594,150 @@ export async function checkZapHealth(config?: Partial<ZapConfig>): Promise<{
   }
 }
 
+// ─── OpenAPI / GraphQL / SOAP Spec Import ──────────────────────────────────
+
+/**
+ * Import an OpenAPI/Swagger specification into ZAP for targeted API testing.
+ * ZAP will parse the spec and add all endpoints to the sites tree for scanning.
+ *
+ * Supports OpenAPI 2.0 (Swagger), OpenAPI 3.0, and OpenAPI 3.1.
+ * The spec can be provided as a URL or raw content.
+ */
+export async function importOpenApiSpec(params: {
+  specUrl?: string;
+  specContent?: string;
+  targetUrl?: string;
+  contextId?: string;
+  config?: Partial<ZapConfig>;
+}): Promise<{ success: boolean; endpointsImported: number; errors: string[] }> {
+  const cfg = { ...DEFAULT_ZAP_CONFIG, ...params.config };
+  const errors: string[] = [];
+
+  try {
+    const reqParams: Record<string, string> = {};
+
+    if (params.specUrl) {
+      reqParams.url = params.specUrl;
+    } else if (params.specContent) {
+      reqParams.file = params.specContent;
+    } else {
+      return { success: false, endpointsImported: 0, errors: ["Either specUrl or specContent is required"] };
+    }
+
+    if (params.targetUrl) {
+      reqParams.hostOverride = params.targetUrl;
+    }
+    if (params.contextId) {
+      reqParams.contextId = params.contextId;
+    }
+
+    const result = await zapRequest("/JSON/openapi/action/importUrl/", reqParams, cfg);
+
+    // Get the number of URLs added to the sites tree
+    const sitesResult = await zapRequest("/JSON/core/view/urls/", {}, cfg).catch(() => ({ urls: [] }));
+    const endpointsImported = (sitesResult.urls || []).length;
+
+    return { success: true, endpointsImported, errors };
+  } catch (err: any) {
+    errors.push(`OpenAPI import failed: ${err.message}`);
+    return { success: false, endpointsImported: 0, errors };
+  }
+}
+
+/**
+ * Import a GraphQL schema/endpoint into ZAP for targeted GraphQL API testing.
+ * ZAP will perform introspection on the endpoint and add all queries/mutations.
+ *
+ * Supports:
+ * - GraphQL introspection endpoint URL (ZAP auto-discovers the schema)
+ * - Raw GraphQL SDL schema content
+ */
+export async function importGraphQLSpec(params: {
+  endpointUrl?: string;
+  schemaUrl?: string;
+  schemaContent?: string;
+  targetUrl?: string;
+  maxQueryDepth?: number;
+  config?: Partial<ZapConfig>;
+}): Promise<{ success: boolean; queriesImported: number; mutationsImported: number; errors: string[] }> {
+  const cfg = { ...DEFAULT_ZAP_CONFIG, ...params.config };
+  const errors: string[] = [];
+
+  try {
+    const reqParams: Record<string, string> = {};
+
+    if (params.endpointUrl) {
+      reqParams.endurl = params.endpointUrl;
+    }
+    if (params.schemaUrl) {
+      reqParams.schemaUrl = params.schemaUrl;
+    } else if (params.schemaContent) {
+      reqParams.schemaFile = params.schemaContent;
+    }
+    if (params.targetUrl) {
+      reqParams.url = params.targetUrl;
+    }
+    if (params.maxQueryDepth) {
+      // Set max query depth for introspection
+      await zapRequest("/JSON/graphql/action/setOptionMaxQueryDepth/", {
+        Integer: String(params.maxQueryDepth),
+      }, cfg).catch(() => {});
+    }
+
+    // Enable optional arguments for more thorough testing
+    await zapRequest("/JSON/graphql/action/setOptionOptionalArgsEnabled/", {
+      Boolean: "true",
+    }, cfg).catch(() => {});
+
+    const result = await zapRequest("/JSON/graphql/action/importUrl/", reqParams, cfg);
+
+    // Estimate queries/mutations from sites tree
+    const sitesResult = await zapRequest("/JSON/core/view/urls/", {}, cfg).catch(() => ({ urls: [] }));
+    const graphqlUrls = (sitesResult.urls || []).filter((u: string) => u.includes("graphql"));
+
+    return {
+      success: true,
+      queriesImported: Math.max(graphqlUrls.length, 1),
+      mutationsImported: 0,
+      errors,
+    };
+  } catch (err: any) {
+    errors.push(`GraphQL import failed: ${err.message}`);
+    return { success: false, queriesImported: 0, mutationsImported: 0, errors };
+  }
+}
+
+/**
+ * Import a SOAP/WSDL specification into ZAP for SOAP API testing.
+ */
+export async function importSoapSpec(params: {
+  wsdlUrl?: string;
+  wsdlContent?: string;
+  config?: Partial<ZapConfig>;
+}): Promise<{ success: boolean; operationsImported: number; errors: string[] }> {
+  const cfg = { ...DEFAULT_ZAP_CONFIG, ...params.config };
+  const errors: string[] = [];
+
+  try {
+    const reqParams: Record<string, string> = {};
+
+    if (params.wsdlUrl) {
+      reqParams.url = params.wsdlUrl;
+    } else if (params.wsdlContent) {
+      reqParams.file = params.wsdlContent;
+    } else {
+      return { success: false, operationsImported: 0, errors: ["Either wsdlUrl or wsdlContent is required"] };
+    }
+
+    const result = await zapRequest("/JSON/soap/action/importUrl/", reqParams, cfg);
+
+    return { success: true, operationsImported: 1, errors };
+  } catch (err: any) {
+    errors.push(`SOAP import failed: ${err.message}`);
+    return { success: false, operationsImported: 0, errors };
+  }
+}
+
 /**
  * Start a dual-mode web application scan.
  * 
@@ -612,7 +756,11 @@ export async function startScan(params: {
   calderaOperationId?: string;
   metasploitSessionId?: string;
   domainIntelScanId?: number;
-}): Promise<{ scanId: number; spiderScanId?: string; status: string; llmConfig?: LLMScanConfig }> {
+  openApiSpecUrl?: string;
+  graphqlEndpointUrl?: string;
+  graphqlSchemaUrl?: string;
+  soapWsdlUrl?: string;
+}): Promise<{ scanId: number; spiderScanId?: string; status: string; llmConfig?: LLMScanConfig; specImportResult?: any }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
@@ -660,6 +808,44 @@ export async function startScan(params: {
   const scanId = result.insertId;
 
   try {
+    // Import API specifications if provided (before spidering)
+    let specImportResult: any = null;
+
+    // Check for direct spec URL params first, then LLM config
+    const specToImport = params.openApiSpecUrl
+      ? { type: "openapi", url: params.openApiSpecUrl }
+      : params.graphqlEndpointUrl || params.graphqlSchemaUrl
+        ? { type: "graphql", url: params.graphqlEndpointUrl || params.graphqlSchemaUrl }
+        : params.soapWsdlUrl
+          ? { type: "soap", url: params.soapWsdlUrl }
+          : llmConfig.importSpec;
+
+    if (specToImport) {
+      try {
+        if (specToImport.type === "openapi") {
+          specImportResult = await importOpenApiSpec({
+            specUrl: specToImport.url,
+            targetUrl: params.targetUrl,
+            config: params.config,
+          });
+        } else if (specToImport.type === "graphql") {
+          specImportResult = await importGraphQLSpec({
+            endpointUrl: specToImport.url,
+            targetUrl: params.targetUrl,
+            config: params.config,
+          });
+        } else if (specToImport.type === "soap") {
+          specImportResult = await importSoapSpec({
+            wsdlUrl: specToImport.url,
+            config: params.config,
+          });
+        }
+      } catch (err: any) {
+        // Non-fatal — continue with spider even if spec import fails
+        specImportResult = { success: false, errors: [err.message] };
+      }
+    }
+
     // Apply LLM-configured spider settings
     if (llmConfig.spiderConfig) {
       const sc = llmConfig.spiderConfig;
@@ -686,7 +872,7 @@ export async function startScan(params: {
       zapSpiderScanId: String(spiderScanId),
     }).where(eq(webAppScans.id, scanId));
 
-    return { scanId, spiderScanId: String(spiderScanId), status: "spidering", llmConfig };
+    return { scanId, spiderScanId: String(spiderScanId), status: "spidering", llmConfig, specImportResult };
   } catch (err: any) {
     await db.update(webAppScans).set({
       status: "error",

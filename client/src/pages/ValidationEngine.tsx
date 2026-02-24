@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { exportToCsv, exportToPdf } from "@/lib/export-utils";
 import ROEWarningBanner from "@/components/ROEWarningBanner";
+import AppShell from "@/components/AppShell";
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 function statusBadge(status: string) {
@@ -173,7 +174,8 @@ export default function ValidationEngine() {
   const results = runData?.results || [];
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/validation-engine">
+      <div className="space-y-6">
       {/* ROE Warning Banner */}
       <ROEWarningBanner riskTier="orange" operationName="Vulnerability Validation" />
 
@@ -691,6 +693,7 @@ export default function ValidationEngine() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }
 

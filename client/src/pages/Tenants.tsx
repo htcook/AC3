@@ -11,6 +11,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MoreHorizontal, PlusCircle, Trash2, UserPlus, XCircle, AlertTriangle, Edit } from 'lucide-react';
+import AppShell from "@/components/AppShell";
 
 // Tenant type from the router definition
 type Tenant = {
@@ -203,7 +204,8 @@ export default function TenantsPage() {
   }, [tenantsQuery.data, selectedTenantId]);
 
   return (
-    <div className="p-4 md:p-8 bg-background text-foreground min-h-screen">
+    <AppShell activePath="/tenants">
+      <div className="p-4 md:p-8 bg-background text-foreground min-h-screen">
       <header className="flex items-center justify-between mb-6">
         <div>
             <h1 className="text-3xl font-bold">Tenants</h1>
@@ -342,5 +344,6 @@ export default function TenantsPage() {
         </Card>
       </div>
     </div>
+    </AppShell>
   );
 }

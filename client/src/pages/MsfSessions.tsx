@@ -26,6 +26,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import ROEWarningBanner from "@/components/ROEWarningBanner";
+import AppShell from "@/components/AppShell";
 
 interface SessionEntry {
   serverId: number;
@@ -308,7 +309,8 @@ export default function MsfSessions() {
   const shellCount = sessions?.filter(s => s.type === "shell").length || 0;
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/msf-sessions">
+      <div className="space-y-6">
       {/* ROE Warning Banner */}
       <ROEWarningBanner riskTier="red" operationName="Exploitation / Session Interaction" />
 
@@ -540,5 +542,6 @@ export default function MsfSessions() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }

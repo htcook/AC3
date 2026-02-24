@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Crosshair, Play, Loader2, ShieldAlert, ShieldCheck, ShieldQuestion, AlertTriangle } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const riskColors: Record<string, string> = {
   critical: "bg-red-600 text-white",
@@ -74,7 +75,8 @@ export default function ActiveVerification() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/active-verification">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Crosshair className="h-6 w-6 text-red-500" />
@@ -232,5 +234,6 @@ export default function ActiveVerification() {
         </Card>
       )}
     </div>
+    </AppShell>
   );
 }

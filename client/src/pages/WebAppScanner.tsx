@@ -22,6 +22,7 @@ import {
   ArrowRight, ExternalLink, ShieldAlert, Cpu, Activity
 } from "lucide-react";
 import { exportToPdf } from "@/lib/export-pdf";
+import AppShell from "@/components/AppShell";
 
 // ─── Severity Colors ──────────────────────────────────────────────────────────
 const SEVERITY_COLORS: Record<string, string> = {
@@ -107,7 +108,8 @@ export default function WebAppScanner() {
   const scans = scansQuery.data || [];
 
   return (
-    <div className="space-y-6 p-1">
+    <AppShell activePath="/web-app-scanner">
+      <div className="space-y-6 p-1">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -120,10 +122,33 @@ export default function WebAppScanner() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={healthQuery.data?.available ? "border-emerald-500/50 text-emerald-400" : "border-red-500/50 text-red-400"}>
-            <div className={`w-2 h-2 rounded-full mr-1.5 ${healthQuery.data?.available ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`} />
-            ZAP {healthQuery.data?.available ? `v${healthQuery.data.version}` : "Offline"}
-          </Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className={`cursor-help ${healthQuery.data?.available ? "border-emerald-500/50 text-emerald-400" : "border-red-500/50 text-red-400"}`}>
+                  <div className={`w-2 h-2 rounded-full mr-1.5 ${healthQuery.data?.available ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`} />
+                  <Server className="w-3 h-3 mr-1" />
+                  ZAP {healthQuery.data?.available ? `v${healthQuery.data.version}` : "Connecting..."}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                {healthQuery.data?.available ? (
+                  <div className="text-xs space-y-1">
+                    <div className="font-semibold text-emerald-400">ZAP Server Connected</div>
+                    <div>Version: {healthQuery.data.version}</div>
+                    <div>Supports: OpenAPI, GraphQL, SOAP import</div>
+                    <div>Modes: Passive Recon + Active DAST</div>
+                  </div>
+                ) : (
+                  <div className="text-xs space-y-1">
+                    <div className="font-semibold text-red-400">ZAP Server Initializing</div>
+                    <div>The ZAP server may take 2-3 minutes to fully boot after deployment.</div>
+                    <div className="text-muted-foreground">Deployed to DigitalOcean (sfo3)</div>
+                  </div>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button variant="outline" size="sm" onClick={() => seedDemo.mutate()} disabled={seedDemo.isPending}>
             {seedDemo.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <PlusCircle className="w-3 h-3 mr-1" />}
             Seed Demo
@@ -263,6 +288,7 @@ export default function WebAppScanner() {
         }}
       />
     </div>
+    </AppShell>
   );
 }
 
@@ -713,6 +739,9 @@ function NewScanDialog({ open, onOpenChange, onScanStarted }: {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [llmConfig, setLlmConfig] = useState<any>(null);
   const [configLoading, setConfigLoading] = useState(false);
+  const [apiSpecType, setApiSpecType] = useState<"none" | "openapi" | "graphql" | "soap">("none");
+  const [apiSpecUrl, setApiSpecUrl] = useState("");
+  const [graphqlEndpointUrl, setGraphqlEndpointUrl] = useState("");
 
   const startScan = trpc.webAppScanning.startScan.useMutation({
     onSuccess: (data) => {
@@ -745,6 +774,9 @@ function NewScanDialog({ open, onOpenChange, onScanStarted }: {
     setAttackChainId("");
     setLlmConfig(null);
     setShowAdvanced(false);
+    setApiSpecType("none");
+    setApiSpecUrl("");
+    setGraphqlEndpointUrl("");
   };
 
   const handleGenerateConfig = () => {
@@ -767,6 +799,10 @@ function NewScanDialog({ open, onOpenChange, onScanStarted }: {
       useLLMConfig: useLLM,
       techStackHints: techHints ? techHints.split(",").map(s => s.trim()) : undefined,
       attackChainId: attackChainId || undefined,
+      openApiSpecUrl: apiSpecType === "openapi" && apiSpecUrl ? apiSpecUrl : undefined,
+      graphqlEndpointUrl: apiSpecType === "graphql" && graphqlEndpointUrl ? graphqlEndpointUrl : undefined,
+      graphqlSchemaUrl: apiSpecType === "graphql" && apiSpecUrl ? apiSpecUrl : undefined,
+      soapWsdlUrl: apiSpecType === "soap" && apiSpecUrl ? apiSpecUrl : undefined,
     });
   };
 
@@ -863,6 +899,81 @@ function NewScanDialog({ open, onOpenChange, onScanStarted }: {
               <p className="text-[10px] text-muted-foreground">Link this scan to an existing attack chain for coordinated exploitation</p>
             </div>
           )}
+
+          {/* API Specification Import */}
+          <div className="space-y-3 p-3 rounded-lg bg-muted/10 border border-border/30">
+            <div className="flex items-center gap-2">
+              <Code className="w-4 h-4 text-emerald-400" />
+              <div>
+                <div className="text-sm font-medium">API Specification Import</div>
+                <div className="text-[11px] text-muted-foreground">Import OpenAPI, GraphQL, or SOAP specs for targeted API security testing</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {(["none", "openapi", "graphql", "soap"] as const).map((type) => {
+                const labels: Record<string, string> = { none: "None", openapi: "OpenAPI/Swagger", graphql: "GraphQL", soap: "SOAP/WSDL" };
+                const colors: Record<string, string> = { none: "border-border/30", openapi: "border-emerald-500/50 bg-emerald-500/10", graphql: "border-pink-500/50 bg-pink-500/10", soap: "border-amber-500/50 bg-amber-500/10" };
+                return (
+                  <button
+                    key={type}
+                    onClick={() => { setApiSpecType(type); setApiSpecUrl(""); setGraphqlEndpointUrl(""); }}
+                    className={`px-3 py-2 rounded-md border text-xs font-medium transition-all ${
+                      apiSpecType === type ? colors[type] : "border-border/20 hover:border-border/40 text-muted-foreground"
+                    }`}
+                  >
+                    {labels[type]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {apiSpecType === "openapi" && (
+              <div className="space-y-2">
+                <Label className="text-xs">OpenAPI/Swagger Spec URL</Label>
+                <Input
+                  placeholder="https://api.example.com/openapi.json or /swagger.yaml"
+                  value={apiSpecUrl}
+                  onChange={(e) => setApiSpecUrl(e.target.value)}
+                  className="text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">Supports OpenAPI 2.0 (Swagger), 3.0, and 3.1 in JSON or YAML format. ZAP will import all endpoints for scanning.</p>
+              </div>
+            )}
+
+            {apiSpecType === "graphql" && (
+              <div className="space-y-2">
+                <Label className="text-xs">GraphQL Endpoint URL</Label>
+                <Input
+                  placeholder="https://api.example.com/graphql"
+                  value={graphqlEndpointUrl}
+                  onChange={(e) => setGraphqlEndpointUrl(e.target.value)}
+                  className="text-xs"
+                />
+                <Label className="text-xs">GraphQL Schema URL (optional)</Label>
+                <Input
+                  placeholder="https://api.example.com/schema.graphql"
+                  value={apiSpecUrl}
+                  onChange={(e) => setApiSpecUrl(e.target.value)}
+                  className="text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">ZAP will perform introspection on the endpoint and import all queries/mutations. Provide schema URL if introspection is disabled.</p>
+              </div>
+            )}
+
+            {apiSpecType === "soap" && (
+              <div className="space-y-2">
+                <Label className="text-xs">WSDL URL</Label>
+                <Input
+                  placeholder="https://api.example.com/service?wsdl"
+                  value={apiSpecUrl}
+                  onChange={(e) => setApiSpecUrl(e.target.value)}
+                  className="text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">ZAP will parse the WSDL and import all SOAP operations for security testing.</p>
+              </div>
+            )}
+          </div>
 
           {/* AI Config Preview */}
           {useLLM && (

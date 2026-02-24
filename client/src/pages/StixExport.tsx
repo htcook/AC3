@@ -13,6 +13,7 @@ import {
   AlertTriangle, Loader2,
   Package, Eye
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 interface ExportResult {
   bundle: any;
@@ -117,7 +118,8 @@ export default function StixExport() {
   const stats = statsQuery.data;
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/stix-export">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -520,6 +522,7 @@ curl -H "Content-Type: application/taxii+json;version=2.1" \\
         </Card>
       )}
     </div>
+    </AppShell>
   );
 }
 

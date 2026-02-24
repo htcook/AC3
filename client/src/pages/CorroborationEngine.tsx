@@ -16,6 +16,7 @@ import {
   Eye, TrendingUp, ArrowRight, Copy, RefreshCw, FileDown
 } from "lucide-react";
 import { exportToPdf } from "@/lib/export-pdf";
+import AppShell from "@/components/AppShell";
 
 const FINDING_TYPES = ["vulnerability", "credential", "domain", "ip", "indicator"] as const;
 const SOURCE_OPTIONS = ["nvd", "shodan", "censys", "urlscan", "abuseipdb", "virustotal", "securitytrails", "dehashed"] as const;
@@ -90,7 +91,8 @@ export default function CorroborationEngine() {
   }, [history]);
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/corroboration-engine">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -382,6 +384,7 @@ export default function CorroborationEngine() {
         </Card>
       )}
     </div>
+    </AppShell>
   );
 }
 

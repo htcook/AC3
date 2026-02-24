@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, PlusCircle, AlertCircle, Trash2, PlayCircle } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 type GatewayType = 'proofpoint' | 'mimecast' | 'defender' | 'barracuda' | 'custom';
 type PayloadType = 'phishing_link' | 'malware_attachment' | 'credential_harvest' | 'bec_impersonation' | 'custom';
@@ -117,7 +118,8 @@ const EmailSecurityPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-8">
+    <AppShell activePath="/email-security">
+      <div className="min-h-screen bg-background text-foreground p-8">
       <header className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Email Security Gateway Validation</h1>
         <Dialog open={isCreateOpen} onOpenChange={setCreateOpen}>
@@ -206,6 +208,7 @@ const EmailSecurityPage = () => {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 };
 

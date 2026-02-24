@@ -23,6 +23,7 @@ import {
   XCircle, AlertTriangle, Shield, Loader2, History,
   Key, Cloud, Settings2,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function CredentialAutoRotation() {
   const [activeTab, setActiveTab] = useState("policies");
@@ -102,7 +103,8 @@ export default function CredentialAutoRotation() {
   const [auditFilter] = useState<{ policyId?: number; credentialId?: number }>({});
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/credential-auto-rotation">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -374,6 +376,7 @@ export default function CredentialAutoRotation() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }
 

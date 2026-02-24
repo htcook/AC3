@@ -15,6 +15,7 @@ import {
   ChevronDown, ChevronRight, Trash2, Edit, Rocket, Shield
 } from "lucide-react";
 import ROEWarningBanner from "@/components/ROEWarningBanner";
+import AppShell from "@/components/AppShell";
 
 function AdversaryProfileCard({ profile: raw }: { profile: unknown }) {
   if (!raw) return null;
@@ -131,7 +132,8 @@ export default function EmulationPlaybooks() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/emulation-playbooks">
+      <div className="space-y-6">
       {/* ROE Warning Banner */}
       <ROEWarningBanner riskTier="red" operationName="Adversary Emulation" />
 
@@ -459,5 +461,6 @@ export default function EmulationPlaybooks() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }

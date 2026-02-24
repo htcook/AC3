@@ -13,6 +13,7 @@ import {
   GitBranch, Plus, Search, Trash2, ZoomIn, ZoomOut,
   Maximize2, Target, Shield, AlertTriangle, Crosshair
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // Node type colors
 const NODE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -246,7 +247,8 @@ export default function AttackPaths() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/attack-paths">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -434,5 +436,6 @@ export default function AttackPaths() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }

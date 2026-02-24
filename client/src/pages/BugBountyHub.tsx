@@ -14,6 +14,7 @@ import {
   AlertTriangle, Link2, TrendingUp, Globe, Zap, Target,
   ChevronRight, Clock, DollarSign, Users, BarChart3
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -85,7 +86,8 @@ export default function BugBountyHub() {
   });
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/bug-bounty">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -670,5 +672,6 @@ export default function BugBountyHub() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }

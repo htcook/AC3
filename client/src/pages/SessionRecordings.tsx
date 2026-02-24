@@ -46,6 +46,7 @@ import {
   Circle,
   Download,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 function formatDuration(ms: number): string {
   if (!ms) return "0s";
@@ -361,7 +362,8 @@ export default function SessionRecordings() {
   const recordings = recordingsData?.items || [];
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/session-recordings">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -572,5 +574,6 @@ export default function SessionRecordings() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }

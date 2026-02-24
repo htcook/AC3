@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, PlusCircle, Trash2, PlayCircle, AlertTriangle, CheckCircle, XCircle, Wifi, WifiOff, Power } from "lucide-react";
 import { format } from 'date-fns';
+import AppShell from "@/components/AppShell";
 
 type IntegrationProvider = 'splunk' | 'elastic' | 'sentinel';
 
@@ -99,7 +100,8 @@ export default function SiemFeedback() {
     };
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 bg-background text-foreground min-h-screen space-y-6">
+    <AppShell activePath="/siem-feedback">
+      <div className="p-4 sm:p-6 lg:p-8 bg-background text-foreground min-h-screen space-y-6">
             <header className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">SIEM Detection Feedback</h1>
@@ -257,5 +259,6 @@ export default function SiemFeedback() {
                 </Card>
             </div>
         </div>
-    );
+    </AppShell>
+  );
 }

@@ -15,6 +15,7 @@ import {
   CheckCircle, XCircle, BarChart3, Target, Trash2
 } from "lucide-react";
 import ROEWarningBanner from "@/components/ROEWarningBanner";
+import AppShell from "@/components/AppShell";
 
 const TACTICS = [
   "reconnaissance", "resource-development", "initial-access",
@@ -84,7 +85,8 @@ export default function PurpleTeam() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/purple-team">
+      <div className="space-y-6">
       {/* ROE Warning Banner */}
       <ROEWarningBanner riskTier="orange" operationName="Purple Team Testing" />
 
@@ -425,5 +427,6 @@ export default function PurpleTeam() {
         </div>
       )}
     </div>
+    </AppShell>
   );
 }

@@ -3764,3 +3764,25 @@
 - [x] Wire ZAP active DAST into attack chain coordination pipeline
 - [x] Build Web App Scanner UI with AI assistant for scan configuration
 - [x] Write tests for LLM orchestrator and dual-mode scanning (33 tests, all passing)
+
+## Menu Navigation Consistency
+- [x] Audit all routes/pages for AppShell sidebar presence (98 pages checked)
+- [x] Fix any pages missing the sidebar navigation wrapper
+- [x] Verify all pages render with consistent sidebar menu
+
+## Sidebar Navigation Fix + ZAP Live Instance + OpenAPI/GraphQL Import
+- [x] Fix all 43 pages missing AppShell sidebar wrapper (39 auto-fixed, 4 special pages excluded: Home, Login, NotFound, ClientPortal)
+- [x] Provision ZAP_BASE_URL and ZAP_API_KEY secrets for live ZAP instance
+- [x] Add OpenAPI/GraphQL spec import to scanner backend (tRPC endpoints)
+- [x] Add OpenAPI/GraphQL spec import to scanner UI (scan dialog fields)
+- [x] Verify build and run tests (36 tests passing)
+- [x] Install OWASP ZAP in sandbox environment (Java 11 too old, deployed to DO instead)
+- [x] Generate API key and start ZAP daemon (deployed to DigitalOcean sfo3)
+- [x] Provision ZAP_BASE_URL and ZAP_API_KEY with auto-generated values
+- [x] Add ZAP deployment guide/instructions panel to Web App Scanner UI
+- [x] Add ZAP connection status indicator to scanner page
+- [x] Add ZAP server health check endpoint to backend (already existed)
+- [x] Check existing DO infrastructure to find closest region (sfo3, 4 droplets)
+- [x] Deploy ZAP Docker droplet to DigitalOcean (s-2vcpu-4gb, IP: 64.23.239.165)
+- [x] Configure firewall to lock ZAP API behind dashboard IP + API key auth
+- [x] Provision ZAP_BASE_URL and ZAP_API_KEY secrets with deployed values

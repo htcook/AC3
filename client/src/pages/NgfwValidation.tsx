@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlusCircle, Play, Trash2, Loader2, AlertCircle, BarChart, Network, ShieldCheck, ShieldAlert } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 type TestType = 'port_probe' | 'protocol_test' | 'lateral_movement' | 'exfiltration' | 'c2_callback' | 'segmentation';
 type Status = 'pending' | 'running' | 'completed' | 'error';
@@ -189,7 +190,8 @@ const NgfwValidationPage = () => {
     };
 
     return (
-        <div className="p-4 md:p-8 bg-background text-foreground min-h-screen">
+    <AppShell activePath="/ngfw-validation">
+      <div className="p-4 md:p-8 bg-background text-foreground min-h-screen">
             <header className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-bold">NGFW Validation</h1>
                 <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
@@ -284,7 +286,8 @@ const NgfwValidationPage = () => {
                 </Card>
             </main>
         </div>
-    );
+    </AppShell>
+  );
 };
 
 export default NgfwValidationPage;

@@ -15,6 +15,7 @@ import {
   Printer, Loader2, RefreshCw, TrendingUp, Layers,
 } from "lucide-react";
 import { exportBiaReportPdf } from "@/lib/export-utils";
+import AppShell from "@/components/AppShell";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -148,7 +149,8 @@ export default function BiaReportPage() {
   // ─── Render ─────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/bia-report">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -433,5 +435,6 @@ export default function BiaReportPage() {
         </Card>
       )}
     </div>
+    </AppShell>
   );
 }

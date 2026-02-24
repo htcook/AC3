@@ -53,6 +53,7 @@ import {
   Video,
   BarChart3,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── File Icon Helper ────────────────────────────────────────────────────────
 
@@ -302,7 +303,8 @@ export default function FileTransfers() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/file-transfers">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -643,5 +645,6 @@ export default function FileTransfers() {
         />
       )}
     </div>
+    </AppShell>
   );
 }

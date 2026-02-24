@@ -13,6 +13,7 @@ import {
   Users, Shield, Monitor, Globe, FolderTree, Crosshair,
   Loader2, Trash2, Eye, Import, Info,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 interface FileEntry {
   file: File;
@@ -130,7 +131,8 @@ export default function BloodHoundImport() {
   }, [files]);
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/bloodhound-import">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -489,6 +491,7 @@ export default function BloodHoundImport() {
         </TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }
 

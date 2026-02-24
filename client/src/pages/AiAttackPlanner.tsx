@@ -20,6 +20,7 @@ import {
   BarChart3, Network, Swords, ArrowRight, Play, Copy, FileDown
 } from "lucide-react";
 import { exportToPdf } from "@/lib/export-pdf";
+import AppShell from "@/components/AppShell";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type PlanPhase = {
@@ -141,7 +142,8 @@ const AiAttackPlannerPage = () => {
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/ai-attack-planner">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -385,6 +387,7 @@ const AiAttackPlannerPage = () => {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 };
 

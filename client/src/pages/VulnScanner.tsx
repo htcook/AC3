@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Upload, File, Trash2, AlertCircle, Loader2, BarChart, List, ShieldAlert, ShieldCheck, TrendingDown, Eye, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 type ScannerType = 'nessus' | 'qualys' | 'rapid7' | 'openvas' | 'custom';
 
@@ -281,7 +282,8 @@ export default function VulnScannerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
+    <AppShell activePath="/vuln-scanner">
+      <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
       <header className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Vulnerability Scanner</h1>
@@ -426,6 +428,7 @@ export default function VulnScannerPage() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }
 

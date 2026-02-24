@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ShieldCheck, Search, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function CompensatingControls() {
   const [cveId, setCveId] = useState("");
@@ -51,7 +52,8 @@ export default function CompensatingControls() {
   };
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/compensating-controls">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <ShieldCheck className="h-6 w-6 text-green-500" />
@@ -181,5 +183,6 @@ export default function CompensatingControls() {
         </Card>
       )}
     </div>
+    </AppShell>
   );
 }

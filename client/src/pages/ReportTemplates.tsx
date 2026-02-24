@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useState } from "react";
+import AppShell from "@/components/AppShell";
 type ReportTemplate = any;
 
 const ReportTemplatesPage = () => {
@@ -80,7 +81,8 @@ const ReportTemplatesPage = () => {
   }
 
   return (
-    <div className="p-4 bg-background text-foreground">
+    <AppShell activePath="/report-templates">
+      <div className="p-4 bg-background text-foreground">
       <Card>
         <CardHeader>
           <CardTitle>Report Templates</CardTitle>
@@ -161,6 +163,7 @@ const ReportTemplatesPage = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 };
 

@@ -44,6 +44,7 @@ import {
   Trash2, 
   XCircle 
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const testTypes = ['cloud_api', 'network_probe', 'email_payload', 'dns_exfil', 'http_c2_sim'] as const;
 type TestType = typeof testTypes[number];
@@ -207,7 +208,8 @@ export default function AgentlessBASPage() {
   }
 
   return (
-    <div className="p-6 bg-background text-foreground min-h-screen">
+    <AppShell activePath="/agentless-bas">
+      <div className="p-6 bg-background text-foreground min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Agentless BAS</h1>
         <Dialog open={createTestOpen} onOpenChange={setCreateTestOpen}>
@@ -323,5 +325,6 @@ export default function AgentlessBASPage() {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 }

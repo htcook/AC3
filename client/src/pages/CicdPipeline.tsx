@@ -50,6 +50,7 @@ import {
   Gitlab,
   Settings,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const providerIcons: Record<string, React.ReactNode> = {
   custom: <Settings className="h-4 w-4" />,
@@ -173,7 +174,8 @@ export default function CicdPipelinePage() {
   const stats = useMemo(() => statsQuery.data, [statsQuery.data]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
+    <AppShell activePath="/cicd-pipeline">
+      <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <header>
           <h1 className="text-3xl font-bold tracking-tight">CI/CD Pipelines</h1>
@@ -325,5 +327,6 @@ export default function CicdPipelinePage() {
         </div>
       </div>
     </div>
+    </AppShell>
   );
 }
