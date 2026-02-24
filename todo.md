@@ -3956,5 +3956,17 @@
 - [x] Document duplication and archival
 - [x] Sidebar navigation link added (ROE BUILDER in Operations section)
 - [x] Write vitest tests for RoE router (23 tests passing)
-- [ ] Build FedRAMP-compliant PDF export
-- [ ] Wire RoE to engagements
+- [x] Build FedRAMP-compliant PDF export (roe-pdf-generator.ts)
+- [x] Wire RoE to engagements (roeDocumentId field + linking endpoints)
+
+## RoE Enhancements — Phase 2
+- [x] FedRAMP-compliant PDF export with cover page, proper formatting, and digital signature blocks
+- [x] PDF export endpoint on backend with HTML-to-PDF rendering (exportPdfHtml endpoint)
+- [x] PDF download button in RoE Builder UI (list view dropdown + review step)
+- [x] Wire RoE to Engagements — add roeDocumentId foreign key to engagements schema
+- [x] RoE linking endpoints (linkToEngagement, unlinkFromEngagement, getByEngagement)
+- [x] Engagement create/update mutations accept roeDocumentId
+- [x] Customer Portal read-only RoE summary view (new RoE tab in ClientPortal)
+- [x] Customer digital signature capability in portal (typed signature with E-SIGN Act compliance)
+- [x] Signature storage in roe_signatures table with IP address audit trail
+- [x] Write vitest tests for PDF export and RoE-engagement linking (24 tests passing)

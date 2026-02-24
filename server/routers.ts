@@ -2604,6 +2604,7 @@ export const appRouter = router({
         calderaAdversaryId: z.string().optional(),
         gophishCampaignId: z.number().optional(),
         notes: z.string().optional(),
+        roeDocumentId: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const id = await db.createEngagement({
@@ -2635,6 +2636,7 @@ export const appRouter = router({
         calderaAdversaryId: z.string().optional(),
         gophishCampaignId: z.number().optional(),
         notes: z.string().optional(),
+        roeDocumentId: z.number().nullable().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;

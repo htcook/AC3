@@ -7,6 +7,9 @@ import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import * as db from "../db";
 import { TRPCError } from "@trpc/server";
 import crypto from "crypto";
+import { getDb as _getDb } from "../db";
+import { roeDocuments, roePersonnel, roeSignatures, engagements } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 export const clientPortalRouter = router({
   // ─── Admin: Create a share link ───────────────────────────────────
@@ -296,6 +299,117 @@ export const clientPortalRouter = router({
           }));
       }
 
+      // Fetch linked RoE document if available
+      try {
+        const drizzleDb = await _getDb();
+        if (drizzleDb && (engagement as any).roeDocumentId) {
+          const [roeDoc] = await drizzleDb.select().from(roeDocuments).where(eq(roeDocuments.id, (engagement as any).roeDocumentId));
+          if (roeDoc) {
+            const personnel = await drizzleDb.select().from(roePersonnel).where(eq(roePersonnel.roeId, roeDoc.id));
+            const sigs = await drizzleDb.select().from(roeSignatures).where(eq(roeSignatures.roeId, roeDoc.id));
+            response.roe = {
+              id: roeDoc.id,
+              title: roeDoc.title,
+              version: roeDoc.version,
+              status: roeDoc.status,
+              purpose: roeDoc.purpose,
+              assumptions: roeDoc.assumptions,
+              limitations: roeDoc.limitations,
+              scopeInclusions: roeDoc.scopeInclusions,
+              scopeExclusions: roeDoc.scopeExclusions,
+              testingTypes: roeDoc.testingTypes,
+              attackVectors: roeDoc.attackVectors,
+              scheduleStart: roeDoc.scheduleStart,
+              scheduleEnd: roeDoc.scheduleEnd,
+              scheduleTimezone: roeDoc.scheduleTimezone,
+              scheduleWindow: roeDoc.scheduleWindow,
+              scheduleDays: roeDoc.scheduleDays,
+              commFrequency: roeDoc.commFrequency,
+              commMethod: roeDoc.commMethod,
+              incidentResponse: roeDoc.incidentResponse,
+              haltConditions: roeDoc.haltConditions,
+              dataHandling: roeDoc.dataHandling,
+              evidenceRetention: roeDoc.evidenceRetention,
+              piiHandling: roeDoc.piiHandling,
+              encryptionRequired: roeDoc.encryptionRequired,
+              destructionMethod: roeDoc.destructionMethod,
+              legalJurisdiction: roeDoc.legalJurisdiction,
+              ndaRequired: roeDoc.ndaRequired,
+              liabilityClause: roeDoc.liabilityClause,
+              complianceFrameworks: roeDoc.complianceFrameworks,
+              personnel,
+              signatures: sigs,
+            };
+          }
+        }
+      } catch (e) {
+        // RoE data is optional — don't fail the whole request
+      }
+
       return response;
+    }),
+
+  // ─── Public: Sign RoE from Client Portal ─────────────────────────
+  signRoe: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      password: z.string().optional(),
+      roeId: z.number(),
+      signerName: z.string().min(1),
+      signerTitle: z.string().min(1),
+      signerOrganization: z.string().min(1),
+      signerEmail: z.string().email(),
+      signatureData: z.string(), // base64 signature image or typed name
+      signatureType: z.enum(["typed", "drawn"]),
+      ipAddress: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      // Validate the share token first
+      const share = await db.getEngagementShareByToken(input.token);
+      if (!share || !share.isActive) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid or inactive share link" });
+      }
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Share link expired" });
+      }
+      if (share.accessPassword) {
+        if (!input.password) throw new TRPCError({ code: "UNAUTHORIZED", message: "Password required" });
+        const hashedInput = crypto.createHash("sha256").update(input.password).digest("hex");
+        if (hashedInput !== share.accessPassword) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Incorrect password" });
+        }
+      }
+
+      const drizzleDb = await _getDb();
+      if (!drizzleDb) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Verify the RoE document exists and is linked to this engagement
+      const [roeDoc] = await drizzleDb.select().from(roeDocuments).where(eq(roeDocuments.id, input.roeId));
+      if (!roeDoc) throw new TRPCError({ code: "NOT_FOUND", message: "RoE document not found" });
+
+      // Insert signature
+      const now = Date.now();
+      await drizzleDb.insert(roeSignatures).values({
+        roeId: input.roeId,
+        signerName: input.signerName,
+        signerTitle: input.signerTitle,
+        signerOrganization: input.signerOrganization,
+        signerEmail: input.signerEmail,
+        signatureData: input.signatureData,
+        signatureType: input.signatureType,
+        ipAddress: input.ipAddress || "unknown",
+        signedAt: now,
+        createdAt: now,
+      });
+
+      // Update RoE document status to approved if it was pending_review
+      if (roeDoc.status === "pending_review") {
+        await drizzleDb.update(roeDocuments).set({
+          status: "approved",
+          approvedAt: now,
+        }).where(eq(roeDocuments.id, input.roeId));
+      }
+
+      return { success: true, message: "RoE document signed successfully" };
     }),
 });

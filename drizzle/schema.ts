@@ -214,6 +214,7 @@ export const engagements = mysqlTable("engagements", {
   roeScope: json("roe_scope"),
   roeSignerName: varchar("roe_signer_name", { length: 255 }),
   roeSignerEmail: varchar("roe_signer_email", { length: 320 }),
+  roeDocumentId: int("roe_document_id"), // FK to roe_documents table
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

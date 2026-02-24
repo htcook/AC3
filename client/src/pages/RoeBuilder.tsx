@@ -135,6 +135,29 @@ function RoeListView({
     onSuccess: () => { list.refetch(); stats.refetch(); toast.success("RoE archived"); },
   });
 
+  const handleExportPdf = async (docId: number) => {
+    try {
+      toast.success("Generating PDF...");
+      const resp = await fetch(`/api/trpc/roeBuilder.exportPdfHtml?batch=1&input=${encodeURIComponent(JSON.stringify({ "0": { json: { id: docId } } }))}`, {
+        credentials: "include",
+      });
+      const json = await resp.json();
+      const html = json?.[0]?.result?.data?.json?.html;
+      if (!html) {
+        toast.error("Could not generate PDF. Document may be empty.");
+        return;
+      }
+      const pdfWindow = window.open("", "_blank");
+      if (pdfWindow) {
+        pdfWindow.document.write(html);
+        pdfWindow.document.close();
+        setTimeout(() => pdfWindow.print(), 500);
+      }
+    } catch (err) {
+      toast.error("PDF export failed. Please try again.");
+    }
+  };
+
   const filteredDocs = useMemo(() => {
     const docs = list.data || [];
     if (!searchQuery) return docs;
@@ -272,6 +295,9 @@ function RoeListView({
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => duplicateMut.mutate({ id: doc.id, newTitle: `${doc.title} (Copy)` })}>
                             <Copy className="w-4 h-4 mr-2" /> Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleExportPdf(doc.id)}>
+                            <Download className="w-4 h-4 mr-2" /> Export PDF
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {doc.status === "draft" && (
@@ -1441,7 +1467,7 @@ function PersonnelStep({ roeId, personnel, defaults, refetch }: { roeId: number;
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Role</Label>
-              <Select value={newPerson.role} onValueChange={(v) => setNewPerson({ ...newPerson, role: v })}>
+              <Select value={newPerson.role} onValueChange={(v) => setNewPerson({ ...newPerson, role: v as any })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(defaults?.personnelRoles || []).map((r: any) => (
@@ -1591,21 +1617,41 @@ function ReviewStep({ roe, onBack, refetch }: { roe: any; onBack: () => void; re
         </div>
       )}
 
-      {/* Submit */}
-      {roe.status === "draft" && (
+      {/* Actions */}
+      <div className="flex gap-3">
         <Button
-          onClick={() => submitMut.mutate({ id: roe.id })}
-          disabled={completionPct < 70 || submitMut.isPending}
-          className="w-full"
+          variant="outline"
+          onClick={async () => {
+            try {
+              toast.success("Generating PDF...");
+              const resp = await fetch(`/api/trpc/roeBuilder.exportPdfHtml?batch=1&input=${encodeURIComponent(JSON.stringify({ "0": { json: { id: roe.id } } }))}`, { credentials: "include" });
+              const json = await resp.json();
+              const html = json?.[0]?.result?.data?.json?.html;
+              if (!html) { toast.error("Could not generate PDF."); return; }
+              const pdfWindow = window.open("", "_blank");
+              if (pdfWindow) { pdfWindow.document.write(html); pdfWindow.document.close(); setTimeout(() => pdfWindow.print(), 500); }
+            } catch { toast.error("PDF export failed."); }
+          }}
+          className="flex-1"
           size="lg"
         >
-          {submitMut.isPending ? (
-            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
-          ) : (
-            <><Send className="w-4 h-4 mr-2" /> Submit for Review</>
-          )}
+          <Download className="w-4 h-4 mr-2" /> Export PDF
         </Button>
-      )}
+        {roe.status === "draft" && (
+          <Button
+            onClick={() => submitMut.mutate({ id: roe.id })}
+            disabled={completionPct < 70 || submitMut.isPending}
+            className="flex-1"
+            size="lg"
+          >
+            {submitMut.isPending ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
+            ) : (
+              <><Send className="w-4 h-4 mr-2" /> Submit for Review</>
+            )}
+          </Button>
+        )}
+      </div>
 
       {completionPct < 70 && roe.status === "draft" && (
         <p className="text-xs text-amber-400 text-center">

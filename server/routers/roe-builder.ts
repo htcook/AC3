@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb as _getDb } from "../db";
-import { roeDocuments, roePersonnel, roeSignatures } from "../../drizzle/schema";
+import { roeDocuments, roePersonnel, roeSignatures, engagements } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 async function getDbSafe() {
@@ -545,7 +545,75 @@ export const roeBuilderRouter = router({
       return { id: result.insertId };
     }),
 
-  // ─── Stats ────────────────────────────────────────────────────────────────
+  // ─── PDF Export ───────────────────────────────────────────────────────────
+
+  exportPdfHtml: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const [doc] = await db.select().from(roeDocuments).where(eq(roeDocuments.id, input.id));
+      if (!doc) throw new Error("RoE document not found");
+
+      const personnel = await db.select().from(roePersonnel).where(eq(roePersonnel.roeId, input.id));
+      const signatures = await db.select().from(roeSignatures).where(eq(roeSignatures.roeId, input.id));
+
+      const { generateRoePdfHtml } = await import("../lib/roe-pdf-generator");
+      const html = generateRoePdfHtml({ document: doc, personnel, signatures });
+      return { html, title: doc.title, version: doc.version };
+    }),
+
+  // ─── Engagement Linking ──────────────────────────────────────────────────
+
+  linkToEngagement: protectedProcedure
+    .input(z.object({ roeId: z.number(), engagementId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      // Update the RoE document
+      await db.update(roeDocuments).set({
+        engagementId: input.engagementId,
+        lastModifiedBy: ctx.user.id,
+      }).where(eq(roeDocuments.id, input.roeId));
+      // Update the engagement
+      await db.update(engagements).set({
+        roeDocumentId: input.roeId,
+      } as any).where(eq(engagements.id, input.engagementId));
+      return { success: true };
+    }),
+
+  unlinkFromEngagement: protectedProcedure
+    .input(z.object({ roeId: z.number(), engagementId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      await db.update(roeDocuments).set({
+        engagementId: null,
+        lastModifiedBy: ctx.user.id,
+      }).where(eq(roeDocuments.id, input.roeId));
+      await db.update(engagements).set({
+        roeDocumentId: null,
+      } as any).where(eq(engagements.id, input.engagementId));
+      return { success: true };
+    }),
+
+  getByEngagement: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const docs = await db.select().from(roeDocuments).where(eq(roeDocuments.engagementId, input.engagementId));
+      return docs;
+    }),
+
+  // ─── Public Access (for Client Portal) ──────────────────────────────────
+
+  getPublicById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const [doc] = await db.select().from(roeDocuments).where(eq(roeDocuments.id, input.id));
+      if (!doc) throw new Error("RoE document not found");
+      const personnel = await db.select().from(roePersonnel).where(eq(roePersonnel.roeId, input.id));
+      const signatures = await db.select().from(roeSignatures).where(eq(roeSignatures.roeId, input.id));
+      return { ...doc, personnel, signatures };
+    }),
 
   getStats: protectedProcedure.query(async () => {
     const db = await getDbSafe();
