@@ -187,11 +187,11 @@ export default function Home() {
             </div>
 
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-display leading-[0.9] tracking-tight mb-8">
-              ATTACK.
+              KNOW YOUR
               <br />
-              <span className="text-primary">VALIDATE.</span>
+              <span className="text-primary">WEAKNESSES</span>
               <br />
-              <span className="text-3xl sm:text-4xl md:text-5xl text-muted-foreground font-display">PROVE YOUR DEFENSES WORK.</span>
+              <span className="text-3xl sm:text-4xl md:text-5xl text-muted-foreground font-display">BEFORE ATTACKERS DO.</span>
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">

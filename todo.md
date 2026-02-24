@@ -3905,3 +3905,6 @@
 - [x] Update backend error messages (tRPC errors surfaced in toasts)
 - [x] Update backend code comments and JSDoc
 - [x] Verify zero old naming remains (grep confirmed 0 matches)
+
+## Hero Tagline Update
+- [x] Change "ATTACK. VALIDATE. PROVE YOUR DEFENSES WORK" to "KNOW YOUR WEAKNESSES BEFORE ATTACKERS DO"
