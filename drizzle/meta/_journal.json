@@ -267,6 +267,13 @@
       "when": 1771896569196,
       "tag": "0037_cheerful_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1771899232641,
+      "tag": "0038_dusty_grandmaster",
+      "breakpoints": true
     }
   ]
 }

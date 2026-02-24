@@ -3406,6 +3406,13 @@ export const remediationVerifications = mysqlTable("remediation_verifications", 
   currentResult: text("rv_current_result"),
   verifiedAt: timestamp("rv_verified_at"),
   verifiedBy: varchar("rv_verified_by", { length: 255 }),
+  severity: mysqlEnum("rv_severity", ["critical", "high", "medium", "low", "info"]).default("medium"),
+  slaDeadline: timestamp("rv_sla_deadline"),
+  slaHours: int("rv_sla_hours"),
+  verificationOutput: text("rv_verification_output"),
+  attemptCount: int("rv_attempt_count").default(0),
+  assetName: varchar("rv_asset_name", { length: 255 }),
+  findingTitle: varchar("rv_finding_title", { length: 512 }),
   createdAt: timestamp("rv_created_at").defaultNow().notNull(),
 });
 

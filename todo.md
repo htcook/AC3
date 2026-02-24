@@ -3694,3 +3694,12 @@
 - [x] Implement Attack Chain Validation core functions (matchChainPattern, discoverAdHocChains, validateChain)
 - [x] Write vitest tests for all 8 fixed patent modules (38 tests, all passing)
 - [x] Run all tests and verify 100% pass rate (38/38 passing)
+
+## Flagship Patent Feature Pages
+- [x] Build interactive Attack Planner page with threat actor selection, environment config, and visual plan output
+- [x] Build Remediation Dashboard page with SLA tracking, overdue alerts, verification status, and regression trends
+- [x] Wire Corroboration Engine to scan results with confidence indicators in UI
+- [x] Add tRPC endpoints for Attack Planner (generatePlan, getHistory)
+- [x] Add tRPC endpoints for Remediation Dashboard (summary, overdue, timeline, needsVerification)
+- [x] Add new pages to sidebar navigation (already existed)
+- [x] Write tests for new endpoints (64 tests, all passing)

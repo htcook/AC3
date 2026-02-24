@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE remediation_verifications \n  ADD COLUMN rv_severity ENUM('critical','high','medium','low','info') DEFAULT 'medium',\n  ADD COLUMN rv_sla_deadline TIMESTAMP NULL,\n  ADD COLUMN rv_sla_hours INT DEFAULT NULL,\n  ADD COLUMN rv_verification_output TEXT DEFAULT NULL,\n  ADD COLUMN rv_attempt_count INT DEFAULT 0,\n  ADD COLUMN rv_asset_name VARCHAR(255) DEFAULT NULL,\n  ADD COLUMN rv_finding_title VARCHAR(512) DEFAULT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute ALTER TABLE remediation_verifications \n  ADD COLUMN rv_severity ENUM('critical','high','medium','low','info') DEFAULT 'medium',\n  ADD COLUMN rv_sla_deadline TIMESTAMP NULL,\n  ADD COLUMN rv_sla_hours INT DEFAULT NULL,\n  ADD COLUMN rv_verification_output TEXT DEFAULT NULL,\n  ADD COLUMN rv_attempt_count INT DEFAULT 0,\n  ADD COLUMN rv_asset_name VARCHAR(255) DEFAULT NULL,\n  ADD COLUMN rv_finding_title VARCHAR(512) DEFAULT NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2432
+}
