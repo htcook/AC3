@@ -3807,7 +3807,18 @@
 - [x] Write tests for Atomic Red Team module (27 tests, all passing)
 
 ## Homepage Language Update
-- [ ] Review current homepage copy and hero section
-- [ ] Update language to reflect full Exploit, C2, and DAST stack
-- [ ] Update feature highlights to include Atomic Red Team, ZAP, and new integrations
-- [ ] Update "What's New" pop-up with latest changes
+- [x] Review current homepage copy and hero section
+- [x] Update hero: badge → "EXPLOIT, C2 & DAST STACK", headline → "ATTACK. VALIDATE. PROVE YOUR DEFENSES WORK."
+- [x] Update subheadline to name all 5 tools (Metasploit, Caldera, ZAP, Atomic Red Team, GoPhish)
+- [x] Update value propositions: Scan & Discover, Exploit & Emulate, Validate & Report
+- [x] Update How It Works section to reference actual tools in each step
+- [x] Update stats bar: added Atomic Red Team tests (1,400+) and Integrated Tools (5)
+- [x] Update Who It's For section with tool-specific descriptions for Red/Purple/Pen teams
+- [x] Update CTA break with full stack messaging
+- [x] Update Platform Capabilities pillars with ZAP DAST and Atomic Red Team
+- [x] Update Operations Center module grid: added Web App Scanner, Atomic Red Team modules
+- [x] Update Engagement Workflow steps to reference specific tools per phase
+- [x] Update Architecture section: Exploit & C2 Engine, DAST & Recon Engine, AI Orchestration Layer
+- [x] Update About section with full stack description
+- [x] Update footer: "Exploit, C2 & DAST Stack | Metasploit · Caldera · OWASP ZAP · Atomic Red Team · GoPhish"
+- [x] Update What's New popup with Atomic Red Team, ZAP deployment, OpenAPI import, AI orchestrator
