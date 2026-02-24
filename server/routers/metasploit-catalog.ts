@@ -1,5 +1,5 @@
 /**
- * Metasploit Server Management & Unified Exploit Catalog Router
+ * Exploit Server Management & Unified Exploit Catalog Router
  */
 
 import { z } from "zod";
@@ -25,7 +25,7 @@ async function getTunnelAwareMsfClient(server: any): Promise<any> {
 }
 
 export const metasploitCatalogRouter = router({
-  // ─── MSF Server Provisioning ───────────────────────────────────────────────
+  // ─── Exploit Server Provisioning ───────────────────────────────────────────────
 
   provisionServer: protectedProcedure
     .input(z.object({
@@ -61,7 +61,7 @@ export const metasploitCatalogRouter = router({
       const { eq } = await import("drizzle-orm");
       const dbConn = await getDbRequired();
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.id)).limit(1);
-      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
       return server;
     }),
 
@@ -73,7 +73,7 @@ export const metasploitCatalogRouter = router({
       const { eq } = await import("drizzle-orm");
       const dbConn = await getDbRequired();
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.id)).limit(1);
-      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
 
       try {
         const client = await getTunnelAwareMsfClient(server);
@@ -100,7 +100,7 @@ export const metasploitCatalogRouter = router({
       const { eq } = await import("drizzle-orm");
       const dbConn = await getDbRequired();
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.id)).limit(1);
-      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
 
       if (server.dropletId && ENV.DIGITALOCEAN_ACCESS_TOKEN) {
         try {
@@ -230,7 +230,7 @@ export const metasploitCatalogRouter = router({
 
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND" });
-      if (server.status !== "online") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "MSF server is not online" });
+      if (server.status !== "online") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Exploit server is not online" });
 
       const moduleOptions: Record<string, string> = {
         RHOSTS: input.targetHost,
@@ -398,7 +398,7 @@ export const metasploitCatalogRouter = router({
 
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND" });
-      if (server.status !== "online") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "MSF server is not online" });
+      if (server.status !== "online") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Exploit server is not online" });
 
       const { getCatalogEntry } = await import("../lib/exploit-catalog");
       const entry = await getCatalogEntry(input.catalogId);
@@ -511,7 +511,7 @@ export const metasploitCatalogRouter = router({
       const dbConn = await getDbRequired();
 
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
-      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
       if (!server.ipAddress) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Server has no IP address" });
 
       try {

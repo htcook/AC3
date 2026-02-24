@@ -115,7 +115,7 @@ export interface ValidationEvidence {
 export interface ValidationRunConfig {
   /** Scan ID to validate against */
   scanId: number;
-  /** MSF server ID to use */
+  /** Exploit server ID to use */
   msfServerId: number;
   /** Maximum candidates to validate (default: 10) */
   maxCandidates: number;

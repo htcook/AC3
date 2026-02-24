@@ -3895,3 +3895,13 @@
 - [x] Clean up AgentDeploy.tsx — server constants, button labels
 - [x] Clean up AdversaryDetail.tsx — button labels
 - [x] Final sweep confirmed zero user-visible tool names remain
+
+## Server Naming Convention Update
+- [x] Rename all "Caldera server" references to "C2 Server" (21 references now using C2 Server)
+- [x] Rename all "Metasploit server" / "MSF server" references to "Exploit Server" (52 references now using Exploit Server)
+- [x] Update sidebar navigation labels
+- [x] Update page headers and descriptions
+- [x] Update button labels and toast messages
+- [x] Update backend error messages (tRPC errors surfaced in toasts)
+- [x] Update backend code comments and JSDoc
+- [x] Verify zero old naming remains (grep confirmed 0 matches)

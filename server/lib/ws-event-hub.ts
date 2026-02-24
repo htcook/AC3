@@ -47,7 +47,7 @@ export type WsEventType =
   // Domain events
   | "domain:scan_complete"
   | "domain:typosquat_purchased"
-  // MSF server events
+  // Exploit server events
   | "msf:server_provisioned"
   | "msf:server_ready"
   | "msf:server_destroyed"
@@ -519,7 +519,7 @@ export function emitPipelineStep(data: {
   }
 }
 
-/** Emit MSF server lifecycle events */
+/** Emit exploit server lifecycle events */
 export function emitMsfServerEvent(data: {
   serverId: number;
   status: "provisioning" | "ready" | "destroyed" | "error";

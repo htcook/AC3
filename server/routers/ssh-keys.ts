@@ -1,8 +1,8 @@
 /**
  * SSH Key Management Router
  *
- * Provides CRUD operations for SSH keys used in MSF server tunnel connections.
- * Supports key generation, upload, rotation, and association with MSF servers.
+ * Provides CRUD operations for SSH keys used in exploit server tunnel connections.
+ * Supports key generation, upload, rotation, and association with exploit servers.
  */
 
 import { z } from "zod";
@@ -219,7 +219,7 @@ export const sshKeysRouter = router({
       return { success: true, message: "Default SSH key updated" };
     }),
 
-  // ─── Associate a key with an MSF server ────────────────────────────────────
+  // ─── Associate a key with an exploit server ────────────────────────────────────
   associateWithServer: protectedProcedure
     .input(z.object({
       keyId: z.number(),
@@ -235,7 +235,7 @@ export const sshKeysRouter = router({
       if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "SSH key not found" });
 
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
-      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
 
       // Update the key's association
       await dbConn.update(sshKeys).set({ associatedServerId: input.serverId }).where(eq(sshKeys.id, input.keyId));
@@ -331,7 +331,7 @@ export const sshKeysRouter = router({
       if (!key) throw new TRPCError({ code: "NOT_FOUND", message: "SSH key not found" });
 
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.serverId)).limit(1);
-      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+      if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
 
       if (!ENV.DIGITALOCEAN_ACCESS_TOKEN) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "DigitalOcean token not configured" });

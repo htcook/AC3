@@ -1,7 +1,7 @@
 /**
  * SSH Tunnel Manager for Metasploit RPC Connectivity
  *
- * Establishes and maintains SSH tunnels to MSF servers, providing:
+ * Establishes and maintains SSH tunnels to exploit servers, providing:
  * - Encrypted port forwarding (local → remote msfrpcd)
  * - Health monitoring with TCP probes every 30s
  * - Auto-reconnect with exponential backoff

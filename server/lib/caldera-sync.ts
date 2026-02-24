@@ -1,7 +1,7 @@
 /**
  * Caldera Adversary Sync Service
  * 
- * Fetches all adversaries from the Caldera server and syncs them
+ * Fetches all adversaries from the C2 server and syncs them
  * into the local threat_actors database. This ensures both systems
  * stay aligned for efficient campaign building.
  * 

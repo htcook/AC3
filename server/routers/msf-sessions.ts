@@ -27,7 +27,7 @@ async function getClientForServer(serverId: number): Promise<MsfClient> {
   const dbConn = await getDbRequired();
 
   const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, serverId)).limit(1);
-  if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+  if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
 
   const client = await MsfClient.fromServerWithTunnel(server);
   if (!client) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create MSF client" });

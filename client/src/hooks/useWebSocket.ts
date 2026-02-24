@@ -99,9 +99,9 @@ function getToastInfo(event: WsEvent): { title: string; description: string; var
     case "pipeline:finished":
       return { title: "Pipeline Complete", description: `Engagement pipeline finished` };
     case "msf:server_ready":
-      return { title: "MSF Server Ready", description: `${event.data.name || "Server"} is online at ${event.data.ip || "unknown"}` };
+      return { title: "Exploit Server Ready", description: `${event.data.name || "Server"} is online at ${event.data.ip || "unknown"}` };
     case "msf:server_destroyed":
-      return { title: "MSF Server Destroyed", description: `${event.data.name || "Server"} has been terminated`, variant: "destructive" };
+      return { title: "Exploit Server Destroyed", description: `${event.data.name || "Server"} has been terminated`, variant: "destructive" };
     case "system:alert":
       return { title: event.data.title || "Alert", description: event.data.message || "", variant: event.data.severity === "critical" || event.data.severity === "error" ? "destructive" : "default" };
     default:
@@ -320,7 +320,7 @@ export function useExploitEvents() {
   return useWebSocket({ filterTypes, maxEvents: 50 });
 }
 
-/** Hook for MSF Servers page — server lifecycle events */
+/** Hook for Exploit Servers page — server lifecycle events */
 export function useMsfServerEvents() {
   const filterTypes = useMemo<WsEventType[]>(
     () => [

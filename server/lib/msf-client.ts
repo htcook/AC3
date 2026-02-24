@@ -168,7 +168,7 @@ export class MsfClient {
   }
 
   /**
-   * Create a tunnel-aware client for an MSF server.
+   * Create a tunnel-aware client for an exploit server.
    * Establishes SSH tunnel first, then connects via localhost.
    */
   static async fromServerWithTunnel(server: {
@@ -713,7 +713,7 @@ export function generateMsfResourceScript(params: {
   payloadModule?: string;
   calderaUrl: string;
   calderaGroup?: string;
-  lhost: string;          // Attacker's IP (MSF server)
+  lhost: string;          // Attacker's IP (exploit server)
   lport?: number;
   additionalOptions?: Record<string, string>;
 }): string {

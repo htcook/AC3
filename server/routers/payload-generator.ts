@@ -1,6 +1,6 @@
 /**
  * Payload Generator Router — wraps msfvenom execution through SSH tunnel.
- * Generates custom payloads on the MSF server, downloads them, and stores in S3.
+ * Generates custom payloads on the exploit server, downloads them, and stores in S3.
  */
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -254,7 +254,7 @@ export const payloadGeneratorRouter = router({
         .limit(1);
 
       if (!server) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
       }
 
       // Build the msfvenom command
@@ -510,7 +510,7 @@ export const payloadGeneratorRouter = router({
       return { command: parts.join(" ") };
     }),
 
-  // ─── List available payloads from MSF server ──────────────────────────────
+  // ─── List available payloads from exploit server ──────────────────────────────
   listMsfPayloads: protectedProcedure
     .input(z.object({ serverId: z.number(), filter: z.string().optional() }))
     .query(async ({ input }) => {
@@ -525,7 +525,7 @@ export const payloadGeneratorRouter = router({
         .limit(1);
 
       if (!server) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
       }
 
       try {
@@ -561,7 +561,7 @@ export const payloadGeneratorRouter = router({
       }
     }),
 
-  // ─── List available encoders from MSF server ─────────────────────────────
+  // ─── List available encoders from exploit server ─────────────────────────────
   listMsfEncoders: protectedProcedure
     .input(z.object({ serverId: z.number() }))
     .query(async ({ input }) => {
@@ -576,7 +576,7 @@ export const payloadGeneratorRouter = router({
         .limit(1);
 
       if (!server) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "MSF server not found" });
+        throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
       }
 
       try {

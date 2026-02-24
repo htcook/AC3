@@ -97,7 +97,7 @@ export const fileTransfersRouter = router({
           if (!server) throw new Error("Server not found");
 
           const client = await MsfClient.fromServerWithTunnel(server);
-          if (!client) throw new Error("Failed to connect to MSF server");
+          if (!client) throw new Error("Failed to connect to exploit server");
 
           // Use Meterpreter to read the file
           // First, get file info
@@ -195,7 +195,7 @@ export const fileTransfersRouter = router({
           if (!server) throw new Error("Server not found");
 
           const client = await MsfClient.fromServerWithTunnel(server);
-          if (!client) throw new Error("Failed to connect to MSF server");
+          if (!client) throw new Error("Failed to connect to exploit server");
 
           // Write file content via Meterpreter
           // For small files, use echo with base64 decode

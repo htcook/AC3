@@ -1,5 +1,5 @@
 /**
- * Session Alerter — Background service that polls all online MSF servers
+ * Session Alerter — Background service that polls all online exploit servers
  * for new sessions and triggers notifyOwner + in-app notifications.
  */
 import { notifyOwner } from "../_core/notification";
@@ -58,7 +58,7 @@ class SessionAlerter {
   private serverProvider: (() => Promise<ServerConfig[]>) | null = null;
   private onAlertCallbacks: ((alert: SessionAlert) => void)[] = [];
 
-  /** Register a function that provides the list of online MSF servers */
+  /** Register a function that provides the list of online exploit servers */
   setServerProvider(fn: () => Promise<ServerConfig[]>) {
     this.serverProvider = fn;
   }

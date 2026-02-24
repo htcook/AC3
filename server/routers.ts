@@ -376,7 +376,7 @@ export const appRouter = router({
 
   // Direct Caldera API proxy (for DigitalOcean server)
   calderaProxy: router({
-    // Direct stats from DigitalOcean Caldera server
+    // Direct stats from C2 server
     getStats: publicProcedure.query(async () => {
       const [adversaries, abilities, operations, agents] = await Promise.all([
         fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries'),
@@ -494,7 +494,7 @@ export const appRouter = router({
       return deploy || {};
     }),
 
-    // Check Caldera server health
+    // Check C2 server health
     checkHealth: publicProcedure.query(async () => {
       try {
         const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
@@ -507,7 +507,7 @@ export const appRouter = router({
       }
     }),
 
-    // Create a new ability on the Caldera server
+    // Create a new ability on the C2 server
     createAbility: protectedProcedure
       .input(z.object({
         ability_id: z.string(),
@@ -558,7 +558,7 @@ export const appRouter = router({
         }
       }),
 
-    // Create a new adversary profile on the Caldera server
+    // Create a new adversary profile on the C2 server
     createAdversary: protectedProcedure
       .input(z.object({
         adversary_id: z.string(),
@@ -5266,7 +5266,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         const id = await db.createThreatActorAbility(input as any);
         return { id };
       }),
-    // Bulk deploy abilities to Caldera server
+    // Bulk deploy abilities to C2 server
     bulkDeploy: protectedProcedure
       .input(z.object({
         abilityIds: z.array(z.number()),
@@ -6225,10 +6225,10 @@ Make the phishing content highly realistic and tailored to the target domain and
           resultStatus: 'pending_approval',
         }).catch(() => {});
 
-        // Verify MSF server is online
+        // Verify exploit server is online
         const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.msfServerId)).limit(1);
-        if (!server) throw new TRPCError({ code: 'NOT_FOUND', message: 'MSF server not found' });
-        if (server.status !== 'online') throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'MSF server is not online' });
+        if (!server) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit server not found' });
+        if (server.status !== 'online') throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Exploit server is not online' });
 
         // Select candidates
         const assets = await dbConn.select().from(discoveredAssets).where(eq(discoveredAssets.scanId, input.scanId));
