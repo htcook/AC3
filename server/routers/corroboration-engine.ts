@@ -91,10 +91,10 @@ export const corroborationEngineRouter = router({
         results.push({
           host: finding.findingValue,
           title: `${finding.findingType}: ${finding.findingValue}`,
-          sourcesConfirming: result.sourcesConfirming || 0,
+          sourcesConfirming: result.corroboratingCount || 0,
           sourcesQueried: enabledSources.length,
-          adjustedConfidence: result.adjustedConfidence,
-          originalConfidence: result.originalConfidence || 0.5,
+          adjustedConfidence: result.overallConfidence,
+          originalConfidence: result.overallConfidence || 50,
           verdict: result.overallVerdict || "unverified",
         });
       }

@@ -121,7 +121,7 @@ export const atomicRedTeamRouter = router({
       targetPlatform: z.string().optional(),
       executorType: z.string().optional(),
       commandExecuted: z.string().optional(),
-      inputArgs: z.record(z.any()).optional(),
+      inputArgs: z.record(z.string(), z.any()).optional(),
       attackChainId: z.string().optional(),
       calderaOperationId: z.string().optional(),
     }))

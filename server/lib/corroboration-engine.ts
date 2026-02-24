@@ -65,6 +65,22 @@ const SOURCE_WEIGHTS: Record<string, number> = {
   shodan: 0.55,
   censys: 0.55,
   threatintel: 0.70,
+  // Integrated tool modules
+  zap_passive: 0.65,
+  zap_active: 0.85,
+  zap: 0.80,
+  nuclei_info: 0.60,
+  nuclei_vuln: 0.80,
+  nuclei_critical: 0.90,
+  nuclei: 0.75,
+  sliver_c2: 0.95,
+  sliver: 0.95,
+  atomic_red_team: 0.90,
+  atomic: 0.90,
+  metasploit: 0.95,
+  caldera: 0.90,
+  gophish: 0.70,
+  bloodhound: 0.85,
 };
 
 const CORROBORATION_BOOST = 12;
@@ -566,13 +582,16 @@ export async function corroborateFromSources(params: {
   if (db) {
     try {
       await db.insert(corroborationResults).values({
-        findingType: params.findingType,
-        findingValue: params.findingValue,
-        sourcesQueried: sources,
-        sourcesCorroborated: sourceResults.filter(r => r.found).map(r => r.source),
-        overallConfidence,
+        importId: 0,
+        findingId: 0,
+        originalConfidence: 50,
+        adjustedConfidence: overallConfidence,
+        corroboratingCount: corroboratingCount,
+        contradictingCount: totalSourcesChecked - corroboratingCount,
+        corroboratingSources: JSON.stringify(sourceResults.filter(r => r.found).map(r => r.source)),
+        contradictingSources: JSON.stringify(sourceResults.filter(r => !r.found).map(r => r.source)),
         verdict: overallVerdict,
-        rawResults: sourceResults,
+        reasoning: `Checked ${totalSourcesChecked} sources for ${params.findingType}:${params.findingValue}`,
       });
     } catch (err) {
       console.error("[Corroboration] DB persist failed:", err);

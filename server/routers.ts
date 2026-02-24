@@ -72,6 +72,10 @@ import { exploitArsenalRouter } from "./routers/exploit-arsenal";
 import { icsOtSecurityRouter } from "./routers/ics-ot-security";
 import { webAppScanningRouter } from "./routers/web-app-scanning";
 import { atomicRedTeamRouter } from "./routers/atomic-red-team";
+import { sliverC2Router } from "./routers/sliver-c2";
+import { nucleiScannerRouter } from "./routers/nuclei-scanner";
+import { attackCoverageRouter } from "./routers/attack-coverage";
+import { unifiedPipelineRouter } from "./routers/unified-pipeline";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -226,6 +230,10 @@ export const appRouter = router({
   icsOtSecurity: icsOtSecurityRouter,
   webAppScanning: webAppScanningRouter,
   atomicRedTeam: atomicRedTeamRouter,
+  sliverC2: sliverC2Router,
+  nucleiScanner: nucleiScannerRouter,
+  attackCoverage: attackCoverageRouter,
+  unifiedPipeline: unifiedPipelineRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

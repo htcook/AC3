@@ -64,6 +64,10 @@ import {
   Gauge,
   Radar,
   Atom,
+  Layers3,
+  Hexagon,
+  ScanLine,
+  Map,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -127,6 +131,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/compensating-controls", icon: ShieldPlus, label: "COMPENSATING CONTROLS" },
       { href: "/preflight-checks", icon: Gauge, label: "PRE-FLIGHT CHECKS" },
       { href: "/active-verification", icon: Radar, label: "ACTIVE VERIFICATION" },
+      { href: "/unified-pipeline", icon: Layers3, label: "UNIFIED PIPELINE" },
+      { href: "/attack-coverage", icon: Map, label: "ATT&CK COVERAGE" },
     ],
   },
   {
@@ -147,6 +153,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
       { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
       { href: "/atomic-red-team", icon: Atom, label: "ATOMIC RED TEAM" },
+      { href: "/nuclei-scanner", icon: ScanLine, label: "NUCLEI SCANNER" },
+      { href: "/sliver-c2", icon: Hexagon, label: "SLIVER C2" },
       { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
       { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
       { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },

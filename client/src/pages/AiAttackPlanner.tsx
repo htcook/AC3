@@ -37,14 +37,15 @@ type AttackPlan = {
   name: string;
   targetDescription: string;
   threatActorProfile: string | null;
-  environmentContext: string | null;
+  environmentContext: unknown;
   estimatedRiskScore: number | null;
   status: string;
-  generatedPlan: string | null;
-  attackSteps: any;
+  generatedPlan: unknown;
+  attackSteps: unknown;
   createdBy: string | null;
   createdAt: any;
   acceptedAt: any;
+  tenantId?: number | null;
 };
 
 // ─── Constants ─────────────────────────────────────────────────────────────────

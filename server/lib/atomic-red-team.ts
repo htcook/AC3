@@ -63,94 +63,109 @@ export interface CrossModuleMatch {
 
 // ─── MITRE ATT&CK Tactic Mapping ────────────────────────────────────────────
 
-const TECHNIQUE_TO_TACTIC: Record<string, string> = {
-  "T1595": "Reconnaissance", "T1592": "Reconnaissance", "T1589": "Reconnaissance",
-  "T1590": "Reconnaissance", "T1591": "Reconnaissance", "T1598": "Reconnaissance",
-  "T1597": "Reconnaissance", "T1596": "Reconnaissance", "T1593": "Reconnaissance",
-  "T1594": "Reconnaissance",
-  "T1583": "Resource Development", "T1586": "Resource Development", "T1584": "Resource Development",
-  "T1587": "Resource Development", "T1585": "Resource Development", "T1588": "Resource Development",
-  "T1608": "Resource Development",
-  "T1189": "Initial Access", "T1190": "Initial Access", "T1133": "Initial Access",
-  "T1200": "Initial Access", "T1566": "Initial Access", "T1091": "Initial Access",
-  "T1195": "Initial Access", "T1199": "Initial Access", "T1078": "Initial Access",
-  "T1059": "Execution", "T1203": "Execution", "T1559": "Execution",
-  "T1106": "Execution", "T1053": "Execution", "T1129": "Execution",
-  "T1072": "Execution", "T1569": "Execution", "T1204": "Execution",
-  "T1047": "Execution",
-  "T1098": "Persistence", "T1197": "Persistence", "T1547": "Persistence",
-  "T1037": "Persistence", "T1176": "Persistence", "T1554": "Persistence",
-  "T1136": "Persistence", "T1543": "Persistence", "T1546": "Persistence",
-  "T1133": "Persistence", "T1574": "Persistence", "T1525": "Persistence",
-  "T1556": "Persistence", "T1137": "Persistence", "T1542": "Persistence",
-  "T1053": "Persistence", "T1505": "Persistence", "T1205": "Persistence",
-  "T1078": "Persistence",
-  "T1548": "Privilege Escalation", "T1134": "Privilege Escalation",
-  "T1547": "Privilege Escalation", "T1037": "Privilege Escalation",
-  "T1543": "Privilege Escalation", "T1484": "Privilege Escalation",
-  "T1546": "Privilege Escalation", "T1068": "Privilege Escalation",
-  "T1574": "Privilege Escalation", "T1055": "Privilege Escalation",
-  "T1053": "Privilege Escalation", "T1078": "Privilege Escalation",
-  "T1548": "Defense Evasion", "T1134": "Defense Evasion", "T1197": "Defense Evasion",
-  "T1140": "Defense Evasion", "T1006": "Defense Evasion", "T1480": "Defense Evasion",
-  "T1211": "Defense Evasion", "T1222": "Defense Evasion", "T1564": "Defense Evasion",
-  "T1562": "Defense Evasion", "T1070": "Defense Evasion", "T1202": "Defense Evasion",
-  "T1036": "Defense Evasion", "T1556": "Defense Evasion", "T1578": "Defense Evasion",
-  "T1112": "Defense Evasion", "T1601": "Defense Evasion", "T1599": "Defense Evasion",
-  "T1027": "Defense Evasion", "T1542": "Defense Evasion", "T1055": "Defense Evasion",
-  "T1207": "Defense Evasion", "T1014": "Defense Evasion", "T1218": "Defense Evasion",
-  "T1216": "Defense Evasion", "T1553": "Defense Evasion", "T1221": "Defense Evasion",
-  "T1205": "Defense Evasion", "T1127": "Defense Evasion", "T1535": "Defense Evasion",
-  "T1550": "Defense Evasion", "T1078": "Defense Evasion", "T1497": "Defense Evasion",
-  "T1600": "Defense Evasion", "T1220": "Defense Evasion",
-  "T1557": "Credential Access", "T1110": "Credential Access", "T1555": "Credential Access",
-  "T1212": "Credential Access", "T1187": "Credential Access", "T1606": "Credential Access",
-  "T1056": "Credential Access", "T1556": "Credential Access", "T1111": "Credential Access",
-  "T1621": "Credential Access", "T1040": "Credential Access", "T1003": "Credential Access",
-  "T1528": "Credential Access", "T1558": "Credential Access", "T1539": "Credential Access",
-  "T1552": "Credential Access",
-  "T1087": "Discovery", "T1010": "Discovery", "T1217": "Discovery",
-  "T1580": "Discovery", "T1538": "Discovery", "T1526": "Discovery",
-  "T1482": "Discovery", "T1083": "Discovery", "T1046": "Discovery",
-  "T1135": "Discovery", "T1040": "Discovery", "T1201": "Discovery",
-  "T1120": "Discovery", "T1069": "Discovery", "T1057": "Discovery",
-  "T1012": "Discovery", "T1018": "Discovery", "T1518": "Discovery",
-  "T1082": "Discovery", "T1016": "Discovery", "T1049": "Discovery",
-  "T1033": "Discovery", "T1007": "Discovery", "T1124": "Discovery",
-  "T1497": "Discovery",
-  "T1210": "Lateral Movement", "T1534": "Lateral Movement",
-  "T1570": "Lateral Movement", "T1563": "Lateral Movement",
-  "T1021": "Lateral Movement", "T1091": "Lateral Movement",
-  "T1072": "Lateral Movement", "T1080": "Lateral Movement",
-  "T1550": "Lateral Movement",
-  "T1560": "Collection", "T1123": "Collection", "T1119": "Collection",
-  "T1115": "Collection", "T1530": "Collection", "T1602": "Collection",
-  "T1213": "Collection", "T1005": "Collection", "T1039": "Collection",
-  "T1025": "Collection", "T1074": "Collection", "T1114": "Collection",
-  "T1056": "Collection", "T1185": "Collection", "T1557": "Collection",
-  "T1113": "Collection", "T1125": "Collection",
-  "T1071": "Command and Control", "T1132": "Command and Control",
-  "T1001": "Command and Control", "T1568": "Command and Control",
-  "T1573": "Command and Control", "T1008": "Command and Control",
-  "T1105": "Command and Control", "T1104": "Command and Control",
-  "T1095": "Command and Control", "T1571": "Command and Control",
-  "T1572": "Command and Control", "T1090": "Command and Control",
-  "T1219": "Command and Control", "T1205": "Command and Control",
-  "T1102": "Command and Control",
-  "T1020": "Exfiltration", "T1030": "Exfiltration", "T1048": "Exfiltration",
-  "T1041": "Exfiltration", "T1011": "Exfiltration", "T1052": "Exfiltration",
-  "T1567": "Exfiltration", "T1029": "Exfiltration", "T1537": "Exfiltration",
-  "T1531": "Impact", "T1485": "Impact", "T1486": "Impact",
-  "T1565": "Impact", "T1491": "Impact", "T1561": "Impact",
-  "T1499": "Impact", "T1495": "Impact", "T1490": "Impact",
-  "T1498": "Impact", "T1496": "Impact", "T1489": "Impact",
-  "T1529": "Impact",
+const TECHNIQUE_TO_TACTICS: Record<string, string[]> = {
+  "T1595": ["Reconnaissance"], "T1592": ["Reconnaissance"], "T1589": ["Reconnaissance"],
+  "T1590": ["Reconnaissance"], "T1591": ["Reconnaissance"], "T1598": ["Reconnaissance"],
+  "T1597": ["Reconnaissance"], "T1596": ["Reconnaissance"], "T1593": ["Reconnaissance"],
+  "T1594": ["Reconnaissance"],
+  "T1583": ["Resource Development"], "T1586": ["Resource Development"], "T1584": ["Resource Development"],
+  "T1587": ["Resource Development"], "T1585": ["Resource Development"], "T1588": ["Resource Development"],
+  "T1608": ["Resource Development"],
+  "T1189": ["Initial Access"], "T1190": ["Initial Access"],
+  "T1133": ["Initial Access", "Persistence"],
+  "T1200": ["Initial Access"], "T1566": ["Initial Access"],
+  "T1091": ["Initial Access", "Lateral Movement"],
+  "T1195": ["Initial Access"], "T1199": ["Initial Access"],
+  "T1078": ["Initial Access", "Persistence", "Privilege Escalation", "Defense Evasion"],
+  "T1059": ["Execution"], "T1203": ["Execution"], "T1559": ["Execution"],
+  "T1106": ["Execution"],
+  "T1053": ["Execution", "Persistence", "Privilege Escalation"],
+  "T1129": ["Execution"],
+  "T1072": ["Execution", "Lateral Movement"],
+  "T1569": ["Execution"], "T1204": ["Execution"], "T1047": ["Execution"],
+  "T1098": ["Persistence"],
+  "T1197": ["Persistence", "Defense Evasion"],
+  "T1547": ["Persistence", "Privilege Escalation"],
+  "T1037": ["Persistence", "Privilege Escalation"],
+  "T1176": ["Persistence"], "T1554": ["Persistence"], "T1136": ["Persistence"],
+  "T1543": ["Persistence", "Privilege Escalation"],
+  "T1546": ["Persistence", "Privilege Escalation"],
+  "T1574": ["Persistence", "Privilege Escalation", "Defense Evasion"],
+  "T1525": ["Persistence"],
+  "T1556": ["Persistence", "Credential Access", "Defense Evasion"],
+  "T1137": ["Persistence"],
+  "T1542": ["Persistence", "Defense Evasion"],
+  "T1505": ["Persistence"],
+  "T1205": ["Persistence", "Defense Evasion", "Command and Control"],
+  "T1548": ["Privilege Escalation", "Defense Evasion"],
+  "T1134": ["Privilege Escalation", "Defense Evasion"],
+  "T1484": ["Privilege Escalation"], "T1068": ["Privilege Escalation"],
+  "T1055": ["Privilege Escalation", "Defense Evasion"],
+  "T1140": ["Defense Evasion"], "T1006": ["Defense Evasion"], "T1480": ["Defense Evasion"],
+  "T1211": ["Defense Evasion"], "T1222": ["Defense Evasion"], "T1564": ["Defense Evasion"],
+  "T1562": ["Defense Evasion"], "T1070": ["Defense Evasion"], "T1202": ["Defense Evasion"],
+  "T1036": ["Defense Evasion"], "T1578": ["Defense Evasion"],
+  "T1112": ["Defense Evasion"], "T1601": ["Defense Evasion"], "T1599": ["Defense Evasion"],
+  "T1027": ["Defense Evasion"],
+  "T1207": ["Defense Evasion"], "T1014": ["Defense Evasion"], "T1218": ["Defense Evasion"],
+  "T1216": ["Defense Evasion"], "T1553": ["Defense Evasion"], "T1221": ["Defense Evasion"],
+  "T1127": ["Defense Evasion"], "T1535": ["Defense Evasion"],
+  "T1550": ["Defense Evasion", "Lateral Movement"],
+  "T1497": ["Defense Evasion", "Discovery"],
+  "T1600": ["Defense Evasion"], "T1220": ["Defense Evasion"],
+  "T1557": ["Credential Access", "Collection"],
+  "T1110": ["Credential Access"], "T1555": ["Credential Access"],
+  "T1212": ["Credential Access"], "T1187": ["Credential Access"], "T1606": ["Credential Access"],
+  "T1056": ["Credential Access", "Collection"],
+  "T1111": ["Credential Access"],
+  "T1621": ["Credential Access"],
+  "T1040": ["Credential Access", "Discovery"],
+  "T1003": ["Credential Access"],
+  "T1528": ["Credential Access"], "T1558": ["Credential Access"], "T1539": ["Credential Access"],
+  "T1552": ["Credential Access"],
+  "T1087": ["Discovery"], "T1010": ["Discovery"], "T1217": ["Discovery"],
+  "T1580": ["Discovery"], "T1538": ["Discovery"], "T1526": ["Discovery"],
+  "T1482": ["Discovery"], "T1083": ["Discovery"], "T1046": ["Discovery"],
+  "T1135": ["Discovery"], "T1201": ["Discovery"],
+  "T1120": ["Discovery"], "T1069": ["Discovery"], "T1057": ["Discovery"],
+  "T1012": ["Discovery"], "T1018": ["Discovery"], "T1518": ["Discovery"],
+  "T1082": ["Discovery"], "T1016": ["Discovery"], "T1049": ["Discovery"],
+  "T1033": ["Discovery"], "T1007": ["Discovery"], "T1124": ["Discovery"],
+  "T1210": ["Lateral Movement"], "T1534": ["Lateral Movement"],
+  "T1570": ["Lateral Movement"], "T1563": ["Lateral Movement"],
+  "T1021": ["Lateral Movement"], "T1080": ["Lateral Movement"],
+  "T1560": ["Collection"], "T1123": ["Collection"], "T1119": ["Collection"],
+  "T1115": ["Collection"], "T1530": ["Collection"], "T1602": ["Collection"],
+  "T1213": ["Collection"], "T1005": ["Collection"], "T1039": ["Collection"],
+  "T1025": ["Collection"], "T1074": ["Collection"], "T1114": ["Collection"],
+  "T1185": ["Collection"], "T1113": ["Collection"], "T1125": ["Collection"],
+  "T1071": ["Command and Control"], "T1132": ["Command and Control"],
+  "T1001": ["Command and Control"], "T1568": ["Command and Control"],
+  "T1573": ["Command and Control"], "T1008": ["Command and Control"],
+  "T1105": ["Command and Control"], "T1104": ["Command and Control"],
+  "T1095": ["Command and Control"], "T1571": ["Command and Control"],
+  "T1572": ["Command and Control"], "T1090": ["Command and Control"],
+  "T1219": ["Command and Control"], "T1102": ["Command and Control"],
+  "T1020": ["Exfiltration"], "T1030": ["Exfiltration"], "T1048": ["Exfiltration"],
+  "T1041": ["Exfiltration"], "T1011": ["Exfiltration"], "T1052": ["Exfiltration"],
+  "T1567": ["Exfiltration"], "T1029": ["Exfiltration"], "T1537": ["Exfiltration"],
+  "T1531": ["Impact"], "T1485": ["Impact"], "T1486": ["Impact"],
+  "T1565": ["Impact"], "T1491": ["Impact"], "T1561": ["Impact"],
+  "T1499": ["Impact"], "T1495": ["Impact"], "T1490": ["Impact"],
+  "T1498": ["Impact"], "T1496": ["Impact"], "T1489": ["Impact"],
+  "T1529": ["Impact"],
 };
 
 function getTacticForTechnique(techniqueId: string): string {
   // Strip sub-technique (T1059.001 → T1059)
   const parent = techniqueId.split(".")[0];
-  return TECHNIQUE_TO_TACTIC[parent] || "Unknown";
+  const tactics = TECHNIQUE_TO_TACTICS[parent];
+  return tactics ? tactics[0] : "Unknown";
+}
+
+function getAllTacticsForTechnique(techniqueId: string): string[] {
+  const parent = techniqueId.split(".")[0];
+  return TECHNIQUE_TO_TACTICS[parent] || ["Unknown"];
 }
 
 // ─── Database Helper ─────────────────────────────────────────────────────────
@@ -398,15 +413,15 @@ export async function getTechniqueCoverage(): Promise<TechniqueCoverage[]> {
   const execMap = new Map(executions.map((e: any) => [e.techniqueId, { count: e.execCount, lastExec: e.lastExec }]));
 
   const coverage: TechniqueCoverage[] = [];
-  for (const [tid, data] of techniqueMap) {
-    const exec = execMap.get(tid);
+  for (const [tid, data] of Array.from(techniqueMap)) {
+    const exec = execMap.get(tid) as { count: number; lastExec: string | null } | undefined;
     coverage.push({
       techniqueId: tid,
       techniqueName: data.techniqueName,
       tactic: data.tactic,
       testCount: data.testCount,
       executionCount: exec?.count || 0,
-      lastExecuted: exec?.lastExec || null,
+      lastExecuted: exec?.lastExec ? new Date(exec.lastExec) : null,
       platforms: Array.from(data.platforms),
     });
   }
@@ -671,7 +686,7 @@ export async function mapCalderaAbilities(abilities: Array<{
   techniqueId: string;
   matchingAtomicTests: Array<{ guid: string; testName: string; platforms: string[] }>;
 }>> {
-  const techniqueIds = [...new Set(abilities.map(a => a.techniqueId))];
+  const techniqueIds = Array.from(new Set(abilities.map(a => a.techniqueId)));
   const matches = await findTestsForTechniques(techniqueIds);
   const matchMap = new Map(matches.map(m => [m.techniqueId, m]));
 
@@ -704,7 +719,7 @@ export async function findTestsForWebFindings(findings: Array<{
     .map(f => f.mitreAttackId)
     .filter((id): id is string => !!id);
 
-  const matches = await findTestsForTechniques([...new Set(techniqueIds)]);
+  const matches = await findTestsForTechniques(Array.from(new Set(techniqueIds)));
   const matchMap = new Map(matches.map(m => [m.techniqueId, m]));
 
   return findings.map(finding => ({

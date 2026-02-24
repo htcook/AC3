@@ -3822,3 +3822,30 @@
 - [x] Update About section with full stack description
 - [x] Update footer: "Exploit, C2 & DAST Stack | Metasploit · Caldera · OWASP ZAP · Atomic Red Team · GoPhish"
 - [x] Update What's New popup with Atomic Red Team, ZAP deployment, OpenAPI import, AI orchestrator
+
+## Full Pipeline Integration — All Modules Across All Phases
+- [x] Audit existing pipeline architecture and map all integration gaps
+- [x] Wire ZAP passive spider into Domain Intel discovery pipeline as a connector
+- [x] Wire Nuclei into Domain Intel discovery pipeline as a connector
+- [x] Wire ZAP active DAST into engagement active testing phase
+- [x] Wire Nuclei active scan into engagement active testing phase
+- [x] Wire Atomic Red Team into engagement validation/testing phase
+- [x] Wire Sliver C2 into engagement exploit/post-exploit phase alongside Metasploit
+- [x] Wire Caldera abilities into engagement post-exploit/persistence phase
+- [x] Wire GoPhish into engagement social engineering phase
+- [x] Build unified pipeline orchestrator coordinating all tools across phases
+- [x] Feed ZAP/Nuclei findings into Corroboration Engine (SOURCE_WEIGHTS updated)
+- [x] Feed all tool results into ATT&CK Coverage heatmap (attack-coverage router)
+- [x] Update Engagement workflow to auto-trigger tools per phase (unified pipeline stages)
+- [x] Update Domain Intel Results to show ZAP/Nuclei findings inline (discovery-coverage connectors)
+- [x] Update Attack Planner to suggest tools per technique (tool matrix endpoint)
+- [x] Write tests for integrated pipeline (24 vitest tests passing)
+- [x] Fix 10 TypeScript errors across atomic-red-team, attack-chain-validation, corroboration-engine, web-app-scanning, ics-exploit-catalog, ai-attack-planner
+- [x] Build Unified Pipeline page (frontend)
+- [x] Build Sliver C2 page (frontend)
+- [x] Build Nuclei Scanner page (frontend)
+- [x] Build ATT&CK Coverage page (frontend)
+- [x] Add sidebar navigation entries for all 4 new pages
+- [x] Create tRPC routers: unified-pipeline, sliver-c2, nuclei-scanner, attack-coverage
+- [x] Wire 4 new routers into appRouter
+

@@ -590,11 +590,11 @@ async function persistPlan(request: AttackPlanRequest, plan: AttackPlan): Promis
     await db.insert(aiAttackPlans).values({
       name: plan.name,
       targetDescription: request.targetDescription,
-      threatActor: plan.threatActorEmulated,
-      stepsCount: plan.totalSteps,
-      riskScore: plan.estimatedRiskScore,
-      planData: plan as any,
-      status: "generated",
+      threatActorProfile: plan.threatActorEmulated,
+      generatedPlan: plan as any,
+      attackSteps: plan.phases as any,
+      estimatedRiskScore: plan.estimatedRiskScore,
+      status: "ready",
     });
   } catch (err) {
     console.error("[AttackPlanner] DB persist failed:", err);

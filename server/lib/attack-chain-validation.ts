@@ -357,7 +357,7 @@ function findOptimalPaths(
     }
 
     // Reconstruct paths to exit nodes
-    for (const exitId of exitNodes) {
+    for (const exitId of Array.from(exitNodes)) {
       if (!prev.has(exitId)) continue;
 
       const path: string[] = [];

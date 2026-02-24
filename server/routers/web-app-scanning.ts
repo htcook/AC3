@@ -18,7 +18,7 @@ export const webAppScanningRouter = router({
       authHints: z.object({
         type: z.string(),
         loginUrl: z.string().optional(),
-        credentials: z.record(z.string()).optional(),
+        credentials: z.record(z.string(), z.string()).optional(),
       }).optional(),
       scopeConstraints: z.array(z.string()).optional(),
     }))
@@ -272,7 +272,7 @@ export const webAppScanningRouter = router({
     .input(z.object({ scanId: z.number() }))
     .query(async ({ input }) => {
       const { getScanFindings, listScans } = await import("../lib/zap-scanner");
-      const { generateReport } = await import("../lib/pdf-report-generator");
+      const { generateReportHtml: generateReport } = await import("../lib/pdf-report-generator");
 
       const scans = await listScans();
       const scan = scans.find((s: any) => s.id === input.scanId);
@@ -352,6 +352,7 @@ export const webAppScanningRouter = router({
       return generateReport({
         title: `Web Application Scan Report — ${scan.scanName || scan.targetUrl}`,
         subtitle: `OWASP ZAP ${scan.scanMode === "passive" ? "Passive Recon" : "Active DAST"} Scan`,
+        generatedAt: new Date(),
         sections,
       });
     }),

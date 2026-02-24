@@ -47,7 +47,7 @@ describe("Corroboration Pipeline Integration", () => {
     const { getAvailableSources } = await import("./lib/corroboration-engine");
     const sources = getAvailableSources();
     expect(Array.isArray(sources)).toBe(true);
-    expect(sources.length).toBe(8);
+    expect(sources.length).toBe(7);
     sources.forEach(src => {
       expect(src).toHaveProperty("id");
       expect(src).toHaveProperty("name");

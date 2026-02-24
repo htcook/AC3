@@ -113,6 +113,10 @@ const ActiveVerification = lazy(() => import("./pages/ActiveVerification"));
 const IcsOtSecurity = lazy(() => import("./pages/IcsOtSecurity"));
 const WebAppScanner = lazy(() => import("./pages/WebAppScanner"));
 const AtomicRedTeam = lazy(() => import("./pages/AtomicRedTeam"));
+const SliverC2 = lazy(() => import("./pages/SliverC2"));
+const NucleiScanner = lazy(() => import("./pages/NucleiScanner"));
+const AttackCoverage = lazy(() => import("./pages/AttackCoverage"));
+const UnifiedPipeline = lazy(() => import("./pages/UnifiedPipeline"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -508,6 +512,18 @@ function Router() {
         </Route>
         <Route path="/atomic-red-team">
           <ProtectedRoute component={AtomicRedTeam} />
+        </Route>
+        <Route path="/sliver-c2">
+          <ProtectedRoute component={SliverC2} />
+        </Route>
+        <Route path="/nuclei-scanner">
+          <ProtectedRoute component={NucleiScanner} />
+        </Route>
+        <Route path="/attack-coverage">
+          <ProtectedRoute component={AttackCoverage} />
+        </Route>
+        <Route path="/unified-pipeline">
+          <ProtectedRoute component={UnifiedPipeline} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
