@@ -76,6 +76,7 @@ import { sliverC2Router } from "./routers/sliver-c2";
 import { nucleiScannerRouter } from "./routers/nuclei-scanner";
 import { attackCoverageRouter } from "./routers/attack-coverage";
 import { unifiedPipelineRouter } from "./routers/unified-pipeline";
+import { roeBuilderRouter } from "./routers/roe-builder";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -234,6 +235,7 @@ export const appRouter = router({
   nucleiScanner: nucleiScannerRouter,
   attackCoverage: attackCoverageRouter,
   unifiedPipeline: unifiedPipelineRouter,
+  roeBuilder: roeBuilderRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -5128,6 +5130,137 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         );
 
         return report;
+      }),
+
+    // ─── Recursive Discovery (SpiderFoot-style entity spidering) ─────
+    startRecursiveDiscovery: protectedProcedure
+      .input(z.object({
+        scanId: z.number(),
+        maxDepth: z.number().min(1).max(5).default(3),
+        maxEntities: z.number().min(10).max(500).default(200),
+        maxApiCalls: z.number().min(10).max(1000).default(500),
+        scopeRestriction: z.enum(['strict', 'related', 'unrestricted']).default('related'),
+        entityTypes: z.array(z.enum(['domain', 'ip', 'email', 'organization', 'url', 'certificate'])).default(['domain', 'ip', 'email']),
+      }))
+      .mutation(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+
+        // Get the scan's observations to seed recursive discovery
+        const scanData = scan.pipelineOutput as any;
+        const initialObservations = scanData?.passiveRecon?.allObservations || [];
+
+        if (initialObservations.length === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'No observations found in scan — run a domain intel scan first' });
+        }
+
+        const { runRecursiveDiscovery } = await import('./lib/passive/recursive-discovery');
+        // Get API keys from environment
+        const apiKeys: Record<string, string> = {};
+        if (process.env.SHODAN_API_KEY) apiKeys.shodan = process.env.SHODAN_API_KEY;
+        if (process.env.CENSYS_API_ID) apiKeys.censys_id = process.env.CENSYS_API_ID;
+        if (process.env.URLSCAN_API_KEY) apiKeys.urlscan = process.env.URLSCAN_API_KEY;
+        if (process.env.SECURITYTRAILS_API_KEY) apiKeys.securitytrails = process.env.SECURITYTRAILS_API_KEY;
+        if (process.env.DEHASHED_API_KEY) apiKeys.dehashed = process.env.DEHASHED_API_KEY;
+        if (process.env.ABUSECH_API_KEY) apiKeys.abuseipdb = process.env.ABUSECH_API_KEY;
+
+        // Import ALL_CONNECTORS from passive index
+        const { ALL_CONNECTORS } = await import('./lib/passive/index');
+
+        const result = await runRecursiveDiscovery(
+          scan.primaryDomain,
+          initialObservations,
+          ALL_CONNECTORS,
+          {
+            maxDepth: input.maxDepth,
+            maxEntities: input.maxEntities,
+            maxApiCalls: input.maxApiCalls,
+            scopeRestriction: input.scopeRestriction,
+            entityTypes: input.entityTypes,
+            apiKeys,
+          }
+        );
+
+        // Store recursive discovery results in the scan record
+        await db.updateDomainIntelScan(input.scanId, {
+          pipelineOutput: {
+            ...((scan.pipelineOutput as any) || {}),
+            recursiveDiscovery: {
+              stats: result.stats,
+              entityCount: result.entities.length,
+              graphEdgeCount: result.entityGraph.length,
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        return {
+          stats: result.stats,
+          entities: result.entities.slice(0, 100), // Limit response size
+          entityGraph: result.entityGraph.slice(0, 200),
+          totalEntities: result.entities.length,
+          totalEdges: result.entityGraph.length,
+        };
+      }),
+
+    getRecursiveDiscoveryStatus: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+
+        const pipelineOutput = scan.pipelineOutput as any;
+        const recursiveDiscovery = pipelineOutput?.recursiveDiscovery || null;
+
+        return {
+          hasResults: !!recursiveDiscovery,
+          stats: recursiveDiscovery?.stats || null,
+          entityCount: recursiveDiscovery?.entityCount || 0,
+          graphEdgeCount: recursiveDiscovery?.graphEdgeCount || 0,
+          completedAt: recursiveDiscovery?.completedAt || null,
+        };
+      }),
+
+    getConnectorCatalog: publicProcedure
+      .query(async () => {
+        // Return the full list of available connectors with metadata
+        const connectorInfo = [
+          { name: 'shodan-internetdb', description: 'Shodan InternetDB — fast CVE/port lookup (free)', requiresKey: false, category: 'infrastructure', free: true },
+          { name: 'crtsh', description: 'Certificate Transparency logs — subdomain discovery', requiresKey: false, category: 'certificates', free: true },
+          { name: 'shodan', description: 'Shodan — internet-wide device/service scanning', requiresKey: true, category: 'infrastructure', free: false },
+          { name: 'wayback', description: 'Wayback Machine — historical URL archive', requiresKey: false, category: 'historical', free: true },
+          { name: 'censys', description: 'Censys — host and certificate search', requiresKey: true, category: 'infrastructure', free: false },
+          { name: 'urlscan', description: 'URLScan.io — URL analysis and screenshots', requiresKey: true, category: 'web', free: false },
+          { name: 'rdap', description: 'RDAP — domain registration data', requiresKey: false, category: 'whois', free: true },
+          { name: 'ripestat', description: 'RIPE Stat — IP/ASN intelligence', requiresKey: false, category: 'infrastructure', free: true },
+          { name: 'securitytrails', description: 'SecurityTrails — DNS history and subdomain enum', requiresKey: true, category: 'dns', free: false },
+          { name: 'dehashed', description: 'DeHashed — credential breach search', requiresKey: true, category: 'breaches', free: false },
+          { name: 'binaryedge', description: 'BinaryEdge — internet scanning and threat intel', requiresKey: true, category: 'infrastructure', free: false },
+          { name: 'greynoise', description: 'GreyNoise — IP noise/threat classification', requiresKey: true, category: 'threat-intel', free: false },
+          { name: 'email-security', description: 'Email security — DMARC/SPF/DKIM analysis', requiresKey: false, category: 'email', free: true },
+          { name: 'http-security', description: 'HTTP security — headers and WAF detection', requiresKey: false, category: 'web', free: true },
+          { name: 'cloud-assets', description: 'Cloud assets — S3/Azure/GCP bucket enumeration', requiresKey: false, category: 'cloud', free: true },
+          { name: 'dns-deep', description: 'Deep DNS — comprehensive record analysis', requiresKey: false, category: 'dns', free: true },
+          { name: 'github-leaks', description: 'GitHub — code leak and secret scanning', requiresKey: false, category: 'code', free: true },
+          { name: 'virustotal', description: 'VirusTotal — malware/URL/domain reputation', requiresKey: true, category: 'threat-intel', free: false },
+          { name: 'hibp', description: 'Have I Been Pwned — breach exposure lookup', requiresKey: true, category: 'breaches', free: false },
+          { name: 'whoisxml', description: 'WhoisXML — WHOIS records and subdomain enum', requiresKey: true, category: 'whois', free: false },
+          { name: 'leakix', description: 'LeakIX — exposed services and data leaks', requiresKey: true, category: 'leaks', free: false },
+          { name: 'fullhunt', description: 'FullHunt — attack surface discovery', requiresKey: true, category: 'infrastructure', free: false },
+          { name: 'netlas', description: 'Netlas.io — internet-wide host scanning', requiresKey: true, category: 'infrastructure', free: false },
+          { name: 'hunter', description: 'Hunter.io — email discovery and verification', requiresKey: true, category: 'email', free: false },
+          { name: 'social-media', description: 'Social media — GitHub org/user presence', requiresKey: false, category: 'social', free: true },
+          { name: 'abuseipdb', description: 'AbuseIPDB — IP abuse reputation scoring', requiresKey: true, category: 'threat-intel', free: false },
+          { name: 'passivetotal', description: 'PassiveTotal — passive DNS and SSL history', requiresKey: true, category: 'dns', free: false },
+        ];
+
+        return {
+          connectors: connectorInfo,
+          totalCount: connectorInfo.length,
+          freeCount: connectorInfo.filter(c => c.free).length,
+          paidCount: connectorInfo.filter(c => !c.free).length,
+          categories: Array.from(new Set(connectorInfo.map(c => c.category))),
+        };
       }),
   }),
 

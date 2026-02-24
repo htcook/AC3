@@ -3908,3 +3908,53 @@
 
 ## Hero Tagline Update
 - [x] Change "ATTACK. VALIDATE. PROVE YOUR DEFENSES WORK" to "KNOW YOUR WEAKNESSES BEFORE ATTACKERS DO"
+
+## SpiderFoot Competitor — Source Breadth & Recursive Discovery
+- [ ] Audit current passive recon source architecture
+- [ ] Build OSINT module registry/plugin system for easy addition of new sources
+- [ ] Build VirusTotal OSINT module
+- [ ] Build HIBP (paid tier) OSINT module
+- [ ] Build WhoisXML API OSINT module
+- [ ] Build PassiveTotal/RiskIQ OSINT module
+- [ ] Build LeakIX OSINT module
+- [ ] Build FullHunt OSINT module
+- [ ] Build Netlas.io OSINT module
+- [ ] Build Hunter.io email discovery module
+- [ ] Build Wayback Machine/archive.org module
+- [ ] Build GitHub code search module
+- [ ] Build DNS deep enumeration module (zone transfer, brute-force)
+- [ ] Build social media OSINT module (username enumeration)
+- [ ] Build IP geolocation enrichment module
+- [ ] Build BGP/ASN deep analysis module
+- [ ] Build WHOIS history module (free sources)
+- [ ] Build SSL/TLS certificate analysis module
+- [ ] Build technology fingerprinting module (Wappalyzer-style)
+- [ ] Build recursive discovery engine (entity spider)
+- [ ] Implement entity extraction from results (IPs, domains, emails, orgs, people)
+- [ ] Implement depth-limited recursive scanning with configurable max depth
+- [ ] Implement scan profiles (passive-only, active, comprehensive)
+- [ ] Implement entity deduplication and relationship tracking
+- [ ] Wire new sources into corroboration engine weights
+- [ ] Update Domain Intel frontend to show expanded source results
+- [ ] Write tests for new modules and recursive discovery
+
+## Interactive Rules of Engagement Builder
+- [x] Research NIST SP 800-115, FedRAMP, PTES, OSSTMM RoE requirements
+- [x] Design database schema for RoE documents (roe_documents, roe_personnel, roe_signatures)
+- [x] Build tRPC router for RoE CRUD operations (roe-builder.ts)
+- [x] Build multi-step RoE wizard UI in Customer Portal
+- [x] Step 1: Authorization — Organization details, purpose, assumptions, limitations
+- [x] Step 2: Scope — In-scope domains, IP ranges, applications; out-of-scope exclusions
+- [x] Step 3: Testing Types — 21 testing types across 7 categories + 12 attack vectors
+- [x] Step 4: Schedule — Date range, time windows, timezone, testing days, logistics
+- [x] Step 5: Communications — Frequency, method, incident response, halt criteria
+- [x] Step 6: Data Handling — Evidence retention, PII policy, encryption, destruction
+- [x] Step 7: Legal — Jurisdiction, NDA, liability, 15 compliance frameworks
+- [x] Step 8: Personnel — 14 role types, add/remove contacts, primary designation
+- [x] Step 9: Review — Completeness scoring, checklist, summary, submit for review
+- [x] Document lifecycle management (draft → pending_review → approved → active → completed → archived)
+- [x] Document duplication and archival
+- [x] Sidebar navigation link added (ROE BUILDER in Operations section)
+- [x] Write vitest tests for RoE router (23 tests passing)
+- [ ] Build FedRAMP-compliant PDF export
+- [ ] Wire RoE to engagements

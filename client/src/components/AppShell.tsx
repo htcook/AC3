@@ -96,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
       { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
+      { href: "/roe-builder", icon: ScrollText, label: "ROE BUILDER" },
       { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
       { href: "/agents", icon: Cpu, label: "AGENTS" },
       { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },

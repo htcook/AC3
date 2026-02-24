@@ -117,6 +117,7 @@ const SliverC2 = lazy(() => import("./pages/SliverC2"));
 const NucleiScanner = lazy(() => import("./pages/NucleiScanner"));
 const AttackCoverage = lazy(() => import("./pages/AttackCoverage"));
 const UnifiedPipeline = lazy(() => import("./pages/UnifiedPipeline"));
+const RoeBuilder = lazy(() => import("./pages/RoeBuilder"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -524,6 +525,9 @@ function Router() {
         </Route>
         <Route path="/unified-pipeline">
           <ProtectedRoute component={UnifiedPipeline} />
+        </Route>
+        <Route path="/roe-builder">
+          <ProtectedRoute component={RoeBuilder} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

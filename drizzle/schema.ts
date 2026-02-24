@@ -4100,3 +4100,160 @@ export const atomicTestExecutions = mysqlTable("atomic_test_executions", {
 
 export type AtomicTestExecution = typeof atomicTestExecutions.$inferSelect;
 export type InsertAtomicTestExecution = typeof atomicTestExecutions.$inferInsert;
+
+
+/**
+ * Rules of Engagement (RoE) documents — NIST SP 800-115 / FedRAMP aligned
+ */
+export const roeDocuments = mysqlTable("roe_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  title: varchar("title", { length: 512 }).notNull(),
+  version: varchar("version", { length: 32 }).default("1.0").notNull(),
+  status: mysqlEnum("status", ["draft", "pending_review", "approved", "active", "completed", "archived"]).default("draft").notNull(),
+
+  // Section 1: Introduction (NIST 800-115 §1)
+  organizationName: varchar("organization_name", { length: 512 }),
+  organizationAddress: text("organization_address"),
+  testingFirmName: varchar("testing_firm_name", { length: 512 }),
+  testingFirmAddress: text("testing_firm_address"),
+  purpose: text("purpose"),
+  scopeDescription: text("scope_description"),
+  assumptions: text("assumptions"),
+  limitations: text("limitations"),
+  risks: text("risks"),
+
+  // Section 2: Logistics (NIST 800-115 §2)
+  testScheduleStart: timestamp("test_schedule_start"),
+  testScheduleEnd: timestamp("test_schedule_end"),
+  testingWindowStart: varchar("testing_window_start", { length: 16 }),
+  testingWindowEnd: varchar("testing_window_end", { length: 16 }),
+  testingDays: json("testing_days"),
+  testTimezone: varchar("test_timezone", { length: 64 }),
+  testSiteLocations: json("test_site_locations"),
+  remoteTestingAllowed: boolean("remote_testing_allowed").default(true),
+  vpnRequired: boolean("vpn_required").default(false),
+  badgeEscortRequired: boolean("badge_escort_required").default(false),
+  testEquipment: json("test_equipment"),
+
+  // Section 3: Communication Strategy (NIST 800-115 §3)
+  communicationFrequency: mysqlEnum("communication_frequency", ["daily", "weekly", "bi-weekly", "as-needed"]).default("daily"),
+  communicationMethod: mysqlEnum("communication_method", ["email", "phone", "secure_portal", "encrypted_email"]).default("secure_portal"),
+  statusReportFrequency: mysqlEnum("status_report_frequency", ["daily", "weekly", "milestone-based"]).default("daily"),
+  incidentDefinition: text("incident_definition"),
+  incidentResponseProcedure: text("incident_response_procedure"),
+  emergencyHaltCriteria: text("emergency_halt_criteria"),
+  resumptionProcedure: text("resumption_procedure"),
+
+  // Section 4: Target Systems (NIST 800-115 §4)
+  inScopeAssets: json("in_scope_assets"),
+  outOfScopeAssets: json("out_of_scope_assets"),
+  inScopeIpRanges: json("in_scope_ip_ranges"),
+  outOfScopeIpRanges: json("out_of_scope_ip_ranges"),
+  inScopeDomains: json("in_scope_domains"),
+  outOfScopeDomains: json("out_of_scope_domains"),
+  inScopeApplications: json("in_scope_applications"),
+  cloudEnvironments: json("cloud_environments"),
+  wirelessNetworks: json("wireless_networks"),
+  physicalLocations: json("physical_locations"),
+
+  // Section 5: Testing Execution (NIST 800-115 §5)
+  testingTypes: json("testing_types"),
+  attackVectors: json("attack_vectors"),
+  socialEngineeringPretexts: json("social_engineering_pretexts"),
+  dosTestingAllowed: boolean("dos_testing_allowed").default(false),
+  physicalTestingAllowed: boolean("physical_testing_allowed").default(false),
+  wirelessTestingAllowed: boolean("wireless_testing_allowed").default(false),
+  socialEngineeringAllowed: boolean("social_engineering_allowed").default(false),
+  credentialedTesting: boolean("credentialed_testing").default(false),
+  credentialAccounts: json("credential_accounts"),
+  fileModificationAllowed: boolean("file_modification_allowed").default(false),
+  fileInstallationAllowed: boolean("file_installation_allowed").default(false),
+  pivotingAllowed: boolean("pivoting_allowed").default(true),
+  exfiltrationAllowed: boolean("exfiltration_allowed").default(false),
+  persistenceAllowed: boolean("persistence_allowed").default(false),
+  shunningPolicy: mysqlEnum("shunning_policy", ["allowed", "not_allowed", "notify_first"]).default("notify_first"),
+
+  // FedRAMP-specific attack vectors (Section 3)
+  fedrampCompliant: boolean("fedramp_compliant").default(false),
+  fedrampAttackVectors: json("fedramp_attack_vectors"),
+  fedrampImpactLevel: mysqlEnum("fedramp_impact_level", ["low", "moderate", "high", "not_applicable"]).default("not_applicable"),
+  serviceModel: mysqlEnum("service_model", ["iaas", "paas", "saas", "hybrid", "not_applicable"]).default("not_applicable"),
+
+  // Section 6: Data Handling (NIST 800-115 §5.3)
+  dataHandlingProcedure: text("data_handling_procedure"),
+  evidenceRetentionDays: int("evidence_retention_days").default(90),
+  evidenceEncryptionRequired: boolean("evidence_encryption_required").default(true),
+  piiHandlingPolicy: text("pii_handling_policy"),
+  evidenceDestructionMethod: mysqlEnum("evidence_destruction_method", ["secure_delete", "physical_destruction", "crypto_erase"]).default("secure_delete"),
+
+  // Section 7: Reporting (NIST 800-115 §6)
+  reportDeliverables: json("report_deliverables"),
+  reportFrequency: mysqlEnum("report_frequency", ["daily", "weekly", "final_only"]).default("final_only"),
+  criticalFindingNotification: text("critical_finding_notification"),
+
+  // Legal and compliance
+  legalJurisdiction: varchar("legal_jurisdiction", { length: 256 }),
+  thirdPartyAgreements: json("third_party_agreements"),
+  liabilityWaiver: text("liability_waiver"),
+  ndaRequired: boolean("nda_required").default(true),
+  ndaReference: varchar("nda_reference", { length: 256 }),
+  complianceFrameworks: json("compliance_frameworks"),
+
+  // Metadata
+  createdBy: int("created_by"),
+  approvedBy: int("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  lastModifiedBy: int("last_modified_by"),
+  pdfUrl: varchar("pdf_url", { length: 1024 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type RoeDocument = typeof roeDocuments.$inferSelect;
+export type InsertRoeDocument = typeof roeDocuments.$inferInsert;
+
+/**
+ * RoE Personnel / Points of Contact
+ */
+export const roePersonnel = mysqlTable("roe_personnel", {
+  id: int("id").autoincrement().primaryKey(),
+  roeId: int("roe_id").notNull(),
+  role: mysqlEnum("role", [
+    "system_owner", "ciso", "cio", "isso", "authorizing_official",
+    "trusted_agent", "test_lead", "test_member", "emergency_contact",
+    "legal_counsel", "third_party_poc", "incident_response_lead",
+    "customer_poc", "project_manager"
+  ]).notNull(),
+  name: varchar("name", { length: 256 }).notNull(),
+  title: varchar("title", { length: 256 }),
+  organization: varchar("organization", { length: 256 }),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 32 }),
+  alternatePhone: varchar("alternate_phone", { length: 32 }),
+  clearanceLevel: varchar("clearance_level", { length: 64 }),
+  isPrimary: boolean("is_primary").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type RoePersonnel = typeof roePersonnel.$inferSelect;
+export type InsertRoePersonnel = typeof roePersonnel.$inferInsert;
+
+/**
+ * RoE Signatures — tracks who signed and when
+ */
+export const roeSignatures = mysqlTable("roe_signatures", {
+  id: int("id").autoincrement().primaryKey(),
+  roeId: int("roe_id").notNull(),
+  signerName: varchar("signer_name", { length: 256 }).notNull(),
+  signerTitle: varchar("signer_title", { length: 256 }),
+  signerOrganization: varchar("signer_organization", { length: 256 }),
+  signerRole: mysqlEnum("signer_role", [
+    "customer_executive", "customer_technical", "testing_lead",
+    "authorizing_official", "legal_counsel"
+  ]).notNull(),
+  signedAt: timestamp("signed_at"),
+  signatureData: text("signature_data"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type RoeSignature = typeof roeSignatures.$inferSelect;
+export type InsertRoeSignature = typeof roeSignatures.$inferInsert;

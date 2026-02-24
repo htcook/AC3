@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `roe_signatures` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `roe_id` int NOT NULL,\n  `signer_name` varchar(256) NOT NULL,\n  `signer_title` varchar(256),\n  `signer_organization` varchar(256),\n  `signer_role` enum('customer_executive','customer_technical','testing_lead','authorizing_official','legal_counsel') NOT NULL,\n  `signed_at` timestamp,\n  `signature_data` text,\n  `ip_address` varchar(45),\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `roe_signatures_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `roe_signatures` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `roe_id` int NOT NULL,\n  `signer_name` varchar(256) NOT NULL,\n  `signer_title` varchar(256),\n  `signer_organization` varchar(256),\n  `signer_role` enum('customer_executive','customer_technical','testing_lead','authorizing_official','legal_counsel') NOT NULL,\n  `signed_at` timestamp,\n  `signature_data` text,\n  `ip_address` varchar(45),\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `roe_signatures_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 287
+}

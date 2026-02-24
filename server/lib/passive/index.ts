@@ -24,13 +24,23 @@ import { httpSecurityConnector } from "./http-security";
 import { cloudAssetsConnector } from "./cloud-assets";
 import { dnsDeepConnector } from "./dns-deep";
 import { githubLeaksConnector } from "./github-leaks";
+import { virustotalConnector } from "./virustotal";
+import { hibpConnector } from "./hibp";
+import { whoisxmlConnector } from "./whoisxml";
+import { leakixConnector } from "./leakix";
+import { fullhuntConnector } from "./fullhunt";
+import { netlasConnector } from "./netlas";
+import { hunterConnector } from "./hunter";
+import { socialMediaConnector } from "./social-media";
+import { abuseipdbConnector } from "./abuseipdb";
+import { passivetotalConnector } from "./passivetotal";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
 import { computeDiscoveryCoverage, type DiscoveryCoverageReport } from "../redteam-discovery-coverage";
 
 // All available connectors
-const ALL_CONNECTORS: PassiveConnector[] = [
+export const ALL_CONNECTORS: PassiveConnector[] = [
   shodanInternetDBConnector,  // Free fast-path — runs first for instant CVE/port data
   crtshConnector,
   shodanConnector,
@@ -48,6 +58,17 @@ const ALL_CONNECTORS: PassiveConnector[] = [
   cloudAssetsConnector,       // Cloud storage enumeration (S3/Azure/GCP)
   dnsDeepConnector,           // Comprehensive DNS record analysis
   githubLeaksConnector,       // GitHub code leak scanner (Priority #10)
+  // --- New OSINT sources (SpiderFoot-class expansion) ---
+  virustotalConnector,         // VirusTotal — file/URL/domain reputation & malware analysis
+  hibpConnector,               // Have I Been Pwned — breach exposure & credential leaks
+  whoisxmlConnector,           // WhoisXML — WHOIS records, DNS, subdomain enum
+  leakixConnector,             // LeakIX — exposed services & data leaks
+  fullhuntConnector,           // FullHunt — attack surface discovery
+  netlasConnector,             // Netlas.io — internet-wide host scanning & DNS history
+  hunterConnector,             // Hunter.io — email discovery & org intelligence
+  socialMediaConnector,        // Social media — GitHub org/user presence & code exposure
+  abuseipdbConnector,          // AbuseIPDB — IP abuse reputation scoring
+  passivetotalConnector,       // PassiveTotal — passive DNS, SSL history, host attributes
 ];
 
 export interface PassiveReconConfig {
@@ -61,6 +82,15 @@ export interface PassiveReconConfig {
     dehashed?: string;
     binaryedge?: string;
     greynoise?: string;
+    virustotal?: string;
+    hibp?: string;
+    whoisxml?: string;
+    leakix?: string;
+    fullhunt?: string;
+    netlas?: string;
+    hunter?: string;
+    abuseipdb?: string;
+    passivetotal?: string;
   };
   timeout?: number;
   maxConcurrent?: number;
@@ -115,6 +145,15 @@ export async function runPassiveRecon(
       case "dehashed": cfg.apiKey = apiKeys.dehashed; break;
       case "binaryedge": cfg.apiKey = apiKeys.binaryedge; break;
       case "greynoise": cfg.apiKey = apiKeys.greynoise; break;
+      case "virustotal": cfg.apiKey = apiKeys.virustotal; break;
+      case "hibp": cfg.apiKey = apiKeys.hibp; break;
+      case "whoisxml": cfg.apiKey = apiKeys.whoisxml; break;
+      case "leakix": cfg.apiKey = apiKeys.leakix; break;
+      case "fullhunt": cfg.apiKey = apiKeys.fullhunt; break;
+      case "netlas": cfg.apiKey = apiKeys.netlas; break;
+      case "hunter": cfg.apiKey = apiKeys.hunter; break;
+      case "abuseipdb": cfg.apiKey = apiKeys.abuseipdb; break;
+      case "passivetotal": cfg.apiKey = apiKeys.passivetotal; break;
     }
     connectorConfigs.set(connector.name, cfg);
   }
