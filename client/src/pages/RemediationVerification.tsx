@@ -14,8 +14,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import {
   Loader2, AlertTriangle, Trash2, PlusCircle, Clock,
-  CheckCircle2, XCircle, Play, AlertCircle, ShieldCheck
+  CheckCircle2, XCircle, Play, AlertCircle, ShieldCheck, FileDown, Database
 } from "lucide-react";
+import { exportToPdf } from "@/lib/export-pdf";
 
 const SEVERITY_CONFIG: Record<string, { color: string; bgColor: string; label: string }> = {
   critical: { color: "text-red-400", bgColor: "bg-red-500/20 border-red-500/30", label: "Critical" },
@@ -116,12 +117,15 @@ const RemediationVerificationPage = () => {
             Track vulnerability remediation progress with SLA enforcement, automated re-verification, and regression detection. Every fix is verified through re-exploitation or scan recheck.
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="gap-2">
-              <PlusCircle className="h-4 w-4" /> New Verification
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2 flex-wrap">
+          <ExportRemediationButton />
+          <SeedDemoButton onSuccess={() => listQuery.refetch()} />
+          <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="lg" className="gap-2">
+                <PlusCircle className="h-4 w-4" /> New Verification
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[600px]">
             <form onSubmit={handleCreateSubmit}>
               <DialogHeader>
@@ -189,7 +193,8 @@ const RemediationVerificationPage = () => {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -447,5 +452,51 @@ const RemediationVerificationPage = () => {
     </div>
   );
 };
+
+// ─── Export Remediation Report Button ────────────────────────────────────────
+function ExportRemediationButton() {
+  const [isExporting, setIsExporting] = useState(false);
+  const exportQuery = trpc.remediationVerification.exportReport.useQuery(undefined, { enabled: false });
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const result = await exportQuery.refetch();
+      if (result.data) {
+        exportToPdf(result.data.html, result.data.filename);
+        toast.success("Report opened for PDF export");
+      }
+    } catch (err) {
+      toast.error("Failed to generate report");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" onClick={handleExport} disabled={isExporting} className="gap-2">
+      {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+      Export PDF
+    </Button>
+  );
+}
+
+// ─── Seed Demo Data Button ──────────────────────────────────────────────────
+function SeedDemoButton({ onSuccess }: { onSuccess: () => void }) {
+  const seedMutation = trpc.remediationVerification.seedDemoData.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      onSuccess();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  return (
+    <Button variant="outline" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending} className="gap-2">
+      {seedMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+      Seed Demo Data
+    </Button>
+  );
+}
 
 export default RemediationVerificationPage;

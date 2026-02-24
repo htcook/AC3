@@ -17,8 +17,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, AlertTriangle, Trash2, PlusCircle, Eye, Brain, Target,
   Shield, Crosshair, Zap, ChevronRight, Clock, CheckCircle2, XCircle,
-  BarChart3, Network, Swords, ArrowRight, Play, Copy
+  BarChart3, Network, Swords, ArrowRight, Play, Copy, FileDown
 } from "lucide-react";
+import { exportToPdf } from "@/lib/export-pdf";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type PlanPhase = {
@@ -450,6 +451,7 @@ function PlanDetail({
                 Accept Plan
               </Button>
             )}
+            <ExportPlanButton planId={plan.id} />
             <Button size="sm" variant="destructive" onClick={onDelete} disabled={isDeleting} className="gap-1">
               {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               Delete
@@ -593,6 +595,37 @@ function PlanDetail({
         </Tabs>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Export Plan Button ───────────────────────────────────────────────────────
+function ExportPlanButton({ planId }: { planId: number }) {
+  const [isExporting, setIsExporting] = useState(false);
+  const exportQuery = trpc.aiAttackPlanner.exportReport.useQuery(
+    { id: planId },
+    { enabled: false }
+  );
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const result = await exportQuery.refetch();
+      if (result.data) {
+        exportToPdf(result.data.html, result.data.filename);
+        toast.success("Report opened for PDF export");
+      }
+    } catch (err) {
+      toast.error("Failed to generate report");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <Button size="sm" variant="outline" onClick={handleExport} disabled={isExporting} className="gap-1">
+      {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+      Export PDF
+    </Button>
   );
 }
 

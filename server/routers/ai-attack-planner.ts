@@ -83,15 +83,122 @@ export const aiAttackPlannerRouter = router({
     }),
 
   accept: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), agentPaw: z.string().optional() }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
       const { aiAttackPlans } = await import("../../drizzle/schema");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const { eq } = await import("drizzle-orm");
-      await db.update(aiAttackPlans).set({ status: "ready", acceptedAt: new Date() }).where(eq(aiAttackPlans.id, input.id));
-      return { success: true };
+
+      // 1. Fetch the plan
+      const plans = await db.select().from(aiAttackPlans).where(eq(aiAttackPlans.id, input.id));
+      if (!plans[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Attack plan not found" });
+      const plan = plans[0];
+      const generatedPlan = plan.generatedPlan ? JSON.parse(plan.generatedPlan as string) : null;
+      if (!generatedPlan) throw new TRPCError({ code: "BAD_REQUEST", message: "Plan has no generated content" });
+
+      // 2. Extract MITRE technique IDs from the plan phases
+      const techniqueIds: string[] = [];
+      for (const phase of generatedPlan.phases || []) {
+        for (const step of phase.steps || []) {
+          if (step.techniqueId) techniqueIds.push(step.techniqueId);
+          else if (step.technique_id) techniqueIds.push(step.technique_id);
+        }
+      }
+
+      // 3. Try to create a live Caldera operation
+      const CALDERA_BASE_URL = process.env.CALDERA_BASE_URL;
+      const CALDERA_API_KEY = process.env.CALDERA_API_KEY;
+      let calderaOperationId: string | null = null;
+      let calderaAdversaryId: string | null = null;
+      let matchedAbilities = 0;
+
+      if (CALDERA_BASE_URL && CALDERA_API_KEY) {
+        try {
+          // 3a. Fetch all Caldera abilities to map technique IDs
+          const abilitiesRes = await fetch(`${CALDERA_BASE_URL}/api/v2/abilities`, {
+            headers: { "KEY": CALDERA_API_KEY },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (abilitiesRes.ok) {
+            const allAbilities: any[] = await abilitiesRes.json();
+            // Map technique IDs to ability IDs (pick best ability per technique)
+            const abilityIds: string[] = [];
+            for (const tid of techniqueIds) {
+              const matching = allAbilities.filter((a: any) => a.technique_id === tid);
+              if (matching.length > 0) {
+                // Prefer abilities with executors for common platforms
+                const best = matching.find((a: any) =>
+                  a.executors?.some((e: any) => ["sh", "psh", "cmd", "bash"].includes(e.platform))
+                ) || matching[0];
+                abilityIds.push(best.ability_id);
+                matchedAbilities++;
+              }
+            }
+
+            if (abilityIds.length > 0) {
+              // 3b. Create adversary profile from matched abilities
+              const adversaryPayload = {
+                name: `AceC3-Plan-${plan.id}-${plan.name?.slice(0, 30) || "AutoGen"}`,
+                description: `Auto-generated from AI Attack Plan #${plan.id}: ${generatedPlan.summary?.slice(0, 100) || ""}`,
+                atomic_ordering: abilityIds,
+              };
+              const advRes = await fetch(`${CALDERA_BASE_URL}/api/v2/adversaries`, {
+                method: "POST",
+                headers: { "KEY": CALDERA_API_KEY, "Content-Type": "application/json" },
+                body: JSON.stringify(adversaryPayload),
+                signal: AbortSignal.timeout(15000),
+              });
+              if (advRes.ok) {
+                const adversary = await advRes.json();
+                calderaAdversaryId = adversary.adversary_id;
+
+                // 3c. Create operation
+                const opPayload = {
+                  name: `${plan.name || "AI Plan"} - ${new Date().toISOString().slice(0, 16)}`,
+                  adversary: { adversary_id: adversary.adversary_id },
+                  auto_close: false,
+                  state: "paused",
+                  ...(input.agentPaw ? { group: "", paw: input.agentPaw } : {}),
+                };
+                const opRes = await fetch(`${CALDERA_BASE_URL}/api/v2/operations`, {
+                  method: "POST",
+                  headers: { "KEY": CALDERA_API_KEY, "Content-Type": "application/json" },
+                  body: JSON.stringify(opPayload),
+                  signal: AbortSignal.timeout(15000),
+                });
+                if (opRes.ok) {
+                  const operation = await opRes.json();
+                  calderaOperationId = operation.id;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[AttackPlanner] Caldera integration error:", err);
+        }
+      }
+
+      // 4. Update plan status
+      await db.update(aiAttackPlans).set({
+        status: calderaOperationId ? "executing" : "ready",
+        acceptedAt: new Date(),
+      }).where(eq(aiAttackPlans.id, input.id));
+
+      return {
+        success: true,
+        calderaOperationId,
+        calderaAdversaryId,
+        matchedAbilities,
+        totalTechniques: techniqueIds.length,
+        calderaAvailable: !!(CALDERA_BASE_URL && CALDERA_API_KEY),
+        message: calderaOperationId
+          ? `Operation created in Caldera with ${matchedAbilities}/${techniqueIds.length} techniques mapped to abilities. Operation is paused — start it from the Caldera UI or assign an agent.`
+          : CALDERA_BASE_URL
+            ? `Plan accepted. ${matchedAbilities} abilities matched but operation creation failed. Check Caldera connectivity.`
+            : "Plan accepted locally. Caldera not configured — set CALDERA_BASE_URL and CALDERA_API_KEY to enable live operations.",
+      };
     }),
 
   delete: protectedProcedure
@@ -110,6 +217,23 @@ export const aiAttackPlannerRouter = router({
     const { THREAT_ACTOR_PROFILES } = await import("../lib/ai-attack-planner");
     return THREAT_ACTOR_PROFILES;
   }),
+
+  exportReport: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { aiAttackPlans } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      const plans = await db.select().from(aiAttackPlans).where(eq(aiAttackPlans.id, input.id));
+      if (!plans[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Plan not found" });
+      const plan = plans[0];
+      const generatedPlan = plan.generatedPlan ? JSON.parse(plan.generatedPlan as string) : {};
+      const { generateAttackPlanReport } = await import("../lib/pdf-report-generator");
+      const html = generateAttackPlanReport({ ...generatedPlan, name: plan.name });
+      return { html, filename: `attack-plan-${plan.id}-${Date.now()}.html` };
+    }),
 
   getStats: protectedProcedure.query(async () => {
     const { getDb } = await import("../db");

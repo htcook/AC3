@@ -3703,3 +3703,14 @@
 - [x] Add tRPC endpoints for Remediation Dashboard (summary, overdue, timeline, needsVerification)
 - [x] Add new pages to sidebar navigation (already existed)
 - [x] Write tests for new endpoints (64 tests, all passing)
+
+## Demo Seed Data & Live Integration & PDF Export
+- [x] Create realistic seed data for Remediation Dashboard (mixed severities, SLA states, overdue items)
+- [x] Add seed endpoint to remediation router for one-click demo population
+- [x] Wire Attack Planner "Accept Plan" to create live Caldera operation via API
+- [x] Map MITRE ATT&CK technique IDs to Caldera ability IDs for operation creation
+- [x] Add branded PDF export for Attack Planner (plan details, kill chain, recommendations)
+- [x] Add branded PDF export for Remediation Dashboard (SLA report, severity breakdown, timeline)
+- [x] Add branded PDF export for Corroboration Engine (findings, confidence scores, source results)
+- [x] Write tests for seed data, Caldera integration, and PDF export endpoints (77 tests, all passing)
+- [x] Add [DEMO] prefix to all seed data finding titles so viewers know it's not real

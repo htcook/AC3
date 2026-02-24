@@ -241,6 +241,122 @@ export const remediationVerificationRouter = router({
       return { success: true };
     }),
 
+  /** Seed realistic demo data for prospect demos */
+  seedDemoData: protectedProcedure.mutation(async ({ ctx }) => {
+    const { getDb } = await import("../db");
+    const { remediationVerifications } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const { DEFAULT_REMEDIATION_CONFIG } = await import("../lib/remediation-verification");
+
+    const slaMap: Record<string, number> = {
+      critical: DEFAULT_REMEDIATION_CONFIG.criticalSlaHours,
+      high: DEFAULT_REMEDIATION_CONFIG.highSlaHours,
+      medium: DEFAULT_REMEDIATION_CONFIG.mediumSlaHours,
+      low: DEFAULT_REMEDIATION_CONFIG.lowSlaHours,
+    };
+
+    const now = Date.now();
+    const hour = 3600 * 1000;
+    const day = 24 * hour;
+
+    const seedItems = [
+      // CRITICAL — overdue, still vulnerable
+      { findingTitle: "[DEMO] CVE-2024-3094 — XZ Utils Backdoor (liblzma)", assetName: "prod-web-01.corp.local", severity: "critical" as const, verificationMethod: "re_exploit" as const, status: "still_vulnerable" as const, createdAt: new Date(now - 5 * day), slaDeadline: new Date(now - 3 * day), verifiedAt: new Date(now - 2 * day), verificationOutput: "Re-exploitation succeeded — backdoor still present in liblzma 5.6.0. SSH auth bypass confirmed.", attemptCount: 2, originalFindingId: 1001, originalFindingType: "vulnerability" },
+      // CRITICAL — pending, approaching deadline
+      { findingTitle: "[DEMO] CVE-2023-44228 — Log4Shell RCE via JNDI Lookup", assetName: "app-server-03.dmz", severity: "critical" as const, verificationMethod: "scan_recheck" as const, status: "pending" as const, createdAt: new Date(now - 18 * hour), slaDeadline: new Date(now + 6 * hour), verificationOutput: null, attemptCount: 0, originalFindingId: 1002, originalFindingType: "vulnerability" },
+      // CRITICAL — verified fixed
+      { findingTitle: "[DEMO] CVE-2024-21887 — Ivanti Connect Secure Auth Bypass", assetName: "vpn-gw-01.edge", severity: "critical" as const, verificationMethod: "re_exploit" as const, status: "verified_fixed" as const, createdAt: new Date(now - 4 * day), slaDeadline: new Date(now - 3 * day), verifiedAt: new Date(now - 3.5 * day), verificationOutput: "Re-exploitation failed — auth bypass no longer possible after firmware update to 22.7R2.3.", attemptCount: 1, originalFindingId: 1003, originalFindingType: "vulnerability" },
+      // HIGH — overdue
+      { findingTitle: "[DEMO] CVE-2023-36884 — Office HTML RCE (Storm-0978)", assetName: "ws-finance-12.corp.local", severity: "high" as const, verificationMethod: "scan_recheck" as const, status: "still_vulnerable" as const, createdAt: new Date(now - 8 * day), slaDeadline: new Date(now - 1 * day), verifiedAt: new Date(now - 12 * hour), verificationOutput: "Scan confirmed Office 2019 still unpatched. KB5029253 not installed.", attemptCount: 1, originalFindingId: 1004, originalFindingType: "vulnerability" },
+      // HIGH — verified fixed
+      { findingTitle: "[DEMO] CVE-2024-1709 — ConnectWise ScreenConnect Auth Bypass", assetName: "mgmt-console.corp.local", severity: "high" as const, verificationMethod: "re_exploit" as const, status: "verified_fixed" as const, createdAt: new Date(now - 6 * day), slaDeadline: new Date(now - 3 * day), verifiedAt: new Date(now - 4 * day), verificationOutput: "Auth bypass attempt returned 403. ScreenConnect upgraded to 23.9.8.", attemptCount: 1, originalFindingId: 1005, originalFindingType: "vulnerability" },
+      // HIGH — running verification
+      { findingTitle: "[DEMO] CVE-2023-46747 — F5 BIG-IP Unauthenticated RCE", assetName: "lb-prod-01.dmz", severity: "high" as const, verificationMethod: "re_exploit" as const, status: "running" as const, createdAt: new Date(now - 3 * day), slaDeadline: new Date(now + 1 * day), verificationOutput: null, attemptCount: 0, originalFindingId: 1006, originalFindingType: "vulnerability" },
+      // MEDIUM — pending
+      { findingTitle: "[DEMO] CVE-2024-0056 — .NET SQL Data Provider Info Disclosure", assetName: "api-server-02.corp.local", severity: "medium" as const, verificationMethod: "config_audit" as const, status: "pending" as const, createdAt: new Date(now - 2 * day), slaDeadline: new Date(now + 12 * day), verificationOutput: null, attemptCount: 0, originalFindingId: 1007, originalFindingType: "vulnerability" },
+      // MEDIUM — verified fixed
+      { findingTitle: "[DEMO] CVE-2023-38545 — curl SOCKS5 Heap Buffer Overflow", assetName: "build-agent-04.ci", severity: "medium" as const, verificationMethod: "scan_recheck" as const, status: "verified_fixed" as const, createdAt: new Date(now - 10 * day), slaDeadline: new Date(now - 3 * day), verifiedAt: new Date(now - 7 * day), verificationOutput: "curl version updated to 8.4.0. Heap overflow no longer reproducible.", attemptCount: 1, originalFindingId: 1008, originalFindingType: "vulnerability" },
+      // MEDIUM — still vulnerable
+      { findingTitle: "[DEMO] Weak SSH Key Exchange Algorithms (diffie-hellman-group1-sha1)", assetName: "legacy-db-01.corp.local", severity: "medium" as const, verificationMethod: "config_audit" as const, status: "still_vulnerable" as const, createdAt: new Date(now - 15 * day), slaDeadline: new Date(now - 1 * day), verifiedAt: new Date(now - 2 * day), verificationOutput: "SSH config still allows diffie-hellman-group1-sha1. sshd_config unchanged.", attemptCount: 2, originalFindingId: 1009, originalFindingType: "misconfiguration" },
+      // LOW — pending
+      { findingTitle: "[DEMO] HTTP Server Banner Disclosure (Apache/2.4.51)", assetName: "web-staging.corp.local", severity: "low" as const, verificationMethod: "scan_recheck" as const, status: "pending" as const, createdAt: new Date(now - 5 * day), slaDeadline: new Date(now + 25 * day), verificationOutput: null, attemptCount: 0, originalFindingId: 1010, originalFindingType: "info_disclosure" },
+      // LOW — verified fixed
+      { findingTitle: "[DEMO] Missing X-Content-Type-Options Header", assetName: "portal.corp.local", severity: "low" as const, verificationMethod: "config_audit" as const, status: "verified_fixed" as const, createdAt: new Date(now - 20 * day), slaDeadline: new Date(now + 10 * day), verifiedAt: new Date(now - 12 * day), verificationOutput: "X-Content-Type-Options: nosniff header now present in all responses.", attemptCount: 1, originalFindingId: 1011, originalFindingType: "misconfiguration" },
+      // CRITICAL — error state
+      { findingTitle: "[DEMO] CVE-2024-27198 — JetBrains TeamCity Auth Bypass", assetName: "ci-server-01.corp.local", severity: "critical" as const, verificationMethod: "re_exploit" as const, status: "error" as const, createdAt: new Date(now - 3 * day), slaDeadline: new Date(now - 1 * day), verifiedAt: new Date(now - 2 * day), verificationOutput: "Error: Connection refused to target port 8111. Host may be offline.", attemptCount: 3, originalFindingId: 1012, originalFindingType: "vulnerability" },
+      // HIGH — manual verification pending
+      { findingTitle: "[DEMO] Default SNMP Community String (public)", assetName: "switch-core-01.net", severity: "high" as const, verificationMethod: "manual" as const, status: "pending" as const, createdAt: new Date(now - 4 * day), slaDeadline: new Date(now + 3 * day), verificationOutput: null, attemptCount: 0, originalFindingId: 1013, originalFindingType: "misconfiguration" },
+      // MEDIUM — verified fixed recently
+      { findingTitle: "[DEMO] TLS 1.0/1.1 Enabled on Public-Facing Service", assetName: "mail.corp.local", severity: "medium" as const, verificationMethod: "scan_recheck" as const, status: "verified_fixed" as const, createdAt: new Date(now - 7 * day), slaDeadline: new Date(now + 7 * day), verifiedAt: new Date(now - 1 * day), verificationOutput: "TLS scan confirms only TLS 1.2 and 1.3 accepted. TLS 1.0/1.1 disabled.", attemptCount: 1, originalFindingId: 1014, originalFindingType: "misconfiguration" },
+      // HIGH — overdue, multiple attempts
+      { findingTitle: "[DEMO] CVE-2023-22515 — Atlassian Confluence Privilege Escalation", assetName: "wiki.corp.local", severity: "high" as const, verificationMethod: "re_exploit" as const, status: "still_vulnerable" as const, createdAt: new Date(now - 12 * day), slaDeadline: new Date(now - 5 * day), verifiedAt: new Date(now - 1 * day), verificationOutput: "Privilege escalation still possible. Confluence version 8.5.1 — needs upgrade to 8.5.4+.", attemptCount: 3, originalFindingId: 1015, originalFindingType: "vulnerability" },
+    ];
+
+    let inserted = 0;
+    for (const item of seedItems) {
+      const slaHours = slaMap[item.severity] || 720;
+      await db.insert(remediationVerifications).values({
+        originalFindingId: item.originalFindingId,
+        originalFindingType: item.originalFindingType,
+        verificationMethod: item.verificationMethod,
+        status: item.status,
+        severity: item.severity,
+        assetName: item.assetName,
+        findingTitle: item.findingTitle,
+        slaDeadline: item.slaDeadline,
+        slaHours: slaHours,
+        verifiedBy: String(ctx.user.id),
+        verifiedAt: item.verifiedAt || null,
+        verificationOutput: item.verificationOutput || null,
+        attemptCount: item.attemptCount,
+        createdAt: item.createdAt,
+      });
+      inserted++;
+    }
+
+    return { success: true, inserted, message: `Seeded ${inserted} realistic remediation findings for demo` };
+  }),
+
+  exportReport: protectedProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { remediationVerifications } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const { desc, lt, and, eq, count, not } = await import("drizzle-orm");
+
+    // Fetch all items
+    const allItems = await db.select().from(remediationVerifications).orderBy(desc(remediationVerifications.createdAt));
+    const total = allItems.length;
+    const verifiedFixed = allItems.filter(i => i.status === "verified_fixed").length;
+    const stillVulnerable = allItems.filter(i => i.status === "still_vulnerable").length;
+    const pending = allItems.filter(i => i.status === "pending").length;
+    const now = new Date();
+    const overdueItems = allItems.filter(i => i.slaDeadline && new Date(i.slaDeadline) < now && i.status !== "verified_fixed").map(i => ({
+      ...i,
+      hoursOverdue: Math.round((now.getTime() - new Date(i.slaDeadline!).getTime()) / 3600000),
+    }));
+    const slaCompliant = total > 0 ? Math.round(((total - overdueItems.length) / total) * 100) : 100;
+
+    // Severity breakdown
+    const severityBreakdown: Record<string, number> = {};
+    for (const item of allItems) {
+      const sev = item.severity || "medium";
+      severityBreakdown[sev] = (severityBreakdown[sev] || 0) + 1;
+    }
+
+    // Avg remediation hours
+    const fixedWithTime = allItems.filter(i => i.status === "verified_fixed" && i.verifiedAt && i.createdAt);
+    const avgRemediationHours = fixedWithTime.length > 0
+      ? Math.round(fixedWithTime.reduce((sum, i) => sum + (new Date(i.verifiedAt!).getTime() - new Date(i.createdAt!).getTime()) / 3600000, 0) / fixedWithTime.length)
+      : 0;
+
+    const stats = { total, verifiedFixed, stillVulnerable, pending, overdue: overdueItems.length, slaCompliant, severityBreakdown, avgRemediationHours };
+    const { generateRemediationReport } = await import("../lib/pdf-report-generator");
+    const html = generateRemediationReport(stats, allItems, overdueItems);
+    return { html, filename: `remediation-report-${Date.now()}.html` };
+  }),
+
   getStats: protectedProcedure.query(async () => {
     const { getDb } = await import("../db");
     const { remediationVerifications } = await import("../../drizzle/schema");
