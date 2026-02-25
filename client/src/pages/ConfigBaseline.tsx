@@ -60,7 +60,7 @@ export default function ConfigBaseline() {
       refetchBaselines();
       refetchAlerts();
       setShowScanDialog(false);
-      toast.success(`Scan complete: ${d.passCount} pass, ${d.failCount} fail, ${d.driftCount} drift`);
+      toast.success(`Scan complete: ${d.passed} pass, ${d.failed} fail, ${d.driftAlerts} drift`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -263,7 +263,7 @@ export default function ConfigBaseline() {
               </thead>
               <tbody>
                 {ruleCatalog?.rules?.map((rule) => (
-                  <tr key={rule.id} className="border-t hover:bg-muted/30">
+                  <tr key={(rule as any).id} className="border-t hover:bg-muted/30">
                     <td className="p-3">
                       <div className="font-medium">{rule.title}</div>
                       <div className="text-xs text-muted-foreground">{rule.section} / {rule.ruleId}</div>
@@ -405,7 +405,7 @@ export default function ConfigBaseline() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowScanDialog(false)}>Cancel</Button>
             <Button
-              onClick={() => selectedBaseline && runScan.mutate({ baselineId: selectedBaseline })}
+              onClick={() => selectedBaseline && runScan.mutate({ baselineId: selectedBaseline, targetName: "default" })}
               disabled={!selectedBaseline || runScan.isPending}
             >
               {runScan.isPending ? "Scanning..." : "Start Scan"}

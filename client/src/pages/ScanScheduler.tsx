@@ -29,7 +29,7 @@ export default function ScanScheduler() {
   };
 
   if (isLoading) return (
-    <AppShell title="Scan Scheduler" subtitle="Automated domain scanning">
+    <AppShell activePath="/scan-scheduler">
       <div className="flex items-center justify-center py-24">
         <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
       </div>
@@ -37,7 +37,7 @@ export default function ScanScheduler() {
   );
 
   if (error) return (
-    <AppShell title="Scan Scheduler" subtitle="Automated domain scanning">
+    <AppShell activePath="/scan-scheduler">
       <Card><CardContent className="py-8 text-center">
         <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">{error.message}</p>
@@ -50,7 +50,7 @@ export default function ScanScheduler() {
   const recentRuns = (d?.recentRuns || []) as any[];
 
   return (
-    <AppShell title="Scan Scheduler" subtitle="Automated domain scanning engine">
+    <AppShell activePath="/scan-scheduler">
       <div className="space-y-6">
         {/* Scheduler Status Header */}
         <div className="flex items-center justify-between">

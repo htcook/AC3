@@ -275,7 +275,7 @@ export default function KsiThreatMap() {
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="font-mono">{ksiReport.ksiId}</Badge>
                 <Badge>{ksiReport.themeCode}</Badge>
-                <Badge variant={ksiReport.coverageStatus === "implemented" ? "default" : "secondary"}>
+                <Badge variant={ksiReport.coverageStatus === "direct" ? "default" : "secondary"}>
                   {ksiReport.coverageStatus}
                 </Badge>
                 {ksiReport.validationReady && (

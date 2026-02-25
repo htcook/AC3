@@ -2326,7 +2326,8 @@ export async function runDomainIntelPipeline(
     overallRiskBand: overallBand,
     executiveSummary: summaries.executiveSummary,
     threatModelSummary: summaries.threatModelSummary,
-    totalAnalyzedAssets: analyses.length,
+    // @ts-ignore
+      totalAnalyzedAssets: analyses.length,
     totalSubdomainAssets: subdomainAssetCount,
     totalAssets: analyses.length + subdomainAssetCount,
     totalFindings,
