@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS config_baseline_rules (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  baseline_id VARCHAR(64) NOT NULL,\n  rule_id VARCHAR(64) NOT NULL,\n  benchmark VARCHAR(128) NOT NULL,\n  section VARCHAR(32) NOT NULL,\n  title VARCHAR(512) NOT NULL,\n  description TEXT,\n  cbr_severity ENUM('critical','high','medium','low') DEFAULT 'medium' NOT NULL,\n  cbr_platform VARCHAR(64) NOT NULL,\n  expected_value TEXT,\n  remediation_guidance TEXT,\n  ksi_ids JSON,\n  mitre_ids JSON,\n  enabled BOOLEAN DEFAULT TRUE NOT NULL,\n  cbr_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS config_baseline_rules (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  baseline_id VARCHAR(64) NOT NULL,\n  rule_id VARCHAR(64) NOT NULL,\n  benchmark VARCHAR(128) NOT NULL,\n  section VARCHAR(32) NOT NULL,\n  title VARCHAR(512) NOT NULL,\n  description TEXT,\n  cbr_severity ENUM('critical','high','medium','low') DEFAULT 'medium' NOT NULL,\n  cbr_platform VARCHAR(64) NOT NULL,\n  expected_value TEXT,\n  remediation_guidance TEXT,\n  ksi_ids JSON,\n  mitre_ids JSON,\n  enabled BOOLEAN DEFAULT TRUE NOT NULL,\n  cbr_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 346
+}

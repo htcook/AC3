@@ -316,6 +316,13 @@
       "when": 1771986920837,
       "tag": "0044_wooden_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1771990138956,
+      "tag": "0045_dapper_deathstrike",
+      "breakpoints": true
     }
   ]
 }

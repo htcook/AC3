@@ -4042,3 +4042,46 @@
 - [ ] Automated restore test scheduling and execution
 - [ ] Recovery time measurement and reporting
 - [ ] Compliance evidence generation for disaster recovery KSIs
+
+## Auto-Collection: Wire Existing Scanners into KSI Evidence Chain
+- [x] Audit all existing scanner routers and map outputs to KSI evidence types
+- [x] Build auto-collection service that hooks into scanner completion events
+- [x] Map vulnerability scanner results → KSI-SVC-VSR, KSI-SVC-VRM evidence
+- [x] Map penetration test results → KSI-SCR-PEN, KSI-SCR-APT evidence
+- [x] Map OSINT/recon results → KSI-INR-TIF, KSI-INR-TIU evidence
+- [x] Map phishing campaign results → KSI-SCR-SAT evidence
+- [x] Map SIEM/log data → KSI-MLA-LET, KSI-MLA-OSM evidence (via threat intel)
+- [x] Map network scan results → KSI-CNA-NSD evidence (via cloud misconfigs)
+- [x] Map AD/IAM scan results → KSI-IAM-MFA, KSI-IAM-AAM evidence (via AD attack sim)
+- [x] Add auto-collection dashboard with source mapping stats
+- [x] tRPC endpoint for triggering manual collection from all sources (runFullCollection)
+- [x] 14 passing tests for auto-collection module
+
+## Module 5: Configuration Baseline Engine
+- [x] Database schema: config_baselines, config_baseline_rules, config_scan_results, config_drift_alerts tables
+- [x] CIS benchmark rule definitions for AWS (20+ rules mapped to KSIs and MITRE)
+- [x] Configuration scan results storage with pass/fail/warning status
+- [x] Drift detection with automatic alert generation for failures
+- [x] Remediation guidance per rule from CIS benchmarks
+- [x] Frontend page with baseline management, scan results, drift alerts, rule catalog
+- [x] tRPC router for baseline CRUD, scan execution, drift detection
+- [x] Map to KSI-CNA-HCI, KSI-CNA-EDE, KSI-CNA-NSD, KSI-CMT-CMG evidence
+- [x] 8 passing tests for Configuration Baseline Engine
+
+## KSI-to-TTP Threat Mapping
+- [x] Comprehensive catalog mapping KSIs to relevant ATT&CK techniques (T-codes) across 10+ tactics
+- [x] Map 10 threat groups (APT28, APT29, APT41, Lazarus, FIN7, Sandworm, etc.) to KSIs they target
+- [x] tRPC router for threat mapping, coverage analysis, and gap detection
+- [x] Frontend page: KSI Threat Map with threat group coverage matrix, technique heatmap
+- [x] Cross-reference with existing threat_actors and exploit catalogs
+- [x] Threat-informed defense scoring per KSI (riskScore based on group count + technique coverage)
+- [x] 10 passing tests for threat mapping endpoints
+
+## KSI Exploit Matching for Engagement Validation
+- [x] Map KSIs to relevant exploits from unified_exploit_catalog via MITRE technique cross-reference
+- [x] Link exploits to KSI validation testing (getExploitsForKsi endpoint)
+- [x] Add exploit recommendations per KSI with CVSS scoring and reliability ratings
+- [x] Cross-reference with Atomic Red Team tests via technique ID matching
+- [x] Frontend: show recommended exploits/tests per KSI in Threat Map page (exploit tab)
+- [x] tRPC endpoint for fetching exploit matches per KSI (getExploitsForKsi)
+- [x] Exploit coverage summary across all KSIs (getExploitCoverageSummary)

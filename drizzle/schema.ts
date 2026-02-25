@@ -4468,3 +4468,86 @@ export const oscalExports = mysqlTable("oscal_exports", {
 });
 export type OscalExport = typeof oscalExports.$inferSelect;
 export type InsertOscalExport = typeof oscalExports.$inferInsert;
+
+
+// ============================================================
+// Configuration Baseline Engine
+// ============================================================
+export const configBaselines = mysqlTable("config_baselines", {
+  id: int("id").autoincrement().primaryKey(),
+  baselineId: varchar("baseline_id", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  platform: varchar("platform", { length: 64 }).notNull(),
+  benchmark: varchar("benchmark", { length: 128 }).notNull(),
+  ruleCount: int("rule_count").default(0),
+  status: mysqlEnum("bl_status", ["active", "draft", "archived"]).default("active").notNull(),
+  lastScanAt: timestamp("last_scan_at"),
+  lastScanScore: int("last_scan_score"),
+  createdBy: int("created_by"),
+  createdByName: varchar("created_by_name", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type ConfigBaseline = typeof configBaselines.$inferSelect;
+export type InsertConfigBaseline = typeof configBaselines.$inferInsert;
+
+export const configBaselineRules = mysqlTable("config_baseline_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  baselineId: varchar("baseline_id", { length: 64 }).notNull(),
+  ruleId: varchar("rule_id", { length: 64 }).notNull(),
+  benchmark: varchar("benchmark", { length: 128 }).notNull(),
+  section: varchar("section", { length: 32 }).notNull(),
+  title: varchar("title", { length: 512 }).notNull(),
+  description: text("description"),
+  severity: mysqlEnum("cbr_severity", ["critical", "high", "medium", "low"]).default("medium").notNull(),
+  platform: varchar("cbr_platform", { length: 64 }).notNull(),
+  expectedValue: text("expected_value"),
+  remediationGuidance: text("remediation_guidance"),
+  ksiIds: json("ksi_ids"),
+  mitreIds: json("mitre_ids"),
+  enabled: boolean("enabled").default(true).notNull(),
+  createdAt: timestamp("cbr_created_at").defaultNow().notNull(),
+});
+export type ConfigBaselineRule = typeof configBaselineRules.$inferSelect;
+export type InsertConfigBaselineRule = typeof configBaselineRules.$inferInsert;
+
+export const configScanResults = mysqlTable("config_scan_results", {
+  id: int("id").autoincrement().primaryKey(),
+  scanId: varchar("scan_id", { length: 64 }).notNull(),
+  baselineId: varchar("baseline_id", { length: 64 }).notNull(),
+  ruleId: varchar("rule_id", { length: 64 }).notNull(),
+  ruleTitle: varchar("rule_title", { length: 512 }),
+  severity: mysqlEnum("csr_severity", ["critical", "high", "medium", "low"]).default("medium"),
+  status: mysqlEnum("csr_status", ["pass", "fail", "warning", "error"]).notNull(),
+  expectedValue: text("expected_value"),
+  currentValue: text("current_value"),
+  driftDetected: boolean("drift_detected").default(false),
+  targetName: varchar("target_name", { length: 255 }),
+  targetType: varchar("target_type", { length: 64 }),
+  scannedBy: int("scanned_by"),
+  scannedByName: varchar("scanned_by_name", { length: 255 }),
+  scannedAt: timestamp("scanned_at").defaultNow().notNull(),
+});
+export type ConfigScanResult = typeof configScanResults.$inferSelect;
+export type InsertConfigScanResult = typeof configScanResults.$inferInsert;
+
+export const configDriftAlerts = mysqlTable("config_drift_alerts", {
+  id: int("id").autoincrement().primaryKey(),
+  alertId: varchar("alert_id", { length: 64 }).notNull().unique(),
+  scanId: varchar("scan_id", { length: 64 }).notNull(),
+  baselineId: varchar("baseline_id", { length: 64 }).notNull(),
+  ruleId: varchar("rule_id", { length: 64 }).notNull(),
+  ruleTitle: varchar("rule_title", { length: 512 }),
+  severity: mysqlEnum("cda_severity", ["critical", "high", "medium", "low"]).default("medium"),
+  driftType: varchar("drift_type", { length: 64 }),
+  description: text("cda_description"),
+  targetName: varchar("cda_target_name", { length: 255 }),
+  remediationGuidance: text("cda_remediation_guidance"),
+  status: mysqlEnum("cda_status", ["open", "acknowledged", "remediated", "accepted", "false_positive"]).default("open").notNull(),
+  ksiIds: json("cda_ksi_ids"),
+  mitreIds: json("cda_mitre_ids"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("cda_created_at").defaultNow().notNull(),
+});
+export type ConfigDriftAlert = typeof configDriftAlerts.$inferSelect;
+export type InsertConfigDriftAlert = typeof configDriftAlerts.$inferInsert;

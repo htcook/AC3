@@ -231,10 +231,13 @@ const NAV_GROUPS: NavGroup[] = [
     label: "FEDRAMP 20x KSI",
     icon: BadgeCheck,
     items: [
+      { href: "/ksi-dashboard", icon: BadgeCheck, label: "KSI DASHBOARD" },
       { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
+      { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
+      { href: "/ksi-threat-map", icon: Crosshair, label: "THREAT MAP" },
+      { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
       { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
       { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
-      { href: "/ksi-dashboard", icon: BadgeCheck, label: "KSI DASHBOARD" },
     ],
   },
 ];

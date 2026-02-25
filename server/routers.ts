@@ -80,6 +80,9 @@ import { roeBuilderRouter } from "./routers/roe-builder";
 import { ksiEvidenceChainRouter } from "./routers/ksi-evidence-chain";
 import { ksiValidationSchedulerRouter } from "./routers/ksi-validation-scheduler";
 import { oscalExportRouter } from "./routers/oscal-export";
+import { ksiAutoCollectorRouter } from "./routers/ksi-auto-collector";
+import { ksiThreatMapRouter } from "./routers/ksi-threat-map";
+import { configBaselineRouter } from "./routers/config-baseline";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -242,6 +245,9 @@ export const appRouter = router({
   ksiEvidenceChain: ksiEvidenceChainRouter,
   ksiValidationScheduler: ksiValidationSchedulerRouter,
   oscalExport: oscalExportRouter,
+  ksiAutoCollector: ksiAutoCollectorRouter,
+  ksiThreatMap: ksiThreatMapRouter,
+  configBaseline: configBaselineRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
