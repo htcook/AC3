@@ -15,6 +15,8 @@ import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/p
 import { enrichAssetsWithShodanData, verifyCvesWithShodanData, createShodanPostureFindings } from "./lib/shodan-verifier";
 import { matchExploitsToFindings, type ExploitMatch } from "./lib/exploit-matcher";
 import { ENV } from "./_core/env";
+import { runCrossModuleEnrichment, type CrossModuleEnrichmentResult } from "./lib/cross-module-enrichment";
+import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -260,6 +262,8 @@ export interface PipelineResult {
       attackTechniques: string[];
     }>;
   };
+  crossModuleEnrichment?: CrossModuleEnrichmentResult;
+  postEnrichmentAnalysis?: PostEnrichmentAnalysis;
 }
 
 export interface BreachDataSummary {
@@ -2219,6 +2223,49 @@ export async function runDomainIntelPipeline(
   }
   console.log(`[DomainIntel] Re-scoring timeline: ${rescoringTimeline.length} events recorded across ${analyses.length} assets`);
 
+  // Stage 3.95: Cross-Module Enrichment — Bug Bounty, Threat Intel, OpSec, Discovery Deep Dive
+  // This feeds data from other modules back into the pipeline for two-way enrichment
+  let crossModuleEnrichment: CrossModuleEnrichmentResult | undefined;
+  try {
+    console.log(`[DomainIntel] Stage 3.95: Running cross-module enrichment (Bug Bounty, Threat Intel, OpSec, Discovery)`);
+    crossModuleEnrichment = await runCrossModuleEnrichment(analyses, org.primaryDomain, passiveRecon);
+    console.log(
+      `[DomainIntel] Cross-module enrichment complete: ` +
+      `${crossModuleEnrichment.summary.modulesSucceeded}/${crossModuleEnrichment.summary.modulesRun} modules, ` +
+      `${crossModuleEnrichment.summary.totalCorrelations} correlations, ` +
+      `${crossModuleEnrichment.summary.totalNewFindings} new findings, ` +
+      `${crossModuleEnrichment.summary.totalRiskAdjustments} risk adjustments`
+    );
+
+    // Apply threat intel risk boosts to hybrid scores
+    for (const a of analyses) {
+      const boost = (a as any)._threatIntelBoost;
+      if (boost && boost > 0) {
+        a.hybridRiskScore = Math.min(100, a.hybridRiskScore + boost);
+        a.riskBand = riskBand(a.hybridRiskScore);
+        console.log(`[DomainIntel] Threat intel boost: ${a.asset.hostname} +${boost} → ${a.hybridRiskScore} (${a.riskBand})`);
+      }
+      delete (a as any)._threatIntelBoost;
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] Cross-module enrichment failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 3.99: LLM Post-Enrichment Analysis — attack paths, blind spots, recommendations
+  let postEnrichmentAnalysis: PostEnrichmentAnalysis | undefined;
+  try {
+    console.log(`[DomainIntel] Stage 3.99: Running LLM post-enrichment analysis`);
+    postEnrichmentAnalysis = await runPostEnrichmentAnalysis(analyses, org, crossModuleEnrichment);
+    console.log(
+      `[DomainIntel] Post-enrichment analysis complete: ` +
+      `${postEnrichmentAnalysis.attackPaths.length} attack paths, ` +
+      `${postEnrichmentAnalysis.blindSpots.length} blind spots, ` +
+      `${postEnrichmentAnalysis.prioritizedRecommendations.length} recommendations`
+    );
+  } catch (err: any) {
+    console.error(`[DomainIntel] Post-enrichment analysis failed (non-fatal): ${err.message}`);
+  }
+
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
   // If skipEngagement is true, skip campaign design and generate scan-only summaries
   let campaigns: CampaignRecommendation[] = [];
@@ -2341,5 +2388,7 @@ export async function runDomainIntelPipeline(
     rescoringTimeline,
     discoveryCoverage: passiveRecon?.discoveryCoverage || undefined,
     emailSecurity: emailSecurityReport || undefined,
+    crossModuleEnrichment,
+    postEnrichmentAnalysis,
   };
 }

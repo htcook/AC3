@@ -711,4 +711,44 @@ export const bugBountyRouter = router({
       await db.delete(bugBountyFindings).where(eq(bugBountyFindings.id, input.id));
       return { success: true };
     }),
+
+  // ─── Bug Bounty Intelligence Service ───────────────────────────────────────
+
+  // Enrich Domain Intel with HackerOne disclosed vulnerability data
+  enrichDomain: protectedProcedure
+    .input(z.object({ domain: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const { enrichDomainIntel } = await import("../lib/bug-bounty-intelligence");
+      return enrichDomainIntel(input.domain);
+    }),
+
+  // Enrich Threat Intelligence with CWE trends, severity distribution, exploit patterns
+  enrichThreats: protectedProcedure
+    .input(z.object({ timeRangeDays: z.number().min(7).max(365).default(90) }))
+    .mutation(async ({ input }) => {
+      const { enrichThreatIntelligence } = await import("../lib/bug-bounty-intelligence");
+      return enrichThreatIntelligence(input.timeRangeDays);
+    }),
+
+  // Enrich Attack Vectors with bounty-validated attack surfaces
+  enrichAttackVectors: protectedProcedure
+    .mutation(async () => {
+      const { enrichAttackVectors } = await import("../lib/bug-bounty-intelligence");
+      return enrichAttackVectors();
+    }),
+
+  // Enrich OpSec with weakness categories and defensive priorities
+  enrichOpSec: protectedProcedure
+    .mutation(async () => {
+      const { enrichOpSec } = await import("../lib/bug-bounty-intelligence");
+      return enrichOpSec();
+    }),
+
+  // Generate full cross-module intelligence report
+  fullIntelReport: protectedProcedure
+    .input(z.object({ domain: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const { generateFullIntelligenceReport } = await import("../lib/bug-bounty-intelligence");
+      return generateFullIntelligenceReport(input.domain);
+    }),
 });

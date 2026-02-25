@@ -89,6 +89,7 @@ import { engagementAutomationRouter } from "./routers/engagement-automation";
 import { threatEnrichmentEngineRouter } from "./routers/threat-enrichment-engine";
 import { infraWikiRouter } from "./routers/infra-wiki";
 import { liveInfraRouter } from "./routers/live-infra";
+import { discoveryEngineRouter } from "./routers/discovery-engine";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -260,6 +261,7 @@ export const appRouter = router({
   threatEnrichment: threatEnrichmentEngineRouter,
   infraWiki: infraWikiRouter,
   liveInfra: liveInfraRouter,
+  discoveryEngine: discoveryEngineRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -5434,6 +5436,301 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         }
 
         return validateTakeoverCandidates(takeoverResult.candidates);
+      }),
+
+    // ─── Quick Scan (domain-only, auto-enrichment) ─────────────────
+    quickScan: protectedProcedure
+      .input(z.object({
+        domain: z.string().min(1),
+        scanMode: z.enum(['strict_passive', 'standard', 'active']).optional(),
+        scanOnly: z.boolean().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const cleanDomain = input.domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
+
+        // Create scan record with placeholder org profile — enrichment runs in background
+        const scanId = await db.createDomainIntelScan({
+          primaryDomain: cleanDomain,
+          additionalDomains: [],
+          clientType: 'enterprise',
+          sector: 'Technology',
+          orgProfile: {
+            customerName: cleanDomain,
+            primaryDomain: cleanDomain,
+            sector: 'Technology',
+            clientType: 'enterprise',
+            criticalFunctions: [],
+            complianceFlags: [],
+          },
+          criticalFunctions: [],
+          complianceFlags: [],
+          notes: 'Quick scan — org profile auto-enriched from domain',
+          status: 'pending',
+          createdBy: ctx.user.id,
+        });
+
+        // Run enrichment + pipeline in background
+        const scanMode = input.scanMode || 'standard';
+        const scanOnly = input.scanOnly !== false;
+        setImmediate(async () => {
+          try {
+            console.log(`[DomainIntel] Quick scan started for ${cleanDomain} (scan ${scanId})`);
+
+            // Phase 1: Auto-enrich org profile from domain
+            await db.updateDomainIntelScan(scanId, { status: 'passive_recon' }).catch(() => {});
+            const { runEnrichmentPipeline, mergeLLMOrgData, buildBIAFromLLMData } = await import('./lib/org-enrichment');
+            const { invokeLLM } = await import('./_core/llm');
+            const { ENV } = await import('./_core/env');
+
+            const enrichResult = await runEnrichmentPipeline(cleanDomain, {
+              shodanApiKey: ENV.SHODAN_API_KEY || undefined,
+              securityTrailsApiKey: ENV.SECURITYTRAILS_API_KEY || undefined,
+              censysApiId: ENV.CENSYS_API_ID || undefined,
+              censysApiSecret: ENV.CENSYS_API_SECRET || undefined,
+            });
+
+            // Use LLM to extract structured org profile from scraped data
+            let orgProfile = enrichResult.orgProfile;
+            let biaProfile = null;
+            try {
+              const orgLLMResponse = await invokeLLM({
+                messages: [
+                  { role: 'system', content: 'You are an expert OSINT analyst. Extract structured organization information from the provided website data. Return valid JSON only.' },
+                  { role: 'user', content: enrichResult.llmOrgPrompt },
+                ],
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: 'org_profile',
+                    strict: true,
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        companyName: { type: 'string', description: 'Official company name' },
+                        industry: { type: 'string', description: 'Primary industry' },
+                        sector: { type: 'string', description: 'Business sector (Technology, Financial Services, Healthcare, Government, Education, Manufacturing, Retail, Energy, Telecommunications, Legal, Media & Entertainment, Non-Profit, Defense, Transportation, Other)' },
+                        description: { type: 'string', description: 'Brief company description (2-3 sentences)' },
+                        clientType: { type: 'string', description: 'One of: msp, enterprise, saas, paas, iaas, mixed_hosting, other' },
+                        employeeRange: { type: 'string', description: 'Estimated employee count range' },
+                        products: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, category: { type: 'string' }, criticality: { type: 'string' } }, required: ['name', 'description', 'category', 'criticality'], additionalProperties: false } },
+                        services: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, category: { type: 'string' }, criticality: { type: 'string' } }, required: ['name', 'description', 'category', 'criticality'], additionalProperties: false } },
+                        criticalFunctions: { type: 'array', items: { type: 'string' }, description: 'Critical business functions: identity, email, payments, customer_data, intellectual_property, supply_chain, communications, operations, compliance, hr, development, infrastructure, sales, marketing, support' },
+                        complianceFlags: { type: 'array', items: { type: 'string' }, description: 'Likely compliance requirements: SOC2, HIPAA, PCI-DSS, GDPR, NIST, ISO27001, FedRAMP, CMMC, SOX, CCPA, FERPA, ITAR' },
+                        regulatoryNotes: { type: 'string', description: 'Notes on regulatory environment' },
+                      },
+                      required: ['companyName', 'industry', 'sector', 'description', 'clientType', 'employeeRange', 'products', 'services', 'criticalFunctions', 'complianceFlags', 'regulatoryNotes'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+              });
+
+              const orgContent = orgLLMResponse.choices[0].message.content;
+              const llmOrgData = JSON.parse(typeof orgContent === 'string' ? orgContent : '{}');
+              orgProfile = mergeLLMOrgData(orgProfile, llmOrgData);
+
+              // Build BIA profile
+              const biaLLMResponse = await invokeLLM({
+                messages: [
+                  { role: 'system', content: 'You are a business impact analysis expert. Analyze the organization and produce a structured BIA assessment. Return valid JSON only.' },
+                  { role: 'user', content: enrichResult.llmBiaPrompt },
+                ],
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: 'bia_profile',
+                    strict: true,
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        overallCriticality: { type: 'string', description: 'critical, high, medium, or low' },
+                        hybridScore: { type: 'number', description: 'Overall hybrid BIA score 0-100' },
+                        missionCriticalSystems: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, type: { type: 'string' }, criticality: { type: 'string' }, exposureLevel: { type: 'string' } }, required: ['name', 'description', 'type', 'criticality', 'exposureLevel'], additionalProperties: false } },
+                        recommendations: { type: 'array', items: { type: 'string' } },
+                        carverScores: { type: 'object', properties: { criticality: { type: 'number' }, accessibility: { type: 'number' }, recuperability: { type: 'number' }, vulnerability: { type: 'number' }, effect: { type: 'number' }, recognizability: { type: 'number' } }, required: ['criticality', 'accessibility', 'recuperability', 'vulnerability', 'effect', 'recognizability'], additionalProperties: false },
+                      },
+                      required: ['overallCriticality', 'hybridScore', 'missionCriticalSystems', 'recommendations', 'carverScores'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+              });
+
+              const biaContent = biaLLMResponse.choices[0].message.content;
+              const llmBiaData = JSON.parse(typeof biaContent === 'string' ? biaContent : '{}');
+              biaProfile = buildBIAFromLLMData(cleanDomain, orgProfile, llmBiaData);
+
+              console.log(`[DomainIntel] Quick scan enrichment complete for ${cleanDomain}: ${orgProfile.companyName}, sector=${orgProfile.sector}`);
+            } catch (llmErr: any) {
+              console.error(`[DomainIntel] LLM enrichment failed for ${cleanDomain}:`, llmErr.message);
+            }
+
+            // Derive scan parameters from enriched profile
+            const derivedSector = orgProfile.sector || 'Technology';
+            const derivedClientType = (orgProfile as any).clientType || 'enterprise';
+            const derivedCriticalFunctions = (orgProfile as any).criticalFunctions || [];
+            const derivedComplianceFlags = (orgProfile as any).complianceFlags || [];
+
+            // Update scan record with enriched org profile
+            await db.updateDomainIntelScan(scanId, {
+              sector: derivedSector,
+              clientType: derivedClientType,
+              criticalFunctions: derivedCriticalFunctions,
+              complianceFlags: derivedComplianceFlags,
+              orgProfile: {
+                customerName: orgProfile.companyName || cleanDomain,
+                primaryDomain: cleanDomain,
+                sector: derivedSector,
+                clientType: derivedClientType,
+                criticalFunctions: derivedCriticalFunctions,
+                complianceFlags: derivedComplianceFlags,
+                enrichedProfile: orgProfile,
+                biaProfile,
+              },
+              status: 'discovering',
+            });
+
+            // Phase 2: Run the standard domain intel pipeline
+            const { runDomainIntelPipeline } = await import('./domainIntel');
+            const result = await runDomainIntelPipeline(
+              {
+                customerName: orgProfile.companyName || cleanDomain,
+                primaryDomain: cleanDomain,
+                additionalDomains: [],
+                sector: derivedSector,
+                clientType: derivedClientType,
+                criticalFunctions: derivedCriticalFunctions,
+                complianceFlags: derivedComplianceFlags,
+                notes: `Auto-enriched: ${orgProfile.description || ''}`,
+              },
+              async (stage) => {
+                await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
+                console.log(`[DomainIntel] Quick scan ${scanId} stage: ${stage}`);
+              },
+              { scanMode, skipEngagement: scanOnly }
+            );
+
+            // Store results using same pattern as startScan
+            const assetRecords = result.assets.map(a => ({
+              scanId,
+              assetId: a.asset.assetId,
+              hostname: a.asset.hostname,
+              url: a.asset.url || null,
+              assetType: a.asset.assetType,
+              dnsRecords: a.asset.dnsRecords || null,
+              dnsStatus: a.asset.dnsStatus || null,
+              headers: a.asset.headers || null,
+              technologies: a.asset.technologies || null,
+              assetClasses: a.asset.assetClasses,
+              tags: a.asset.tags,
+              carverScores: a.carverScores,
+              shockScores: a.shockScores,
+              missionImpactScore: Math.round(a.missionImpactScore * 10),
+              suggestedTier: a.suggestedTier,
+              hybridRiskScore: a.hybridRiskScore,
+              riskBand: a.riskBand,
+              cvssEstimate: Math.round(a.cvssEstimate * 10),
+              contextIndicators: a.contextIndicators,
+              postureFindings: a.postureFindings,
+              testVectors: a.testVectors,
+              recommendedCalderaAbilities: a.testVectors.filter((v: any) => v.suggestedEmulation?.calderaAbilityHint).map((v: any) => v.suggestedEmulation),
+              recommendedGophishTemplates: null,
+              recommendedAttackChain: null,
+              confidence: a.confidence,
+              confidenceExplanation: a.contextIndicators,
+              impactScore: a.impactScore || 0,
+              likelihoodScore: a.likelihoodScore || 0,
+              assetCriticalityScore: a.assetCriticalityScore || 0,
+              assetCriticalityBand: a.assetCriticalityBand || 'low',
+              vulnRiskScore: a.vulnRiskScore || 0,
+              vulnRiskBand: a.vulnRiskBand || 'low',
+              missionFunction: a.missionFunction || 'public_facing_services',
+              essentialService: a.essentialService || 'general_server',
+              businessImpactLevel: a.businessImpactLevel || 'moderate',
+              deviceType: a.deviceType || 'unknown',
+              platformType: a.platformType || 'unknown',
+              missionJustification: a.missionJustification || '',
+            }));
+            if (assetRecords.length > 0) {
+              const BATCH_SIZE = 5;
+              for (let i = 0; i < assetRecords.length; i += BATCH_SIZE) {
+                const batch = assetRecords.slice(i, i + BATCH_SIZE);
+                try {
+                  await db.bulkCreateDiscoveredAssets(batch);
+                } catch (batchErr: any) {
+                  for (const record of batch) {
+                    try { await db.createDiscoveredAsset(record); } catch {}
+                  }
+                }
+              }
+            }
+
+            // Trim pipeline output for storage
+            const trimmedOutput = {
+              totalAssets: result.totalAssets,
+              totalFindings: result.totalFindings,
+              confirmedFindings: result.confirmedFindingsCount,
+              probableFindings: result.probableFindingsCount,
+              potentialFindings: result.potentialFindingsCount,
+              discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
+              discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+              enrichedOrgProfile: orgProfile,
+              biaProfile,
+              enrichmentSources: enrichResult.orgProfile.enrichmentSources,
+            };
+
+            const finalStatus = scanOnly ? 'scan_complete' : 'completed';
+            await db.updateDomainIntelScan(scanId, {
+              status: finalStatus,
+              totalAssets: result.totalAssets,
+              totalFindings: result.totalFindings || 0,
+              confirmedFindings: result.confirmedFindingsCount || 0,
+              probableFindings: result.probableFindingsCount || 0,
+              potentialFindings: result.potentialFindingsCount || 0,
+              discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
+              discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+              overallRiskScore: result.overallRiskScore,
+              overallRiskBand: result.overallRiskBand,
+              executiveSummary: result.executiveSummary,
+              threatModelSummary: result.threatModelSummary,
+              campaignRecommendations: result.campaignRecommendations,
+              pipelineOutput: trimmedOutput,
+            });
+
+            console.log(`[DomainIntel] Quick scan completed for ${cleanDomain}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            try {
+              const { emitReconComplete, emitSystemNotification } = await import('./lib/ws-event-hub');
+              emitReconComplete({ scanId, domain: cleanDomain, findings: result.totalFindings || 0 });
+              emitSystemNotification({ title: 'Quick Scan Complete', message: `${cleanDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' });
+            } catch {}
+          } catch (err: any) {
+            console.error(`[DomainIntel] Quick scan failed for ${cleanDomain}:`, err.message, err.stack?.substring(0, 500));
+            await db.updateDomainIntelScan(scanId, {
+              status: 'failed',
+              pipelineOutput: { error: err.message, stack: err.stack?.substring(0, 1000), failedAt: new Date().toISOString() },
+            }).catch(() => {});
+          }
+        });
+
+        return { scanId };
+      }),
+
+    // ─── Get Enrichment Profile ─────────────────────────────────────
+    getEnrichmentProfile: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        const orgProfile = scan.orgProfile as any;
+        return {
+          enrichedProfile: orgProfile?.enrichedProfile || null,
+          biaProfile: orgProfile?.biaProfile || null,
+          customerName: orgProfile?.customerName || scan.primaryDomain,
+          sector: scan.sector,
+          clientType: scan.clientType,
+          criticalFunctions: scan.criticalFunctions,
+          complianceFlags: scan.complianceFlags,
+        };
       }),
 
   }),

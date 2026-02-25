@@ -138,6 +138,13 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/active-verification", icon: Radar, label: "ACTIVE VERIFICATION" },
       { href: "/unified-pipeline", icon: Layers3, label: "UNIFIED PIPELINE" },
       { href: "/attack-coverage", icon: Map, label: "ATT&CK COVERAGE" },
+    ],
+  },
+  {
+    id: "ksi",
+    label: "KEY SECURITY INDICATORS",
+    icon: BadgeCheck,
+    items: [
       { href: "/ksi-dashboard", icon: BadgeCheck, label: "INDICATORS DASHBOARD" },
       { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
       { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
@@ -344,7 +351,7 @@ function NavGroupSection({
       </button>
       <div
         className={`overflow-hidden transition-all duration-200 ease-in-out ${
-          expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+          expanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         {group.items.map((item) => (

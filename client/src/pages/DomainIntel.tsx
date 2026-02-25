@@ -486,6 +486,38 @@ export default function DomainIntel() {
   };
 
   const canLaunch = !!primaryDomain && !!customerName && !!sector;
+  const canQuickScan = !!primaryDomain;
+
+  // Quick Scan state
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichmentResult, setEnrichmentResult] = useState<any>(null);
+  const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+
+  const quickScan = trpc.domainIntel.quickScan.useMutation({
+    onSuccess: (data) => {
+      setScanId(data.scanId);
+      setIsRunning(true);
+      setIsComplete(false);
+      setIsScanComplete(false);
+      setPipelineStage(0);
+      setPipelineError(null);
+      setIsEnriching(false);
+      toast.success(`Quick scan started for ${primaryDomain} — enrichment running in background`);
+    },
+    onError: (err) => {
+      setPipelineError(err.message);
+      toast.error(sanitizeErrorForToast(err.message));
+      setIsEnriching(false);
+    },
+  });
+
+  const handleQuickScan = () => {
+    if (!primaryDomain) return;
+    setPipelineError(null);
+    setPipelineStage(0);
+    setIsEnriching(true);
+    quickScan.mutate({ domain: primaryDomain });
+  };
 
   const resetForm = () => {
     setPrimaryDomain("");
@@ -817,13 +849,13 @@ export default function DomainIntel() {
                   Launch Domain Intelligence Scan
                 </CardTitle>
                 <CardDescription>
-                  Enter a domain and organization details. One scan runs all {SCAN_METHODS.length} methods automatically.
+                  Enter a domain to begin. The system automatically discovers company information, products, services, and infrastructure to build an accurate BIA and hybrid risk score.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                {/* Primary Domain — most prominent */}
+                {/* Primary Domain — single prominent input */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Target Domain *</Label>
+                  <Label className="text-sm font-semibold">Target Domain</Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -831,12 +863,88 @@ export default function DomainIntel() {
                         placeholder="example.com"
                         value={primaryDomain}
                         onChange={e => setPrimaryDomain(e.target.value.trim().toLowerCase())}
-                        className="pl-10 text-lg h-12 font-mono"
+                        className="pl-10 text-lg h-14 font-mono"
+                        onKeyDown={e => e.key === "Enter" && !showAdvancedConfig && handleQuickScan()}
                       />
                     </div>
+                    {!showAdvancedConfig && (
+                      <Button
+                        onClick={handleQuickScan}
+                        disabled={!canQuickScan || quickScan.isPending}
+                        className="h-14 px-8 bg-purple-600 hover:bg-purple-700 text-base"
+                      >
+                        {quickScan.isPending ? (
+                          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        ) : (
+                          <Zap className="h-5 w-5 mr-2" />
+                        )}
+                        Quick Scan
+                      </Button>
+                    )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Subdomains will be discovered automatically via 9+ passive data sources (including breach intelligence) and DNS verification.</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Just enter a domain — the system scrapes the website for company and product info, then enriches it with Shodan, SecurityTrails, Censys, breach databases, and LLM analysis to build a complete organizational profile for BIA and hybrid CARVER+Shock/CVSS scoring.
+                  </p>
                 </div>
+
+                {/* Enrichment Preview — shown after quick scan discovers org info */}
+                {enrichmentResult && !isRunning && (
+                  <Card className="border-emerald-500/30 bg-emerald-500/5">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Brain className="h-4 w-4 text-emerald-400" />
+                        <span className="text-sm font-semibold text-emerald-400">Auto-Discovered Organization Profile</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        {enrichmentResult.orgProfile?.name && (
+                          <div><span className="text-muted-foreground">Organization</span><p className="font-medium">{enrichmentResult.orgProfile.name}</p></div>
+                        )}
+                        {enrichmentResult.orgProfile?.sector && (
+                          <div><span className="text-muted-foreground">Sector</span><p className="font-medium">{enrichmentResult.orgProfile.sector}</p></div>
+                        )}
+                        {enrichmentResult.orgProfile?.employeeRange && (
+                          <div><span className="text-muted-foreground">Size</span><p className="font-medium">{enrichmentResult.orgProfile.employeeRange}</p></div>
+                        )}
+                        {enrichmentResult.orgProfile?.headquarters && (
+                          <div><span className="text-muted-foreground">HQ</span><p className="font-medium">{enrichmentResult.orgProfile.headquarters}</p></div>
+                        )}
+                      </div>
+                      {enrichmentResult.orgProfile?.products?.length > 0 && (
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Products & Services</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {enrichmentResult.orgProfile.products.slice(0, 8).map((p: string, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">{p}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {enrichmentResult.biaProfile && (
+                        <div className="grid grid-cols-3 gap-3 text-xs pt-2 border-t border-emerald-500/20">
+                          <div><span className="text-muted-foreground">BIA Impact</span><p className="font-bold text-emerald-400">{enrichmentResult.biaProfile.overallImpact || 'Calculating...'}</p></div>
+                          <div><span className="text-muted-foreground">Critical Functions</span><p className="font-medium">{enrichmentResult.biaProfile.criticalFunctions?.length || 0}</p></div>
+                          <div><span className="text-muted-foreground">Data Sensitivity</span><p className="font-medium">{enrichmentResult.biaProfile.dataSensitivity || 'N/A'}</p></div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Advanced Configuration Toggle */}
+                <Collapsible open={showAdvancedConfig} onOpenChange={setShowAdvancedConfig}>
+                  <CollapsibleTrigger asChild>
+                    <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full justify-between border border-border/50 rounded-lg px-4 py-2.5 hover:border-purple-500/30">
+                      <span className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Advanced Configuration
+                      </span>
+                      <span className="flex items-center gap-2 text-[11px]">
+                        {showAdvancedConfig ? 'Hide' : 'Customize org details, scan mode, engagement mode, compliance'}
+                        {showAdvancedConfig ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </span>
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-5 mt-4 pl-1">
 
                 {/* Additional Domains */}
                 <div className="space-y-2">
@@ -868,18 +976,18 @@ export default function DomainIntel() {
                 {/* Org Name + Sector + Client Type — single row */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Organization Name *</Label>
+                    <Label className="text-sm font-semibold">Organization Name {showAdvancedConfig && '*'}</Label>
                     <Input
-                      placeholder="Acme Corporation"
+                      placeholder={enrichmentResult?.orgProfile?.name || "Acme Corporation"}
                       value={customerName}
                       onChange={e => setCustomerName(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Sector *</Label>
+                    <Label className="text-sm font-semibold">Sector {showAdvancedConfig && '*'}</Label>
                     <Select value={sector} onValueChange={setSector}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select sector..." />
+                        <SelectValue placeholder={enrichmentResult?.orgProfile?.sector || "Select sector..."} />
                       </SelectTrigger>
                       <SelectContent>
                         {SECTORS.map(s => (
@@ -1100,7 +1208,7 @@ export default function DomainIntel() {
                   </Card>
                 )}
 
-                {/* Launch Button */}
+                {/* Launch Button — shown only in advanced mode */}
                 <Button
                   onClick={handleStartScan}
                   disabled={!canLaunch || startScan.isPending}
@@ -1116,9 +1224,12 @@ export default function DomainIntel() {
 
                 {!canLaunch && (
                   <p className="text-xs text-muted-foreground text-center">
-                    Fill in the target domain, organization name, and sector to launch.
+                    Fill in the target domain, organization name, and sector to launch a customized scan.
                   </p>
                 )}
+
+                  </CollapsibleContent>
+                </Collapsible>
               </CardContent>
             </Card>
           </div>

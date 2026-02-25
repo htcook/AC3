@@ -15,7 +15,8 @@ import {
   Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database, Cpu,
   TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare,
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
-  Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi
+  Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
+  Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -300,6 +301,8 @@ export default function DomainIntelResults() {
   const breachData = pipeline?.breachData as any;
   const dehashedResult = pipeline?.passiveRecon?.connectorResults?.find((r: any) => r.connector === 'dehashed') as any;
   const exploitMatches = pipeline?.exploitMatches as any;
+  const crossModuleEnrichment = pipeline?.crossModuleEnrichment as any;
+  const postEnrichmentAnalysis = pipeline?.postEnrichmentAnalysis as any;
 
   // Build unified asset list: DB assets + pipeline subdomains not already in DB assets
   const dbAssetHostnames = new Set((assets as any[]).map((a: any) => (a.hostname || '').toLowerCase()));
@@ -829,6 +832,8 @@ export default function DomainIntelResults() {
             <TabsTrigger value="takeover">Takeover</TabsTrigger>
             <TabsTrigger value="cve-actors">CVE Actors</TabsTrigger>
             <TabsTrigger value="takeover-poc">Takeover PoC</TabsTrigger>
+            {crossModuleEnrichment && <TabsTrigger value="enrichment">Enrichment</TabsTrigger>}
+            {postEnrichmentAnalysis && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
           </TabsList>
         ) : (
           <TabsList className="flex flex-wrap gap-1 w-full max-w-6xl">
@@ -855,6 +860,8 @@ export default function DomainIntelResults() {
             <TabsTrigger value="takeover">Takeover</TabsTrigger>
             <TabsTrigger value="cve-actors">CVE Actors</TabsTrigger>
             <TabsTrigger value="takeover-poc">Takeover PoC</TabsTrigger>
+            {crossModuleEnrichment && <TabsTrigger value="enrichment">Enrichment</TabsTrigger>}
+            {postEnrichmentAnalysis && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
           </TabsList>
         )}
 
@@ -3972,6 +3979,420 @@ export default function DomainIntelResults() {
         <TabsContent value="takeover-poc" className="space-y-4">
           <TakeoverPocTab scanId={scanId} />
         </TabsContent>
+
+        {/* Cross-Module Enrichment Tab */}
+        {crossModuleEnrichment && (
+          <TabsContent value="enrichment" className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-4 pb-3">
+                  <div className="text-xs text-muted-foreground">Modules Run</div>
+                  <div className="text-2xl font-bold text-blue-400">{crossModuleEnrichment.summary?.modulesSucceeded || 0}/{crossModuleEnrichment.summary?.modulesRun || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-3">
+                  <div className="text-xs text-muted-foreground">Correlations</div>
+                  <div className="text-2xl font-bold text-purple-400">{crossModuleEnrichment.summary?.totalCorrelations || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-3">
+                  <div className="text-xs text-muted-foreground">New Findings</div>
+                  <div className="text-2xl font-bold text-amber-400">{crossModuleEnrichment.summary?.totalNewFindings || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-3">
+                  <div className="text-xs text-muted-foreground">Risk Adjustments</div>
+                  <div className="text-2xl font-bold text-red-400">{crossModuleEnrichment.summary?.totalRiskAdjustments || 0}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Bug Bounty Enrichment */}
+            {crossModuleEnrichment.bugBounty?.status === "success" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Bug className="h-4 w-4 text-green-400" />
+                    Bug Bounty Intelligence
+                    {crossModuleEnrichment.bugBounty.hasBugBountyProgram && (
+                      <Badge variant="outline" className="text-green-400 border-green-400/30">Active Program</Badge>
+                    )}
+                  </CardTitle>
+                  {crossModuleEnrichment.bugBounty.programName && (
+                    <CardDescription>{crossModuleEnrichment.bugBounty.programName}</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {crossModuleEnrichment.bugBounty.inScopeAssets?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">In-Scope Assets ({crossModuleEnrichment.bugBounty.inScopeAssets.length})</div>
+                      <div className="flex flex-wrap gap-1">
+                        {crossModuleEnrichment.bugBounty.inScopeAssets.map((a: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs">{a}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {crossModuleEnrichment.bugBounty.historicalVulnPatterns?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">Historical Vulnerability Patterns</div>
+                      <div className="space-y-1">
+                        {crossModuleEnrichment.bugBounty.historicalVulnPatterns.slice(0, 8).map((p: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between text-xs">
+                            <span className="font-mono text-blue-300">{p.cwe}</span>
+                            <span className="text-muted-foreground">{p.count} reports</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Threat Intelligence Enrichment */}
+            {crossModuleEnrichment.threatIntel?.status === "success" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Skull className="h-4 w-4 text-red-400" />
+                    Threat Intelligence Correlation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {crossModuleEnrichment.threatIntel.matchingThreatActors?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">Matching Threat Actors</div>
+                      <div className="space-y-2">
+                        {crossModuleEnrichment.threatIntel.matchingThreatActors.map((a: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 p-2 rounded bg-red-500/5 border border-red-500/10">
+                            <Target className="h-3 w-3 text-red-400" />
+                            <span className="text-sm font-medium">{a.name}</span>
+                            <Badge variant="outline" className="text-xs">{a.relevance}</Badge>
+                            <div className="flex gap-1 ml-auto">
+                              {a.techniques?.slice(0, 3).map((t: string, j: number) => (
+                                <Badge key={j} variant="secondary" className="text-[10px]">{t}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {crossModuleEnrichment.threatIntel.exploitPatternsMatched?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">Exploit Patterns Matched</div>
+                      <div className="space-y-1">
+                        {crossModuleEnrichment.threatIntel.exploitPatternsMatched.map((p: any, i: number) => (
+                          <div key={i} className="text-xs p-2 rounded bg-amber-500/5 border border-amber-500/10">
+                            <span className="text-amber-300">{p.pattern}</span>
+                            <span className="text-muted-foreground ml-2">— {p.matchedAssets?.length || 0} assets affected</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* OpSec Enrichment */}
+            {crossModuleEnrichment.opsec?.status === "success" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ShieldQuestion className="h-4 w-4 text-amber-400" />
+                    OpSec & Defensive Gap Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {crossModuleEnrichment.opsec.defensiveGaps?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">Defensive Gaps ({crossModuleEnrichment.opsec.defensiveGaps.length})</div>
+                      <div className="space-y-2">
+                        {crossModuleEnrichment.opsec.defensiveGaps.map((g: any, i: number) => (
+                          <div key={i} className="p-2 rounded bg-amber-500/5 border border-amber-500/10">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={g.severity === 'critical' ? 'destructive' : g.severity === 'high' ? 'destructive' : 'outline'} className="text-[10px]">{g.severity}</Badge>
+                              <span className="text-sm font-medium">{g.category}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">{g.description}</p>
+                            {g.affectedAssets?.length > 0 && (
+                              <div className="flex gap-1 mt-1">
+                                {g.affectedAssets.slice(0, 3).map((a: string, j: number) => (
+                                  <Badge key={j} variant="secondary" className="text-[10px]">{a}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {crossModuleEnrichment.opsec.misconfigurations?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">Common Misconfigurations</div>
+                      <div className="space-y-1">
+                        {crossModuleEnrichment.opsec.misconfigurations.map((m: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between text-xs p-1.5 rounded bg-muted/30">
+                            <span>{m.type}</span>
+                            <Badge variant="outline" className="text-[10px]">{m.impactLevel}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Discovery Deep Dive */}
+            {crossModuleEnrichment.discoveryDeepDive?.status === "success" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Telescope className="h-4 w-4 text-cyan-400" />
+                    Discovery Deep Dive
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {crossModuleEnrichment.discoveryDeepDive.additionalSubdomains?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">Additional Subdomains ({crossModuleEnrichment.discoveryDeepDive.additionalSubdomains.length})</div>
+                      <div className="flex flex-wrap gap-1">
+                        {crossModuleEnrichment.discoveryDeepDive.additionalSubdomains.slice(0, 20).map((s: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs font-mono">{s}</Badge>
+                        ))}
+                        {crossModuleEnrichment.discoveryDeepDive.additionalSubdomains.length > 20 && (
+                          <Badge variant="secondary" className="text-xs">+{crossModuleEnrichment.discoveryDeepDive.additionalSubdomains.length - 20} more</Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {crossModuleEnrichment.discoveryDeepDive.dnsHistory?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">DNS History Changes ({crossModuleEnrichment.discoveryDeepDive.dnsHistory.length})</div>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {crossModuleEnrichment.discoveryDeepDive.dnsHistory.map((h: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-xs p-1.5 rounded bg-muted/30">
+                            <span className="font-mono text-cyan-300">{h.type || 'A'}</span>
+                            <ArrowRightLeft className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-mono">{h.value || h.ip}</span>
+                            {h.firstSeen && <span className="text-muted-foreground ml-auto">{h.firstSeen}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {crossModuleEnrichment.discoveryDeepDive.certificateFindings?.length > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-2">Certificate Findings ({crossModuleEnrichment.discoveryDeepDive.certificateFindings.length})</div>
+                      <div className="space-y-1">
+                        {crossModuleEnrichment.discoveryDeepDive.certificateFindings.slice(0, 10).map((c: any, i: number) => (
+                          <div key={i} className="text-xs p-1.5 rounded bg-muted/30">
+                            <span className="font-mono">{c.subject || c.cn}</span>
+                            {c.issuer && <span className="text-muted-foreground ml-2">issued by {c.issuer}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Correlations */}
+            {crossModuleEnrichment.correlations?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ArrowRightLeft className="h-4 w-4 text-purple-400" />
+                    Cross-Module Correlations ({crossModuleEnrichment.correlations.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {crossModuleEnrichment.correlations.map((c: any, i: number) => (
+                      <div key={i} className="p-2 rounded border border-purple-500/10 bg-purple-500/5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-[10px]">{c.sourceModule}</Badge>
+                          <ArrowRightLeft className="h-3 w-3 text-muted-foreground" />
+                          <Badge variant="outline" className="text-[10px]">{c.targetModule}</Badge>
+                          <Badge variant={c.correlationType === 'confirms' ? 'default' : c.correlationType === 'contradicts' ? 'destructive' : 'secondary'} className="text-[10px] ml-auto">{c.correlationType}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{c.description}</p>
+                        {c.relatedAssets?.length > 0 && (
+                          <div className="flex gap-1 mt-1">
+                            {c.relatedAssets.slice(0, 3).map((a: string, j: number) => (
+                              <Badge key={j} variant="secondary" className="text-[10px] font-mono">{a}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        )}
+
+        {/* Post-Enrichment Analysis Tab */}
+        {postEnrichmentAnalysis && (
+          <TabsContent value="analysis" className="space-y-6">
+            {/* Executive Analysis */}
+            {postEnrichmentAnalysis.executiveAnalysis && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-purple-400" />
+                    LLM Executive Analysis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose prose-invert prose-sm max-w-none">
+                    <Streamdown>{postEnrichmentAnalysis.executiveAnalysis}</Streamdown>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Attack Paths */}
+            {postEnrichmentAnalysis.attackPaths?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Route className="h-4 w-4 text-red-400" />
+                    Attack Paths ({postEnrichmentAnalysis.attackPaths.length})
+                  </CardTitle>
+                  <CardDescription>LLM-identified attack chains through the discovered infrastructure</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {postEnrichmentAnalysis.attackPaths.map((path: any, i: number) => (
+                    <div key={i} className="p-3 rounded-lg border border-red-500/10 bg-red-500/5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">{path.name}</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={path.likelihood === 'high' ? 'destructive' : path.likelihood === 'medium' ? 'default' : 'secondary'} className="text-[10px]">
+                            {path.likelihood} likelihood
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            Impact: {path.impact}/10
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">{path.description}</p>
+                      {path.steps?.length > 0 && (
+                        <div className="space-y-1">
+                          {path.steps.map((step: any, j: number) => (
+                            <div key={j} className="flex items-center gap-2 text-xs">
+                              <span className="text-red-400 font-mono w-5">{j + 1}.</span>
+                              <span>{typeof step === 'string' ? step : step.description || step.action}</span>
+                              {step.technique && <Badge variant="secondary" className="text-[10px] ml-auto">{step.technique}</Badge>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {path.mitigations?.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-red-500/10">
+                          <div className="text-[10px] text-muted-foreground mb-1">Mitigations:</div>
+                          <div className="space-y-0.5">
+                            {path.mitigations.map((m: string, j: number) => (
+                              <div key={j} className="text-xs text-green-400/80 flex items-center gap-1">
+                                <ShieldCheck className="h-3 w-3" />{m}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Blind Spots */}
+            {postEnrichmentAnalysis.blindSpots?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-amber-400" />
+                    Blind Spots ({postEnrichmentAnalysis.blindSpots.length})
+                  </CardTitle>
+                  <CardDescription>Areas where current scanning may have missed critical information</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {postEnrichmentAnalysis.blindSpots.map((spot: any, i: number) => (
+                    <div key={i} className="p-2 rounded border border-amber-500/10 bg-amber-500/5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium">{spot.area || spot.name}</span>
+                        <Badge variant={spot.severity === 'critical' ? 'destructive' : spot.severity === 'high' ? 'destructive' : 'outline'} className="text-[10px] ml-auto">{spot.severity}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{spot.description}</p>
+                      {spot.recommendation && (
+                        <p className="text-xs text-blue-400/80 mt-1">Recommendation: {spot.recommendation}</p>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Prioritized Recommendations */}
+            {postEnrichmentAnalysis.prioritizedRecommendations?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4 text-green-400" />
+                    Prioritized Recommendations ({postEnrichmentAnalysis.prioritizedRecommendations.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {postEnrichmentAnalysis.prioritizedRecommendations.map((rec: any, i: number) => (
+                    <div key={i} className="p-2 rounded border border-green-500/10 bg-green-500/5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-mono text-green-400 w-5">#{i + 1}</span>
+                        <span className="text-sm font-medium">{rec.title || rec.recommendation}</span>
+                        <Badge variant={rec.priority === 'critical' ? 'destructive' : rec.priority === 'high' ? 'destructive' : 'outline'} className="text-[10px] ml-auto">{rec.priority}</Badge>
+                      </div>
+                      {rec.description && <p className="text-xs text-muted-foreground pl-6">{rec.description}</p>}
+                      {rec.affectedAssets?.length > 0 && (
+                        <div className="flex gap-1 mt-1 pl-6">
+                          {rec.affectedAssets.slice(0, 4).map((a: string, j: number) => (
+                            <Badge key={j} variant="secondary" className="text-[10px] font-mono">{a}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Enrichment Sources */}
+            {postEnrichmentAnalysis.enrichmentSources?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Workflow className="h-4 w-4 text-blue-400" />
+                    Enrichment Sources Used
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-1">
+                    {postEnrichmentAnalysis.enrichmentSources.map((s: string, i: number) => (
+                      <Badge key={i} variant="outline" className="text-xs">{s}</Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        )}
 
       </Tabs>
 

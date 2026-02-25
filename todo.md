@@ -4426,3 +4426,29 @@
 - [x] Fix ScanScheduler.tsx (3 errors - AppShell props)
 - [x] Fix remaining 1-error files
 - [x] Achieve zero TypeScript errors
+
+## Bug Bounty Intelligence Service (HackerOne)
+- [x] Add HackerOne API key to project secrets
+- [ ] Research HackerOne API endpoints for enrichment data
+- [ ] Build Bug Bounty Intelligence Service with cross-module enrichment
+- [ ] Enrich Domain Intel with disclosed vulnerability data per domain
+- [ ] Enrich Threat Enrichment with real-world exploit patterns and CWE trends
+- [ ] Enrich Attack Vectors with bounty-validated attack surfaces
+- [ ] Enrich OpSec with weakness categories from disclosed reports
+- [ ] Add tRPC endpoints for Bug Bounty Intelligence
+- [ ] Build Bug Bounty Intelligence UI page
+- [ ] Write tests for Bug Bounty Intelligence Service
+
+## Discovery Engine & Tool Integration (Grok Analysis)
+- [x] Analyze Grok output on scanning tools and research integration opportunities
+- [x] Study existing pipeline architecture (connectors, passive sources, enrichment flow)
+- [x] Wire Shodan as new passive recon connector inside existing pipeline (already existed, enhanced with deep-dive)
+- [x] Wire Censys as new passive recon connector inside existing pipeline (already existed, enhanced with cert search)
+- [x] Wire SecurityTrails as new passive recon connector inside existing pipeline (already existed, enhanced with DNS history)
+- [x] Integrate two-way cross-module enrichment (Bug Bounty, Threat Intel, OpSec) into existing enrichment stages
+- [x] Add LLM-powered analysis as post-enrichment stage in existing pipeline
+- [x] Update Domain Intel UI to surface new data sources transparently (Enrichment + Analysis tabs)
+- [x] Fix bug-bounty-intelligence test failures (15/15 passing)
+- [x] Write new tests for integrated connectors (cross-module-enrichment, discovery-engine, llm-post-enrichment)
+- [x] Add tRPC router for standalone Discovery Engine access
+- [x] Wire discovery engine router into appRouter
