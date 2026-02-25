@@ -561,7 +561,12 @@ export default function DomainIntel() {
               .map((scan: any) => {
                 const output = scan.pipelineOutput as any;
                 const riskScore = output?.riskScore || scan.overallRiskScore || 0;
-                const assetCount = output?.assets?.length || scan.totalAssets || 0;
+                const dbAssetCount = output?.assets?.length || scan.totalAssets || 0;
+                const subdomainCount = (output?.discoveredSubdomains || []).filter((s: any) => {
+                  const dbHostnames = new Set((output?.assets || []).map((a: any) => (a?.asset?.hostname || a?.hostname || '').toLowerCase()));
+                  return s.name && !dbHostnames.has(s.name.toLowerCase());
+                }).length;
+                const assetCount = dbAssetCount + subdomainCount;
                 const displayStatus = scan.status === 'scan_complete' ? 'scan complete' : scan.status;
                 return (
                   <Card

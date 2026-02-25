@@ -4223,3 +4223,20 @@
 - [x] Replace inaccurate "LLM may suggest non-existent subdomains" false positive risk warning
 - [x] Write tests for LLM subdomain verification (50 tests passing across domain scan + wave5)
 - [x] Fix scan pipeline error — now shows actual error details from backend, wrapped post-enrichment recalc in try/catch
+
+## Subdomain-Asset Unification
+- [x] Include discovered subdomains in asset totals (totalAssets count)
+- [x] Include subdomains in Asset Inventory tab display
+- [x] Include subdomains in Assets tab display
+- [x] Ensure subdomain assets appear in CSV export
+- [x] Update tests for unified asset counts (50/50 passing)
+
+## Subdomain Risk & Weakness Analysis
+- [x] Compute real risk scores for subdomain assets based on ports, CVEs, technologies, exposure
+- [x] Generate posture findings/weaknesses for subdomains (high-risk ports, outdated tech, missing HTTPS, CVEs)
+- [x] Display subdomain risks and weaknesses in Assets tab and Asset Inventory tab
+- [x] Add risk distribution bar to Subdomains tab
+- [x] Add Risk and Findings columns to Subdomains table
+- [x] Add MITRE ATT&CK test vectors mapped to subdomain findings
+- [x] Add remediation guidance for each subdomain finding
+- [x] Update CSV exports with risk band and findings count columns

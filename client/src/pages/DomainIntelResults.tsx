@@ -300,12 +300,218 @@ export default function DomainIntelResults() {
   const dehashedResult = pipeline?.passiveRecon?.connectorResults?.find((r: any) => r.connector === 'dehashed') as any;
   const exploitMatches = pipeline?.exploitMatches as any;
 
-  // Sort assets by risk score descending
-  const sortedAssets = [...assets].sort((a: any, b: any) => (b.hybridRiskScore || 0) - (a.hybridRiskScore || 0));
+  // Build unified asset list: DB assets + pipeline subdomains not already in DB assets
+  const dbAssetHostnames = new Set((assets as any[]).map((a: any) => (a.hostname || '').toLowerCase()));
+  const pipelineSubdomains = ((pipeline?.discoveredSubdomains || []) as any[]).filter(
+    (s: any) => s.name && !dbAssetHostnames.has(s.name.toLowerCase())
+  );
+  const pipelinePorts = (pipeline?.discoveredPorts || []) as any[];
 
-  // Risk distribution
+  // Convert pipeline subdomains to asset-like objects with REAL risk scoring and weakness analysis
+  const HIGH_RISK_PORTS: Record<number, { name: string; risk: string; severity: 'critical' | 'high' | 'medium' }> = {
+    21: { name: 'FTP', risk: 'Cleartext file transfer — credentials and data exposed in transit', severity: 'high' },
+    23: { name: 'Telnet', risk: 'Cleartext remote access — full credential interception possible', severity: 'critical' },
+    25: { name: 'SMTP', risk: 'Open mail relay — potential for spam/phishing abuse', severity: 'medium' },
+    110: { name: 'POP3', risk: 'Cleartext email retrieval — credentials exposed', severity: 'high' },
+    135: { name: 'MSRPC', risk: 'Windows RPC — lateral movement and remote code execution vector', severity: 'high' },
+    139: { name: 'NetBIOS', risk: 'SMB/NetBIOS — information disclosure and lateral movement', severity: 'high' },
+    143: { name: 'IMAP', risk: 'Cleartext email access — credentials exposed', severity: 'medium' },
+    445: { name: 'SMB', risk: 'SMB file sharing — EternalBlue, ransomware propagation vector', severity: 'critical' },
+    1433: { name: 'MSSQL', risk: 'Database exposed to internet — SQL injection and credential brute force', severity: 'critical' },
+    1521: { name: 'Oracle DB', risk: 'Database exposed to internet — credential brute force and TNS poisoning', severity: 'critical' },
+    3306: { name: 'MySQL', risk: 'Database exposed to internet — credential brute force and data exfiltration', severity: 'critical' },
+    3389: { name: 'RDP', risk: 'Remote Desktop exposed — BlueKeep, credential stuffing, ransomware entry', severity: 'critical' },
+    5432: { name: 'PostgreSQL', risk: 'Database exposed to internet — credential brute force', severity: 'critical' },
+    5900: { name: 'VNC', risk: 'Remote desktop without encryption — screen capture and control', severity: 'critical' },
+    6379: { name: 'Redis', risk: 'In-memory store often unauthenticated — data theft and RCE', severity: 'critical' },
+    8080: { name: 'HTTP-Alt', risk: 'Alternative HTTP — may expose admin panels or dev servers', severity: 'medium' },
+    9200: { name: 'Elasticsearch', risk: 'Search engine often unauthenticated — bulk data exposure', severity: 'high' },
+    11211: { name: 'Memcached', risk: 'Cache service — DDoS amplification and data leakage', severity: 'high' },
+    27017: { name: 'MongoDB', risk: 'NoSQL database often unauthenticated — full data exposure', severity: 'critical' },
+  };
+
+  const subdomainAssets = pipelineSubdomains.map((s: any) => {
+    const subPorts = pipelinePorts.filter((p: any) =>
+      p.hostname?.toLowerCase() === s.name.toLowerCase() || (s.ip && p.ip === s.ip)
+    );
+    const techFromTags = (s.tags || []).filter((t: string) => t.startsWith('product:')).map((t: string) => t.replace('product:', ''));
+    const versionFromTags = (s.tags || []).filter((t: string) => t.startsWith('version:')).map((t: string) => t.replace('version:', ''));
+
+    // === RISK SCORING ENGINE FOR SUBDOMAINS ===
+    let riskScore = 0;
+    const findings: Array<{ finding: string; severity: string; category?: string; remediation?: string }> = [];
+    const testVectors: Array<{ vector: string; technique: string; priority: string }> = [];
+    const contextIndicators: string[] = [];
+
+    // 1. Port-based risk assessment
+    for (const p of subPorts) {
+      const portNum = Number(p.port);
+      const highRisk = HIGH_RISK_PORTS[portNum];
+      if (highRisk) {
+        riskScore += highRisk.severity === 'critical' ? 25 : highRisk.severity === 'high' ? 15 : 8;
+        findings.push({
+          finding: `High-risk port ${portNum} (${highRisk.name}) exposed: ${highRisk.risk}`,
+          severity: highRisk.severity,
+          category: 'network_exposure',
+          remediation: `Close port ${portNum} or restrict access via firewall rules. If required, enforce encryption (TLS/SSH tunnel).`,
+        });
+        testVectors.push({
+          vector: `Port ${portNum} ${highRisk.name} exploitation`,
+          technique: portNum === 3389 ? 'T1021.001' : portNum === 445 ? 'T1021.002' : portNum === 22 ? 'T1021.004' : 'T1046',
+          priority: highRisk.severity,
+        });
+      }
+
+      // CVE-based findings from port scan
+      if (p.vulns && Array.isArray(p.vulns)) {
+        for (const cve of p.vulns) {
+          riskScore += 20;
+          findings.push({
+            finding: `Known vulnerability ${cve} on port ${portNum} (${p.product || 'unknown service'} ${p.version || ''})`,
+            severity: 'critical',
+            category: 'vulnerability',
+            remediation: `Patch ${p.product || 'service'} to latest version. Apply vendor security advisory for ${cve}.`,
+          });
+          testVectors.push({
+            vector: `Exploit ${cve} on ${p.product || 'service'}:${portNum}`,
+            technique: 'T1190',
+            priority: 'critical',
+          });
+        }
+      }
+
+      // Service version analysis
+      if (p.product && p.version) {
+        contextIndicators.push(`${p.product} ${p.version} on port ${portNum}`);
+      }
+    }
+
+    // 2. HTTPS/TLS assessment
+    const hasPort443 = subPorts.some((p: any) => Number(p.port) === 443);
+    const hasPort80 = subPorts.some((p: any) => Number(p.port) === 80);
+    if (hasPort80 && !hasPort443) {
+      riskScore += 12;
+      findings.push({
+        finding: 'HTTP-only service (port 80) without HTTPS (port 443) — data transmitted in cleartext',
+        severity: 'high',
+        category: 'encryption',
+        remediation: 'Deploy TLS certificate and enforce HTTPS redirect. Consider HSTS header.',
+      });
+    }
+
+    // 3. Technology-based risk
+    for (const tech of techFromTags) {
+      const techLower = tech.toLowerCase();
+      if (techLower.includes('wordpress')) {
+        riskScore += 8;
+        findings.push({
+          finding: `WordPress detected — common target for plugin vulnerabilities, brute force, and XML-RPC attacks`,
+          severity: 'medium',
+          category: 'technology',
+          remediation: 'Ensure WordPress core and all plugins are updated. Disable XML-RPC if not needed. Use WAF.',
+        });
+      }
+      if (techLower.includes('apache') || techLower.includes('nginx') || techLower.includes('iis')) {
+        contextIndicators.push(`Web server: ${tech}`);
+      }
+      if (techLower.includes('php')) {
+        riskScore += 5;
+        findings.push({
+          finding: `PHP detected — verify version is current and not end-of-life`,
+          severity: 'medium',
+          category: 'technology',
+          remediation: 'Upgrade to latest stable PHP version. Disable dangerous functions in php.ini.',
+        });
+      }
+    }
+
+    // 4. Version staleness check
+    for (const ver of versionFromTags) {
+      const verParts = ver.split('.');
+      if (verParts.length >= 2) {
+        const major = parseInt(verParts[0]);
+        if (!isNaN(major) && major > 0) {
+          contextIndicators.push(`Detected version: ${ver}`);
+        }
+      }
+    }
+
+    // 5. Exposure assessment — publicly reachable subdomain
+    if (s.ip) {
+      riskScore += 5; // Base risk for being publicly resolvable
+      contextIndicators.push(`Publicly resolvable IP: ${s.ip}`);
+    }
+    if (subPorts.length > 5) {
+      riskScore += 10;
+      findings.push({
+        finding: `Excessive port exposure: ${subPorts.length} open ports detected — increases attack surface significantly`,
+        severity: 'high',
+        category: 'network_exposure',
+        remediation: 'Review all open ports and close unnecessary services. Implement network segmentation.',
+      });
+    }
+
+    // 6. Wildcard/catch-all subdomain detection
+    if (s.name.startsWith('*.')) {
+      riskScore += 8;
+      findings.push({
+        finding: 'Wildcard DNS record detected — any subdomain resolves, enabling subdomain takeover attacks',
+        severity: 'high',
+        category: 'dns_configuration',
+        remediation: 'Remove wildcard DNS records unless explicitly required. Monitor for subdomain takeover.',
+      });
+    }
+
+    // Cap and compute risk band
+    riskScore = Math.min(riskScore, 100);
+    const riskBand = riskScore >= 70 ? 'critical' : riskScore >= 50 ? 'high' : riskScore >= 25 ? 'medium' : 'low';
+    const vulnRiskScore = findings.filter(f => f.category === 'vulnerability').length * 20;
+    const vulnRiskBand = vulnRiskScore >= 60 ? 'critical' : vulnRiskScore >= 40 ? 'high' : vulnRiskScore >= 20 ? 'medium' : 'low';
+    const impactScore = Math.min(subPorts.length * 10 + findings.length * 5 + (s.ip ? 10 : 0), 100);
+    const likelihoodScore = Math.min(findings.filter(f => f.severity === 'critical').length * 25 + findings.filter(f => f.severity === 'high').length * 15 + subPorts.length * 5, 100);
+
+    return {
+      id: `sub-${s.name}`,
+      hostname: s.name,
+      assetType: 'subdomain',
+      technologies: techFromTags,
+      technologyVersions: Object.fromEntries(techFromTags.map((t: string, i: number) => [t, versionFromTags[i] || ''])),
+      dnsRecords: s.ip ? { A: [s.ip] } : {},
+      hybridRiskScore: riskScore,
+      riskBand,
+      discoveryMethod: 'passive_recon',
+      dnsStatus: s.ip ? 'dns_verified' : 'unresolved',
+      postureFindings: findings,
+      testVectors,
+      contextIndicators,
+      carverScores: null,
+      shockScores: null,
+      missionImpactScore: impactScore,
+      suggestedTier: riskScore >= 50 ? 'tier1' : riskScore >= 25 ? 'tier2' : 'tier3',
+      cvssEstimate: Math.min(findings.filter(f => f.severity === 'critical').length * 2.5 + findings.filter(f => f.severity === 'high').length * 1.5 + findings.length * 0.5, 10),
+      confidence: s.ip ? 0.85 : 0.6,
+      impactScore,
+      likelihoodScore,
+      assetCriticalityScore: Math.min(subPorts.length * 8 + techFromTags.length * 5, 100),
+      assetCriticalityBand: subPorts.length > 5 ? 'high' : subPorts.length > 2 ? 'medium' : 'low',
+      vulnRiskScore,
+      vulnRiskBand,
+      _isSubdomainAsset: true,
+      _source: s.source || 'passive_recon',
+      _ip: s.ip || '',
+      _ports: subPorts,
+      _tags: s.tags || [],
+    };
+  });
+
+  const allAssets = [...(assets as any[]), ...subdomainAssets];
+
+  // Sort all assets by risk score descending
+  const sortedAssets = [...allAssets].sort((a: any, b: any) => (b.hybridRiskScore || 0) - (a.hybridRiskScore || 0));
+
+  // Risk distribution (includes subdomains)
   const riskDist = { critical: 0, high: 0, medium: 0, low: 0 };
-  assets.forEach((a: any) => {
+  allAssets.forEach((a: any) => {
     const band = a.riskBand || "low";
     if (band in riskDist) riskDist[band as keyof typeof riskDist]++;
   });
@@ -324,7 +530,7 @@ export default function DomainIntelResults() {
             <span className="font-mono">{scan.primaryDomain}</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {scan.clientType?.toUpperCase()} &middot; {scan.sector} &middot; {assets.length} assets discovered &middot; Scanned {new Date(scan.createdAt).toLocaleDateString()}
+            {scan.clientType?.toUpperCase()} &middot; {scan.sector} &middot; {allAssets.length} assets discovered &middot; Scanned {new Date(scan.createdAt).toLocaleDateString()}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -353,14 +559,14 @@ export default function DomainIntelResults() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => {
-                exportScanAssets(scan.primaryDomain, assets, 'csv');
-                toast.success(`Exported ${assets.length} assets as CSV`);
+                exportScanAssets(scan.primaryDomain, allAssets, 'csv');
+                toast.success(`Exported ${allAssets.length} assets as CSV`);
               }}>
                 <Database className="h-4 w-4 mr-2" /> Assets (CSV)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
-                exportScanAssets(scan.primaryDomain, assets, 'pdf');
-                toast.success(`Exported ${assets.length} assets as PDF`);
+                exportScanAssets(scan.primaryDomain, allAssets, 'pdf');
+                toast.success(`Exported ${allAssets.length} assets as PDF`);
               }}>
                 <Database className="h-4 w-4 mr-2" /> Assets (PDF)
               </DropdownMenuItem>
@@ -543,8 +749,11 @@ export default function DomainIntelResults() {
       <div className={`grid grid-cols-2 ${breachData ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-3`}>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-3xl font-bold">{assets.length}</p>
+            <p className="text-3xl font-bold">{allAssets.length}</p>
             <p className="text-xs text-muted-foreground mt-1">Assets Discovered</p>
+            {subdomainAssets.length > 0 && (
+              <p className="text-[10px] text-muted-foreground">{assets.length} analyzed + {subdomainAssets.length} subdomains</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -698,10 +907,19 @@ export default function DomainIntelResults() {
                 const findings = (asset.postureFindings || []) as any[];
                 const vectors = (asset.testVectors || []) as any[];
                 const technologies = (asset.technologies || []) as string[];
-                const confirmedFindings = findings.filter((f: any) => f.corroborationTier === 'confirmed');
-                const probableFindings = findings.filter((f: any) => f.corroborationTier === 'probable');
-                const potentialFindings = findings.filter((f: any) => f.corroborationTier === 'potential');
-                const kevFindings = findings.filter((f: any) => f.kevListed);
+                const isSubdomainAsset = !!(asset as any)._isSubdomainAsset;
+                const confirmedFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.severity === 'critical' || f.severity === 'high')
+                  : findings.filter((f: any) => f.corroborationTier === 'confirmed');
+                const probableFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.severity === 'medium')
+                  : findings.filter((f: any) => f.corroborationTier === 'probable');
+                const potentialFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.severity === 'low')
+                  : findings.filter((f: any) => f.corroborationTier === 'potential');
+                const kevFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.category === 'vulnerability')
+                  : findings.filter((f: any) => f.kevListed);
 
                 return (
                   <div className="border border-purple-500/30 rounded-lg bg-card/80 p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -836,6 +1054,84 @@ export default function DomainIntelResults() {
 
                     {/* Finding Summary */}
                     {findings.length > 0 && (() => {
+                      if (isSubdomainAsset) {
+                        // Subdomain-specific findings display with category, severity, and remediation
+                        const SCAT_COLORS: Record<string, string> = {
+                          network_exposure: 'bg-red-500/20 text-red-300 border-red-500/40',
+                          vulnerability: 'bg-rose-600/20 text-rose-300 border-rose-500/40',
+                          encryption: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                          technology: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+                          dns_configuration: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+                        };
+                        const SSEV_COLORS: Record<string, string> = {
+                          critical: 'bg-red-600/30 text-red-300 border-red-500/50',
+                          high: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+                          medium: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+                          low: 'bg-green-500/20 text-green-300 border-green-500/40',
+                        };
+                        const criticalFindings = findings.filter((f: any) => f.severity === 'critical');
+                        const highFindings = findings.filter((f: any) => f.severity === 'high');
+                        const mediumFindings = findings.filter((f: any) => f.severity === 'medium');
+                        return (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" /> Risks & Weaknesses ({findings.length})
+                            </p>
+                            <div className="flex gap-2 mb-2 flex-wrap">
+                              {criticalFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{criticalFindings.length} Critical</Badge>}
+                              {highFindings.length > 0 && <Badge className="text-[10px] bg-orange-500/20 text-orange-300 border-orange-500/40">{highFindings.length} High</Badge>}
+                              {mediumFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-300 border-yellow-500/40">{mediumFindings.length} Medium</Badge>}
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {findings.map((f: any, i: number) => (
+                                <div key={i} className={`p-2.5 rounded border text-xs ${f.severity === 'critical' ? 'bg-red-500/5 border-red-500/30' : f.severity === 'high' ? 'bg-orange-500/5 border-orange-500/20' : 'bg-muted/20 border-border'}`}>
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                    <Badge className={`text-[9px] px-1 py-0 ${SSEV_COLORS[f.severity] || SSEV_COLORS.medium}`}>{(f.severity || 'medium').toUpperCase()}</Badge>
+                                    {f.category && <Badge className={`text-[9px] px-1 py-0 ${SCAT_COLORS[f.category] || 'bg-muted text-muted-foreground border-border'}`}>{(f.category || '').replace(/_/g, ' ').toUpperCase()}</Badge>}
+                                  </div>
+                                  <p className="font-medium text-foreground/90 mb-1">{f.finding}</p>
+                                  {f.remediation && (
+                                    <div className="mt-1.5 p-1.5 rounded bg-emerald-500/5 border border-emerald-500/20">
+                                      <p className="text-[10px] text-emerald-400"><span className="font-semibold">Remediation:</span> {f.remediation}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            {/* Test Vectors for subdomain */}
+                            {vectors.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                                  <Target className="h-3 w-3" /> Attack Vectors ({vectors.length})
+                                </p>
+                                <div className="space-y-1">
+                                  {vectors.map((v: any, i: number) => (
+                                    <div key={i} className="flex items-center gap-2 text-[11px] p-1.5 rounded bg-muted/20 border border-border">
+                                      <Badge className={`text-[9px] px-1 py-0 ${v.priority === 'critical' ? 'bg-red-600/30 text-red-300' : v.priority === 'high' ? 'bg-orange-500/20 text-orange-300' : 'bg-yellow-500/20 text-yellow-300'}`}>{v.priority?.toUpperCase()}</Badge>
+                                      <span className="font-medium">{v.vector}</span>
+                                      {v.technique && <span className="ml-auto font-mono text-[10px] text-cyan-400">{v.technique}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {/* Context Indicators */}
+                            {(asset.contextIndicators || []).length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                                  <Info className="h-3 w-3" /> Context Indicators
+                                </p>
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {(asset.contextIndicators as string[]).map((c: string, i: number) => (
+                                    <Badge key={i} variant="outline" className="text-[10px] text-muted-foreground">{c}</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      // Standard LLM-analyzed asset findings display
                       const confirmedOnly = [...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed)];
                       return (
                         <div>
@@ -1407,14 +1703,37 @@ export default function DomainIntelResults() {
                 version: p.version || '',
                 vulns: (p.vulns || []) as string[],
               }));
+              // Compute risk score: use matched asset score, or calculate from ports/CVEs
+              let riskScore = matchedAsset?.hybridRiskScore || 0;
+              if (!matchedAsset && subPorts.length > 0) {
+                const HR: Record<number, number> = { 23: 25, 445: 25, 1433: 25, 1521: 25, 3306: 25, 3389: 25, 5432: 25, 5900: 25, 6379: 25, 27017: 25, 21: 15, 110: 15, 135: 15, 139: 15, 9200: 15, 11211: 15, 25: 8, 143: 8, 8080: 8 };
+                for (const sp of subPorts) { riskScore += HR[sp.port] || 0; for (const _v of sp.vulns) riskScore += 20; }
+                const h80 = subPorts.some(p => p.port === 80), h443 = subPorts.some(p => p.port === 443);
+                if (h80 && !h443) riskScore += 12;
+                if (subPorts.length > 5) riskScore += 10;
+                if (ip) riskScore += 5;
+                riskScore = Math.min(riskScore, 100);
+              }
+              const riskBand = matchedAsset?.riskBand || (riskScore >= 70 ? 'critical' : riskScore >= 50 ? 'high' : riskScore >= 25 ? 'medium' : 'low');
+              // Count findings
+              let findingsCount = 0;
+              for (const sp of subPorts) {
+                const HR: Record<number, boolean> = { 23: true, 445: true, 1433: true, 3306: true, 3389: true, 5432: true, 5900: true, 6379: true, 27017: true, 21: true, 110: true, 135: true, 139: true, 9200: true, 11211: true };
+                if (HR[sp.port]) findingsCount++;
+                findingsCount += sp.vulns.length;
+              }
+              const h80 = subPorts.some(p => p.port === 80), h443 = subPorts.some(p => p.port === 443);
+              if (h80 && !h443) findingsCount++;
+
               return {
                 ...s,
                 ip,
                 technologies: allTech,
                 technologyVersions: techVersions,
                 ports: subPorts,
-                riskScore: matchedAsset?.hybridRiskScore || 0,
-                riskBand: matchedAsset?.riskBand || '',
+                riskScore,
+                riskBand,
+                findingsCount,
                 assetType: matchedAsset?.assetType || 'subdomain',
               };
             });
@@ -1447,32 +1766,75 @@ export default function DomainIntelResults() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Stats */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-purple-400">{enrichedSubdomains.length}</p>
-                        <p className="text-xs text-muted-foreground">Total Subdomains</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-emerald-400">{enrichedSubdomains.filter(s => s.ip).length}</p>
-                        <p className="text-xs text-muted-foreground">With Resolved IPs</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-cyan-400">{withTech}</p>
-                        <p className="text-xs text-muted-foreground">With Technologies</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-sky-400">{uniqueTechs.size}</p>
-                        <p className="text-xs text-muted-foreground">Unique Technologies</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-amber-400">{withPorts}</p>
-                        <p className="text-xs text-muted-foreground">With Open Ports</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-sky-400">{sources.length}</p>
-                        <p className="text-xs text-muted-foreground">Discovery Sources</p>
-                      </div>
-                    </div>
+                    {(() => {
+                      const critCount = enrichedSubdomains.filter(s => s.riskBand === 'critical').length;
+                      const highCount = enrichedSubdomains.filter(s => s.riskBand === 'high').length;
+                      const medCount = enrichedSubdomains.filter(s => s.riskBand === 'medium').length;
+                      const totalFindings = enrichedSubdomains.reduce((sum, s) => sum + (s.findingsCount || 0), 0);
+                      return (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                            <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                              <p className="text-2xl font-bold text-purple-400">{enrichedSubdomains.length}</p>
+                              <p className="text-xs text-muted-foreground">Total Subdomains</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                              <p className="text-2xl font-bold text-emerald-400">{enrichedSubdomains.filter(s => s.ip).length}</p>
+                              <p className="text-xs text-muted-foreground">With Resolved IPs</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                              <p className="text-2xl font-bold text-cyan-400">{withTech}</p>
+                              <p className="text-xs text-muted-foreground">With Technologies</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                              <p className="text-2xl font-bold text-amber-400">{withPorts}</p>
+                              <p className="text-xs text-muted-foreground">With Open Ports</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                              <p className="text-2xl font-bold text-sky-400">{uniqueTechs.size}</p>
+                              <p className="text-xs text-muted-foreground">Unique Technologies</p>
+                            </div>
+                          </div>
+                          {/* Risk Distribution Bar */}
+                          {(critCount + highCount + medCount) > 0 && (
+                            <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Risk Distribution ({totalFindings} total findings)</p>
+                              <div className="flex gap-4 items-center">
+                                {critCount > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                                    <span className="text-xs font-medium text-red-400">{critCount} Critical</span>
+                                  </div>
+                                )}
+                                {highCount > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-3 h-3 rounded-full bg-orange-500" />
+                                    <span className="text-xs font-medium text-orange-400">{highCount} High</span>
+                                  </div>
+                                )}
+                                {medCount > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                                    <span className="text-xs font-medium text-yellow-400">{medCount} Medium</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                                  <span className="text-xs font-medium text-emerald-400">{enrichedSubdomains.length - critCount - highCount - medCount} Low</span>
+                                </div>
+                              </div>
+                              {/* Visual bar */}
+                              <div className="flex h-2 rounded-full overflow-hidden mt-2 bg-muted/50">
+                                {critCount > 0 && <div className="bg-red-500" style={{ width: `${(critCount / enrichedSubdomains.length) * 100}%` }} />}
+                                {highCount > 0 && <div className="bg-orange-500" style={{ width: `${(highCount / enrichedSubdomains.length) * 100}%` }} />}
+                                {medCount > 0 && <div className="bg-yellow-500" style={{ width: `${(medCount / enrichedSubdomains.length) * 100}%` }} />}
+                                <div className="bg-emerald-500 flex-1" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Filters */}
                     <div className="flex flex-wrap gap-3">
@@ -1497,12 +1859,12 @@ export default function DomainIntelResults() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const csv = ['Subdomain,IP Address,Asset Type,Risk Score,Technologies,Technology Versions,Open Ports,Services,Source'];
+                          const csv = ['Subdomain,IP Address,Asset Type,Risk Score,Risk Band,Findings,Technologies,Technology Versions,Open Ports,Services,Source'];
                           enrichedSubdomains.forEach(s => {
                             const techVerStr = Object.entries(s.technologyVersions || {}).map(([k, v]) => `${k}/${v}`).join('; ');
                             const portsStr = s.ports.map((p: any) => String(p.port)).join('; ');
                             const servicesStr = s.ports.map((p: any) => p.service || commonPorts[p.port] || `port-${p.port}`).join('; ');
-                            csv.push(`"${s.name}","${s.ip || ''}","${s.assetType}",${s.riskScore},"${s.technologies.join('; ')}","${techVerStr}","${portsStr}","${servicesStr}","${s.source}"`);
+                            csv.push(`"${s.name}","${s.ip || ''}","${s.assetType}",${s.riskScore},"${s.riskBand}",${s.findingsCount || 0},"${s.technologies.join('; ')}","${techVerStr}","${portsStr}","${servicesStr}","${s.source}"`);
                           });
                           const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
                           const url = URL.createObjectURL(blob);
@@ -1523,7 +1885,8 @@ export default function DomainIntelResults() {
                           <tr>
                             <th className="text-left px-3 py-2 font-medium">Subdomain</th>
                             <th className="text-left px-3 py-2 font-medium">IP Address</th>
-                            <th className="text-left px-3 py-2 font-medium">Type</th>
+                            <th className="text-center px-3 py-2 font-medium">Risk</th>
+                            <th className="text-center px-3 py-2 font-medium">Findings</th>
                             <th className="text-left px-3 py-2 font-medium">Technologies / Apps</th>
                             <th className="text-left px-3 py-2 font-medium">Ports & Services</th>
                             <th className="text-left px-3 py-2 font-medium">Source</th>
@@ -1531,21 +1894,11 @@ export default function DomainIntelResults() {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {filtered.length === 0 ? (
-                            <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No subdomains found matching your filters</td></tr>
+                            <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No subdomains found matching your filters</td></tr>
                           ) : filtered.map((s: any, i: number) => (
                             <tr key={i} className={`hover:bg-muted/20 ${s.riskBand === 'critical' ? 'bg-red-500/5' : s.riskBand === 'high' ? 'bg-orange-500/5' : ''}`}>
                               <td className="px-3 py-2">
-                                <div>
-                                  <p className="font-mono text-xs font-medium">{s.name}</p>
-                                  {s.riskScore > 0 && (
-                                    <Badge className={`text-[9px] mt-0.5 ${
-                                      s.riskBand === 'critical' ? 'bg-red-500/20 text-red-400' :
-                                      s.riskBand === 'high' ? 'bg-orange-500/20 text-orange-400' :
-                                      s.riskBand === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                                      'bg-emerald-500/20 text-emerald-400'
-                                    }`}>Risk: {s.riskScore}</Badge>
-                                  )}
-                                </div>
+                                <p className="font-mono text-xs font-medium">{s.name}</p>
                               </td>
                               <td className="px-3 py-2">
                                 {s.ip ? (
@@ -1554,8 +1907,32 @@ export default function DomainIntelResults() {
                                   <span className="text-xs text-muted-foreground italic">unresolved</span>
                                 )}
                               </td>
-                              <td className="px-3 py-2">
-                                <Badge variant="outline" className="text-[10px]">{s.assetType}</Badge>
+                              <td className="px-3 py-2 text-center">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className={`text-xs font-bold ${
+                                    s.riskBand === 'critical' ? 'text-red-400' :
+                                    s.riskBand === 'high' ? 'text-orange-400' :
+                                    s.riskBand === 'medium' ? 'text-yellow-400' :
+                                    'text-emerald-400'
+                                  }`}>{s.riskScore}</span>
+                                  <Badge className={`text-[9px] px-1 py-0 ${
+                                    s.riskBand === 'critical' ? 'bg-red-500/20 text-red-400 border-red-500/40' :
+                                    s.riskBand === 'high' ? 'bg-orange-500/20 text-orange-400 border-orange-500/40' :
+                                    s.riskBand === 'medium' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40' :
+                                    'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                  }`}>{s.riskBand}</Badge>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {s.findingsCount > 0 ? (
+                                  <Badge className={`text-[10px] ${
+                                    s.findingsCount >= 3 ? 'bg-red-500/20 text-red-400 border-red-500/40' :
+                                    s.findingsCount >= 1 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' :
+                                    'bg-muted text-muted-foreground'
+                                  }`}>{s.findingsCount} issue{s.findingsCount !== 1 ? 's' : ''}</Badge>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">clean</span>
+                                )}
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex flex-wrap gap-1 max-w-[250px]">
@@ -1701,6 +2078,21 @@ export default function DomainIntelResults() {
                 vulns: p.vulns || [],
               }));
               const techFromTags = (s.tags || []).filter((t: string) => t.startsWith('product:')).map((t: string) => t.replace('product:', ''));
+              // Compute real risk score for subdomain in inventory
+              let subRisk = 0;
+              const HR: Record<number, number> = { 23: 25, 445: 25, 1433: 25, 1521: 25, 3306: 25, 3389: 25, 5432: 25, 5900: 25, 6379: 25, 27017: 25, 21: 15, 110: 15, 135: 15, 139: 15, 9200: 15, 11211: 15, 25: 8, 143: 8, 8080: 8 };
+              for (const sp of subPorts) {
+                subRisk += HR[sp.port] || 0;
+                for (const _v of sp.vulns) subRisk += 20;
+              }
+              const has80 = subPorts.some(p => p.port === 80);
+              const has443 = subPorts.some(p => p.port === 443);
+              if (has80 && !has443) subRisk += 12;
+              if (subPorts.length > 5) subRisk += 10;
+              if (s.ip) subRisk += 5;
+              subRisk = Math.min(subRisk, 100);
+              const subBand = subRisk >= 70 ? 'critical' : subRisk >= 50 ? 'high' : subRisk >= 25 ? 'medium' : 'low';
+
               inventoryMap.set(key, {
                 hostname: s.name,
                 ip: s.ip || '',
@@ -1708,8 +2100,8 @@ export default function DomainIntelResults() {
                 technologies: techFromTags,
                 technologyVersions: {},
                 ports: subPorts,
-                riskScore: 0,
-                riskBand: 'low',
+                riskScore: subRisk,
+                riskBand: subBand,
                 discoveryMethod: 'passive_recon',
                 source: s.source || 'recon',
                 dnsRecords: {},
@@ -2793,7 +3185,7 @@ export default function DomainIntelResults() {
                 ).sort(([, a], [, b]) => (b as number) - (a as number)).map(([type, count]) => (
                   <div key={type} className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground w-32 capitalize">{type.replace(/_/g, " ")}</span>
-                    <Progress value={((count as number) / assets.length) * 100} className="h-2 flex-1" />
+                    <Progress value={((count as number) / allAssets.length) * 100} className="h-2 flex-1" />
                     <span className="text-xs font-mono w-6 text-right">{count as number}</span>
                   </div>
                 ))}
@@ -3678,7 +4070,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       category: "Discovery",
       status: "completed",
       description: "Used a large language model to infer likely subdomains, services, and technology stacks based on the organization's sector, client type, and domain patterns. No active probing was performed.",
-      outputs: `Discovered ${assets.length} total assets (${inferredCount} inferred, ${dnsVerifiedCount} verified)`,
+      outputs: `Discovered ${allAssets.length} total assets (${inferredCount} inferred, ${dnsVerifiedCount} verified, ${subdomainAssets.length} subdomain)`,
       attribution: 'Findings labeled as "Inferred" are hypotheses. Verify by checking DNS records or visiting the URL.',
       fpRisk: "Low — all LLM-inferred subdomains are gated by DNS resolution. Non-existent subdomains are automatically filtered out before analysis.",
       verifyCmd: "nslookup <hostname> or dig <hostname>",
@@ -3690,7 +4082,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       category: "Discovery",
       status: dnsVerifiedCount > 0 ? "completed" : "no_results",
       description: "Resolved each inferred hostname via DNS (A, AAAA, CNAME, MX, TXT, NS records) to confirm whether the asset actually exists.",
-      outputs: `${dnsVerifiedCount} of ${assets.length} assets confirmed via DNS resolution`,
+      outputs: `${dnsVerifiedCount} of ${allAssets.length} assets confirmed via DNS resolution`,
       attribution: 'Findings labeled "DNS Verified" resolved to an IP address.',
       fpRisk: "Low — DNS resolution is deterministic.",
       verifyCmd: "nslookup <hostname> or dig <hostname>",
@@ -3835,7 +4227,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       category: "Risk Scoring",
       status: "completed",
       description: "Applied proprietary multi-dimensional targeting methodology to score each asset's mission importance and cascading risk.",
-      outputs: `Scored ${assets.length} assets across 11 impact dimensions`,
+      outputs: `Scored ${allAssets.length} assets across 11 impact dimensions`,
       attribution: 'Scores are LLM-generated analytical estimates based on asset type and sector context.',
       fpRisk: "N/A — risk scores, not binary findings.",
       verifyCmd: "Review individual asset impact scores in Assets tab",

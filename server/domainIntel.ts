@@ -2188,6 +2188,21 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  // Count unique subdomains from passive recon not already in analyzed assets
+  let subdomainAssetCount = 0;
+  if (passiveRecon?.allObservations) {
+    const analyzedHostnames = new Set(analyses.map(a => (a.asset.hostname || '').toLowerCase()));
+    const seen = new Set<string>();
+    for (const o of passiveRecon.allObservations) {
+      if (o.assetType !== 'subdomain' || !o.name) continue;
+      const key = o.name.toLowerCase();
+      if (seen.has(key) || analyzedHostnames.has(key)) continue;
+      seen.add(key);
+      subdomainAssetCount++;
+    }
+  }
+  console.log(`[DomainIntel] Asset totals: ${analyses.length} analyzed + ${subdomainAssetCount} passive recon subdomains = ${analyses.length + subdomainAssetCount} total`);
+
   return {
     orgProfile: org,
     assets: analyses,
@@ -2196,7 +2211,9 @@ export async function runDomainIntelPipeline(
     overallRiskBand: overallBand,
     executiveSummary: summaries.executiveSummary,
     threatModelSummary: summaries.threatModelSummary,
-    totalAssets: analyses.length,
+    totalAnalyzedAssets: analyses.length,
+    totalSubdomainAssets: subdomainAssetCount,
+    totalAssets: analyses.length + subdomainAssetCount,
     totalFindings,
     confirmedFindingsCount,
     probableFindingsCount,
