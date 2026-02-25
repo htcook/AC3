@@ -4204,3 +4204,9 @@
 - [x] Complete Threat Enrichment frontend dashboard with real-time status and TTP/IOC visualization
 - [x] Wire enrichment engine outputs into KSI evidence, validation, attack vectors, config baseline
 - [x] Update homepage to reflect new Threat Enrichment, Live Scanner, and Engagement Automation capabilities
+
+## FedRAMP KSI Map Audit & Federal Agency View
+- [x] Audit all KSI Map claims against actual backend capabilities
+- [x] Fix/remove any unsupported or exaggerated claims
+- [x] Implement real Federal Agency view with meaningful content
+- [x] Write tests for corrected KSI Map data (11/11 passing)
