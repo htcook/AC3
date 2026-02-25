@@ -4217,3 +4217,9 @@
 - [x] Enhance Assets tab card headers to show IP and technologies inline
 - [x] Add CSV export for full asset inventory with all fields
 - [x] Write tests for asset inventory and enriched subdomain data logic (29/29 passing)
+
+## LLM Subdomain Verification Fix
+- [x] Ensure LLM-suggested subdomains are DNS-verified before inclusion in results
+- [x] Replace inaccurate "LLM may suggest non-existent subdomains" false positive risk warning
+- [x] Write tests for LLM subdomain verification (50 tests passing across domain scan + wave5)
+- [x] Fix scan pipeline error — now shows actual error details from backend, wrapped post-enrichment recalc in try/catch

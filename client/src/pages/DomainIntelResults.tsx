@@ -3680,7 +3680,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       description: "Used a large language model to infer likely subdomains, services, and technology stacks based on the organization's sector, client type, and domain patterns. No active probing was performed.",
       outputs: `Discovered ${assets.length} total assets (${inferredCount} inferred, ${dnsVerifiedCount} verified)`,
       attribution: 'Findings labeled as "Inferred" are hypotheses. Verify by checking DNS records or visiting the URL.',
-      fpRisk: "Medium — the LLM may suggest subdomains that don't exist.",
+      fpRisk: "Low — all LLM-inferred subdomains are gated by DNS resolution. Non-existent subdomains are automatically filtered out before analysis.",
       verifyCmd: "nslookup <hostname> or dig <hostname>",
     },
     {

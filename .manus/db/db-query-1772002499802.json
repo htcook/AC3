@@ -1,0 +1,80 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets, overallRiskScore FROM domain_intel_scans ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets, overallRiskScore FROM domain_intel_scans ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "1170157",
+      "primaryDomain": "vianova.ai",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1170156",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "20",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1170155",
+      "primaryDomain": "threat-model-1771995775131.com",
+      "status": "completed",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1170154",
+      "primaryDomain": "campaigns-1771995774688.com",
+      "status": "completed",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1170153",
+      "primaryDomain": "trpc-get-1771995774266.com",
+      "status": "completed",
+      "totalAssets": "5",
+      "overallRiskScore": "60"
+    },
+    {
+      "id": "1170152",
+      "primaryDomain": "findings-1771995771174.com",
+      "status": "scan_complete",
+      "totalAssets": "25",
+      "overallRiskScore": "57"
+    },
+    {
+      "id": "1170151",
+      "primaryDomain": "scores-1771995770491.com",
+      "status": "scan_complete",
+      "totalAssets": "28",
+      "overallRiskScore": "54"
+    },
+    {
+      "id": "1170150",
+      "primaryDomain": "multi-asset-1771995769815.com",
+      "status": "scan_complete",
+      "totalAssets": "25",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1170149",
+      "primaryDomain": "asset-test-1771995769785.com",
+      "status": "scan_complete",
+      "totalAssets": "28",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1170148",
+      "primaryDomain": "other-1771995769769.com",
+      "status": "scan_complete",
+      "totalAssets": "28",
+      "overallRiskScore": "53"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\toverallRiskScore\n1170157\tvianova.ai\tpassive_recon\t0\tNULL\n1170156\tvianova.ai\tscan_complete\t20\t56\n1170155\tthreat-model-1771995775131.com\tcompleted\t0\tNULL\n1170154\tcampaigns-1771995774688.com\tcompleted\t0\tNULL\n1170153\ttrpc-get-1771995774266.com\tcompleted\t5\t60\n1170152\tfindings-1771995771174.com\tscan_complete\t25\t57\n1170151\tscores-1771995770491.com\tscan_complete\t28\t54\n1170150\tmulti-asset-1771995769815.com\tscan_complete\t25\t51\n1170149\tasset-test-1771995769785.com\tscan_complete\t28\t51\n1170148\tother-1771995769769.com\tscan_complete\t28\t53\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

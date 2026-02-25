@@ -1,0 +1,14 @@
+{
+  "query": "SELECT status, COUNT(*) as cnt FROM domain_intel_scans WHERE status IN ('pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending') GROUP BY status",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT status, COUNT(*) as cnt FROM domain_intel_scans WHERE status IN ('pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending') GROUP BY status",
+  "rows": [
+    {
+      "status": "discovering",
+      "cnt": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tcnt\ndiscovering\t1\n",
+  "stderr": "",
+  "execution_time_ms": 90
+}

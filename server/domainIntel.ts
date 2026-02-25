@@ -1549,11 +1549,31 @@ export async function runDomainIntelPipeline(
 
   // Stage 1.5: Active DNS & Banner Verification
   let verifiedAssets: typeof rawAssets;
+  let unresolvedHypotheses: typeof rawAssets = [];
   try {
     const { verifyAllAssets } = await import("./lib/dns-banner-verify");
     const verification = await verifyAllAssets(rawAssets, 5);
-    verifiedAssets = verification.assets;
+    // Gate: Only keep assets that passed DNS verification or came from passive recon sources.
+    // LLM-inferred subdomains that failed DNS resolution are moved to unresolvedHypotheses
+    // and excluded from analysis/results to prevent phantom assets from appearing in findings.
+    const passiveReconSources = new Set(['shodan', 'censys', 'crtsh', 'securitytrails', 'dehashed', 'urlscan', 'abuseipdb']);
+    verifiedAssets = [];
+    for (const asset of verification.assets) {
+      const isLlmInferred = asset.discoveryMethod === 'inferred';
+      const isUnresolved = asset.dnsStatus === 'unresolved';
+      const hasPassiveReconEvidence = passiveReconSources.has((asset as any).source || '');
+      if (isLlmInferred && isUnresolved && !hasPassiveReconEvidence) {
+        // LLM suggested this subdomain but DNS says it doesn't exist — exclude it
+        unresolvedHypotheses.push(asset);
+      } else {
+        verifiedAssets.push(asset);
+      }
+    }
+    const filteredCount = unresolvedHypotheses.length;
     console.log(`[DomainIntel] Verification: ${verification.summary.dnsVerified} DNS verified, ${verification.summary.bannerDetected} banner detected, ${verification.summary.unresolved} unresolved. ${verification.summary.versionsFound} versions found.`);
+    if (filteredCount > 0) {
+      console.log(`[DomainIntel] DNS Gate: Filtered out ${filteredCount} LLM-inferred subdomains that failed DNS resolution. Only verified assets proceed to analysis.`);
+    }
   } catch (err: any) {
     console.error(`[DomainIntel] DNS/banner verification failed (non-fatal): ${err.message}`);
     verifiedAssets = rawAssets;
@@ -2035,44 +2055,53 @@ export async function runDomainIntelPipeline(
   // Assets classified with critical mission functions (C2, auth, revenue) get floor scores
   // that ensure they are never under-scored regardless of vuln data.
   // Essential service baselines provide granular CARVER/Shock adjustments.
-  const { applyMissionBaselines } = await import('./lib/scoring-engine');
-  for (const a of analyses) {
-    // Apply mission function + essential service baselines in one call
-    // This ensures critical assets are never under-scored regardless of vuln data
-    const baselines = applyMissionBaselines(
-      a.carverScores,
-      a.shockScores,
-      a.missionFunction || 'public_facing_services',
-      a.essentialService || 'general_server'
-    );
-    // Use the baseline-adjusted scores for mission impact calculation
-    const missionImpact = computeMissionImpact(baselines.carver, baselines.shock);
-    const portBoost = (a as any)._portLikelihoodBoost || 0;
-    const hybrid = computeHybridRisk(
-      a.cvssEstimate,
-      missionImpact,
-      a.contextIndicators,
-      a.vulnRiskScore, // Pass the CONFIRMED vuln score — this overrides the LLM CVSS for Likelihood
-      portBoost // Port exposure boost — high-risk ports increase likelihood
-    );
-    // Update CARVER/Shock scores with baseline-adjusted values
-    a.carverScores = baselines.carver;
-    a.shockScores = baselines.shock;
-    a.missionImpactScore = Math.round(missionImpact * 10) / 10;
-    a.hybridRiskScore = hybrid.score;
-    a.riskBand = hybrid.band;
-    a.suggestedTier = riskTier(hybrid.score);
-    a.impactScore = hybrid.impactScore;
-    a.likelihoodScore = hybrid.likelihoodScore;
-    a.assetCriticalityScore = computeAssetCriticality(missionImpact).score;
-    a.assetCriticalityBand = computeAssetCriticality(missionImpact).band;
-    // Clean up temporary port data
-    delete (a as any)._portLikelihoodBoost;
-    delete (a as any)._portExposureScore;
+  try {
+    const { applyMissionBaselines } = await import('./lib/scoring-engine');
+    for (const a of analyses) {
+      // Apply mission function + essential service baselines in one call
+      // This ensures critical assets are never under-scored regardless of vuln data
+      const baselines = applyMissionBaselines(
+        a.carverScores,
+        a.shockScores,
+        a.missionFunction || 'public_facing_services',
+        a.essentialService || 'general_server'
+      );
+      // Use the baseline-adjusted scores for mission impact calculation
+      const missionImpact = computeMissionImpact(baselines.carver, baselines.shock);
+      const portBoost = (a as any)._portLikelihoodBoost || 0;
+      const hybrid = computeHybridRisk(
+        a.cvssEstimate,
+        missionImpact,
+        a.contextIndicators,
+        a.vulnRiskScore, // Pass the CONFIRMED vuln score — this overrides the LLM CVSS for Likelihood
+        portBoost // Port exposure boost — high-risk ports increase likelihood
+      );
+      // Update CARVER/Shock scores with baseline-adjusted values
+      a.carverScores = baselines.carver;
+      a.shockScores = baselines.shock;
+      a.missionImpactScore = Math.round(missionImpact * 10) / 10;
+      a.hybridRiskScore = hybrid.score;
+      a.riskBand = hybrid.band;
+      a.suggestedTier = riskTier(hybrid.score);
+      a.impactScore = hybrid.impactScore;
+      a.likelihoodScore = hybrid.likelihoodScore;
+      a.assetCriticalityScore = computeAssetCriticality(missionImpact).score;
+      a.assetCriticalityBand = computeAssetCriticality(missionImpact).band;
+      // Clean up temporary port data
+      delete (a as any)._portLikelihoodBoost;
+      delete (a as any)._portExposureScore;
+    }
+    console.log(`[DomainIntel] Hybrid risk recalculated with mission function baselines + confirmed vuln data + port exposure`);
+    // Record post-enrichment recalculation deltas
+    recordPhaseDeltas('post_enrichment_recalc', 'vuln_scan_complete', preRecalcSnapshot, 'Post-enrichment recalculation with confirmed vuln data + mission baselines');
+  } catch (err: any) {
+    console.error(`[DomainIntel] Post-enrichment recalculation failed (non-fatal, using pre-enrichment scores): ${err.message}`);
+    // Clean up temporary port data even on failure
+    for (const a of analyses) {
+      delete (a as any)._portLikelihoodBoost;
+      delete (a as any)._portExposureScore;
+    }
   }
-  console.log(`[DomainIntel] Hybrid risk recalculated with mission function baselines + confirmed vuln data + port exposure`);
-  // Record post-enrichment recalculation deltas
-  recordPhaseDeltas('post_enrichment_recalc', 'vuln_scan_complete', preRecalcSnapshot, 'Post-enrichment recalculation with confirmed vuln data + mission baselines');
   console.log(`[DomainIntel] Re-scoring timeline: ${rescoringTimeline.length} events recorded across ${analyses.length} assets`);
 
   // Stage 4: Generate campaign recommendations (now KEV-enriched)

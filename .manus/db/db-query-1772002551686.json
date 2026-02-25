@@ -1,0 +1,110 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets, overallRiskScore, createdAt, updatedAt, TIMESTAMPDIFF(MINUTE, updatedAt, NOW()) as minutes_since_update FROM domain_intel_scans WHERE status NOT IN ('completed', 'scan_complete') ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets, overallRiskScore, createdAt, updatedAt, TIMESTAMPDIFF(MINUTE, updatedAt, NOW()) as minutes_since_update FROM domain_intel_scans WHERE status NOT IN ('completed', 'scan_complete') ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "1170157",
+      "primaryDomain": "vianova.ai",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 06:33:07",
+      "updatedAt": "2026-02-25 06:51:47",
+      "minutes_since_update": "4"
+    },
+    {
+      "id": "1170132",
+      "primaryDomain": "asset-test-1771995654056.com",
+      "status": "analyzing",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:54",
+      "updatedAt": "2026-02-25 06:51:00",
+      "minutes_since_update": "4"
+    },
+    {
+      "id": "1170131",
+      "primaryDomain": "other-1771995654037.com",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:54",
+      "updatedAt": "2026-02-25 06:55:03",
+      "minutes_since_update": "0"
+    },
+    {
+      "id": "1170130",
+      "primaryDomain": "mixed_hosting-1771995654018.com",
+      "status": "pending",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:54",
+      "updatedAt": "2026-02-25 05:00:54",
+      "minutes_since_update": "114"
+    },
+    {
+      "id": "1170129",
+      "primaryDomain": "iaas-1771995653997.com",
+      "status": "pending",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:54",
+      "updatedAt": "2026-02-25 05:00:54",
+      "minutes_since_update": "114"
+    },
+    {
+      "id": "1170128",
+      "primaryDomain": "paas-1771995653982.com",
+      "status": "pending",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:53",
+      "updatedAt": "2026-02-25 05:00:53",
+      "minutes_since_update": "114"
+    },
+    {
+      "id": "1170127",
+      "primaryDomain": "saas-1771995653961.com",
+      "status": "pending",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:53",
+      "updatedAt": "2026-02-25 05:00:53",
+      "minutes_since_update": "114"
+    },
+    {
+      "id": "1170126",
+      "primaryDomain": "enterprise-1771995653948.com",
+      "status": "pending",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:53",
+      "updatedAt": "2026-02-25 05:00:53",
+      "minutes_since_update": "114"
+    },
+    {
+      "id": "1170125",
+      "primaryDomain": "msp-1771995653933.com",
+      "status": "pending",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:53",
+      "updatedAt": "2026-02-25 05:00:53",
+      "minutes_since_update": "114"
+    },
+    {
+      "id": "1170123",
+      "primaryDomain": "get-scan-1771995653859.com",
+      "status": "pending",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 05:00:53",
+      "updatedAt": "2026-02-25 05:00:53",
+      "minutes_since_update": "114"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\toverallRiskScore\tcreatedAt\tupdatedAt\tminutes_since_update\n1170157\tvianova.ai\tpassive_recon\t0\tNULL\t2026-02-25 06:33:07\t2026-02-25 06:51:47\t4\n1170132\tasset-test-1771995654056.com\tanalyzing\t0\tNULL\t2026-02-25 05:00:54\t2026-02-25 06:51:00\t4\n1170131\tother-1771995654037.com\tpassive_recon\t0\tNULL\t2026-02-25 05:00:54\t2026-02-25 06:55:03\t0\n1170130\tmixed_hosting-1771995654018.com\tpending\t0\tNULL\t2026-02-25 05:00:54\t2026-02-25 05:00:54\t114\n1170129\tiaas-1771995653997.com\tpending\t0\tNULL\t2026-02-25 05:00:54\t2026-02-25 05:00:54\t114\n1170128\tpaas-1771995653982.com\tpending\t0\tNULL\t2026-02-25 05:00:53\t2026-02-25 05:00:53\t114\n1170127\tsaas-1771995653961.com\tpending\t0\tNULL\t2026-02-25 05:00:53\t2026-02-25 05:00:53\t114\n1170126\tenterprise-1771995653948.com\tpending\t0\tNULL\t2026-02-25 05:00:53\t2026-02-25 05:00:53\t114\n1170125\tmsp-1771995653933.com\tpending\t0\tNULL\t2026-02-25 05:00:53\t2026-02-25 05:00:53\t114\n1170123\tget-scan-1771995653859.com\tpending\t0\tNULL\t2026-02-25 05:00:53\t2026-02-25 05:00:53\t114\n",
+  "stderr": "",
+  "execution_time_ms": 113
+}

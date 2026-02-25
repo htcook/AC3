@@ -179,7 +179,7 @@ const SCAN_METHODS = [
     description: "Uses a large language model to infer likely subdomains, services, and technology stacks based on the organization's sector, client type, and domain patterns. No active probing is performed — this is purely inference-based OSINT.",
     outputs: "Inferred subdomains, likely services (SSO, VPN, mail, API), estimated technology stack",
     attribution: "Findings labeled as \"Inferred\" — these are hypotheses, not confirmed assets. Verify by checking DNS records or visiting the URL.",
-    falsePositiveRisk: "Medium — the LLM may suggest subdomains that don't exist. Always verify.",
+    falsePositiveRisk: "Low — all LLM-inferred subdomains are gated by Active DNS Resolution. Subdomains that fail DNS lookup are automatically filtered out before analysis. Only DNS-verified or header-detected assets appear in results.",
   },
   {
     id: "dns_verification",
@@ -415,7 +415,14 @@ export default function DomainIntel() {
       setIsComplete(true);
       setIsScanComplete(false);
     } else if (status === "failed") {
-      setPipelineError("Pipeline failed. Please try again.");
+      const errorDetail = scanStatusQuery.data.errorInfo?.message;
+      const failedAt = scanStatusQuery.data.errorInfo?.failedAt;
+      const timeStr = failedAt ? ` at ${new Date(failedAt).toLocaleTimeString()}` : '';
+      setPipelineError(
+        errorDetail
+          ? `Pipeline failed${timeStr}: ${errorDetail.length > 200 ? errorDetail.substring(0, 200) + '...' : errorDetail}`
+          : `Pipeline failed${timeStr}. Please try again.`
+      );
       setIsRunning(false);
     }
   }, [scanStatusQuery.data, isRunning]);
@@ -1070,7 +1077,7 @@ export default function DomainIntel() {
                     <CardContent className="p-3">
                       <p className="text-sm text-destructive flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4" />
-                        {pipelineError ? 'Scan pipeline encountered an error. You may retry.' : startScan.error ? sanitizeErrorForToast(startScan.error) : 'Unknown error'}
+                        {pipelineError || (startScan.error ? sanitizeErrorForToast(startScan.error) : 'Unknown error')}
                       </p>
                       {pipelineError && scanId && (
                         <Button

@@ -1,0 +1,9 @@
+{
+  "query": "SELECT id, primaryDomain, status, JSON_EXTRACT(pipelineOutput, '$.error') as error_msg, JSON_EXTRACT(pipelineOutput, '$.failedAt') as failed_at, LEFT(JSON_EXTRACT(pipelineOutput, '$.stack'), 300) as stack_trace FROM domain_intel_scans WHERE status = 'failed' ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, JSON_EXTRACT(pipelineOutput, '$.error') as error_msg, JSON_EXTRACT(pipelineOutput, '$.failedAt') as failed_at, LEFT(JSON_EXTRACT(pipelineOutput, '$.stack'), 300) as stack_trace FROM domain_intel_scans WHERE status = 'failed' ORDER BY id DESC LIMIT 5;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 171
+}
