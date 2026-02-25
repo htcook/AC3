@@ -11,7 +11,7 @@ import { Streamdown } from "streamdown";
 import {
   ArrowLeft, Shield, Target, AlertTriangle, Brain, Globe, Server,
   ChevronDown, ChevronUp, Crosshair, Zap, FileText, ExternalLink,
-  Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database,
+  Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database, Cpu,
   TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare,
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi
@@ -221,6 +221,9 @@ export default function DomainIntelResults() {
   const [portSearch, setPortSearch] = useState('');
   const [portProtocolFilter, setPortProtocolFilter] = useState('all');
   const [portSortBy, setPortSortBy] = useState<'port' | 'ip' | 'product'>('port');
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryTypeFilter, setInventoryTypeFilter] = useState('all');
+  const [inventorySortBy, setInventorySortBy] = useState<'risk' | 'hostname' | 'ports' | 'tech'>('risk');
   const matchThreatActorsMutation = trpc.domainIntel.matchThreatActors.useMutation({
     onSuccess: () => {
       toast.success('Threat actor matching complete — refreshing results...');
@@ -599,6 +602,7 @@ export default function DomainIntelResults() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="subdomains">Subdomains</TabsTrigger>
+            <TabsTrigger value="inventory">Asset Inventory</TabsTrigger>
             <TabsTrigger value="ports">Ports & Services</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
             <TabsTrigger value="breaches">Breaches</TabsTrigger>
@@ -616,6 +620,7 @@ export default function DomainIntelResults() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="assets">Assets</TabsTrigger>
             <TabsTrigger value="subdomains">Subdomains</TabsTrigger>
+            <TabsTrigger value="inventory">Asset Inventory</TabsTrigger>
             <TabsTrigger value="ports">Ports & Services</TabsTrigger>
             <TabsTrigger value="vulns">Vulns</TabsTrigger>
             <TabsTrigger value="breaches">Breaches</TabsTrigger>
@@ -1019,13 +1024,35 @@ export default function DomainIntelResults() {
                         </Badge>
                       )}
                     </div>
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {((asset.tags || []) as string[]).slice(0, 4).map((t: string) => (
+                    {/* Inline IP + Technologies + Ports */}
+                    <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                      {(() => {
+                        const dns = (asset.dnsRecords || {}) as Record<string, any>;
+                        let ip = '';
+                        if (dns.A && Array.isArray(dns.A) && dns.A.length > 0) {
+                          ip = typeof dns.A[0] === 'string' ? dns.A[0] : dns.A[0]?.address || '';
+                        }
+                        return ip ? <Badge variant="outline" className="text-[10px] font-mono text-emerald-400 border-emerald-500/30">{ip}</Badge> : null;
+                      })()}
+                      {((asset.technologies || []) as string[]).slice(0, 3).map((t: string) => (
                         <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
                       ))}
-                      {((asset.tags || []) as string[]).length > 4 && (
-                        <Badge variant="secondary" className="text-[10px]">+{((asset.tags || []) as string[]).length - 4}</Badge>
+                      {((asset.technologies || []) as string[]).length > 3 && (
+                        <Badge variant="secondary" className="text-[10px]">+{((asset.technologies || []) as string[]).length - 3} tech</Badge>
                       )}
+                      {(() => {
+                        const assetPorts = (pipeline?.discoveredPorts || []).filter((p: any) => {
+                          const hostname = asset.hostname?.toLowerCase();
+                          const dns = (asset.dnsRecords || {}) as Record<string, any>;
+                          let ip = '';
+                          if (dns.A && Array.isArray(dns.A) && dns.A.length > 0) {
+                            ip = typeof dns.A[0] === 'string' ? dns.A[0] : dns.A[0]?.address || '';
+                          }
+                          return p.hostname?.toLowerCase() === hostname || (ip && p.ip === ip);
+                        });
+                        if (assetPorts.length === 0) return null;
+                        return <Badge variant="outline" className="text-[10px] text-sky-400 border-sky-500/30"><Network className="h-2.5 w-2.5 mr-0.5 inline" />{assetPorts.length} port{assetPorts.length !== 1 ? 's' : ''}</Badge>;
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -1315,12 +1342,13 @@ export default function DomainIntelResults() {
         <TabsContent value="subdomains" className="space-y-4">
           {(() => {
             const subdomains = (pipeline?.discoveredSubdomains || []) as any[];
+            const allPorts = (pipeline?.discoveredPorts || []) as any[];
             // Also extract subdomains from assets
             const assetSubdomains = assets.filter((a: any) => a.assetType === 'subdomain' || (a.hostname && a.hostname !== scan.primaryDomain));
             // Merge: pipeline subdomains + asset subdomains (deduplicated)
             const allSubdomainMap = new Map<string, any>();
             for (const s of subdomains) {
-              allSubdomainMap.set(s.name.toLowerCase(), s);
+              allSubdomainMap.set(s.name.toLowerCase(), { ...s });
             }
             for (const a of assetSubdomains) {
               const key = (a as any).hostname?.toLowerCase();
@@ -1333,14 +1361,77 @@ export default function DomainIntelResults() {
                 });
               }
             }
-            const allSubdomains = Array.from(allSubdomainMap.values());
-            // subSearch and subSourceFilter are declared at component level
-            const sources = Array.from(new Set(allSubdomains.map(s => s.source)));
-            const filtered = allSubdomains.filter(s => {
-              if (subSearch && !s.name.toLowerCase().includes(subSearch.toLowerCase())) return false;
+
+            // Enrich each subdomain with IP from matching asset, technologies, and ports
+            const assetMap = new Map<string, any>();
+            for (const a of assets as any[]) {
+              assetMap.set((a.hostname || '').toLowerCase(), a);
+            }
+
+            const commonPorts: Record<number, string> = {
+              21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS', 80: 'HTTP',
+              110: 'POP3', 143: 'IMAP', 443: 'HTTPS', 445: 'SMB', 993: 'IMAPS',
+              995: 'POP3S', 1433: 'MSSQL', 3306: 'MySQL', 3389: 'RDP', 5432: 'PostgreSQL',
+              5900: 'VNC', 6379: 'Redis', 8080: 'HTTP-Alt', 8443: 'HTTPS-Alt',
+              9200: 'Elasticsearch', 27017: 'MongoDB',
+            };
+
+            const enrichedSubdomains = Array.from(allSubdomainMap.values()).map(s => {
+              const key = (s.name || '').toLowerCase();
+              const matchedAsset = assetMap.get(key);
+              // Resolve IP: from subdomain, from asset DNS, or from port data
+              let ip = s.ip || '';
+              if (!ip && matchedAsset) {
+                const dns = (matchedAsset.dnsRecords || {}) as Record<string, any>;
+                if (dns.A && Array.isArray(dns.A) && dns.A.length > 0) {
+                  ip = typeof dns.A[0] === 'string' ? dns.A[0] : dns.A[0]?.address || '';
+                } else if (dns.AAAA && Array.isArray(dns.AAAA) && dns.AAAA.length > 0) {
+                  ip = typeof dns.AAAA[0] === 'string' ? dns.AAAA[0] : dns.AAAA[0]?.address || '';
+                }
+              }
+              if (!ip) {
+                const portMatch = allPorts.find((p: any) => p.hostname?.toLowerCase() === key);
+                if (portMatch) ip = portMatch.ip || '';
+              }
+              // Technologies from matched asset
+              const technologies: string[] = matchedAsset ? (Array.isArray(matchedAsset.technologies) ? matchedAsset.technologies : []) : [];
+              const techVersions: Record<string, string> = matchedAsset?.technologyVersions || {};
+              // Also extract product tags
+              const tagTech = (s.tags || []).filter((t: string) => t.startsWith('product:')).map((t: string) => t.replace('product:', ''));
+              const allTech = [...new Set([...technologies, ...tagTech])];
+              // Ports for this subdomain
+              const subPorts = allPorts.filter((p: any) => p.hostname?.toLowerCase() === key || (ip && p.ip === ip)).map((p: any) => ({
+                port: p.port as number,
+                transport: p.transport || 'tcp',
+                service: p.product || commonPorts[p.port as number] || '',
+                version: p.version || '',
+                vulns: (p.vulns || []) as string[],
+              }));
+              return {
+                ...s,
+                ip,
+                technologies: allTech,
+                technologyVersions: techVersions,
+                ports: subPorts,
+                riskScore: matchedAsset?.hybridRiskScore || 0,
+                riskBand: matchedAsset?.riskBand || '',
+                assetType: matchedAsset?.assetType || 'subdomain',
+              };
+            });
+
+            const sources = Array.from(new Set(enrichedSubdomains.map(s => s.source)));
+            const filtered = enrichedSubdomains.filter(s => {
+              if (subSearch) {
+                const q = subSearch.toLowerCase();
+                if (!s.name.toLowerCase().includes(q) && !(s.ip || '').includes(q) && !s.technologies.some((t: string) => t.toLowerCase().includes(q)) && !s.ports.some((p: any) => String(p.port).includes(q) || p.service.toLowerCase().includes(q))) return false;
+              }
               if (subSourceFilter !== 'all' && s.source !== subSourceFilter) return false;
               return true;
             });
+
+            const withTech = enrichedSubdomains.filter(s => s.technologies.length > 0).length;
+            const withPorts = enrichedSubdomains.filter(s => s.ports.length > 0).length;
+            const uniqueTechs = new Set(enrichedSubdomains.flatMap(s => s.technologies));
 
             return (
               <>
@@ -1348,30 +1439,38 @@ export default function DomainIntelResults() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Globe className="h-5 w-5 text-purple-400" />
-                      Discovered Subdomains ({allSubdomains.length})
+                      Discovered Subdomains & Assets ({enrichedSubdomains.length})
                     </CardTitle>
                     <CardDescription>
-                      All subdomains discovered across passive recon connectors (crt.sh, internet scan databases, SecurityTrails, Censys, URLScan, Wayback, Dehashed)
+                      All subdomains and assets discovered across passive recon connectors, enriched with resolved IPs, detected technologies, open ports, and running services.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Stats */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                       <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-purple-400">{allSubdomains.length}</p>
+                        <p className="text-2xl font-bold text-purple-400">{enrichedSubdomains.length}</p>
                         <p className="text-xs text-muted-foreground">Total Subdomains</p>
                       </div>
                       <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-emerald-400">{allSubdomains.filter(s => s.ip).length}</p>
+                        <p className="text-2xl font-bold text-emerald-400">{enrichedSubdomains.filter(s => s.ip).length}</p>
                         <p className="text-xs text-muted-foreground">With Resolved IPs</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-cyan-400">{withTech}</p>
+                        <p className="text-xs text-muted-foreground">With Technologies</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-sky-400">{uniqueTechs.size}</p>
+                        <p className="text-xs text-muted-foreground">Unique Technologies</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-amber-400">{withPorts}</p>
+                        <p className="text-xs text-muted-foreground">With Open Ports</p>
                       </div>
                       <div className="p-3 rounded-lg bg-muted/30 border border-border">
                         <p className="text-2xl font-bold text-sky-400">{sources.length}</p>
                         <p className="text-xs text-muted-foreground">Discovery Sources</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-2xl font-bold text-amber-400">{allSubdomains.filter(s => s.tags?.some((t: string) => t.startsWith('port:'))).length}</p>
-                        <p className="text-xs text-muted-foreground">With Open Ports</p>
                       </div>
                     </div>
 
@@ -1380,7 +1479,7 @@ export default function DomainIntelResults() {
                       <div className="flex-1 min-w-[200px]">
                         <input
                           type="text"
-                          placeholder="Search subdomains..."
+                          placeholder="Search by subdomain, IP, technology, port, or service..."
                           value={subSearch}
                           onChange={(e) => setSubSearch(e.target.value)}
                           className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
@@ -1398,55 +1497,474 @@ export default function DomainIntelResults() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const csv = ['Subdomain,IP,Source,Tags'];
-                          allSubdomains.forEach(s => csv.push(`${s.name},${s.ip || ''},${s.source},"${(s.tags || []).join('; ')}"`));
+                          const csv = ['Subdomain,IP Address,Asset Type,Risk Score,Technologies,Technology Versions,Open Ports,Services,Source'];
+                          enrichedSubdomains.forEach(s => {
+                            const techVerStr = Object.entries(s.technologyVersions || {}).map(([k, v]) => `${k}/${v}`).join('; ');
+                            const portsStr = s.ports.map((p: any) => String(p.port)).join('; ');
+                            const servicesStr = s.ports.map((p: any) => p.service || commonPorts[p.port] || `port-${p.port}`).join('; ');
+                            csv.push(`"${s.name}","${s.ip || ''}","${s.assetType}",${s.riskScore},"${s.technologies.join('; ')}","${techVerStr}","${portsStr}","${servicesStr}","${s.source}"`);
+                          });
                           const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement('a');
-                          a.href = url; a.download = `${scan.primaryDomain}_subdomains.csv`; a.click();
+                          a.href = url; a.download = `${scan.primaryDomain}_subdomains_full.csv`; a.click();
                           URL.revokeObjectURL(url);
-                          toast.success(`Exported ${allSubdomains.length} subdomains`);
+                          toast.success(`Exported ${enrichedSubdomains.length} subdomains with full details`);
                         }}
                       >
-                        <FileText className="h-3 w-3 mr-1" /> Export CSV
+                        <Download className="h-3 w-3 mr-1" /> Export Full CSV
                       </Button>
                     </div>
 
-                    {/* Subdomain Table */}
-                    <div className="border rounded-lg overflow-auto max-h-[600px]">
+                    {/* Enhanced Subdomain Table */}
+                    <div className="border rounded-lg overflow-auto max-h-[700px]">
                       <table className="w-full text-sm">
-                        <thead className="bg-muted/50 sticky top-0">
+                        <thead className="bg-muted/50 sticky top-0 z-10">
                           <tr>
                             <th className="text-left px-3 py-2 font-medium">Subdomain</th>
                             <th className="text-left px-3 py-2 font-medium">IP Address</th>
+                            <th className="text-left px-3 py-2 font-medium">Type</th>
+                            <th className="text-left px-3 py-2 font-medium">Technologies / Apps</th>
+                            <th className="text-left px-3 py-2 font-medium">Ports & Services</th>
                             <th className="text-left px-3 py-2 font-medium">Source</th>
-                            <th className="text-left px-3 py-2 font-medium">Tags</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {filtered.length === 0 ? (
-                            <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">No subdomains found matching your filters</td></tr>
+                            <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No subdomains found matching your filters</td></tr>
                           ) : filtered.map((s: any, i: number) => (
-                            <tr key={i} className="hover:bg-muted/20">
-                              <td className="px-3 py-2 font-mono text-xs">{s.name}</td>
-                              <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{s.ip || '—'}</td>
+                            <tr key={i} className={`hover:bg-muted/20 ${s.riskBand === 'critical' ? 'bg-red-500/5' : s.riskBand === 'high' ? 'bg-orange-500/5' : ''}`}>
                               <td className="px-3 py-2">
-                                <Badge variant="outline" className="text-[10px]">{s.source}</Badge>
+                                <div>
+                                  <p className="font-mono text-xs font-medium">{s.name}</p>
+                                  {s.riskScore > 0 && (
+                                    <Badge className={`text-[9px] mt-0.5 ${
+                                      s.riskBand === 'critical' ? 'bg-red-500/20 text-red-400' :
+                                      s.riskBand === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                                      s.riskBand === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                      'bg-emerald-500/20 text-emerald-400'
+                                    }`}>Risk: {s.riskScore}</Badge>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-3 py-2">
-                                <div className="flex flex-wrap gap-1">
-                                  {(s.tags || []).slice(0, 3).map((t: string, j: number) => (
-                                    <Badge key={j} variant="secondary" className="text-[10px]">{t}</Badge>
-                                  ))}
+                                {s.ip ? (
+                                  <span className="font-mono text-xs">{s.ip}</span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">unresolved</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className="text-[10px]">{s.assetType}</Badge>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                  {s.technologies.length > 0 ? (
+                                    <>
+                                      {s.technologies.slice(0, 4).map((t: string, j: number) => {
+                                        const ver = s.technologyVersions?.[t];
+                                        return (
+                                          <Badge key={j} variant="secondary" className="text-[10px]">
+                                            {t}{ver ? `/${ver}` : ''}
+                                          </Badge>
+                                        );
+                                      })}
+                                      {s.technologies.length > 4 && (
+                                        <Badge variant="secondary" className="text-[10px]">+{s.technologies.length - 4}</Badge>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">none detected</span>
+                                  )}
                                 </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                  {s.ports.length > 0 ? (
+                                    <>
+                                      {s.ports.sort((a: any, b: any) => a.port - b.port).slice(0, 5).map((p: any, j: number) => {
+                                        const label = p.service || commonPorts[p.port] || `port-${p.port}`;
+                                        const isHighRisk = [21, 23, 3389, 5900, 445].includes(p.port);
+                                        const hasVulns = p.vulns?.length > 0;
+                                        return (
+                                          <Badge key={j} variant={hasVulns ? 'destructive' : 'outline'} className={`text-[10px] font-mono ${
+                                            isHighRisk ? 'text-red-400 border-red-500/40' :
+                                            hasVulns ? '' :
+                                            'text-sky-400 border-sky-500/40'
+                                          }`}>
+                                            {p.port}/{label}
+                                          </Badge>
+                                        );
+                                      })}
+                                      {s.ports.length > 5 && (
+                                        <Badge variant="outline" className="text-[10px]">+{s.ports.length - 5}</Badge>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">no ports</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className="text-[10px]">{s.source}</Badge>
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                    {filtered.length < allSubdomains.length && (
-                      <p className="text-xs text-muted-foreground">Showing {filtered.length} of {allSubdomains.length} subdomains</p>
+                    {filtered.length < enrichedSubdomains.length && (
+                      <p className="text-xs text-muted-foreground">Showing {filtered.length} of {enrichedSubdomains.length} subdomains</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
+        </TabsContent>
+
+        {/* Asset Inventory Tab — Comprehensive view of all assets with domain, IP, tech, ports, services */}
+        <TabsContent value="inventory" className="space-y-4">
+          {(() => {
+            const ports = (pipeline?.discoveredPorts || []) as any[];
+            const subdomains = (pipeline?.discoveredSubdomains || []) as any[];
+
+            // Build a unified inventory from DB assets + pipeline subdomains
+            interface InventoryItem {
+              hostname: string;
+              ip: string;
+              assetType: string;
+              technologies: string[];
+              technologyVersions: Record<string, string>;
+              ports: Array<{ port: number; transport: string; service: string; version: string; vulns: string[] }>;
+              riskScore: number;
+              riskBand: string;
+              discoveryMethod: string;
+              source: string;
+              dnsRecords: Record<string, string[]>;
+              missionFunction: string;
+              essentialService: string;
+            }
+
+            const inventoryMap = new Map<string, InventoryItem>();
+
+            // 1. Add all DB assets
+            for (const a of assets as any[]) {
+              const hostname = (a.hostname || '').toLowerCase();
+              const techArr = Array.isArray(a.technologies) ? a.technologies as string[] : [];
+              const techVersions = (a.technologyVersions || {}) as Record<string, string>;
+              // Resolve IPs from DNS records
+              let ip = '';
+              const dns = (a.dnsRecords || {}) as Record<string, any>;
+              if (dns.A && Array.isArray(dns.A) && dns.A.length > 0) {
+                ip = typeof dns.A[0] === 'string' ? dns.A[0] : dns.A[0]?.address || '';
+              } else if (dns.AAAA && Array.isArray(dns.AAAA) && dns.AAAA.length > 0) {
+                ip = typeof dns.AAAA[0] === 'string' ? dns.AAAA[0] : dns.AAAA[0]?.address || '';
+              }
+              // Find ports for this asset
+              const assetPorts = ports.filter((p: any) => {
+                return p.hostname?.toLowerCase() === hostname || (ip && p.ip === ip);
+              }).map((p: any) => ({
+                port: p.port,
+                transport: p.transport || 'tcp',
+                service: p.product || '',
+                version: p.version || '',
+                vulns: p.vulns || [],
+              }));
+
+              inventoryMap.set(hostname, {
+                hostname: a.hostname,
+                ip,
+                assetType: a.assetType || 'unknown',
+                technologies: techArr,
+                technologyVersions: techVersions,
+                ports: assetPorts,
+                riskScore: a.hybridRiskScore || 0,
+                riskBand: a.riskBand || 'low',
+                discoveryMethod: a.discoveryMethod || 'inferred',
+                source: 'asset_discovery',
+                dnsRecords: dns,
+                missionFunction: a.missionFunction || '',
+                essentialService: a.essentialService || '',
+              });
+            }
+
+            // 2. Add subdomains not already in assets
+            for (const s of subdomains) {
+              const key = (s.name || '').toLowerCase();
+              if (!key || inventoryMap.has(key)) continue;
+              const subPorts = ports.filter((p: any) => p.hostname?.toLowerCase() === key || (s.ip && p.ip === s.ip)).map((p: any) => ({
+                port: p.port,
+                transport: p.transport || 'tcp',
+                service: p.product || '',
+                version: p.version || '',
+                vulns: p.vulns || [],
+              }));
+              const techFromTags = (s.tags || []).filter((t: string) => t.startsWith('product:')).map((t: string) => t.replace('product:', ''));
+              inventoryMap.set(key, {
+                hostname: s.name,
+                ip: s.ip || '',
+                assetType: 'subdomain',
+                technologies: techFromTags,
+                technologyVersions: {},
+                ports: subPorts,
+                riskScore: 0,
+                riskBand: 'low',
+                discoveryMethod: 'passive_recon',
+                source: s.source || 'recon',
+                dnsRecords: {},
+                missionFunction: '',
+                essentialService: '',
+              });
+            }
+
+            const allItems = Array.from(inventoryMap.values());
+            const assetTypes = Array.from(new Set(allItems.map(i => i.assetType)));
+
+            // Filter
+            const filtered = allItems.filter(item => {
+              if (inventorySearch) {
+                const q = inventorySearch.toLowerCase();
+                if (!item.hostname.toLowerCase().includes(q) && !item.ip.includes(q) && !item.technologies.some(t => t.toLowerCase().includes(q)) && !item.ports.some(p => String(p.port).includes(q) || p.service.toLowerCase().includes(q))) return false;
+              }
+              if (inventoryTypeFilter !== 'all' && item.assetType !== inventoryTypeFilter) return false;
+              return true;
+            });
+
+            // Sort
+            const sorted = [...filtered].sort((a, b) => {
+              if (inventorySortBy === 'risk') return b.riskScore - a.riskScore;
+              if (inventorySortBy === 'hostname') return a.hostname.localeCompare(b.hostname);
+              if (inventorySortBy === 'ports') return b.ports.length - a.ports.length;
+              if (inventorySortBy === 'tech') return b.technologies.length - a.technologies.length;
+              return 0;
+            });
+
+            const totalWithIPs = allItems.filter(i => i.ip).length;
+            const totalWithPorts = allItems.filter(i => i.ports.length > 0).length;
+            const totalWithTech = allItems.filter(i => i.technologies.length > 0).length;
+            const allTechs = new Set(allItems.flatMap(i => i.technologies));
+            const totalUniquePorts = new Set(allItems.flatMap(i => i.ports.map(p => p.port))).size;
+
+            const commonPorts: Record<number, string> = {
+              21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS', 80: 'HTTP',
+              110: 'POP3', 143: 'IMAP', 443: 'HTTPS', 445: 'SMB', 993: 'IMAPS',
+              995: 'POP3S', 1433: 'MSSQL', 1521: 'Oracle', 3306: 'MySQL',
+              3389: 'RDP', 5432: 'PostgreSQL', 5900: 'VNC', 6379: 'Redis',
+              8080: 'HTTP-Alt', 8443: 'HTTPS-Alt', 9200: 'Elasticsearch', 27017: 'MongoDB',
+            };
+
+            return (
+              <>
+                <Card className="bg-card/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Cpu className="h-5 w-5 text-cyan-400" />
+                      Complete Asset Inventory ({allItems.length})
+                    </CardTitle>
+                    <CardDescription>
+                      Unified view of all discovered assets, subdomains, and infrastructure — showing domain names, resolved IPs, detected technologies and applications, open ports, and running services.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-cyan-400">{allItems.length}</p>
+                        <p className="text-xs text-muted-foreground">Total Assets</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-emerald-400">{totalWithIPs}</p>
+                        <p className="text-xs text-muted-foreground">With Resolved IPs</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-purple-400">{totalWithTech}</p>
+                        <p className="text-xs text-muted-foreground">With Technologies</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-sky-400">{allTechs.size}</p>
+                        <p className="text-xs text-muted-foreground">Unique Technologies</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-amber-400">{totalWithPorts}</p>
+                        <p className="text-xs text-muted-foreground">With Open Ports</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-red-400">{totalUniquePorts}</p>
+                        <p className="text-xs text-muted-foreground">Unique Ports</p>
+                      </div>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <input
+                          type="text"
+                          placeholder="Search by hostname, IP, technology, port, or service..."
+                          value={inventorySearch}
+                          onChange={(e) => setInventorySearch(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                        />
+                      </div>
+                      <select
+                        value={inventoryTypeFilter}
+                        onChange={(e) => setInventoryTypeFilter(e.target.value)}
+                        className="px-3 py-2 text-sm rounded-md border border-border bg-background"
+                      >
+                        <option value="all">All Types</option>
+                        {assetTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <select
+                        value={inventorySortBy}
+                        onChange={(e) => setInventorySortBy(e.target.value as any)}
+                        className="px-3 py-2 text-sm rounded-md border border-border bg-background"
+                      >
+                        <option value="risk">Sort by Risk</option>
+                        <option value="hostname">Sort by Hostname</option>
+                        <option value="ports">Sort by Port Count</option>
+                        <option value="tech">Sort by Tech Count</option>
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const csv = ['Domain Name,IP Address,Asset Type,Risk Score,Risk Band,Technologies,Technology Versions,Open Ports,Services,Discovery Method,Mission Function'];
+                          allItems.forEach(item => {
+                            const techVersionStr = Object.entries(item.technologyVersions).map(([k, v]) => `${k}/${v}`).join('; ');
+                            const portsStr = item.ports.map(p => String(p.port)).join('; ');
+                            const servicesStr = item.ports.map(p => p.service || commonPorts[p.port] || `port-${p.port}`).join('; ');
+                            csv.push(`"${item.hostname}","${item.ip}","${item.assetType}",${item.riskScore},"${item.riskBand}","${item.technologies.join('; ')}","${techVersionStr}","${portsStr}","${servicesStr}","${item.discoveryMethod}","${item.missionFunction}"`);
+                          });
+                          const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url; a.download = `${scan.primaryDomain}_asset_inventory.csv`; a.click();
+                          URL.revokeObjectURL(url);
+                          toast.success(`Exported ${allItems.length} assets to CSV`);
+                        }}
+                      >
+                        <Download className="h-3 w-3 mr-1" /> Export Full Inventory
+                      </Button>
+                    </div>
+
+                    {/* Inventory Table */}
+                    <div className="border rounded-lg overflow-auto max-h-[700px]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0 z-10">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium">Domain Name</th>
+                            <th className="text-left px-3 py-2 font-medium">IP Address</th>
+                            <th className="text-left px-3 py-2 font-medium">Type</th>
+                            <th className="text-left px-3 py-2 font-medium">Risk</th>
+                            <th className="text-left px-3 py-2 font-medium">Technologies / Apps</th>
+                            <th className="text-left px-3 py-2 font-medium">Ports & Services</th>
+                            <th className="text-left px-3 py-2 font-medium">Discovery</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {sorted.length === 0 ? (
+                            <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No assets matching your filters</td></tr>
+                          ) : sorted.map((item, i) => (
+                            <tr key={i} className={`hover:bg-muted/20 ${item.riskBand === 'critical' ? 'bg-red-500/5' : item.riskBand === 'high' ? 'bg-orange-500/5' : ''}`}>
+                              <td className="px-3 py-2">
+                                <div>
+                                  <p className="font-mono text-xs font-medium">{item.hostname}</p>
+                                  {item.essentialService && (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{item.essentialService}</p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                {item.ip ? (
+                                  <span className="font-mono text-xs">{item.ip}</span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">unresolved</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className="text-[10px]">{item.assetType}</Badge>
+                              </td>
+                              <td className="px-3 py-2">
+                                {item.riskScore > 0 ? (
+                                  <Badge className={`text-[10px] ${
+                                    item.riskBand === 'critical' ? 'bg-red-500/20 text-red-400 border-red-500/40' :
+                                    item.riskBand === 'high' ? 'bg-orange-500/20 text-orange-400 border-orange-500/40' :
+                                    item.riskBand === 'medium' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40' :
+                                    'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                  }`}>{item.riskScore} ({item.riskBand})</Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1 max-w-[280px]">
+                                  {item.technologies.length > 0 ? (
+                                    <>
+                                      {item.technologies.slice(0, 5).map((t, j) => {
+                                        const ver = item.technologyVersions[t];
+                                        return (
+                                          <Badge key={j} variant="secondary" className="text-[10px]">
+                                            {t}{ver ? `/${ver}` : ''}
+                                          </Badge>
+                                        );
+                                      })}
+                                      {item.technologies.length > 5 && (
+                                        <Badge variant="secondary" className="text-[10px]">+{item.technologies.length - 5}</Badge>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">none detected</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1 max-w-[280px]">
+                                  {item.ports.length > 0 ? (
+                                    <>
+                                      {item.ports.sort((a, b) => a.port - b.port).slice(0, 6).map((p, j) => {
+                                        const label = p.service || commonPorts[p.port] || `port-${p.port}`;
+                                        const isHighRisk = [21, 23, 3389, 5900, 445].includes(p.port);
+                                        const hasVulns = p.vulns.length > 0;
+                                        return (
+                                          <Badge key={j} variant={hasVulns ? 'destructive' : 'outline'} className={`text-[10px] font-mono ${
+                                            isHighRisk ? 'text-red-400 border-red-500/40' :
+                                            hasVulns ? '' :
+                                            'text-sky-400 border-sky-500/40'
+                                          }`}>
+                                            {p.port}/{label}{p.version ? ` (${p.version})` : ''}
+                                          </Badge>
+                                        );
+                                      })}
+                                      {item.ports.length > 6 && (
+                                        <Badge variant="outline" className="text-[10px]">+{item.ports.length - 6}</Badge>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">no ports</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className={`text-[10px] ${
+                                  item.discoveryMethod === 'dns_verified' ? 'text-emerald-400 border-emerald-500/40' :
+                                  item.discoveryMethod === 'passive_recon' ? 'text-sky-400 border-sky-500/40' :
+                                  item.discoveryMethod === 'header_detected' ? 'text-blue-400 border-blue-500/40' :
+                                  'text-purple-400 border-purple-500/40'
+                                }`}>
+                                  {item.discoveryMethod === 'dns_verified' ? 'DNS Verified' :
+                                   item.discoveryMethod === 'passive_recon' ? 'Passive Recon' :
+                                   item.discoveryMethod === 'header_detected' ? 'Header Detected' :
+                                   item.discoveryMethod === 'cert_transparency' ? 'Cert Transparency' :
+                                   'Inferred'}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {sorted.length < allItems.length && (
+                      <p className="text-xs text-muted-foreground">Showing {sorted.length} of {allItems.length} assets</p>
                     )}
                   </CardContent>
                 </Card>

@@ -4210,3 +4210,10 @@
 - [x] Fix/remove any unsupported or exaggerated claims
 - [x] Implement real Federal Agency view with meaningful content
 - [x] Write tests for corrected KSI Map data (11/11 passing)
+
+## Domain Scan Findings Enhancement
+- [x] Enhance Subdomains tab to show resolved IPs, technologies, ports, and services per subdomain
+- [x] Add Asset Inventory tab with comprehensive table (domain name, IP, type, tech, ports, services)
+- [x] Enhance Assets tab card headers to show IP and technologies inline
+- [x] Add CSV export for full asset inventory with all fields
+- [x] Write tests for asset inventory and enriched subdomain data logic (29/29 passing)
