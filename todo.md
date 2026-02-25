@@ -4367,3 +4367,36 @@
 - [x] Add INFRA WIKI nav item to Knowledge Base sidebar group
 - [x] Write 41 comprehensive vitest tests covering all 5 modules (server/infra-wiki.test.ts)
 - [x] All 41 tests passing
+
+## Live DigitalOcean Infrastructure Integration
+- [x] Create DO API client service with droplet CRUD operations
+- [x] Implement real droplet provisioning (create, resize, destroy)
+- [x] Wire redirector health checks to actual SSH/HTTP probes
+- [x] Add droplet status monitoring and metrics collection
+- [x] Create tRPC endpoints for live infrastructure management
+- [x] Build frontend UI for live droplet management
+- [x] Write vitest tests for DO infrastructure service
+
+## DNS Record Automation (SPF/DKIM/DMARC)
+- [x] Create DNS automation service using DigitalOcean DNS API
+- [x] Implement SPF record auto-generation and deployment
+- [x] Implement DKIM key generation and DNS record deployment
+- [x] Implement DMARC record auto-configuration
+- [x] Add MX record management for phishing domains
+- [x] Add DNS record validation and verification
+- [x] Create tRPC endpoints for DNS automation
+- [x] Build frontend UI for DNS record management
+- [x] Write vitest tests for DNS automation service
+
+## OpSec Scheduled Scans with Notifications
+- [x] Create SSH-based remote scan executor service
+- [x] Implement recurring posture assessment scheduler
+- [x] Wire scan results to notification system (notifyOwner)
+- [x] Add scan history and trend tracking
+- [x] Create tRPC endpoints for scheduled scans
+- [x] Build frontend UI for scan scheduling and results
+- [x] Write vitest tests for scheduled scan service
+
+## Sidebar Navigation Fixes
+- [x] Move KSI menu item into Operations group below Dashboard
+- [x] Ensure all new pages (InfraWiki, LiveInfra) have sidebar navigation via AppShell

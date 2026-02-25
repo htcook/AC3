@@ -88,6 +88,7 @@ import { ksiScheduledCollectionRouter } from "./routers/ksi-scheduled-collection
 import { engagementAutomationRouter } from "./routers/engagement-automation";
 import { threatEnrichmentEngineRouter } from "./routers/threat-enrichment-engine";
 import { infraWikiRouter } from "./routers/infra-wiki";
+import { liveInfraRouter } from "./routers/live-infra";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -258,6 +259,7 @@ export const appRouter = router({
   engagementAutomation: engagementAutomationRouter,
   threatEnrichment: threatEnrichmentEngineRouter,
   infraWiki: infraWikiRouter,
+  liveInfra: liveInfraRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

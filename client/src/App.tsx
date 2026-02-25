@@ -131,6 +131,7 @@ const ScheduledCollection = lazy(() => import("./pages/ScheduledCollection"));
 const EngagementAutomation = lazy(() => import("./pages/EngagementAutomation"));
 const ThreatEnrichment = lazy(() => import("./pages/ThreatEnrichment"));
 const InfraWiki = lazy(() => import("./pages/InfraWiki"));
+const LiveInfra = lazy(() => import("./pages/LiveInfra"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -580,6 +581,9 @@ function Router() {
         </Route>
         <Route path="/infra-wiki">
           <ProtectedRoute component={InfraWiki} />
+        </Route>
+        <Route path="/live-infra">
+          <ProtectedRoute component={LiveInfra} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import AppShell from "@/components/AppShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -963,6 +964,7 @@ export default function InfraWiki() {
   const [activeTab, setActiveTab] = useState("redirectors");
 
   return (
+    <AppShell activePath="/infra-wiki">
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Infrastructure Wiki</h1>
@@ -997,5 +999,6 @@ export default function InfraWiki() {
         <TabsContent value="opsec"><OpSecTab /></TabsContent>
       </Tabs>
     </div>
+    </AppShell>
   );
 }

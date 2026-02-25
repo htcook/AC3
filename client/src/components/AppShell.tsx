@@ -138,6 +138,17 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/active-verification", icon: Radar, label: "ACTIVE VERIFICATION" },
       { href: "/unified-pipeline", icon: Layers3, label: "UNIFIED PIPELINE" },
       { href: "/attack-coverage", icon: Map, label: "ATT&CK COVERAGE" },
+      { href: "/ksi-dashboard", icon: BadgeCheck, label: "INDICATORS DASHBOARD" },
+      { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
+      { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
+      { href: "/ksi-threat-map", icon: Crosshair, label: "THREAT MAP" },
+      { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
+      { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
+      { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
+      { href: "/attack-vector-engine", icon: Crosshair, label: "ATTACK VECTORS" },
+      { href: "/scheduled-collection", icon: Clock, label: "SCHEDULED COLLECTION" },
+      { href: "/engagement-automation", icon: Zap, label: "ENGAGEMENT AUTOMATION" },
+      { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
     ],
   },
   {
@@ -197,6 +208,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/compliance-mapper", icon: ClipboardCheck, label: "COMPLIANCE MAPPER" },
       { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
       { href: "/infra-wiki", icon: Network, label: "INFRA WIKI" },
+      { href: "/live-infra", icon: Server, label: "LIVE INFRASTRUCTURE" },
     ],
   },
   {
@@ -229,24 +241,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/soar-connectors", icon: ArrowLeftRight, label: "SOAR CONNECTORS" },
     ],
   },
-  {
-    id: "fedramp",
-    label: "KEY SECURITY INDICATORS",
-    icon: BadgeCheck,
-    items: [
-      { href: "/ksi-dashboard", icon: BadgeCheck, label: "INDICATORS DASHBOARD" },
-      { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
-      { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
-      { href: "/ksi-threat-map", icon: Crosshair, label: "THREAT MAP" },
-      { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
-      { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
-      { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
-      { href: "/attack-vector-engine", icon: Crosshair, label: "ATTACK VECTORS" },
-      { href: "/scheduled-collection", icon: Clock, label: "SCHEDULED COLLECTION" },
-      { href: "/engagement-automation", icon: Zap, label: "ENGAGEMENT AUTOMATION" },
-      { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
-    ],
-  },
+
 ];
 
 // ─── Storage Key ───────────────────────────────────────────────────────────────
