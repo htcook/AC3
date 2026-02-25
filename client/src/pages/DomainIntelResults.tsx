@@ -823,6 +823,9 @@ export default function DomainIntelResults() {
             <TabsTrigger value="methods">Methods</TabsTrigger>
             <TabsTrigger value="osint-sources">OSINT Sources</TabsTrigger>
             <TabsTrigger value="spider">Spider</TabsTrigger>
+            <TabsTrigger value="changes">Changes</TabsTrigger>
+            <TabsTrigger value="tech-vulns">Tech Vulns</TabsTrigger>
+            <TabsTrigger value="takeover">Takeover</TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className="flex flex-wrap gap-1 w-full max-w-6xl">
@@ -844,6 +847,9 @@ export default function DomainIntelResults() {
             <TabsTrigger value="methods">Methods</TabsTrigger>
             <TabsTrigger value="osint-sources">OSINT Sources</TabsTrigger>
             <TabsTrigger value="spider">Spider</TabsTrigger>
+            <TabsTrigger value="changes">Changes</TabsTrigger>
+            <TabsTrigger value="tech-vulns">Tech Vulns</TabsTrigger>
+            <TabsTrigger value="takeover">Takeover</TabsTrigger>
           </TabsList>
         )}
 
@@ -3937,6 +3943,21 @@ export default function DomainIntelResults() {
           <AccuracyInsightsTab scanId={scanId} />
         </TabsContent>
 
+        {/* ─── Changes Tab: Subdomain Change Detection ─── */}
+        <TabsContent value="changes" className="space-y-4">
+          <ChangeDetectionTab scanId={scanId} />
+        </TabsContent>
+
+        {/* ─── Tech Vulns Tab: Technology Vulnerability CVE Cross-Reference ─── */}
+        <TabsContent value="tech-vulns" className="space-y-4">
+          <TechVulnsTab scanId={scanId} />
+        </TabsContent>
+
+        {/* ─── Takeover Tab: Subdomain Takeover Detection ─── */}
+        <TabsContent value="takeover" className="space-y-4">
+          <TakeoverTab scanId={scanId} />
+        </TabsContent>
+
       </Tabs>
 
       {/* ─── False Positive Reason Dialog ─── */}
@@ -6187,6 +6208,843 @@ function RecursiveDiscoveryTab({ scanId, domain }: { scanId: number; domain: str
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Change Detection Tab — Subdomain diff across successive scans
+// ═══════════════════════════════════════════════════════════════════════════
+function ChangeDetectionTab({ scanId }: { scanId: number }) {
+  const { data, isLoading, error } = trpc.domainIntel.detectChanges.useQuery({ currentScanId: scanId });
+
+  if (isLoading) return (
+    <Card><CardContent className="flex items-center justify-center py-16">
+      <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-3" />
+      <span className="text-muted-foreground">Comparing against previous scan...</span>
+    </CardContent></Card>
+  );
+
+  if (error) return (
+    <Card><CardContent className="py-8 text-center">
+      <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+      <p className="text-sm text-muted-foreground">{error.message}</p>
+    </CardContent></Card>
+  );
+
+  if (!data || !data.hasHistory) return (
+    <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center">
+      <GitBranch className="w-12 h-12 text-muted-foreground/40 mb-4" />
+      <h3 className="text-lg font-medium mb-2">No Previous Scan Available</h3>
+      <p className="text-sm text-muted-foreground max-w-md">
+        Run another scan of the same domain to enable change detection. The engine will compare subdomains, IPs, ports, and technologies between scans to identify infrastructure changes.
+      </p>
+    </CardContent></Card>
+  );
+
+  const d = data as any;
+  const summary = d.summary;
+  const newSubs = d.newSubdomains || [];
+  const removedSubs = d.removedSubdomains || [];
+  const ipChanges = d.ipChanges || [];
+  const portChanges = d.portChanges || [];
+  const techChanges = d.techChanges || [];
+  const alerts = d.securityAlerts || [];
+
+  const totalChanges = newSubs.length + removedSubs.length + ipChanges.length + portChanges.length + techChanges.length;
+
+  return (
+    <div className="space-y-4">
+      {/* Page Purpose */}
+      <p className="text-sm text-muted-foreground">
+        Compares the current scan against the most recent previous scan of the same domain to identify new subdomains, removed assets, IP changes, port changes, and technology drift.
+      </p>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <Card className="bg-emerald-500/10 border-emerald-500/30">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-emerald-400">{newSubs.length}</div>
+            <div className="text-[11px] text-muted-foreground">New Subdomains</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-red-500/10 border-red-500/30">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-red-400">{removedSubs.length}</div>
+            <div className="text-[11px] text-muted-foreground">Removed</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-amber-500/10 border-amber-500/30">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-amber-400">{ipChanges.length}</div>
+            <div className="text-[11px] text-muted-foreground">IP Changes</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-blue-500/10 border-blue-500/30">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-blue-400">{portChanges.length}</div>
+            <div className="text-[11px] text-muted-foreground">Port Changes</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-purple-500/10 border-purple-500/30">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-purple-400">{techChanges.length}</div>
+            <div className="text-[11px] text-muted-foreground">Tech Changes</div>
+          </CardContent>
+        </Card>
+        <Card className={alerts.length > 0 ? "bg-red-500/10 border-red-500/30" : "bg-muted/30 border-border/50"}>
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold ${alerts.length > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{alerts.length}</div>
+            <div className="text-[11px] text-muted-foreground">Security Alerts</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Security Alerts */}
+      {alerts.length > 0 && (
+        <Card className="border-red-500/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-red-400" />
+              Security Alerts
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {alerts.map((alert: any, i: number) => (
+              <div key={i} className={`p-3 rounded-lg border ${
+                alert.severity === 'critical' ? 'bg-red-500/10 border-red-500/40' :
+                alert.severity === 'high' ? 'bg-orange-500/10 border-orange-500/40' :
+                'bg-amber-500/10 border-amber-500/40'
+              }`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className={
+                    alert.severity === 'critical' ? 'text-red-400 border-red-500/40' :
+                    alert.severity === 'high' ? 'text-orange-400 border-orange-500/40' :
+                    'text-amber-400 border-amber-500/40'
+                  }>{alert.severity}</Badge>
+                  <span className="text-sm font-medium">{alert.type?.replace(/_/g, ' ')}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{alert.description}</p>
+                {alert.subdomain && <p className="text-xs text-cyan-400 mt-1 font-mono">{alert.subdomain}</p>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {totalChanges === 0 && (
+        <Card className="bg-emerald-500/5 border-emerald-500/30">
+          <CardContent className="flex items-center justify-center py-8">
+            <ShieldCheck className="w-6 h-6 text-emerald-400 mr-3" />
+            <span className="text-emerald-300">No infrastructure changes detected between scans.</span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* New Subdomains */}
+      {newSubs.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              New Subdomains ({newSubs.length})
+            </CardTitle>
+            <CardDescription>Subdomains discovered in the current scan that were not present in the previous scan.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border/50 text-muted-foreground text-left">
+                  <th className="pb-2 pr-4">Subdomain</th>
+                  <th className="pb-2 pr-4">IP</th>
+                  <th className="pb-2 pr-4">Source</th>
+                  <th className="pb-2">Risk</th>
+                </tr></thead>
+                <tbody>
+                  {newSubs.map((s: any, i: number) => (
+                    <tr key={i} className="border-b border-border/20">
+                      <td className="py-2 pr-4 font-mono text-xs text-cyan-400">{s.subdomain}</td>
+                      <td className="py-2 pr-4 font-mono text-xs">{s.ip || '—'}</td>
+                      <td className="py-2 pr-4"><Badge variant="outline" className="text-[10px]">{s.source || 'scan'}</Badge></td>
+                      <td className="py-2">
+                        {s.riskIndicators?.length > 0 ? (
+                          <Badge variant="outline" className="text-amber-400 border-amber-500/40 text-[10px]">
+                            {s.riskIndicators.length} risk{s.riskIndicators.length > 1 ? 's' : ''}
+                          </Badge>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Removed Subdomains */}
+      {removedSubs.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-red-400" />
+              Removed Subdomains ({removedSubs.length})
+            </CardTitle>
+            <CardDescription>Subdomains present in the previous scan that are no longer detected. May indicate decommissioned infrastructure or DNS changes.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border/50 text-muted-foreground text-left">
+                  <th className="pb-2 pr-4">Subdomain</th>
+                  <th className="pb-2 pr-4">Previous IP</th>
+                  <th className="pb-2">Risk</th>
+                </tr></thead>
+                <tbody>
+                  {removedSubs.map((s: any, i: number) => (
+                    <tr key={i} className="border-b border-border/20">
+                      <td className="py-2 pr-4 font-mono text-xs text-red-400 line-through">{s.subdomain}</td>
+                      <td className="py-2 pr-4 font-mono text-xs">{s.previousIp || '—'}</td>
+                      <td className="py-2">
+                        {s.riskIndicators?.length > 0 ? (
+                          <Badge variant="outline" className="text-amber-400 border-amber-500/40 text-[10px]">
+                            {s.riskIndicators.length} risk{s.riskIndicators.length > 1 ? 's' : ''}
+                          </Badge>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* IP Changes */}
+      {ipChanges.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Network className="w-4 h-4 text-amber-400" />
+              IP Address Changes ({ipChanges.length})
+            </CardTitle>
+            <CardDescription>Subdomains whose resolved IP addresses changed between scans. May indicate infrastructure migration or DNS hijacking.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border/50 text-muted-foreground text-left">
+                  <th className="pb-2 pr-4">Subdomain</th>
+                  <th className="pb-2 pr-4">Previous IP</th>
+                  <th className="pb-2 pr-4">Current IP</th>
+                  <th className="pb-2">ASN Change</th>
+                </tr></thead>
+                <tbody>
+                  {ipChanges.map((c: any, i: number) => (
+                    <tr key={i} className="border-b border-border/20">
+                      <td className="py-2 pr-4 font-mono text-xs text-cyan-400">{c.subdomain}</td>
+                      <td className="py-2 pr-4 font-mono text-xs text-red-400">{c.previousIp}</td>
+                      <td className="py-2 pr-4 font-mono text-xs text-emerald-400">{c.currentIp}</td>
+                      <td className="py-2">
+                        {c.asnChanged ? (
+                          <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">ASN Changed</Badge>
+                        ) : <span className="text-muted-foreground text-xs">Same ASN</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Port Changes */}
+      {portChanges.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Unplug className="w-4 h-4 text-blue-400" />
+              Port Changes ({portChanges.length})
+            </CardTitle>
+            <CardDescription>New ports opened or previously open ports now closed on discovered assets.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border/50 text-muted-foreground text-left">
+                  <th className="pb-2 pr-4">Subdomain</th>
+                  <th className="pb-2 pr-4">New Ports</th>
+                  <th className="pb-2 pr-4">Closed Ports</th>
+                  <th className="pb-2">Service Changes</th>
+                </tr></thead>
+                <tbody>
+                  {portChanges.map((c: any, i: number) => (
+                    <tr key={i} className="border-b border-border/20">
+                      <td className="py-2 pr-4 font-mono text-xs text-cyan-400">{c.subdomain}</td>
+                      <td className="py-2 pr-4">
+                        {c.newPorts?.length > 0 ? c.newPorts.map((p: any, j: number) => (
+                          <Badge key={j} variant="outline" className="text-emerald-400 border-emerald-500/40 text-[10px] mr-1 mb-1">
+                            {p.port}/{p.transport} {p.product ? `(${p.product})` : ''}
+                          </Badge>
+                        )) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {c.closedPorts?.length > 0 ? c.closedPorts.map((p: any, j: number) => (
+                          <Badge key={j} variant="outline" className="text-red-400 border-red-500/40 text-[10px] mr-1 mb-1">
+                            {p.port}/{p.transport}
+                          </Badge>
+                        )) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      <td className="py-2">
+                        {c.serviceChanges?.length > 0 ? c.serviceChanges.map((s: any, j: number) => (
+                          <div key={j} className="text-xs text-muted-foreground">
+                            Port {s.port}: <span className="text-red-400">{s.previousService}</span> → <span className="text-emerald-400">{s.currentService}</span>
+                          </div>
+                        )) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Technology Changes */}
+      {techChanges.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-purple-400" />
+              Technology Changes ({techChanges.length})
+            </CardTitle>
+            <CardDescription>New technologies detected or previously detected technologies no longer present on assets.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border/50 text-muted-foreground text-left">
+                  <th className="pb-2 pr-4">Asset</th>
+                  <th className="pb-2 pr-4">New Technologies</th>
+                  <th className="pb-2">Removed Technologies</th>
+                </tr></thead>
+                <tbody>
+                  {techChanges.map((c: any, i: number) => (
+                    <tr key={i} className="border-b border-border/20">
+                      <td className="py-2 pr-4 font-mono text-xs text-cyan-400">{c.hostname}</td>
+                      <td className="py-2 pr-4">
+                        {c.addedTech?.length > 0 ? c.addedTech.map((t: string, j: number) => (
+                          <Badge key={j} variant="outline" className="text-emerald-400 border-emerald-500/40 text-[10px] mr-1 mb-1">+ {t}</Badge>
+                        )) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      <td className="py-2">
+                        {c.removedTech?.length > 0 ? c.removedTech.map((t: string, j: number) => (
+                          <Badge key={j} variant="outline" className="text-red-400 border-red-500/40 text-[10px] mr-1 mb-1">- {t}</Badge>
+                        )) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Scan Comparison Metadata */}
+      <Card className="bg-muted/20">
+        <CardContent className="p-3">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>Current Scan: #{d.currentScanId}</span>
+            <span>Previous Scan: #{d.previousScanId}</span>
+            <span>Domain: {d.domain}</span>
+            {summary && <span>Scan Interval: {summary.daysBetweenScans} days</span>}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tech Vulns Tab — Technology Vulnerability CVE Cross-Reference
+// ═══════════════════════════════════════════════════════════════════════════
+function TechVulnsTab({ scanId }: { scanId: number }) {
+  const { data, isLoading, error } = trpc.domainIntel.techVulnerabilities.useQuery({ scanId });
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  if (isLoading) return (
+    <Card><CardContent className="flex items-center justify-center py-16">
+      <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-3" />
+      <span className="text-muted-foreground">Cross-referencing technologies against CVE databases...</span>
+    </CardContent></Card>
+  );
+
+  if (error) return (
+    <Card><CardContent className="py-8 text-center">
+      <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+      <p className="text-sm text-muted-foreground">{error.message}</p>
+    </CardContent></Card>
+  );
+
+  if (!data) return null;
+
+  const d = data as any;
+  const techProfiles = (d.technologyProfiles || []) as any[];
+  const vulnAssets = (d.vulnerableAssets || []) as any[];
+  const summary = d.summary || {};
+
+  const filteredProfiles = techProfiles.filter((tp: any) => {
+    if (severityFilter !== "all" && tp.highestSeverity !== severityFilter) return false;
+    if (searchTerm && !tp.technology.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !tp.cves?.some((c: any) => c.cveId?.toLowerCase().includes(searchTerm.toLowerCase()))) return false;
+    return true;
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Page Purpose */}
+      <p className="text-sm text-muted-foreground">
+        Cross-references all detected technologies and their versions against known CVE databases to identify outdated or vulnerable software across your attack surface.
+      </p>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className="bg-muted/30 border-border/50">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-cyan-400">{summary.totalTechnologies || 0}</div>
+            <div className="text-[11px] text-muted-foreground">Technologies Detected</div>
+          </CardContent>
+        </Card>
+        <Card className={`${(summary.vulnerableTechnologies || 0) > 0 ? 'bg-red-500/10 border-red-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold ${(summary.vulnerableTechnologies || 0) > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{summary.vulnerableTechnologies || 0}</div>
+            <div className="text-[11px] text-muted-foreground">Vulnerable</div>
+          </CardContent>
+        </Card>
+        <Card className={`${(summary.totalCves || 0) > 0 ? 'bg-orange-500/10 border-orange-500/30' : 'bg-muted/30 border-border/50'}`}>
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold ${(summary.totalCves || 0) > 0 ? 'text-orange-400' : 'text-muted-foreground'}`}>{summary.totalCves || 0}</div>
+            <div className="text-[11px] text-muted-foreground">Total CVEs</div>
+          </CardContent>
+        </Card>
+        <Card className={`${(summary.criticalCves || 0) > 0 ? 'bg-red-500/10 border-red-500/30' : 'bg-muted/30 border-border/50'}`}>
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold ${(summary.criticalCves || 0) > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{summary.criticalCves || 0}</div>
+            <div className="text-[11px] text-muted-foreground">Critical CVEs</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/30 border-border/50">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-amber-400">{summary.outdatedTechnologies || 0}</div>
+            <div className="text-[11px] text-muted-foreground">Outdated Versions</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search technologies or CVE IDs..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 text-sm bg-muted/30 border border-border/50 rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+          />
+        </div>
+        <Select value={severityFilter} onValueChange={setSeverityFilter}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Severity</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Technology Profiles */}
+      {filteredProfiles.length === 0 ? (
+        <Card className="bg-emerald-500/5 border-emerald-500/30">
+          <CardContent className="flex items-center justify-center py-8">
+            <ShieldCheck className="w-6 h-6 text-emerald-400 mr-3" />
+            <span className="text-emerald-300">
+              {searchTerm || severityFilter !== "all" ? "No technologies match the current filters." : "No known vulnerabilities detected in discovered technologies."}
+            </span>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filteredProfiles.map((tp: any, i: number) => (
+            <Card key={i} className={`${
+              tp.highestSeverity === 'critical' ? 'border-red-500/40' :
+              tp.highestSeverity === 'high' ? 'border-orange-500/40' :
+              tp.highestSeverity === 'medium' ? 'border-amber-500/40' :
+              'border-border/50'
+            }`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <Cpu className="w-5 h-5 text-cyan-400" />
+                    <div>
+                      <span className="font-medium">{tp.technology}</span>
+                      {tp.version && <span className="text-sm text-muted-foreground ml-2">v{tp.version}</span>}
+                      {tp.latestVersion && tp.version !== tp.latestVersion && (
+                        <Badge variant="outline" className="text-amber-400 border-amber-500/40 text-[10px] ml-2">
+                          Latest: {tp.latestVersion}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {tp.isOutdated && <Badge variant="outline" className="text-amber-400 border-amber-500/40 text-[10px]">Outdated</Badge>}
+                    {tp.isEol && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">End of Life</Badge>}
+                    <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                      {tp.affectedAssets?.length || 0} asset{(tp.affectedAssets?.length || 0) !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* CVEs */}
+                {tp.cves?.length > 0 && (
+                  <div className="space-y-2 mt-2">
+                    {tp.cves.map((cve: any, j: number) => (
+                      <div key={j} className={`p-2 rounded-lg border ${
+                        cve.severity === 'critical' ? 'bg-red-500/5 border-red-500/30' :
+                        cve.severity === 'high' ? 'bg-orange-500/5 border-orange-500/30' :
+                        cve.severity === 'medium' ? 'bg-amber-500/5 border-amber-500/30' :
+                        'bg-muted/20 border-border/30'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <a href={`https://nvd.nist.gov/vuln/detail/${cve.cveId}`} target="_blank" rel="noopener noreferrer"
+                            className="font-mono text-xs text-cyan-400 hover:underline flex items-center gap-1">
+                            {cve.cveId} <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <Badge variant="outline" className={`text-[10px] ${
+                            cve.severity === 'critical' ? 'text-red-400 border-red-500/40' :
+                            cve.severity === 'high' ? 'text-orange-400 border-orange-500/40' :
+                            cve.severity === 'medium' ? 'text-amber-400 border-amber-500/40' :
+                            'text-muted-foreground'
+                          }`}>{cve.severity}</Badge>
+                          {cve.cvssScore && <span className="text-[10px] text-muted-foreground">CVSS {cve.cvssScore}</span>}
+                          {cve.exploitAvailable && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">Exploit Available</Badge>}
+                          {cve.kevListed && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">KEV Listed</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{cve.description}</p>
+                        {cve.remediation && (
+                          <div className="mt-1 p-1.5 rounded bg-blue-500/5 border border-blue-500/20">
+                            <p className="text-[10px] text-blue-300"><strong>Remediation:</strong> {cve.remediation}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Affected Assets */}
+                {tp.affectedAssets?.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <span className="text-[10px] text-muted-foreground mr-1">Affected:</span>
+                    {tp.affectedAssets.map((a: string, j: number) => (
+                      <Badge key={j} variant="outline" className="text-[10px] font-mono">{a}</Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {tp.recommendation && (
+                  <div className="mt-2 p-2 rounded bg-muted/20 border border-border/30">
+                    <p className="text-xs text-muted-foreground"><strong>Recommendation:</strong> {tp.recommendation}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Vulnerable Assets Summary */}
+      {vulnAssets.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Server className="w-4 h-4 text-amber-400" />
+              Vulnerable Assets ({vulnAssets.length})
+            </CardTitle>
+            <CardDescription>Assets with one or more vulnerable technologies detected.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-border/50 text-muted-foreground text-left">
+                  <th className="pb-2 pr-4">Asset</th>
+                  <th className="pb-2 pr-4">Vulnerable Tech</th>
+                  <th className="pb-2 pr-4">CVEs</th>
+                  <th className="pb-2">Highest Severity</th>
+                </tr></thead>
+                <tbody>
+                  {vulnAssets.map((a: any, i: number) => (
+                    <tr key={i} className="border-b border-border/20">
+                      <td className="py-2 pr-4 font-mono text-xs text-cyan-400">{a.hostname}</td>
+                      <td className="py-2 pr-4">
+                        {a.vulnerableTech?.map((t: string, j: number) => (
+                          <Badge key={j} variant="outline" className="text-[10px] mr-1 mb-1">{t}</Badge>
+                        ))}
+                      </td>
+                      <td className="py-2 pr-4 text-xs">{a.totalCves || 0}</td>
+                      <td className="py-2">
+                        <Badge variant="outline" className={`text-[10px] ${
+                          a.highestSeverity === 'critical' ? 'text-red-400 border-red-500/40' :
+                          a.highestSeverity === 'high' ? 'text-orange-400 border-orange-500/40' :
+                          a.highestSeverity === 'medium' ? 'text-amber-400 border-amber-500/40' :
+                          'text-muted-foreground'
+                        }`}>{a.highestSeverity}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Takeover Tab — Subdomain Takeover Detection
+// ═══════════════════════════════════════════════════════════════════════════
+function TakeoverTab({ scanId }: { scanId: number }) {
+  const { data, isLoading, error } = trpc.domainIntel.takeoverDetection.useQuery({ scanId });
+
+  if (isLoading) return (
+    <Card><CardContent className="flex items-center justify-center py-16">
+      <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-3" />
+      <span className="text-muted-foreground">Checking for dangling DNS records and takeover vulnerabilities...</span>
+    </CardContent></Card>
+  );
+
+  if (error) return (
+    <Card><CardContent className="py-8 text-center">
+      <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+      <p className="text-sm text-muted-foreground">{error.message}</p>
+    </CardContent></Card>
+  );
+
+  if (!data) return null;
+
+  const d = data as any;
+  const candidates = (d.takeoverCandidates || []) as any[];
+  const summary = d.summary || {};
+  const serviceBreakdown = d.serviceBreakdown || [];
+
+  const criticalCandidates = candidates.filter((c: any) => c.severity === 'critical');
+  const highCandidates = candidates.filter((c: any) => c.severity === 'high');
+  const mediumCandidates = candidates.filter((c: any) => c.severity === 'medium');
+
+  return (
+    <div className="space-y-4">
+      {/* Page Purpose */}
+      <p className="text-sm text-muted-foreground">
+        Detects dangling DNS records (CNAME, A, AAAA) pointing to deprovisioned cloud services that could enable subdomain takeover attacks. Checks for unclaimed S3 buckets, Azure, Heroku, GitHub Pages, and other common cloud providers.
+      </p>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className="bg-muted/30 border-border/50">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-cyan-400">{summary.totalSubdomainsChecked || 0}</div>
+            <div className="text-[11px] text-muted-foreground">Subdomains Checked</div>
+          </CardContent>
+        </Card>
+        <Card className={`${candidates.length > 0 ? 'bg-red-500/10 border-red-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold ${candidates.length > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{candidates.length}</div>
+            <div className="text-[11px] text-muted-foreground">Takeover Candidates</div>
+          </CardContent>
+        </Card>
+        <Card className={`${criticalCandidates.length > 0 ? 'bg-red-500/10 border-red-500/30' : 'bg-muted/30 border-border/50'}`}>
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold ${criticalCandidates.length > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{criticalCandidates.length}</div>
+            <div className="text-[11px] text-muted-foreground">Critical</div>
+          </CardContent>
+        </Card>
+        <Card className={`${highCandidates.length > 0 ? 'bg-orange-500/10 border-orange-500/30' : 'bg-muted/30 border-border/50'}`}>
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold ${highCandidates.length > 0 ? 'text-orange-400' : 'text-muted-foreground'}`}>{highCandidates.length}</div>
+            <div className="text-[11px] text-muted-foreground">High</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/30 border-border/50">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-purple-400">{summary.servicesChecked || 0}</div>
+            <div className="text-[11px] text-muted-foreground">Services Checked</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* No Vulnerabilities */}
+      {candidates.length === 0 && (
+        <Card className="bg-emerald-500/5 border-emerald-500/30">
+          <CardContent className="flex items-center justify-center py-8">
+            <ShieldCheck className="w-6 h-6 text-emerald-400 mr-3" />
+            <span className="text-emerald-300">No subdomain takeover vulnerabilities detected. All DNS records point to active services.</span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Takeover Candidates */}
+      {candidates.length > 0 && (
+        <div className="space-y-3">
+          {candidates.map((c: any, i: number) => (
+            <Card key={i} className={`${
+              c.severity === 'critical' ? 'border-red-500/40 bg-red-500/5' :
+              c.severity === 'high' ? 'border-orange-500/40 bg-orange-500/5' :
+              'border-amber-500/40 bg-amber-500/5'
+            }`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <ShieldAlert className={`w-5 h-5 ${
+                      c.severity === 'critical' ? 'text-red-400' :
+                      c.severity === 'high' ? 'text-orange-400' :
+                      'text-amber-400'
+                    }`} />
+                    <div>
+                      <span className="font-mono text-sm text-cyan-400">{c.subdomain}</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="outline" className={`text-[10px] ${
+                          c.severity === 'critical' ? 'text-red-400 border-red-500/40' :
+                          c.severity === 'high' ? 'text-orange-400 border-orange-500/40' :
+                          'text-amber-400 border-amber-500/40'
+                        }`}>{c.severity}</Badge>
+                        <Badge variant="outline" className="text-[10px] text-purple-400 border-purple-500/40">{c.service}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{c.recordType}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  {c.confidence && (
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-muted-foreground">{c.confidence}%</div>
+                      <div className="text-[10px] text-muted-foreground">Confidence</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* DNS Record Details */}
+                <div className="mt-3 p-2 rounded bg-muted/20 border border-border/30">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Record Type:</span>
+                      <span className="ml-2 font-mono">{c.recordType}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Points To:</span>
+                      <span className="ml-2 font-mono text-amber-400">{c.pointsTo}</span>
+                    </div>
+                    {c.service && (
+                      <div>
+                        <span className="text-muted-foreground">Service:</span>
+                        <span className="ml-2">{c.service}</span>
+                      </div>
+                    )}
+                    {c.reason && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Reason:</span>
+                        <span className="ml-2">{c.reason}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Evidence */}
+                {c.evidence?.length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-[10px] text-muted-foreground font-medium">Evidence:</span>
+                    <ul className="mt-1 space-y-1">
+                      {c.evidence.map((e: string, j: number) => (
+                        <li key={j} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                          <span className="text-amber-400 mt-0.5">•</span> {e}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Remediation */}
+                <div className="mt-3 p-2 rounded bg-blue-500/5 border border-blue-500/20">
+                  <p className="text-xs text-blue-300">
+                    <strong>Remediation:</strong> {c.remediation || `Remove the dangling ${c.recordType} record for ${c.subdomain} or reclaim the ${c.service} resource.`}
+                  </p>
+                </div>
+
+                {/* MITRE ATT&CK Mapping */}
+                {c.mitreAttack && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">MITRE ATT&CK:</span>
+                    <Badge variant="outline" className="text-[10px] font-mono text-cyan-400">{c.mitreAttack}</Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Service Breakdown */}
+      {serviceBreakdown.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Layers className="w-4 h-4 text-purple-400" />
+              Service Provider Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {serviceBreakdown.map((s: any, i: number) => (
+                <div key={i} className="p-2 rounded-lg bg-muted/20 border border-border/30 text-center">
+                  <div className="text-sm font-medium">{s.service}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {s.total} checked · <span className={s.vulnerable > 0 ? 'text-red-400' : 'text-emerald-400'}>{s.vulnerable} vulnerable</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Methodology */}
+      <Card className="bg-muted/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Info className="w-4 h-4 text-muted-foreground" />
+            Detection Methodology
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-xs text-muted-foreground space-y-1">
+          <p>The takeover detection engine analyzes DNS records for patterns indicating deprovisioned cloud resources:</p>
+          <ul className="list-disc list-inside space-y-0.5 ml-2">
+            <li>CNAME records pointing to unclaimed cloud service endpoints (S3, Azure, Heroku, GitHub Pages, Fastly, etc.)</li>
+            <li>A/AAAA records resolving to IP ranges of cloud providers with no active HTTP response</li>
+            <li>NS delegation to nameservers that no longer exist or respond</li>
+            <li>MX records pointing to decommissioned mail services</li>
+            <li>Wildcard DNS configurations that may enable mass subdomain takeover</li>
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -4240,3 +4240,25 @@
 - [x] Add MITRE ATT&CK test vectors mapped to subdomain findings
 - [x] Add remediation guidance for each subdomain finding
 - [x] Update CSV exports with risk band and findings count columns
+
+## Subdomain Change Detection
+- [x] Compare subdomains across successive scans of same domain
+- [x] Flag newly appeared subdomains, disappeared subdomains, changed IPs
+- [x] Detect new open ports and changed services between scans
+- [x] Build diff view showing changes with timestamps and security alerts
+- [x] Add change detection tab to scan results frontend
+
+## Technology Vulnerability CVE Cross-Reference
+- [x] Cross-reference detected technology versions against known CVE databases (NVD, KEV)
+- [x] Highlight outdated/vulnerable versions with specific CVE IDs and CVSS scores
+- [x] Show severity ratings and exploit availability for each CVE
+- [x] Add vulnerability summary with filterable tech profiles and affected assets
+- [x] Provide remediation guidance for vulnerable technologies
+
+## Subdomain Takeover Detection
+- [x] Detect dangling CNAME records pointing to deprovisioned services (13 cloud providers)
+- [x] Check for S3, Heroku, Azure, GitHub Pages, Netlify, Shopify, Fastly, CloudFront, etc.
+- [x] Flag subdomains with takeover risk, severity level, and confidence score
+- [x] Add takeover detection tab with evidence, remediation, and MITRE ATT&CK mapping
+- [x] Detect wildcard DNS configurations enabling mass subdomain takeover
+- [x] Write tests for all three features (22/22 passing, 83 total passing)

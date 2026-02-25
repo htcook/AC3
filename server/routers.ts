@@ -5284,6 +5284,82 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           categories: Array.from(new Set(connectorInfo.map(c => c.category))),
         };
       }),
+
+    // ─── Subdomain Change Detection ────────────────────────────────────
+    detectChanges: protectedProcedure
+      .input(z.object({ currentScanId: z.number(), previousScanId: z.number().optional() }))
+      .query(async ({ input }) => {
+        const currentScan = await db.getDomainIntelScanById(input.currentScanId);
+        if (!currentScan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Current scan not found' });
+        if (currentScan.status !== 'completed') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Current scan must be completed' });
+
+        // Find previous scan for the same domain
+        let previousScanId = input.previousScanId;
+        if (!previousScanId) {
+          const allScans = await db.getDomainIntelScans();
+          const sameDomainScans = allScans
+            .filter((s: any) => s.primaryDomain === currentScan.primaryDomain && s.id !== currentScan.id && s.status === 'completed')
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          if (sameDomainScans.length === 0) {
+            return { hasHistory: false, message: 'No previous scan found for this domain. Run another scan to enable change detection.' };
+          }
+          previousScanId = sameDomainScans[0].id;
+        }
+
+        const previousScan = await db.getDomainIntelScanById(previousScanId);
+        if (!previousScan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Previous scan not found' });
+
+        const currentAssets = await db.getDiscoveredAssetsByScan(input.currentScanId);
+        const previousAssets = await db.getDiscoveredAssetsByScan(previousScanId);
+        const currentPipeline = currentScan.pipelineOutput as any;
+        const previousPipeline = previousScan.pipelineOutput as any;
+
+        const { detectSubdomainChanges } = await import('./lib/domain-intel-advanced');
+        const result = detectSubdomainChanges(
+          input.currentScanId,
+          previousScanId,
+          currentScan.primaryDomain,
+          currentAssets,
+          previousAssets,
+          currentPipeline,
+          previousPipeline,
+          new Date(currentScan.createdAt).getTime(),
+          new Date(previousScan.createdAt).getTime()
+        );
+
+        return { hasHistory: true, ...result };
+      }),
+
+    // ─── Technology Vulnerability CVE Cross-Reference ──────────────────
+    techVulnerabilities: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        if (scan.status !== 'completed') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Scan must be completed' });
+
+        const assets = await db.getDiscoveredAssetsByScan(input.scanId);
+        const pipelineOutput = scan.pipelineOutput as any;
+
+        const { crossReferenceTechVulnerabilities } = await import('./lib/domain-intel-advanced');
+        return crossReferenceTechVulnerabilities(assets, pipelineOutput);
+      }),
+
+    // ─── Subdomain Takeover Detection ──────────────────────────────────
+    takeoverDetection: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        if (scan.status !== 'completed') throw new TRPCError({ code: 'BAD_REQUEST', message: 'Scan must be completed' });
+
+        const assets = await db.getDiscoveredAssetsByScan(input.scanId);
+        const pipelineOutput = scan.pipelineOutput as any;
+
+        const { detectSubdomainTakeover } = await import('./lib/domain-intel-advanced');
+        return detectSubdomainTakeover(assets, pipelineOutput);
+      }),
+
   }),
 
   // ─── Threat Actor Database ──────────────────────────────────────────
