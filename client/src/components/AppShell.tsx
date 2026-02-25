@@ -196,6 +196,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
       { href: "/compliance-mapper", icon: ClipboardCheck, label: "COMPLIANCE MAPPER" },
       { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
+      { href: "/infra-wiki", icon: Network, label: "INFRA WIKI" },
     ],
   },
   {

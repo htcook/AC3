@@ -4351,3 +4351,19 @@
 - [x] Added 5 router endpoints: evasionProbe, evasionProbeScan, evasionVerification, evasionTakeover, evasionExploit
 - [x] Built Evasion Validation tab in Evasion Engine with probe launcher, results, and bypass timeline
 - [x] Write tests for block detection across WAF/CDN/EDR/NGFW signatures (10 tests passing)
+
+## Infrastructure Wiki Modules (Red Team Infrastructure Wiki Research)
+- [x] Research Red Team Infrastructure Wiki for enhancement recommendations
+- [x] Create Infrastructure Recommendations document (INFRASTRUCTURE_RECOMMENDATIONS.md)
+- [x] Implement Redirector Management backend service (server/lib/redirector-manager.ts)
+- [x] Implement Domain Reputation Engine backend service (server/lib/domain-reputation-engine.ts)
+- [x] Implement C2 Traffic Profiles & Domain Fronting backend service (server/lib/c2-traffic-profiles.ts)
+- [x] Implement Infrastructure Deployment Automation backend service (server/lib/infra-deploy-automation.ts)
+- [x] Implement OpSec Hardening & Monitoring backend service (server/lib/opsec-monitor.ts)
+- [x] Create unified tRPC router for all 5 modules (server/routers/infra-wiki.ts)
+- [x] Register infra-wiki router in main routers.ts
+- [x] Create Infrastructure Wiki frontend page with 5 tabs (client/src/pages/InfraWiki.tsx)
+- [x] Add /infra-wiki route to App.tsx
+- [x] Add INFRA WIKI nav item to Knowledge Base sidebar group
+- [x] Write 41 comprehensive vitest tests covering all 5 modules (server/infra-wiki.test.ts)
+- [x] All 41 tests passing
