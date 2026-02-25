@@ -817,4 +817,119 @@ export const evasionEngineRouter = router({
       const { generateDefenseHeatmap } = await import("../lib/evasion-playbook");
       return generateDefenseHeatmap(input || undefined);
     }),
+
+  // ═════════════════════════════════════════════════════════════════
+  // EVASION-AWARE VALIDATION TESTING
+  // ═════════════════════════════════════════════════════════════════
+
+  /** Run probe scan with adaptive evasion bypass */
+  evasionProbeScan: protectedProcedure
+    .input(z.object({
+      target: z.string().min(1),
+      port: z.number().optional(),
+      cveIds: z.array(z.string()).optional(),
+      probeIds: z.array(z.string()).optional(),
+      maxAttempts: z.number().min(1).max(10).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runEvasionAwareProbeScan } = await import("../lib/evasion-validation");
+      return runEvasionAwareProbeScan(input.target, {
+        port: input.port,
+        cveIds: input.cveIds,
+        probeIds: input.probeIds,
+        evasionConfig: { maxAttempts: input.maxAttempts },
+      });
+    }),
+
+  /** Run verification suite with adaptive evasion bypass */
+  evasionVerificationSuite: protectedProcedure
+    .input(z.object({
+      targetHost: z.string().min(1),
+      targetPort: z.number().optional().default(443),
+      protocol: z.enum(["http", "https"]).optional().default("https"),
+      cveIds: z.array(z.string()).optional(),
+      tags: z.array(z.string()).optional(),
+      maxAttempts: z.number().min(1).max(10).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runEvasionAwareVerificationSuite } = await import("../lib/evasion-validation");
+      return runEvasionAwareVerificationSuite(
+        input.targetHost,
+        input.targetPort,
+        input.protocol,
+        { cveIds: input.cveIds, tags: input.tags },
+        { maxAttempts: input.maxAttempts },
+      );
+    }),
+
+  /** Run takeover PoC validation with adaptive evasion bypass */
+  evasionTakeoverValidation: protectedProcedure
+    .input(z.object({
+      candidates: z.array(z.object({
+        subdomain: z.string(),
+        cnameTarget: z.string(),
+        service: z.string(),
+      })),
+      maxAttempts: z.number().min(1).max(10).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runEvasionAwareTakeoverValidation } = await import("../lib/evasion-validation");
+      return runEvasionAwareTakeoverValidation(
+        input.candidates,
+        { maxAttempts: input.maxAttempts },
+      );
+    }),
+
+  /** Validate KEV-matched exploits with adaptive evasion bypass */
+  evasionExploitValidation: protectedProcedure
+    .input(z.object({
+      target: z.string().min(1),
+      kevFindings: z.array(z.object({
+        id: z.string(),
+        cveIds: z.array(z.string()),
+        title: z.string(),
+        linkedExploits: z.array(z.object({
+          cveId: z.string(),
+          bestExploit: z.any(),
+          isRemoteAccess: z.boolean(),
+        })).optional(),
+      })),
+      maxAttempts: z.number().min(1).max(10).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runEvasionAwareExploitValidation } = await import("../lib/evasion-validation");
+      return runEvasionAwareExploitValidation(
+        input.target,
+        input.kevFindings,
+        { maxAttempts: input.maxAttempts },
+      );
+    }),
+
+  /** Detect defenses on a target URL for validation planning */
+  detectDefenses: protectedProcedure
+    .input(z.object({ targetUrl: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      try {
+        const response = await fetch(input.targetUrl, {
+          signal: AbortSignal.timeout(10000),
+          redirect: "follow",
+        });
+        const body = await response.text().catch(() => "");
+        const headers: Record<string, string> = {};
+        response.headers.forEach((v, k) => { headers[k] = v; });
+        const { detectValidationBlock } = await import("../lib/evasion-validation");
+        return {
+          ...detectValidationBlock({ statusCode: response.status, body, headers }),
+          statusCode: response.status,
+          responseSize: body.length,
+        };
+      } catch (err: any) {
+        const { detectValidationBlock } = await import("../lib/evasion-validation");
+        return {
+          ...detectValidationBlock({ error: err.message }),
+          statusCode: 0,
+          responseSize: 0,
+        };
+      }
+    }),
 });

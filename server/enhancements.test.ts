@@ -1155,3 +1155,307 @@ describe("Defense Heatmap Generation", () => {
     });
   });
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUBDOMAIN ASSET ENUMERATION FIX
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Subdomain Asset Enumeration", () => {
+  it("should convert passive recon observations into proper asset objects", () => {
+    const passiveObservations = [
+      { subdomain: "api.vianova.ai", source: "crt.sh", ip: "1.2.3.4" },
+      { subdomain: "mail.vianova.ai", source: "shodan", ip: "5.6.7.8" },
+      { subdomain: "dev.vianova.ai", source: "securitytrails", ip: null },
+    ];
+
+    const existingAssetHosts = new Set(["vianova.ai", "www.vianova.ai"]);
+
+    const convertedAssets = passiveObservations
+      .filter((obs) => !existingAssetHosts.has(obs.subdomain))
+      .map((obs) => ({
+        host: obs.subdomain,
+        type: "subdomain" as const,
+        source: `passive-recon:${obs.source}`,
+        ip: obs.ip || undefined,
+        ports: [],
+        technologies: [],
+        headers: {},
+      }));
+
+    expect(convertedAssets).toHaveLength(3);
+    expect(convertedAssets[0].host).toBe("api.vianova.ai");
+    expect(convertedAssets[0].type).toBe("subdomain");
+    expect(convertedAssets[0].source).toBe("passive-recon:crt.sh");
+    expect(convertedAssets[1].ip).toBe("5.6.7.8");
+    expect(convertedAssets[2].ip).toBeUndefined();
+  });
+
+  it("should deduplicate subdomains already in the LLM-discovered asset list", () => {
+    const llmAssets = [
+      { host: "vianova.ai", type: "target" },
+      { host: "api.vianova.ai", type: "subdomain" },
+    ];
+    const passiveSubdomains = ["api.vianova.ai", "mail.vianova.ai", "dev.vianova.ai"];
+
+    const existingHosts = new Set(llmAssets.map((a) => a.host));
+    const newSubdomains = passiveSubdomains.filter((s) => !existingHosts.has(s));
+
+    expect(newSubdomains).toHaveLength(2);
+    expect(newSubdomains).toContain("mail.vianova.ai");
+    expect(newSubdomains).toContain("dev.vianova.ai");
+    expect(newSubdomains).not.toContain("api.vianova.ai");
+  });
+
+  it("should ensure converted subdomain assets have all required fields for DNS verification", () => {
+    const convertedAsset = {
+      host: "staging.vianova.ai",
+      type: "subdomain" as const,
+      source: "passive-recon:crt.sh",
+      ip: undefined,
+      ports: [] as number[],
+      technologies: [] as string[],
+      headers: {} as Record<string, string>,
+    };
+
+    expect(convertedAsset).toHaveProperty("host");
+    expect(convertedAsset).toHaveProperty("type");
+    expect(convertedAsset).toHaveProperty("ports");
+    expect(convertedAsset).toHaveProperty("technologies");
+    expect(convertedAsset).toHaveProperty("headers");
+    expect(Array.isArray(convertedAsset.ports)).toBe(true);
+    expect(Array.isArray(convertedAsset.technologies)).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KEV-EXPLOIT CROSS-LINKING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("KEV-Exploit Cross-Linking", () => {
+  it("should cross-link KEV findings with matched exploits by CVE ID", () => {
+    const kevFindings = [
+      { id: "kev-1", cveIds: ["CVE-2024-1234"], title: "KEV: Critical RCE", matchedExploits: undefined as any },
+      { id: "kev-2", cveIds: ["CVE-2023-5678", "CVE-2023-9999"], title: "KEV: Auth Bypass", matchedExploits: undefined as any },
+      { id: "kev-3", cveIds: ["CVE-2022-0001"], title: "KEV: No exploit match", matchedExploits: undefined as any },
+    ];
+
+    const exploitMatches = [
+      { cveId: "CVE-2024-1234", exploitId: "exp-1", name: "RCE PoC", source: "exploit-db", reliability: "verified" },
+      { cveId: "CVE-2024-1234", exploitId: "exp-2", name: "RCE Metasploit", source: "metasploit", reliability: "verified" },
+      { cveId: "CVE-2023-5678", exploitId: "exp-3", name: "Auth Bypass PoC", source: "github", reliability: "unverified" },
+    ];
+
+    const exploitByCve = new Map<string, any[]>();
+    for (const em of exploitMatches) {
+      if (!exploitByCve.has(em.cveId)) exploitByCve.set(em.cveId, []);
+      exploitByCve.get(em.cveId)!.push(em);
+    }
+
+    for (const finding of kevFindings) {
+      const linked: any[] = [];
+      for (const cve of finding.cveIds || []) {
+        const matches = exploitByCve.get(cve);
+        if (matches) linked.push(...matches);
+      }
+      finding.matchedExploits = linked.length > 0 ? linked : undefined;
+    }
+
+    expect(kevFindings[0].matchedExploits).toHaveLength(2);
+    expect(kevFindings[0].matchedExploits[0].exploitId).toBe("exp-1");
+    expect(kevFindings[1].matchedExploits).toHaveLength(1);
+    expect(kevFindings[1].matchedExploits[0].cveId).toBe("CVE-2023-5678");
+    expect(kevFindings[2].matchedExploits).toBeUndefined();
+  });
+
+  it("should handle KEV findings with no CVE IDs gracefully", () => {
+    const kevFinding = { id: "kev-x", cveIds: [] as string[], matchedExploits: undefined as any };
+    const exploitMatches = [
+      { cveId: "CVE-2024-9999", exploitId: "exp-99", name: "Some exploit" },
+    ];
+
+    const exploitByCve = new Map<string, any[]>();
+    for (const em of exploitMatches) {
+      if (!exploitByCve.has(em.cveId)) exploitByCve.set(em.cveId, []);
+      exploitByCve.get(em.cveId)!.push(em);
+    }
+
+    const linked: any[] = [];
+    for (const cve of kevFinding.cveIds || []) {
+      const matches = exploitByCve.get(cve);
+      if (matches) linked.push(...matches);
+    }
+    kevFinding.matchedExploits = linked.length > 0 ? linked : undefined;
+
+    expect(kevFinding.matchedExploits).toBeUndefined();
+  });
+
+  it("should deduplicate exploit matches across multiple CVEs in the same finding", () => {
+    const finding = { cveIds: ["CVE-2024-1111", "CVE-2024-2222"], matchedExploits: undefined as any };
+    const exploitMatches = [
+      { cveId: "CVE-2024-1111", exploitId: "exp-shared", name: "Shared exploit" },
+      { cveId: "CVE-2024-2222", exploitId: "exp-shared", name: "Shared exploit" },
+      { cveId: "CVE-2024-2222", exploitId: "exp-unique", name: "Unique exploit" },
+    ];
+
+    const exploitByCve = new Map<string, any[]>();
+    for (const em of exploitMatches) {
+      if (!exploitByCve.has(em.cveId)) exploitByCve.set(em.cveId, []);
+      exploitByCve.get(em.cveId)!.push(em);
+    }
+
+    const linked: any[] = [];
+    const seenIds = new Set<string>();
+    for (const cve of finding.cveIds) {
+      const matches = exploitByCve.get(cve);
+      if (matches) {
+        for (const m of matches) {
+          if (!seenIds.has(m.exploitId)) {
+            seenIds.add(m.exploitId);
+            linked.push(m);
+          }
+        }
+      }
+    }
+    finding.matchedExploits = linked.length > 0 ? linked : undefined;
+
+    expect(finding.matchedExploits).toHaveLength(2);
+    expect(finding.matchedExploits!.map((e: any) => e.exploitId)).toEqual(["exp-shared", "exp-unique"]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVASION-AWARE VALIDATION TESTING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import {
+  detectValidationBlock,
+  type EvasionValidationConfig,
+  type EvasionProbeResult,
+} from "./lib/evasion-validation";
+
+describe("Evasion-Aware Validation", () => {
+  it("should detect WAF blocks from HTTP 403 responses", () => {
+    const result = detectValidationBlock({
+      statusCode: 403,
+      body: "Access Denied by Cloudflare",
+      headers: { server: "cloudflare" },
+    });
+
+    expect(result.isBlocked).toBe(true);
+    expect(result.defenseType).toBe("waf");
+  });
+
+  it("should detect NGFW blocks from HTTP 406 responses", () => {
+    const result = detectValidationBlock({
+      statusCode: 406,
+      body: "406 not acceptable",
+      headers: {},
+    });
+
+    expect(result.isBlocked).toBe(true);
+    expect(result.defenseType).toBe("ngfw");
+  });
+
+  it("should detect rate limiting from HTTP 429 responses", () => {
+    const result = detectValidationBlock({
+      statusCode: 429,
+      body: "429 too many requests",
+      headers: { "retry-after": "60" },
+    });
+
+    expect(result.isBlocked).toBe(true);
+    expect(result.defenseType).toBe("ngfw");
+  });
+
+  it("should detect WAF blocks from access denied in response body", () => {
+    const result = detectValidationBlock({
+      statusCode: 200,
+      body: '<html><body>Access Denied - Your request was blocked by our web application firewall</body></html>',
+      headers: {},
+    });
+
+    expect(result.isBlocked).toBe(true);
+    expect(result.defenseType).toBe("waf");
+  });
+
+  it("should not flag clean 200 responses as blocked", () => {
+    const result = detectValidationBlock({
+      statusCode: 200,
+      body: "<html><body>Welcome to our site</body></html>",
+      headers: { server: "nginx" },
+    });
+
+    expect(result.isBlocked).toBe(false);
+    expect(result.defenseType).toBe("none");
+  });
+
+  it("should detect connection resets as potential EDR/NGFW blocks", () => {
+    const result = detectValidationBlock({
+      statusCode: 0,
+      body: "",
+      headers: {},
+      error: "ECONNRESET",
+    });
+
+    expect(result.isBlocked).toBe(true);
+    expect(result.defenseType).toBe("edr");
+  });
+
+  it("should detect Akamai WAF blocks", () => {
+    const result = detectValidationBlock({
+      statusCode: 403,
+      body: "Access Denied by Akamai",
+      headers: { server: "AkamaiGHost" },
+    });
+
+    expect(result.isBlocked).toBe(true);
+    expect(result.defenseName).toMatch(/akamai/i);
+  });
+
+  it("should detect AWS WAF blocks", () => {
+    const result = detectValidationBlock({
+      statusCode: 403,
+      body: "Request blocked by AWS WAF",
+      headers: { "x-amzn-requestid": "abc123" },
+    });
+
+    expect(result.isBlocked).toBe(true);
+    expect(result.defenseName).toMatch(/aws/i);
+  });
+
+  it("should provide correct EvasionValidationConfig defaults", () => {
+    const config: EvasionValidationConfig = {
+      maxAttempts: 5,
+      target: "example.com",
+      domain: "scanning",
+    };
+
+    expect(config.maxAttempts).toBe(5);
+    expect(config.target).toBe("example.com");
+    expect(config.domain).toBe("scanning");
+  });
+
+  it("should structure EvasionProbeResult correctly", () => {
+    const result: EvasionProbeResult = {
+      probeId: "test-probe-1",
+      target: "example.com",
+      originalBlocked: true,
+      finalStatus: "bypassed",
+      attemptsUsed: 3,
+      successfulTechnique: "header-rotation",
+      escalationPath: ["ua-spoofing", "header-rotation"],
+      defenseProduct: "Cloudflare",
+      blockType: "waf",
+      httpStatus: 200,
+      evidence: "Response received after header rotation bypass",
+    };
+
+    expect(result.originalBlocked).toBe(true);
+    expect(result.finalStatus).toBe("bypassed");
+    expect(result.attemptsUsed).toBe(3);
+    expect(result.successfulTechnique).toBe("header-rotation");
+    expect(result.escalationPath).toHaveLength(2);
+    expect(result.defenseProduct).toBe("Cloudflare");
+  });
+});

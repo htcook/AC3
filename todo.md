@@ -4328,3 +4328,26 @@
 - [x] Add summary cards (most/least effective defense, best technique, data points)
 - [x] Add Defense Heatmap tab to Evasion Engine with domain/encounter filters
 - [x] Write tests for heatmap data aggregation (6 tests passing)
+
+## Bug Fix: Subdomain Assets Not Enumerated
+- [x] Traced pipeline: passive recon subdomains only passed as text context to LLM, not converted to proper assets
+- [x] Fixed: convert passive recon observations into DiscoveredAssetRaw objects, merge into asset list before DNS verification
+- [x] Deduplication ensures LLM-discovered subdomains aren't doubled
+- [x] All subdomain assets now flow through DNS verification → analysis → storage with full details
+- [x] Write tests for subdomain asset conversion and deduplication (3 tests passing)
+
+## Bug Fix: KEV-Matched Vulns Missing Exploit Links
+- [x] Traced pipeline: exploit matcher runs after KEV enrichment but results stored separately, not cross-linked
+- [x] Fixed: after exploit matching stage, cross-link KEV posture findings with matched exploits by CVE ID
+- [x] Deduplicate exploit matches when a finding has multiple CVEs matching the same exploit
+- [x] Write tests for KEV-to-exploit cross-linking (3 tests passing)
+
+## Evasion Integration into Validation Testing
+- [x] Built evasion-validation.ts module with detectValidationBlock (WAF/CDN/EDR/NGFW signature matching)
+- [x] Implemented runEvasionAwareProbe, runEvasionAwareProbeScan, runEvasionAwareVerificationSuite
+- [x] Implemented runEvasionAwareTakeoverValidation and runEvasionAwareExploitValidation
+- [x] Progressive escalation: header rotation → UA spoofing → rate throttling → encoding tricks
+- [x] Records bypass findings with defense product, technique used, and escalation path
+- [x] Added 5 router endpoints: evasionProbe, evasionProbeScan, evasionVerification, evasionTakeover, evasionExploit
+- [x] Built Evasion Validation tab in Evasion Engine with probe launcher, results, and bypass timeline
+- [x] Write tests for block detection across WAF/CDN/EDR/NGFW signatures (10 tests passing)

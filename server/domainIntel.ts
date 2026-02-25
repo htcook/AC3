@@ -1547,6 +1547,59 @@ export async function runDomainIntelPipeline(
   await onProgress?.('discovering');
   const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined, passiveContext);
 
+  // Stage 1.25: Merge passive recon subdomains into rawAssets
+  // The LLM discovery stage only generates 15-30 assets. Passive recon may discover
+  // many more subdomains (from crt.sh, SecurityTrails, Shodan, Censys, etc.) that the
+  // LLM didn't include. Convert these into proper DiscoveredAssetRaw objects so they
+  // flow through DNS verification → analysis → storage with full details.
+  if (passiveRecon?.allObservations) {
+    const existingHostnames = new Set(rawAssets.map(a => (a.hostname || '').toLowerCase()));
+    const seenSubdomains = new Set<string>();
+    const passiveSubdomainAssets: DiscoveredAssetRaw[] = [];
+    for (const obs of passiveRecon.allObservations) {
+      if (obs.assetType !== 'subdomain' || !obs.name) continue;
+      const hostname = obs.name.toLowerCase().replace(/\.$/, '');
+      if (existingHostnames.has(hostname) || seenSubdomains.has(hostname)) continue;
+      seenSubdomains.add(hostname);
+      // Build tags from observation evidence
+      const tags: string[] = [...(obs.tags || [])];
+      if (obs.source) tags.push(`source:${obs.source}`);
+      // Extract technology hints from evidence if available (e.g., Shodan data)
+      const technologies: string[] = [];
+      const technologyVersions: Record<string, string> = {};
+      if (obs.evidence?.product) {
+        technologies.push(obs.evidence.product);
+        if (obs.evidence.version) technologyVersions[obs.evidence.product] = obs.evidence.version;
+      }
+      if (obs.evidence?.technologies) {
+        for (const t of obs.evidence.technologies) {
+          if (typeof t === 'string') technologies.push(t);
+          else if (t?.name) {
+            technologies.push(t.name);
+            if (t.version) technologyVersions[t.name] = t.version;
+          }
+        }
+      }
+      passiveSubdomainAssets.push({
+        assetId: `passive-${hostname.replace(/\./g, '-')}-${Date.now().toString(36)}`,
+        hostname,
+        url: `https://${hostname}`,
+        assetType: obs.evidence?.port ? 'service' : 'web_application',
+        assetClasses: ['subdomain', 'passive_recon'],
+        tags,
+        technologies,
+        technologyVersions,
+        description: `Subdomain discovered via passive recon (${obs.source}): ${obs.attribution?.method || hostname}`,
+        discoveryMethod: 'cert_transparency' as const,
+        discoveryEvidence: `Passive recon source: ${obs.source}. ${obs.attribution?.method || ''} ${obs.attribution?.url ? `Verify: ${obs.attribution.url}` : ''}`.trim(),
+      });
+    }
+    if (passiveSubdomainAssets.length > 0) {
+      rawAssets.push(...passiveSubdomainAssets);
+      console.log(`[DomainIntel] Merged ${passiveSubdomainAssets.length} passive recon subdomains into asset pipeline (${rawAssets.length} total assets now)`);
+    }
+  }
+
   // Stage 1.5: Active DNS & Banner Verification
   let verifiedAssets: typeof rawAssets;
   let unresolvedHypotheses: typeof rawAssets = [];
@@ -1954,6 +2007,68 @@ export async function runDomainIntelPipeline(
     }
   } catch (err: any) {
     console.error(`[DomainIntel] Exploit matching failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 3.81: Cross-link exploit matches back to KEV posture findings
+  // The exploit matcher finds Metasploit/ExploitDB/Caldera matches for CVEs, but stores
+  // them in a separate exploitMatches object. This stage annotates each KEV posture finding
+  // with its matched exploits so the UI can show exploit details directly on KEV findings
+  // and validation testing can use the linked exploits for PoC verification.
+  if (exploitMatchResult && exploitMatchResult.matches.length > 0) {
+    // Build a CVE → exploit match lookup
+    const cveToExploit = new Map<string, typeof exploitMatchResult.matches[0]>();
+    for (const match of exploitMatchResult.matches) {
+      cveToExploit.set(match.cveId, match);
+    }
+    let linkedCount = 0;
+    for (const a of analyses) {
+      for (const finding of a.postureFindings) {
+        if (!finding.cveIds || finding.cveIds.length === 0) continue;
+        const matchedExploits: Array<{
+          cveId: string;
+          metasploitCount: number;
+          exploitDbCount: number;
+          bestExploit: any;
+          calderaAbility: any;
+          isRemoteAccess: boolean;
+        }> = [];
+        for (const cveId of finding.cveIds) {
+          const exploit = cveToExploit.get(cveId);
+          if (exploit) {
+            matchedExploits.push({
+              cveId: exploit.cveId,
+              metasploitCount: exploit.metasploitModules.length,
+              exploitDbCount: exploit.exploitDbEntries.length,
+              bestExploit: exploit.bestExploit,
+              calderaAbility: exploit.calderaAbility,
+              isRemoteAccess: exploit.isRemoteAccess,
+            });
+          }
+        }
+        if (matchedExploits.length > 0) {
+          // Annotate the finding with linked exploits for validation testing
+          (finding as any).linkedExploits = matchedExploits;
+          (finding as any).exploitCount = matchedExploits.reduce(
+            (sum, e) => sum + e.metasploitCount + e.exploitDbCount, 0
+          );
+          (finding as any).hasRemoteExploit = matchedExploits.some(e => e.isRemoteAccess);
+          (finding as any).hasCalderaAbility = matchedExploits.some(e => e.calderaAbility != null);
+          // If this is a KEV finding, upgrade evidence to include exploit availability
+          if (finding.kevListed) {
+            finding.evidenceChain = [
+              ...(finding.evidenceChain || []),
+              `Exploit validation: ${matchedExploits.reduce((s, e) => s + e.metasploitCount, 0)} Metasploit modules, ${matchedExploits.reduce((s, e) => s + e.exploitDbCount, 0)} ExploitDB entries available`,
+              matchedExploits.some(e => e.isRemoteAccess) ? 'Remote access exploit available — HIGH PRIORITY for validation testing' : 'Local/DoS exploits only',
+              matchedExploits.some(e => e.calderaAbility) ? 'Caldera ability auto-generated for automated validation' : '',
+            ].filter(Boolean);
+          }
+          linkedCount++;
+        }
+      }
+    }
+    if (linkedCount > 0) {
+      console.log(`[DomainIntel] Cross-linked exploits to ${linkedCount} posture findings (${exploitMatchResult.matches.length} CVEs with exploits)`);
+    }
   }
 
   // Stage 3.85: Port-Based Risk Scoring — analyze exposed ports and generate findings

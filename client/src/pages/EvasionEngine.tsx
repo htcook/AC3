@@ -37,6 +37,13 @@ import {
   Filter,
   ArrowUpDown,
   Activity,
+  Crosshair,
+  RefreshCw,
+  Globe,
+  Lock,
+  Unlock,
+  Clock,
+  Eye,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1810,6 +1817,338 @@ function DefenseHeatmapTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// EVASION-AWARE VALIDATION TESTING TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function EvasionValidationTab() {
+  const [target, setTarget] = useState("");
+  const [validationType, setValidationType] = useState<"probe" | "verification" | "takeover" | "exploit">("probe");
+  const [maxAttempts, setMaxAttempts] = useState(5);
+  const [cveFilter, setCveFilter] = useState("");
+
+  const probeScan = trpc.evasionEngine.evasionProbeScan.useMutation({
+    onError: (err: any) => toast.error(`Probe scan failed: ${err.message}`),
+    onSuccess: () => toast.success("Evasion-aware probe scan complete"),
+  });
+
+  const verifySuite = trpc.evasionEngine.evasionVerificationSuite.useMutation({
+    onError: (err: any) => toast.error(`Verification failed: ${err.message}`),
+    onSuccess: () => toast.success("Evasion-aware verification complete"),
+  });
+
+  const detectDef = trpc.evasionEngine.detectDefenses.useMutation({
+    onError: (err: any) => toast.error(`Defense detection failed: ${err.message}`),
+  });
+
+  const isRunning = probeScan.isPending || verifySuite.isPending;
+  const result = validationType === "probe" ? probeScan.data : verifySuite.data;
+
+  const handleRun = () => {
+    if (!target.trim()) { toast.error("Enter a target"); return; }
+    const cveIds = cveFilter.trim() ? cveFilter.split(",").map(s => s.trim()).filter(Boolean) : undefined;
+    if (validationType === "probe") {
+      probeScan.mutate({ target, maxAttempts, cveIds });
+    } else if (validationType === "verification") {
+      verifySuite.mutate({ targetHost: target, maxAttempts, cveIds });
+    }
+  };
+
+  const handleDetect = () => {
+    if (!target.trim()) { toast.error("Enter a target URL"); return; }
+    const url = target.startsWith("http") ? target : `https://${target}`;
+    detectDef.mutate({ targetUrl: url });
+  };
+
+  const severityColor = (level: string) => {
+    switch (level) {
+      case "critical": return "text-red-400 bg-red-500/10 border-red-500/30";
+      case "high": return "text-orange-400 bg-orange-500/10 border-orange-500/30";
+      case "medium": return "text-yellow-400 bg-yellow-500/10 border-yellow-500/30";
+      default: return "text-blue-400 bg-blue-500/10 border-blue-500/30";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Config Card */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base font-display tracking-wider">
+            <Crosshair className="w-4 h-4 text-primary" />
+            EVASION-AWARE VALIDATION TESTING
+          </CardTitle>
+          <CardDescription>
+            Run vulnerability probes and verification suites with adaptive evasion bypass.
+            When WAF/CDN/EDR/NGFW blocks a test, the engine automatically escalates through
+            bypass techniques until it gets through, then records which technique succeeded.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">TARGET HOST / URL</label>
+              <Input
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder="e.g. vianova.ai or 192.168.1.100"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">VALIDATION TYPE</label>
+              <Select value={validationType} onValueChange={(v: any) => setValidationType(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="probe">Active Probe Scan</SelectItem>
+                  <SelectItem value="verification">Verification Suite</SelectItem>
+                  <SelectItem value="takeover">Takeover PoC</SelectItem>
+                  <SelectItem value="exploit">KEV Exploit Validation</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">CVE FILTER (comma-separated, optional)</label>
+              <Input
+                value={cveFilter}
+                onChange={(e) => setCveFilter(e.target.value)}
+                placeholder="e.g. CVE-2024-1234, CVE-2023-5678"
+                className="font-mono text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">MAX EVASION ATTEMPTS</label>
+              <Select value={String(maxAttempts)} onValueChange={(v) => setMaxAttempts(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 (Quick)</SelectItem>
+                  <SelectItem value="5">5 (Standard)</SelectItem>
+                  <SelectItem value="8">8 (Thorough)</SelectItem>
+                  <SelectItem value="10">10 (Maximum)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button onClick={handleRun} disabled={isRunning} className="font-display tracking-wider">
+              {isRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+              {isRunning ? "RUNNING WITH EVASION..." : "RUN EVASION VALIDATION"}
+            </Button>
+            <Button variant="outline" onClick={handleDetect} disabled={detectDef.isPending} className="font-display tracking-wider">
+              {detectDef.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Eye className="w-4 h-4 mr-2" />}
+              DETECT DEFENSES
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Defense Detection Results */}
+      {detectDef.data && (
+        <Card className={`border-border/50 ${detectDef.data.blocked ? "border-red-500/30 bg-red-500/5" : "border-green-500/30 bg-green-500/5"}`}>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              {detectDef.data.blocked ? (
+                <><Lock className="w-4 h-4 text-red-400" /><span className="text-sm font-display tracking-wider text-red-400">DEFENSES DETECTED</span></>
+              ) : (
+                <><Unlock className="w-4 h-4 text-green-400" /><span className="text-sm font-display tracking-wider text-green-400">NO ACTIVE BLOCKING</span></>
+              )}
+              <Badge variant="outline" className="ml-auto">
+                HTTP {detectDef.data.statusCode} • {detectDef.data.responseSize} bytes
+              </Badge>
+            </div>
+            {detectDef.data.blocked && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-display tracking-wider text-muted-foreground">BLOCK TYPE:</span>
+                  <Badge className={severityColor("high")}>{detectDef.data.blockType || "unknown"}</Badge>
+                </div>
+                {detectDef.data.defenseProduct && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-display tracking-wider text-muted-foreground">DEFENSE PRODUCT:</span>
+                    <Badge variant="outline">{detectDef.data.defenseProduct}</Badge>
+                  </div>
+                )}
+                {detectDef.data.confidence && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-display tracking-wider text-muted-foreground">CONFIDENCE:</span>
+                    <Progress value={detectDef.data.confidence * 100} className="h-1.5 w-32" />
+                    <span className="text-xs">{Math.round(detectDef.data.confidence * 100)}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Validation Results */}
+      {result && (
+        <div className="space-y-4">
+          {/* Summary Stats */}
+          <Card className="border-border/50">
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold font-display">{result.summary?.totalProbes || result.summary?.totalChecks || 0}</div>
+                  <div className="text-xs text-muted-foreground font-display tracking-wider">TOTAL TESTS</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold font-display text-green-400">{result.summary?.succeeded || result.summary?.passed || 0}</div>
+                  <div className="text-xs text-muted-foreground font-display tracking-wider">SUCCEEDED</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold font-display text-red-400">{result.summary?.blocked || result.summary?.failed || 0}</div>
+                  <div className="text-xs text-muted-foreground font-display tracking-wider">BLOCKED</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold font-display text-yellow-400">{result.summary?.bypassedViaEvasion || 0}</div>
+                  <div className="text-xs text-muted-foreground font-display tracking-wider">BYPASSED VIA EVASION</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold font-display text-purple-400">{result.summary?.uniqueTechniquesUsed || 0}</div>
+                  <div className="text-xs text-muted-foreground font-display tracking-wider">TECHNIQUES USED</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Evasion Findings */}
+          {result.evasionFindings && result.evasionFindings.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+                  <ShieldOff className="w-4 h-4 text-yellow-400" />
+                  EVASION BYPASS LOG
+                </CardTitle>
+                <CardDescription>Techniques that successfully bypassed defenses during validation</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {result.evasionFindings.map((finding: any, i: number) => (
+                  <div key={i} className="border border-border/50 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge className={finding.outcome === "bypassed" ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" : finding.outcome === "blocked" ? "bg-red-500/20 text-red-400 border-red-500/30" : "bg-green-500/20 text-green-400 border-green-500/30"}>
+                          {finding.outcome?.toUpperCase() || "UNKNOWN"}
+                        </Badge>
+                        <span className="text-sm font-display tracking-wider">{finding.target || target}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        Attempt {finding.attemptNumber || i + 1}
+                      </span>
+                    </div>
+                    {finding.defenseProduct && (
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Defense:</span>
+                        <Badge variant="outline" className="text-xs">{finding.defenseProduct}</Badge>
+                      </div>
+                    )}
+                    {finding.techniqueUsed && (
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                        <span className="text-xs text-muted-foreground">Bypass technique:</span>
+                        <code className="text-xs font-mono bg-secondary/50 px-1.5 py-0.5 rounded">{finding.techniqueUsed}</code>
+                      </div>
+                    )}
+                    {finding.escalationPath && finding.escalationPath.length > 0 && (
+                      <div className="mt-2">
+                        <span className="text-xs font-display tracking-wider text-muted-foreground block mb-1">ESCALATION PATH:</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {finding.escalationPath.map((step: string, j: number) => (
+                            <span key={j} className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-xs">{step}</Badge>
+                              {j < finding.escalationPath.length - 1 && <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Individual Probe Results */}
+          {result.probes && result.probes.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="text-sm font-display tracking-wider">PROBE RESULTS</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {result.probes.map((probe: any, i: number) => (
+                    <div key={i} className="border border-border/50 rounded-lg p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {probe.status === "success" || probe.passed ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-400" />
+                        ) : probe.evasionBypassed ? (
+                          <ShieldOff className="w-4 h-4 text-yellow-400" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-400" />
+                        )}
+                        <div>
+                          <div className="text-sm font-display tracking-wider">{probe.name || probe.probeId || `Probe ${i + 1}`}</div>
+                          {probe.cveId && <span className="text-xs text-muted-foreground font-mono">{probe.cveId}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {probe.evasionBypassed && (
+                          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">
+                            Bypassed via {probe.bypassTechnique || "evasion"}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs">
+                          {probe.statusCode ? `HTTP ${probe.statusCode}` : probe.status || "unknown"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Defense Encounters Summary */}
+          {result.defensesEncountered && result.defensesEncountered.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-400" />
+                  DEFENSES ENCOUNTERED
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {result.defensesEncountered.map((def: any, i: number) => (
+                    <div key={i} className="border border-border/50 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-display tracking-wider">{def.product || def.name}</span>
+                        <Badge className={def.bypassed ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+                          {def.bypassed ? "BYPASSED" : "BLOCKED"}
+                        </Badge>
+                      </div>
+                      {def.type && <span className="text-xs text-muted-foreground">Type: {def.type}</span>}
+                      {def.bypassTechnique && (
+                        <div className="mt-1 flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-yellow-400" />
+                          <code className="text-xs font-mono">{def.bypassTechnique}</code>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1865,6 +2204,10 @@ export default function EvasionEngine() {
               <Grid3x3 className="w-3.5 h-3.5 mr-1.5" />
               DEFENSE HEATMAP
             </TabsTrigger>
+            <TabsTrigger value="validation" className="font-display tracking-wider text-xs data-[state=active]:bg-background">
+              <Crosshair className="w-3.5 h-3.5 mr-1.5" />
+              EVASION VALIDATION
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="mutations">
@@ -1884,6 +2227,9 @@ export default function EvasionEngine() {
           </TabsContent>
           <TabsContent value="heatmap">
             <DefenseHeatmapTab />
+          </TabsContent>
+          <TabsContent value="validation">
+            <EvasionValidationTab />
           </TabsContent>
         </Tabs>
       </div>
