@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import FedRAMPKSIMap from "@/components/FedRAMPKSIMap";
 import {
   Key, Terminal, Activity, Users, ExternalLink, ChevronRight, Zap, Cloud,
   Mail, Phone, MapPin, Target, Shield, Radar, Globe, Crosshair, FileText,
@@ -41,6 +42,7 @@ function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: 
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
+  { date: "Feb 2026", title: "FedRAMP 20x KSI Coverage Map", desc: "Interactive map showing how ACE C3 covers 87% of all 55 FedRAMP 20x Key Security Indicators across 9 compliance themes. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped ACE C3 modules." },
   { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped atomic tests synced and ready to execute. Browse by technique, tactic, or platform. Run tests against target systems with full audit trails. Cross-module integration links validation tests to Attack Planner, Emulation Playbooks, Purple Team exercises, adversary operations, DAST findings, and detection rule validation." },
   { date: "Feb 2026", title: "DAST Server Deployed", desc: "Dedicated DAST scanning server deployed with auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. AI-powered scan configuration auto-tunes spider depth, authentication handlers, and scan policies based on target tech stack detection." },
   { date: "Feb 2026", title: "OpenAPI / GraphQL / SOAP Import", desc: "Import API specifications directly into DAST scans for targeted API security testing. Supports OpenAPI/Swagger, GraphQL introspection endpoints, and WSDL definitions. Auto-discovers API endpoints and parameters for comprehensive coverage beyond traditional web crawling." },
@@ -155,6 +157,7 @@ export default function Home() {
             <a href="#how-it-works" className="hover:text-primary transition-colors">HOW IT WORKS</a>
             <a href="#who-its-for" className="hover:text-primary transition-colors">WHO IT'S FOR</a>
             <a href="#capabilities" className="hover:text-primary transition-colors">CAPABILITIES</a>
+            <a href="#fedramp-20x" className="hover:text-primary transition-colors">FEDRAMP 20x</a>
             <a href="#about" className="hover:text-primary transition-colors">ABOUT</a>
           </div>
           <div className="flex items-center gap-3">
@@ -770,6 +773,11 @@ export default function Home() {
           </CollapsibleSection>
         </div>
       </section>
+
+      <div className="w-full h-px bg-primary" />
+
+      {/* ─── FedRAMP 20x KSI Map ────────────────────────────────── */}
+      <FedRAMPKSIMap />
 
       <div className="w-full h-px bg-primary" />
 

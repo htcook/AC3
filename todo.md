@@ -3981,3 +3981,17 @@
 - [x] Side-by-side diff comparison dialog (select 2 versions to compare)
 - [x] Version restore capability (revert changed fields to previous state)
 - [x] Write vitest tests for version history and engagement RoE selector (26 tests passing)
+
+## FedRAMP 20x KSI Coverage Map — Homepage
+- [x] Build FedRAMP 20x KSI interactive map component (FedRAMPKSIMap.tsx)
+- [x] Show 9 KSI themes with coverage percentages (87% total, 55 KSIs)
+- [x] CSP view: how ACE C3 helps CSPs meet KSI requirements
+- [x] Agency view: how ACE C3 helps agencies monitor authorized CSPs
+- [x] Interactive click to expand theme cards with individual KSI details + module mapping
+- [x] Integrated into homepage between Architecture and About sections
+- [x] Responsive grid layout (1/2/3 columns) with mobile support
+- [x] Coverage summary bar with direct/supporting/planned breakdown
+- [x] Navigation link added (FEDRAMP 20x in top nav)
+- [x] What's New popup updated with FedRAMP 20x KSI Coverage Map entry
+- [x] Contact CTA at bottom for both CSP and Agency views
+- [x] Compliance references footer (NIST 800-53, 800-115, OSCAL, ATT&CK)
