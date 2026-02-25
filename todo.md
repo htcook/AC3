@@ -3995,3 +3995,50 @@
 - [x] What's New popup updated with FedRAMP 20x KSI Coverage Map entry
 - [x] Contact CTA at bottom for both CSP and Agency views
 - [x] Compliance references footer (NIST 800-53, 800-115, OSCAL, ATT&CK)
+
+## Title Rename: Caldera Admin Dashboard → Ace C3
+- [ ] Find and replace all "Caldera Admin Dashboard" references
+- [ ] Update VITE_APP_TITLE environment variable
+- [ ] Update HTML title tag
+- [ ] Update any sidebar/header branding references
+
+## KSI Coverage Maturity — Module Build-Out
+### Module 1: KSI Evidence Chain
+- [x] Database schema: ksi_definitions, ksi_evidence, ksi_evidence_chains, ksi_control_mappings tables
+- [x] SHA-256 hash chain for tamper-resistant evidence integrity
+- [x] Full 58-KSI catalog with all 11 FedRAMP 20x themes
+- [x] Evidence viewer UI with chain verification and status management
+- [x] tRPC router for evidence CRUD, chain validation, and dashboard stats
+- [x] 38 passing vitest tests covering all endpoints
+
+### Module 2: KSI Validation Scheduler
+- [x] Database schema: ksi_validation_runs, ksi_validation_schedules tables
+- [x] All 58 KSIs mapped with validation frequency (1h/24h/72h/168h/720h)
+- [x] Scheduler engine with auto-initialization for all KSIs
+- [x] Dashboard showing KSI compliance status with pass/fail/warning/overdue
+- [x] Alert system for consecutive failures exceeding threshold
+- [x] Manual and scheduled trigger support
+
+### Module 3: OSCAL Export Engine
+- [x] NIST OSCAL v1.1.2 JSON schema generation for SSP, SAR, POA&M
+- [x] Map ACE C3 findings to OSCAL control structures with implementation status
+- [x] Export endpoint for machine-readable compliance documents with SHA-256 hashing
+- [x] UI for selecting export scope, previewing, and downloading OSCAL packages
+
+### Module 4: Trust Center Portal
+- [ ] Public-facing KSI status dashboard for CSP customers
+- [ ] Real-time compliance posture with evidence links
+- [ ] Agency access controls with token-based authentication
+- [ ] Embeddable status widget for CSP websites
+
+### Module 5: Configuration Baseline Engine
+- [ ] CIS benchmark rule definitions for AWS/Azure/GCP
+- [ ] Configuration scan results storage and trending
+- [ ] Drift detection with alerting
+- [ ] Remediation guidance generation
+
+### Module 6: Recovery Validation Module
+- [ ] Backup inventory tracking (RTO/RPO targets)
+- [ ] Automated restore test scheduling and execution
+- [ ] Recovery time measurement and reporting
+- [ ] Compliance evidence generation for disaster recovery KSIs

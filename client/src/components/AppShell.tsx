@@ -48,6 +48,9 @@ import {
   Terminal,
   Video,
   ScrollText,
+  BadgeCheck,
+  ShieldAlert,
+  FileOutput,
   ArrowUpDown,
   Package,
   ShieldOff,
@@ -221,6 +224,17 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
       { href: "/cicd-pipeline", icon: Workflow, label: "CI/CD PIPELINE" },
       { href: "/soar-connectors", icon: ArrowLeftRight, label: "SOAR CONNECTORS" },
+    ],
+  },
+  {
+    id: "fedramp",
+    label: "FEDRAMP 20x KSI",
+    icon: BadgeCheck,
+    items: [
+      { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
+      { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
+      { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
+      { href: "/ksi-dashboard", icon: BadgeCheck, label: "KSI DASHBOARD" },
     ],
   },
 ];

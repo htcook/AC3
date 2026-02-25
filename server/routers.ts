@@ -77,6 +77,9 @@ import { nucleiScannerRouter } from "./routers/nuclei-scanner";
 import { attackCoverageRouter } from "./routers/attack-coverage";
 import { unifiedPipelineRouter } from "./routers/unified-pipeline";
 import { roeBuilderRouter } from "./routers/roe-builder";
+import { ksiEvidenceChainRouter } from "./routers/ksi-evidence-chain";
+import { ksiValidationSchedulerRouter } from "./routers/ksi-validation-scheduler";
+import { oscalExportRouter } from "./routers/oscal-export";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -236,6 +239,9 @@ export const appRouter = router({
   attackCoverage: attackCoverageRouter,
   unifiedPipeline: unifiedPipelineRouter,
   roeBuilder: roeBuilderRouter,
+  ksiEvidenceChain: ksiEvidenceChainRouter,
+  ksiValidationScheduler: ksiValidationSchedulerRouter,
+  oscalExport: oscalExportRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

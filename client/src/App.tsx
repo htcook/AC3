@@ -118,6 +118,10 @@ const NucleiScanner = lazy(() => import("./pages/NucleiScanner"));
 const AttackCoverage = lazy(() => import("./pages/AttackCoverage"));
 const UnifiedPipeline = lazy(() => import("./pages/UnifiedPipeline"));
 const RoeBuilder = lazy(() => import("./pages/RoeBuilder"));
+const KsiDashboard = lazy(() => import("./pages/KsiDashboard"));
+const KsiEvidenceChain = lazy(() => import("./pages/KsiEvidenceChain"));
+const KsiValidation = lazy(() => import("./pages/KsiValidation"));
+const OscalExport = lazy(() => import("./pages/OscalExport"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -528,6 +532,18 @@ function Router() {
         </Route>
         <Route path="/roe-builder">
           <ProtectedRoute component={RoeBuilder} />
+        </Route>
+        <Route path="/ksi-dashboard">
+          <ProtectedRoute component={KsiDashboard} />
+        </Route>
+        <Route path="/ksi-evidence-chain">
+          <ProtectedRoute component={KsiEvidenceChain} />
+        </Route>
+        <Route path="/ksi-validation">
+          <ProtectedRoute component={KsiValidation} />
+        </Route>
+        <Route path="/oscal-export">
+          <ProtectedRoute component={OscalExport} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

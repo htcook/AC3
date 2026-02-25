@@ -4279,3 +4279,192 @@ export const roeVersions = mysqlTable("roe_versions", {
 });
 export type RoeVersion = typeof roeVersions.$inferSelect;
 export type InsertRoeVersion = typeof roeVersions.$inferInsert;
+
+
+// ============================================================
+// FedRAMP 20x KSI Evidence Chain
+// ============================================================
+
+/**
+ * KSI Definitions — master catalog of all 58 FedRAMP 20x Key Security Indicators
+ */
+export const ksiDefinitions = mysqlTable("ksi_definitions", {
+  id: int("id").autoincrement().primaryKey(),
+  ksiId: varchar("ksi_id", { length: 32 }).notNull().unique(),
+  themeCode: varchar("theme_code", { length: 8 }).notNull(),
+  themeName: varchar("theme_name", { length: 128 }).notNull(),
+  title: varchar("title", { length: 512 }).notNull(),
+  requirement: text("requirement"),
+  validationType: mysqlEnum("validation_type", ["machine", "human", "mixed", "tbd"]).default("tbd").notNull(),
+  frequency: varchar("frequency", { length: 64 }),
+  impactLevel: mysqlEnum("impact_level", ["low", "moderate", "high", "all"]).default("all").notNull(),
+  sp80053Controls: json("sp800_53_controls").$type<string[]>(),
+  aceC3Module: varchar("ace_c3_module", { length: 256 }),
+  coverageStatus: mysqlEnum("coverage_status", ["direct", "supporting", "planned", "not_applicable"]).default("planned").notNull(),
+  coverageNotes: text("coverage_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KsiDefinition = typeof ksiDefinitions.$inferSelect;
+export type InsertKsiDefinition = typeof ksiDefinitions.$inferInsert;
+
+/**
+ * KSI Evidence Items — individual pieces of evidence collected for KSI compliance
+ */
+export const ksiEvidence = mysqlTable("ksi_evidence", {
+  id: int("id").autoincrement().primaryKey(),
+  evidenceId: varchar("evidence_id", { length: 64 }).notNull().unique(),
+  ksiId: varchar("ksi_id", { length: 32 }).notNull(),
+  engagementId: varchar("engagement_id", { length: 128 }),
+  title: varchar("title", { length: 512 }).notNull(),
+  description: text("description"),
+  evidenceType: mysqlEnum("evidence_type", [
+    "scan_result", "configuration_check", "log_entry", "screenshot",
+    "document", "api_response", "test_result", "attestation",
+    "policy_document", "training_record", "incident_report", "audit_log"
+  ]).notNull(),
+  sourceModule: varchar("source_module", { length: 128 }).notNull(),
+  sourceId: varchar("source_id", { length: 256 }),
+  collectionMethod: mysqlEnum("collection_method", ["automated", "manual", "hybrid"]).default("automated").notNull(),
+  rawData: json("raw_data"),
+  metadata: json("metadata"),
+  integrityHash: varchar("integrity_hash", { length: 128 }).notNull(),
+  previousHash: varchar("previous_hash", { length: 128 }),
+  hashAlgorithm: varchar("hash_algorithm", { length: 16 }).default("SHA-256").notNull(),
+  status: mysqlEnum("status", ["collected", "verified", "validated", "expired", "rejected"]).default("collected").notNull(),
+  validatedBy: varchar("validated_by", { length: 256 }),
+  validatedAt: timestamp("validated_at"),
+  expiresAt: timestamp("expires_at"),
+  collectedBy: int("collected_by"),
+  collectedByName: varchar("collected_by_name", { length: 256 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KsiEvidence = typeof ksiEvidence.$inferSelect;
+export type InsertKsiEvidence = typeof ksiEvidence.$inferInsert;
+
+/**
+ * KSI Evidence Chain — links evidence items into tamper-resistant chains per KSI
+ */
+export const ksiEvidenceChains = mysqlTable("ksi_evidence_chains", {
+  id: int("id").autoincrement().primaryKey(),
+  chainId: varchar("chain_id", { length: 64 }).notNull().unique(),
+  ksiId: varchar("ksi_id", { length: 32 }).notNull(),
+  engagementId: varchar("engagement_id", { length: 128 }),
+  name: varchar("name", { length: 256 }).notNull(),
+  description: text("description"),
+  evidenceCount: int("evidence_count").default(0).notNull(),
+  chainHash: varchar("chain_hash", { length: 128 }),
+  chainValid: boolean("chain_valid").default(true).notNull(),
+  lastVerifiedAt: timestamp("last_verified_at"),
+  status: mysqlEnum("status", ["active", "complete", "broken", "archived"]).default("active").notNull(),
+  createdBy: int("created_by"),
+  createdByName: varchar("created_by_name", { length: 256 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KsiEvidenceChain = typeof ksiEvidenceChains.$inferSelect;
+export type InsertKsiEvidenceChain = typeof ksiEvidenceChains.$inferInsert;
+
+/**
+ * KSI Control Mappings — maps KSIs to NIST SP 800-53 controls and ACE C3 modules
+ */
+export const ksiControlMappings = mysqlTable("ksi_control_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  ksiId: varchar("ksi_id", { length: 32 }).notNull(),
+  controlId: varchar("control_id", { length: 32 }).notNull(),
+  controlFamily: varchar("control_family", { length: 64 }),
+  controlTitle: varchar("control_title", { length: 512 }),
+  mappingStrength: mysqlEnum("mapping_strength", ["direct", "supporting", "partial"]).default("direct").notNull(),
+  aceC3Module: varchar("ace_c3_module", { length: 256 }),
+  automationLevel: mysqlEnum("automation_level", ["full", "partial", "manual"]).default("manual").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type KsiControlMapping = typeof ksiControlMappings.$inferSelect;
+export type InsertKsiControlMapping = typeof ksiControlMappings.$inferInsert;
+
+// ============================================================
+// FedRAMP 20x KSI Validation Scheduler
+// ============================================================
+
+/**
+ * KSI Validation Runs — scheduled and ad-hoc validation executions
+ */
+export const ksiValidationRuns = mysqlTable("ksi_validation_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  runId: varchar("run_id", { length: 64 }).notNull().unique(),
+  ksiId: varchar("ksi_id", { length: 32 }).notNull(),
+  engagementId: varchar("engagement_id", { length: 128 }),
+  validationType: mysqlEnum("validation_type", ["machine", "human", "mixed"]).notNull(),
+  triggerType: mysqlEnum("trigger_type", ["scheduled", "manual", "event_driven"]).default("scheduled").notNull(),
+  status: mysqlEnum("status", ["pending", "running", "passed", "failed", "warning", "error", "skipped"]).default("pending").notNull(),
+  result: json("result"),
+  score: int("score"),
+  maxScore: int("max_score"),
+  evidenceIds: json("evidence_ids").$type<string[]>(),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  nextScheduledAt: timestamp("next_scheduled_at"),
+  runBy: int("run_by"),
+  runByName: varchar("run_by_name", { length: 256 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type KsiValidationRun = typeof ksiValidationRuns.$inferSelect;
+export type InsertKsiValidationRun = typeof ksiValidationRuns.$inferInsert;
+
+/**
+ * KSI Validation Schedules — defines when each KSI should be validated
+ */
+export const ksiValidationSchedules = mysqlTable("ksi_validation_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  scheduleId: varchar("schedule_id", { length: 64 }).notNull().unique(),
+  ksiId: varchar("ksi_id", { length: 32 }).notNull(),
+  engagementId: varchar("engagement_id", { length: 128 }),
+  frequencyHours: int("frequency_hours").notNull(),
+  cronExpression: varchar("cron_expression", { length: 100 }),
+  enabled: boolean("enabled").default(true).notNull(),
+  lastRunId: varchar("last_run_id", { length: 64 }),
+  lastRunStatus: varchar("last_run_status", { length: 32 }),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  consecutiveFailures: int("consecutive_failures").default(0).notNull(),
+  alertThreshold: int("alert_threshold").default(3).notNull(),
+  config: json("config"),
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type KsiValidationSchedule = typeof ksiValidationSchedules.$inferSelect;
+export type InsertKsiValidationSchedule = typeof ksiValidationSchedules.$inferInsert;
+
+// ============================================================
+// OSCAL Export Engine
+// ============================================================
+
+/**
+ * OSCAL Export Jobs — tracks OSCAL document generation requests
+ */
+export const oscalExports = mysqlTable("oscal_exports", {
+  id: int("id").autoincrement().primaryKey(),
+  exportId: varchar("export_id", { length: 64 }).notNull().unique(),
+  documentType: mysqlEnum("document_type", ["ssp", "sar", "poam", "component_definition", "assessment_plan"]).notNull(),
+  title: varchar("title", { length: 512 }).notNull(),
+  description: text("description"),
+  engagementId: varchar("engagement_id", { length: 128 }),
+  ksiScope: json("ksi_scope").$type<string[]>(),
+  oscalVersion: varchar("oscal_version", { length: 16 }).default("1.1.2").notNull(),
+  status: mysqlEnum("status", ["pending", "generating", "complete", "failed"]).default("pending").notNull(),
+  outputFormat: mysqlEnum("output_format", ["json", "xml", "yaml"]).default("json").notNull(),
+  outputUrl: text("output_url"),
+  outputHash: varchar("output_hash", { length: 128 }),
+  metadata: json("metadata"),
+  errorMessage: text("error_message"),
+  generatedBy: int("generated_by"),
+  generatedByName: varchar("generated_by_name", { length: 256 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+export type OscalExport = typeof oscalExports.$inferSelect;
+export type InsertOscalExport = typeof oscalExports.$inferInsert;

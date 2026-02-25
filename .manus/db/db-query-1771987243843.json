@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `ksi_evidence_chains` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `chain_id` varchar(64) NOT NULL,\n  `ksi_id` varchar(32) NOT NULL,\n  `engagement_id` varchar(128),\n  `name` varchar(256) NOT NULL,\n  `description` text,\n  `evidence_count` int NOT NULL DEFAULT 0,\n  `chain_hash` varchar(128),\n  `chain_valid` boolean NOT NULL DEFAULT true,\n  `last_verified_at` timestamp,\n  `status` enum('active','complete','broken','archived') NOT NULL DEFAULT 'active',\n  `created_by` int,\n  `created_by_name` varchar(256),\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `ksi_evidence_chains_id` PRIMARY KEY(`id`),\n  CONSTRAINT `ksi_evidence_chains_chain_id_unique` UNIQUE(`chain_id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `ksi_evidence_chains` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `chain_id` varchar(64) NOT NULL,\n  `ksi_id` varchar(32) NOT NULL,\n  `engagement_id` varchar(128),\n  `name` varchar(256) NOT NULL,\n  `description` text,\n  `evidence_count` int NOT NULL DEFAULT 0,\n  `chain_hash` varchar(128),\n  `chain_valid` boolean NOT NULL DEFAULT true,\n  `last_verified_at` timestamp,\n  `status` enum('active','complete','broken','archived') NOT NULL DEFAULT 'active',\n  `created_by` int,\n  `created_by_name` varchar(256),\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `ksi_evidence_chains_id` PRIMARY KEY(`id`),\n  CONSTRAINT `ksi_evidence_chains_chain_id_unique` UNIQUE(`chain_id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 284
+}
