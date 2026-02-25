@@ -955,3 +955,203 @@ describe("CVE Severity Filter - Enhanced Enrichment", () => {
     }
   });
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVASION PLAYBOOK GENERATION TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Evasion Playbook Generation", () => {
+  it("should generate a playbook with correct structure", async () => {
+    const { generatePlaybook } = await import("./lib/evasion-playbook");
+    const playbook = generatePlaybook();
+
+    expect(playbook).toHaveProperty("title");
+    expect(playbook).toHaveProperty("generatedAt");
+    expect(playbook).toHaveProperty("summary");
+    expect(playbook).toHaveProperty("targetGroups");
+    expect(playbook).toHaveProperty("defenseGroups");
+    expect(playbook).toHaveProperty("techniqueEffectiveness");
+    expect(playbook).toHaveProperty("mitreMappings");
+    expect(playbook).toHaveProperty("recommendations");
+
+    expect(playbook.summary).toHaveProperty("totalFindings");
+    expect(playbook.summary).toHaveProperty("totalTargets");
+    expect(playbook.summary).toHaveProperty("totalDefenses");
+    expect(playbook.summary).toHaveProperty("overallBypassRate");
+    expect(playbook.summary).toHaveProperty("avgEscalationDepth");
+    expect(playbook.summary).toHaveProperty("domainBreakdown");
+
+    expect(typeof playbook.summary.totalFindings).toBe("number");
+    expect(typeof playbook.summary.overallBypassRate).toBe("number");
+    expect(playbook.summary.overallBypassRate).toBeGreaterThanOrEqual(0);
+    expect(playbook.summary.overallBypassRate).toBeLessThanOrEqual(100);
+  });
+
+  it("should filter by domain when specified", async () => {
+    const { generatePlaybook } = await import("./lib/evasion-playbook");
+    const scanningPlaybook = generatePlaybook({ domain: "scanning" });
+    const c2Playbook = generatePlaybook({ domain: "c2" });
+    const allPlaybook = generatePlaybook();
+
+    expect(scanningPlaybook.summary.totalFindings).toBeLessThanOrEqual(allPlaybook.summary.totalFindings);
+    expect(c2Playbook.summary.totalFindings).toBeLessThanOrEqual(allPlaybook.summary.totalFindings);
+  });
+
+  it("should filter to only successful bypasses when requested", async () => {
+    const { generatePlaybook } = await import("./lib/evasion-playbook");
+    const successOnly = generatePlaybook({ onlySuccessful: true });
+    const all = generatePlaybook();
+
+    expect(successOnly.summary.totalFindings).toBeLessThanOrEqual(all.summary.totalFindings);
+  });
+
+  it("should export valid markdown with expected sections", async () => {
+    const { generatePlaybook, exportPlaybookMarkdown } = await import("./lib/evasion-playbook");
+    const playbook = generatePlaybook();
+    const markdown = exportPlaybookMarkdown(playbook);
+
+    expect(typeof markdown).toBe("string");
+    expect(markdown).toContain("# ");
+    expect(markdown).toContain("Executive Summary");
+    expect(markdown).toContain("Recommendations");
+  });
+
+  it("should export valid parseable JSON", async () => {
+    const { generatePlaybook, exportPlaybookJSON } = await import("./lib/evasion-playbook");
+    const playbook = generatePlaybook();
+    const json = exportPlaybookJSON(playbook);
+
+    expect(typeof json).toBe("string");
+    const parsed = JSON.parse(json);
+    expect(parsed).toHaveProperty("title");
+    expect(parsed).toHaveProperty("summary");
+    expect(parsed).toHaveProperty("targetGroups");
+    expect(parsed).toHaveProperty("defenseGroups");
+  });
+
+  it("should always generate at least one recommendation", async () => {
+    const { generatePlaybook } = await import("./lib/evasion-playbook");
+    const playbook = generatePlaybook();
+
+    expect(Array.isArray(playbook.recommendations)).toBe(true);
+    expect(playbook.recommendations.length).toBeGreaterThanOrEqual(1);
+    playbook.recommendations.forEach((rec: string) => {
+      expect(typeof rec).toBe("string");
+      expect(rec.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("should include MITRE mappings array", async () => {
+    const { generatePlaybook } = await import("./lib/evasion-playbook");
+    const playbook = generatePlaybook();
+
+    expect(Array.isArray(playbook.mitreMappings)).toBe(true);
+    playbook.mitreMappings.forEach((m: any) => {
+      expect(m).toHaveProperty("mitreId");
+      expect(m).toHaveProperty("techniqueName");
+      expect(m).toHaveProperty("usageCount");
+      expect(typeof m.usageCount).toBe("number");
+    });
+  });
+
+  it("should include technique effectiveness rankings", async () => {
+    const { generatePlaybook } = await import("./lib/evasion-playbook");
+    const playbook = generatePlaybook();
+
+    expect(Array.isArray(playbook.techniqueEffectiveness)).toBe(true);
+    playbook.techniqueEffectiveness.forEach((te: any) => {
+      expect(te).toHaveProperty("techniqueId");
+      expect(te).toHaveProperty("techniqueName");
+      expect(te).toHaveProperty("category");
+      expect(te).toHaveProperty("timesUsed");
+      expect(te).toHaveProperty("timesBypassed");
+      expect(te).toHaveProperty("successRate");
+      expect(te.successRate).toBeGreaterThanOrEqual(0);
+      expect(te.successRate).toBeLessThanOrEqual(100);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFENSE HEATMAP GENERATION TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Defense Heatmap Generation", () => {
+  it("should generate a heatmap with correct structure", async () => {
+    const { generateDefenseHeatmap } = await import("./lib/evasion-playbook");
+    const heatmap = generateDefenseHeatmap();
+
+    expect(heatmap).toHaveProperty("defenses");
+    expect(heatmap).toHaveProperty("techniques");
+    expect(heatmap).toHaveProperty("rows");
+    expect(heatmap).toHaveProperty("summary");
+
+    expect(Array.isArray(heatmap.defenses)).toBe(true);
+    expect(Array.isArray(heatmap.techniques)).toBe(true);
+    expect(Array.isArray(heatmap.rows)).toBe(true);
+
+    expect(heatmap.summary).toHaveProperty("totalDataPoints");
+    expect(heatmap.summary).toHaveProperty("mostEffectiveDefense");
+    expect(heatmap.summary).toHaveProperty("leastEffectiveDefense");
+    expect(heatmap.summary).toHaveProperty("mostEffectiveTechnique");
+  });
+
+  it("should have rows matching the number of defenses", async () => {
+    const { generateDefenseHeatmap } = await import("./lib/evasion-playbook");
+    const heatmap = generateDefenseHeatmap();
+
+    expect(heatmap.rows.length).toBe(heatmap.defenses.length);
+  });
+
+  it("should have cells in each row matching the number of techniques", async () => {
+    const { generateDefenseHeatmap } = await import("./lib/evasion-playbook");
+    const heatmap = generateDefenseHeatmap();
+
+    heatmap.rows.forEach((row: any) => {
+      expect(row.cells.length).toBe(heatmap.techniques.length);
+      row.cells.forEach((cell: any) => {
+        expect(cell).toHaveProperty("defense");
+        expect(cell).toHaveProperty("technique");
+        expect(cell).toHaveProperty("encounters");
+        expect(cell).toHaveProperty("bypasses");
+        expect(cell).toHaveProperty("bypassRate");
+        expect(cell).toHaveProperty("intensity");
+        expect(cell.bypassRate).toBeGreaterThanOrEqual(0);
+        expect(cell.bypassRate).toBeLessThanOrEqual(100);
+        expect(cell.intensity).toBeGreaterThanOrEqual(0);
+        expect(cell.intensity).toBeLessThanOrEqual(1);
+      });
+    });
+  });
+
+  it("should filter by domain when specified", async () => {
+    const { generateDefenseHeatmap } = await import("./lib/evasion-playbook");
+    const scanningHeatmap = generateDefenseHeatmap({ domain: "scanning" });
+    const allHeatmap = generateDefenseHeatmap();
+
+    expect(scanningHeatmap.summary.totalDataPoints).toBeLessThanOrEqual(allHeatmap.summary.totalDataPoints);
+  });
+
+  it("should filter by minimum encounters", async () => {
+    const { generateDefenseHeatmap } = await import("./lib/evasion-playbook");
+    const min1 = generateDefenseHeatmap({ minEncounters: 1 });
+    const min10 = generateDefenseHeatmap({ minEncounters: 10 });
+
+    expect(min10.defenses.length).toBeLessThanOrEqual(min1.defenses.length);
+  });
+
+  it("should have overall bypass rate per row", async () => {
+    const { generateDefenseHeatmap } = await import("./lib/evasion-playbook");
+    const heatmap = generateDefenseHeatmap();
+
+    heatmap.rows.forEach((row: any) => {
+      expect(row).toHaveProperty("defense");
+      expect(row).toHaveProperty("overallBypassRate");
+      expect(row).toHaveProperty("totalEncounters");
+      expect(typeof row.overallBypassRate).toBe("number");
+      expect(row.overallBypassRate).toBeGreaterThanOrEqual(0);
+      expect(row.overallBypassRate).toBeLessThanOrEqual(100);
+    });
+  });
+});

@@ -29,6 +29,14 @@ import {
   Target,
   TrendingUp,
   Info,
+  BookOpen,
+  Grid3x3,
+  Download,
+  FileText,
+  FileJson,
+  Filter,
+  ArrowUpDown,
+  Activity,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1234,6 +1242,574 @@ function EvasionOrchestratorTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// EVASION PLAYBOOK TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function EvasionPlaybookTab() {
+  const [domain, setDomain] = useState<string>("all");
+  const [onlySuccessful, setOnlySuccessful] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"preview" | "markdown" | "json">("preview");
+
+  const queryInput = useMemo(() => ({
+    domain: domain === "all" ? undefined : domain as "scanning" | "c2" | "exploit",
+    onlySuccessful: onlySuccessful || undefined,
+  }), [domain, onlySuccessful]);
+
+  const { data: playbook, isLoading } = trpc.evasionEngine.generatePlaybook.useQuery(queryInput);
+  const { data: markdownData } = trpc.evasionEngine.exportPlaybookMarkdown.useQuery(queryInput);
+  const { data: jsonData } = trpc.evasionEngine.exportPlaybookJSON.useQuery(queryInput);
+
+  const downloadFile = (content: string, filename: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${filename}`);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Controls */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-primary" />
+            EVASION PLAYBOOK GENERATOR
+          </CardTitle>
+          <CardDescription>Compile all evasion findings into a shareable report grouped by target and defense product</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Domain Filter</label>
+              <Select value={domain} onValueChange={setDomain}>
+                <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Domains</SelectItem>
+                  <SelectItem value="scanning">Scanning</SelectItem>
+                  <SelectItem value="c2">C2</SelectItem>
+                  <SelectItem value="exploit">Exploit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="onlySuccess"
+                checked={onlySuccessful}
+                onChange={(e) => setOnlySuccessful(e.target.checked)}
+                className="rounded border-border"
+              />
+              <label htmlFor="onlySuccess" className="text-xs text-muted-foreground">Successful bypasses only</label>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => markdownData && downloadFile(markdownData.markdown, `evasion-playbook-${Date.now()}.md`, "text/markdown")}
+                disabled={!markdownData}
+                className="text-xs"
+              >
+                <FileText className="w-3.5 h-3.5 mr-1" />
+                Export MD
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => jsonData && downloadFile(jsonData.json, `evasion-playbook-${Date.now()}.json`, "application/json")}
+                disabled={!jsonData}
+                className="text-xs"
+              >
+                <FileJson className="w-3.5 h-3.5 mr-1" />
+                Export JSON
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <span className="ml-2 text-sm text-muted-foreground">Generating playbook...</span>
+        </div>
+      ) : !playbook || playbook.summary.totalFindings === 0 ? (
+        <Card className="border-dashed border-border/50">
+          <CardContent className="py-12 text-center">
+            <BookOpen className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No evasion findings yet. Run evasion-wrapped operations from the Orchestrator tab to populate the playbook.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Executive Summary */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display tracking-wider">EXECUTIVE SUMMARY</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="text-center p-3 rounded-lg bg-secondary/30">
+                  <div className="text-2xl font-bold text-primary">{playbook.summary.totalFindings}</div>
+                  <div className="text-xs text-muted-foreground">Total Engagements</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-secondary/30">
+                  <div className="text-2xl font-bold">{playbook.summary.totalTargets}</div>
+                  <div className="text-xs text-muted-foreground">Targets Tested</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-secondary/30">
+                  <div className="text-2xl font-bold">{playbook.summary.totalDefenses}</div>
+                  <div className="text-xs text-muted-foreground">Defenses Found</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-secondary/30">
+                  <div className={`text-2xl font-bold ${playbook.summary.overallBypassRate >= 50 ? "text-green-400" : "text-amber-400"}`}>
+                    {playbook.summary.overallBypassRate}%
+                  </div>
+                  <div className="text-xs text-muted-foreground">Bypass Rate</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-secondary/30">
+                  <div className="text-2xl font-bold">{playbook.summary.avgEscalationDepth}</div>
+                  <div className="text-xs text-muted-foreground">Avg Escalation</div>
+                </div>
+              </div>
+
+              {/* Domain breakdown */}
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                {Object.entries(playbook.summary.domainBreakdown).map(([dom, stats]) => (
+                  <div key={dom} className="flex items-center justify-between p-2 rounded bg-secondary/20">
+                    <span className="text-xs font-medium uppercase">{dom}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {stats.bypassed}/{stats.total} bypassed
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Target Groups */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display tracking-wider">TARGET ANALYSIS</CardTitle>
+              <CardDescription>{playbook.targetGroups.length} target(s) analyzed</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {playbook.targetGroups.map((tg) => (
+                <div key={tg.target} className="border border-border/30 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-mono text-sm font-medium">{tg.target}</span>
+                      <div className="flex gap-1 mt-1">
+                        {tg.domains.map(d => (
+                          <Badge key={d} variant="outline" className="text-[10px]">{d}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-lg font-bold ${tg.overallBypassRate >= 50 ? "text-green-400" : tg.overallBypassRate >= 25 ? "text-amber-400" : "text-red-400"}`}>
+                        {tg.overallBypassRate}%
+                      </div>
+                      <div className="text-xs text-muted-foreground">{tg.successfulBypasses}/{tg.totalEngagements} bypassed</div>
+                    </div>
+                  </div>
+
+                  {tg.defensesEncountered.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <span className="text-xs text-muted-foreground mr-1">Defenses:</span>
+                      {tg.defensesEncountered.map(d => (
+                        <Badge key={d} variant="secondary" className="text-[10px]">{d}</Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {tg.recommendedApproach && (
+                    <div className="bg-green-500/10 border border-green-500/20 rounded p-2">
+                      <div className="text-xs font-medium text-green-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Recommended: {tg.recommendedApproach.bestTechnique}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{tg.recommendedApproach.notes}</div>
+                    </div>
+                  )}
+
+                  {/* Escalation timeline */}
+                  <div className="space-y-1">
+                    {tg.entries.slice(0, 3).map((entry, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        {entry.successfulTechnique ? (
+                          <CheckCircle2 className="w-3 h-3 text-green-400 shrink-0" />
+                        ) : (
+                          <XCircle className="w-3 h-3 text-red-400 shrink-0" />
+                        )}
+                        <span className="text-muted-foreground">{entry.operation}</span>
+                        <span className="text-muted-foreground/60">→</span>
+                        <span className={entry.successfulTechnique ? "text-green-400" : "text-red-400"}>
+                          {entry.successfulTechnique ? entry.successfulTechnique.name : "Blocked"}
+                        </span>
+                        <span className="text-muted-foreground/40 ml-auto">{entry.totalAttempts} attempts</span>
+                      </div>
+                    ))}
+                    {tg.entries.length > 3 && (
+                      <div className="text-xs text-muted-foreground/50 pl-5">+{tg.entries.length - 3} more engagements</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Defense Groups */}
+          {playbook.defenseGroups.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-display tracking-wider">DEFENSE PRODUCT ANALYSIS</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border/30">
+                        <th className="text-left py-2 px-2 font-medium">Defense</th>
+                        <th className="text-center py-2 px-2 font-medium">Encountered</th>
+                        <th className="text-center py-2 px-2 font-medium">Bypassed</th>
+                        <th className="text-center py-2 px-2 font-medium">Bypass Rate</th>
+                        <th className="text-center py-2 px-2 font-medium">Risk Level</th>
+                        <th className="text-center py-2 px-2 font-medium">Avg Escalation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {playbook.defenseGroups.sort((a, b) => b.bypassRate - a.bypassRate).map(dg => (
+                        <tr key={dg.defense} className="border-b border-border/10 hover:bg-secondary/20">
+                          <td className="py-2 px-2 font-mono">{dg.defense}</td>
+                          <td className="text-center py-2 px-2">{dg.timesEncountered}</td>
+                          <td className="text-center py-2 px-2">{dg.timesBypassed}</td>
+                          <td className="text-center py-2 px-2">
+                            <span className={dg.bypassRate >= 75 ? "text-green-400" : dg.bypassRate >= 50 ? "text-amber-400" : "text-red-400"}>
+                              {dg.bypassRate}%
+                            </span>
+                          </td>
+                          <td className="text-center py-2 px-2">
+                            <Badge variant={dg.riskLevel === "critical" ? "destructive" : "secondary"} className="text-[10px]">
+                              {dg.riskLevel}
+                            </Badge>
+                          </td>
+                          <td className="text-center py-2 px-2">{dg.avgEscalationToBypass}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Technique Effectiveness */}
+          {playbook.techniqueEffectiveness.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-display tracking-wider">TECHNIQUE EFFECTIVENESS</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {playbook.techniqueEffectiveness.slice(0, 10).map(te => (
+                    <div key={te.techniqueId} className="flex items-center gap-3">
+                      <div className="w-48 truncate text-xs font-mono">{te.techniqueName}</div>
+                      <Badge variant="outline" className="text-[10px] w-24 justify-center">{te.category}</Badge>
+                      <div className="flex-1">
+                        <div className="h-2 bg-secondary/30 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${te.successRate >= 60 ? "bg-green-500" : te.successRate >= 30 ? "bg-amber-500" : "bg-red-500"}`}
+                            style={{ width: `${te.successRate}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-xs w-16 text-right">{te.successRate}% ({te.timesBypassed}/{te.timesUsed})</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* MITRE Mappings */}
+          {playbook.mitreMappings.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-display tracking-wider">MITRE ATT&CK MAPPINGS</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {playbook.mitreMappings.map(m => (
+                    <Badge key={m.mitreId} variant="outline" className="text-xs font-mono">
+                      {m.mitreId} — {m.techniqueName} ({m.usageCount}x)
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recommendations */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display tracking-wider">RECOMMENDATIONS</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {playbook.recommendations.map((rec, i) => (
+                  <div key={i} className="flex gap-2 text-xs">
+                    <span className="text-primary font-bold shrink-0">{i + 1}.</span>
+                    <span className="text-muted-foreground">{rec}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFENSE HEATMAP TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function DefenseHeatmapTab() {
+  const [domain, setDomain] = useState<string>("all");
+  const [minEncounters, setMinEncounters] = useState(1);
+
+  const queryInput = useMemo(() => ({
+    domain: domain === "all" ? undefined : domain as "scanning" | "c2" | "exploit",
+    minEncounters: minEncounters > 1 ? minEncounters : undefined,
+  }), [domain, minEncounters]);
+
+  const { data: heatmap, isLoading } = trpc.evasionEngine.defenseHeatmap.useQuery(queryInput);
+
+  const getCellColor = (intensity: number, encounters: number) => {
+    if (encounters === 0) return "bg-secondary/10";
+    if (intensity >= 0.75) return "bg-green-500/70";
+    if (intensity >= 0.5) return "bg-green-500/40";
+    if (intensity >= 0.25) return "bg-amber-500/40";
+    return "bg-red-500/40";
+  };
+
+  const getCellText = (intensity: number, encounters: number) => {
+    if (encounters === 0) return "text-muted-foreground/30";
+    if (intensity >= 0.5) return "text-white";
+    return "text-foreground";
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Controls */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+            <Grid3x3 className="w-4 h-4 text-primary" />
+            DEFENSE EFFECTIVENESS HEATMAP
+          </CardTitle>
+          <CardDescription>Visual matrix showing which WAF/EDR products are most/least effective against each evasion technique</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Domain Filter</label>
+              <Select value={domain} onValueChange={setDomain}>
+                <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Domains</SelectItem>
+                  <SelectItem value="scanning">Scanning</SelectItem>
+                  <SelectItem value="c2">C2</SelectItem>
+                  <SelectItem value="exploit">Exploit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Min Encounters</label>
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                value={minEncounters}
+                onChange={(e) => setMinEncounters(parseInt(e.target.value) || 1)}
+                className="w-[100px] h-8 text-xs"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <span className="ml-2 text-sm text-muted-foreground">Generating heatmap...</span>
+        </div>
+      ) : !heatmap || heatmap.rows.length === 0 ? (
+        <Card className="border-dashed border-border/50">
+          <CardContent className="py-12 text-center">
+            <Grid3x3 className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No defense data available. Run evasion-wrapped operations against targets with detectable WAF/EDR to populate the heatmap.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="border-border/50">
+              <CardContent className="py-4 text-center">
+                <div className="text-xs text-muted-foreground mb-1">Most Effective Defense</div>
+                <div className="font-mono text-sm font-medium">{heatmap.summary.mostEffectiveDefense?.name || "N/A"}</div>
+                {heatmap.summary.mostEffectiveDefense && (
+                  <div className="text-xs text-green-400">{heatmap.summary.mostEffectiveDefense.bypassRate}% bypass rate</div>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="border-border/50">
+              <CardContent className="py-4 text-center">
+                <div className="text-xs text-muted-foreground mb-1">Weakest Defense</div>
+                <div className="font-mono text-sm font-medium">{heatmap.summary.leastEffectiveDefense?.name || "N/A"}</div>
+                {heatmap.summary.leastEffectiveDefense && (
+                  <div className="text-xs text-red-400">{heatmap.summary.leastEffectiveDefense.bypassRate}% bypass rate</div>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="border-border/50">
+              <CardContent className="py-4 text-center">
+                <div className="text-xs text-muted-foreground mb-1">Best Technique</div>
+                <div className="font-mono text-sm font-medium truncate">{heatmap.summary.mostEffectiveTechnique?.name || "N/A"}</div>
+                {heatmap.summary.mostEffectiveTechnique && (
+                  <div className="text-xs text-green-400">{heatmap.summary.mostEffectiveTechnique.successRate}% success</div>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="border-border/50">
+              <CardContent className="py-4 text-center">
+                <div className="text-xs text-muted-foreground mb-1">Data Points</div>
+                <div className="text-2xl font-bold text-primary">{heatmap.summary.totalDataPoints}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Heatmap Grid */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-display tracking-wider">BYPASS RATE MATRIX</CardTitle>
+              <CardDescription>Green = high bypass rate (defense is weak), Red = low bypass rate (defense is strong)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr>
+                      <th className="text-left py-2 px-1 font-medium text-xs sticky left-0 bg-background z-10 min-w-[140px]">Defense \ Technique</th>
+                      {heatmap.techniques.map(tech => (
+                        <th key={tech} className="py-2 px-1 font-medium text-center min-w-[70px]">
+                          <div className="transform -rotate-45 origin-center whitespace-nowrap">{tech.length > 15 ? tech.slice(0, 15) + "..." : tech}</div>
+                        </th>
+                      ))}
+                      <th className="text-center py-2 px-2 font-medium text-xs">Overall</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {heatmap.rows.map(row => (
+                      <tr key={row.defense} className="border-t border-border/10">
+                        <td className="py-1.5 px-1 font-mono font-medium sticky left-0 bg-background z-10">{row.defense}</td>
+                        {row.cells.map((cell, ci) => (
+                          <td key={ci} className="py-1.5 px-1 text-center">
+                            <div
+                              className={`rounded px-1 py-0.5 ${getCellColor(cell.intensity, cell.encounters)} ${getCellText(cell.intensity, cell.encounters)}`}
+                              title={`${cell.defense} vs ${cell.technique}: ${cell.bypassRate}% bypass (${cell.bypasses}/${cell.encounters})`}
+                            >
+                              {cell.encounters > 0 ? `${cell.bypassRate}%` : "—"}
+                            </div>
+                          </td>
+                        ))}
+                        <td className="py-1.5 px-2 text-center">
+                          <span className={`font-bold ${row.overallBypassRate >= 50 ? "text-green-400" : "text-red-400"}`}>
+                            {row.overallBypassRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border/20">
+                <span className="text-xs text-muted-foreground">Legend:</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-3 rounded bg-red-500/40" />
+                  <span className="text-[10px] text-muted-foreground">0-25%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-3 rounded bg-amber-500/40" />
+                  <span className="text-[10px] text-muted-foreground">25-50%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-3 rounded bg-green-500/40" />
+                  <span className="text-[10px] text-muted-foreground">50-75%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-3 rounded bg-green-500/70" />
+                  <span className="text-[10px] text-muted-foreground">75-100%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-3 rounded bg-secondary/10" />
+                  <span className="text-[10px] text-muted-foreground">No data</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Per-defense detail cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {heatmap.rows.map(row => {
+              const activeCells = row.cells.filter(c => c.encounters > 0);
+              const bestTech = activeCells.sort((a, b) => b.bypassRate - a.bypassRate)[0];
+              const worstTech = activeCells.sort((a, b) => a.bypassRate - b.bypassRate)[0];
+              return (
+                <Card key={row.defense} className="border-border/30">
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-mono text-sm font-medium">{row.defense}</span>
+                      <Badge variant={row.overallBypassRate >= 50 ? "destructive" : "secondary"} className="text-[10px]">
+                        {row.overallBypassRate}% bypass
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      {bestTech && bestTech.bypassRate > 0 && (
+                        <div className="flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-amber-400" />
+                          <span className="text-muted-foreground">Weakest against:</span>
+                          <span className="text-amber-400">{bestTech.technique} ({bestTech.bypassRate}%)</span>
+                        </div>
+                      )}
+                      {worstTech && (
+                        <div className="flex items-center gap-1">
+                          <Shield className="w-3 h-3 text-green-400" />
+                          <span className="text-muted-foreground">Strongest against:</span>
+                          <span className="text-green-400">{worstTech.technique} ({worstTech.bypassRate}%)</span>
+                        </div>
+                      )}
+                      <div className="text-muted-foreground/60">{row.totalEncounters} total encounters across {activeCells.length} techniques</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1281,6 +1857,14 @@ export default function EvasionEngine() {
               <Target className="w-3.5 h-3.5 mr-1.5" />
               ORCHESTRATOR
             </TabsTrigger>
+            <TabsTrigger value="playbook" className="font-display tracking-wider text-xs data-[state=active]:bg-background">
+              <BookOpen className="w-3.5 h-3.5 mr-1.5" />
+              PLAYBOOK
+            </TabsTrigger>
+            <TabsTrigger value="heatmap" className="font-display tracking-wider text-xs data-[state=active]:bg-background">
+              <Grid3x3 className="w-3.5 h-3.5 mr-1.5" />
+              DEFENSE HEATMAP
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="mutations">
@@ -1294,6 +1878,12 @@ export default function EvasionEngine() {
           </TabsContent>
           <TabsContent value="orchestrator">
             <EvasionOrchestratorTab />
+          </TabsContent>
+          <TabsContent value="playbook">
+            <EvasionPlaybookTab />
+          </TabsContent>
+          <TabsContent value="heatmap">
+            <DefenseHeatmapTab />
           </TabsContent>
         </Tabs>
       </div>

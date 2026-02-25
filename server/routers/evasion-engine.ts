@@ -761,4 +761,60 @@ export const evasionEngineRouter = router({
         mitreTechnique: t.mitreTechnique,
       }));
     }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // EVASION PLAYBOOK & DEFENSE HEATMAP
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Generate an Evasion Playbook report from stored findings */
+  generatePlaybook: protectedProcedure
+    .input(z.object({
+      domain: z.enum(["scanning", "c2", "exploit"]).optional(),
+      target: z.string().optional(),
+      onlySuccessful: z.boolean().optional(),
+      title: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { generatePlaybook } = await import("../lib/evasion-playbook");
+      return generatePlaybook(input || undefined);
+    }),
+
+  /** Export playbook as Markdown */
+  exportPlaybookMarkdown: protectedProcedure
+    .input(z.object({
+      domain: z.enum(["scanning", "c2", "exploit"]).optional(),
+      target: z.string().optional(),
+      onlySuccessful: z.boolean().optional(),
+      title: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { generatePlaybook, exportPlaybookMarkdown } = await import("../lib/evasion-playbook");
+      const playbook = generatePlaybook(input || undefined);
+      return { markdown: exportPlaybookMarkdown(playbook), playbook };
+    }),
+
+  /** Export playbook as JSON */
+  exportPlaybookJSON: protectedProcedure
+    .input(z.object({
+      domain: z.enum(["scanning", "c2", "exploit"]).optional(),
+      target: z.string().optional(),
+      onlySuccessful: z.boolean().optional(),
+      title: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { generatePlaybook, exportPlaybookJSON } = await import("../lib/evasion-playbook");
+      const playbook = generatePlaybook(input || undefined);
+      return { json: exportPlaybookJSON(playbook), playbook };
+    }),
+
+  /** Generate defense heatmap data */
+  defenseHeatmap: protectedProcedure
+    .input(z.object({
+      domain: z.enum(["scanning", "c2", "exploit"]).optional(),
+      minEncounters: z.number().min(1).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { generateDefenseHeatmap } = await import("../lib/evasion-playbook");
+      return generateDefenseHeatmap(input || undefined);
+    }),
 });

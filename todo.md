@@ -4310,3 +4310,21 @@
 - [x] Add tRPC endpoints for evasion-wrapped scan/C2/exploit operations (7 endpoints)
 - [x] Build frontend Evasion Orchestrator panel with escalation timeline and bypass results
 - [x] Write tests for orchestrator escalation logic (53/53 tests passing)
+
+## Evasion Playbook Export
+- [x] Build playbook generator that compiles successful bypass techniques per target
+- [x] Group findings by target, defense product, and evasion domain (scanning/C2/exploit)
+- [x] Include MITRE ATT&CK technique mappings for each bypass
+- [x] Generate downloadable Markdown and JSON playbook reports
+- [x] Build Evasion Playbook tab with preview, executive summary, and export controls
+- [x] Add technique effectiveness rankings and defense product analysis
+- [x] Write tests for playbook generation logic (7 tests passing)
+
+## Defense Heatmap Visualization
+- [x] Build heatmap data aggregation from evasion findings (defense product vs technique effectiveness)
+- [x] Calculate bypass rates, block rates, and intensity scores per defense/technique pair
+- [x] Build interactive heatmap visualization with color-coded cells and tooltips
+- [x] Add per-defense detail cards showing strongest/weakest technique matchups
+- [x] Add summary cards (most/least effective defense, best technique, data points)
+- [x] Add Defense Heatmap tab to Evasion Engine with domain/encounter filters
+- [x] Write tests for heatmap data aggregation (6 tests passing)
