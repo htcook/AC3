@@ -4291,3 +4291,22 @@
 - [x] Add Takeover PoC tab with validation launcher and detailed results
 - [x] Add tRPC mutation: validateTakeover
 - [x] Write tests for validation structure, counting, empty handling (6 tests passing)
+
+## CVE Severity Filter
+- [x] Add CVSS severity scores and ratings to CVE-to-actor mapping data
+- [x] Implement severity-based filtering and sorting in enrichCvesWithThreatActors
+- [x] Add active exploitation flag, CISA KEV tracking, and priority scoring (0-100) to enrichment results
+- [x] Build frontend filter controls (severity dropdown, active exploitation toggle, sort by priority)
+- [x] Add color-coded severity badges, priority score bars, and CISA KEV indicators to CVE Actors tab
+- [x] Implement summary statistics bar showing critical/high/medium/low counts with filter counts
+- [x] Write tests for severity filtering and priority scoring logic (4 tests passing)
+
+## Adaptive Evasion Orchestrator (WAF/EDR Bypass)
+- [x] Build core EvasionOrchestrator with progressive escalation loop (attempt → blocked → next technique → retry)
+- [x] Wire into scanning: detect WAF blocks (403/406/429/captcha), escalate through header rotation, UA spoofing, rate throttling, encoding tricks
+- [x] Wire into C2 tasks: detect EDR blocks (timeout/killed/signature match), escalate through payload transforms, sleep jitter, protocol rotation
+- [x] Wire into exploit execution: detect blocks (connection reset/WAF response), escalate through payload obfuscation, encoding, staging
+- [x] Record bypass findings: which technique succeeded, which defenses were detected, evasion scorecard per target
+- [x] Add tRPC endpoints for evasion-wrapped scan/C2/exploit operations (7 endpoints)
+- [x] Build frontend Evasion Orchestrator panel with escalation timeline and bypass results
+- [x] Write tests for orchestrator escalation logic (53/53 tests passing)

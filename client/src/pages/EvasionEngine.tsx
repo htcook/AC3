@@ -792,6 +792,448 @@ function EvasionScorecardTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TIER 4 — ADAPTIVE EVASION ORCHESTRATOR TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function EvasionOrchestratorTab() {
+  const [targetUrl, setTargetUrl] = useState("");
+  const [c2Command, setC2Command] = useState("");
+  const [c2Target, setC2Target] = useState("");
+  const [exploitPayload, setExploitPayload] = useState("");
+  const [exploitTarget, setExploitTarget] = useState("");
+  const [exploitName, setExploitName] = useState("");
+  const [activeOp, setActiveOp] = useState<"scan" | "c2" | "exploit">("scan");
+  const [expandedFinding, setExpandedFinding] = useState<string | null>(null);
+
+  const findingsQuery = trpc.evasionEngine.orchestratorFindings.useQuery(undefined, {
+    refetchInterval: 10000,
+  });
+
+  const probeMutation = trpc.evasionEngine.probeDefenses.useMutation({
+    onSuccess: (data) => {
+      if (data.wafDetected) {
+        toast.warning(`WAF detected: ${data.wafProducts.join(", ")}`);
+      } else {
+        toast.success("No WAF detected — target appears unprotected");
+      }
+    },
+    onError: (err: any) => toast.error(`Probe failed: ${err.message}`),
+  });
+
+  const evasionScanMut = trpc.evasionEngine.evasionScan.useMutation({
+    onSuccess: (data) => {
+      findingsQuery.refetch();
+      if (data.bypassAchieved) {
+        toast.success(`WAF bypassed using: ${data.bypassTechnique || "No evasion needed"}`);
+      } else {
+        toast.error("All evasion techniques blocked — target has robust defenses");
+      }
+    },
+    onError: (err: any) => toast.error(`Evasion scan failed: ${err.message}`),
+  });
+
+  const evasionC2Mut = trpc.evasionEngine.evasionC2Task.useMutation({
+    onSuccess: (data) => {
+      findingsQuery.refetch();
+      if (data.bypassAchieved) {
+        toast.success(`EDR bypassed using: ${data.bypassTechnique || "No evasion needed"}`);
+      } else {
+        toast.error("All evasion techniques blocked by EDR");
+      }
+    },
+    onError: (err: any) => toast.error(`Evasion C2 task failed: ${err.message}`),
+  });
+
+  const evasionExploitMut = trpc.evasionEngine.evasionExploit.useMutation({
+    onSuccess: (data) => {
+      findingsQuery.refetch();
+      if (data.bypassAchieved) {
+        toast.success(`Exploit delivered — bypassed using: ${data.bypassTechnique || "No evasion needed"}`);
+      } else {
+        toast.error("Exploit blocked by all evasion attempts");
+      }
+    },
+    onError: (err: any) => toast.error(`Evasion exploit failed: ${err.message}`),
+  });
+
+  const isRunning = evasionScanMut.isPending || evasionC2Mut.isPending || evasionExploitMut.isPending || probeMutation.isPending;
+  const stats = findingsQuery.data?.stats;
+  const findings = findingsQuery.data?.findings || [];
+
+  const handleLaunch = () => {
+    if (activeOp === "scan") {
+      if (!targetUrl.trim()) { toast.error("Enter a target URL"); return; }
+      evasionScanMut.mutate({ targetUrl, scanType: "full", scanMode: "active" });
+    } else if (activeOp === "c2") {
+      if (!c2Command.trim() || !c2Target.trim()) { toast.error("Enter C2 target and command"); return; }
+      evasionC2Mut.mutate({ sessionId: 1, sessionTarget: c2Target, taskType: "execute", command: c2Command });
+    } else {
+      if (!exploitTarget.trim() || !exploitPayload.trim()) { toast.error("Enter exploit target and payload"); return; }
+      evasionExploitMut.mutate({ target: exploitTarget, exploitId: "custom", exploitName: exploitName || "Custom Exploit", payload: exploitPayload });
+    }
+  };
+
+  const resultForDomain = (domain: string) => {
+    if (domain === "scan" && evasionScanMut.data) return evasionScanMut.data;
+    if (domain === "c2" && evasionC2Mut.data) return evasionC2Mut.data;
+    if (domain === "exploit" && evasionExploitMut.data) return evasionExploitMut.data;
+    return null;
+  };
+
+  const currentResult = resultForDomain(activeOp);
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Overview */}
+      {stats && stats.totalFindings > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <Card className="border-border/50">
+            <CardContent className="pt-4 pb-3 text-center">
+              <div className="text-2xl font-bold font-display">{stats.totalFindings}</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">TOTAL OPS</div>
+            </CardContent>
+          </Card>
+          <Card className="border-green-500/20">
+            <CardContent className="pt-4 pb-3 text-center">
+              <div className="text-2xl font-bold font-display text-green-400">{stats.byResult.bypassed}</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">BYPASSED</div>
+            </CardContent>
+          </Card>
+          <Card className="border-red-500/20">
+            <CardContent className="pt-4 pb-3 text-center">
+              <div className="text-2xl font-bold font-display text-red-400">{stats.byResult.blocked}</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">BLOCKED</div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="pt-4 pb-3 text-center">
+              <div className="text-2xl font-bold font-display">{stats.averageEscalationDepth}</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">AVG DEPTH</div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="pt-4 pb-3 text-center">
+              <div className="text-2xl font-bold font-display">{stats.averageBypassRate}%</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">BYPASS RATE</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Operation Launcher */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base font-display tracking-wider">
+            <Target className="w-4 h-4 text-primary" />
+            ADAPTIVE EVASION ORCHESTRATOR
+          </CardTitle>
+          <CardDescription>
+            Launch operations with progressive evasion escalation. When blocked, the orchestrator
+            automatically steps through increasingly aggressive bypass techniques until it gets through.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Domain selector */}
+          <div className="flex gap-2">
+            <Button variant={activeOp === "scan" ? "default" : "outline"} size="sm" onClick={() => setActiveOp("scan")} className="font-display tracking-wider text-xs">
+              <Shield className="w-3.5 h-3.5 mr-1.5" /> WAF BYPASS SCAN
+            </Button>
+            <Button variant={activeOp === "c2" ? "default" : "outline"} size="sm" onClick={() => setActiveOp("c2")} className="font-display tracking-wider text-xs">
+              <Terminal className="w-3.5 h-3.5 mr-1.5" /> EDR BYPASS C2
+            </Button>
+            <Button variant={activeOp === "exploit" ? "default" : "outline"} size="sm" onClick={() => setActiveOp("exploit")} className="font-display tracking-wider text-xs">
+              <Zap className="w-3.5 h-3.5 mr-1.5" /> EXPLOIT DELIVERY
+            </Button>
+          </div>
+
+          {/* Scan inputs */}
+          {activeOp === "scan" && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">TARGET URL</label>
+                <div className="flex gap-2">
+                  <Input value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)} placeholder="https://target.example.com" className="font-mono text-sm" />
+                  <Button variant="outline" size="sm" onClick={() => { if (targetUrl) probeMutation.mutate({ targetUrl }); }} disabled={!targetUrl || probeMutation.isPending} className="font-display tracking-wider text-xs shrink-0">
+                    {probeMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
+                    PROBE
+                  </Button>
+                </div>
+              </div>
+              {probeMutation.data && (
+                <div className={`p-3 rounded-lg border text-sm ${probeMutation.data.wafDetected ? "border-amber-500/30 bg-amber-500/5" : "border-green-500/30 bg-green-500/5"}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {probeMutation.data.wafDetected ? <AlertTriangle className="w-4 h-4 text-amber-400" /> : <CheckCircle2 className="w-4 h-4 text-green-400" />}
+                    <span className="font-display tracking-wider text-xs">{probeMutation.data.wafDetected ? "WAF DETECTED" : "NO WAF DETECTED"}</span>
+                  </div>
+                  {probeMutation.data.wafProducts.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {probeMutation.data.wafProducts.map((w: string, i: number) => (
+                        <Badge key={i} variant="outline" className="border-amber-500/30 text-amber-400 text-xs">{w}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  {probeMutation.data.recommendations.map((r: string, i: number) => (
+                    <p key={i} className="text-xs text-muted-foreground mt-1">{r}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* C2 inputs */}
+          {activeOp === "c2" && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">C2 SESSION TARGET</label>
+                <Input value={c2Target} onChange={(e) => setC2Target(e.target.value)} placeholder="192.168.1.100" className="font-mono text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">COMMAND</label>
+                <Textarea value={c2Command} onChange={(e) => setC2Command(e.target.value)} placeholder="whoami /all" className="font-mono text-sm min-h-[80px]" />
+              </div>
+            </div>
+          )}
+
+          {/* Exploit inputs */}
+          {activeOp === "exploit" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">TARGET</label>
+                  <Input value={exploitTarget} onChange={(e) => setExploitTarget(e.target.value)} placeholder="https://target.example.com/vuln" className="font-mono text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">EXPLOIT NAME</label>
+                  <Input value={exploitName} onChange={(e) => setExploitName(e.target.value)} placeholder="CVE-2024-XXXX" className="font-mono text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-display tracking-wider text-muted-foreground mb-1.5 block">PAYLOAD</label>
+                <Textarea value={exploitPayload} onChange={(e) => setExploitPayload(e.target.value)} placeholder="<script>alert(1)</script>" className="font-mono text-sm min-h-[80px]" />
+              </div>
+            </div>
+          )}
+
+          <Button onClick={handleLaunch} disabled={isRunning} className="font-display tracking-wider">
+            {isRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+            {isRunning ? "ESCALATING EVASION..." : "LAUNCH WITH EVASION"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Current Operation Result */}
+      {currentResult && "evasionFinding" in currentResult && currentResult.evasionFinding && (
+        <Card className={`border-${currentResult.bypassAchieved ? "green" : "red"}-500/20`}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-display tracking-wider">
+              {currentResult.bypassAchieved ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
+              {currentResult.bypassAchieved ? "BYPASS ACHIEVED" : "ALL TECHNIQUES BLOCKED"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Scorecard */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="text-center p-3 bg-secondary/30 rounded-lg">
+                <div className="text-lg font-bold font-display">{currentResult.evasionFinding.totalAttempts}</div>
+                <div className="text-xs text-muted-foreground">Attempts</div>
+              </div>
+              <div className="text-center p-3 bg-secondary/30 rounded-lg">
+                <div className="text-lg font-bold font-display">{currentResult.evasionFinding.evasionScorecard.escalationDepth}/5</div>
+                <div className="text-xs text-muted-foreground">Escalation Depth</div>
+              </div>
+              <div className="text-center p-3 bg-secondary/30 rounded-lg">
+                <div className="text-lg font-bold font-display text-green-400">{currentResult.evasionFinding.evasionScorecard.bypassRate}%</div>
+                <div className="text-xs text-muted-foreground">Bypass Rate</div>
+              </div>
+              <div className="text-center p-3 bg-secondary/30 rounded-lg">
+                <div className="text-lg font-bold font-display text-red-400">{currentResult.evasionFinding.evasionScorecard.defenseEffectiveness}%</div>
+                <div className="text-xs text-muted-foreground">Defense Effectiveness</div>
+              </div>
+            </div>
+
+            {/* Successful technique */}
+            {currentResult.evasionFinding.successfulTechnique && currentResult.evasionFinding.successfulTechnique.id !== "none" && (
+              <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/5">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  <span className="font-display tracking-wider text-xs text-green-400">SUCCESSFUL TECHNIQUE</span>
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">Level {currentResult.evasionFinding.successfulTechnique.escalationLevel}</Badge>
+                </div>
+                <div className="text-sm font-medium">{currentResult.evasionFinding.successfulTechnique.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">{currentResult.evasionFinding.successfulTechnique.description}</div>
+              </div>
+            )}
+
+            {/* Defenses detected */}
+            {currentResult.evasionFinding.defensesDetected.length > 0 && (
+              <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="w-4 h-4 text-amber-400" />
+                  <span className="font-display tracking-wider text-xs text-amber-400">DEFENSES DETECTED</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {currentResult.evasionFinding.defensesDetected.map((d: string, i: number) => (
+                    <Badge key={i} variant="outline" className="border-amber-500/30 text-amber-400 text-xs">{d}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Escalation Timeline */}
+            <div>
+              <h4 className="font-display tracking-wider text-xs text-muted-foreground mb-3">ESCALATION TIMELINE</h4>
+              <div className="space-y-1">
+                {currentResult.evasionFinding.attempts.map((attempt: any, i: number) => (
+                  <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/30 transition-colors">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{
+                      backgroundColor: attempt.result === "bypassed" ? "rgba(34,197,94,0.2)" : attempt.result === "blocked" ? "rgba(239,68,68,0.2)" : "rgba(234,179,8,0.2)",
+                      color: attempt.result === "bypassed" ? "#22c55e" : attempt.result === "blocked" ? "#ef4444" : "#eab308",
+                    }}>
+                      {attempt.attemptNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{attempt.techniqueName}</div>
+                      <div className="text-xs text-muted-foreground">{attempt.techniqueCategory} • {attempt.latencyMs}ms</div>
+                    </div>
+                    <Badge variant="outline" className={`text-xs shrink-0 ${
+                      attempt.result === "bypassed" ? "border-green-500/30 text-green-400" :
+                      attempt.result === "blocked" ? "border-red-500/30 text-red-400" :
+                      "border-amber-500/30 text-amber-400"
+                    }`}>
+                      {attempt.result.toUpperCase()}
+                    </Badge>
+                    {attempt.blockSignal && (
+                      <span className="text-xs text-muted-foreground shrink-0">{attempt.blockSignal}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recommendations */}
+            {currentResult.evasionFinding.recommendations.length > 0 && (
+              <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/5">
+                <div className="flex items-center gap-2 mb-2">
+                  <Info className="w-4 h-4 text-blue-400" />
+                  <span className="font-display tracking-wider text-xs text-blue-400">RECOMMENDATIONS</span>
+                </div>
+                {currentResult.evasionFinding.recommendations.map((r: string, i: number) => (
+                  <p key={i} className="text-xs text-muted-foreground mt-1">• {r}</p>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Historical Findings */}
+      {findings.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="text-sm font-display tracking-wider">RECENT EVASION OPERATIONS</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {findings.slice(0, 10).map((f: any) => (
+              <div key={f.id} className="border border-border/50 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setExpandedFinding(expandedFinding === f.id ? null : f.id)}
+                  className="w-full flex items-center justify-between p-3 hover:bg-secondary/30 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    {expandedFinding === f.id ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    <Badge variant="outline" className="text-xs">{f.domain.toUpperCase()}</Badge>
+                    <span className="text-sm truncate max-w-[300px]">{f.target}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`text-xs ${
+                      f.finalResult === "bypassed" ? "border-green-500/30 text-green-400" : "border-red-500/30 text-red-400"
+                    }`}>
+                      {f.finalResult.toUpperCase()}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{f.totalAttempts} attempts</span>
+                    <span className="text-xs text-muted-foreground">{new Date(f.completedAt).toLocaleTimeString()}</span>
+                  </div>
+                </button>
+                {expandedFinding === f.id && (
+                  <div className="border-t border-border/50 p-3 space-y-3">
+                    <div className="grid grid-cols-4 gap-3 text-center">
+                      <div><div className="text-sm font-bold">{f.evasionScorecard.totalTechniquesTried}</div><div className="text-xs text-muted-foreground">Tried</div></div>
+                      <div><div className="text-sm font-bold text-green-400">{f.evasionScorecard.techniquesBypassed}</div><div className="text-xs text-muted-foreground">Bypassed</div></div>
+                      <div><div className="text-sm font-bold text-red-400">{f.evasionScorecard.techniquesBlocked}</div><div className="text-xs text-muted-foreground">Blocked</div></div>
+                      <div><div className="text-sm font-bold">{f.evasionScorecard.escalationDepth}/5</div><div className="text-xs text-muted-foreground">Depth</div></div>
+                    </div>
+                    {f.successfulTechnique && f.successfulTechnique.id !== "none" && (
+                      <div className="text-sm"><span className="text-green-400 font-medium">Bypass:</span> {f.successfulTechnique.name} (Level {f.successfulTechnique.escalationLevel})</div>
+                    )}
+                    {f.defensesDetected.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {f.defensesDetected.map((d: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs border-amber-500/30 text-amber-400">{d}</Badge>
+                        ))}
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {f.attempts.map((a: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${a.result === "bypassed" ? "bg-green-400" : a.result === "blocked" ? "bg-red-400" : "bg-amber-400"}`} />
+                          <span className="text-muted-foreground">#{a.attemptNumber}</span>
+                          <span className="truncate">{a.techniqueName}</span>
+                          <span className="text-muted-foreground ml-auto">{a.latencyMs}ms</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Top Defenses & Bypass Techniques */}
+      {stats && (stats.topDefenses.length > 0 || stats.topBypassTechniques.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {stats.topDefenses.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-red-400" /> TOP DEFENSES ENCOUNTERED
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stats.topDefenses.map((d: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm">{d.defense}</span>
+                    <Badge variant="outline" className="text-xs">{d.count}x</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          {stats.topBypassTechniques.length > 0 && (
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+                  <ShieldOff className="w-4 h-4 text-green-400" /> TOP BYPASS TECHNIQUES
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stats.topBypassTechniques.map((t: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm">{t.technique}</span>
+                    <Badge variant="outline" className="text-xs border-green-500/30 text-green-400">{t.count}x</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -835,6 +1277,10 @@ export default function EvasionEngine() {
               <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
               SCORECARD
             </TabsTrigger>
+            <TabsTrigger value="orchestrator" className="font-display tracking-wider text-xs data-[state=active]:bg-background">
+              <Target className="w-3.5 h-3.5 mr-1.5" />
+              ORCHESTRATOR
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="mutations">
@@ -845,6 +1291,9 @@ export default function EvasionEngine() {
           </TabsContent>
           <TabsContent value="scorecard">
             <EvasionScorecardTab />
+          </TabsContent>
+          <TabsContent value="orchestrator">
+            <EvasionOrchestratorTab />
           </TabsContent>
         </Tabs>
       </div>

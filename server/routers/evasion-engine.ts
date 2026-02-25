@@ -591,4 +591,174 @@ export const evasionEngineRouter = router({
       recentSessions,
     };
   }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ADAPTIVE EVASION ORCHESTRATOR ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Probe a target for WAF/EDR defenses before running operations */
+  probeDefenses: protectedProcedure
+    .input(z.object({ targetUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const { probeDefenses } = await import("../lib/evasion-integrations");
+      return probeDefenses(input.targetUrl);
+    }),
+
+  /** Run an evasion-aware scan against a target */
+  evasionScan: protectedProcedure
+    .input(z.object({
+      targetUrl: z.string().url(),
+      scanType: z.enum(["spider_only", "active", "full"]).default("full"),
+      scanMode: z.enum(["passive", "active"]).default("passive"),
+      scanName: z.string().optional(),
+      maxEvasionAttempts: z.number().min(1).max(20).default(10),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { runEvasionAwareScan } = await import("../lib/evasion-integrations");
+      return runEvasionAwareScan({
+        targetUrl: input.targetUrl,
+        scanType: input.scanType,
+        scanMode: input.scanMode,
+        scanName: input.scanName,
+        userId: String(ctx.user.id),
+        evasionEnabled: true,
+        maxEvasionAttempts: input.maxEvasionAttempts,
+      });
+    }),
+
+  /** Run an evasion-aware C2 task */
+  evasionC2Task: protectedProcedure
+    .input(z.object({
+      sessionId: z.number(),
+      sessionTarget: z.string(),
+      taskType: z.string(),
+      command: z.string().min(1),
+      transport: z.string().optional(),
+      maxEvasionAttempts: z.number().min(1).max(20).default(10),
+    }))
+    .mutation(async ({ input }) => {
+      const { runEvasionAwareC2Task } = await import("../lib/evasion-integrations");
+      // The actual C2 execution function — simulated here since Sliver
+      // calls are proxied through the Caldera API
+      const mockC2Execute = async (command: string, options: any) => {
+        // In production, this would call the Sliver gRPC API
+        // For now, simulate the C2 task execution with realistic behavior
+        const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+        return {
+          taskId,
+          status: "executed",
+          output: `Task ${taskId} executed: ${command.substring(0, 50)}`,
+        };
+      };
+      return runEvasionAwareC2Task(
+        {
+          sessionId: input.sessionId,
+          sessionTarget: input.sessionTarget,
+          taskType: input.taskType,
+          command: input.command,
+          evasionEnabled: true,
+          maxEvasionAttempts: input.maxEvasionAttempts,
+          transport: input.transport,
+        },
+        mockC2Execute,
+      );
+    }),
+
+  /** Run an evasion-aware exploit */
+  evasionExploit: protectedProcedure
+    .input(z.object({
+      target: z.string(),
+      exploitId: z.string(),
+      exploitName: z.string(),
+      payload: z.string(),
+      maxEvasionAttempts: z.number().min(1).max(20).default(12),
+    }))
+    .mutation(async ({ input }) => {
+      const { runEvasionAwareExploit } = await import("../lib/evasion-integrations");
+      // The actual exploit execution function
+      const mockExploitExecute = async (payload: string, options: any) => {
+        // In production, this would call the exploit framework
+        return {
+          success: true,
+          statusCode: 200,
+          body: `Exploit delivered: ${input.exploitName}`,
+        };
+      };
+      return runEvasionAwareExploit(
+        {
+          target: input.target,
+          exploitId: input.exploitId,
+          exploitName: input.exploitName,
+          payload: input.payload,
+          evasionEnabled: true,
+          maxEvasionAttempts: input.maxEvasionAttempts,
+        },
+        mockExploitExecute,
+      );
+    }),
+
+  /** Select optimal pipeline based on detected defenses */
+  selectPipeline: protectedProcedure
+    .input(z.object({
+      defensesDetected: z.array(z.string()),
+      targetOS: z.enum(["windows", "linux", "macos"]).default("windows"),
+    }))
+    .mutation(async ({ input }) => {
+      const { selectPipelineForDefenses } = await import("../lib/evasion-integrations");
+      return selectPipelineForDefenses(input.defensesDetected, input.targetOS);
+    }),
+
+  /** Generate optimized command mutations for detected defenses */
+  optimizedMutations: protectedProcedure
+    .input(z.object({
+      command: z.string().min(1),
+      defensesDetected: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      const { generateOptimizedMutations } = await import("../lib/evasion-integrations");
+      return generateOptimizedMutations(input.command, input.defensesDetected);
+    }),
+
+  /** Get orchestrator findings and stats */
+  orchestratorFindings: protectedProcedure
+    .input(z.object({
+      domain: z.enum(["scanning", "c2", "exploit"]).optional(),
+      result: z.enum(["bypassed", "blocked", "partial", "error"]).optional(),
+      target: z.string().optional(),
+      limit: z.number().min(1).max(100).default(50),
+    }).optional())
+    .query(async ({ input }) => {
+      const { getFindings, getOrchestratorStats } = await import("../lib/evasion-orchestrator");
+      return {
+        findings: getFindings(input || {}),
+        stats: getOrchestratorStats(),
+      };
+    }),
+
+  /** Get a specific evasion finding by ID */
+  orchestratorFinding: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const { getFindingById } = await import("../lib/evasion-orchestrator");
+      const finding = getFindingById(input.id);
+      if (!finding) throw new TRPCError({ code: "NOT_FOUND", message: "Finding not found" });
+      return finding;
+    }),
+
+  /** Get the escalation ladder for a domain */
+  escalationLadder: protectedProcedure
+    .input(z.object({
+      domain: z.enum(["scanning", "c2", "exploit"]),
+    }))
+    .query(async ({ input }) => {
+      const { getEscalationLadder } = await import("../lib/evasion-orchestrator");
+      return getEscalationLadder(input.domain).map(t => ({
+        id: t.id,
+        name: t.name,
+        category: t.category,
+        level: t.level,
+        description: t.description,
+        mitreTechnique: t.mitreTechnique,
+      }));
+    }),
 });

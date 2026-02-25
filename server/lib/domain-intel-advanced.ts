@@ -965,7 +965,7 @@ export interface CveActorEnrichment {
   cveId: string;
   technology: string;
   cvssScore: number;
-  severity: string;
+  severity: "critical" | "high" | "medium" | "low";
   actors: Array<{
     name: string;
     type: string;
@@ -979,6 +979,13 @@ export interface CveActorEnrichment {
   mitreTechnique: string;
   threatLevel: "critical" | "high" | "medium" | "low";
   activelyExploited: boolean;
+  // New severity filter fields
+  priorityScore: number; // 0-100 composite score combining CVSS, actor count, exploitation status
+  exploitAvailable: boolean; // Public exploit code exists
+  cisaKev: boolean; // Listed in CISA Known Exploited Vulnerabilities catalog
+  description: string; // CVE description from KNOWN_TECH_CVES
+  affectedAssets: string[]; // Hostnames affected by this CVE
+  remediationUrgency: "immediate" | "urgent" | "scheduled" | "routine";
 }
 
 export interface CveEnrichmentResult {
@@ -988,12 +995,98 @@ export interface CveEnrichmentResult {
   actorTypeSummary: { type: string; count: number }[];
   enrichedCves: CveActorEnrichment[];
   riskElevation: string;
+  // New severity filter summary fields
+  severitySummary: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  activelyExploitedCount: number;
+  cisaKevCount: number;
+  exploitAvailableCount: number;
+  averagePriorityScore: number;
+  topPriorityCves: CveActorEnrichment[]; // Top 5 by priority score
+}
+
+// ─── CISA Known Exploited Vulnerabilities (KEV) catalog subset ──────────────
+// CVEs confirmed by CISA as actively exploited in the wild
+const CISA_KEV_CVES = new Set([
+  "CVE-2021-44228", // Log4Shell
+  "CVE-2021-41773", // Apache path traversal
+  "CVE-2024-4577",  // PHP CGI argument injection
+  "CVE-2022-22965", // Spring4Shell
+  "CVE-2022-3602",  // OpenSSL buffer overflow
+  "CVE-2024-38476", // Apache SSRF
+  "CVE-2023-36745", // Exchange RCE
+  "CVE-2022-41741", // Nginx memory corruption
+  "CVE-2024-5535",  // OpenSSL buffer overread
+  "CVE-2023-3824",  // PHP buffer overflow
+  "CVE-2024-31210", // WordPress RCE
+  "CVE-2020-11022", // jQuery XSS
+  "CVE-2020-11023", // jQuery XSS
+  "CVE-2019-11358", // jQuery prototype pollution
+  "CVE-2023-36899", // IIS elevation of privilege
+  "CVE-2024-2879",  // WordPress SQL injection
+  "CVE-2023-2982",  // WordPress auth bypass
+]);
+
+/**
+ * Calculate a composite priority score (0-100) for a CVE based on multiple risk factors.
+ * Higher score = higher priority for remediation.
+ *
+ * Scoring weights:
+ *  - CVSS score: 30% (normalized to 0-30)
+ *  - Threat actor count & sophistication: 25% (0-25)
+ *  - Active exploitation: 20% (0 or 20)
+ *  - CISA KEV listing: 15% (0 or 15)
+ *  - Public exploit availability: 10% (0 or 10)
+ */
+export function calculatePriorityScore(opts: {
+  cvssScore: number;
+  actorCount: number;
+  hasNationState: boolean;
+  hasRansomware: boolean;
+  activelyExploited: boolean;
+  cisaKev: boolean;
+  exploitAvailable: boolean;
+}): number {
+  // CVSS component: 0-30 (CVSS 10.0 → 30)
+  const cvssComponent = Math.min((opts.cvssScore / 10) * 30, 30);
+
+  // Actor component: 0-25
+  let actorComponent = Math.min(opts.actorCount * 4, 15); // up to 15 for count
+  if (opts.hasNationState) actorComponent += 6;
+  if (opts.hasRansomware) actorComponent += 4;
+  actorComponent = Math.min(actorComponent, 25);
+
+  // Active exploitation: 0 or 20
+  const activeComponent = opts.activelyExploited ? 20 : 0;
+
+  // CISA KEV: 0 or 15
+  const kevComponent = opts.cisaKev ? 15 : 0;
+
+  // Public exploit: 0 or 10
+  const exploitComponent = opts.exploitAvailable ? 10 : 0;
+
+  return Math.min(Math.round(cvssComponent + actorComponent + activeComponent + kevComponent + exploitComponent), 100);
+}
+
+/**
+ * Determine remediation urgency based on priority score.
+ */
+function getRemediationUrgency(priorityScore: number): CveActorEnrichment["remediationUrgency"] {
+  if (priorityScore >= 80) return "immediate";
+  if (priorityScore >= 60) return "urgent";
+  if (priorityScore >= 40) return "scheduled";
+  return "routine";
 }
 
 /**
  * Enrich tech vulnerability CVEs with threat actor intelligence.
  * Takes the output of crossReferenceTechVulnerabilities and correlates
- * each CVE with known threat actor campaigns.
+ * each CVE with known threat actor campaigns. Includes priority scoring,
+ * CISA KEV tracking, and severity-based filtering support.
  */
 export async function enrichCvesWithThreatActors(
   techVulnResult: TechVulnResult
@@ -1020,16 +1113,13 @@ export async function enrichCvesWithThreatActors(
     const dbMatchedActors: CveActorEnrichment["actors"] = [];
     for (const actor of dbActors) {
       const techniques = parseTechniquesJson(actor.techniques);
-      // Check if actor uses techniques related to this CVE's attack surface
       const relevantTechniques = techniques.filter((t: any) => {
         const tid = (t.id || "").toLowerCase();
-        // Match exploitation techniques
         return tid === "t1190" || tid === "t1210" || tid === "t1133" ||
                tid === "t1078" || tid === "t1059" || tid === "t1203";
       });
 
       if (relevantTechniques.length > 0 && actor.threatLevel === "critical") {
-        // Only add high-confidence DB matches for critical actors
         const alreadyInStatic = staticMapping?.actors.some(a => 
           a.name.toLowerCase().includes(actor.name.toLowerCase()) ||
           actor.name.toLowerCase().includes(a.name.split(" ")[0].toLowerCase())
@@ -1054,7 +1144,6 @@ export async function enrichCvesWithThreatActors(
     ];
 
     if (allActors.length > 0) {
-      // Determine threat level based on actor sophistication
       const hasNationState = allActors.some(a => a.sophistication === "nation-state");
       const hasRansomware = allActors.some(a => a.type === "ransomware");
       const hasAdvanced = allActors.some(a => a.sophistication === "advanced");
@@ -1063,19 +1152,40 @@ export async function enrichCvesWithThreatActors(
         hasRansomware ? "critical" :
         hasAdvanced ? "high" : "medium";
 
+      const activelyExploited = allActors.some(a => {
+        const lastQ = a.lastExploited;
+        return lastQ.includes("2024") || lastQ.includes("2025") || lastQ.includes("2026");
+      });
+
+      const cisaKev = CISA_KEV_CVES.has(vuln.cveId);
+      const exploitAvailable = vuln.exploitAvailable;
+
+      const priorityScore = calculatePriorityScore({
+        cvssScore: vuln.cvssScore,
+        actorCount: allActors.length,
+        hasNationState,
+        hasRansomware,
+        activelyExploited,
+        cisaKev,
+        exploitAvailable,
+      });
+
       enrichedCves.push({
         cveId: vuln.cveId,
         technology: vuln.technology,
         cvssScore: vuln.cvssScore,
-        severity: vuln.severity,
+        severity: vuln.severity as CveActorEnrichment["severity"],
         actors: allActors,
         attackPhase: staticMapping?.attackPhase || "initial_access",
         mitreTechnique: staticMapping?.mitreTechnique || "T1190 — Exploit Public-Facing Application",
         threatLevel,
-        activelyExploited: allActors.some(a => {
-          const lastQ = a.lastExploited;
-          return lastQ.includes("2024") || lastQ.includes("2025") || lastQ.includes("2026");
-        }),
+        activelyExploited,
+        priorityScore,
+        exploitAvailable,
+        cisaKev,
+        description: vuln.description,
+        affectedAssets: vuln.affectedAssets || [],
+        remediationUrgency: getRemediationUrgency(priorityScore),
       });
 
       for (const actor of allActors) {
@@ -1085,26 +1195,43 @@ export async function enrichCvesWithThreatActors(
     }
   }
 
-  // Sort by threat level
-  const threatOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-  enrichedCves.sort((a, b) => (threatOrder[a.threatLevel] ?? 4) - (threatOrder[b.threatLevel] ?? 4));
+  // Sort by priority score descending (highest priority first)
+  enrichedCves.sort((a, b) => b.priorityScore - a.priorityScore);
 
   const actorTypeSummary = [...actorTypeCount.entries()]
     .map(([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count);
 
+  // Severity summary counts
+  const severitySummary = {
+    critical: enrichedCves.filter(e => e.severity === "critical").length,
+    high: enrichedCves.filter(e => e.severity === "high").length,
+    medium: enrichedCves.filter(e => e.severity === "medium").length,
+    low: enrichedCves.filter(e => e.severity === "low").length,
+  };
+
+  const activelyExploitedCount = enrichedCves.filter(e => e.activelyExploited).length;
+  const cisaKevCount = enrichedCves.filter(e => e.cisaKev).length;
+  const exploitAvailableCount = enrichedCves.filter(e => e.exploitAvailable).length;
+  const averagePriorityScore = enrichedCves.length > 0
+    ? Math.round(enrichedCves.reduce((sum, e) => sum + e.priorityScore, 0) / enrichedCves.length)
+    : 0;
+
   const nationStateCount = enrichedCves.filter(e => e.actors.some(a => a.sophistication === "nation-state")).length;
   const ransomwareCount = enrichedCves.filter(e => e.actors.some(a => a.type === "ransomware")).length;
-  const activeCount = enrichedCves.filter(e => e.activelyExploited).length;
 
   let riskElevation = "No threat actor correlations found — CVEs are known but not linked to active campaigns.";
   if (enrichedCves.length > 0) {
     const parts: string[] = [];
     if (nationStateCount > 0) parts.push(`${nationStateCount} CVE(s) exploited by nation-state actors`);
     if (ransomwareCount > 0) parts.push(`${ransomwareCount} CVE(s) used in ransomware campaigns`);
-    if (activeCount > 0) parts.push(`${activeCount} CVE(s) actively exploited in 2024-2026`);
-    riskElevation = `ELEVATED RISK: ${parts.join("; ")}. ${allActorNames.size} unique threat actor(s) linked to discovered vulnerabilities.`;
+    if (activelyExploitedCount > 0) parts.push(`${activelyExploitedCount} CVE(s) actively exploited in 2024-2026`);
+    if (cisaKevCount > 0) parts.push(`${cisaKevCount} CVE(s) in CISA KEV catalog`);
+    riskElevation = `ELEVATED RISK: ${parts.join("; ")}. ${allActorNames.size} unique threat actor(s) linked. Average priority score: ${averagePriorityScore}/100.`;
   }
+
+  // Top 5 priority CVEs for quick triage
+  const topPriorityCves = enrichedCves.slice(0, 5);
 
   return {
     totalCvesEnriched: enrichedCves.length,
@@ -1113,6 +1240,12 @@ export async function enrichCvesWithThreatActors(
     actorTypeSummary,
     enrichedCves,
     riskElevation,
+    severitySummary,
+    activelyExploitedCount,
+    cisaKevCount,
+    exploitAvailableCount,
+    averagePriorityScore,
+    topPriorityCves,
   };
 }
 

@@ -572,3 +572,386 @@ describe("CVE Enrichment Integration", () => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVASION ORCHESTRATOR TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Evasion Orchestrator Core", () => {
+  it("should export all core functions", async () => {
+    const mod = await import("./lib/evasion-orchestrator");
+    expect(mod.detectBlockSignal).toBeDefined();
+    expect(mod.getEscalationLadder).toBeDefined();
+    expect(mod.runEvasionLoop).toBeDefined();
+    expect(mod.storeFinding).toBeDefined();
+    expect(mod.getFindings).toBeDefined();
+    expect(mod.getFindingById).toBeDefined();
+    expect(mod.getOrchestratorStats).toBeDefined();
+    expect(mod.ESCALATION_LADDER).toBeDefined();
+  });
+
+  it("should detect block signals from HTTP responses", async () => {
+    const { detectBlockSignal } = await import("./lib/evasion-orchestrator");
+
+    const wafBlock = detectBlockSignal({ statusCode: 403, body: "Access Denied by WAF" });
+    expect(wafBlock.blocked).toBe(true);
+    expect(wafBlock.signal).toBe("http_403");
+
+    const rateLimit = detectBlockSignal({ statusCode: 429, body: "" });
+    expect(rateLimit.blocked).toBe(true);
+    expect(rateLimit.signal).toBe("http_429");
+
+    const success = detectBlockSignal({ statusCode: 200, body: "Welcome to the site" });
+    expect(success.blocked).toBe(false);
+  });
+
+  it("should return domain-specific escalation ladders", async () => {
+    const { getEscalationLadder } = await import("./lib/evasion-orchestrator");
+
+    const scanLadder = getEscalationLadder("scanning");
+    expect(scanLadder.length).toBeGreaterThan(0);
+    expect(scanLadder.every((t) => t.applicableTo.includes("scanning"))).toBe(true);
+
+    const c2Ladder = getEscalationLadder("c2");
+    expect(c2Ladder.length).toBeGreaterThan(0);
+    expect(c2Ladder.every((t) => t.applicableTo.includes("c2"))).toBe(true);
+
+    const exploitLadder = getEscalationLadder("exploit");
+    expect(exploitLadder.length).toBeGreaterThan(0);
+    expect(exploitLadder.every((t) => t.applicableTo.includes("exploit"))).toBe(true);
+  });
+
+  it("should have escalation ladder sorted by level", async () => {
+    const { ESCALATION_LADDER } = await import("./lib/evasion-orchestrator");
+    for (let i = 1; i < ESCALATION_LADDER.length; i++) {
+      expect(ESCALATION_LADDER[i].level).toBeGreaterThanOrEqual(ESCALATION_LADDER[i - 1].level);
+    }
+  });
+
+  it("should run evasion loop and return a finding on success", async () => {
+    const { runEvasionLoop } = await import("./lib/evasion-orchestrator");
+
+    const finding = await runEvasionLoop(
+      "scanning",
+      "https://test.example.com",
+      "test-scan",
+      { url: "https://test.example.com", headers: {}, metadata: {} },
+      async (_ctx) => ({
+        success: true,
+        statusCode: 200,
+        body: "OK",
+      }),
+      { maxAttempts: 3 },
+    );
+
+    expect(finding).toBeDefined();
+    expect(finding.id).toBeTruthy();
+    expect(finding.domain).toBe("scanning");
+    expect(finding.target).toBe("https://test.example.com");
+    expect(finding.finalResult).toBe("bypassed");
+    expect(finding.totalAttempts).toBeGreaterThanOrEqual(1);
+    expect(finding.attempts).toBeInstanceOf(Array);
+    expect(finding.evasionScorecard).toBeDefined();
+    expect(finding.evasionScorecard.bypassRate).toBeGreaterThanOrEqual(0);
+    expect(finding.recommendations).toBeInstanceOf(Array);
+  });
+
+  it("should record blocked result when all techniques fail", async () => {
+    const { runEvasionLoop } = await import("./lib/evasion-orchestrator");
+
+    const finding = await runEvasionLoop(
+      "c2",
+      "192.168.1.100",
+      "test-c2-task",
+      { command: "whoami", metadata: {} },
+      async (_ctx) => ({
+        success: false,
+        statusCode: 403,
+        body: "Blocked by EDR",
+      }),
+      { maxAttempts: 3 },
+    );
+
+    expect(finding.finalResult).toBe("blocked");
+    expect(finding.totalAttempts).toBeGreaterThanOrEqual(3);
+    expect(finding.attempts.every((a: any) => a.result === "blocked")).toBe(true);
+  });
+
+  it("should store and retrieve findings", async () => {
+    const { storeFinding, getFindings, getFindingById } = await import("./lib/evasion-orchestrator");
+
+    const testFinding = {
+      id: `test-store-${Date.now()}`,
+      domain: "scanning" as const,
+      target: "https://test-store.example.com",
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      totalAttempts: 2,
+      finalResult: "bypassed" as const,
+      successfulTechnique: { id: "t1", name: "Test Technique", category: "test", level: 1, description: "Test", escalationLevel: 1, mitreTechnique: "T1001", applicableDomains: ["scanning" as const] },
+      defensesDetected: ["WAF"],
+      attempts: [],
+      evasionScorecard: {
+        totalTechniquesTried: 2,
+        techniquesBypassed: 1,
+        techniquesBlocked: 1,
+        escalationDepth: 1,
+        bypassRate: 50,
+        defenseEffectiveness: 50,
+      },
+      recommendations: ["Test recommendation"],
+    };
+
+    storeFinding(testFinding);
+
+    const found = getFindingById(testFinding.id);
+    expect(found).toBeDefined();
+    expect(found?.target).toBe("https://test-store.example.com");
+
+    const allFindings = getFindings({ domain: "scanning" });
+    expect(allFindings.some((f) => f.id === testFinding.id)).toBe(true);
+  });
+
+  it("should compute orchestrator stats correctly", async () => {
+    const { getOrchestratorStats } = await import("./lib/evasion-orchestrator");
+
+    const stats = getOrchestratorStats();
+    expect(stats).toBeDefined();
+    expect(typeof stats.totalFindings).toBe("number");
+    expect(stats.byDomain).toBeDefined();
+    expect(stats.byResult).toBeDefined();
+    expect(typeof stats.averageBypassRate).toBe("number");
+    expect(typeof stats.averageEscalationDepth).toBe("number");
+    expect(stats.topDefenses).toBeInstanceOf(Array);
+    expect(stats.topBypassTechniques).toBeInstanceOf(Array);
+  });
+});
+
+describe("Evasion Integrations", () => {
+  it("should export all integration functions", async () => {
+    const mod = await import("./lib/evasion-integrations");
+    expect(mod.runEvasionAwareScan).toBeDefined();
+    expect(mod.runEvasionAwareC2Task).toBeDefined();
+    expect(mod.runEvasionAwareExploit).toBeDefined();
+    expect(mod.probeDefenses).toBeDefined();
+    expect(mod.selectPipelineForDefenses).toBeDefined();
+    expect(mod.generateOptimizedMutations).toBeDefined();
+  });
+
+  it("should probe defenses and return structured result", async () => {
+    const { probeDefenses } = await import("./lib/evasion-integrations");
+
+    const result = await probeDefenses("https://example.com");
+    expect(result).toBeDefined();
+    expect(typeof result.wafDetected).toBe("boolean");
+    expect(result.wafProducts).toBeInstanceOf(Array);
+    expect(result.recommendations).toBeInstanceOf(Array);
+    expect(typeof result.accessible).toBe("boolean");
+    expect(result.target).toBe("https://example.com");
+  });
+
+  it("should select pipeline based on detected defenses", async () => {
+    const { selectPipelineForDefenses } = await import("./lib/evasion-integrations");
+
+    const result = selectPipelineForDefenses(["Cloudflare", "CrowdStrike"], "windows");
+    expect(result).toBeDefined();
+    expect(result.profile).toBeTruthy();
+    expect(result.pipeline).toBeDefined();
+    expect(result.reasoning).toBeTruthy();
+  });
+
+  it("should generate optimized mutations for detected defenses", async () => {
+    const { generateOptimizedMutations } = await import("./lib/evasion-integrations");
+
+    const result = generateOptimizedMutations("whoami /all", ["Windows Defender"]);
+    expect(result).toBeDefined();
+    expect(result.mutations).toBeInstanceOf(Array);
+    expect(result.mutations.length).toBeGreaterThan(0);
+    expect(result.mutations[0].command).toBeTruthy();
+    expect(result.reasoning).toBeTruthy();
+  });
+
+  it("should run evasion-aware scan and return result with finding", async () => {
+    const { runEvasionAwareScan } = await import("./lib/evasion-integrations");
+
+    const result = await runEvasionAwareScan({
+      targetUrl: "https://test.example.com",
+      scanType: "full",
+      scanMode: "active",
+      userId: "test-user",
+      evasionEnabled: true,
+      maxEvasionAttempts: 3,
+    });
+
+    expect(result).toBeDefined();
+    expect(typeof result.bypassAchieved).toBe("boolean");
+    expect(result.evasionFinding).toBeDefined();
+    expect(result.evasionFinding.domain).toBe("scanning");
+  });
+
+  it("should run evasion-aware C2 task and return result", async () => {
+    const { runEvasionAwareC2Task } = await import("./lib/evasion-integrations");
+
+    const mockExecute = async (cmd: string, _opts: any) => ({
+      taskId: "mock-task-1",
+      status: "executed",
+      output: `Executed: ${cmd}`,
+    });
+
+    const result = await runEvasionAwareC2Task(
+      {
+        sessionId: 1,
+        sessionTarget: "192.168.1.100",
+        taskType: "execute",
+        command: "whoami",
+        evasionEnabled: true,
+        maxEvasionAttempts: 3,
+      },
+      mockExecute,
+    );
+
+    expect(result).toBeDefined();
+    expect(typeof result.bypassAchieved).toBe("boolean");
+    expect(result.evasionFinding).toBeDefined();
+    expect(result.evasionFinding.domain).toBe("c2");
+  });
+
+  it("should run evasion-aware exploit and return result", async () => {
+    const { runEvasionAwareExploit } = await import("./lib/evasion-integrations");
+
+    const mockExecute = async (_payload: string, _opts: any) => ({
+      success: true,
+      statusCode: 200,
+      body: "Exploit delivered",
+    });
+
+    const result = await runEvasionAwareExploit(
+      {
+        target: "https://target.example.com/vuln",
+        exploitId: "CVE-2024-1234",
+        exploitName: "Test Exploit",
+        payload: "<script>alert(1)</script>",
+        evasionEnabled: true,
+        maxEvasionAttempts: 3,
+      },
+      mockExecute,
+    );
+
+    expect(result).toBeDefined();
+    expect(typeof result.bypassAchieved).toBe("boolean");
+    expect(result.evasionFinding).toBeDefined();
+    expect(result.evasionFinding.domain).toBe("exploit");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CVE SEVERITY FILTER TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("CVE Severity Filter - Enhanced Enrichment", () => {
+  it("should include severity, priorityScore, cisaKev, and exploitAvailable fields", async () => {
+    const { enrichCvesWithThreatActors } = await import("./lib/domain-intel-advanced");
+
+    const mockVulns = {
+      totalVulnerabilities: 1,
+      criticalCount: 1, highCount: 0, mediumCount: 0, lowCount: 0,
+      vulnerabilities: [
+        { technology: "Apache", detectedVersion: "2.4.49", cveId: "CVE-2021-41773", severity: "critical" as const, cvssScore: 9.8, description: "Path traversal", affectedVersions: "2.4.49", exploitAvailable: true, references: [], affectedAssets: ["web.example.com"], remediation: "Upgrade", publishedDate: "2021-10-05" },
+      ],
+      technologySummary: [{ technology: "Apache", version: "2.4.49", vulnCount: 1, maxSeverity: "critical", assetCount: 1 }],
+    };
+
+    const result = await enrichCvesWithThreatActors(mockVulns as any);
+    const d = result as any;
+
+    expect(d.severitySummary).toBeDefined();
+    expect(typeof d.cisaKevCount).toBe("number");
+    expect(typeof d.activelyExploitedCount).toBe("number");
+
+    if (d.enrichedCves.length > 0) {
+      const cve = d.enrichedCves[0];
+      expect(cve.severity).toBeDefined();
+      expect(typeof cve.priorityScore).toBe("number");
+      expect(cve.priorityScore).toBeGreaterThanOrEqual(0);
+      expect(cve.priorityScore).toBeLessThanOrEqual(100);
+      expect(typeof cve.cisaKev).toBe("boolean");
+      expect(typeof cve.exploitAvailable).toBe("boolean");
+    }
+  });
+
+  it("should provide severity summary counts", async () => {
+    const { enrichCvesWithThreatActors } = await import("./lib/domain-intel-advanced");
+
+    const mockVulns = {
+      totalVulnerabilities: 3,
+      criticalCount: 2, highCount: 1, mediumCount: 0, lowCount: 0,
+      vulnerabilities: [
+        { technology: "Apache", detectedVersion: "2.4.49", cveId: "CVE-2021-41773", severity: "critical" as const, cvssScore: 9.8, description: "Path traversal", affectedVersions: "2.4.49", exploitAvailable: true, references: [], affectedAssets: ["web.example.com"], remediation: "Upgrade", publishedDate: "2021-10-05" },
+        { technology: "Java", detectedVersion: "11", cveId: "CVE-2021-44228", severity: "critical" as const, cvssScore: 10.0, description: "Log4Shell", affectedVersions: "2.0-2.14.1", exploitAvailable: true, references: [], affectedAssets: ["app.example.com"], remediation: "Upgrade", publishedDate: "2021-12-10" },
+        { technology: "OpenSSL", detectedVersion: "1.0.1", cveId: "CVE-2014-0160", severity: "high" as const, cvssScore: 7.5, description: "Heartbleed", affectedVersions: "1.0.1-1.0.1f", exploitAvailable: true, references: [], affectedAssets: ["api.example.com"], remediation: "Upgrade", publishedDate: "2014-04-07" },
+      ],
+      technologySummary: [
+        { technology: "Apache", version: "2.4.49", vulnCount: 1, maxSeverity: "critical", assetCount: 1 },
+        { technology: "Java", version: "11", vulnCount: 1, maxSeverity: "critical", assetCount: 1 },
+        { technology: "OpenSSL", version: "1.0.1", vulnCount: 1, maxSeverity: "high", assetCount: 1 },
+      ],
+    };
+
+    const result = await enrichCvesWithThreatActors(mockVulns as any);
+    const d = result as any;
+
+    expect(d.severitySummary).toBeDefined();
+    expect(typeof d.severitySummary).toBe("object");
+    const totalFromSummary = d.severitySummary.critical + d.severitySummary.high + d.severitySummary.medium + d.severitySummary.low;
+    expect(totalFromSummary).toBe(d.enrichedCves.length);
+  });
+
+  it("should sort enriched CVEs by priority score descending by default", async () => {
+    const { enrichCvesWithThreatActors } = await import("./lib/domain-intel-advanced");
+
+    const mockVulns = {
+      totalVulnerabilities: 3,
+      criticalCount: 2, highCount: 1, mediumCount: 0, lowCount: 0,
+      vulnerabilities: [
+        { technology: "Java", detectedVersion: "11", cveId: "CVE-2021-44228", severity: "critical" as const, cvssScore: 10.0, description: "Log4Shell", affectedVersions: "2.0-2.14.1", exploitAvailable: true, references: [], affectedAssets: ["app.example.com"], remediation: "Upgrade", publishedDate: "2021-12-10" },
+        { technology: "OpenSSL", detectedVersion: "1.0.1", cveId: "CVE-2014-0160", severity: "high" as const, cvssScore: 7.5, description: "Heartbleed", affectedVersions: "1.0.1-1.0.1f", exploitAvailable: true, references: [], affectedAssets: ["api.example.com"], remediation: "Upgrade", publishedDate: "2014-04-07" },
+        { technology: "Apache", detectedVersion: "2.4.49", cveId: "CVE-2021-41773", severity: "critical" as const, cvssScore: 9.8, description: "Path traversal", affectedVersions: "2.4.49", exploitAvailable: true, references: [], affectedAssets: ["web.example.com"], remediation: "Upgrade", publishedDate: "2021-10-05" },
+      ],
+      technologySummary: [],
+    };
+
+    const result = await enrichCvesWithThreatActors(mockVulns as any);
+    const d = result as any;
+
+    if (d.enrichedCves.length >= 2) {
+      for (let i = 1; i < d.enrichedCves.length; i++) {
+        expect(d.enrichedCves[i].priorityScore).toBeLessThanOrEqual(d.enrichedCves[i - 1].priorityScore);
+      }
+    }
+  });
+
+  it("should assign higher priority to CVEs with more actors and active exploitation", async () => {
+    const { enrichCvesWithThreatActors } = await import("./lib/domain-intel-advanced");
+
+    const mockVulns = {
+      totalVulnerabilities: 2,
+      criticalCount: 1, highCount: 0, mediumCount: 0, lowCount: 1,
+      vulnerabilities: [
+        { technology: "Java", detectedVersion: "11", cveId: "CVE-2021-44228", severity: "critical" as const, cvssScore: 10.0, description: "Log4Shell", affectedVersions: "2.0-2.14.1", exploitAvailable: true, references: [], affectedAssets: ["app.example.com"], remediation: "Upgrade", publishedDate: "2021-12-10" },
+        { technology: "ObscureLib", detectedVersion: "0.1", cveId: "CVE-2020-99999", severity: "low" as const, cvssScore: 3.0, description: "Minor info disclosure", affectedVersions: "0.1", exploitAvailable: false, references: [], affectedAssets: ["test.example.com"], remediation: "Upgrade", publishedDate: "2020-01-01" },
+      ],
+      technologySummary: [],
+    };
+
+    const result = await enrichCvesWithThreatActors(mockVulns as any);
+    const d = result as any;
+
+    if (d.enrichedCves.length >= 2) {
+      const log4shell = d.enrichedCves.find((c: any) => c.cveId === "CVE-2021-44228");
+      const minor = d.enrichedCves.find((c: any) => c.cveId === "CVE-2020-99999");
+      if (log4shell && minor) {
+        expect(log4shell.priorityScore).toBeGreaterThan(minor.priorityScore);
+      }
+    }
+  });
+});
