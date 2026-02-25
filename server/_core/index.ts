@@ -355,6 +355,14 @@ async function startServer() {
         console.warn("[DarkwebScheduler] Failed to initialize darkweb feed scheduler:", err);
       });
 
+      // Initialize Automated Domain Scan Scheduler (every 5 minutes)
+      import("../lib/scan-scheduler").then(({ initScanScheduler }) => {
+        initScanScheduler();
+        console.log("[ScanScheduler] Automated domain scan scheduler initialized");
+      }).catch((err) => {
+        console.warn("[ScanScheduler] Failed to initialize scan scheduler:", err);
+      });
+
       console.log("[Background] All background schedulers initialized");
     }, BACKGROUND_DELAY);
   });

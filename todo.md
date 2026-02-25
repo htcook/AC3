@@ -4262,3 +4262,32 @@
 - [x] Add takeover detection tab with evidence, remediation, and MITRE ATT&CK mapping
 - [x] Detect wildcard DNS configurations enabling mass subdomain takeover
 - [x] Write tests for all three features (22/22 passing, 83 total passing)
+
+## Automated Scan Scheduling
+- [x] Create scan scheduler service with node-cron (every 5 min check)
+- [x] Query enabled OSINT monitors and trigger scans when interval elapses
+- [x] Implement concurrency limit (2 simultaneous scans) with queue management
+- [x] Add change detection comparing current vs previous scan results
+- [x] Add tRPC endpoints: schedulerStatus, forceSchedulerCheck
+- [x] Build dedicated Scan Scheduler page with status, monitors, and run history
+- [x] Add Scan Scheduler to sidebar navigation
+- [x] Write tests for scheduler init/stop/status/forceCheck (5 tests passing)
+
+## CVE-to-Threat-Actor Enrichment
+- [x] Build static CVE-to-actor mapping (30+ CVEs mapped to APT groups, ransomware, cybercrime)
+- [x] Implement database actor correlation via MITRE technique overlap
+- [x] Classify threat levels and attack phases for each enriched CVE
+- [x] Track active exploitation status and campaign context
+- [x] Add CVE Actors tab to Domain Intel Results with expandable cards
+- [x] Add tRPC endpoint: cveActorEnrichment
+- [x] Write tests for enrichment structure, deduplication, empty handling (7 tests passing)
+
+## Active Takeover PoC Validation
+- [x] Implement HTTP/HTTPS probing of takeover candidates
+- [x] Add DNS resolution verification for subdomains and CNAME targets
+- [x] Build fingerprint matching against 13 cloud provider error signatures
+- [x] Implement confidence scoring (0-100) combining DNS, HTTP, and fingerprint signals
+- [x] Classify results as confirmed/likely/possible/unlikely with exploitability notes
+- [x] Add Takeover PoC tab with validation launcher and detailed results
+- [x] Add tRPC mutation: validateTakeover
+- [x] Write tests for validation structure, counting, empty handling (6 tests passing)

@@ -35,6 +35,7 @@ const EngagementResults = lazy(() => import("./pages/EngagementResults"));
 const OsintRecon = lazy(() => import("./pages/OsintRecon"));
 const DomainIntel = lazy(() => import("./pages/DomainIntel"));
 const DomainIntelResults = lazy(() => import("./pages/DomainIntelResults"));
+const ScanScheduler = lazy(() => import("./pages/ScanScheduler"));
 const TemplateGenerator = lazy(() => import("./pages/TemplateGenerator"));
 const AbilitiesLibrary = lazy(() => import("./pages/AbilitiesLibrary"));
 const IOCFeed = lazy(() => import("./pages/IOCFeed"));
@@ -274,6 +275,9 @@ function Router() {
         </Route>
         <Route path="/domain-intel/:id">
           {() => <ProtectedRoute component={DomainIntelResults} />}
+        </Route>
+        <Route path="/scan-scheduler">
+          <ProtectedRoute component={ScanScheduler} />
         </Route>
         <Route path="/template-generator">
           <ProtectedRoute component={TemplateGenerator} />

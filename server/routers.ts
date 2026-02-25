@@ -3436,6 +3436,34 @@ Respond in JSON format as an array of 3 campaign objects.`;
         await db.acknowledgeChange(input.id, ctx.user.id);
         return { success: true };
       }),
+
+    // ─── Automated Scan Scheduler ──────────────────────────────────────
+    schedulerStatus: protectedProcedure.query(async () => {
+      const { getSchedulerStatus } = await import('./lib/scan-scheduler');
+      const status = getSchedulerStatus();
+      const monitors = await db.getEnabledMonitors();
+      return {
+        ...status,
+        activeMonitors: monitors.length,
+        monitors: monitors.map(m => ({
+          id: m.id,
+          domain: m.domain,
+          intervalHours: m.intervalHours,
+          lastScanAt: m.lastScanAt,
+          totalScans: m.totalScans,
+          totalChangesDetected: m.totalChangesDetected,
+          nextScanDue: m.lastScanAt
+            ? new Date(new Date(m.lastScanAt).getTime() + (m.intervalHours || 24) * 60 * 60 * 1000).toISOString()
+            : 'now',
+          isDue: !m.lastScanAt || Date.now() >= new Date(m.lastScanAt).getTime() + (m.intervalHours || 24) * 60 * 60 * 1000,
+        })),
+      };
+    }),
+
+    forceSchedulerCheck: protectedProcedure.mutation(async () => {
+      const { forceSchedulerCheck } = await import('./lib/scan-scheduler');
+      return forceSchedulerCheck();
+    }),
   }),
 
   // ==================== ENGAGEMENT REPORTS ====================
@@ -5358,6 +5386,50 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
 
         const { detectSubdomainTakeover } = await import('./lib/domain-intel-advanced');
         return detectSubdomainTakeover(assets, pipelineOutput);
+      }),
+
+    // ─── CVE-to-Threat-Actor Enrichment ────────────────────────────────
+    cveActorEnrichment: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+
+        const assets = await db.getDiscoveredAssetsByScan(input.scanId);
+        const pipelineOutput = scan.pipelineOutput as any;
+
+        const { crossReferenceTechVulnerabilities, enrichCvesWithThreatActors } = await import('./lib/domain-intel-advanced');
+        const techVulnResult = crossReferenceTechVulnerabilities(assets, pipelineOutput);
+        return enrichCvesWithThreatActors(techVulnResult);
+      }),
+
+    // ─── Active Takeover PoC Validation ────────────────────────────────
+    validateTakeover: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .mutation(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+
+        const assets = await db.getDiscoveredAssetsByScan(input.scanId);
+        const pipelineOutput = scan.pipelineOutput as any;
+
+        const { detectSubdomainTakeover, validateTakeoverCandidates } = await import('./lib/domain-intel-advanced');
+        const takeoverResult = await detectSubdomainTakeover(assets, pipelineOutput);
+
+        if (!takeoverResult.candidates || takeoverResult.candidates.length === 0) {
+          return {
+            totalValidated: 0,
+            confirmedCount: 0,
+            likelyCount: 0,
+            possibleCount: 0,
+            unlikelyCount: 0,
+            errorCount: 0,
+            results: [],
+            summary: 'No takeover candidates found to validate.',
+          };
+        }
+
+        return validateTakeoverCandidates(takeoverResult.candidates);
       }),
 
   }),
