@@ -23,6 +23,14 @@ import {
 } from "../../drizzle/schema";
 import { eq, desc, sql, and, gte, isNotNull, count } from "drizzle-orm";
 import crypto from "crypto";
+import {
+  collectCalderaEvidence,
+  collectGophishEvidence,
+  collectZapEvidence,
+  checkAllScannerHealth,
+  crossRefThreatCatalog,
+  crossRefTtpKnowledge,
+} from "../lib/live-scanner-api";
 
 async function getDbSafe() {
   const db = await _getDb();
@@ -562,27 +570,127 @@ export const ksiAutoCollectorRouter = router({
     return { collected, source: "threat-intel", actorsProcessed: actors.length };
   }),
 
-  /** Run full collection sweep across all sources */
+  /** Check live scanner connection health */
+  checkScannerHealth: protectedProcedure.query(async () => {
+    return checkAllScannerHealth();
+  }),
+
+  /** Collect evidence from live Caldera API with threat catalog cross-referencing */
+  collectFromCalderaLive: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDbSafe();
+    let collected = 0;
+    const liveEvidence = await collectCalderaEvidence();
+
+    for (const ev of liveEvidence) {
+      // Cross-reference with threat catalog
+      let threatActorMatches: any[] = [];
+      if (ev.techniqueIds?.length) {
+        threatActorMatches = await crossRefThreatCatalog(ev.techniqueIds, db);
+      }
+
+      for (const ksiId of ev.ksiIds) {
+        await insertKsiEvidence(
+          db, ksiId, ev.title, ev.description,
+          "scan_result", "caldera-live",
+          `caldera-${ev.evidenceData.operationId}-${Date.now()}`,
+          {
+            ...ev.evidenceData,
+            threatActorMatches: threatActorMatches.slice(0, 5),
+            liveCollection: true,
+          },
+          ctx.user?.id, ctx.user?.name,
+        );
+        collected++;
+      }
+    }
+    return { collected, source: "caldera-live", operationsProcessed: liveEvidence.length };
+  }),
+
+  /** Collect evidence from live GoPhish API with threat catalog cross-referencing */
+  collectFromGophishLive: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDbSafe();
+    let collected = 0;
+    const liveEvidence = await collectGophishEvidence();
+
+    for (const ev of liveEvidence) {
+      let threatActorMatches: any[] = [];
+      if (ev.techniqueIds?.length) {
+        threatActorMatches = await crossRefThreatCatalog(ev.techniqueIds, db);
+      }
+
+      for (const ksiId of ev.ksiIds) {
+        await insertKsiEvidence(
+          db, ksiId, ev.title, ev.description,
+          "test_result", "gophish-live",
+          `gophish-${ev.evidenceData.campaignId}-${Date.now()}`,
+          {
+            ...ev.evidenceData,
+            threatActorMatches: threatActorMatches.slice(0, 5),
+            liveCollection: true,
+          },
+          ctx.user?.id, ctx.user?.name,
+        );
+        collected++;
+      }
+    }
+    return { collected, source: "gophish-live", campaignsProcessed: liveEvidence.length };
+  }),
+
+  /** Collect evidence from live ZAP API with threat catalog cross-referencing */
+  collectFromZapLive: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDbSafe();
+    let collected = 0;
+    const liveEvidence = await collectZapEvidence();
+
+    for (const ev of liveEvidence) {
+      let threatActorMatches: any[] = [];
+      if (ev.techniqueIds?.length) {
+        threatActorMatches = await crossRefThreatCatalog(ev.techniqueIds, db);
+      }
+
+      for (const ksiId of ev.ksiIds) {
+        await insertKsiEvidence(
+          db, ksiId, ev.title, ev.description,
+          "scan_result", "zap-live",
+          `zap-${ev.evidenceData.riskLevel}-${Date.now()}`,
+          {
+            ...ev.evidenceData,
+            threatActorMatches: threatActorMatches.slice(0, 5),
+            liveCollection: true,
+          },
+          ctx.user?.id, ctx.user?.name,
+        );
+        collected++;
+      }
+    }
+    return { collected, source: "zap-live", riskGroupsProcessed: liveEvidence.length };
+  }),
+
+  /** Cross-reference collected evidence techniques with threat catalog */
+  crossRefEvidence: protectedProcedure
+    .input(z.object({ techniqueIds: z.array(z.string()) }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const [actorMatches, ttpMatches] = await Promise.all([
+        crossRefThreatCatalog(input.techniqueIds, db),
+        crossRefTtpKnowledge(input.techniqueIds, db),
+      ]);
+      return {
+        threatActors: actorMatches,
+        ttpKnowledge: ttpMatches,
+        totalTechniques: input.techniqueIds.length,
+        actorsMatched: actorMatches.length,
+        ttpsMatched: ttpMatches.length,
+      };
+    }),
+
+  /** Run full collection sweep across all sources — DB + Live APIs */
   runFullCollection: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDbSafe();
-    const results: { source: string; collected: number; error?: string }[] = [];
+    const results: { source: string; collected: number; live: boolean; error?: string; threatActorsMatched?: number }[] = [];
 
-    const collectors = [
-      "collectFromVulnScanner",
-      "collectFromWebAppScanner",
-      "collectFromOsint",
-      "collectFromPhishing",
-      "collectFromEdr",
-      "collectFromNgfw",
-      "collectFromAdAttackSim",
-      "collectFromCloudMisconfigs",
-      "collectFromAtomicRedTeam",
-      "collectFromThreatIntel",
-    ];
-
-    // Run each collector and aggregate results
-    // We inline the logic to avoid circular tRPC calls
-    const sources = [
+    // Phase 1: Collect from local DB tables
+    const dbSources = [
       { name: "vuln-scanner", table: vulnScanFindings, orderCol: vulnScanFindings.createdAt },
       { name: "web-app-scanning", table: webAppFindings, orderCol: webAppFindings.createdAt },
       { name: "osint-recon", table: osintFindings, orderCol: osintFindings.createdAt },
@@ -590,36 +698,76 @@ export const ksiAutoCollectorRouter = router({
       { name: "cloud-misconfigs", table: cloudMisconfigurations, orderCol: cloudMisconfigurations.createdAt },
     ];
 
-    for (const src of sources) {
+    for (const src of dbSources) {
       try {
         const rows = await db.select({ count: count() }).from(src.table);
         const rowCount = rows[0]?.count || 0;
         const mapping = SOURCE_KSI_MAP.find(m => m.sourceModule === src.name);
         if (mapping && rowCount > 0) {
-          // Create a summary evidence entry for each mapped KSI
           for (const ksiId of mapping.ksiIds) {
             await insertKsiEvidence(
               db, ksiId,
               `Auto-Collection Sweep: ${src.name}`,
               `${rowCount} records found in ${src.name} — auto-collected as ${mapping.evidenceType}`,
-              mapping.evidenceType,
-              src.name,
+              mapping.evidenceType, src.name,
               `sweep-${src.name}-${Date.now()}`,
               { sourceModule: src.name, recordCount: rowCount, sweepTime: new Date().toISOString() },
-              ctx.user?.id,
-              ctx.user?.name,
+              ctx.user?.id, ctx.user?.name,
             );
           }
-          results.push({ source: src.name, collected: mapping.ksiIds.length });
+          results.push({ source: src.name, collected: mapping.ksiIds.length, live: false });
         } else {
-          results.push({ source: src.name, collected: 0 });
+          results.push({ source: src.name, collected: 0, live: false });
         }
       } catch (err: any) {
-        results.push({ source: src.name, collected: 0, error: err.message });
+        results.push({ source: src.name, collected: 0, live: false, error: err.message });
+      }
+    }
+
+    // Phase 2: Collect from live scanner APIs with threat catalog cross-referencing
+    const liveCollectors = [
+      { name: "caldera-live", fn: collectCalderaEvidence },
+      { name: "gophish-live", fn: collectGophishEvidence },
+      { name: "zap-live", fn: collectZapEvidence },
+    ];
+
+    for (const lc of liveCollectors) {
+      try {
+        const liveEvidence = await lc.fn();
+        let collected = 0;
+        let actorsMatched = 0;
+
+        for (const ev of liveEvidence) {
+          // Cross-reference each evidence item with threat catalog
+          let threatActorMatches: any[] = [];
+          if (ev.techniqueIds?.length) {
+            threatActorMatches = await crossRefThreatCatalog(ev.techniqueIds, db);
+            actorsMatched += threatActorMatches.length;
+          }
+
+          for (const ksiId of ev.ksiIds) {
+            await insertKsiEvidence(
+              db, ksiId, ev.title, ev.description,
+              "scan_result", lc.name,
+              `${lc.name}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+              {
+                ...ev.evidenceData,
+                threatActorMatches: threatActorMatches.slice(0, 5),
+                liveCollection: true,
+              },
+              ctx.user?.id, ctx.user?.name,
+            );
+            collected++;
+          }
+        }
+        results.push({ source: lc.name, collected, live: true, threatActorsMatched: actorsMatched });
+      } catch (err: any) {
+        results.push({ source: lc.name, collected: 0, live: true, error: err.message });
       }
     }
 
     const totalCollected = results.reduce((sum, r) => sum + r.collected, 0);
-    return { totalCollected, results, sweepTime: new Date().toISOString() };
+    const totalThreatActorsMatched = results.reduce((sum, r) => sum + (r.threatActorsMatched || 0), 0);
+    return { totalCollected, totalThreatActorsMatched, results, sweepTime: new Date().toISOString() };
   }),
 });

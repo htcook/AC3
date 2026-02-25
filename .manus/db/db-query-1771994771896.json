@@ -1,0 +1,13 @@
+{
+  "query": "SELECT LEFT(CAST(techniques AS CHAR), 200) as sample FROM threat_actors WHERE techniques IS NOT NULL LIMIT 1",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT LEFT(CAST(techniques AS CHAR), 200) as sample FROM threat_actors WHERE techniques IS NOT NULL LIMIT 1",
+  "rows": [
+    {
+      "sample": "\"[{\\\"id\\\":\\\"T1001.002\\\",\\\"name\\\":\\\"Steganography\\\",\\\"tactic\\\":\\\"command-and-control\\\"},{\\\"id\\\":\\\"T1005\\\",\\\"name\\\":\\\"Data from Local System\\\",\\\"tactic\\\":\\\"collection\\\"},{\\\"id\\\":\\\"T1560\\\",\\\"name\\\":\\\"Arc"
+    }
+  ],
+  "messages": [],
+  "stdout": "sample\n\"[{\\\"id\\\":\\\"T1001.002\\\",\\\"name\\\":\\\"Steganography\\\",\\\"tactic\\\":\\\"command-and-control\\\"},{\\\"id\\\":\\\"T1005\\\",\\\"name\\\":\\\"Data from Local System\\\",\\\"tactic\\\":\\\"collection\\\"},{\\\"id\\\":\\\"T1560\\\",\\\"name\\\":\\\"Arc\n",
+  "stderr": "",
+  "execution_time_ms": 62
+}

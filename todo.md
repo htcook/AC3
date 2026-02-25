@@ -4146,3 +4146,61 @@
 - [x] Reference as "FedRAMP's Key Security Indicators" with industry benefit context
 - [x] Update sidebar section title — "Key Security Indicators" (not "FedRAMP 20x")
 - [x] Fix duplicate playbookExecutions export in schema.ts
+
+## Live Scanner Integration (Replace Simulated Data)
+- [ ] Wire Caldera API: fetch operations, agents, abilities, and results via CALDERA_BASE_URL + CALDERA_API_KEY
+- [ ] Wire GoPhish API: fetch campaigns, results, and timeline events via GOPHISH_BASE_URL + GOPHISH_API_KEY
+- [ ] Wire ZAP API: fetch scan results, alerts, and spider findings via ZAP_BASE_URL + ZAP_API_KEY
+- [ ] Wire Shodan API: fetch host data and vuln counts via SHODAN_API_KEY
+- [ ] Wire SecurityTrails API: fetch DNS/subdomain data via SECURITYTRAILS_API_KEY
+- [ ] Wire URLScan API: fetch scan results via URLSCAN_API_KEY
+- [ ] Wire abuse.ch API: fetch malware/botnet indicators via ABUSECH_API_KEY
+- [ ] Replace simulated evidence counts in ksi-auto-collector with real API responses
+- [ ] Replace simulated evidence counts in ksi-scheduled-collection with real API responses
+- [ ] Add connection health check endpoint for all scanner APIs
+- [ ] Frontend: show live connection status per scanner on Auto-Collection page
+- [ ] Tests for live scanner integration with graceful fallback on API errors
+
+## Engagement Workflow Automation
+- [ ] Build vector-to-engagement pipeline: auto-create engagement tasks from identified attack vectors
+- [ ] Pre-load Caldera abilities into engagement tasks based on vector technique mapping
+- [ ] Pre-load Metasploit modules into engagement tasks based on vector CVE/technique mapping
+- [ ] Auto-generate engagement scope from attack vector target data
+- [ ] Wire playbook execution into engagement timeline events
+- [ ] Track engagement progress through kill chain phases with status updates
+- [ ] Auto-collect KSI evidence from completed engagement phases
+- [ ] Frontend: engagement automation dashboard with pipeline visualization
+- [ ] tRPC router for engagement automation CRUD and pipeline management
+- [ ] Tests for engagement workflow automation
+
+## Threat Catalog Cross-Referencing
+- [ ] Cross-reference Caldera operation results with threat actor TTPs from threat catalog
+- [ ] Cross-reference GoPhish campaign results with social engineering techniques from threat groups
+- [ ] Cross-reference ZAP/web scan findings with web attack vectors from threat group database
+- [ ] Cross-reference Shodan/OSINT findings with threat actor infrastructure patterns
+- [ ] Auto-tag collected evidence with matching threat group IDs and technique IDs
+- [ ] Enrich KSI evidence with threat actor attribution when technique matches
+- [ ] Frontend: show threat catalog links on evidence items and collection results
+
+## Threat Intelligence Enrichment Engine
+- [ ] Continuous TTP/IOC learning from threat catalog (threat_actors, ttpKnowledge, threat_intel_feeds)
+- [ ] Auto-discover new threat groups and enrich missing TTPs/IOCs via LLM
+- [ ] Feed enriched threat data into KSI evidence analysis (threat-informed evidence scoring)
+- [ ] Feed enriched threat data into KSI validation (threat-weighted validation priorities)
+- [ ] Feed enriched threat data into attack vector scoring (real-time threat actor relevance)
+- [ ] Feed enriched threat data into config baseline (threat-informed drift prioritization)
+- [ ] Feed enriched threat data into engagement planning (APT emulation recommendations)
+- [ ] IOC correlation engine: match IOCs across OSINT, dark web, vuln scans, and SIEM data
+- [ ] Threat landscape monitoring: track emerging TTPs and map to platform defenses
+- [ ] Enrichment dashboard: show enrichment status, coverage gaps, and cross-module feed health
+- [x] tRPC router for enrichment triggers, status, and cross-module queries
+- [x] Tests for enrichment engine and all cross-module integrations (21/21 passing)
+
+## Wave 4 Completion & Homepage Update
+- [x] Fix Threat Enrichment Engine parseTechniques for JSON string/array handling
+- [x] Fix test assertions for Live Scanner Integration (sources → actual field names)
+- [x] Fix test assertions for Engagement Automation (id → templateId, listAutomatedEngagements input)
+- [x] Fix runFullEnrichmentCycle return shape (validationPriorities field)
+- [x] Complete Threat Enrichment frontend dashboard with real-time status and TTP/IOC visualization
+- [x] Wire enrichment engine outputs into KSI evidence, validation, attack vectors, config baseline
+- [x] Update homepage to reflect new Threat Enrichment, Live Scanner, and Engagement Automation capabilities

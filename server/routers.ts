@@ -85,6 +85,8 @@ import { ksiThreatMapRouter } from "./routers/ksi-threat-map";
 import { configBaselineRouter } from "./routers/config-baseline";
 import { attackVectorEngineRouter } from "./routers/attack-vector-engine";
 import { ksiScheduledCollectionRouter } from "./routers/ksi-scheduled-collection";
+import { engagementAutomationRouter } from "./routers/engagement-automation";
+import { threatEnrichmentEngineRouter } from "./routers/threat-enrichment-engine";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -252,6 +254,8 @@ export const appRouter = router({
   configBaseline: configBaselineRouter,
   attackVectorEngine: attackVectorEngineRouter,
   ksiScheduledCollection: ksiScheduledCollectionRouter,
+  engagementAutomation: engagementAutomationRouter,
+  threatEnrichment: threatEnrichmentEngineRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

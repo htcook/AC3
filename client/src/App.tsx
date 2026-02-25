@@ -127,6 +127,8 @@ const KsiThreatMap = lazy(() => import("./pages/KsiThreatMap"));
 const ConfigBaseline = lazy(() => import("./pages/ConfigBaseline"));
 const AttackVectorEngine = lazy(() => import("./pages/AttackVectorEngine"));
 const ScheduledCollection = lazy(() => import("./pages/ScheduledCollection"));
+const EngagementAutomation = lazy(() => import("./pages/EngagementAutomation"));
+const ThreatEnrichment = lazy(() => import("./pages/ThreatEnrichment"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -564,6 +566,12 @@ function Router() {
         </Route>
         <Route path="/scheduled-collection">
           <ProtectedRoute component={ScheduledCollection} />
+        </Route>
+        <Route path="/engagement-automation">
+          <ProtectedRoute component={EngagementAutomation} />
+        </Route>
+        <Route path="/threat-enrichment">
+          <ProtectedRoute component={ThreatEnrichment} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

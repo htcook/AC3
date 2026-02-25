@@ -7,10 +7,17 @@
 import { router, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { getDb as _getDb } from "../db";
+import crypto from "crypto";
 
 async function db() { return _getDb(); }
-import { eq, desc, and, lte, sql } from "drizzle-orm";
+import { eq, desc, and, lte, sql, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import {
+  collectCalderaEvidence,
+  collectGophishEvidence,
+  collectZapEvidence,
+  crossRefThreatCatalog,
+} from "../lib/live-scanner-api";
 
 // Source type definitions with default cadences and display names
 const SOURCE_DEFINITIONS = [
@@ -34,6 +41,154 @@ const CADENCE_MS: Record<string, number> = {
   daily: 24 * 60 * 60 * 1000,
   weekly: 7 * 24 * 60 * 60 * 1000,
 };
+
+// ─── Live Collection Dispatcher ──────────────────────────────────────────────
+// Maps source types to live scanner API calls + DB table fallbacks
+
+function computeHash(data: string, previousHash?: string | null): string {
+  const payload = previousHash ? `${previousHash}:${data}` : data;
+  return crypto.createHash("sha256").update(payload).digest("hex");
+}
+
+function generateId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
+}
+
+async function insertScheduledEvidence(
+  dbConn: any,
+  ksiId: string,
+  title: string,
+  description: string,
+  sourceModule: string,
+  rawData: any,
+  collectedBy?: number | null,
+  collectedByName?: string | null,
+) {
+  const { ksiEvidence } = await import("../../drizzle/schema");
+  const evidenceId = generateId("EVD");
+  const lastEvidence = await dbConn.select()
+    .from(ksiEvidence)
+    .where(eq(ksiEvidence.ksiId, ksiId))
+    .orderBy(desc(ksiEvidence.createdAt))
+    .limit(1);
+
+  const previousHash = lastEvidence[0]?.integrityHash || null;
+  const dataToHash = JSON.stringify({ evidenceId, ksiId, title, sourceModule, rawData, timestamp: new Date().toISOString() });
+  const integrityHash = computeHash(dataToHash, previousHash);
+
+  await dbConn.insert(ksiEvidence).values({
+    evidenceId, ksiId, title, description,
+    evidenceType: "scan_result",
+    sourceModule,
+    sourceId: `scheduled-${sourceModule}-${Date.now()}`,
+    collectionMethod: "automated",
+    rawData,
+    integrityHash,
+    previousHash,
+    status: "collected",
+    collectedBy,
+    collectedByName: collectedByName ?? "Scheduled-Collector",
+  });
+  return { evidenceId, integrityHash };
+}
+
+async function collectLiveForSource(
+  sourceType: string,
+  userId?: number | null,
+  userName?: string | null,
+): Promise<number> {
+  const dbConn = await db();
+  if (!dbConn) return 0;
+  let collected = 0;
+
+  const sourceDef = SOURCE_DEFINITIONS.find(s => s.sourceType === sourceType);
+  if (!sourceDef) return 0;
+
+  // Live scanner sources → call real APIs
+  if (sourceType === "phishing_campaigns" || sourceType === "gophish") {
+    const liveEvidence = await collectGophishEvidence();
+    for (const ev of liveEvidence) {
+      let threatActorMatches: any[] = [];
+      if (ev.techniqueIds?.length) {
+        threatActorMatches = await crossRefThreatCatalog(ev.techniqueIds, dbConn);
+      }
+      for (const ksiId of sourceDef.ksiMappings) {
+        await insertScheduledEvidence(dbConn, ksiId, ev.title, ev.description, "gophish-live",
+          { ...ev.evidenceData, threatActorMatches: threatActorMatches.slice(0, 5), liveCollection: true },
+          userId, userName);
+        collected++;
+      }
+    }
+    return collected;
+  }
+
+  if (sourceType === "atomic_red_team" || sourceType === "caldera") {
+    const liveEvidence = await collectCalderaEvidence();
+    for (const ev of liveEvidence) {
+      let threatActorMatches: any[] = [];
+      if (ev.techniqueIds?.length) {
+        threatActorMatches = await crossRefThreatCatalog(ev.techniqueIds, dbConn);
+      }
+      for (const ksiId of sourceDef.ksiMappings) {
+        await insertScheduledEvidence(dbConn, ksiId, ev.title, ev.description, "caldera-live",
+          { ...ev.evidenceData, threatActorMatches: threatActorMatches.slice(0, 5), liveCollection: true },
+          userId, userName);
+        collected++;
+      }
+    }
+    return collected;
+  }
+
+  if (sourceType === "web_app_scanner" || sourceType === "zap") {
+    const liveEvidence = await collectZapEvidence();
+    for (const ev of liveEvidence) {
+      let threatActorMatches: any[] = [];
+      if (ev.techniqueIds?.length) {
+        threatActorMatches = await crossRefThreatCatalog(ev.techniqueIds, dbConn);
+      }
+      for (const ksiId of sourceDef.ksiMappings) {
+        await insertScheduledEvidence(dbConn, ksiId, ev.title, ev.description, "zap-live",
+          { ...ev.evidenceData, threatActorMatches: threatActorMatches.slice(0, 5), liveCollection: true },
+          userId, userName);
+        collected++;
+      }
+    }
+    return collected;
+  }
+
+  // DB-backed sources → count records from local tables
+  const tableMap: Record<string, { table: any; countCol: any }> = {};
+  try {
+    const schema = await import("../../drizzle/schema");
+    tableMap["vuln_scanner"] = { table: schema.vulnScanFindings, countCol: count() };
+    tableMap["osint_recon"] = { table: schema.osintFindings, countCol: count() };
+    tableMap["darkweb_intel"] = { table: schema.darkWebRecords, countCol: count() };
+    tableMap["edr_validation"] = { table: schema.edrTestResults, countCol: count() };
+    tableMap["ngfw_validation"] = { table: schema.ngfwValidationTests, countCol: count() };
+    tableMap["ad_attack_sim"] = { table: schema.adAttackSimulations, countCol: count() };
+    tableMap["cloud_misconfigs"] = { table: schema.cloudMisconfigurations, countCol: count() };
+    tableMap["threat_intel"] = { table: schema.threatActors, countCol: count() };
+  } catch { /* tables may not exist */ }
+
+  const entry = tableMap[sourceType];
+  if (entry) {
+    const rows = await dbConn.select({ count: count() }).from(entry.table);
+    const rowCount = rows[0]?.count || 0;
+    if (rowCount > 0) {
+      for (const ksiId of sourceDef.ksiMappings) {
+        await insertScheduledEvidence(dbConn, ksiId,
+          `Scheduled Collection: ${sourceDef.displayName}`,
+          `${rowCount} records collected from ${sourceDef.displayName}`,
+          sourceType,
+          { recordCount: rowCount, sweepTime: new Date().toISOString(), liveCollection: false },
+          userId, userName);
+        collected++;
+      }
+    }
+  }
+
+  return collected;
+}
 
 export const ksiScheduledCollectionRouter = router({
   // Initialize all default schedules
@@ -123,9 +278,8 @@ export const ksiScheduledCollectionRouter = router({
       });
 
       try {
-        // Call the auto-collector for this source type
-        // In production, this would invoke the actual scanner integration
-        const evidenceCount = Math.floor(Math.random() * 15) + 1; // Simulated for now
+        // Call the live scanner integration for this source type
+        const evidenceCount = await collectLiveForSource(input.sourceType, ctx.user?.id, ctx.user?.name);
 
         // Update job as completed
         await (await db()).update(collectionJobHistory).set({
@@ -193,8 +347,8 @@ export const ksiScheduledCollectionRouter = router({
 
     for (const schedule of dueSchedules) {
       try {
-        // Simulate collection for each due source
-        const evidenceCount = Math.floor(Math.random() * 10) + 1;
+        // Live collection for each due source
+        const evidenceCount = await collectLiveForSource(schedule.sourceType, ctx.user?.id, ctx.user?.name);
         const cadenceMs = CADENCE_MS[schedule.cadence] || CADENCE_MS.daily;
 
         await (await db()).update(collectionSchedules).set({

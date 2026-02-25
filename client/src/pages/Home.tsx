@@ -42,6 +42,9 @@ function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: 
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
+  { date: "Feb 2026", title: "Threat Intelligence Enrichment Engine", desc: "Continuously learns threat actor TTPs and IOCs to enhance KSI analysis, monitoring, evaluation, and validation across all platform modules. Full enrichment cycle correlates 1,698+ threat actors against all 55 FedRAMP KSIs with risk scoring, coverage matrix, IOC feeds per module, and cross-module priority updates for validation, attack vectors, and config baselines." },
+  { date: "Feb 2026", title: "Live Scanner Integration", desc: "Real-time cross-referencing of live scan evidence against the threat catalog. Auto-collection pipelines with 6 configurable sources feed KSI evidence chains. Scheduled collection with cron-based automation and source health monitoring." },
+  { date: "Feb 2026", title: "Engagement Automation Engine", desc: "Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates (full pentest, red team, purple team, phishing assessment, cloud security) with kill chain phase mapping, recommended techniques, and pre-loaded Caldera abilities and Metasploit modules." },
   { date: "Feb 2026", title: "FedRAMP KSI Coverage Map", desc: "Interactive map showing how ACE C3 covers 87% of all 55 FedRAMP Key Security Indicators across 9 compliance themes. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped ACE C3 modules." },
   { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped atomic tests synced and ready to execute. Browse by technique, tactic, or platform. Run tests against target systems with full audit trails. Cross-module integration links validation tests to Attack Planner, Emulation Playbooks, Purple Team exercises, adversary operations, DAST findings, and detection rule validation." },
   { date: "Feb 2026", title: "DAST Server Deployed", desc: "Dedicated DAST scanning server deployed with auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. AI-powered scan configuration auto-tunes spider depth, authentication handlers, and scan policies based on target tech stack detection." },
@@ -199,13 +202,13 @@ export default function Home() {
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
               Exploit execution, adversary emulation, DAST scanning, ATT&CK validation,
-              and social engineering — unified under one AI-powered command center with evidence-backed reporting.
+              social engineering, and continuous threat intelligence enrichment — unified under one AI-powered command center with evidence-backed reporting.
             </p>
 
             <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-10">
               Stop switching between disconnected terminals. Ace C3 orchestrates your entire
               exploit-to-report workflow: reconnaissance, DAST scanning, adversary emulation,
-              social engineering, detection validation, and compliance reporting — all correlated
+              social engineering, detection validation, threat intelligence enrichment, and compliance reporting — all correlated
               through MITRE ATT&CK.
             </p>
 
@@ -271,8 +274,9 @@ export default function Home() {
               <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center border-2 border-primary/50 bg-primary/5">
                 <ShieldCheck className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="font-display text-xl tracking-wider mb-4">VALIDATE & REPORT</h3>
+              <h3 className="font-display text-xl tracking-wider mb-4">ENRICH, VALIDATE & REPORT</h3>
               <p className="text-muted-foreground leading-relaxed">
+                Continuous threat intelligence enrichment correlates 1,698+ threat actors against your security controls.
                 Every exploitable finding is backed by captured proof — console output, session data,
                 and HTML evidence reports. Auto-generate detection rules from executed TTPs, measure
                 SIEM coverage gaps, and deliver compliance-ready reports with evidence artifacts.
@@ -319,8 +323,8 @@ export default function Home() {
                 {
                   step: "4",
                   icon: BarChart3,
-                  title: "Validate, Measure & Report",
-                  desc: "Autonomous validation confirms which CVEs are actually exploitable. Evidence capture stores console output, session data, and HTML proof reports. Auto-generate detection rules from executed TTPs. Deliver compliance-ready reports with validation coverage metrics and clickable evidence artifacts."
+                  title: "Enrich, Validate & Report",
+                  desc: "Threat intelligence enrichment continuously correlates threat actors, TTPs, and IOCs against your security controls. Autonomous validation confirms which CVEs are actually exploitable. Evidence capture stores console output, session data, and HTML proof reports. Deliver compliance-ready reports with enrichment-driven priorities and clickable evidence artifacts."
                 },
               ].map((item) => (
                 <div key={item.step} className="flex gap-5 p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/50">
@@ -355,8 +359,8 @@ export default function Home() {
             <AnimatedStat value={stats.calderaAbilities} label="EMULATION ABILITIES" suffix="" />
             <AnimatedStat value={1400} label="ATT&CK VALIDATION TESTS" suffix="+" />
             <AnimatedStat value={stats.threatActors} label="THREAT ACTORS" suffix="+" />
-            <AnimatedStat value={5} label="INTEGRATED TOOLS" suffix="" />
-            <AnimatedStat value={stats.platformModules} label="PLATFORM MODULES" suffix="" />
+            <AnimatedStat value={6} label="INTEGRATED TOOLS" suffix="" />
+            <AnimatedStat value={32} label="PLATFORM MODULES" suffix="" />
           </div>
         </div>
       </section>
@@ -421,7 +425,7 @@ export default function Home() {
         <div className="container text-center">
           <h2 className="text-3xl sm:text-4xl font-display mb-4">READY TO TEST YOUR DEFENSES?</h2>
           <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-            Enter the Command Center to orchestrate your full offensive stack — exploits, emulation, DAST, validation, and social engineering from one interface.
+            Enter the Command Center to orchestrate your full offensive stack — exploits, emulation, DAST, validation, social engineering, and continuous threat intelligence enrichment from one interface.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/dashboard">
@@ -453,7 +457,7 @@ export default function Home() {
           </div>
           <CollapsibleSection
             title="PLATFORM CAPABILITIES"
-            subtitle="Six integrated pillars covering the full offensive execution lifecycle."
+            subtitle="Seven integrated pillars covering the full offensive execution lifecycle — from reconnaissance through continuous threat enrichment."
           >
           <div className="grid lg:grid-cols-3 gap-6">
             <PillarCard
@@ -510,18 +514,18 @@ export default function Home() {
             <PillarCard
               icon={<Brain className="w-7 h-7" />}
               number="04"
-              title="THREAT & VULN INTELLIGENCE"
-              description={`${stats.threatActors.toLocaleString()} threat actor profiles with kill chain visualization, exploit cross-referencing, and one-click campaign deployment. Five aggregated vulnerability feeds with live verification.`}
+              title="THREAT INTELLIGENCE & ENRICHMENT"
+              description={`${stats.threatActors.toLocaleString()} threat actor profiles with continuous enrichment engine that correlates TTPs and IOCs against all KSIs, attack vectors, validation schedules, and config baselines. Five aggregated vulnerability feeds with live verification.`}
               features={[
-                "APT matching with kill chain and confidence breakdown",
-                "Exploit cross-reference: which techniques have exploits",
-                "One-click campaign deployment from matched threat actors",
-                "Unified vuln feeds from 5+ authoritative sources",
-                "0-day tracking with exploit availability indicators",
-                "Aggregated IOC feeds from multiple threat intelligence sources",
+                "Continuous enrichment engine with full-cycle automation",
+                "KSI-to-MITRE technique coverage matrix across 9 themes",
+                "IOC feeds per module: KSI, attack vectors, config, validation",
+                "Threat-informed validation priority scoring",
+                "Attack vector enrichment with actor correlation",
+                "Config baseline prioritization from threat landscape",
               ]}
-              link="/vuln-intel"
-              linkLabel="VULN INTELLIGENCE"
+              link="/threat-enrichment"
+              linkLabel="ENRICHMENT ENGINE"
             />
 
             <PillarCard
@@ -557,6 +561,23 @@ export default function Home() {
               link="/post-engagement-report"
               linkLabel="GENERATE REPORTS"
             />
+
+            <PillarCard
+              icon={<Rocket className="w-7 h-7" />}
+              number="07"
+              title="ENGAGEMENT AUTOMATION"
+              description="Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates with kill chain phase mapping, recommended techniques, and pre-loaded Caldera abilities and Metasploit modules."
+              features={[
+                "5 templates: pentest, red team, purple team, phishing, cloud",
+                "Kill chain phase mapping per engagement type",
+                "Auto-loaded Caldera abilities and Metasploit modules",
+                "Live scanner integration with threat catalog cross-reference",
+                "Scheduled auto-collection with 6 configurable sources",
+                "Source health monitoring and evidence chain feeds",
+              ]}
+              link="/engagement-automation"
+              linkLabel="ENGAGEMENT AUTOMATION"
+            />
           </div>
           </CollapsibleSection>
         </div>
@@ -569,7 +590,7 @@ export default function Home() {
         <div className="container">
           <CollapsibleSection
             title="OPERATIONS CENTER"
-            subtitle="30+ integrated modules organized across six operational domains."
+            subtitle="32+ integrated modules organized across seven operational domains."
           >
           <div className="space-y-12">
             <ModuleSection
@@ -638,6 +659,19 @@ export default function Home() {
             />
 
             <ModuleSection
+              title="THREAT ENRICHMENT & AUTOMATION"
+              color="text-purple-400"
+              modules={[
+                { icon: Brain, name: "Enrichment Engine", desc: "Continuous threat intelligence enrichment correlating TTPs and IOCs against KSIs, attack vectors, and config baselines" },
+                { icon: TrendingUp, name: "Coverage Matrix", desc: "KSI-to-MITRE technique coverage across 9 FedRAMP themes with actor density and risk scoring" },
+                { icon: Zap, name: "Engagement Automation", desc: "5 engagement templates with kill chain mapping, pre-loaded Caldera abilities and Metasploit modules" },
+                { icon: Scan, name: "Live Scanner", desc: "Real-time cross-referencing of scan evidence against threat catalog with auto-collection pipelines" },
+                { icon: Clock, name: "Scheduled Collection", desc: "Cron-based automated evidence collection with source health monitoring" },
+                { icon: Radio, name: "IOC Feeds", desc: "Per-module IOC feeds from correlated threat actors for KSI, attack vectors, config, and validation" },
+              ]}
+            />
+
+            <ModuleSection
               title="REPORTING & COMPLIANCE"
               color="text-violet-400"
               modules={[
@@ -658,9 +692,9 @@ export default function Home() {
         <div className="container">
           <CollapsibleSection
             title="ENGAGEMENT WORKFLOW"
-            subtitle="Seven phases from OSINT through post-engagement reporting."
+            subtitle="Eight phases from OSINT through continuous threat enrichment and post-engagement reporting."
           >
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             {[
               { step: "01", title: "RECON", desc: "DAST crawls web apps while 16 OSINT connectors map your attack surface with evidence-based risk scoring", icon: Radar },
               { step: "02", title: "EXPLOIT", desc: "Match DAST findings and confirmed CVEs to exploit modules and deploy with agent stagers", icon: Target },
@@ -668,7 +702,8 @@ export default function Home() {
               { step: "04", title: "PHISH", desc: "Launch social engineering campaigns with 17 exploit-enhanced phishing techniques and typosquat domains", icon: Zap },
               { step: "05", title: "VALIDATE", desc: "Run ATT&CK validation tests and autonomous exploit validation with evidence capture", icon: FlaskConical },
               { step: "06", title: "DETECT", desc: "Auto-generate Sigma/YARA/Suricata rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
-              { step: "07", title: "REPORT", desc: "Deliver reports with validation coverage metrics, evidence artifacts, and remediation steps", icon: FileText },
+              { step: "07", title: "ENRICH", desc: "Continuous threat intelligence enrichment correlates findings against threat actors, updates KSI priorities, and feeds IOCs to all modules", icon: Brain },
+              { step: "08", title: "REPORT", desc: "Deliver reports with enrichment-driven priorities, validation coverage metrics, evidence artifacts, and remediation steps", icon: FileText },
             ].map((item) => (
               <div key={item.step} className="text-center p-4 border border-border/50 bg-card/30 hover:border-primary/50 transition-colors">
                 <item.icon className="w-6 h-6 text-primary mx-auto mb-3" />
@@ -759,6 +794,17 @@ export default function Home() {
               ]}
             />
             <ArchCard
+              icon={<Brain className="w-6 h-6" />}
+              title="THREAT ENRICHMENT ENGINE"
+              items={[
+                "Continuous TTP/IOC correlation against all KSIs",
+                "Coverage matrix across 9 FedRAMP themes",
+                "Cross-module IOC feeds and priority scoring",
+                "Engagement automation with 5 templates",
+                "Scheduled auto-collection with source health monitoring",
+              ]}
+            />
+            <ArchCard
               icon={<Radio className="w-6 h-6" />}
               title="REAL-TIME ENGINE"
               items={[
@@ -791,14 +837,14 @@ export default function Home() {
                 Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance,
                 CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
                 Ace C3 is our unified offensive platform — orchestrating exploit execution, adversary emulation,
-                DAST scanning, ATT&CK validation, and social engineering through a single AI-powered command center.
+                DAST scanning, ATT&CK validation, social engineering, and continuous threat intelligence enrichment through a single AI-powered command center.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                 Created by Harrison Cook, Ace C3 aligns to Gartner's CTEM framework across all five stages:
                 scoping, discovery, prioritization, validation, and mobilization. Where vulnerability scanners
                 stop at identification and BAS platforms stop at simulation, Ace C3 executes real exploits,
-                runs adversary emulation, scans web applications, validates ATT&CK coverage, and tests
-                human defenses — then captures evidence proving exploitability. Every finding is backed by proof, not theory.
+                runs adversary emulation, scans web applications, validates ATT&CK coverage, tests
+                human defenses, and continuously enriches security controls with threat intelligence — then captures evidence proving exploitability. Every finding is backed by proof, not theory.
               </p>
               <div className="flex flex-wrap gap-3">
                 <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
@@ -850,7 +896,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE C3</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
-            Ace C3 — Unified Offensive Platform | Powered by Ace of Cloud
+            Ace C3 — Unified Offensive Platform with Continuous Threat Intelligence Enrichment | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">

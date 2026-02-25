@@ -241,6 +241,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
       { href: "/attack-vector-engine", icon: Crosshair, label: "ATTACK VECTORS" },
       { href: "/scheduled-collection", icon: Clock, label: "SCHEDULED COLLECTION" },
+      { href: "/engagement-automation", icon: Zap, label: "ENGAGEMENT AUTOMATION" },
+      { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
     ],
   },
 ];
