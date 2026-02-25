@@ -85,7 +85,7 @@ export default function OscalExport() {
             OSCAL Export Engine
           </h1>
           <p className="text-muted-foreground mt-1">
-            Generate machine-readable OSCAL v1.1.2 compliance documents for FedRAMP 20x
+            Generate machine-readable OSCAL v1.1.2 compliance documents for FedRAMP
           </p>
         </div>
         <div className="flex gap-2">
@@ -124,7 +124,7 @@ export default function OscalExport() {
                   <Input
                     value={newExport.title}
                     onChange={(e) => setNewExport(p => ({ ...p, title: e.target.value }))}
-                    placeholder={`ACE C3 ${newExport.documentType.toUpperCase()} — FedRAMP 20x`}
+                    placeholder={`ACE C3 ${newExport.documentType.toUpperCase()} — FedRAMP`}
                   />
                 </div>
                 <div>
@@ -184,7 +184,7 @@ export default function OscalExport() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {DOC_TYPES.map(dt => (
           <Card key={dt.id} className="hover:border-blue-500/30 transition-colors cursor-pointer" onClick={() => {
-            setNewExport(p => ({ ...p, documentType: dt.id, title: `ACE C3 ${dt.id.toUpperCase()} — FedRAMP 20x` }));
+            setNewExport(p => ({ ...p, documentType: dt.id, title: `ACE C3 ${dt.id.toUpperCase()} — FedRAMP` }));
             setShowGenerateDialog(true);
           }}>
             <CardContent className="pt-5 pb-4">

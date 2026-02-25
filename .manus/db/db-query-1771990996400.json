@@ -1,0 +1,54 @@
+{
+  "query": "SELECT 'exploit_scripts' as tbl, COUNT(*) as cnt FROM exploit_scripts UNION ALL SELECT 'unified_exploit_catalog', COUNT(*) FROM unified_exploit_catalog UNION ALL SELECT 'atomic_tests', COUNT(*) FROM atomic_tests UNION ALL SELECT 'threat_actors', COUNT(*) FROM threat_actors UNION ALL SELECT 'darkweb_enriched_records', COUNT(*) FROM darkweb_enriched_records UNION ALL SELECT 'osint_findings', COUNT(*) FROM osint_findings UNION ALL SELECT 'domain_recon', COUNT(*) FROM domain_recon UNION ALL SELECT 'vuln_scan_findings', COUNT(*) FROM vuln_scan_findings UNION ALL SELECT 'attack_chain_records', COUNT(*) FROM attack_chain_records UNION ALL SELECT 'ai_attack_plans', COUNT(*) FROM ai_attack_plans UNION ALL SELECT 'web_app_findings', COUNT(*) FROM web_app_findings;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT 'exploit_scripts' as tbl, COUNT(*) as cnt FROM exploit_scripts UNION ALL SELECT 'unified_exploit_catalog', COUNT(*) FROM unified_exploit_catalog UNION ALL SELECT 'atomic_tests', COUNT(*) FROM atomic_tests UNION ALL SELECT 'threat_actors', COUNT(*) FROM threat_actors UNION ALL SELECT 'darkweb_enriched_records', COUNT(*) FROM darkweb_enriched_records UNION ALL SELECT 'osint_findings', COUNT(*) FROM osint_findings UNION ALL SELECT 'domain_recon', COUNT(*) FROM domain_recon UNION ALL SELECT 'vuln_scan_findings', COUNT(*) FROM vuln_scan_findings UNION ALL SELECT 'attack_chain_records', COUNT(*) FROM attack_chain_records UNION ALL SELECT 'ai_attack_plans', COUNT(*) FROM ai_attack_plans UNION ALL SELECT 'web_app_findings', COUNT(*) FROM web_app_findings;",
+  "rows": [
+    {
+      "tbl": "darkweb_enriched_records",
+      "cnt": "20"
+    },
+    {
+      "tbl": "exploit_scripts",
+      "cnt": "0"
+    },
+    {
+      "tbl": "atomic_tests",
+      "cnt": "0"
+    },
+    {
+      "tbl": "threat_actors",
+      "cnt": "1698"
+    },
+    {
+      "tbl": "vuln_scan_findings",
+      "cnt": "0"
+    },
+    {
+      "tbl": "attack_chain_records",
+      "cnt": "0"
+    },
+    {
+      "tbl": "ai_attack_plans",
+      "cnt": "0"
+    },
+    {
+      "tbl": "web_app_findings",
+      "cnt": "0"
+    },
+    {
+      "tbl": "domain_recon",
+      "cnt": "0"
+    },
+    {
+      "tbl": "osint_findings",
+      "cnt": "0"
+    },
+    {
+      "tbl": "unified_exploit_catalog",
+      "cnt": "16121"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\ndarkweb_enriched_records\t20\nexploit_scripts\t0\natomic_tests\t0\nthreat_actors\t1698\nvuln_scan_findings\t0\nattack_chain_records\t0\nai_attack_plans\t0\nweb_app_findings\t0\ndomain_recon\t0\nosint_findings\t0\nunified_exploit_catalog\t16121\n",
+  "stderr": "",
+  "execution_time_ms": 73
+}

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS collection_job_history (\n  id VARCHAR(36) PRIMARY KEY,\n  schedule_id VARCHAR(36) NOT NULL,\n  source_type VARCHAR(50) NOT NULL,\n  status ENUM('success', 'failure', 'running') NOT NULL,\n  started_at BIGINT NOT NULL,\n  completed_at BIGINT,\n  evidence_collected INT DEFAULT 0,\n  error_message TEXT,\n  duration_ms INT\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS collection_job_history (\n  id VARCHAR(36) PRIMARY KEY,\n  schedule_id VARCHAR(36) NOT NULL,\n  source_type VARCHAR(50) NOT NULL,\n  status ENUM('success', 'failure', 'running') NOT NULL,\n  started_at BIGINT NOT NULL,\n  completed_at BIGINT,\n  evidence_collected INT DEFAULT 0,\n  error_message TEXT,\n  duration_ms INT\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 336
+}

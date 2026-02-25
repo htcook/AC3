@@ -71,6 +71,7 @@ import {
   Hexagon,
   ScanLine,
   Map,
+  Clock,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -228,16 +229,18 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "fedramp",
-    label: "FEDRAMP 20x KSI",
+    label: "KEY SECURITY INDICATORS",
     icon: BadgeCheck,
     items: [
-      { href: "/ksi-dashboard", icon: BadgeCheck, label: "KSI DASHBOARD" },
+      { href: "/ksi-dashboard", icon: BadgeCheck, label: "INDICATORS DASHBOARD" },
       { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
       { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
       { href: "/ksi-threat-map", icon: Crosshair, label: "THREAT MAP" },
       { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
       { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
       { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
+      { href: "/attack-vector-engine", icon: Crosshair, label: "ATTACK VECTORS" },
+      { href: "/scheduled-collection", icon: Clock, label: "SCHEDULED COLLECTION" },
     ],
   },
 ];

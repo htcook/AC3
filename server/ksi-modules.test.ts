@@ -45,7 +45,7 @@ describe("KSI Evidence Chain Router", () => {
       expect(summary.overallCoverage).toBeGreaterThan(0);
       expect(summary.overallCoverage).toBeLessThanOrEqual(100);
       expect(summary.themeStats).toBeDefined();
-      expect(summary.themeStats.length).toBe(11); // 11 FedRAMP 20x themes
+      expect(summary.themeStats.length).toBe(11); // 11 FedRAMP themes
     });
 
     it("should have correct theme codes", async () => {
@@ -355,7 +355,7 @@ describe("OSCAL Export Engine Router", () => {
     it("should generate an OSCAL SSP document", async () => {
       const result = await caller.oscalExport.generate({
         documentType: "ssp",
-        title: "Test SSP — FedRAMP 20x",
+        title: "Test SSP — FedRAMP",
         outputFormat: "json",
       });
       expect(result).toBeDefined();
@@ -386,7 +386,7 @@ describe("OSCAL Export Engine Router", () => {
     it("should generate an OSCAL SAR document", async () => {
       const result = await caller.oscalExport.generate({
         documentType: "sar",
-        title: "Test SAR — FedRAMP 20x",
+        title: "Test SAR — FedRAMP",
         outputFormat: "json",
       });
       expect(result).toBeDefined();
@@ -418,7 +418,7 @@ describe("OSCAL Export Engine Router", () => {
     it("should generate an OSCAL POA&M document", async () => {
       const result = await caller.oscalExport.generate({
         documentType: "poam",
-        title: "Test POA&M — FedRAMP 20x",
+        title: "Test POA&M — FedRAMP",
         outputFormat: "json",
       });
       expect(result).toBeDefined();

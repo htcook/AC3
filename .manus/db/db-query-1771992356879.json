@@ -1,0 +1,46 @@
+{
+  "query": "SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_NAME = 'collection_job_history' AND TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_NAME = 'collection_job_history' AND TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(36)"
+    },
+    {
+      "COLUMN_NAME": "schedule_id",
+      "COLUMN_TYPE": "varchar(36)"
+    },
+    {
+      "COLUMN_NAME": "source_type",
+      "COLUMN_TYPE": "varchar(50)"
+    },
+    {
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('success','failure','running')"
+    },
+    {
+      "COLUMN_NAME": "started_at",
+      "COLUMN_TYPE": "bigint(20)"
+    },
+    {
+      "COLUMN_NAME": "completed_at",
+      "COLUMN_TYPE": "bigint(20)"
+    },
+    {
+      "COLUMN_NAME": "evidence_collected",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "error_message",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "duration_ms",
+      "COLUMN_TYPE": "int(11)"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tCOLUMN_TYPE\nid\tvarchar(36)\nschedule_id\tvarchar(36)\nsource_type\tvarchar(50)\nstatus\tenum('success','failure','running')\nstarted_at\tbigint(20)\ncompleted_at\tbigint(20)\nevidence_collected\tint(11)\nerror_message\ttext\nduration_ms\tint(11)\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

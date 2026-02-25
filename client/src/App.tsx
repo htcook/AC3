@@ -125,6 +125,8 @@ const OscalExport = lazy(() => import("./pages/OscalExport"));
 const KsiAutoCollector = lazy(() => import("./pages/KsiAutoCollector"));
 const KsiThreatMap = lazy(() => import("./pages/KsiThreatMap"));
 const ConfigBaseline = lazy(() => import("./pages/ConfigBaseline"));
+const AttackVectorEngine = lazy(() => import("./pages/AttackVectorEngine"));
+const ScheduledCollection = lazy(() => import("./pages/ScheduledCollection"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -556,6 +558,12 @@ function Router() {
         </Route>
         <Route path="/config-baseline">
           <ProtectedRoute component={ConfigBaseline} />
+        </Route>
+        <Route path="/attack-vector-engine">
+          <ProtectedRoute component={AttackVectorEngine} />
+        </Route>
+        <Route path="/scheduled-collection">
+          <ProtectedRoute component={ScheduledCollection} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

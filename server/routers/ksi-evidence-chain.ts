@@ -16,7 +16,7 @@ async function getDbSafe() {
   return db;
 }
 
-// ─── Constants: All 58 FedRAMP 20x KSIs ────────────────────────────────────────
+// ─── Constants: All 58 FedRAMP KSIs ────────────────────────────────────────
 
 export const KSI_CATALOG = [
   // Theme 1: Authorization by FedRAMP (AFR)

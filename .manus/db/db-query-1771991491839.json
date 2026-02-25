@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS attack_playbook_executions (\n  id VARCHAR(36) PRIMARY KEY,\n  playbook_id VARCHAR(36) NOT NULL,\n  engagement_id INT,\n  current_phase ENUM('pre_exploit', 'initial_access', 'execution', 'persistence', 'priv_escalation', 'lateral_movement', 'collection', 'exfiltration', 'cleanup', 'completed', 'aborted') NOT NULL DEFAULT 'pre_exploit',\n  current_step_index INT DEFAULT 0,\n  step_results JSON,\n  started_at BIGINT NOT NULL,\n  completed_at BIGINT,\n  executed_by VARCHAR(64),\n  ape_status ENUM('running', 'paused', 'completed', 'failed', 'aborted') NOT NULL DEFAULT 'running'\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS attack_playbook_executions (\n  id VARCHAR(36) PRIMARY KEY,\n  playbook_id VARCHAR(36) NOT NULL,\n  engagement_id INT,\n  current_phase ENUM('pre_exploit', 'initial_access', 'execution', 'persistence', 'priv_escalation', 'lateral_movement', 'collection', 'exfiltration', 'cleanup', 'completed', 'aborted') NOT NULL DEFAULT 'pre_exploit',\n  current_step_index INT DEFAULT 0,\n  step_results JSON,\n  started_at BIGINT NOT NULL,\n  completed_at BIGINT,\n  executed_by VARCHAR(64),\n  ape_status ENUM('running', 'paused', 'completed', 'failed', 'aborted') NOT NULL DEFAULT 'running'\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 313
+}

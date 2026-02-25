@@ -237,7 +237,7 @@ export default function FedRAMPKSIMap() {
           </div>
           <h2 className="text-4xl sm:text-5xl font-display mb-4">FEDRAMP 20x KSI MAP</h2>
           <p className="text-lg text-muted-foreground max-w-3xl">
-            How ACE C3 maps to all 55 FedRAMP 20x Key Security Indicators across 9 compliance themes — 
+            How ACE C3 maps to all 55 FedRAMP Key Security Indicators across 9 compliance themes — 
             enabling cloud service providers to achieve authorization and federal agencies to monitor their CSP portfolio.
           </p>
         </div>
@@ -312,7 +312,7 @@ export default function FedRAMPKSIMap() {
         <div className="mb-8 p-4 border border-border/50 bg-card/30">
           {activeView === "csp" ? (
             <p className="text-sm text-muted-foreground leading-relaxed">
-              <span className="text-primary font-display tracking-wider">CSP VIEW</span> — ACE C3 helps cloud service providers achieve and maintain FedRAMP 20x authorization by providing automated KSI validation, evidence generation, penetration testing across all 6 mandatory attack vectors, and machine-readable OSCAL export for direct submission to the FedRAMP PMO.
+              <span className="text-primary font-display tracking-wider">CSP VIEW</span> — ACE C3 helps cloud service providers achieve and maintain FedRAMP authorization by providing automated KSI validation, evidence generation, penetration testing across all 6 mandatory attack vectors, and machine-readable OSCAL export for direct submission to the FedRAMP PMO.
             </p>
           ) : (
             <p className="text-sm text-muted-foreground leading-relaxed">

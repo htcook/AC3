@@ -4085,3 +4085,64 @@
 - [x] Frontend: show recommended exploits/tests per KSI in Threat Map page (exploit tab)
 - [x] tRPC endpoint for fetching exploit matches per KSI (getExploitsForKsi)
 - [x] Exploit coverage summary across all KSIs (getExploitCoverageSummary)
+
+## Azure/GCP CIS Benchmark Rules
+- [x] Add Azure CIS v2.1 benchmark rules (20 rules: IAM, networking, logging, storage, database, compute)
+- [x] Add GCP CIS v2.0 benchmark rules (18 rules: IAM, networking, logging, storage, compute, BigQuery)
+- [x] Map all new rules to relevant KSIs and MITRE ATT&CK techniques
+- [x] Update frontend ConfigBaseline page to show platform filter for AWS/Azure/GCP/K8s
+- [x] Total catalog expanded from 31 to 89 rules across 4 platforms
+
+## Scheduled Auto-Collection Jobs
+- [x] Database schema: collection_schedules and collection_job_history tables
+- [x] Build scheduler engine with configurable cadences (hourly, every_6h, daily, weekly)
+- [x] Add per-source enable/disable toggles for scheduled collection
+- [x] Job execution history tracking with success/failure/running status
+- [x] Frontend: Scheduled Collection management UI page
+- [x] tRPC endpoints for schedule CRUD, job history, runDueCollections
+- [x] 8 passing tests for scheduled collection module
+
+## Attack Vector Identification Engine
+- [x] Audit OSINT, dark web, exploit, threat actor, and Caldera/MSF data sources
+- [x] Database schema: attack_vectors, attack_vector_evidence tables
+- [x] Cross-reference OSINT findings (subdomains, emails, credential leaks, tech stack) with exploit catalog
+- [x] Cross-reference dark web intel (leaked creds, breach data) with target attack surface
+- [x] Score attack vectors by exploitability, impact, and threat actor relevance (10-point scale)
+- [x] Map vectors to MITRE ATT&CK kill chain phases (14 phases)
+- [x] tRPC router for vector identification, scoring, and analysis
+
+## Attack Mapping Engine (Caldera + Metasploit)
+- [x] Map attack vectors to 30+ Caldera abilities by technique ID and tactic
+- [x] Map attack vectors to 40+ Metasploit modules by CVE, technique, and target platform
+- [x] Build kill chain orchestration: chain abilities/modules into engagement playbooks
+- [x] Cross-reference with Atomic Red Team tests for validation
+- [x] Generate engagement-ready attack plans from identified vectors (generatePlaybook)
+- [x] Frontend: Attack Vector Engine page with kill chain visualization
+- [x] Frontend: Caldera/MSF module recommendations per vector
+- [x] 7 passing tests for attack vector engine
+
+## Pre-Exploitation Workflow Integration
+- [x] Auto-identify attack vectors from OSINT recon, dark web intel, vuln scans, and web app findings
+- [x] Score vectors by exploitability (CVSS + dark web exposure + threat actor relevance)
+- [x] Map vectors to MITRE ATT&CK kill chain phases (recon → initial access → execution)
+- [x] Generate pre-engagement attack plans from identified vectors (generatePlaybook)
+- [x] Link vectors to recommended Caldera abilities for initial access and execution
+- [x] Link vectors to recommended Metasploit modules by CVE, platform, and service
+- [x] Cross-reference with Atomic Red Team tests for validation coverage
+
+## Post-Exploitation Workflow Integration
+- [x] Map post-exploitation phases: persistence, privilege escalation, lateral movement, collection, exfiltration, cleanup
+- [x] Recommend Caldera abilities for each post-exploitation phase based on target platform
+- [x] Recommend Metasploit post modules for persistence, pivoting, and data collection
+- [x] Build engagement playbook generator: chain pre→exploit→post into executable sequences
+- [x] Track exploitation status per vector through full kill chain lifecycle (advanceExecution)
+- [x] Auto-generate cleanup/rollback procedures for each exploited vector
+- [x] ROE compliance flag on all playbooks
+
+## Branding: Key Security Indicators (FedRAMP Attribution)
+- [x] Rename all "KSI" sidebar labels to "Key Security Indicators" with proper FedRAMP attribution
+- [x] Update all frontend page titles and descriptions — no FedRAMP authorization claims
+- [x] Update all backend router comments and response labels
+- [x] Reference as "FedRAMP's Key Security Indicators" with industry benefit context
+- [x] Update sidebar section title — "Key Security Indicators" (not "FedRAMP 20x")
+- [x] Fix duplicate playbookExecutions export in schema.ts

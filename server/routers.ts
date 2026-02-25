@@ -83,6 +83,8 @@ import { oscalExportRouter } from "./routers/oscal-export";
 import { ksiAutoCollectorRouter } from "./routers/ksi-auto-collector";
 import { ksiThreatMapRouter } from "./routers/ksi-threat-map";
 import { configBaselineRouter } from "./routers/config-baseline";
+import { attackVectorEngineRouter } from "./routers/attack-vector-engine";
+import { ksiScheduledCollectionRouter } from "./routers/ksi-scheduled-collection";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -248,6 +250,8 @@ export const appRouter = router({
   ksiAutoCollector: ksiAutoCollectorRouter,
   ksiThreatMap: ksiThreatMapRouter,
   configBaseline: configBaselineRouter,
+  attackVectorEngine: attackVectorEngineRouter,
+  ksiScheduledCollection: ksiScheduledCollectionRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

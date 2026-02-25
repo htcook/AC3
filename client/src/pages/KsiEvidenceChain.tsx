@@ -120,10 +120,10 @@ export default function KsiEvidenceChain() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <ShieldAlert className="h-7 w-7 text-blue-500" />
-            KSI Evidence Chain
+            Indicator Evidence Chain
           </h1>
           <p className="text-muted-foreground mt-1">
-            Tamper-evident evidence collection with SHA-256 hash chaining for FedRAMP 20x compliance
+            Tamper-evident evidence collection with SHA-256 hash chaining for FedRAMP compliance
           </p>
         </div>
         <div className="flex gap-2">

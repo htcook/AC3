@@ -323,6 +323,13 @@
       "when": 1771990138956,
       "tag": "0045_dapper_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1771992770380,
+      "tag": "0046_tranquil_valkyrie",
+      "breakpoints": true
     }
   ]
 }

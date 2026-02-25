@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_NAME = 'attack_playbooks' AND COLUMN_NAME IN ('status', 'ap_status') AND TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_NAME = 'attack_playbooks' AND COLUMN_NAME IN ('status', 'ap_status') AND TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "COLUMN_NAME": "status"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nstatus\n",
+  "stderr": "",
+  "execution_time_ms": 64
+}

@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, json, boolean, double, float, datetime } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, json, boolean, double, float, datetime, bigint } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -4282,11 +4282,11 @@ export type InsertRoeVersion = typeof roeVersions.$inferInsert;
 
 
 // ============================================================
-// FedRAMP 20x KSI Evidence Chain
+// FedRAMP KSI Evidence Chain
 // ============================================================
 
 /**
- * KSI Definitions — master catalog of all 58 FedRAMP 20x Key Security Indicators
+ * KSI Definitions — master catalog of all 58 FedRAMP Key Security Indicators
  */
 export const ksiDefinitions = mysqlTable("ksi_definitions", {
   id: int("id").autoincrement().primaryKey(),
@@ -4385,7 +4385,7 @@ export type KsiControlMapping = typeof ksiControlMappings.$inferSelect;
 export type InsertKsiControlMapping = typeof ksiControlMappings.$inferInsert;
 
 // ============================================================
-// FedRAMP 20x KSI Validation Scheduler
+// FedRAMP KSI Validation Scheduler
 // ============================================================
 
 /**
@@ -4551,3 +4551,119 @@ export const configDriftAlerts = mysqlTable("config_drift_alerts", {
 });
 export type ConfigDriftAlert = typeof configDriftAlerts.$inferSelect;
 export type InsertConfigDriftAlert = typeof configDriftAlerts.$inferInsert;
+
+
+// ── Scheduled Auto-Collection ─────────────────────────────────────────────────
+export const collectionSchedules = mysqlTable("collection_schedules", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  sourceType: varchar("source_type", { length: 50 }).notNull(),
+  displayName: varchar("display_name", { length: 200 }).notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  cadence: mysqlEnum("cadence", ["hourly", "every_6h", "every_12h", "daily", "weekly"]).notNull().default("daily"),
+  lastRunAt: bigint("last_run_at", { mode: "number" }),
+  nextRunAt: bigint("next_run_at", { mode: "number" }),
+  lastStatus: mysqlEnum("last_status", ["success", "failure", "running", "never_run"]).notNull().default("never_run"),
+  lastError: text("last_error"),
+  lastEvidenceCount: int("last_evidence_count").default(0),
+  totalRuns: int("total_runs").default(0),
+  totalEvidenceCollected: int("total_evidence_collected").default(0),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+export type CollectionSchedule = typeof collectionSchedules.$inferSelect;
+export type InsertCollectionSchedule = typeof collectionSchedules.$inferInsert;
+
+export const collectionJobHistory = mysqlTable("collection_job_history", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  scheduleId: varchar("schedule_id", { length: 36 }).notNull(),
+  sourceType: varchar("source_type", { length: 50 }).notNull(),
+  status: mysqlEnum("status", ["success", "failure", "running", "completed", "failed"]).notNull(),
+  startedAt: bigint("started_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  evidenceCollected: int("evidence_collected").default(0),
+  errorMessage: text("error_message"),
+  durationMs: int("duration_ms"),
+  triggeredBy: varchar("triggered_by", { length: 255 }).default("manual"),
+});
+export type CollectionJobHistory = typeof collectionJobHistory.$inferSelect;
+export type InsertCollectionJobHistory = typeof collectionJobHistory.$inferInsert;
+
+
+// ── Attack Vector Identification & Mapping ────────────────────────────────────
+export const attackVectors = mysqlTable("attack_vectors", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  engagementId: int("engagement_id"),
+  name: varchar("name", { length: 512 }).notNull(),
+  description: text("description"),
+  vectorType: mysqlEnum("vector_type", ["initial_access", "credential_compromise", "supply_chain", "social_engineering", "insider_threat", "physical", "web_application", "network_exploitation", "cloud_misconfiguration", "wireless"]).notNull(),
+  killChainPhase: varchar("kill_chain_phase", { length: 64 }).notNull(),
+  mitreTechniqueIds: json("mitre_technique_ids"),
+  cvssScore: double("cvss_score"),
+  exploitabilityScore: double("exploitability_score"),
+  impactScore: double("impact_score"),
+  overallRiskScore: double("overall_risk_score").notNull(),
+  confidence: varchar("confidence", { length: 16 }).notNull().default("medium"),
+  status: mysqlEnum("status", ["identified", "validated", "exploited", "mitigated", "accepted"]).notNull().default("identified"),
+  targetAsset: varchar("target_asset", { length: 512 }),
+  targetPlatform: varchar("target_platform", { length: 64 }),
+  targetService: varchar("target_service", { length: 255 }),
+  sourceModules: json("source_modules"),
+  threatActorIds: json("threat_actor_ids"),
+  ksiIds: json("ksi_ids"),
+  evidenceSummary: text("evidence_summary"),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+export type AttackVector = typeof attackVectors.$inferSelect;
+
+export const attackVectorEvidence = mysqlTable("attack_vector_evidence", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  vectorId: varchar("vector_id", { length: 36 }).notNull(),
+  sourceType: mysqlEnum("source_type", ["osint_finding", "darkweb_record", "vuln_scan", "web_app_finding", "exploit_script", "credential_leak", "domain_recon", "threat_actor", "atomic_test", "cloud_misconfig"]).notNull(),
+  sourceId: varchar("source_id", { length: 64 }).notNull(),
+  sourceTitle: varchar("source_title", { length: 512 }),
+  relevanceScore: double("relevance_score").notNull().default(0.5),
+  evidenceDetail: text("evidence_detail"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+export type AttackVectorEvidenceRow = typeof attackVectorEvidence.$inferSelect;
+
+export const attackPlaybooks = mysqlTable("attack_playbooks", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  engagementId: int("engagement_id"),
+  name: varchar("name", { length: 512 }).notNull(),
+  description: text("description"),
+  targetEnvironment: varchar("target_environment", { length: 128 }),
+  targetPlatform: varchar("target_platform", { length: 64 }),
+  killChainCoverage: json("kill_chain_coverage"),
+  preExploitSteps: json("pre_exploit_steps"),
+  exploitSteps: json("exploit_steps"),
+  postExploitSteps: json("post_exploit_steps"),
+  cleanupSteps: json("cleanup_steps"),
+  calderaAbilities: json("caldera_abilities"),
+  msfModules: json("msf_modules"),
+  atomicTests: json("atomic_tests"),
+  estimatedDuration: varchar("estimated_duration", { length: 64 }),
+  riskLevel: mysqlEnum("risk_level", ["low", "medium", "high", "critical"]).notNull().default("medium"),
+  roeCompliant: boolean("roe_compliant").default(true),
+  status: mysqlEnum("status", ["draft", "approved", "executing", "completed", "aborted"]).notNull().default("draft"),
+  createdBy: varchar("created_by", { length: 64 }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+export type AttackPlaybook = typeof attackPlaybooks.$inferSelect;
+
+export const attackPlaybookExecutions = mysqlTable("attack_playbook_executions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  playbookId: varchar("playbook_id", { length: 36 }).notNull(),
+  engagementId: int("engagement_id"),
+  currentPhase: mysqlEnum("current_phase", ["pre_exploit", "initial_access", "execution", "persistence", "priv_escalation", "lateral_movement", "collection", "exfiltration", "cleanup", "completed", "aborted"]).notNull().default("pre_exploit"),
+  currentStepIndex: int("current_step_index").default(0),
+  stepResults: json("step_results"),
+  startedAt: bigint("started_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  executedBy: varchar("executed_by", { length: 64 }),
+  status: mysqlEnum("status", ["running", "paused", "completed", "failed", "aborted"]).notNull().default("running"),
+});
+export type AttackPlaybookExecution = typeof attackPlaybookExecutions.$inferSelect;

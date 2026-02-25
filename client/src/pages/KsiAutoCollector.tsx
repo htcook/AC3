@@ -104,9 +104,9 @@ export default function KsiAutoCollector() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">KSI Auto-Collection</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Indicator Auto-Collection</h1>
           <p className="text-muted-foreground">
-            Automatically feed evidence from existing scanners and tools into the KSI Evidence Chain
+            Automatically feed evidence from existing scanners and tools into the Indicator Evidence Chain
           </p>
         </div>
         <Button
@@ -185,7 +185,7 @@ export default function KsiAutoCollector() {
             Source-to-KSI Mappings
           </CardTitle>
           <CardDescription>
-            Each scanner module maps to specific FedRAMP 20x KSIs. Click "Collect" to pull evidence from individual sources.
+            Each scanner module maps to specific FedRAMP KSIs. Click "Collect" to pull evidence from individual sources.
           </CardDescription>
         </CardHeader>
         <CardContent>

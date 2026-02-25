@@ -84,10 +84,10 @@ export default function KsiValidation() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <ClipboardCheck className="h-7 w-7 text-blue-500" />
-            KSI Validation Scheduler
+            Indicator Validation Scheduler
           </h1>
           <p className="text-muted-foreground mt-1">
-            Automated validation scheduling and tracking for FedRAMP 20x KSIs
+            Automated validation scheduling and tracking for FedRAMP KSIs
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => {

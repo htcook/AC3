@@ -50,9 +50,9 @@ export default function KsiThreatMap() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">KSI Threat Map</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Indicator Threat Map</h1>
         <p className="text-muted-foreground">
-          Map FedRAMP 20x KSIs to MITRE ATT&CK techniques, threat groups, and available exploits for validation testing
+          Map FedRAMP KSIs to MITRE ATT&CK techniques, threat groups, and available exploits for validation testing
         </p>
       </div>
 

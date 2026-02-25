@@ -22,7 +22,7 @@ export default function KsiDashboard() {
 
   const seedMutation = trpc.ksiEvidenceChain.seedCatalog.useMutation({
     onSuccess: (data) => {
-      toast.success(`KSI Catalog Seeded: ${data.seeded} of ${data.total} KSIs added to database`);
+      toast.success(`Indicator Catalog Seeded: ${data.seeded} of ${data.total} KSIs added to database`);
       coverageSummary.refetch();
     },
     onError: (err) => {
@@ -58,16 +58,16 @@ export default function KsiDashboard() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <BadgeCheck className="h-7 w-7 text-blue-500" />
-            FedRAMP 20x KSI Dashboard
+            Key Security Indicators Dashboard
           </h1>
           <p className="text-muted-foreground mt-1">
-            Continuous compliance monitoring across 58 Key Security Indicators
+            Continuous monitoring of FedRAMP's Key Security Indicators — the industry standard for cloud security posture and compliance readiness
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleSeedCatalog} disabled={seeding}>
             {seeding ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Database className="h-4 w-4 mr-1" />}
-            Seed KSI Catalog
+            Seed Indicator Catalog
           </Button>
           <Button variant="outline" size="sm" onClick={() => initSchedulesMutation.mutate({})}>
             <Clock className="h-4 w-4 mr-1" />
@@ -91,21 +91,21 @@ export default function KsiDashboard() {
           <CardContent className="pt-4 pb-3 px-4">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">Overall Coverage</div>
             <div className="text-3xl font-bold text-blue-500 mt-1">{coverage?.overallCoverage || 0}%</div>
-            <div className="text-xs text-muted-foreground">{coverage?.totalKSIs || 58} KSIs tracked</div>
+            <div className="text-xs text-muted-foreground">{coverage?.totalKSIs || 58} indicators tracked</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">Direct Coverage</div>
             <div className="text-3xl font-bold text-emerald-500 mt-1">{coverage?.directCount || 0}</div>
-            <div className="text-xs text-muted-foreground">KSIs directly addressed</div>
+            <div className="text-xs text-muted-foreground">indicators directly addressed</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">Supporting</div>
             <div className="text-3xl font-bold text-amber-500 mt-1">{coverage?.supportingCount || 0}</div>
-            <div className="text-xs text-muted-foreground">KSIs with support</div>
+            <div className="text-xs text-muted-foreground">indicators with support</div>
           </CardContent>
         </Card>
         <Card>
@@ -136,9 +136,9 @@ export default function KsiDashboard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            KSI Theme Coverage
+            Indicator Theme Coverage
           </CardTitle>
-          <CardDescription>Coverage status across all 11 FedRAMP 20x themes</CardDescription>
+          <CardDescription>Coverage across all 11 Key Security Indicator themes defined by FedRAMP</CardDescription>
         </CardHeader>
         <CardContent>
           {coverage?.themeStats && coverage.themeStats.length > 0 ? (
@@ -179,7 +179,7 @@ export default function KsiDashboard() {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No KSI data loaded. Click "Seed KSI Catalog" to initialize.</p>
+              <p>No KSI data loaded. Click "Seed Indicator Catalog" to initialize.</p>
             </div>
           )}
           <div className="flex gap-4 mt-4 text-xs text-muted-foreground">

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS collection_schedules (\n  id VARCHAR(36) PRIMARY KEY,\n  source_type VARCHAR(50) NOT NULL,\n  display_name VARCHAR(200) NOT NULL,\n  enabled BOOLEAN NOT NULL DEFAULT true,\n  cadence ENUM('hourly', 'every_6h', 'every_12h', 'daily', 'weekly') NOT NULL DEFAULT 'daily',\n  last_run_at BIGINT,\n  next_run_at BIGINT,\n  last_status ENUM('success', 'failure', 'running', 'never_run') NOT NULL DEFAULT 'never_run',\n  last_error TEXT,\n  last_evidence_count INT DEFAULT 0,\n  total_runs INT DEFAULT 0,\n  total_evidence_collected INT DEFAULT 0,\n  created_at BIGINT NOT NULL,\n  updated_at BIGINT NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS collection_schedules (\n  id VARCHAR(36) PRIMARY KEY,\n  source_type VARCHAR(50) NOT NULL,\n  display_name VARCHAR(200) NOT NULL,\n  enabled BOOLEAN NOT NULL DEFAULT true,\n  cadence ENUM('hourly', 'every_6h', 'every_12h', 'daily', 'weekly') NOT NULL DEFAULT 'daily',\n  last_run_at BIGINT,\n  next_run_at BIGINT,\n  last_status ENUM('success', 'failure', 'running', 'never_run') NOT NULL DEFAULT 'never_run',\n  last_error TEXT,\n  last_evidence_count INT DEFAULT 0,\n  total_runs INT DEFAULT 0,\n  total_evidence_collected INT DEFAULT 0,\n  created_at BIGINT NOT NULL,\n  updated_at BIGINT NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 263
+}
