@@ -4539,3 +4539,16 @@
 - [x] Highlight new/removed/changed findings, headers, technologies, exposed paths
 - [x] Add Compare tab to Web Crawler page with domain/baseline/current selectors
 - [x] Write vitest tests for crawl comparison logic (24 tests passing)
+
+## Crawl Findings → CARVER+Shock Scoring Integration
+- [x] Map crawl findings to CARVER+Shock scoring dimensions
+- [x] Build crawl-to-CARVER scoring integration service (server/lib/crawl-carver-integration.ts)
+- [x] Wire CARVER scoring into auto-crawl completion flow (auto-crawl.ts)
+- [x] Add tRPC endpoint for on-demand CARVER scoring from crawl results
+- [x] Add CARVER+Shock tab to crawl result detail view in WebCrawler UI
+- [x] Show dimension-level breakdown (Criticality, Accessibility, Vulnerability, etc.)
+- [x] Display contributing findings per dimension with severity
+- [x] Write vitest tests for crawl-CARVER integration (17 tests passing)
+- [x] Fix TypeScript errors (z.record, workflow-persistence null checks, scoring-hardening types)
+- [x] Disable Vite HMR to prevent WebSocket reconnect loop causing 429 errors
+- [x] Verify end-to-end: server responds correctly, all 56 crawler tests pass

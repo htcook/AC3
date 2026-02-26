@@ -97,10 +97,11 @@ export function sanitizeScoringProfile(profile: any): ScoringProfile {
   if (!profile || typeof profile !== "object") return defaultProfile;
 
   return {
-    carverWeights: sanitizeWeights(profile.carverWeights, defaultProfile.carverWeights, "carver"),
-    shockWeights: sanitizeWeights(profile.shockWeights, defaultProfile.shockWeights, "shock"),
+    carverWeights: sanitizeWeights(profile.carverWeights, defaultProfile.carverWeights, "carver") as CarverWeights,
+    shockWeights: sanitizeWeights(profile.shockWeights, defaultProfile.shockWeights, "shock") as ShockWeights,
     carverWeight: safeNum(profile.carverWeight, 0.6, 0.01, 1),
     shockWeight: safeNum(profile.shockWeight, 0.4, 0.01, 1),
+    cvssWeight: safeNum(profile.cvssWeight, 0.3, 0.01, 1),
     criticalThreshold: safeNum(profile.criticalThreshold, 80, 1, 100),
     highThreshold: safeNum(profile.highThreshold, 60, 1, 100),
     mediumThreshold: safeNum(profile.mediumThreshold, 35, 1, 100),
@@ -188,6 +189,7 @@ export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
   },
   carverWeight: 0.6,
   shockWeight: 0.4,
+  cvssWeight: 0.3,
   criticalThreshold: 80,
   highThreshold: 60,
   mediumThreshold: 35,
@@ -365,9 +367,9 @@ export function classifyAssetDeterministic(asset: {
   const allSignals = [h, ...techs, ...(asset.tags || []).map(t => t.toLowerCase())];
 
   // Pattern-based device type inference
-  let deviceType = "unknown";
-  let platformType = "unknown";
-  let missionFunction = "operational_continuity";
+  let deviceType: string = "unknown";
+  let platformType: string = "unknown";
+  let missionFunction: string = "operational_continuity";
   let businessImpactLevel: "mission_critical" | "business_essential" | "operational" | "administrative" = "operational";
   let criticalityTier: CriticalityTier = 4;
 
@@ -459,9 +461,9 @@ export function classifyAssetDeterministic(asset: {
   }
 
   return {
-    deviceType,
-    platformType,
-    missionFunction,
+    deviceType: deviceType as AssetClassification["deviceType"],
+    platformType: platformType as AssetClassification["platformType"],
+    missionFunction: missionFunction as AssetClassification["missionFunction"],
     businessImpactLevel,
     criticalityTier,
     classificationConfidence: 0.4, // Lower confidence for deterministic classification

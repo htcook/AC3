@@ -374,6 +374,71 @@ export const webCrawlerRouter = router({
       };
     }),
 
+  // ─── Compute CARVER+Shock Adjustment from Crawl Result ───────────────
+  computeCarverScore: protectedProcedure
+    .input(z.object({ resultId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDbRequired } = await import("../db");
+      const { webCrawlResults } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { computeCrawlCarverAdjustment } = await import("../lib/crawl-carver-integration");
+
+      const db = await getDbRequired();
+      const [result] = await db.select().from(webCrawlResults).where(eq(webCrawlResults.id, input.resultId)).limit(1);
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Crawl result not found" });
+
+      // Reconstruct a CrawlPageResult-like object from the stored data
+      const crawlData = {
+        url: result.targetUrl,
+        finalUrl: result.finalUrl || result.targetUrl,
+        httpStatus: result.httpStatus || 0,
+        responseTimeMs: result.responseTimeMs || 0,
+        contentType: result.contentType || "",
+        contentLength: result.contentLength || 0,
+        securityHeaders: result.securityHeaders as any || { present: [], missing: [], misconfigured: [] },
+        securityHeaderGrade: result.securityHeaderGrade || "F",
+        detectedTechnologies: (result.detectedTechnologies as any[]) || [],
+        serverHeader: result.serverHeader || null,
+        poweredBy: result.poweredBy || null,
+        pageTitle: result.pageTitle || null,
+        metaDescription: result.metaDescription || null,
+        internalLinks: (result.internalLinks as string[]) || [],
+        externalLinks: (result.externalLinks as string[]) || [],
+        resourceUrls: (result.resourceUrls as string[]) || [],
+        forms: (result.forms as any[]) || [],
+        exposedPaths: (result.exposedPaths as any[]) || [],
+        robotsTxt: result.robotsTxt || null,
+        securityTxt: result.securityTxt || null,
+        sitemapUrls: (result.sitemapUrls as string[]) || [],
+        cookies: (result.cookies as any[]) || [],
+        tlsInfo: result.tlsInfo as any || null,
+        findings: (result.findings as any[]) || [],
+        findingCounts: result.findingCounts as any || { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+        rawHeaders: result.rawHeaders as any || {},
+        depth: 0,
+      };
+
+      return computeCrawlCarverAdjustment(crawlData as any, result.domain);
+    }),
+
+  // ─── Get Aggregated CARVER from Auto-Crawl ─────────────────────────────
+  autoCrawlCarver: protectedProcedure
+    .input(z.object({ scanId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { domainIntelScans } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const db = await getDb();
+      if (!db) return null;
+
+      const [scan] = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, input.scanId)).limit(1);
+      if (!scan) throw new TRPCError({ code: "NOT_FOUND", message: "Scan not found" });
+
+      const output = (scan.pipelineOutput as any) || {};
+      return output.crawlCarverAdjustment || null;
+    }),
+
   // ─── List Comparable Domains (domains with 2+ crawls) ────────────────
   comparableDomains: protectedProcedure
     .query(async () => {

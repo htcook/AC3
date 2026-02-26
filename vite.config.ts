@@ -27,9 +27,7 @@ export default defineConfig({
   },
   server: {
     host: true,
-    hmr: process.env.NODE_ENV === "development" && process.env.VITE_HMR !== "false"
-      ? { clientPort: 443, protocol: "wss" }
-      : false,
+    hmr: false,
     allowedHosts: [
       ".manuspre.computer",
       ".manus.computer",

@@ -10,6 +10,7 @@
  */
 
 import type { CrawlPageResult } from "./web-crawler";
+import { computeCrawlCarverAdjustment, aggregateCrawlAdjustments, type CrawlCarverAdjustment } from "./crawl-carver-integration";
 
 export interface AutoCrawlSummary {
   scanId: number;
@@ -21,6 +22,7 @@ export interface AutoCrawlSummary {
   worstGrade: string;
   startedAt: number;
   completedAt: number;
+  carverAdjustment: CrawlCarverAdjustment | null;
   results: {
     assetId: number;
     hostname: string;
@@ -29,6 +31,7 @@ export interface AutoCrawlSummary {
     securityGrade: string | null;
     findingCount: number;
     technologies: string[];
+    carverAdjustment: CrawlCarverAdjustment | null;
   }[];
 }
 
@@ -86,6 +89,7 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
     let totalFindings = 0;
     const gradeOrder = ["F", "D", "C", "B", "A", "A+"];
     let worstGradeIdx = gradeOrder.length - 1;
+    const allCarverAdjustments: CrawlCarverAdjustment[] = [];
 
     // Create a crawl job record
     const jobId = `auto_crawl_${scanId}_${Date.now()}`;
@@ -132,6 +136,17 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
       );
 
       for (const { asset, url, result } of batchResults) {
+        // Compute CARVER+Shock adjustment from crawl findings
+        let assetCarverAdj: CrawlCarverAdjustment | null = null;
+        if (result) {
+          try {
+            assetCarverAdj = computeCrawlCarverAdjustment(result, asset.hostname);
+            allCarverAdjustments.push(assetCarverAdj);
+          } catch (err: any) {
+            console.error(`[AutoCrawl] CARVER scoring failed for ${asset.hostname}: ${err.message}`);
+          }
+        }
+
         const summary = {
           assetId: asset.id,
           hostname: asset.hostname,
@@ -140,6 +155,7 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
           securityGrade: result?.securityHeaderGrade || null,
           findingCount: result?.findings.length || 0,
           technologies: result?.detectedTechnologies.map(t => t.name) || [],
+          carverAdjustment: assetCarverAdj,
         };
         results.push(summary);
 
@@ -219,7 +235,10 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
       console.error(`[AutoCrawl] Failed to update job record: ${err.message}`);
     }
 
-    // Update the domain intel scan with auto-crawl summary
+    // Aggregate CARVER adjustments across all crawled assets
+    const aggregatedCarver = aggregateCrawlAdjustments(allCarverAdjustments);
+
+    // Update the domain intel scan with auto-crawl summary + CARVER adjustments
     try {
       const [scan] = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, scanId)).limit(1);
       if (scan) {
@@ -236,6 +255,15 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
                 worstGrade: gradeOrder[worstGradeIdx] || "F",
                 completedAt: new Date(completedAt).toISOString(),
               },
+              crawlCarverAdjustment: aggregatedCarver ? {
+                carver: aggregatedCarver.carver,
+                shock: aggregatedCarver.shock,
+                likelihoodBoost: aggregatedCarver.likelihoodBoost,
+                contextAdjustment: aggregatedCarver.contextAdjustment,
+                overallWebVulnScore: aggregatedCarver.breakdown.overallWebVulnScore,
+                assessmentConfidence: aggregatedCarver.breakdown.assessmentConfidence,
+                postureFindings: aggregatedCarver.postureFindings,
+              } : null,
             },
           })
           .where(eq(domainIntelScans.id, scanId));
@@ -254,10 +282,14 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
       worstGrade: gradeOrder[worstGradeIdx] || "F",
       startedAt,
       completedAt,
+      carverAdjustment: aggregatedCarver,
       results,
     };
 
-    console.log(`[AutoCrawl] Completed for scan ${scanId}: ${totalCrawled}/${assetsToScan.length} assets crawled, ${totalFindings} findings, grade=${summary.worstGrade} in ${completedAt - startedAt}ms`);
+    const carverSummary = aggregatedCarver
+      ? `, webVulnScore=${aggregatedCarver.breakdown.overallWebVulnScore}, postureFindings=${aggregatedCarver.postureFindings.length}`
+      : ", no CARVER adjustments";
+    console.log(`[AutoCrawl] Completed for scan ${scanId}: ${totalCrawled}/${assetsToScan.length} assets crawled, ${totalFindings} findings, grade=${summary.worstGrade}${carverSummary} in ${completedAt - startedAt}ms`);
     return summary;
   } catch (err: any) {
     console.error(`[AutoCrawl] Fatal error for scan ${scanId}: ${err.message}`);

@@ -59,7 +59,7 @@ export const workflowRouter = router({
     .input(z.object({
       sessionId: z.number(),
       completedStepIndex: z.number(),
-      outputData: z.record(z.any()).optional(),
+      outputData: z.record(z.string(), z.any()).optional(),
       linkedEntity: z.object({
         type: z.string(),
         id: z.string(),
@@ -79,7 +79,7 @@ export const workflowRouter = router({
     .input(z.object({
       sessionId: z.number(),
       stepIndex: z.number(),
-      inputData: z.record(z.any()),
+      inputData: z.record(z.string(), z.any()),
     }))
     .mutation(async ({ input }) => {
       await updateStepData(input.sessionId, input.stepIndex, input.inputData);

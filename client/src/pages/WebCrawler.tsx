@@ -327,6 +327,7 @@ function CrawlResultDetail({ result }: { result: any }) {
         {result.exposedPaths?.length > 0 && <TabsTrigger value="paths">Exposed Paths</TabsTrigger>}
         {result.cookies?.length > 0 && <TabsTrigger value="cookies">Cookies</TabsTrigger>}
         {result.tlsInfo && <TabsTrigger value="tls">TLS</TabsTrigger>}
+        <TabsTrigger value="carver">CARVER+Shock</TabsTrigger>
       </TabsList>
 
       {/* Overview Tab */}
@@ -585,7 +586,166 @@ function CrawlResultDetail({ result }: { result: any }) {
           </div>
         )}
       </TabsContent>
+
+      {/* CARVER+Shock Scoring Tab */}
+      <TabsContent value="carver" className="mt-3">
+        <CarverScorePanel result={result} />
+      </TabsContent>
     </Tabs>
+  );
+}
+
+// ─── CARVER Score Panel ─────────────────────────────────────────────────────
+
+function CarverScorePanel({ result }: { result: any }) {
+  // Compute CARVER scoring client-side from the crawl data
+  const carverData = useMemo(() => {
+    if (!result) return null;
+
+    const findings = result.findings || [];
+    const headers = result.securityHeaders || { present: [], missing: [], misconfigured: [] };
+    const exposedPaths = result.exposedPaths || [];
+    const cookies = result.cookies || [];
+    const tls = result.tlsInfo || {};
+    const grade = result.securityHeaderGrade || "F";
+
+    // --- Vulnerability dimension (missing headers, exposed paths, insecure cookies) ---
+    const missingCriticalHeaders = (headers.missing || []).filter((h: any) =>
+      ["Content-Security-Policy", "Strict-Transport-Security", "X-Frame-Options", "X-Content-Type-Options"].includes(h.name || h)
+    ).length;
+    const vulnFromHeaders = Math.min(missingCriticalHeaders * 1.5, 5);
+    const vulnFromPaths = Math.min(exposedPaths.filter((p: any) => p.severity === "critical" || p.severity === "high").length * 2, 4);
+    const vulnFromCookies = Math.min(cookies.filter((c: any) => !c.secure || !c.httpOnly).length * 0.5, 2);
+    const vulnerability = Math.min(Math.round((vulnFromHeaders + vulnFromPaths + vulnFromCookies) * 10) / 10, 10);
+
+    // --- Accessibility dimension (exposed paths, forms, open services) ---
+    const accessFromPaths = Math.min(exposedPaths.length * 0.8, 4);
+    const accessFromForms = Math.min((result.forms || []).filter((f: any) => f.hasPasswordField || f.hasFileUpload).length * 1.5, 3);
+    const accessFromGrade = grade === "F" ? 3 : grade === "D" ? 2 : grade === "C" ? 1 : 0;
+    const accessibility = Math.min(Math.round((accessFromPaths + accessFromForms + accessFromGrade) * 10) / 10, 10);
+
+    // --- Recognizability dimension (server headers, tech fingerprints) ---
+    const techCount = (result.detectedTechnologies || []).length;
+    const serverExposed = result.serverHeader ? 2 : 0;
+    const poweredByExposed = result.poweredBy ? 1.5 : 0;
+    const recognizability = Math.min(Math.round((techCount * 0.5 + serverExposed + poweredByExposed) * 10) / 10, 10);
+
+    // --- Effect dimension (critical findings, data exposure) ---
+    const criticalFindings = findings.filter((f: any) => f.severity === "critical").length;
+    const highFindings = findings.filter((f: any) => f.severity === "high").length;
+    const effect = Math.min(Math.round((criticalFindings * 3 + highFindings * 1.5) * 10) / 10, 10);
+
+    // --- Shock: Knowledge dimension (known CVEs in tech, version exposure) ---
+    const versionedTech = (result.detectedTechnologies || []).filter((t: any) => t.version).length;
+    const knowledge = Math.min(Math.round((versionedTech * 1.5 + techCount * 0.3) * 10) / 10, 10);
+
+    // --- Overall web vulnerability score ---
+    const gradeScores: Record<string, number> = { "A+": 0, "A": 10, "B": 30, "C": 50, "D": 70, "F": 90 };
+    const overallWebVulnScore = Math.round(
+      (vulnerability * 0.3 + accessibility * 0.2 + recognizability * 0.1 + effect * 0.25 + knowledge * 0.15) * 10
+    ) / 10;
+
+    // --- Posture findings ---
+    const postureFindings: { finding: string; impact: string; dimension: string; severity: string }[] = [];
+    if (missingCriticalHeaders > 0) postureFindings.push({ finding: `${missingCriticalHeaders} critical security headers missing`, impact: "Increases vulnerability to XSS, clickjacking, MIME sniffing", dimension: "Vulnerability", severity: "high" });
+    if (exposedPaths.length > 0) postureFindings.push({ finding: `${exposedPaths.length} exposed paths detected`, impact: "Increases attack surface accessibility", dimension: "Accessibility", severity: exposedPaths.some((p: any) => p.severity === "critical") ? "critical" : "medium" });
+    if (result.serverHeader) postureFindings.push({ finding: `Server header exposes: ${result.serverHeader}`, impact: "Aids attacker reconnaissance", dimension: "Recognizability", severity: "medium" });
+    if (versionedTech > 0) postureFindings.push({ finding: `${versionedTech} technologies expose version numbers`, impact: "Enables targeted CVE exploitation", dimension: "Knowledge", severity: "medium" });
+    if (!tls.protocol || tls.protocol === "TLSv1" || tls.protocol === "TLSv1.1") postureFindings.push({ finding: "Weak or missing TLS configuration", impact: "Data interception risk", dimension: "Vulnerability", severity: "high" });
+    cookies.filter((c: any) => !c.secure).forEach((c: any) => postureFindings.push({ finding: `Cookie "${c.name}" missing Secure flag`, impact: "Cookie transmitted over unencrypted connections", dimension: "Vulnerability", severity: "medium" }));
+
+    return {
+      vulnerability,
+      accessibility,
+      recognizability,
+      effect,
+      knowledge,
+      overallWebVulnScore,
+      grade,
+      postureFindings,
+    };
+  }, [result]);
+
+  if (!carverData) return <div className="text-muted-foreground text-sm">No data available</div>;
+
+  const dimensionColor = (score: number) => {
+    if (score >= 7) return "text-red-400 bg-red-500/20";
+    if (score >= 4) return "text-amber-400 bg-amber-500/20";
+    if (score >= 2) return "text-cyan-400 bg-cyan-500/20";
+    return "text-emerald-400 bg-emerald-500/20";
+  };
+
+  const overallColor = carverData.overallWebVulnScore >= 60 ? "text-red-400" : carverData.overallWebVulnScore >= 35 ? "text-amber-400" : "text-emerald-400";
+
+  return (
+    <div className="space-y-4">
+      {/* Overall Score */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card className="bg-muted/10 border-border/20 col-span-1">
+          <CardContent className="p-4 text-center">
+            <div className="text-xs text-muted-foreground mb-1">Web Vulnerability Score</div>
+            <div className={`text-4xl font-bold ${overallColor}`}>{carverData.overallWebVulnScore}</div>
+            <div className="text-xs text-muted-foreground mt-1">out of 100</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/10 border-border/20 col-span-2">
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground mb-3">CARVER+Shock Dimension Adjustments</div>
+            <div className="space-y-2">
+              {[
+                { label: "Vulnerability", value: carverData.vulnerability, desc: "Missing headers, exposed paths, insecure cookies" },
+                { label: "Accessibility", value: carverData.accessibility, desc: "Exposed paths, login forms, open services" },
+                { label: "Recognizability", value: carverData.recognizability, desc: "Server fingerprints, tech stack exposure" },
+                { label: "Effect", value: carverData.effect, desc: "Critical/high findings, data exposure risk" },
+                { label: "Knowledge (Shock)", value: carverData.knowledge, desc: "Versioned tech, known CVE surface" },
+              ].map((dim) => (
+                <div key={dim.label} className="flex items-center gap-3">
+                  <span className="text-xs w-32 text-muted-foreground">{dim.label}</span>
+                  <div className="flex-1 h-2 bg-muted/20 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${carverData && dim.value >= 7 ? "bg-red-500" : dim.value >= 4 ? "bg-amber-500" : dim.value >= 2 ? "bg-cyan-500" : "bg-emerald-500"}`}
+                      style={{ width: `${(dim.value / 10) * 100}%` }}
+                    />
+                  </div>
+                  <Badge className={`text-xs ${dimensionColor(dim.value)}`}>+{dim.value}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Posture Findings */}
+      {carverData.postureFindings.length > 0 && (
+        <Card className="bg-muted/10 border-border/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-400" />
+              Security Posture Findings ({carverData.postureFindings.length})
+            </CardTitle>
+            <CardDescription className="text-xs">Web-layer vulnerabilities that adjust CARVER+Shock target prioritization scores</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {carverData.postureFindings.map((f, i) => (
+              <div key={i} className="flex items-start gap-3 p-2 bg-muted/5 rounded border border-border/10">
+                <Badge className={`text-[10px] mt-0.5 ${SEVERITY_COLORS[f.severity] || SEVERITY_COLORS.info}`}>{f.severity}</Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium">{f.finding}</div>
+                  <div className="text-[10px] text-muted-foreground">{f.impact}</div>
+                </div>
+                <Badge variant="outline" className="text-[10px] border-border/30">{f.dimension}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Alert className="border-cyan-500/20 bg-cyan-500/5">
+        <AlertDescription className="text-xs text-cyan-300">
+          These scores represent web-layer adjustments to the CARVER+Shock scoring model. When auto-crawl runs after a domain intel scan, these adjustments are automatically aggregated and applied to the overall target prioritization scores.
+        </AlertDescription>
+      </Alert>
+    </div>
   );
 }
 

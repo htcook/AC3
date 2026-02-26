@@ -98,6 +98,7 @@ export async function startWorkflow(userId: string, workflowId: string): Promise
   if (!def) throw new Error(`Unknown workflow: ${workflowId}`);
 
   const database = await getDb();
+  if (!database) throw new Error("Database not available");
   const now = Date.now();
   const [result] = await database.insert(workflowSessions).values({
     userId,
@@ -131,6 +132,7 @@ export async function startWorkflow(userId: string, workflowId: string): Promise
 
 export async function getActiveWorkflows(userId: string) {
   const database = await getDb();
+  if (!database) throw new Error("Database not available");
   return database
     .select()
     .from(workflowSessions)
@@ -140,6 +142,7 @@ export async function getActiveWorkflows(userId: string) {
 
 export async function getWorkflowSession(sessionId: number) {
   const database = await getDb();
+  if (!database) throw new Error("Database not available");
   const [session] = await database
     .select()
     .from(workflowSessions)
@@ -165,6 +168,7 @@ export async function advanceWorkflowStep(
   linkedEntity?: { type: string; id: string }
 ) {
   const database = await getDb();
+  if (!database) throw new Error("Database not available");
   const now = Date.now();
 
   // Mark current step as completed
@@ -236,6 +240,7 @@ export async function advanceWorkflowStep(
 
 export async function updateStepData(sessionId: number, stepIndex: number, inputData: Record<string, any>) {
   const database = await getDb();
+  if (!database) throw new Error("Database not available");
   const now = Date.now();
 
   await database
@@ -262,6 +267,7 @@ export async function updateStepData(sessionId: number, stepIndex: number, input
 
 export async function abandonWorkflow(sessionId: number) {
   const database = await getDb();
+  if (!database) throw new Error("Database not available");
   const now = Date.now();
   await database
     .update(workflowSessions)
@@ -271,6 +277,7 @@ export async function abandonWorkflow(sessionId: number) {
 
 export async function getWorkflowHistory(userId: string, limit = 20) {
   const database = await getDb();
+  if (!database) throw new Error("Database not available");
   return database
     .select()
     .from(workflowSessions)

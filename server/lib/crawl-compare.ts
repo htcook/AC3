@@ -116,18 +116,20 @@ function diffHeaders(
   const newPresent = new Map((newHeaders?.present || []).map((h: any) => [h.name, h]));
 
   for (const [name, hdr] of newPresent) {
-    if (!oldPresent.has(name)) {
-      result.present.push({ type: "added", label: name, newValue: (hdr as any).value, detail: "Newly added security header" });
+    const nameStr = name as string;
+    if (!oldPresent.has(nameStr)) {
+      result.present.push({ type: "added", label: nameStr, newValue: (hdr as any).value as string, detail: "Newly added security header" });
     } else {
-      const oldHdr = oldPresent.get(name) as any;
+      const oldHdr = oldPresent.get(nameStr) as any;
       if (oldHdr.value !== (hdr as any).value) {
-        result.present.push({ type: "changed", label: name, oldValue: oldHdr.value, newValue: (hdr as any).value });
+        result.present.push({ type: "changed", label: nameStr, oldValue: oldHdr.value as string, newValue: (hdr as any).value as string });
       }
     }
   }
   for (const [name] of oldPresent) {
-    if (!newPresent.has(name)) {
-      result.present.push({ type: "removed", label: name, detail: "Security header removed" });
+    const nameStr = name as string;
+    if (!newPresent.has(nameStr)) {
+      result.present.push({ type: "removed", label: nameStr, detail: "Security header removed" });
     }
   }
 
@@ -136,14 +138,16 @@ function diffHeaders(
   const newMissing = new Set((newHeaders?.missing || []).map((h: any) => h.name));
 
   for (const name of newMissing) {
-    if (!oldMissing.has(name)) {
-      const hdr = (newHeaders?.missing || []).find((h: any) => h.name === name);
-      result.missing.push({ type: "added", label: name, severity: hdr?.severity, detail: "Newly missing header (regression)" });
+    const nameStr = name as string;
+    if (!oldMissing.has(nameStr)) {
+      const hdr = (newHeaders?.missing || []).find((h: any) => h.name === nameStr);
+      result.missing.push({ type: "added", label: nameStr, severity: hdr?.severity, detail: "Newly missing header (regression)" });
     }
   }
   for (const name of oldMissing) {
-    if (!newMissing.has(name)) {
-      result.missing.push({ type: "removed", label: name, detail: "Previously missing header now present (improvement)" });
+    const nameStr = name as string;
+    if (!newMissing.has(nameStr)) {
+      result.missing.push({ type: "removed", label: nameStr, detail: "Previously missing header now present (improvement)" });
     }
   }
 
