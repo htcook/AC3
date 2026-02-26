@@ -4552,3 +4552,18 @@
 - [x] Fix TypeScript errors (z.record, workflow-persistence null checks, scoring-hardening types)
 - [x] Disable Vite HMR to prevent WebSocket reconnect loop causing 429 errors
 - [x] Verify end-to-end: server responds correctly, all 56 crawler tests pass
+
+## Vendor-Specific Integrations (Enterprise)
+- [x] Design unified vendor integration framework (base client, config schema, health checks)
+- [x] Add vendor_integrations DB table for storing credentials, status, and config
+- [x] CrowdStrike Falcon: OAuth2 token flow, host/detection/incident queries, RTR session support
+- [x] SentinelOne: API token auth, agent/threat/activity queries, remote shell support
+- [x] Microsoft Defender: Azure AD OAuth2, machine/alert/vulnerability queries, live response
+- [x] Splunk: Token auth, saved searches, notable events, adaptive response actions
+- [x] Palo Alto Cortex XSOAR: API key auth, incident/indicator CRUD, playbook triggers
+- [x] Build unified Vendor Integrations settings/management UI page
+- [x] Add tRPC router for vendor integration CRUD and health checks
+- [x] Wire vendor data into EDR Validation module (vendor bridge service)
+- [x] Wire vendor data into SIEM Feedback module (vendor bridge service)
+- [x] Write vitest tests for all vendor integration clients (34 tests passing)
+- [x] Browser verification via curl/tRPC — server endpoints verified working

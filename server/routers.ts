@@ -92,6 +92,7 @@ import { liveInfraRouter } from "./routers/live-infra";
 import { discoveryEngineRouter } from "./routers/discovery-engine";
 import { workflowRouter } from "./routers/workflow";
 import { webCrawlerRouter } from "./routers/web-crawler";
+import { vendorIntegrationsRouter } from "./routers/vendor-integrations";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -266,6 +267,7 @@ export const appRouter = router({
   discoveryEngine: discoveryEngineRouter,
   workflow: workflowRouter,
   webCrawler: webCrawlerRouter,
+  vendorIntegrations: vendorIntegrationsRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

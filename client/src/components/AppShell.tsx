@@ -248,6 +248,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
       { href: "/cicd-pipeline", icon: Workflow, label: "CI/CD PIPELINE" },
       { href: "/soar-connectors", icon: ArrowLeftRight, label: "SOAR CONNECTORS" },
+      { href: "/vendor-integrations", icon: Server, label: "VENDOR INTEGRATIONS" },
     ],
   },
 

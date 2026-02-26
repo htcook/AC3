@@ -4813,3 +4813,91 @@ export const webCrawlJobs = mysqlTable("web_crawl_jobs", {
 });
 export type WebCrawlJob = typeof webCrawlJobs.$inferSelect;
 export type InsertWebCrawlJob = typeof webCrawlJobs.$inferInsert;
+
+
+/**
+ * Vendor integrations — stores config and credentials for enterprise security tools.
+ * Supports CrowdStrike Falcon, SentinelOne, Microsoft Defender, Splunk, Cortex XSOAR.
+ */
+export const vendorIntegrations = mysqlTable("vendor_integrations", {
+  id: int("id").autoincrement().primaryKey(),
+  vendor: mysqlEnum("vendor", [
+    "crowdstrike", "sentinelone", "defender", "splunk", "xsoar"
+  ]).notNull(),
+  displayName: varchar("displayName", { length: 255 }).notNull(),
+  enabled: boolean("enabled").default(false).notNull(),
+  // Auth config (encrypted JSON: client_id, client_secret, api_token, tenant_id, etc.)
+  authConfig: json("authConfig"),
+  // Connection config (base URL, region, cloud instance, etc.)
+  connectionConfig: json("connectionConfig"),
+  // Health status
+  status: mysqlEnum("integrationStatus", [
+    "connected", "disconnected", "error", "unconfigured"
+  ]).default("unconfigured").notNull(),
+  lastHealthCheck: bigint("lastHealthCheck", { mode: "number" }),
+  lastError: text("lastError"),
+  // Sync settings
+  syncEnabled: boolean("syncEnabled").default(false).notNull(),
+  syncIntervalMinutes: int("syncIntervalMinutes").default(60),
+  lastSyncAt: bigint("lastSyncAt", { mode: "number" }),
+  // Metadata
+  createdBy: varchar("createdBy", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type VendorIntegration = typeof vendorIntegrations.$inferSelect;
+export type InsertVendorIntegration = typeof vendorIntegrations.$inferInsert;
+
+/**
+ * Vendor sync events — audit log for data synced from vendor APIs.
+ */
+export const vendorSyncEvents = mysqlTable("vendor_sync_events", {
+  id: int("id").autoincrement().primaryKey(),
+  integrationId: int("integrationId").notNull(),
+  eventType: mysqlEnum("eventType", [
+    "hosts_sync", "detections_sync", "incidents_sync", "alerts_sync",
+    "threats_sync", "vulnerabilities_sync", "search_sync", "indicators_sync",
+    "health_check", "manual_query"
+  ]).notNull(),
+  status: mysqlEnum("syncStatus", ["success", "partial", "failed"]).notNull(),
+  recordsProcessed: int("recordsProcessed").default(0),
+  recordsFailed: int("recordsFailed").default(0),
+  summary: json("summary"),
+  errorMessage: text("errorMessage"),
+  durationMs: int("durationMs"),
+  triggeredBy: varchar("triggeredBy", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type VendorSyncEvent = typeof vendorSyncEvents.$inferSelect;
+export type InsertVendorSyncEvent = typeof vendorSyncEvents.$inferInsert;
+
+/**
+ * Vendor cached data — stores normalized data pulled from vendor APIs for correlation.
+ */
+export const vendorCachedData = mysqlTable("vendor_cached_data", {
+  id: int("id").autoincrement().primaryKey(),
+  integrationId: int("integrationId").notNull(),
+  dataType: mysqlEnum("dataType", [
+    "host", "detection", "incident", "alert", "threat",
+    "vulnerability", "indicator", "search_result"
+  ]).notNull(),
+  externalId: varchar("externalId", { length: 255 }),
+  title: varchar("title", { length: 512 }),
+  severity: mysqlEnum("dataSeverity", [
+    "critical", "high", "medium", "low", "informational"
+  ]),
+  status: varchar("dataStatus", { length: 64 }),
+  rawData: json("rawData"),
+  normalizedData: json("normalizedData"),
+  // Correlation fields
+  hostname: varchar("hostname", { length: 255 }),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  domain: varchar("domain", { length: 255 }),
+  mitreAttackId: varchar("mitreAttackId", { length: 32 }),
+  // Timestamps
+  detectedAt: bigint("detectedAt", { mode: "number" }),
+  lastUpdatedAt: bigint("lastUpdatedAt", { mode: "number" }),
+  cachedAt: timestamp("cachedAt").defaultNow().notNull(),
+});
+export type VendorCachedData = typeof vendorCachedData.$inferSelect;
+export type InsertVendorCachedData = typeof vendorCachedData.$inferInsert;

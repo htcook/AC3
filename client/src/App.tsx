@@ -134,6 +134,7 @@ const InfraWiki = lazy(() => import("./pages/InfraWiki"));
 const LiveInfra = lazy(() => import("./pages/LiveInfra"));
 const Workflows = lazy(() => import("./pages/Workflows"));
 const WebCrawler = lazy(() => import("./pages/WebCrawler"));
+const VendorIntegrations = lazy(() => import("./pages/VendorIntegrations"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -288,6 +289,9 @@ function Router() {
         </Route>
         <Route path="/web-crawler/:id">
           {() => <ProtectedRoute component={WebCrawler} />}
+        </Route>
+        <Route path="/vendor-integrations">
+          <ProtectedRoute component={VendorIntegrations} />
         </Route>
         <Route path="/scan-scheduler">
           <ProtectedRoute component={ScanScheduler} />
