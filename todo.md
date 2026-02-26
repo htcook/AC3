@@ -4508,3 +4508,7 @@
 - [x] Run full test suite to verify no regressions
 - [x] Write enterprise auth architecture recommendations (RBAC, OAuth/SAML, AWS deployment) → docs/aws-rbac-auth-architecture.md
 - [x] Ensure red admin account stays active during development/testing
+
+## Vite HMR WebSocket Fix
+- [x] Fix Vite WebSocket HMR connection error in proxied environment
+- [x] Verify /nvd-cve-matcher page loads without errors
