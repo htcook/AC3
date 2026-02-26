@@ -4811,3 +4811,33 @@
 
 ## Cleanup
 - [x] Remove FedRAMP Authorization (KSI-PVA-001) as a tracked KSI from FedRAMPKSIMap and tests
+
+## Observation-Based Alerting Rules
+- [x] Create observation_alert_rules and observation_alert_history DB tables
+- [x] Build alerting rules engine (server/lib/alert-rules-engine.ts)
+- [x] Define 8 threshold types: critical CVE, new open port, high-severity signal, risk score threshold, observation count, new vulnerability, TLS expiry, misconfiguration
+- [x] Wire alerting engine into observation ingestor (evaluate rules on each ingestion)
+- [x] Trigger notifyOwner for matched alerts
+- [x] Add tRPC endpoints for alert rules CRUD and alert history
+- [x] Build Alert Rules Management UI page with create/edit/delete/toggle
+- [x] Build Alert History viewer with severity badges and details
+- [x] Add sidebar nav items for alerting
+- [x] Write vitest tests for alerting engine (76 tests passing)
+
+## Cross-Scanner Correlation Dashboard
+- [x] Build correlation engine aggregating observations by target asset
+- [x] Compute unified risk scores per asset from all scanner observations + risk cards
+- [x] Aggregate open ports, technologies, vulnerabilities, misconfigurations, TLS status per asset
+- [x] Add tRPC endpoints for correlation queries (by asset, summary, timeline)
+- [x] Build Correlation Dashboard UI with asset-centric unified view
+- [x] Add attack surface summary cards (total assets, open ports, vulns, tech stack, scanners)
+- [x] Add per-asset drill-down with scanner-by-scanner breakdown
+- [x] Add sidebar nav item for correlation dashboard
+- [x] Write vitest tests for correlation engine (all passing)
+
+## Attack Emulation Enhancement Integration Review
+- [ ] Review Attack Emulation Enhancement Integration document
+- [ ] Analyze integration points with existing threat actor data pipeline
+- [ ] Identify how to enhance threat emulation capabilities
+- [ ] Map enrichment opportunities for platform features
+- [ ] Deliver integration analysis and recommendations

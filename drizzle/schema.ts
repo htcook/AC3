@@ -5194,3 +5194,63 @@ export const guardrailViolations = mysqlTable("guardrail_violations", {
 });
 export type GuardrailViolation = typeof guardrailViolations.$inferSelect;
 export type InsertGuardrailViolation = typeof guardrailViolations.$inferInsert;
+
+
+// ============================================================
+// SSIL Observation Alert Rules
+// ============================================================
+export const observationAlertRules = mysqlTable("observation_alert_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: varchar("obs_rule_id", { length: 128 }).notNull().unique(),
+  name: varchar("obs_rule_name", { length: 255 }).notNull(),
+  description: text("obs_rule_description"),
+  isEnabled: boolean("obs_rule_enabled").default(true).notNull(),
+  triggerType: mysqlEnum("obs_trigger_type", [
+    "critical_cve",
+    "new_open_port",
+    "high_severity_signal",
+    "risk_score_threshold",
+    "observation_count",
+    "new_vulnerability",
+    "tls_expiry",
+    "misconfiguration",
+    "custom"
+  ]).notNull(),
+  conditions: json("obs_rule_conditions").$type<Record<string, unknown>>().notNull(),
+  notifyOwner: boolean("obs_rule_notify_owner").default(true).notNull(),
+  cooldownMinutes: int("obs_rule_cooldown").default(60).notNull(),
+  lastTriggeredAt: bigint("obs_rule_last_triggered", { mode: "number" }),
+  triggerCount: int("obs_rule_trigger_count").default(0).notNull(),
+  createdBy: varchar("obs_rule_created_by", { length: 255 }),
+  createdAt: bigint("obs_rule_created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("obs_rule_updated_at", { mode: "number" }).notNull(),
+});
+export type ObservationAlertRule = typeof observationAlertRules.$inferSelect;
+export type InsertObservationAlertRule = typeof observationAlertRules.$inferInsert;
+
+// ============================================================
+// SSIL Observation Alert History
+// ============================================================
+export const observationAlertHistory = mysqlTable("observation_alert_history", {
+  id: int("id").autoincrement().primaryKey(),
+  alertId: varchar("obs_alert_id", { length: 128 }).notNull().unique(),
+  ruleId: varchar("obs_alert_rule_id", { length: 128 }).notNull(),
+  ruleName: varchar("obs_alert_rule_name", { length: 255 }).notNull(),
+  triggerType: varchar("obs_alert_trigger_type", { length: 64 }).notNull(),
+  severity: mysqlEnum("obs_alert_severity", ["info", "low", "medium", "high", "critical"]).default("medium").notNull(),
+  title: varchar("obs_alert_title", { length: 512 }).notNull(),
+  message: text("obs_alert_message").notNull(),
+  matchedObservationIds: json("obs_alert_matched_obs").$type<string[]>(),
+  matchedSignalIds: json("obs_alert_matched_signals").$type<string[]>(),
+  matchedAssetId: varchar("obs_alert_asset_id", { length: 128 }),
+  matchedAssetHost: varchar("obs_alert_asset_host", { length: 512 }),
+  matchedDetails: json("obs_alert_details").$type<Record<string, unknown>>(),
+  notificationSent: boolean("obs_alert_notif_sent").default(false).notNull(),
+  notificationResult: varchar("obs_alert_notif_result", { length: 255 }),
+  acknowledgedAt: bigint("obs_alert_ack_at", { mode: "number" }),
+  acknowledgedBy: varchar("obs_alert_ack_by", { length: 255 }),
+  dismissedAt: bigint("obs_alert_dismissed_at", { mode: "number" }),
+  triggeredAt: bigint("obs_alert_triggered_at", { mode: "number" }).notNull(),
+});
+export type ObservationAlert = typeof observationAlertHistory.$inferSelect;
+export type InsertObservationAlert = typeof observationAlertHistory.$inferInsert;

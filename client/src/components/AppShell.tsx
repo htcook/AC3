@@ -82,7 +82,7 @@ import {
   FileStack,
   Globe,
   Wifi,
-  Network,
+  GitMerge,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 
@@ -383,6 +383,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ssil/policies", icon: ShieldCheck, label: "SCAN POLICIES" },
           { href: "/ssil/guardrails", icon: BrainCircuit, label: "LLM GUARDRAILS" },
           { href: "/ssil/observations", icon: FileStack, label: "OBSERVATIONS" },
+          { href: "/ssil/alerts", icon: Bell, label: "ALERT RULES" },
+          { href: "/ssil/correlation", icon: GitMerge, label: "CORRELATION" },
         ],
       },
       {

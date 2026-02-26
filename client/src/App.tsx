@@ -142,6 +142,8 @@ const SSILPolicies = lazy(() => import("./pages/SSILPolicies"));
 const SSILGuardrails = lazy(() => import("./pages/SSILGuardrails"));
 const SSILObservations = lazy(() => import("./pages/SSILObservations"));
 const SSILRiskCardDetail = lazy(() => import("./pages/SSILRiskCardDetail"));
+const SSILAlertRules = lazy(() => import("./pages/SSILAlertRules"));
+const SSILCorrelation = lazy(() => import("./pages/SSILCorrelation"));
 const SubfinderPage = lazy(() => import("./pages/SubfinderPage"));
 const HttpxPage = lazy(() => import("./pages/HttpxPage"));
 const NaabuPage = lazy(() => import("./pages/NaabuPage"));
@@ -627,6 +629,12 @@ function Router() {
         </Route>
         <Route path="/ssil/observations">
           <ProtectedRoute component={SSILObservations} />
+        </Route>
+        <Route path="/ssil/alerts">
+          <ProtectedRoute component={SSILAlertRules} />
+        </Route>
+        <Route path="/ssil/correlation">
+          <ProtectedRoute component={SSILCorrelation} />
         </Route>
         <Route path="/ssil/risk-card/:riskId">
           <ProtectedRoute component={SSILRiskCardDetail} />

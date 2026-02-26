@@ -89,7 +89,7 @@ export default function SSILPolicies() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                     <div className="p-3 bg-muted/20 rounded">
                       <div className="text-xs text-muted-foreground">Mode</div>
-                      <div className="font-mono text-sm mt-1">{activePolicy.profile.mode}</div>
+                      <div className="font-mono text-sm mt-1">{(activePolicy.profile as any).mode || activePolicy.profile.name}</div>
                     </div>
                     <div className="p-3 bg-muted/20 rounded">
                       <div className="text-xs text-muted-foreground">Per-Host RPS</div>

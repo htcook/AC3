@@ -19,7 +19,11 @@ import {
   scanRiskCards,
   scanPolicies,
   guardrailViolations,
+  observationAlertRules,
+  observationAlertHistory,
 } from "../../drizzle/schema";
+import { getAlertRulesEngine, DEFAULT_ALERT_RULES, type AlertRuleConditions, type AlertTriggerType } from "../lib/alert-rules-engine";
+import { getCorrelationEngine, type ObservationRow, type SignalRow, type RiskCardRow } from "../lib/correlation-engine";
 import { desc, eq, sql, and, gte, lte } from "drizzle-orm";
 import { getScanPolicyEngine, type ScanMode, type ScannerName } from "../lib/scan-policy-engine";
 import { getLLMGuardrails, type GuardrailContext } from "../lib/llm-guardrails";
@@ -591,5 +595,289 @@ export const ssilRouter = router({
     .query(async ({ input }) => {
       const db = await getDbRequired();
       return db.select().from(scanSignals).where(eq(scanSignals.assetId, input.assetId));
+    }),
+
+  // ─── Alert Rules CRUD ────────────────────────────────────────────────
+
+  /** List all alert rules */
+  listAlertRules: protectedProcedure.query(async () => {
+    const db = await getDbRequired();
+    const rules = await db.select().from(observationAlertRules).orderBy(desc(observationAlertRules.createdAt));
+    return rules;
+  }),
+
+  /** Create a new alert rule */
+  createAlertRule: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1).max(255),
+      description: z.string().optional(),
+      triggerType: z.enum(["critical_cve", "new_open_port", "high_severity_signal", "risk_score_threshold", "observation_count", "new_vulnerability", "tls_expiry", "misconfiguration", "custom"]),
+      conditions: z.record(z.unknown()),
+      notifyOwner: z.boolean().default(true),
+      cooldownMinutes: z.number().min(1).default(60),
+      isEnabled: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbRequired();
+      const ruleId = `rule-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      const now = Date.now();
+      await db.insert(observationAlertRules).values({
+        ruleId,
+        name: input.name,
+        description: input.description || null,
+        isEnabled: input.isEnabled,
+        triggerType: input.triggerType,
+        conditions: input.conditions,
+        notifyOwner: input.notifyOwner,
+        cooldownMinutes: input.cooldownMinutes,
+        createdBy: ctx.user?.name || ctx.user?.openId || "system",
+        createdAt: now,
+        updatedAt: now,
+      });
+      // Sync to in-memory engine
+      const engine = getAlertRulesEngine();
+      engine.addRule({
+        ruleId,
+        name: input.name,
+        description: input.description,
+        isEnabled: input.isEnabled,
+        triggerType: input.triggerType as AlertTriggerType,
+        conditions: input.conditions as AlertRuleConditions,
+        notifyOwner: input.notifyOwner,
+        cooldownMinutes: input.cooldownMinutes,
+        triggerCount: 0,
+      });
+      return { ruleId };
+    }),
+
+  /** Update an alert rule */
+  updateAlertRule: protectedProcedure
+    .input(z.object({
+      ruleId: z.string(),
+      name: z.string().min(1).max(255).optional(),
+      description: z.string().optional(),
+      isEnabled: z.boolean().optional(),
+      conditions: z.record(z.unknown()).optional(),
+      notifyOwner: z.boolean().optional(),
+      cooldownMinutes: z.number().min(1).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      const updates: Record<string, unknown> = { updatedAt: Date.now() };
+      if (input.name !== undefined) updates.name = input.name;
+      if (input.description !== undefined) updates.description = input.description;
+      if (input.isEnabled !== undefined) updates.isEnabled = input.isEnabled;
+      if (input.conditions !== undefined) updates.conditions = input.conditions;
+      if (input.notifyOwner !== undefined) updates.notifyOwner = input.notifyOwner;
+      if (input.cooldownMinutes !== undefined) updates.cooldownMinutes = input.cooldownMinutes;
+      await db.update(observationAlertRules).set(updates as any).where(eq(observationAlertRules.ruleId, input.ruleId));
+      // Sync to in-memory engine
+      const engine = getAlertRulesEngine();
+      const existing = engine.getRule(input.ruleId);
+      if (existing) {
+        if (input.name !== undefined) existing.name = input.name;
+        if (input.description !== undefined) existing.description = input.description;
+        if (input.isEnabled !== undefined) existing.isEnabled = input.isEnabled;
+        if (input.conditions !== undefined) existing.conditions = input.conditions as AlertRuleConditions;
+        if (input.notifyOwner !== undefined) existing.notifyOwner = input.notifyOwner;
+        if (input.cooldownMinutes !== undefined) existing.cooldownMinutes = input.cooldownMinutes;
+      }
+      return { success: true };
+    }),
+
+  /** Delete an alert rule */
+  deleteAlertRule: protectedProcedure
+    .input(z.object({ ruleId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      await db.delete(observationAlertRules).where(eq(observationAlertRules.ruleId, input.ruleId));
+      getAlertRulesEngine().removeRule(input.ruleId);
+      return { success: true };
+    }),
+
+  /** Toggle alert rule enabled/disabled */
+  toggleAlertRule: protectedProcedure
+    .input(z.object({ ruleId: z.string(), isEnabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      await db.update(observationAlertRules).set({ isEnabled: input.isEnabled, updatedAt: Date.now() } as any).where(eq(observationAlertRules.ruleId, input.ruleId));
+      const engine = getAlertRulesEngine();
+      if (input.isEnabled) engine.enableRule(input.ruleId);
+      else engine.disableRule(input.ruleId);
+      return { success: true };
+    }),
+
+  /** Seed default alert rules */
+  seedDefaultAlertRules: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDbRequired();
+    const now = Date.now();
+    let seeded = 0;
+    for (const preset of DEFAULT_ALERT_RULES) {
+      const existing = await db.select().from(observationAlertRules).where(eq(observationAlertRules.ruleId, preset.ruleId)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(observationAlertRules).values({
+          ruleId: preset.ruleId,
+          name: preset.name,
+          description: preset.description || null,
+          isEnabled: preset.isEnabled,
+          triggerType: preset.triggerType,
+          conditions: preset.conditions as Record<string, unknown>,
+          notifyOwner: preset.notifyOwner,
+          cooldownMinutes: preset.cooldownMinutes,
+          createdBy: ctx.user?.name || "system",
+          createdAt: now,
+          updatedAt: now,
+        });
+        seeded++;
+      }
+    }
+    return { seeded, total: DEFAULT_ALERT_RULES.length };
+  }),
+
+  /** Get alert history */
+  getAlertHistory: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(200).default(50),
+      offset: z.number().min(0).default(0),
+      severity: z.enum(["info", "low", "medium", "high", "critical"]).optional(),
+      ruleId: z.string().optional(),
+      acknowledged: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const conditions = [];
+      if (input.severity) conditions.push(eq(observationAlertHistory.severity, input.severity));
+      if (input.ruleId) conditions.push(eq(observationAlertHistory.ruleId, input.ruleId));
+      if (input.acknowledged === true) conditions.push(sql`${observationAlertHistory.acknowledgedAt} IS NOT NULL`);
+      if (input.acknowledged === false) conditions.push(sql`${observationAlertHistory.acknowledgedAt} IS NULL`);
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const [alerts, countResult] = await Promise.all([
+        db.select().from(observationAlertHistory).where(whereClause).orderBy(desc(observationAlertHistory.triggeredAt)).limit(input.limit).offset(input.offset),
+        db.select({ count: sql<number>`count(*)` }).from(observationAlertHistory).where(whereClause).then(r => r[0]),
+      ]);
+      return { alerts, total: countResult?.count || 0 };
+    }),
+
+  /** Acknowledge an alert */
+  acknowledgeAlert: protectedProcedure
+    .input(z.object({ alertId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbRequired();
+      await db.update(observationAlertHistory).set({
+        acknowledgedAt: Date.now(),
+        acknowledgedBy: ctx.user?.name || ctx.user?.openId || "system",
+      } as any).where(eq(observationAlertHistory.alertId, input.alertId));
+      return { success: true };
+    }),
+
+  /** Dismiss an alert */
+  dismissAlert: protectedProcedure
+    .input(z.object({ alertId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      await db.update(observationAlertHistory).set({
+        dismissedAt: Date.now(),
+      } as any).where(eq(observationAlertHistory.alertId, input.alertId));
+      return { success: true };
+    }),
+
+  /** Get alert engine stats */
+  getAlertStats: protectedProcedure.query(async () => {
+    const db = await getDbRequired();
+    const [totalRules] = await db.select({ count: sql<number>`count(*)` }).from(observationAlertRules);
+    const [enabledRules] = await db.select({ count: sql<number>`count(*)` }).from(observationAlertRules).where(eq(observationAlertRules.isEnabled, true));
+    const [totalAlerts] = await db.select({ count: sql<number>`count(*)` }).from(observationAlertHistory);
+    const [unacknowledged] = await db.select({ count: sql<number>`count(*)` }).from(observationAlertHistory).where(sql`${observationAlertHistory.acknowledgedAt} IS NULL AND ${observationAlertHistory.dismissedAt} IS NULL`);
+    const severityCounts = await db.select({
+      severity: observationAlertHistory.severity,
+      count: sql<number>`count(*)`,
+    }).from(observationAlertHistory).groupBy(observationAlertHistory.severity);
+
+    return {
+      totalRules: totalRules?.count || 0,
+      enabledRules: enabledRules?.count || 0,
+      totalAlerts: totalAlerts?.count || 0,
+      unacknowledged: unacknowledged?.count || 0,
+      alertsBySeverity: Object.fromEntries(severityCounts.map(r => [r.severity, r.count])),
+    };
+  }),
+
+  // ─── Cross-Scanner Correlation ───────────────────────────────────────
+
+  /** Get correlated asset view */
+  getCorrelatedAssets: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(50),
+      offset: z.number().min(0).default(0),
+      minRiskScore: z.number().min(0).max(100).optional(),
+      hostFilter: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      // Fetch all observations, signals, and risk cards
+      const observations = await db.select().from(scanObservations).orderBy(desc(scanObservations.observedAt));
+      const signals = await db.select().from(scanSignals);
+      const riskCards = await db.select().from(scanRiskCards);
+
+      const engine = getCorrelationEngine();
+      let assets = engine.correlateByAsset(
+        observations as unknown as ObservationRow[],
+        signals as unknown as SignalRow[],
+        riskCards as unknown as RiskCardRow[]
+      );
+
+      // Apply filters
+      if (input.minRiskScore !== undefined) {
+        assets = assets.filter(a => a.compositeRiskScore >= input.minRiskScore!);
+      }
+      if (input.hostFilter) {
+        const filter = input.hostFilter.toLowerCase();
+        assets = assets.filter(a => a.host.toLowerCase().includes(filter));
+      }
+
+      const total = assets.length;
+      const paged = assets.slice(input.offset, input.offset + input.limit);
+      return { assets: paged, total };
+    }),
+
+  /** Get attack surface summary */
+  getAttackSurfaceSummary: protectedProcedure.query(async () => {
+    const db = await getDbRequired();
+    const observations = await db.select().from(scanObservations);
+    const signals = await db.select().from(scanSignals);
+    const riskCards = await db.select().from(scanRiskCards);
+
+    const engine = getCorrelationEngine();
+    const assets = engine.correlateByAsset(
+      observations as unknown as ObservationRow[],
+      signals as unknown as SignalRow[],
+      riskCards as unknown as RiskCardRow[]
+    );
+    return engine.generateAttackSurfaceSummary(assets);
+  }),
+
+  /** Get asset detail with timeline */
+  getAssetCorrelationDetail: protectedProcedure
+    .input(z.object({ assetId: z.string(), timelineBucketMinutes: z.number().default(60) }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const observations = await db.select().from(scanObservations).where(eq(scanObservations.assetId, input.assetId));
+      const signals = await db.select().from(scanSignals).where(eq(scanSignals.assetId, input.assetId));
+      const riskCards = await db.select().from(scanRiskCards).where(eq(scanRiskCards.assetId, input.assetId));
+
+      const engine = getCorrelationEngine();
+      const assets = engine.correlateByAsset(
+        observations as unknown as ObservationRow[],
+        signals as unknown as SignalRow[],
+        riskCards as unknown as RiskCardRow[]
+      );
+      const asset = assets[0] || null;
+      const timeline = engine.buildAssetTimeline(
+        observations as unknown as ObservationRow[],
+        input.assetId,
+        input.timelineBucketMinutes
+      );
+      return { asset, timeline };
     }),
 });

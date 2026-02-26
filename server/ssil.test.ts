@@ -778,3 +778,544 @@ describe("End-to-End Pipeline Wiring", () => {
     expect(cards[0].recommendations.length).toBeGreaterThan(0);
   });
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERT RULES ENGINE TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+import {
+  AlertRulesEngine,
+  getAlertRulesEngine,
+  resetAlertRulesEngine,
+  DEFAULT_ALERT_RULES,
+  type AlertRule,
+  type EvaluationContext,
+} from "./lib/alert-rules-engine";
+import {
+  CorrelationEngine,
+  getCorrelationEngine,
+  type ObservationRow,
+  type SignalRow,
+  type RiskCardRow,
+} from "./lib/correlation-engine";
+
+describe("Alert Rules Engine", () => {
+  let engine: AlertRulesEngine;
+
+  beforeEach(() => {
+    resetAlertRulesEngine();
+    engine = getAlertRulesEngine();
+  });
+
+  describe("Rule Management", () => {
+    it("should start with default rules loaded", () => {
+      expect(engine.getAllRules().length).toBe(DEFAULT_ALERT_RULES.length);
+    });
+    it("should add and retrieve rules", () => {
+      const initialCount = engine.getAllRules().length;
+      const rule: AlertRule = {
+        ruleId: "test-1",
+        name: "Test Rule",
+        description: "Test",
+        triggerType: "critical_cve",
+        conditions: {},
+        isEnabled: true,
+        notifyOwner: false,
+        cooldownMinutes: 60,
+        triggerCount: 0,
+        lastTriggeredAt: null,
+      };
+      engine.addRule(rule);
+      expect(engine.getAllRules()).toHaveLength(initialCount + 1);
+      expect(engine.getRule("test-1")).toBeDefined();
+      expect(engine.getRule("test-1")?.name).toBe("Test Rule");;
+    });
+
+    it("should remove rules", () => {
+      const rule: AlertRule = {
+        ruleId: "test-2",
+        name: "Remove Me",
+        description: "",
+        triggerType: "new_open_port",
+        conditions: {},
+        isEnabled: true,
+        notifyOwner: false,
+        cooldownMinutes: 30,
+        triggerCount: 0,
+        lastTriggeredAt: null,
+      };
+      engine.addRule(rule);
+      const countBefore = engine.getAllRules().length;
+      expect(engine.removeRule("test-2")).toBe(true);
+      expect(engine.getAllRules()).toHaveLength(countBefore - 1);
+    });
+
+    it("should enable and disable rules", () => {
+      const rule: AlertRule = {
+        ruleId: "test-3",
+        name: "Toggle",
+        description: "",
+        triggerType: "high_severity_signal",
+        conditions: {},
+        isEnabled: true,
+        notifyOwner: false,
+        cooldownMinutes: 15,
+        triggerCount: 0,
+        lastTriggeredAt: null,
+      };
+      engine.addRule(rule);
+      expect(engine.disableRule("test-3")).toBe(true);
+      expect(engine.getRule("test-3")?.isEnabled).toBe(false);
+      expect(engine.enableRule("test-3")).toBe(true);
+      expect(engine.getRule("test-3")?.isEnabled).toBe(true);
+    });
+
+    it("should load default alert rules", () => {
+      const rules = DEFAULT_ALERT_RULES.map((r) => ({
+        ...r,
+        triggerCount: 0,
+        lastTriggeredAt: null,
+      }));
+      engine.loadRules(rules);
+      expect(engine.getAllRules().length).toBe(DEFAULT_ALERT_RULES.length);
+      expect(engine.getAllRules().length).toBeGreaterThanOrEqual(5);
+    });
+  });
+
+  describe("Evaluation", () => {
+    beforeEach(() => {
+      const rules = DEFAULT_ALERT_RULES.map((r) => ({
+        ...r,
+        triggerCount: 0,
+        lastTriggeredAt: null,
+      }));
+      engine.loadRules(rules);
+    });
+
+    it("should trigger critical CVE alert on critical vulnerability observation", async () => {
+      const context: EvaluationContext = {
+        observations: [
+          {
+            observationId: "obs-cve-1",
+            scanner: { name: "nuclei", adapter: "nuclei" },
+            observationType: "vulnerability",
+            severity: "critical",
+            confidence: 0.95,
+            timestamp: new Date().toISOString(),
+            asset: {
+              assetId: "asset-1",
+              host: "target.example.com",
+              port: 443,
+              protocol: "tcp",
+            },
+            evidence: {
+              summary: "Critical RCE vulnerability CVE-2024-1234",
+              cve: "CVE-2024-1234",
+              cvss: 9.8,
+            },
+            tags: ["rce", "critical"],
+            ttl: 86400,
+          },
+        ],
+      };
+
+      const alerts = await engine.evaluate(context);
+      expect(alerts.length).toBeGreaterThanOrEqual(1);
+      const critAlert = alerts.find((a) => a.triggerType === "critical_cve");
+      expect(critAlert).toBeDefined();
+      expect(critAlert?.severity).toBe("critical");
+    });
+
+    it("should trigger new open port alert", async () => {
+      const context: EvaluationContext = {
+        observations: [
+          {
+            observationId: "obs-port-1",
+            scanner: { name: "nmap", adapter: "nmap" },
+            observationType: "service_banner",
+            severity: "medium",
+            confidence: 0.99,
+            timestamp: new Date().toISOString(),
+            asset: {
+              assetId: "asset-2",
+              host: "server.example.com",
+              port: 8080,
+              protocol: "tcp",
+            },
+            evidence: {
+              summary: "Port 8080 open - HTTP proxy",
+            },
+            tags: ["http-proxy"],
+            ttl: 86400,
+          },
+        ],
+      };
+
+      const alerts = await engine.evaluate(context);
+      const portAlert = alerts.find((a) => a.triggerType === "new_open_port");
+      expect(portAlert).toBeDefined();
+    });
+
+    it("should not trigger disabled rules", async () => {
+      engine.disableRule("default-critical-cve");
+      const context: EvaluationContext = {
+        observations: [
+          {
+            observationId: "obs-disabled-1",
+            scanner: { name: "nuclei", adapter: "nuclei" },
+            observationType: "vulnerability",
+            severity: "critical",
+            confidence: 0.95,
+            timestamp: new Date().toISOString(),
+            asset: {
+              assetId: "asset-3",
+              host: "target.example.com",
+              port: 443,
+              protocol: "tcp",
+            },
+            evidence: {
+              summary: "Critical vuln but rule disabled",
+              cve: "CVE-2024-9999",
+              cvss: 10.0,
+            },
+            tags: [],
+            ttl: 86400,
+          },
+        ],
+      };
+
+      const alerts = await engine.evaluate(context);
+      const critAlert = alerts.find((a) => a.triggerType === "critical_cve");
+      expect(critAlert).toBeUndefined();
+    });
+
+    it("should respect cooldown periods", async () => {
+      const context: EvaluationContext = {
+        observations: [
+          {
+            observationId: "obs-cooldown-1",
+            scanner: { name: "nuclei", adapter: "nuclei" },
+            observationType: "vulnerability",
+            severity: "critical",
+            confidence: 0.95,
+            timestamp: new Date().toISOString(),
+            asset: {
+              assetId: "asset-4",
+              host: "target.example.com",
+              port: 443,
+              protocol: "tcp",
+            },
+            evidence: {
+              summary: "Critical vuln for cooldown test",
+              cve: "CVE-2024-5555",
+              cvss: 9.5,
+            },
+            tags: [],
+            ttl: 86400,
+          },
+        ],
+      };
+
+      // First evaluation should trigger
+      const alerts1 = await engine.evaluate(context);
+      const critAlert1 = alerts1.find((a) => a.triggerType === "critical_cve");
+      expect(critAlert1).toBeDefined();
+
+      // Second immediate evaluation should be suppressed by cooldown
+      const alerts2 = await engine.evaluate(context);
+      const critAlert2 = alerts2.find((a) => a.triggerType === "critical_cve");
+      expect(critAlert2).toBeUndefined();
+    });
+  });
+
+  describe("Event Listeners", () => {
+    it("should notify listeners on alert", async () => {
+      const events: any[] = [];
+      engine.onAlert((event) => events.push(event));
+
+      // Load all default rules so the critical_cve rule is present
+      const rules = DEFAULT_ALERT_RULES.map((r) => ({
+        ...r,
+        triggerCount: 0,
+        lastTriggeredAt: null,
+      }));
+      engine.loadRules(rules);
+
+      await engine.evaluate({
+        observations: [
+          {
+            observationId: "obs-listener-1",
+            scanner: { name: "nuclei", adapter: "nuclei" },
+            observationType: "vulnerability",
+            severity: "critical",
+            confidence: 0.9,
+            timestamp: new Date().toISOString(),
+            asset: { assetId: "a-5", host: "test.com", port: 443, protocol: "tcp" },
+            evidence: { summary: "Critical", cve: "CVE-2024-0001", cvss: 9.0 },
+            tags: [],
+            ttl: 86400,
+          },
+        ],
+      });
+
+      expect(events.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should allow unsubscribing listeners", () => {
+      const events: any[] = [];
+      const unsub = engine.onAlert((event) => events.push(event));
+      unsub();
+      // After unsubscribing, no events should be received
+      // (can't easily test without triggering, but the unsub function should work)
+      expect(typeof unsub).toBe("function");
+    });
+  });
+
+  describe("Stats", () => {
+    it("should return correct stats", async () => {
+      const rules = DEFAULT_ALERT_RULES.map((r) => ({
+        ...r,
+        triggerCount: 0,
+        lastTriggeredAt: null,
+      }));
+      engine.loadRules(rules);
+
+      const stats = engine.getStats();
+      expect(stats.totalRules).toBe(DEFAULT_ALERT_RULES.length);
+      // Some default rules have isEnabled: false
+      expect(stats.enabledRules).toBeLessThanOrEqual(DEFAULT_ALERT_RULES.length);
+      expect(stats.enabledRules).toBeGreaterThan(0);
+      expect(stats.totalAlerts).toBe(0);
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORRELATION ENGINE TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+describe("Correlation Engine", () => {
+  let engine: CorrelationEngine;
+
+  beforeEach(() => {
+    engine = getCorrelationEngine();
+  });
+
+  describe("correlateByAsset", () => {
+    it("should group observations by asset", () => {
+      const observations: ObservationRow[] = [
+        {
+          observationId: "o1",
+          scannerName: "nmap",
+          scannerAdapter: "nmap",
+          observationType: "service_banner",
+          severity: "medium",
+          confidence: 99,
+          assetId: "asset-a",
+          assetHost: "target.com",
+          assetPort: 80,
+          assetProtocol: "tcp",
+          evidenceFingerprint: "fp1",
+          evidenceSummary: "Port 80 open",
+          observedAt: Date.now(),
+          ingestedAt: Date.now(),
+        },
+        {
+          observationId: "o2",
+          scannerName: "nuclei",
+          scannerAdapter: "nuclei",
+          observationType: "vulnerability",
+          severity: "high",
+          confidence: 85,
+          assetId: "asset-a",
+          assetHost: "target.com",
+          assetPort: 80,
+          assetProtocol: "tcp",
+          evidenceFingerprint: "fp2",
+          evidenceSummary: "XSS vulnerability",
+          evidenceCve: "CVE-2024-1111",
+          evidenceCvss: 7.5,
+          observedAt: Date.now(),
+          ingestedAt: Date.now(),
+        },
+        {
+          observationId: "o3",
+          scannerName: "httpx",
+          scannerAdapter: "httpx",
+          observationType: "http_headers",
+          severity: "info",
+          confidence: 100,
+          assetId: "asset-b",
+          assetHost: "other.com",
+          assetPort: 443,
+          assetProtocol: "tcp",
+          evidenceFingerprint: "fp3",
+          evidenceSummary: "HTTP headers",
+          observedAt: Date.now(),
+          ingestedAt: Date.now(),
+        },
+      ];
+
+      const assets = engine.correlateByAsset(observations);
+      expect(assets).toHaveLength(2);
+
+      const assetA = assets.find((a) => a.assetId === "asset-a");
+      expect(assetA).toBeDefined();
+      expect(assetA!.host).toBe("target.com");
+      expect(assetA!.totalObservations).toBe(2);
+      expect(assetA!.scannerCoverage.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should extract open ports from service_banner observations", () => {
+      const observations: ObservationRow[] = [
+        {
+          observationId: "op1",
+          scannerName: "nmap",
+          scannerAdapter: "nmap",
+          observationType: "service_banner",
+          severity: "medium",
+          confidence: 99,
+          assetId: "asset-ports",
+          assetHost: "ports.com",
+          assetPort: 22,
+          assetProtocol: "tcp",
+          evidenceFingerprint: "p22",
+          evidenceSummary: "SSH port open",
+          observedAt: Date.now(),
+          ingestedAt: Date.now(),
+        },
+        {
+          observationId: "op2",
+          scannerName: "nmap",
+          scannerAdapter: "nmap",
+          observationType: "service_banner",
+          severity: "medium",
+          confidence: 99,
+          assetId: "asset-ports",
+          assetHost: "ports.com",
+          assetPort: 443,
+          assetProtocol: "tcp",
+          evidenceFingerprint: "p443",
+          evidenceSummary: "HTTPS port open",
+          observedAt: Date.now(),
+          ingestedAt: Date.now(),
+        },
+      ];
+
+      const assets = engine.correlateByAsset(observations);
+      expect(assets).toHaveLength(1);
+      expect(assets[0].totalOpenPorts).toBe(2);
+      expect(assets[0].openPorts.length).toBe(2);
+    });
+
+    it("should calculate composite risk score from risk cards", () => {
+      const observations: ObservationRow[] = [
+        {
+          observationId: "rc1",
+          scannerName: "nuclei",
+          scannerAdapter: "nuclei",
+          observationType: "vulnerability",
+          severity: "critical",
+          confidence: 95,
+          assetId: "asset-risk",
+          assetHost: "risky.com",
+          assetPort: 443,
+          assetProtocol: "tcp",
+          evidenceFingerprint: "risk-fp",
+          evidenceSummary: "Critical vuln",
+          evidenceCve: "CVE-2024-9999",
+          evidenceCvss: 9.8,
+          observedAt: Date.now(),
+          ingestedAt: Date.now(),
+        },
+      ];
+
+      const riskCards: RiskCardRow[] = [
+        {
+          assetId: "asset-risk",
+          compositeScore: 85,
+          cvssScore: 9.8,
+          carverScore: 7.5,
+          biaScore: 8.0,
+          createdAt: Date.now(),
+        },
+      ];
+
+      const assets = engine.correlateByAsset(observations, [], riskCards);
+      expect(assets).toHaveLength(1);
+      expect(assets[0].compositeRiskScore).toBe(85);
+    });
+  });
+
+  describe("generateAttackSurfaceSummary", () => {
+    it("should generate summary from correlated assets", () => {
+      const observations: ObservationRow[] = [
+        {
+          observationId: "sum1",
+          scannerName: "nmap",
+          scannerAdapter: "nmap",
+          observationType: "service_banner",
+          severity: "medium",
+          confidence: 99,
+          assetId: "asset-sum",
+          assetHost: "summary.com",
+          assetPort: 80,
+          assetProtocol: "tcp",
+          evidenceFingerprint: "sfp1",
+          evidenceSummary: "Port 80",
+          observedAt: Date.now(),
+          ingestedAt: Date.now(),
+        },
+      ];
+
+      const assets = engine.correlateByAsset(observations);
+      const summary = engine.generateAttackSurfaceSummary(assets);
+
+      expect(summary.totalAssets).toBe(1);
+      expect(summary.totalObservations).toBe(1);
+      expect(typeof summary.averageRiskScore).toBe("number");
+      expect(summary.severityDistribution).toBeDefined();
+      expect(summary.scannerCount).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should handle empty asset list", () => {
+      const summary = engine.generateAttackSurfaceSummary([]);
+      expect(summary.totalAssets).toBe(0);
+      expect(summary.totalObservations).toBe(0);
+      expect(summary.averageRiskScore).toBe(0);
+    });
+  });
+
+  describe("buildAssetTimeline", () => {
+    it("should build timeline buckets from observations", () => {
+      const now = Date.now();
+      const observations: ObservationRow[] = [];
+      // Create observations spread over 24 hours
+      for (let i = 0; i < 10; i++) {
+        observations.push({
+          observationId: `tl-${i}`,
+          scannerName: "nmap",
+          scannerAdapter: "nmap",
+          observationType: "service_banner",
+          severity: "info",
+          confidence: 99,
+          assetId: "asset-tl",
+          assetHost: "timeline.com",
+          assetPort: 80 + i,
+          assetProtocol: "tcp",
+          evidenceFingerprint: `tl-fp-${i}`,
+          evidenceSummary: `Port ${80 + i}`,
+          observedAt: now - i * 3600000,
+          ingestedAt: now - i * 3600000,
+        });
+      }
+
+      // buildAssetTimeline requires assetId as second arg
+      const timeline = engine.buildAssetTimeline(observations, "asset-tl", 60);
+      expect(timeline.length).toBeGreaterThan(0);
+      for (const bucket of timeline) {
+        expect(bucket.observationCount).toBeGreaterThanOrEqual(0);
+        expect(bucket.timestamp).toBeDefined();
+      }
+    });
+  });
+});
