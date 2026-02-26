@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import {
   listIntegrations,
   getIntegration,
@@ -71,7 +71,7 @@ export const vendorIntegrationsRouter = router({
     }),
 
   // ─── Create or update integration ──────────────────────────────────────────
-  upsert: protectedProcedure
+  upsert: adminProcedure
     .input(z.object({
       vendor: vendorEnum,
       displayName: z.string().min(1).max(255),
@@ -100,7 +100,7 @@ export const vendorIntegrationsRouter = router({
     }),
 
   // ─── Delete integration ────────────────────────────────────────────────────
-  delete: protectedProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteIntegration(input.id);
@@ -108,7 +108,7 @@ export const vendorIntegrationsRouter = router({
     }),
 
   // ─── Toggle enabled ────────────────────────────────────────────────────────
-  toggleEnabled: protectedProcedure
+  toggleEnabled: adminProcedure
     .input(z.object({ id: z.number(), enabled: z.boolean() }))
     .mutation(async ({ input }) => {
       const integration = await getIntegration(input.id);

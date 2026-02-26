@@ -1,0 +1,73 @@
+{
+  "query": "\nSELECT TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME\nFROM information_schema.KEY_COLUMN_USAGE \nWHERE REFERENCED_TABLE_NAME IS NOT NULL \nAND TABLE_SCHEMA = DATABASE()\nORDER BY TABLE_NAME;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute \nSELECT TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME\nFROM information_schema.KEY_COLUMN_USAGE \nWHERE REFERENCED_TABLE_NAME IS NOT NULL \nAND TABLE_SCHEMA = DATABASE()\nORDER BY TABLE_NAME;\n",
+  "rows": [
+    {
+      "TABLE_NAME": "agent_audit_log",
+      "CONSTRAINT_NAME": "fk_aal_agent",
+      "COLUMN_NAME": "agentId",
+      "REFERENCED_TABLE_NAME": "agent_deployments",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "agent_tasks",
+      "CONSTRAINT_NAME": "fk_at_agent",
+      "COLUMN_NAME": "agentId",
+      "REFERENCED_TABLE_NAME": "agent_deployments",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "campaign_engagements",
+      "CONSTRAINT_NAME": "fk_ce_engagement",
+      "COLUMN_NAME": "engagementId",
+      "REFERENCED_TABLE_NAME": "engagements",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "discovered_assets",
+      "CONSTRAINT_NAME": "fk_da_scan",
+      "COLUMN_NAME": "scanId",
+      "REFERENCED_TABLE_NAME": "domain_intel_scans",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "domain_recon",
+      "CONSTRAINT_NAME": "fk_dr_engagement",
+      "COLUMN_NAME": "engagementId",
+      "REFERENCED_TABLE_NAME": "engagements",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "engagement_reports",
+      "CONSTRAINT_NAME": "fk_er_engagement",
+      "COLUMN_NAME": "engagementId",
+      "REFERENCED_TABLE_NAME": "engagements",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "evidence_chain_of_custody",
+      "CONSTRAINT_NAME": "fk_ecoc_evidence",
+      "COLUMN_NAME": "evidenceId",
+      "REFERENCED_TABLE_NAME": "evidence_items",
+      "REFERENCED_COLUMN_NAME": "evidenceId"
+    },
+    {
+      "TABLE_NAME": "osint_findings",
+      "CONSTRAINT_NAME": "fk_of_engagement",
+      "COLUMN_NAME": "engagementId",
+      "REFERENCED_TABLE_NAME": "engagements",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "server_credentials",
+      "CONSTRAINT_NAME": "fk_sc_server",
+      "COLUMN_NAME": "serverId",
+      "REFERENCED_TABLE_NAME": "server_configs",
+      "REFERENCED_COLUMN_NAME": "id"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tCONSTRAINT_NAME\tCOLUMN_NAME\tREFERENCED_TABLE_NAME\tREFERENCED_COLUMN_NAME\nagent_audit_log\tfk_aal_agent\tagentId\tagent_deployments\tid\nagent_tasks\tfk_at_agent\tagentId\tagent_deployments\tid\ncampaign_engagements\tfk_ce_engagement\tengagementId\tengagements\tid\ndiscovered_assets\tfk_da_scan\tscanId\tdomain_intel_scans\tid\ndomain_recon\tfk_dr_engagement\tengagementId\tengagements\tid\nengagement_reports\tfk_er_engagement\tengagementId\tengagements\tid\nevidence_chain_of_custody\tfk_ecoc_evidence\tevidenceId\tevidence_items\tevidenceId\nosint_findings\tfk_of_engagement\tengagementId\tengagements\tid\nserver_credentials\tfk_sc_server\tserverId\tserver_configs\tid\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

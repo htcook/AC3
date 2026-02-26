@@ -11,7 +11,7 @@ import type { InsertIocFeed } from "../drizzle/schema";
 import { threatIntelRouter } from "./routers/threat-intel";
 import { darkwebBridgeRouter } from "./routers/darkweb-bridge";
 import { campaignArchetypeRouter } from "./routers/campaign-archetypes";
-import { phishingOpsRouter } from "./routers/phishing-ops";
+import { phishingOpsRouter } from "./routers/phishing";
 import { metasploitCatalogRouter } from "./routers/metasploit-catalog";
 import { engagementTimelineRouter } from "./routers/engagement-timeline";
 import { stixExportRouter } from "./routers/stix-export";
@@ -93,7 +93,7 @@ import { discoveryEngineRouter } from "./routers/discovery-engine";
 import { workflowRouter } from "./routers/workflow";
 import { webCrawlerRouter } from "./routers/web-crawler";
 import { vendorIntegrationsRouter } from "./routers/vendor-integrations";
-import { agentManagerRouter } from "./routers/agent-manager";
+import { agentManagerRouter } from "./routers/agent";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';

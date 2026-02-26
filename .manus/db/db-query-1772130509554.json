@@ -1,0 +1,196 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_deployments' ORDER BY ORDINAL_POSITION; SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mtls_certificates' ORDER BY ORDINAL_POSITION; SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'server_configs' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agent_deployments' ORDER BY ORDINAL_POSITION; SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mtls_certificates' ORDER BY ORDINAL_POSITION; SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'server_configs' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "engagementId"
+    },
+    {
+      "COLUMN_NAME": "name"
+    },
+    {
+      "COLUMN_NAME": "description"
+    },
+    {
+      "COLUMN_NAME": "targetPlatform"
+    },
+    {
+      "COLUMN_NAME": "c2Protocol"
+    },
+    {
+      "COLUMN_NAME": "agentStatus"
+    },
+    {
+      "COLUMN_NAME": "publicKey"
+    },
+    {
+      "COLUMN_NAME": "certificateHash"
+    },
+    {
+      "COLUMN_NAME": "registrationTokenHash"
+    },
+    {
+      "COLUMN_NAME": "ttlSeconds"
+    },
+    {
+      "COLUMN_NAME": "watchdogSeconds"
+    },
+    {
+      "COLUMN_NAME": "beaconIntervalSeconds"
+    },
+    {
+      "COLUMN_NAME": "calderaPaw"
+    },
+    {
+      "COLUMN_NAME": "sliverImplantId"
+    },
+    {
+      "COLUMN_NAME": "msfSessionId"
+    },
+    {
+      "COLUMN_NAME": "targetHostname"
+    },
+    {
+      "COLUMN_NAME": "targetIp"
+    },
+    {
+      "COLUMN_NAME": "targetNetwork"
+    },
+    {
+      "COLUMN_NAME": "agentPlatform"
+    },
+    {
+      "COLUMN_NAME": "agentArchitecture"
+    },
+    {
+      "COLUMN_NAME": "agentUsername"
+    },
+    {
+      "COLUMN_NAME": "agentPrivilege"
+    },
+    {
+      "COLUMN_NAME": "agentExecutors"
+    },
+    {
+      "COLUMN_NAME": "agentPid"
+    },
+    {
+      "COLUMN_NAME": "requestedBy"
+    },
+    {
+      "COLUMN_NAME": "approvedBy"
+    },
+    {
+      "COLUMN_NAME": "approvedAt"
+    },
+    {
+      "COLUMN_NAME": "rejectionReason"
+    },
+    {
+      "COLUMN_NAME": "deployedAt"
+    },
+    {
+      "COLUMN_NAME": "lastHeartbeat"
+    },
+    {
+      "COLUMN_NAME": "terminatedAt"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "COLUMN_NAME"
+    },
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "type"
+    },
+    {
+      "COLUMN_NAME": "commonName"
+    },
+    {
+      "COLUMN_NAME": "serialNumber"
+    },
+    {
+      "COLUMN_NAME": "issuer"
+    },
+    {
+      "COLUMN_NAME": "subject"
+    },
+    {
+      "COLUMN_NAME": "validFrom"
+    },
+    {
+      "COLUMN_NAME": "validTo"
+    },
+    {
+      "COLUMN_NAME": "fingerprint"
+    },
+    {
+      "COLUMN_NAME": "certificate"
+    },
+    {
+      "COLUMN_NAME": "encryptedPrivateKey"
+    },
+    {
+      "COLUMN_NAME": "c2ServerId"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "COLUMN_NAME"
+    },
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "name"
+    },
+    {
+      "COLUMN_NAME": "ipAddress"
+    },
+    {
+      "COLUMN_NAME": "httpsUrl"
+    },
+    {
+      "COLUMN_NAME": "httpUrl"
+    },
+    {
+      "COLUMN_NAME": "region"
+    },
+    {
+      "COLUMN_NAME": "dropletSize"
+    },
+    {
+      "COLUMN_NAME": "dropletId"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "lastHealthCheck"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nengagementId\nname\ndescription\ntargetPlatform\nc2Protocol\nagentStatus\npublicKey\ncertificateHash\nregistrationTokenHash\nttlSeconds\nwatchdogSeconds\nbeaconIntervalSeconds\ncalderaPaw\nsliverImplantId\nmsfSessionId\ntargetHostname\ntargetIp\ntargetNetwork\nagentPlatform\nagentArchitecture\nagentUsername\nagentPrivilege\nagentExecutors\nagentPid\nrequestedBy\napprovedBy\napprovedAt\nrejectionReason\ndeployedAt\nlastHeartbeat\nterminatedAt\ncreatedAt\nupdatedAt\nCOLUMN_NAME\nid\ntype\ncommonName\nserialNumber\nissuer\nsubject\nvalidFrom\nvalidTo\nfingerprint\ncertificate\nencryptedPrivateKey\nc2ServerId\nstatus\ncreatedAt\nCOLUMN_NAME\nid\nname\nipAddress\nhttpsUrl\nhttpUrl\nregion\ndropletSize\ndropletId\nstatus\nlastHealthCheck\ncreatedAt\nupdatedAt\n",
+  "stderr": "",
+  "execution_time_ms": 82
+}

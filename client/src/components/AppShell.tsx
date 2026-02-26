@@ -74,8 +74,11 @@ import {
   Clock,
   Lock,
   Fingerprint,
+  Star,
+  History,
+  Pin,
 } from "lucide-react";
-import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
+import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -85,203 +88,344 @@ interface NavItemDef {
   label: string;
 }
 
+interface NavSubSection {
+  id: string;
+  label: string;
+  items: NavItemDef[];
+}
+
 interface NavGroup {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  items: NavItemDef[];
+  subSections: NavSubSection[];
 }
 
-// ─── Navigation Structure ──────────────────────────────────────────────────────
+// ─── Two-Tier Navigation Structure ──────────────────────────────────────────────
 
 const NAV_GROUPS: NavGroup[] = [
   {
     id: "operations",
     label: "OPERATIONS",
     icon: Swords,
-    items: [
-      { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
-      { href: "/workflows", icon: Rocket, label: "MISSION WORKFLOWS" },
-      { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
-      { href: "/roe-builder", icon: ScrollText, label: "ROE BUILDER" },
-      { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
-      { href: "/agents", icon: Cpu, label: "AGENTS" },
-      { href: "/agent-manager", icon: Fingerprint, label: "AGENT MANAGER" },
-      { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
-      { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
-      { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
-      { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
-      { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
-      { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
-      { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
-      { href: "/siem-feedback", icon: Radio, label: "SIEM FEEDBACK LOOP" },
-      { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
-      { href: "/cloud-attack-paths", icon: Cloud, label: "CLOUD ATTACK PATHS" },
-      { href: "/cloud-credentials", icon: Key, label: "CLOUD CREDENTIALS" },
-      { href: "/credential-alerts", icon: Bell, label: "CREDENTIAL ALERTS" },
-      { href: "/ad-attack-sim", icon: Server, label: "AD ATTACK SIM" },
-      { href: "/ad-domain-connector", icon: Network, label: "AD DOMAIN CONNECTOR" },
-      { href: "/ad-attack-path-graph", icon: GitBranch, label: "ATTACK PATH GRAPH" },
-      { href: "/forest-mapper", icon: TreePine, label: "FOREST MAPPER" },
-      { href: "/bloodhound-import", icon: Crosshair, label: "AD GRAPH IMPORT" },
-      { href: "/credential-auto-rotation", icon: RefreshCw, label: "AUTO-ROTATION" },
-      { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },
-      { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
-      { href: "/risk-trending", icon: BarChart3, label: "RISK TRENDING" },
-      { href: "/continuous-validation", icon: Calendar, label: "CONTINUOUS VALIDATION" },
-      { href: "/agentless-bas", icon: ShieldCheck, label: "AGENTLESS BAS" },
-      { href: "/attack-path-discovery", icon: GitBranch, label: "PATH DISCOVERY" },
-      { href: "/ngfw-validation", icon: Shield, label: "NGFW VALIDATION" },
-      { href: "/email-security", icon: Zap, label: "EMAIL SECURITY" },
-      { href: "/remediation-verification", icon: ClipboardCheck, label: "REMEDIATION VERIFY" },
-      { href: "/ai-attack-planner", icon: Brain, label: "AI ATTACK PLANNER" },
-      { href: "/corroboration-engine", icon: Microscope, label: "CORROBORATION ENGINE" },
-      { href: "/nvd-cve-matcher", icon: ScanSearch, label: "NVD CVE MATCHER" },
-      { href: "/compensating-controls", icon: ShieldPlus, label: "COMPENSATING CONTROLS" },
-      { href: "/preflight-checks", icon: Gauge, label: "PRE-FLIGHT CHECKS" },
-      { href: "/active-verification", icon: Radar, label: "ACTIVE VERIFICATION" },
-      { href: "/unified-pipeline", icon: Layers3, label: "UNIFIED PIPELINE" },
-      { href: "/attack-coverage", icon: Map, label: "ATT&CK COVERAGE" },
+    subSections: [
+      {
+        id: "ops-core",
+        label: "Core Operations",
+        items: [
+          { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
+          { href: "/workflows", icon: Rocket, label: "MISSION WORKFLOWS" },
+          { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
+          { href: "/roe-builder", icon: ScrollText, label: "ROE BUILDER" },
+          { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
+        ],
+      },
+      {
+        id: "ops-agents",
+        label: "Agent Management",
+        items: [
+          { href: "/agents", icon: Cpu, label: "AGENTS" },
+          { href: "/agent-manager", icon: Fingerprint, label: "AGENT MANAGER" },
+          { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
+        ],
+      },
+      {
+        id: "ops-detection",
+        label: "Detection & Validation",
+        items: [
+          { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
+          { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
+          { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
+          { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
+          { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
+          { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },
+          { href: "/agentless-bas", icon: ShieldCheck, label: "AGENTLESS BAS" },
+          { href: "/ngfw-validation", icon: Shield, label: "NGFW VALIDATION" },
+          { href: "/email-security", icon: Zap, label: "EMAIL SECURITY" },
+          { href: "/remediation-verification", icon: ClipboardCheck, label: "REMEDIATION VERIFY" },
+        ],
+      },
+      {
+        id: "ops-siem",
+        label: "SIEM & Connectors",
+        items: [
+          { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
+          { href: "/siem-feedback", icon: Radio, label: "SIEM FEEDBACK LOOP" },
+        ],
+      },
+      {
+        id: "ops-attack-paths",
+        label: "Attack Paths & AD",
+        items: [
+          { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
+          { href: "/cloud-attack-paths", icon: Cloud, label: "CLOUD ATTACK PATHS" },
+          { href: "/cloud-credentials", icon: Key, label: "CLOUD CREDENTIALS" },
+          { href: "/credential-alerts", icon: Bell, label: "CREDENTIAL ALERTS" },
+          { href: "/ad-attack-sim", icon: Server, label: "AD ATTACK SIM" },
+          { href: "/ad-domain-connector", icon: Network, label: "AD DOMAIN CONNECTOR" },
+          { href: "/ad-attack-path-graph", icon: GitBranch, label: "ATTACK PATH GRAPH" },
+          { href: "/forest-mapper", icon: TreePine, label: "FOREST MAPPER" },
+          { href: "/bloodhound-import", icon: Crosshair, label: "AD GRAPH IMPORT" },
+          { href: "/credential-auto-rotation", icon: RefreshCw, label: "AUTO-ROTATION" },
+          { href: "/attack-path-discovery", icon: GitBranch, label: "PATH DISCOVERY" },
+        ],
+      },
+      {
+        id: "ops-scoring",
+        label: "Scoring & Analysis",
+        items: [
+          { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
+          { href: "/risk-trending", icon: BarChart3, label: "RISK TRENDING" },
+          { href: "/continuous-validation", icon: Calendar, label: "CONTINUOUS VALIDATION" },
+          { href: "/ai-attack-planner", icon: Brain, label: "AI ATTACK PLANNER" },
+          { href: "/corroboration-engine", icon: Microscope, label: "CORROBORATION ENGINE" },
+          { href: "/nvd-cve-matcher", icon: ScanSearch, label: "NVD CVE MATCHER" },
+          { href: "/compensating-controls", icon: ShieldPlus, label: "COMPENSATING CONTROLS" },
+          { href: "/preflight-checks", icon: Gauge, label: "PRE-FLIGHT CHECKS" },
+          { href: "/active-verification", icon: Radar, label: "ACTIVE VERIFICATION" },
+          { href: "/unified-pipeline", icon: Layers3, label: "UNIFIED PIPELINE" },
+          { href: "/attack-coverage", icon: Map, label: "ATT&CK COVERAGE" },
+        ],
+      },
     ],
   },
   {
     id: "ksi",
     label: "KEY SECURITY INDICATORS",
     icon: BadgeCheck,
-    items: [
-      { href: "/ksi-dashboard", icon: BadgeCheck, label: "INDICATORS DASHBOARD" },
-      { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
-      { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
-      { href: "/ksi-threat-map", icon: Crosshair, label: "THREAT MAP" },
-      { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
-      { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
-      { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
-      { href: "/attack-vector-engine", icon: Crosshair, label: "ATTACK VECTORS" },
-      { href: "/scheduled-collection", icon: Clock, label: "SCHEDULED COLLECTION" },
-      { href: "/engagement-automation", icon: Zap, label: "ENGAGEMENT AUTOMATION" },
-      { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
+    subSections: [
+      {
+        id: "ksi-core",
+        label: "Indicators & Evidence",
+        items: [
+          { href: "/ksi-dashboard", icon: BadgeCheck, label: "INDICATORS DASHBOARD" },
+          { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
+          { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
+          { href: "/ksi-threat-map", icon: Crosshair, label: "THREAT MAP" },
+          { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
+        ],
+      },
+      {
+        id: "ksi-automation",
+        label: "Automation & Export",
+        items: [
+          { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
+          { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
+          { href: "/attack-vector-engine", icon: Crosshair, label: "ATTACK VECTORS" },
+          { href: "/scheduled-collection", icon: Clock, label: "SCHEDULED COLLECTION" },
+          { href: "/engagement-automation", icon: Zap, label: "ENGAGEMENT AUTOMATION" },
+          { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
+        ],
+      },
     ],
   },
   {
     id: "phishing",
     label: "PHISHING & EXPLOITS",
     icon: Zap,
-    items: [
-      { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
-      { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
-      { href: "/validation-engine", icon: FlaskConical, label: "VALIDATION ENGINE" },
-      { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
-      { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
-      { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
-      { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
-      { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
-      { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
-      { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
-      { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
-      { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
-      { href: "/atomic-red-team", icon: Atom, label: "ATT&CK TESTS" },
-      { href: "/nuclei-scanner", icon: ScanLine, label: "TEMPLATE SCANNER" },
-      { href: "/sliver-c2", icon: Hexagon, label: "IMPLANT C2" },
-      { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
-      { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
-      { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
-      { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
+    subSections: [
+      {
+        id: "phish-campaigns",
+        label: "Campaign Management",
+        items: [
+          { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
+          { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
+          { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
+          { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
+          { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
+        ],
+      },
+      {
+        id: "phish-exploits",
+        label: "Exploit Tools",
+        items: [
+          { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
+          { href: "/validation-engine", icon: FlaskConical, label: "VALIDATION ENGINE" },
+          { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
+          { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
+          { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
+          { href: "/atomic-red-team", icon: Atom, label: "ATT&CK TESTS" },
+          { href: "/nuclei-scanner", icon: ScanLine, label: "TEMPLATE SCANNER" },
+        ],
+      },
+      {
+        id: "phish-c2",
+        label: "C2 & Sessions",
+        items: [
+          { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
+          { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
+          { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
+          { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
+          { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
+          { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
+          { href: "/sliver-c2", icon: Hexagon, label: "IMPLANT C2" },
+        ],
+      },
     ],
   },
   {
     id: "intelligence",
     label: "INTELLIGENCE",
     icon: Search,
-    items: [
-      { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
-      { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
-      { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
-      { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
-      { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
-      { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
-      { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
-      { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
-      { href: "/scan-scheduler", icon: Clock, label: "SCAN SCHEDULER" },
-      { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
-      { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
-      { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
-      { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
+    subSections: [
+      {
+        id: "intel-threats",
+        label: "Threat Intelligence",
+        items: [
+          { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
+          { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
+          { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
+          { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
+          { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
+        ],
+      },
+      {
+        id: "intel-recon",
+        label: "Reconnaissance",
+        items: [
+          { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+          { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
+          { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
+          { href: "/scan-scheduler", icon: Clock, label: "SCAN SCHEDULER" },
+          { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
+          { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
+          { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
+          { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
+        ],
+      },
     ],
   },
   {
     id: "knowledge",
     label: "KNOWLEDGE BASE",
     icon: GraduationCap,
-    items: [
-      { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
-      { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
-      { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
-      { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
-      { href: "/compliance-mapper", icon: ClipboardCheck, label: "COMPLIANCE MAPPER" },
-      { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
-      { href: "/infra-wiki", icon: Network, label: "INFRA WIKI" },
-      { href: "/live-infra", icon: Server, label: "LIVE INFRASTRUCTURE" },
+    subSections: [
+      {
+        id: "kb-all",
+        label: "Reference Library",
+        items: [
+          { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
+          { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
+          { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
+          { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
+          { href: "/compliance-mapper", icon: ClipboardCheck, label: "COMPLIANCE MAPPER" },
+          { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
+          { href: "/infra-wiki", icon: Network, label: "INFRA WIKI" },
+          { href: "/live-infra", icon: Server, label: "LIVE INFRASTRUCTURE" },
+        ],
+      },
     ],
   },
   {
     id: "reports",
     label: "REPORTS & GUIDES",
     icon: BarChart3,
-    items: [
-      { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
-      { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
-      { href: "/bia-report", icon: ClipboardCheck, label: "AUTO-BIA REPORT" },
-      { href: "/guide/gophish", icon: BookOpen, label: "PHISHING OPS GUIDE" },
-      { href: "/guide/caldera", icon: BookOpen, label: "EMULATION GUIDE" },
-      { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
-      { href: "/report-templates", icon: FileText, label: "REPORT TEMPLATES" },
+    subSections: [
+      {
+        id: "reports-all",
+        label: "Reports & Templates",
+        items: [
+          { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
+          { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
+          { href: "/bia-report", icon: ClipboardCheck, label: "AUTO-BIA REPORT" },
+          { href: "/guide/gophish", icon: BookOpen, label: "PHISHING OPS GUIDE" },
+          { href: "/guide/caldera", icon: BookOpen, label: "EMULATION GUIDE" },
+          { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
+          { href: "/report-templates", icon: FileText, label: "REPORT TEMPLATES" },
+        ],
+      },
     ],
   },
   {
     id: "admin",
     label: "ADMIN",
     icon: Settings,
-    items: [
-      { href: "/team", icon: Users, label: "TEAM" },
-      { href: "/activity", icon: FileText, label: "ACTIVITY" },
-      { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
-      { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
-      { href: "/audit-log", icon: FileText, label: "AUDIT LOG" },
-      { href: "/tenants", icon: Users, label: "TENANTS" },
-      { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
-      { href: "/cicd-pipeline", icon: Workflow, label: "CI/CD PIPELINE" },
-      { href: "/soar-connectors", icon: ArrowLeftRight, label: "SOAR CONNECTORS" },
-      { href: "/vendor-integrations", icon: Server, label: "VENDOR INTEGRATIONS" },
-      { href: "/fips-compliance", icon: Lock, label: "FIPS COMPLIANCE" },
+    subSections: [
+      {
+        id: "admin-team",
+        label: "Team & Access",
+        items: [
+          { href: "/team", icon: Users, label: "TEAM" },
+          { href: "/tenants", icon: Users, label: "TENANTS" },
+          { href: "/activity", icon: FileText, label: "ACTIVITY" },
+          { href: "/audit-log", icon: FileText, label: "AUDIT LOG" },
+        ],
+      },
+      {
+        id: "admin-infra",
+        label: "Infrastructure",
+        items: [
+          { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
+          { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
+          { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
+          { href: "/cicd-pipeline", icon: Workflow, label: "CI/CD PIPELINE" },
+          { href: "/soar-connectors", icon: ArrowLeftRight, label: "SOAR CONNECTORS" },
+        ],
+      },
+      {
+        id: "admin-compliance",
+        label: "Compliance & Security",
+        items: [
+          { href: "/fips-compliance", icon: Lock, label: "FIPS COMPLIANCE" },
+        ],
+      },
     ],
   },
-
 ];
 
-// ─── Storage Key ───────────────────────────────────────────────────────────────
+// ─── Flatten all items for search ────────────────────────────────────────────
+
+const ALL_NAV_ITEMS: (NavItemDef & { groupLabel: string; subLabel: string })[] = NAV_GROUPS.flatMap(
+  (g) =>
+    g.subSections.flatMap((sub) =>
+      sub.items.map((item) => ({
+        ...item,
+        groupLabel: g.label,
+        subLabel: sub.label,
+      }))
+    )
+);
+
+// ─── Storage Keys ────────────────────────────────────────────────────────────
 
 const SIDEBAR_STATE_KEY = "ace-c3-sidebar-groups";
+const SIDEBAR_SUB_STATE_KEY = "ace-c3-sidebar-subs";
+const FAVORITES_KEY = "ace-c3-favorites";
+const RECENT_KEY = "ace-c3-recent";
 
-function loadExpandedGroups(): Record<string, boolean> {
+function loadState<T>(key: string, fallback: T): T {
   try {
-    const stored = localStorage.getItem(SIDEBAR_STATE_KEY);
+    const stored = localStorage.getItem(key);
     if (stored) return JSON.parse(stored);
   } catch {}
-  return {};
+  return fallback;
 }
 
-function saveExpandedGroups(state: Record<string, boolean>) {
+function saveState(key: string, value: unknown) {
   try {
-    localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(state));
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {}
 }
 
-// ─── Find which group contains a path ──────────────────────────────────────────
+// ─── Find which group/sub contains a path ────────────────────────────────────
 
 function findGroupForPath(path: string): string | null {
   for (const group of NAV_GROUPS) {
-    if (group.items.some((item) => path === item.href || path.startsWith(item.href + "/"))) {
-      return group.id;
+    for (const sub of group.subSections) {
+      if (sub.items.some((item) => path === item.href || path.startsWith(item.href + "/"))) {
+        return group.id;
+      }
+    }
+  }
+  return null;
+}
+
+function findSubForPath(path: string): string | null {
+  for (const group of NAV_GROUPS) {
+    for (const sub of group.subSections) {
+      if (sub.items.some((item) => path === item.href || path.startsWith(item.href + "/"))) {
+        return sub.id;
+      }
     }
   }
   return null;
@@ -295,26 +439,110 @@ function NavItem({
   label,
   active,
   onClick,
+  isFavorite,
+  onToggleFavorite,
 }: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   active?: boolean;
   onClick?: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (href: string) => void;
 }) {
   return (
-    <Link href={href} onClick={onClick}>
-      <div
-        className={`flex items-center gap-3 pl-8 pr-4 py-2.5 font-display tracking-wider text-xs transition-colors min-h-[38px] ${
-          active
-            ? "bg-primary/20 text-primary border-l-2 border-primary"
-            : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+    <div className="group/item relative">
+      <Link href={href} onClick={onClick}>
+        <div
+          className={`flex items-center gap-2.5 pl-10 pr-8 py-2 font-display tracking-wider text-[11px] transition-colors min-h-[34px] ${
+            active
+              ? "bg-primary/20 text-primary border-l-2 border-primary"
+              : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Icon className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{label}</span>
+        </div>
+      </Link>
+      {onToggleFavorite && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(href);
+          }}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all ${
+            isFavorite
+              ? "text-amber-400 opacity-100"
+              : "text-muted-foreground/40 opacity-0 group-hover/item:opacity-100 hover:text-amber-400"
+          }`}
+          title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Star className={`w-3 h-3 ${isFavorite ? "fill-current" : ""}`} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── SubSection Component ───────────────────────────────────────────────────
+
+function SubSectionNav({
+  sub,
+  expanded,
+  onToggle,
+  currentPath,
+  onNavClick,
+  favorites,
+  onToggleFavorite,
+}: {
+  sub: NavSubSection;
+  expanded: boolean;
+  onToggle: () => void;
+  currentPath: string;
+  onNavClick: () => void;
+  favorites: string[];
+  onToggleFavorite: (href: string) => void;
+}) {
+  const hasActiveItem = sub.items.some(
+    (item) => currentPath === item.href || currentPath.startsWith(item.href + "/")
+  );
+
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center gap-2 pl-7 pr-4 py-1.5 text-[10px] font-display tracking-wider transition-colors ${
+          hasActiveItem && !expanded
+            ? "text-primary/80"
+            : "text-muted-foreground/60 hover:text-muted-foreground"
         }`}
       >
-        <Icon className="w-3.5 h-3.5 shrink-0" />
-        <span className="truncate">{label}</span>
+        <span className="flex-1 text-left truncate uppercase">{sub.label}</span>
+        {expanded ? (
+          <ChevronDown className="w-3 h-3 shrink-0 opacity-40" />
+        ) : (
+          <ChevronRight className="w-3 h-3 shrink-0 opacity-40" />
+        )}
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          expanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        {sub.items.map((item) => (
+          <NavItem
+            key={item.href}
+            href={item.href}
+            icon={item.icon}
+            label={item.label}
+            active={currentPath === item.href || currentPath.startsWith(item.href + "/")}
+            onClick={onNavClick}
+            isFavorite={favorites.includes(item.href)}
+            onToggleFavorite={onToggleFavorite}
+          />
+        ))}
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -324,19 +552,31 @@ function NavGroupSection({
   group,
   expanded,
   onToggle,
+  expandedSubs,
+  onToggleSub,
   currentPath,
   onNavClick,
+  favorites,
+  onToggleFavorite,
 }: {
   group: NavGroup;
   expanded: boolean;
   onToggle: () => void;
+  expandedSubs: Record<string, boolean>;
+  onToggleSub: (subId: string) => void;
   currentPath: string;
   onNavClick: () => void;
+  favorites: string[];
+  onToggleFavorite: (href: string) => void;
 }) {
   const GroupIcon = group.icon;
-  const hasActiveItem = group.items.some(
-    (item) => currentPath === item.href || currentPath.startsWith(item.href + "/")
+  const hasActiveItem = group.subSections.some((sub) =>
+    sub.items.some(
+      (item) => currentPath === item.href || currentPath.startsWith(item.href + "/")
+    )
   );
+
+  const totalItems = group.subSections.reduce((sum, sub) => sum + sub.items.length, 0);
 
   return (
     <div className="mb-0.5">
@@ -350,6 +590,7 @@ function NavGroupSection({
       >
         <GroupIcon className="w-4 h-4 shrink-0" />
         <span className="flex-1 text-left truncate">{group.label}</span>
+        <span className="text-[9px] text-muted-foreground/50 mr-1">{totalItems}</span>
         {expanded ? (
           <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
         ) : (
@@ -358,19 +599,213 @@ function NavGroupSection({
       </button>
       <div
         className={`overflow-hidden transition-all duration-200 ease-in-out ${
-          expanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+          expanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
-        {group.items.map((item) => (
-          <NavItem
-            key={item.href}
-            href={item.href}
-            icon={item.icon}
-            label={item.label}
-            active={currentPath === item.href || currentPath.startsWith(item.href + "/")}
-            onClick={onNavClick}
+        {group.subSections.map((sub) => {
+          // If group has only one sub-section, skip the sub-section header
+          if (group.subSections.length === 1) {
+            return sub.items.map((item) => (
+              <NavItem
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                active={currentPath === item.href || currentPath.startsWith(item.href + "/")}
+                onClick={onNavClick}
+                isFavorite={favorites.includes(item.href)}
+                onToggleFavorite={onToggleFavorite}
+              />
+            ));
+          }
+          return (
+            <SubSectionNav
+              key={sub.id}
+              sub={sub}
+              expanded={!!expandedSubs[sub.id]}
+              onToggle={() => onToggleSub(sub.id)}
+              currentPath={currentPath}
+              onNavClick={onNavClick}
+              favorites={favorites}
+              onToggleFavorite={onToggleFavorite}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Favorites Bar ──────────────────────────────────────────────────────────
+
+function FavoritesBar({
+  favorites,
+  recentPaths,
+  currentPath,
+  onNavClick,
+}: {
+  favorites: string[];
+  recentPaths: string[];
+  currentPath: string;
+  onNavClick: () => void;
+}) {
+  const favoriteItems = favorites
+    .map((href) => ALL_NAV_ITEMS.find((item) => item.href === href))
+    .filter(Boolean) as (NavItemDef & { groupLabel: string; subLabel: string })[];
+
+  const recentItems = recentPaths
+    .filter((href) => !favorites.includes(href))
+    .slice(0, 5)
+    .map((href) => ALL_NAV_ITEMS.find((item) => item.href === href))
+    .filter(Boolean) as (NavItemDef & { groupLabel: string; subLabel: string })[];
+
+  if (favoriteItems.length === 0 && recentItems.length === 0) return null;
+
+  return (
+    <div className="border-b border-border/50 pb-1 mb-1">
+      {favoriteItems.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 px-4 py-1.5">
+            <Pin className="w-3 h-3 text-amber-400/70" />
+            <span className="text-[9px] font-display tracking-widest text-muted-foreground/60 uppercase">
+              Pinned
+            </span>
+          </div>
+          {favoriteItems.map((item) => (
+            <Link key={item.href} href={item.href} onClick={onNavClick}>
+              <div
+                className={`flex items-center gap-2.5 pl-8 pr-4 py-1.5 font-display tracking-wider text-[11px] transition-colors min-h-[30px] ${
+                  currentPath === item.href || currentPath.startsWith(item.href + "/")
+                    ? "bg-primary/20 text-primary border-l-2 border-primary"
+                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <item.icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+      {recentItems.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 px-4 py-1.5">
+            <History className="w-3 h-3 text-muted-foreground/50" />
+            <span className="text-[9px] font-display tracking-widest text-muted-foreground/60 uppercase">
+              Recent
+            </span>
+          </div>
+          {recentItems.map((item) => (
+            <Link key={item.href} href={item.href} onClick={onNavClick}>
+              <div
+                className={`flex items-center gap-2.5 pl-8 pr-4 py-1.5 font-display tracking-wider text-[11px] transition-colors min-h-[30px] ${
+                  currentPath === item.href || currentPath.startsWith(item.href + "/")
+                    ? "bg-primary/20 text-primary border-l-2 border-primary"
+                    : "hover:bg-secondary/50 text-muted-foreground/60 hover:text-foreground"
+                }`}
+              >
+                <item.icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Search Overlay ─────────────────────────────────────────────────────────
+
+function NavSearch({
+  open,
+  onClose,
+  currentPath,
+  onNavigate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  currentPath: string;
+  onNavigate: (href: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open]);
+
+  const results = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return ALL_NAV_ITEMS.filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) ||
+        item.groupLabel.toLowerCase().includes(q) ||
+        item.subLabel.toLowerCase().includes(q) ||
+        item.href.toLowerCase().includes(q)
+    ).slice(0, 12);
+  }, [query]);
+
+  if (!open) return null;
+
+  return (
+    <div className="absolute inset-0 z-50 bg-card/98 backdrop-blur-sm flex flex-col">
+      <div className="p-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search pages..."
+            className="flex-1 bg-transparent text-sm font-display tracking-wider outline-none placeholder:text-muted-foreground/40"
           />
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-secondary rounded text-muted-foreground"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto py-2">
+        {results.length === 0 && query.trim() && (
+          <div className="px-4 py-8 text-center text-muted-foreground/50 text-xs font-display tracking-wider">
+            NO RESULTS
+          </div>
+        )}
+        {results.map((item) => (
+          <button
+            key={item.href}
+            onClick={() => {
+              onNavigate(item.href);
+              onClose();
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+              currentPath === item.href
+                ? "bg-primary/20 text-primary"
+                : "hover:bg-secondary text-foreground"
+            }`}
+          >
+            <item.icon className="w-4 h-4 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-display tracking-wider truncate">{item.label}</div>
+              <div className="text-[9px] text-muted-foreground/50 tracking-wider truncate">
+                {item.groupLabel} / {item.subLabel}
+              </div>
+            </div>
+          </button>
         ))}
+        {!query.trim() && (
+          <div className="px-4 py-8 text-center text-muted-foreground/40 text-xs font-display tracking-wider">
+            TYPE TO SEARCH 113 PAGES
+          </div>
+        )}
       </div>
     </div>
   );
@@ -380,11 +815,8 @@ function NavGroupSection({
 
 interface AppShellProps {
   children: ReactNode;
-  /** Current page path for active nav highlighting. If not provided, uses useLocation. */
   activePath?: string;
-  /** Additional header content (right side of mobile header) */
   headerActions?: ReactNode;
-  /** Main content padding override. Default: "p-4 sm:p-6 lg:p-8" */
   contentClassName?: string;
 }
 
@@ -395,26 +827,66 @@ export default function AppShell({
   contentClassName = "p-4 sm:p-6 lg:p-8",
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [location] = useLocation();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [location, setLocation] = useLocation();
   const currentPath = activePath || location;
 
-  // Expanded groups state — initialize from localStorage + auto-expand active group
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-    const stored = loadExpandedGroups();
-    const activeGroup = findGroupForPath(currentPath);
-    if (activeGroup) {
-      stored[activeGroup] = true;
+  // Favorites
+  const [favorites, setFavorites] = useState<string[]>(() => loadState(FAVORITES_KEY, []));
+
+  // Recent pages
+  const [recentPaths, setRecentPaths] = useState<string[]>(() => loadState(RECENT_KEY, []));
+
+  // Track recent navigation
+  useEffect(() => {
+    if (ALL_NAV_ITEMS.some((item) => item.href === currentPath)) {
+      setRecentPaths((prev) => {
+        const next = [currentPath, ...prev.filter((p) => p !== currentPath)].slice(0, 10);
+        saveState(RECENT_KEY, next);
+        return next;
+      });
     }
+  }, [currentPath]);
+
+  const toggleFavorite = useCallback((href: string) => {
+    setFavorites((prev) => {
+      const next = prev.includes(href) ? prev.filter((f) => f !== href) : [...prev, href];
+      saveState(FAVORITES_KEY, next);
+      return next;
+    });
+  }, []);
+
+  // Expanded groups state
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const stored = loadState<Record<string, boolean>>(SIDEBAR_STATE_KEY, {});
+    const activeGroup = findGroupForPath(currentPath);
+    if (activeGroup) stored[activeGroup] = true;
     return stored;
   });
 
-  // Auto-expand the group containing the active page when route changes
+  // Expanded sub-sections state
+  const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>(() => {
+    const stored = loadState<Record<string, boolean>>(SIDEBAR_SUB_STATE_KEY, {});
+    const activeSub = findSubForPath(currentPath);
+    if (activeSub) stored[activeSub] = true;
+    return stored;
+  });
+
+  // Auto-expand active group/sub on route change
   useEffect(() => {
     const activeGroup = findGroupForPath(currentPath);
+    const activeSub = findSubForPath(currentPath);
     if (activeGroup && !expandedGroups[activeGroup]) {
       setExpandedGroups((prev) => {
         const next = { ...prev, [activeGroup]: true };
-        saveExpandedGroups(next);
+        saveState(SIDEBAR_STATE_KEY, next);
+        return next;
+      });
+    }
+    if (activeSub && !expandedSubs[activeSub]) {
+      setExpandedSubs((prev) => {
+        const next = { ...prev, [activeSub]: true };
+        saveState(SIDEBAR_SUB_STATE_KEY, next);
         return next;
       });
     }
@@ -423,7 +895,15 @@ export default function AppShell({
   const toggleGroup = useCallback((groupId: string) => {
     setExpandedGroups((prev) => {
       const next = { ...prev, [groupId]: !prev[groupId] };
-      saveExpandedGroups(next);
+      saveState(SIDEBAR_STATE_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const toggleSub = useCallback((subId: string) => {
+    setExpandedSubs((prev) => {
+      const next = { ...prev, [subId]: !prev[subId] };
+      saveState(SIDEBAR_SUB_STATE_KEY, next);
       return next;
     });
   }, []);
@@ -433,14 +913,22 @@ export default function AppShell({
     setSidebarOpen(false);
   }, [location]);
 
-  // Close sidebar on escape key
+  // Keyboard shortcuts
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSidebarOpen(false);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (searchOpen) setSearchOpen(false);
+        else setSidebarOpen(false);
+      }
+      // Cmd/Ctrl+K to open search
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
     };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, []);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [searchOpen]);
 
   // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {
@@ -463,16 +951,24 @@ export default function AppShell({
   );
 
   const toggleAll = useCallback(() => {
-    const newState: Record<string, boolean> = {};
+    const newGroupState: Record<string, boolean> = {};
+    const newSubState: Record<string, boolean> = {};
     const targetValue = !allExpanded;
     NAV_GROUPS.forEach((g) => {
-      newState[g.id] = targetValue;
+      newGroupState[g.id] = targetValue;
+      g.subSections.forEach((sub) => {
+        newSubState[sub.id] = targetValue;
+      });
     });
-    // Always keep the active group expanded
+    // Always keep the active group/sub expanded
     const activeGroup = findGroupForPath(currentPath);
-    if (activeGroup) newState[activeGroup] = true;
-    setExpandedGroups(newState);
-    saveExpandedGroups(newState);
+    const activeSub = findSubForPath(currentPath);
+    if (activeGroup) newGroupState[activeGroup] = true;
+    if (activeSub) newSubState[activeSub] = true;
+    setExpandedGroups(newGroupState);
+    setExpandedSubs(newSubState);
+    saveState(SIDEBAR_STATE_KEY, newGroupState);
+    saveState(SIDEBAR_SUB_STATE_KEY, newSubState);
   }, [allExpanded, currentPath]);
 
   return (
@@ -492,7 +988,7 @@ export default function AppShell({
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } overflow-y-auto`}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full relative">
           {/* Logo */}
           <div className="p-4 sm:p-5 border-b border-border sticky top-0 bg-card z-10">
             <div className="flex items-center justify-between">
@@ -518,8 +1014,30 @@ export default function AppShell({
             </div>
           </div>
 
+          {/* Search Bar */}
+          <div className="px-3 pt-2">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 bg-secondary/50 hover:bg-secondary rounded-md text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            >
+              <Search className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[11px] font-display tracking-wider flex-1 text-left">SEARCH...</span>
+              <kbd className="hidden sm:inline text-[9px] bg-background/50 px-1.5 py-0.5 rounded border border-border/50 font-mono">
+                ⌘K
+              </kbd>
+            </button>
+          </div>
+
           {/* Navigation */}
           <nav className="flex-1 py-2 overflow-y-auto">
+            {/* Favorites & Recent */}
+            <FavoritesBar
+              favorites={favorites}
+              recentPaths={recentPaths}
+              currentPath={currentPath}
+              onNavClick={closeSidebar}
+            />
+
             {/* Expand/Collapse All */}
             <div className="px-4 py-1.5 flex justify-end">
               <button
@@ -536,8 +1054,12 @@ export default function AppShell({
                 group={group}
                 expanded={!!expandedGroups[group.id]}
                 onToggle={() => toggleGroup(group.id)}
+                expandedSubs={expandedSubs}
+                onToggleSub={toggleSub}
                 currentPath={currentPath}
                 onNavClick={closeSidebar}
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
               />
             ))}
           </nav>
@@ -564,6 +1086,17 @@ export default function AppShell({
               </Button>
             </Link>
           </div>
+
+          {/* Search Overlay */}
+          <NavSearch
+            open={searchOpen}
+            onClose={() => setSearchOpen(false)}
+            currentPath={currentPath}
+            onNavigate={(href) => {
+              setLocation(href);
+              closeSidebar();
+            }}
+          />
         </div>
       </aside>
 

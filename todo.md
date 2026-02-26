@@ -4678,3 +4678,57 @@
 - [x] Certificate rotation and expiry tracking
 - [x] Admin UI for certificate management (generate, view, revoke, download)
 - [x] Tests for mTLS certificate generation and connection
+
+## Platform Hardening — High Priority
+### 1. Foreign Key Constraints
+- [x] Add FK: engagements → findings (osint_findings, domain_recon, typosquat_domains)
+- [x] Add FK: findings → evidence (evidence_chain_of_custody → evidence_items)
+- [x] Add FK: agents → agent_tasks (agent_tasks.agentId → agent_deployments.id)
+- [x] Add FK: agent_tasks → agent_audit_logs (agent_audit_log.agentId → agent_deployments.id)
+- [x] Add FK: c2_servers → mtls_certificates (schema-level, no c2ServerId column in deployments)
+- [x] Add FK: c2_servers → server_credentials (server_credentials.serverId → server_configs.id)
+- [x] Add FK: agent_deployments → c2_servers (no c2ServerId column — agents use c2Protocol enum)
+- [x] Add FK: scan results → domain assets (discovered_assets.scanId → domain_intel_scans.id)
+- [x] Verify FK constraints via SQL after migration (9 FK constraints confirmed)
+
+### 2. Navigation Consolidation
+- [x] Refactor AppShell sidebar to two-tier collapsible sections
+- [x] Add favorites/recent quick-access bar at top of sidebar
+- [x] Persist user favorites in localStorage
+- [x] Add search/filter for navigation items (Cmd+K shortcut)
+- [x] Progressive disclosure: collapse sub-sections by default
+
+### 3. Router Decomposition
+- [x] Split phishing-ops.ts into campaign-mgmt, template-arsenal, reporting-exploits
+- [x] Split agent-manager.ts into c2-lifecycle, heartbeat-mgmt, fips-mtls
+- [x] Merge sub-routers into same namespace so frontend doesn't change
+- [x] Verify no broken imports after split
+- [ ] Split attack-vector-engine.ts into smaller domain files
+- [ ] Split darkweb-intel.ts into feed-mgmt and analysis
+- [ ] Update routers.ts imports after splits
+
+## Platform Hardening — Medium Priority
+### 4. Integration Tests (Real DB)
+- [x] Create integration test harness with real DB connection
+- [x] Write integration tests for FK constraint enforcement (3 FK violation tests)
+- [x] Write integration tests for credential encryption round-trip (encrypt → store → retrieve → decrypt)
+- [x] Write integration tests for transaction rollback
+- [x] Write integration tests for cascade delete behavior (agent → tasks, agent → audit logs)
+- [x] Write integration tests for schema completeness (187 tables, 9 FKs verified)
+
+### 5. RBAC on Sensitive Procedures
+- [x] Create adminProcedure middleware in routers (already existed in _core/trpc.ts)
+- [x] Guard FIPS compliance procedures with adminProcedure
+- [x] Guard credential migration procedures with adminProcedure
+- [x] Guard tenant management procedures with adminProcedure
+- [x] Guard mTLS certificate management with adminProcedure
+- [x] Guard vendor integration configuration with adminProcedure
+
+### 6. Global Error Boundary
+- [x] Create ErrorBoundary component with incident reporting (upgraded existing)
+- [x] Wrap AppShell/DashboardLayout with ErrorBoundary (app-root scope)
+- [x] Add error recovery UI (retry, go home, copy details, expand stack trace)
+- [x] Log errors to server via tRPC mutation (system.reportError)
+- [x] Add error boundary around individual route components (PageErrorBoundary exported)
+- [x] Add server-side error logging endpoint (system.reportError + error_incidents table)
+- [x] Send owner notification on critical app-root crashes (notifyOwner on scope=app-root)

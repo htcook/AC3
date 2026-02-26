@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import crypto from "crypto";
 
 export const sshKeysRouter = router({
@@ -63,7 +63,7 @@ export const sshKeysRouter = router({
     }),
 
   // ─── Generate a new SSH key pair ───────────────────────────────────────────
-  generate: protectedProcedure
+  generate: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
       keyType: z.enum(["ed25519", "rsa", "ecdsa"]).default("ed25519"),
@@ -157,7 +157,7 @@ export const sshKeysRouter = router({
     }),
 
   // ─── Upload an existing SSH key ────────────────────────────────────────────
-  upload: protectedProcedure
+  upload: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
       publicKey: z.string().min(10),
@@ -197,7 +197,7 @@ export const sshKeysRouter = router({
     }),
 
   // ─── Delete an SSH key ─────────────────────────────────────────────────────
-  delete: protectedProcedure
+  delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const { sshKeys } = await import("../../drizzle/schema");
@@ -260,7 +260,7 @@ export const sshKeysRouter = router({
     }),
 
   // ─── Rotate a key (generate new, replace old) ─────────────────────────────
-  rotate: protectedProcedure
+  rotate: adminProcedure
     .input(z.object({
       id: z.number(),
       keyType: z.enum(["ed25519", "rsa", "ecdsa"]).default("ed25519"),
@@ -374,7 +374,7 @@ export const sshKeysRouter = router({
     }),
 
   // ─── Get the private key content (for download) ───────────────────────────
-  getPrivateKey: protectedProcedure
+  getPrivateKey: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const { sshKeys } = await import("../../drizzle/schema");

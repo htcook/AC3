@@ -1,0 +1,9 @@
+{
+  "query": "\n-- FK: campaign_engagements.engagementId → engagements.id\nALTER TABLE campaign_engagements \nADD CONSTRAINT fk_ce_engagement \nFOREIGN KEY (engagementId) REFERENCES engagements(id) ON DELETE CASCADE;\n\n-- FK: engagement_reports.engagementId → engagements.id\nALTER TABLE engagement_reports \nADD CONSTRAINT fk_er_engagement \nFOREIGN KEY (engagementId) REFERENCES engagements(id) ON DELETE CASCADE;\n\n-- FK: server_credentials.serverId → server_configs.id\nALTER TABLE server_credentials \nADD CONSTRAINT fk_sc_server \nFOREIGN KEY (serverId) REFERENCES server_configs(id) ON DELETE CASCADE;\n\n-- FK: discovered_assets.scanId → domain_intel_scans.id\nALTER TABLE discovered_assets \nADD CONSTRAINT fk_da_scan \nFOREIGN KEY (scanId) REFERENCES domain_intel_scans(id) ON DELETE CASCADE;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute \n-- FK: campaign_engagements.engagementId → engagements.id\nALTER TABLE campaign_engagements \nADD CONSTRAINT fk_ce_engagement \nFOREIGN KEY (engagementId) REFERENCES engagements(id) ON DELETE CASCADE;\n\n-- FK: engagement_reports.engagementId → engagements.id\nALTER TABLE engagement_reports \nADD CONSTRAINT fk_er_engagement \nFOREIGN KEY (engagementId) REFERENCES engagements(id) ON DELETE CASCADE;\n\n-- FK: server_credentials.serverId → server_configs.id\nALTER TABLE server_credentials \nADD CONSTRAINT fk_sc_server \nFOREIGN KEY (serverId) REFERENCES server_configs(id) ON DELETE CASCADE;\n\n-- FK: discovered_assets.scanId → domain_intel_scans.id\nALTER TABLE discovered_assets \nADD CONSTRAINT fk_da_scan \nFOREIGN KEY (scanId) REFERENCES domain_intel_scans(id) ON DELETE CASCADE;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 6508
+}

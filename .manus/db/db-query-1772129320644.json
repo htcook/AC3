@@ -1,0 +1,9 @@
+{
+  "query": "\n-- osint_findings.engagementId is NOT NULL, so use CASCADE\nDELETE FROM osint_findings WHERE engagementId NOT IN (SELECT id FROM engagements);\nALTER TABLE osint_findings \nADD CONSTRAINT fk_of_engagement \nFOREIGN KEY (engagementId) REFERENCES engagements(id) ON DELETE CASCADE;\n\n-- FK: engagement_pipelines.engagementId → engagements.id (nullable)\nUPDATE engagement_pipelines SET engagementId = NULL WHERE engagementId IS NOT NULL AND engagementId NOT IN (SELECT id FROM engagements);\n\n-- FK: scoring_profiles.engagementId → engagements.id (nullable)\nUPDATE scoring_profiles SET engagementId = NULL WHERE engagementId IS NOT NULL AND engagementId NOT IN (SELECT id FROM engagements);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute \n-- osint_findings.engagementId is NOT NULL, so use CASCADE\nDELETE FROM osint_findings WHERE engagementId NOT IN (SELECT id FROM engagements);\nALTER TABLE osint_findings \nADD CONSTRAINT fk_of_engagement \nFOREIGN KEY (engagementId) REFERENCES engagements(id) ON DELETE CASCADE;\n\n-- FK: engagement_pipelines.engagementId → engagements.id (nullable)\nUPDATE engagement_pipelines SET engagementId = NULL WHERE engagementId IS NOT NULL AND engagementId NOT IN (SELECT id FROM engagements);\n\n-- FK: scoring_profiles.engagementId → engagements.id (nullable)\nUPDATE scoring_profiles SET engagementId = NULL WHERE engagementId IS NOT NULL AND engagementId NOT IN (SELECT id FROM engagements);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1501
+}

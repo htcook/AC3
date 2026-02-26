@@ -4,7 +4,7 @@
  * against AWS, Azure, and GCP environments.
  */
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 
 const providerEnum = z.enum(["aws", "azure", "gcp"]);
@@ -60,7 +60,7 @@ export const cloudCredentialsRouter = router({
     }),
 
   /** Store a new cloud credential (encrypted at rest) */
-  addCredential: protectedProcedure
+  addCredential: adminProcedure
     .input(z.object({
       provider: providerEnum,
       credentialName: z.string().min(1),
@@ -109,7 +109,7 @@ export const cloudCredentialsRouter = router({
     }),
 
   /** Validate a stored credential by testing connectivity */
-  validateCredential: protectedProcedure
+  validateCredential: adminProcedure
     .input(z.object({ credentialId: z.number() }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
@@ -171,7 +171,7 @@ export const cloudCredentialsRouter = router({
     }),
 
   /** Delete a stored credential */
-  deleteCredential: protectedProcedure
+  deleteCredential: adminProcedure
     .input(z.object({ credentialId: z.number() }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
