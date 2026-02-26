@@ -4732,3 +4732,36 @@
 - [x] Add error boundary around individual route components (PageErrorBoundary exported)
 - [x] Add server-side error logging endpoint (system.reportError + error_incidents table)
 - [x] Send owner notification on critical app-root crashes (notifyOwner on scope=app-root)
+
+## SSIL Integration — Scan Policy Engine
+- [x] Create scan-policy-engine.ts service that loads YAML policies at runtime
+- [x] Implement canExecute(scanner, mode, asset) gating function
+- [x] Implement strict passive profile controls (SP-01 through SP-05)
+- [x] Implement escalation rules (passive → active based on signal confidence)
+- [x] Add scan policy profile field to engagements table
+- [x] Wire policy engine into scanner routers
+- [x] Add tRPC procedures for policy CRUD and active profile selection
+- [x] Add Scan Policy Management UI panel
+
+## SSIL Integration — LLM Guardrails
+- [x] Create llm-guardrails.ts wrapper around invokeLLM with safety system prompt
+- [x] Apply guardrails to all invokeLLM call sites
+- [x] Store SSIL prompt pack as configurable templates
+- [x] Add guardrail violation logging
+
+## SSIL Integration — Observation Normalizer
+- [x] Create scan_observations DB table matching SSIL schema
+- [x] Create observation-normalizer.ts with per-scanner adapter transforms
+- [x] Add nuclei adapter (nuclei findings → normalized observations)
+- [x] Add zgrab2 adapter (TLS/banner findings → normalized observations)
+- [x] Add vuln scanner adapter (vuln scan findings → normalized observations)
+- [x] Add domain intel adapter (domain recon → normalized observations)
+- [x] Wire normalizer into scanner routers (emit observations after each scan)
+- [x] Add evidence fingerprinting (store hashes, not raw payloads)
+- [x] Add tRPC procedures for observation queries and cross-scanner correlation
+- [x] Add Unified Observations Viewer UI page
+- [x] Add web crawler adapter (HTTP headers/tech → normalized observations)
+- [x] Add signal derivation from observations
+- [x] Add hybrid risk card generation (CVSS + CARVER + BIA)
+- [x] Add scan_signals, scan_risk_cards, scan_policies, guardrail_violations DB tables
+- [x] Write comprehensive vitest test suite (45 tests passing)

@@ -137,6 +137,10 @@ const WebCrawler = lazy(() => import("./pages/WebCrawler"));
 const VendorIntegrations = lazy(() => import("./pages/VendorIntegrations"));
 const AgentManagerPage = lazy(() => import("./pages/AgentManager"));
 const FIPSCompliance = lazy(() => import("./pages/FIPSCompliance"));
+const SSILDashboard = lazy(() => import("./pages/SSILDashboard"));
+const SSILPolicies = lazy(() => import("./pages/SSILPolicies"));
+const SSILGuardrails = lazy(() => import("./pages/SSILGuardrails"));
+const SSILObservations = lazy(() => import("./pages/SSILObservations"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -607,6 +611,18 @@ function Router() {
         </Route>
         <Route path="/fips-compliance">
           <ProtectedRoute component={FIPSCompliance} />
+        </Route>
+        <Route path="/ssil">
+          <ProtectedRoute component={SSILDashboard} />
+        </Route>
+        <Route path="/ssil/policies">
+          <ProtectedRoute component={SSILPolicies} />
+        </Route>
+        <Route path="/ssil/guardrails">
+          <ProtectedRoute component={SSILGuardrails} />
+        </Route>
+        <Route path="/ssil/observations">
+          <ProtectedRoute component={SSILObservations} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

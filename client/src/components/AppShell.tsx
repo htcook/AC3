@@ -77,6 +77,9 @@ import {
   Star,
   History,
   Pin,
+  Scan,
+  BrainCircuit,
+  FileStack,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 
@@ -367,6 +370,16 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Compliance & Security",
         items: [
           { href: "/fips-compliance", icon: Lock, label: "FIPS COMPLIANCE" },
+        ],
+      },
+      {
+        id: "admin-ssil",
+        label: "SSIL Integration",
+        items: [
+          { href: "/ssil", icon: Scan, label: "SSIL DASHBOARD" },
+          { href: "/ssil/policies", icon: ShieldCheck, label: "SCAN POLICIES" },
+          { href: "/ssil/guardrails", icon: BrainCircuit, label: "LLM GUARDRAILS" },
+          { href: "/ssil/observations", icon: FileStack, label: "OBSERVATIONS" },
         ],
       },
     ],

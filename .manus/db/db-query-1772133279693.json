@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS scan_signals (\n    id int AUTO_INCREMENT PRIMARY KEY,\n    signalId varchar(128) NOT NULL UNIQUE,\n    assetId varchar(128) NOT NULL,\n    signalType enum('vulnerability','exposure','weak_signal','intel','hygiene','misconfiguration') NOT NULL,\n    category varchar(128) NOT NULL,\n    signalSeverity enum('info','low','medium','high','critical') DEFAULT 'info',\n    signalConfidence double NOT NULL,\n    rationale text NOT NULL,\n    sourceObservations json NOT NULL,\n    enrichmentCvss double,\n    enrichmentCve varchar(32),\n    enrichmentReferences json,\n    signalCreatedAt bigint NOT NULL\n  )",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS scan_signals (\n    id int AUTO_INCREMENT PRIMARY KEY,\n    signalId varchar(128) NOT NULL UNIQUE,\n    assetId varchar(128) NOT NULL,\n    signalType enum('vulnerability','exposure','weak_signal','intel','hygiene','misconfiguration') NOT NULL,\n    category varchar(128) NOT NULL,\n    signalSeverity enum('info','low','medium','high','critical') DEFAULT 'info',\n    signalConfidence double NOT NULL,\n    rationale text NOT NULL,\n    sourceObservations json NOT NULL,\n    enrichmentCvss double,\n    enrichmentCve varchar(32),\n    enrichmentReferences json,\n    signalCreatedAt bigint NOT NULL\n  )",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 193
+}

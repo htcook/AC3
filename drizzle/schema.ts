@@ -5055,3 +5055,140 @@ export const fipsComplianceRecords = mysqlTable("fips_compliance_records", {
 });
 export type FIPSComplianceRecord = typeof fipsComplianceRecords.$inferSelect;
 export type InsertFIPSComplianceRecord = typeof fipsComplianceRecords.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// SSIL (Service Scanner Integration Layer) Tables
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * SSIL Scan Observations — Normalized findings from all scanners.
+ * Conforms to docs/ssil/schema/scan_observation.schema.json
+ */
+export const scanObservations = mysqlTable("scan_observations", {
+  id: int("id").autoincrement().primaryKey(),
+  observationId: varchar("observationId", { length: 128 }).notNull().unique(),
+  // Asset fields
+  assetId: varchar("assetId", { length: 128 }).notNull(),
+  assetHost: varchar("assetHost", { length: 512 }).notNull(),
+  assetPort: int("assetPort").notNull(),
+  assetProtocol: varchar("assetProtocol", { length: 32 }),
+  assetTags: json("assetTags").$type<string[]>(),
+  // Scanner fields
+  scannerName: varchar("scannerName", { length: 64 }).notNull(),
+  scannerVersion: varchar("scannerVersion", { length: 64 }),
+  scannerAdapter: varchar("scannerAdapter", { length: 64 }).notNull(),
+  scannerMode: mysqlEnum("scannerMode", ["passive", "active-low", "active-standard", "active-aggressive"]).default("passive"),
+  // Observation fields
+  observationType: mysqlEnum("observationType", [
+    "service_banner", "tls", "http_headers", "dns",
+    "vulnerability_finding", "misconfiguration",
+    "exposure_surface", "cloud_fingerprint"
+  ]).notNull(),
+  severity: mysqlEnum("severity", ["info", "low", "medium", "high", "critical"]).default("info"),
+  confidence: double("confidence").notNull(),
+  // Evidence fields
+  evidenceSummary: text("evidenceSummary").notNull(),
+  evidenceTemplateId: varchar("evidenceTemplateId", { length: 256 }),
+  evidenceCve: varchar("evidenceCve", { length: 32 }),
+  evidenceCvss: double("evidenceCvss"),
+  evidenceRequestFingerprint: varchar("evidenceRequestFingerprint", { length: 128 }),
+  evidenceResponseFingerprint: varchar("evidenceResponseFingerprint", { length: 128 }),
+  evidenceArtifacts: json("evidenceArtifacts").$type<Record<string, unknown>[]>(),
+  // Metadata
+  scanRunId: varchar("scanRunId", { length: 128 }),
+  policyProfile: varchar("policyProfile", { length: 64 }),
+  rateLimitBucket: varchar("rateLimitBucket", { length: 64 }),
+  notes: text("notes"),
+  rawDataHash: varchar("rawDataHash", { length: 128 }),
+  // Timestamps
+  observedAt: bigint("observedAt", { mode: "number" }).notNull(),
+  ingestedAt: bigint("ingestedAt", { mode: "number" }).notNull(),
+});
+export type ScanObservation = typeof scanObservations.$inferSelect;
+export type InsertScanObservation = typeof scanObservations.$inferInsert;
+
+/**
+ * SSIL Derived Signals — Intelligence derived from observations.
+ * Conforms to docs/ssil/schema/signal.schema.json
+ */
+export const scanSignals = mysqlTable("scan_signals", {
+  id: int("id").autoincrement().primaryKey(),
+  signalId: varchar("signalId", { length: 128 }).notNull().unique(),
+  assetId: varchar("assetId", { length: 128 }).notNull(),
+  signalType: mysqlEnum("signalType", [
+    "vulnerability", "exposure", "weak_signal",
+    "intel", "hygiene", "misconfiguration"
+  ]).notNull(),
+  category: varchar("category", { length: 128 }).notNull(),
+  severity: mysqlEnum("signalSeverity", ["info", "low", "medium", "high", "critical"]).default("info"),
+  confidence: double("signalConfidence").notNull(),
+  rationale: text("rationale").notNull(),
+  sourceObservations: json("sourceObservations").$type<string[]>().notNull(),
+  // Enrichment
+  enrichmentCvss: double("enrichmentCvss"),
+  enrichmentCve: varchar("enrichmentCve", { length: 32 }),
+  enrichmentReferences: json("enrichmentReferences").$type<string[]>(),
+  // Timestamps
+  createdAt: bigint("signalCreatedAt", { mode: "number" }).notNull(),
+});
+export type ScanSignal = typeof scanSignals.$inferSelect;
+export type InsertScanSignal = typeof scanSignals.$inferInsert;
+
+/**
+ * SSIL Risk Cards — Explainable composite risk scores per asset.
+ * Conforms to docs/ssil/schema/risk_card.schema.json
+ */
+export const scanRiskCards = mysqlTable("scan_risk_cards", {
+  id: int("id").autoincrement().primaryKey(),
+  riskId: varchar("riskId", { length: 128 }).notNull().unique(),
+  assetId: varchar("assetId", { length: 128 }).notNull(),
+  finalScore: double("finalScore").notNull(),
+  // Components
+  componentCvss: double("componentCvss").notNull(),
+  componentCarver: double("componentCarver").notNull(),
+  componentBia: double("componentBia").notNull(),
+  confidenceWeight: double("confidenceWeight").notNull(),
+  // Content
+  summary: text("summary").notNull(),
+  whyItMatters: text("whyItMatters"),
+  evidence: json("evidence").$type<string[]>(),
+  recommendations: json("recommendations").$type<string[]>().notNull(),
+  // Timestamps
+  createdAt: bigint("riskCardCreatedAt", { mode: "number" }).notNull(),
+});
+export type ScanRiskCard = typeof scanRiskCards.$inferSelect;
+export type InsertScanRiskCard = typeof scanRiskCards.$inferInsert;
+
+/**
+ * SSIL Scan Policies — Persisted policy profile configurations.
+ */
+export const scanPolicies = mysqlTable("scan_policies", {
+  id: int("id").autoincrement().primaryKey(),
+  profileId: varchar("profileId", { length: 64 }).notNull().unique(),
+  name: varchar("policyName", { length: 128 }).notNull(),
+  description: text("policyDescription"),
+  isActive: boolean("isActive").default(false).notNull(),
+  profileData: json("profileData").$type<Record<string, unknown>>().notNull(),
+  escalationRules: json("escalationRules").$type<Record<string, unknown>[]>(),
+  createdAt: bigint("policyCreatedAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("policyUpdatedAt", { mode: "number" }).notNull(),
+});
+export type ScanPolicy = typeof scanPolicies.$inferSelect;
+export type InsertScanPolicy = typeof scanPolicies.$inferInsert;
+
+/**
+ * SSIL Guardrail Violations — Logged LLM guardrail violations.
+ */
+export const guardrailViolations = mysqlTable("guardrail_violations", {
+  id: int("id").autoincrement().primaryKey(),
+  violationId: varchar("violationId", { length: 128 }).notNull().unique(),
+  context: varchar("guardrailContext", { length: 64 }).notNull(),
+  triggerPattern: varchar("triggerPattern", { length: 256 }),
+  action: mysqlEnum("guardrailAction", ["blocked", "sanitized", "warned"]).notNull(),
+  reason: text("guardrailReason").notNull(),
+  promptSnippet: text("promptSnippet"),
+  createdAt: bigint("guardrailCreatedAt", { mode: "number" }).notNull(),
+});
+export type GuardrailViolation = typeof guardrailViolations.$inferSelect;
+export type InsertGuardrailViolation = typeof guardrailViolations.$inferInsert;
