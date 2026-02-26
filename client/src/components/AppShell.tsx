@@ -72,6 +72,8 @@ import {
   ScanLine,
   Map,
   Clock,
+  Lock,
+  Fingerprint,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 
@@ -104,6 +106,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/roe-builder", icon: ScrollText, label: "ROE BUILDER" },
       { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
       { href: "/agents", icon: Cpu, label: "AGENTS" },
+      { href: "/agent-manager", icon: Fingerprint, label: "AGENT MANAGER" },
       { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
       { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
       { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
@@ -249,6 +252,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/cicd-pipeline", icon: Workflow, label: "CI/CD PIPELINE" },
       { href: "/soar-connectors", icon: ArrowLeftRight, label: "SOAR CONNECTORS" },
       { href: "/vendor-integrations", icon: Server, label: "VENDOR INTEGRATIONS" },
+      { href: "/fips-compliance", icon: Lock, label: "FIPS COMPLIANCE" },
     ],
   },
 

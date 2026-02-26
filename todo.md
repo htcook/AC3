@@ -4567,3 +4567,62 @@
 - [x] Wire vendor data into SIEM Feedback module (vendor bridge service)
 - [x] Write vitest tests for all vendor integration clients (34 tests passing)
 - [x] Browser verification via curl/tRPC — server endpoints verified working
+- [ ] FedRAMP/CMMC compliance: FIPS 140-2 validated cryptography for agent comms
+- [ ] FedRAMP/CMMC compliance: Full audit logging for every agent action (AU-2, AU-3, AU-6)
+- [ ] FedRAMP/CMMC compliance: Signed agent payloads with chain-of-custody verification
+- [ ] FedRAMP/CMMC compliance: Authorization gates for agent deployment (CA-7, SI-4)
+- [ ] FedRAMP/CMMC compliance: Data-at-rest and data-in-transit encryption (SC-8, SC-28)
+- [ ] FedRAMP/CMMC compliance: Agent self-destruct / time-limited execution windows
+- [ ] FedRAMP/CMMC compliance: Controlled deployment with approval workflows
+- [ ] Platform-wide FIPS 140-3: TLS 1.2/1.3 with FIPS-approved cipher suites only
+- [ ] Platform-wide FIPS 140-3: AES-256-GCM for all data-at-rest encryption
+- [ ] Platform-wide FIPS 140-3: SHA-256/SHA-384 for all hashing operations
+- [ ] Platform-wide FIPS 140-3: ECDSA P-256/P-384 or RSA-2048+ for all signatures
+- [ ] Platform-wide FIPS 140-3: Node.js OpenSSL FIPS provider configuration
+- [ ] Platform-wide FIPS 140-3: FIPS crypto validation service with compliance dashboard
+
+## FIPS 140-3 Cryptographic Compliance
+- [x] FIPS 140-3 cryptographic service (server/lib/fips-crypto.ts)
+- [x] AES-256-GCM encryption/decryption with HKDF key derivation
+- [x] ECDSA P-256/P-384 key pair generation, signing, verification
+- [x] HMAC-SHA256 with timing-safe comparison
+- [x] PBKDF2-HMAC-SHA256 password hashing (600K iterations)
+- [x] SHA-256/384/512 hashing
+- [x] Secure random bytes and UUID v4 generation
+- [x] ES256 JWT creation and verification
+- [x] HMAC-chained audit log integrity
+- [x] FIPS compliance report with approved/prohibited algorithm lists
+- [x] TLS 1.2/1.3 cipher suite configuration
+- [x] OpenSSL FIPS provider detection
+- [x] Algorithm validation (approve/reject)
+- [x] FIPS Compliance dashboard page (client/src/pages/FIPSCompliance.tsx)
+- [x] FIPS compliance audit runner with real-time results
+- [x] FIPS compliance history viewer
+- [x] 49 vitest tests for FIPS crypto service (all passing)
+
+## Multi-C2 Agent Manager
+- [x] Agent infrastructure database schema (5 tables: c2_servers, agent_deployments, agent_tasks, agent_audit_log, fips_compliance_records)
+- [x] Agent Manager tRPC router (server/routers/agent-manager.ts)
+- [x] C2 server management (add, list, test connectivity, remove)
+- [x] Agent deployment lifecycle (request, approve, reject, pause, resume, terminate)
+- [x] Agent task management (assign, list, cancel)
+- [x] HMAC-chained audit log with tamper detection
+- [x] Audit chain integrity verification
+- [x] Dashboard statistics aggregation
+- [x] Agent Manager UI page (client/src/pages/AgentManager.tsx)
+- [x] Deploy Agent dialog with multi-C2 protocol support
+- [x] Agent list with status filtering and lifecycle actions
+- [x] C2 Servers tab with add/test/remove
+- [x] Audit Log tab with chain hash display
+- [x] Stats overview cards (agents, C2 servers, tasks, FIPS mode)
+- [x] Navigation entries in AppShell sidebar
+- [x] Route registration in App.tsx
+- [x] 27 vitest tests for agent manager router (all passing)
+
+## Agent Architecture Documentation
+- [x] Comprehensive agent infrastructure architecture document (docs/agent-infrastructure-architecture.md)
+- [x] Multi-C2 integration design (CALDERA, Sliver, Metasploit)
+- [x] FIPS 140-3 cryptographic architecture
+- [x] Agent lifecycle state machine
+- [x] FedRAMP/CMMC compliance mapping
+- [x] Competitive positioning analysis

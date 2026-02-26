@@ -4901,3 +4901,157 @@ export const vendorCachedData = mysqlTable("vendor_cached_data", {
 });
 export type VendorCachedData = typeof vendorCachedData.$inferSelect;
 export type InsertVendorCachedData = typeof vendorCachedData.$inferInsert;
+
+
+// ─── Agent Infrastructure ─────────────────────────────────────────────────
+
+/**
+ * C2 server configurations (CALDERA, Sliver, Metasploit)
+ */
+export const c2Servers = mysqlTable("c2_servers", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: mysqlEnum("c2Type", ["caldera", "sliver", "metasploit"]).notNull(),
+  baseUrl: varchar("baseUrl", { length: 512 }).notNull(),
+  authConfigEncrypted: text("authConfigEncrypted").notNull(),
+  status: mysqlEnum("c2Status", ["connected", "disconnected", "error"]).default("disconnected"),
+  lastHealthCheck: bigint("lastHealthCheck", { mode: "number" }),
+  healthDetails: json("healthDetails"),
+  version: varchar("version", { length: 64 }),
+  capabilities: json("capabilities"),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
+});
+export type C2Server = typeof c2Servers.$inferSelect;
+export type InsertC2Server = typeof c2Servers.$inferInsert;
+
+/**
+ * Agent deployments — lifecycle tracking for all deployed agents
+ */
+export const agentDeployments = mysqlTable("agent_deployments", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  engagementId: int("engagementId"),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  targetPlatform: mysqlEnum("targetPlatform", ["windows", "linux", "darwin"]).notNull(),
+  c2Protocol: mysqlEnum("c2Protocol", ["caldera", "sliver", "metasploit", "native"]).notNull(),
+  status: mysqlEnum("agentStatus", [
+    "pending_approval", "approved", "deploying", "active", "paused",
+    "lost", "completed", "terminated", "failed"
+  ]).default("pending_approval"),
+  // Crypto identity
+  publicKey: text("publicKey"),
+  certificateHash: varchar("certificateHash", { length: 128 }),
+  registrationTokenHash: varchar("registrationTokenHash", { length: 128 }),
+  // Lifecycle
+  ttlSeconds: int("ttlSeconds").notNull().default(86400),
+  watchdogSeconds: int("watchdogSeconds").notNull().default(14400),
+  beaconIntervalSeconds: int("beaconIntervalSeconds").notNull().default(60),
+  // C2-specific identifiers
+  calderaPaw: varchar("calderaPaw", { length: 64 }),
+  sliverImplantId: varchar("sliverImplantId", { length: 64 }),
+  msfSessionId: varchar("msfSessionId", { length: 64 }),
+  // Target info
+  targetHostname: varchar("targetHostname", { length: 255 }),
+  targetIp: varchar("targetIp", { length: 45 }),
+  targetNetwork: varchar("targetNetwork", { length: 255 }),
+  // System info (reported by agent)
+  agentPlatform: varchar("agentPlatform", { length: 64 }),
+  agentArchitecture: varchar("agentArchitecture", { length: 32 }),
+  agentUsername: varchar("agentUsername", { length: 128 }),
+  agentPrivilege: mysqlEnum("agentPrivilege", ["user", "elevated"]).default("user"),
+  agentExecutors: json("agentExecutors"),
+  agentPid: int("agentPid"),
+  // Authorization
+  requestedBy: int("requestedBy").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: bigint("approvedAt", { mode: "number" }),
+  rejectionReason: text("rejectionReason"),
+  // Timestamps
+  deployedAt: bigint("deployedAt", { mode: "number" }),
+  lastHeartbeat: bigint("lastHeartbeat", { mode: "number" }),
+  terminatedAt: bigint("terminatedAt", { mode: "number" }),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
+});
+export type AgentDeployment = typeof agentDeployments.$inferSelect;
+export type InsertAgentDeployment = typeof agentDeployments.$inferInsert;
+
+/**
+ * Agent tasks — individual technique executions assigned to agents
+ */
+export const agentTasks = mysqlTable("agent_tasks", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  agentId: varchar("agentId", { length: 36 }).notNull(),
+  // Task definition
+  techniqueId: varchar("techniqueId", { length: 32 }),
+  techniqueName: varchar("techniqueName", { length: 255 }),
+  c2Source: mysqlEnum("c2Source", ["caldera", "sliver", "metasploit", "native"]).notNull(),
+  commandEncrypted: text("commandEncrypted"),
+  executor: varchar("executor", { length: 32 }),
+  timeoutSeconds: int("timeoutSeconds").default(300),
+  payloadName: varchar("payloadName", { length: 255 }),
+  // Execution
+  status: mysqlEnum("taskStatus", [
+    "queued", "sent", "executing", "completed", "failed", "timeout", "cancelled"
+  ]).default("queued"),
+  outputEncrypted: text("outputEncrypted"),
+  stderrEncrypted: text("stderrEncrypted"),
+  exitCode: int("exitCode"),
+  pid: int("pid"),
+  // Timing
+  queuedAt: bigint("queuedAt", { mode: "number" }).notNull(),
+  sentAt: bigint("sentAt", { mode: "number" }),
+  startedAt: bigint("startedAt", { mode: "number" }),
+  completedAt: bigint("completedAt", { mode: "number" }),
+  // Audit
+  assignedBy: int("assignedBy").notNull(),
+  roeVerified: boolean("roeVerified").default(false),
+});
+export type AgentTask = typeof agentTasks.$inferSelect;
+export type InsertAgentTask = typeof agentTasks.$inferInsert;
+
+/**
+ * Agent audit log — immutable, HMAC-chained for tamper detection
+ */
+export const agentAuditLog = mysqlTable("agent_audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  agentId: varchar("agentId", { length: 36 }).notNull(),
+  eventType: mysqlEnum("eventType", [
+    "register", "heartbeat", "task_assigned", "task_sent",
+    "task_completed", "task_failed", "artifact_uploaded",
+    "payload_downloaded", "paused", "resumed", "terminated",
+    "lost", "reconnected", "deregistered", "approved", "rejected"
+  ]).notNull(),
+  actorId: int("actorId"),
+  actorType: mysqlEnum("actorType", ["operator", "system", "agent"]).notNull(),
+  details: json("details"),
+  // Integrity chain (HMAC-SHA256)
+  recordHash: varchar("recordHash", { length: 64 }).notNull(),
+  previousHash: varchar("previousHash", { length: 64 }).notNull(),
+  // Metadata
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  userAgent: varchar("userAgent", { length: 512 }),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+});
+export type AgentAuditLogEntry = typeof agentAuditLog.$inferSelect;
+export type InsertAgentAuditLogEntry = typeof agentAuditLog.$inferInsert;
+
+/**
+ * FIPS compliance audit records
+ */
+export const fipsComplianceRecords = mysqlTable("fips_compliance_records", {
+  id: int("id").autoincrement().primaryKey(),
+  checkType: mysqlEnum("checkType", [
+    "tls_cipher", "algorithm_usage", "key_strength", "certificate_validation",
+    "provider_status", "full_audit"
+  ]).notNull(),
+  status: mysqlEnum("complianceStatus", ["compliant", "non_compliant", "warning"]).notNull(),
+  component: varchar("component", { length: 128 }).notNull(),
+  details: json("details"),
+  opensslVersion: varchar("opensslVersion", { length: 64 }),
+  fipsProviderActive: boolean("fipsProviderActive").default(false),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+});
+export type FIPSComplianceRecord = typeof fipsComplianceRecords.$inferSelect;
+export type InsertFIPSComplianceRecord = typeof fipsComplianceRecords.$inferInsert;

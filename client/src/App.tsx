@@ -135,6 +135,8 @@ const LiveInfra = lazy(() => import("./pages/LiveInfra"));
 const Workflows = lazy(() => import("./pages/Workflows"));
 const WebCrawler = lazy(() => import("./pages/WebCrawler"));
 const VendorIntegrations = lazy(() => import("./pages/VendorIntegrations"));
+const AgentManagerPage = lazy(() => import("./pages/AgentManager"));
+const FIPSCompliance = lazy(() => import("./pages/FIPSCompliance"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -599,6 +601,12 @@ function Router() {
         </Route>
         <Route path="/live-infra">
           <ProtectedRoute component={LiveInfra} />
+        </Route>
+        <Route path="/agent-manager">
+          <ProtectedRoute component={AgentManagerPage} />
+        </Route>
+        <Route path="/fips-compliance">
+          <ProtectedRoute component={FIPSCompliance} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
