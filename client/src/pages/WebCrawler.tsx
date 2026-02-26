@@ -16,8 +16,9 @@ import {
   ExternalLink, ChevronRight, Clock, CheckCircle2, XCircle, AlertTriangle,
   Lock, Unlock, Server, Code, Eye, FileText, Cookie, Link2,
   ArrowRight, RefreshCw, ScanSearch, Radar, Bug, Layers, Network,
-  ChevronDown, ChevronUp, Copy, BarChart3
+  ChevronDown, ChevronUp, Copy, BarChart3, GitCompare, TrendingUp, TrendingDown, Minus, Plus, ArrowUpRight, ArrowDownRight
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AppShell from "@/components/AppShell";
 import { useRoute } from "wouter";
 
@@ -650,6 +651,460 @@ function HistoryPanel() {
   );
 }
 
+// ─── Crawl Compare Panel ────────────────────────────────────────────────────
+
+function CrawlComparePanel() {
+  const [selectedDomain, setSelectedDomain] = useState<string>("");
+  const [oldResultId, setOldResultId] = useState<string>("");
+  const [newResultId, setNewResultId] = useState<string>("");
+
+  const { data: comparableDomains, isLoading: domainsLoading } = trpc.webCrawler.comparableDomains.useQuery();
+  const { data: crawlHistory } = trpc.webCrawler.crawlHistory.useQuery(
+    { domain: selectedDomain },
+    { enabled: !!selectedDomain },
+  );
+  const { data: comparison, isLoading: compareLoading, error: compareError } = trpc.webCrawler.compare.useQuery(
+    { oldResultId: Number(oldResultId), newResultId: Number(newResultId) },
+    { enabled: !!oldResultId && !!newResultId && oldResultId !== newResultId },
+  );
+
+  // Flatten all crawls for the domain into a single list for selection
+  const allCrawls = useMemo(() => {
+    if (!crawlHistory?.urls) return [];
+    const flat: { id: number; url: string; crawledAt: string; grade: string; findingCount: number }[] = [];
+    for (const u of crawlHistory.urls) {
+      for (const c of u.crawls) {
+        flat.push({ ...c, url: u.url });
+      }
+    }
+    return flat.sort((a, b) => new Date(b.crawledAt).getTime() - new Date(a.crawledAt).getTime());
+  }, [crawlHistory]);
+
+  return (
+    <div className="space-y-6">
+      {/* Selection Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Domain</Label>
+          <Select value={selectedDomain} onValueChange={(v) => { setSelectedDomain(v); setOldResultId(""); setNewResultId(""); }}>
+            <SelectTrigger className="bg-background/50 border-border/50">
+              <SelectValue placeholder={domainsLoading ? "Loading..." : "Select domain"} />
+            </SelectTrigger>
+            <SelectContent>
+              {(comparableDomains || []).map((d: any) => (
+                <SelectItem key={d.domain} value={d.domain}>
+                  {d.domain} ({d.crawlCount} crawls)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Baseline (Older)</Label>
+          <Select value={oldResultId} onValueChange={setOldResultId} disabled={!selectedDomain}>
+            <SelectTrigger className="bg-background/50 border-border/50">
+              <SelectValue placeholder="Select baseline crawl" />
+            </SelectTrigger>
+            <SelectContent>
+              {allCrawls.filter(c => String(c.id) !== newResultId).map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {new Date(c.crawledAt).toLocaleDateString()} — {c.grade} — {c.findingCount} findings
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Current (Newer)</Label>
+          <Select value={newResultId} onValueChange={setNewResultId} disabled={!selectedDomain}>
+            <SelectTrigger className="bg-background/50 border-border/50">
+              <SelectValue placeholder="Select current crawl" />
+            </SelectTrigger>
+            <SelectContent>
+              {allCrawls.filter(c => String(c.id) !== oldResultId).map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {new Date(c.crawledAt).toLocaleDateString()} — {c.grade} — {c.findingCount} findings
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {!selectedDomain && (!comparableDomains || comparableDomains.length === 0) && !domainsLoading && (
+        <Alert className="border-border/30 bg-muted/10">
+          <AlertTriangle className="w-4 h-4 text-amber-400" />
+          <AlertDescription className="text-muted-foreground">
+            No domains with multiple crawls found. Run at least two crawls on the same domain to enable comparison.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {compareLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-purple-400 mr-3" />
+          <span className="text-muted-foreground">Generating comparison...</span>
+        </div>
+      )}
+
+      {compareError && (
+        <Alert className="border-red-500/30 bg-red-500/5">
+          <XCircle className="w-4 h-4 text-red-400" />
+          <AlertDescription className="text-red-300">{compareError.message}</AlertDescription>
+        </Alert>
+      )}
+
+      {comparison && <ComparisonResults comparison={comparison} />}
+    </div>
+  );
+}
+
+// ─── Comparison Results Display ─────────────────────────────────────────────
+
+function ComparisonResults({ comparison }: { comparison: any }) {
+  const overallColor = comparison.overallChange === "improved" ? "text-emerald-400" :
+    comparison.overallChange === "regressed" ? "text-red-400" :
+    comparison.overallChange === "mixed" ? "text-amber-400" : "text-gray-400";
+
+  const overallIcon = comparison.overallChange === "improved" ? <TrendingUp className="w-5 h-5" /> :
+    comparison.overallChange === "regressed" ? <TrendingDown className="w-5 h-5" /> :
+    comparison.overallChange === "mixed" ? <ArrowRight className="w-5 h-5" /> : <Minus className="w-5 h-5" />;
+
+  const scoreColor = comparison.changeScore > 0 ? "text-emerald-400" : comparison.changeScore < 0 ? "text-red-400" : "text-gray-400";
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Banner */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className="bg-card/50 border-border/30">
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold flex items-center justify-center gap-2 ${overallColor}`}>
+              {overallIcon}
+              <span className="capitalize">{comparison.overallChange}</span>
+            </div>
+            <div className="text-xs text-muted-foreground">Overall Change</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-border/30">
+          <CardContent className="p-3 text-center">
+            <div className={`text-2xl font-bold font-mono ${scoreColor}`}>
+              {comparison.changeScore > 0 ? "+" : ""}{comparison.changeScore}
+            </div>
+            <div className="text-xs text-muted-foreground">Change Score</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-border/30">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl font-bold text-purple-400">{comparison.totalChanges}</div>
+            <div className="text-xs text-muted-foreground">Total Changes</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-border/30">
+          <CardContent className="p-3 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <Badge className={GRADE_COLORS[comparison.headerDiff?.gradeChange?.old] || "text-gray-400 bg-gray-500/20"}>
+                {comparison.headerDiff?.gradeChange?.old || "—"}
+              </Badge>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              <Badge className={GRADE_COLORS[comparison.headerDiff?.gradeChange?.new] || "text-gray-400 bg-gray-500/20"}>
+                {comparison.headerDiff?.gradeChange?.new || "—"}
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Grade Change</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-border/30">
+          <CardContent className="p-3 text-center">
+            <div className="text-sm text-muted-foreground">
+              <div className="font-mono text-xs">{comparison.responseTimeDelta?.changeMs > 0 ? "+" : ""}{comparison.responseTimeDelta?.changeMs}ms</div>
+              <div className="text-[10px]">({comparison.responseTimeDelta?.changePct > 0 ? "+" : ""}{comparison.responseTimeDelta?.changePct}%)</div>
+            </div>
+            <div className="text-xs text-muted-foreground">Response Time</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Security Findings Diff */}
+      {(comparison.findingDiff?.added?.length > 0 || comparison.findingDiff?.removed?.length > 0 || comparison.findingDiff?.severityChanges?.length > 0) && (
+        <Card className="bg-card/50 border-border/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-red-400" /> Security Finding Changes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {comparison.findingDiff.added.map((f: any, i: number) => (
+              <div key={`added-${i}`} className="flex items-start gap-3 p-2 rounded-md bg-red-500/5 border border-red-500/20">
+                <Plus className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${SEVERITY_COLORS[f.severity]} text-xs`}>{f.severity}</Badge>
+                    <span className="text-sm font-medium">{f.title}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{f.description}</p>
+                </div>
+                <Badge className="bg-red-500/20 text-red-400 text-xs shrink-0">NEW</Badge>
+              </div>
+            ))}
+            {comparison.findingDiff.removed.map((f: any, i: number) => (
+              <div key={`removed-${i}`} className="flex items-start gap-3 p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20">
+                <Minus className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${SEVERITY_COLORS[f.severity]} text-xs`}>{f.severity}</Badge>
+                    <span className="text-sm font-medium line-through opacity-60">{f.title}</span>
+                  </div>
+                </div>
+                <Badge className="bg-emerald-500/20 text-emerald-400 text-xs shrink-0">RESOLVED</Badge>
+              </div>
+            ))}
+            {comparison.findingDiff.severityChanges?.map((f: any, i: number) => (
+              <div key={`sev-${i}`} className={`flex items-start gap-3 p-2 rounded-md ${f.direction === "escalated" ? "bg-amber-500/5 border border-amber-500/20" : "bg-cyan-500/5 border border-cyan-500/20"}`}>
+                {f.direction === "escalated" ? <ArrowUpRight className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" /> : <ArrowDownRight className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium">{f.title}</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Badge className={`${SEVERITY_COLORS[f.oldSeverity]} text-xs`}>{f.oldSeverity}</Badge>
+                    <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                    <Badge className={`${SEVERITY_COLORS[f.newSeverity]} text-xs`}>{f.newSeverity}</Badge>
+                  </div>
+                </div>
+                <Badge className={f.direction === "escalated" ? "bg-amber-500/20 text-amber-400 text-xs" : "bg-cyan-500/20 text-cyan-400 text-xs"}>
+                  {f.direction === "escalated" ? "ESCALATED" : "DE-ESCALATED"}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Technology Changes */}
+      {(comparison.technologyDiff?.added?.length > 0 || comparison.technologyDiff?.removed?.length > 0 || comparison.technologyDiff?.versionChanged?.length > 0) && (
+        <Card className="bg-card/50 border-border/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Code className="w-4 h-4 text-cyan-400" /> Technology Changes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {comparison.technologyDiff.added.map((t: any, i: number) => (
+                <div key={`ta-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-cyan-500/5 border border-cyan-500/20">
+                  <Plus className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm">{t.name} {t.version ? `v${t.version}` : ""}</span>
+                  <Badge variant="outline" className="text-xs ml-auto">{t.category}</Badge>
+                  <Badge className="bg-cyan-500/20 text-cyan-400 text-xs">NEW</Badge>
+                </div>
+              ))}
+              {comparison.technologyDiff.removed.map((t: any, i: number) => (
+                <div key={`tr-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-gray-500/5 border border-gray-500/20">
+                  <Minus className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm line-through opacity-60">{t.name} {t.version ? `v${t.version}` : ""}</span>
+                  <Badge variant="outline" className="text-xs ml-auto">{t.category}</Badge>
+                  <Badge className="bg-gray-500/20 text-gray-400 text-xs">REMOVED</Badge>
+                </div>
+              ))}
+              {comparison.technologyDiff.versionChanged.map((t: any, i: number) => (
+                <div key={`tv-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-amber-500/5 border border-amber-500/20">
+                  <RefreshCw className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm">{t.name}</span>
+                  <span className="text-xs font-mono text-muted-foreground">{t.oldVersion || "?"} → {t.newVersion || "?"}</span>
+                  <Badge variant="outline" className="text-xs ml-auto">{t.category}</Badge>
+                  <Badge className="bg-amber-500/20 text-amber-400 text-xs">UPDATED</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Exposed Path Changes */}
+      {(comparison.exposedPathDiff?.added?.length > 0 || comparison.exposedPathDiff?.removed?.length > 0) && (
+        <Card className="bg-card/50 border-border/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Eye className="w-4 h-4 text-amber-400" /> Exposed Path Changes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {comparison.exposedPathDiff.added.map((p: any, i: number) => (
+                <div key={`pa-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-red-500/5 border border-red-500/20">
+                  <Plus className="w-4 h-4 text-red-400" />
+                  <code className="text-sm font-mono">{p.path}</code>
+                  <Badge className={`${SEVERITY_COLORS[p.severity]} text-xs ml-auto`}>{p.severity}</Badge>
+                  <Badge className="bg-red-500/20 text-red-400 text-xs">NEW</Badge>
+                </div>
+              ))}
+              {comparison.exposedPathDiff.removed.map((p: any, i: number) => (
+                <div key={`pr-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20">
+                  <Minus className="w-4 h-4 text-emerald-400" />
+                  <code className="text-sm font-mono line-through opacity-60">{p.path}</code>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 text-xs ml-auto">SECURED</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Header Changes */}
+      {(comparison.headerDiff?.present?.filter((h: any) => h.type !== "unchanged")?.length > 0 || comparison.headerDiff?.missing?.length > 0) && (
+        <Card className="bg-card/50 border-border/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-400" /> Security Header Changes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {comparison.headerDiff.present.filter((h: any) => h.type !== "unchanged").map((h: any, i: number) => (
+                <div key={`hp-${i}`} className={`flex items-center gap-3 p-2 rounded-md ${
+                  h.type === "added" ? "bg-emerald-500/5 border border-emerald-500/20" :
+                  h.type === "removed" ? "bg-red-500/5 border border-red-500/20" :
+                  "bg-amber-500/5 border border-amber-500/20"
+                }`}>
+                  {h.type === "added" ? <Plus className="w-4 h-4 text-emerald-400" /> :
+                   h.type === "removed" ? <Minus className="w-4 h-4 text-red-400" /> :
+                   <RefreshCw className="w-4 h-4 text-amber-400" />}
+                  <code className="text-sm font-mono">{h.label}</code>
+                  {h.type === "changed" && (
+                    <span className="text-xs text-muted-foreground truncate max-w-xs">{h.oldValue?.substring(0, 40)} → {h.newValue?.substring(0, 40)}</span>
+                  )}
+                  <Badge className={`text-xs ml-auto ${
+                    h.type === "added" ? "bg-emerald-500/20 text-emerald-400" :
+                    h.type === "removed" ? "bg-red-500/20 text-red-400" :
+                    "bg-amber-500/20 text-amber-400"
+                  }`}>
+                    {h.type === "added" ? "ADDED" : h.type === "removed" ? "REMOVED" : "CHANGED"}
+                  </Badge>
+                </div>
+              ))}
+              {comparison.headerDiff.missing.map((h: any, i: number) => (
+                <div key={`hm-${i}`} className={`flex items-center gap-3 p-2 rounded-md ${
+                  h.type === "added" ? "bg-red-500/5 border border-red-500/20" :
+                  "bg-emerald-500/5 border border-emerald-500/20"
+                }`}>
+                  {h.type === "added" ? <AlertTriangle className="w-4 h-4 text-red-400" /> : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                  <code className="text-sm font-mono">{h.label}</code>
+                  <span className="text-xs text-muted-foreground">{h.detail}</span>
+                  <Badge className={`text-xs ml-auto ${h.type === "added" ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                    {h.type === "added" ? "REGRESSION" : "FIXED"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cookie Changes */}
+      {(comparison.cookieDiff?.added?.length > 0 || comparison.cookieDiff?.removed?.length > 0 || comparison.cookieDiff?.changed?.length > 0) && (
+        <Card className="bg-card/50 border-border/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Cookie className="w-4 h-4 text-orange-400" /> Cookie Changes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {comparison.cookieDiff.added.map((c: any, i: number) => (
+                <div key={`ca-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-cyan-500/5 border border-cyan-500/20">
+                  <Plus className="w-4 h-4 text-cyan-400" />
+                  <code className="text-sm font-mono">{c.name}</code>
+                  {c.issues?.length > 0 && <span className="text-xs text-amber-400">{c.issues.length} issue(s)</span>}
+                  <Badge className="bg-cyan-500/20 text-cyan-400 text-xs ml-auto">NEW</Badge>
+                </div>
+              ))}
+              {comparison.cookieDiff.removed.map((c: any, i: number) => (
+                <div key={`cr-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-gray-500/5 border border-gray-500/20">
+                  <Minus className="w-4 h-4 text-gray-400" />
+                  <code className="text-sm font-mono line-through opacity-60">{c.name}</code>
+                  <Badge className="bg-gray-500/20 text-gray-400 text-xs ml-auto">REMOVED</Badge>
+                </div>
+              ))}
+              {comparison.cookieDiff.changed.map((c: any, i: number) => (
+                <div key={`cc-${i}`} className="flex items-center gap-3 p-2 rounded-md bg-amber-500/5 border border-amber-500/20">
+                  <RefreshCw className="w-4 h-4 text-amber-400" />
+                  <code className="text-sm font-mono">{c.name}</code>
+                  <span className="text-xs text-muted-foreground">{c.changes?.join(", ")}</span>
+                  <Badge className="bg-amber-500/20 text-amber-400 text-xs ml-auto">CHANGED</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* TLS Changes */}
+      {comparison.tlsChanged && comparison.tlsChanges?.length > 0 && (
+        <Card className="bg-card/50 border-border/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Lock className="w-4 h-4 text-green-400" /> TLS Certificate Changes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {comparison.tlsChanges.map((change: string, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-2 rounded-md bg-amber-500/5 border border-amber-500/20">
+                  <RefreshCw className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm">{change}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Metrics Comparison */}
+      <Card className="bg-card/50 border-border/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-muted-foreground" /> Metrics Comparison
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 rounded-lg bg-muted/10 border border-border/20">
+              <div className="text-xs text-muted-foreground mb-1">Response Time</div>
+              <div className="text-sm font-mono">{comparison.responseTimeDelta?.old}ms → {comparison.responseTimeDelta?.new}ms</div>
+              <div className={`text-xs font-mono ${comparison.responseTimeDelta?.changeMs > 0 ? "text-amber-400" : comparison.responseTimeDelta?.changeMs < 0 ? "text-emerald-400" : "text-gray-400"}`}>
+                {comparison.responseTimeDelta?.changeMs > 0 ? "+" : ""}{comparison.responseTimeDelta?.changeMs}ms
+              </div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/10 border border-border/20">
+              <div className="text-xs text-muted-foreground mb-1">Content Size</div>
+              <div className="text-sm font-mono">{Math.round((comparison.contentSizeDelta?.old || 0) / 1024)}KB → {Math.round((comparison.contentSizeDelta?.new || 0) / 1024)}KB</div>
+              <div className={`text-xs font-mono ${comparison.contentSizeDelta?.changePct > 10 ? "text-amber-400" : "text-gray-400"}`}>
+                {comparison.contentSizeDelta?.changePct > 0 ? "+" : ""}{comparison.contentSizeDelta?.changePct}%
+              </div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/10 border border-border/20">
+              <div className="text-xs text-muted-foreground mb-1">Internal Links</div>
+              <div className="text-sm font-mono">{comparison.linkCountDelta?.oldInternal} → {comparison.linkCountDelta?.newInternal}</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/10 border border-border/20">
+              <div className="text-xs text-muted-foreground mb-1">Forms</div>
+              <div className="text-sm font-mono">{comparison.formCountDelta?.old} → {comparison.formCountDelta?.new}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* No Changes State */}
+      {comparison.totalChanges === 0 && (
+        <Alert className="border-emerald-500/30 bg-emerald-500/5">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <AlertDescription className="text-emerald-300">
+            No security-relevant changes detected between these two crawls. The security posture is stable.
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function WebCrawler() {
@@ -684,6 +1139,9 @@ export default function WebCrawler() {
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" /> History
+            </TabsTrigger>
+            <TabsTrigger value="compare" className="flex items-center gap-1.5">
+              <GitCompare className="w-3.5 h-3.5" /> Compare
             </TabsTrigger>
           </TabsList>
 
@@ -729,6 +1187,22 @@ export default function WebCrawler() {
               </CardHeader>
               <CardContent>
                 <HistoryPanel />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="compare" className="mt-4">
+            <Card className="bg-card/50 border-border/30">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <GitCompare className="w-4 h-4 text-purple-400" /> Crawl Comparison
+                </CardTitle>
+                <CardDescription>
+                  Compare two crawl results for the same domain to identify security regressions, new findings, technology changes, and exposed path drift.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CrawlComparePanel />
               </CardContent>
             </Card>
           </TabsContent>

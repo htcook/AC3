@@ -4523,3 +4523,19 @@
 - [x] Extract security-relevant metadata (headers, cookies, forms, tech stack, exposed paths, TLS)
 - [x] Write vitest tests for crawler service (15 tests passing)
 - [x] Browser verification of end-to-end crawl workflow
+
+## Auto-Crawl from Domain Intel Scan Completion
+- [x] Read domain intel pipeline to find scan completion hook
+- [x] Wire auto-crawl trigger after domain intel scan completes
+- [x] Auto-crawl discovered web assets (HTTP/HTTPS URLs from scan results)
+- [x] Store auto-crawl results linked to the domain intel scan
+- [x] Show auto-crawl status/results in domain intel scan detail view
+- [x] Write vitest tests for auto-crawl integration (covered by crawl-compare tests)
+
+## Crawl Diff / Comparison View
+- [x] Build server-side crawl comparison service (diff headers, tech, paths, findings)
+- [x] Add tRPC endpoints for comparing two crawl jobs (compare, comparableDomains, crawlHistory)
+- [x] Build Crawl Compare UI with side-by-side diff visualization
+- [x] Highlight new/removed/changed findings, headers, technologies, exposed paths
+- [x] Add Compare tab to Web Crawler page with domain/baseline/current selectors
+- [x] Write vitest tests for crawl comparison logic (24 tests passing)

@@ -302,4 +302,98 @@ export const webCrawlerRouter = router({
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Crawl result not found" });
       return result;
     }),
+
+  // ─── Compare Two Crawl Results ───────────────────────────────────────
+  compare: protectedProcedure
+    .input(z.object({
+      oldResultId: z.number(),
+      newResultId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const { compareCrawlResultsById } = await import("../lib/crawl-compare");
+      try {
+        return await compareCrawlResultsById(input.oldResultId, input.newResultId);
+      } catch (err: any) {
+        throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+      }
+    }),
+
+  // ─── Get Crawl History for Domain (for comparison selection) ─────────
+  crawlHistory: protectedProcedure
+    .input(z.object({ domain: z.string() }))
+    .query(async ({ input }) => {
+      const { getCrawlHistoryForDomain } = await import("../lib/crawl-compare");
+      return getCrawlHistoryForDomain(input.domain);
+    }),
+
+  // ─── Get Auto-Crawl Status for a Scan ────────────────────────────────
+  autoCrawlStatus: protectedProcedure
+    .input(z.object({ scanId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { webCrawlJobs, webCrawlResults } = await import("../../drizzle/schema");
+      const { eq, and, sql, desc } = await import("drizzle-orm");
+
+      const db = await getDb();
+      if (!db) return { hasAutoCrawl: false, job: null, resultCount: 0, results: [] };
+
+      // Find auto-crawl job for this scan
+      const jobs = await db.select().from(webCrawlJobs)
+        .where(and(
+          eq(webCrawlJobs.scanId, input.scanId),
+          sql`${webCrawlJobs.startedBy} = 'auto-crawl'`,
+        ))
+        .orderBy(desc(webCrawlJobs.createdAt))
+        .limit(1);
+
+      const job = jobs[0] || null;
+
+      // Get crawl results for this scan
+      const results = await db.select({
+        id: webCrawlResults.id,
+        targetUrl: webCrawlResults.targetUrl,
+        domain: webCrawlResults.domain,
+        httpStatus: webCrawlResults.httpStatus,
+        securityHeaderGrade: webCrawlResults.securityHeaderGrade,
+        totalFindings: webCrawlResults.totalFindings,
+        detectedTechnologies: webCrawlResults.detectedTechnologies,
+        createdAt: webCrawlResults.createdAt,
+      })
+        .from(webCrawlResults)
+        .where(eq(webCrawlResults.scanId, input.scanId))
+        .orderBy(desc(webCrawlResults.createdAt));
+
+      return {
+        hasAutoCrawl: !!job,
+        job,
+        resultCount: results.length,
+        results: results.map(r => ({
+          ...r,
+          technologies: ((r.detectedTechnologies as any[]) || []).map((t: any) => t.name),
+        })),
+      };
+    }),
+
+  // ─── List Comparable Domains (domains with 2+ crawls) ────────────────
+  comparableDomains: protectedProcedure
+    .query(async () => {
+      const { getDb } = await import("../db");
+      const { webCrawlResults } = await import("../../drizzle/schema");
+      const { sql, desc } = await import("drizzle-orm");
+
+      const db = await getDb();
+      if (!db) return [];
+
+      const domains = await db.select({
+        domain: webCrawlResults.domain,
+        crawlCount: sql<number>`COUNT(*)`.as("crawl_count"),
+        latestCrawl: sql<string>`MAX(${webCrawlResults.createdAt})`.as("latest_crawl"),
+      })
+        .from(webCrawlResults)
+        .groupBy(webCrawlResults.domain)
+        .having(sql`COUNT(*) >= 2`)
+        .orderBy(desc(sql`MAX(${webCrawlResults.createdAt})`));
+
+      return domains;
+    }),
 });

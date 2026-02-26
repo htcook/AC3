@@ -4313,6 +4313,15 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               });
               console.log(`[DomainIntel] Scan-only completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
               try { const { emitReconComplete } = await import('./lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); } catch {}
+              // Auto-crawl discovered web assets (fire-and-forget)
+              setImmediate(async () => {
+                try {
+                  const { triggerAutoCrawl } = await import('./lib/auto-crawl');
+                  await triggerAutoCrawl(scanId, pipelineInput.primaryDomain);
+                } catch (crawlErr: any) {
+                  console.error(`[AutoCrawl] Failed for scan ${scanId}:`, crawlErr.message);
+                }
+              });
             } else {
               // Full engagement: run threat actor matching + campaign design
               let threatActorMatches = null;
@@ -4362,6 +4371,15 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
 
               console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
               try { const { emitReconComplete, emitSystemNotification } = await import('./lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitSystemNotification({ title: 'Domain Intel Complete', message: `Scan of ${pipelineInput.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' }); } catch {}
+              // Auto-crawl discovered web assets (fire-and-forget)
+              setImmediate(async () => {
+                try {
+                  const { triggerAutoCrawl } = await import('./lib/auto-crawl');
+                  await triggerAutoCrawl(scanId, pipelineInput.primaryDomain);
+                } catch (crawlErr: any) {
+                  console.error(`[AutoCrawl] Failed for scan ${scanId}:`, crawlErr.message);
+                }
+              });
             }
           } catch (err: any) {
             const errMsg = err?.message || (typeof err === 'string' ? err : 'Unknown pipeline error');
