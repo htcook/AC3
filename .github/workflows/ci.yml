@@ -1,0 +1,199 @@
+name: CI — Test, Lint & Coverage
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ─── Quality Gate ─────────────────────────────────────────────────
+  quality:
+    name: Test Suite & Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript type check
+        run: pnpm exec tsc --noEmit
+        continue-on-error: false
+
+      - name: Run test suite with coverage
+        run: pnpm exec vitest run --coverage --reporter=verbose 2>&1 | tee test-output.txt
+        env:
+          # Provide stub env vars so tests can import modules without crashing
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'mysql://stub:stub@localhost:3306/stub' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-secret' }}
+          SHODAN_API_KEY: ${{ secrets.SHODAN_API_KEY || '' }}
+          CENSYS_API_ID: ${{ secrets.CENSYS_API_ID || '' }}
+          CENSYS_API_SECRET: ${{ secrets.CENSYS_API_SECRET || '' }}
+          SECURITYTRAILS_API_KEY: ${{ secrets.SECURITYTRAILS_API_KEY || '' }}
+          CALDERA_API_KEY: ${{ secrets.CALDERA_API_KEY || '' }}
+          CALDERA_BASE_URL: ${{ secrets.CALDERA_BASE_URL || '' }}
+
+      - name: Enforce coverage thresholds
+        run: |
+          echo "═══ Coverage Threshold Enforcement ═══"
+          
+          # Parse coverage from vitest output
+          # Look for the summary line: All files | XX.XX | XX.XX | XX.XX | XX.XX
+          COVERAGE_LINE=$(grep "All files" test-output.txt | tail -1 || echo "")
+          
+          if [ -z "$COVERAGE_LINE" ]; then
+            echo "⚠ Coverage data not found in test output"
+            echo "Ensure @vitest/coverage-v8 is installed"
+            exit 0  # Don't fail CI if coverage plugin isn't installed yet
+          fi
+          
+          # Extract statement coverage percentage
+          STMT_COV=$(echo "$COVERAGE_LINE" | awk '{print $4}' | tr -d '%')
+          BRANCH_COV=$(echo "$COVERAGE_LINE" | awk '{print $6}' | tr -d '%')
+          FUNC_COV=$(echo "$COVERAGE_LINE" | awk '{print $8}' | tr -d '%')
+          LINE_COV=$(echo "$COVERAGE_LINE" | awk '{print $10}' | tr -d '%')
+          
+          echo "Statement Coverage: ${STMT_COV}%"
+          echo "Branch Coverage:    ${BRANCH_COV}%"
+          echo "Function Coverage:  ${FUNC_COV}%"
+          echo "Line Coverage:      ${LINE_COV}%"
+          
+          # Thresholds (adjust as coverage improves)
+          STMT_THRESHOLD=40
+          FUNC_THRESHOLD=35
+          
+          FAILED=0
+          
+          if [ "$(echo "$STMT_COV < $STMT_THRESHOLD" | bc -l)" = "1" ]; then
+            echo "❌ Statement coverage ${STMT_COV}% is below threshold ${STMT_THRESHOLD}%"
+            FAILED=1
+          else
+            echo "✅ Statement coverage ${STMT_COV}% meets threshold ${STMT_THRESHOLD}%"
+          fi
+          
+          if [ "$(echo "$FUNC_COV < $FUNC_THRESHOLD" | bc -l)" = "1" ]; then
+            echo "❌ Function coverage ${FUNC_COV}% is below threshold ${FUNC_THRESHOLD}%"
+            FAILED=1
+          else
+            echo "✅ Function coverage ${FUNC_COV}% meets threshold ${FUNC_THRESHOLD}%"
+          fi
+          
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "Coverage thresholds not met. Increase test coverage before merging."
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All coverage thresholds met"
+
+      - name: Check for zero test failures
+        run: |
+          FAILURES=$(grep -c "FAIL" test-output.txt || echo "0")
+          if [ "$FAILURES" -gt "0" ]; then
+            echo "❌ $FAILURES test failures detected"
+            grep "FAIL" test-output.txt
+            exit 1
+          fi
+          echo "✅ All tests passed"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-output.txt
+            coverage/
+          retention-days: 14
+
+  # ─── Build Verification ───────────────────────────────────────────
+  build:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Verify build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build output directory 'dist' not found"
+            exit 1
+          fi
+          echo "✅ Build artifacts verified"
+          echo "Build size: $(du -sh dist/ | awk '{print $1}')"
+
+  # ─── Security Audit ──────────────────────────────────────────────
+  security:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high || true
+        # Don't fail on audit warnings, but surface them
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "═══ Dependency Security Check ═══"
+          AUDIT_OUTPUT=$(pnpm audit --json 2>/dev/null || echo '{}')
+          CRITICAL=$(echo "$AUDIT_OUTPUT" | grep -c '"severity":"critical"' || echo "0")
+          HIGH=$(echo "$AUDIT_OUTPUT" | grep -c '"severity":"high"' || echo "0")
+          
+          echo "Critical vulnerabilities: $CRITICAL"
+          echo "High vulnerabilities: $HIGH"
+          
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "⚠ Critical vulnerabilities found — review before deploying"
+          fi

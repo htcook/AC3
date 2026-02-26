@@ -435,6 +435,48 @@ export default function Dashboard() {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* MISSION WORKFLOWS — Guided scenario quick-start                 */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-primary" />
+              <h3 className="font-display text-sm tracking-wider text-muted-foreground">MISSION WORKFLOWS</h3>
+              <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 font-mono uppercase tracking-wider">New</span>
+            </div>
+            <Link href="/workflows">
+              <Button variant="ghost" size="sm" className="text-xs font-display tracking-wider">
+                VIEW ALL <ChevronRight className="w-3 h-3 ml-1" />
+              </Button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {[
+              { title: "New Engagement", desc: "ROE → Recon → Scoring → Campaign → Report", href: "/workflows", icon: Briefcase, color: "text-amber-400 border-amber-500/30", steps: 7 },
+              { title: "Domain Recon", desc: "27-connector passive recon with LLM analysis", href: "/workflows", icon: Search, color: "text-cyan-400 border-cyan-500/30", steps: 5 },
+              { title: "Detection Validation", desc: "ATT&CK tests → SIEM → Coverage gaps → Purple team", href: "/workflows", icon: ShieldCheck, color: "text-green-400 border-green-500/30", steps: 6 },
+              { title: "Phishing Campaign", desc: "Template → Landing page → Launch → Monitor", href: "/workflows", icon: Fish, color: "text-rose-400 border-rose-500/30", steps: 6 },
+              { title: "Cloud Security", desc: "Attack paths → Credentials → EDR → Alerts", href: "/workflows", icon: Cloud, color: "text-blue-400 border-blue-500/30", steps: 5 },
+              { title: "Compliance Report", desc: "Map → BIA → OSCAL → Evidence → Report", href: "/workflows", icon: FileText, color: "text-purple-400 border-purple-500/30", steps: 5 },
+            ].map((wf) => (
+              <Link key={wf.title} href={wf.href}>
+                <div className={`bg-card border-2 ${wf.color} p-3 hover:bg-secondary/30 transition-all cursor-pointer group`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <wf.icon className={`w-4 h-4 ${wf.color.split(' ')[0]}`} />
+                    <span className="font-display text-sm tracking-wider group-hover:text-primary transition-colors">{wf.title}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{wf.desc}</p>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                    <span className="text-[9px] text-muted-foreground font-mono">{wf.steps} STEPS</span>
+                    <span className="text-[9px] font-display tracking-wider text-primary">START →</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
         {/* RECENT SCANS — Quick access to previous results                */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {recentCompletedScans.length > 0 && (

@@ -598,8 +598,8 @@ describe("Pipeline Integration — New Connectors", () => {
       timeout: 8000,
     });
 
-    // 9 original + 3 new + 4 OSINT + 1 github_leaks = 17
-    expect(result.connectorResults.length).toBe(17);
+    // 9 original + 3 new + 4 OSINT + 1 github_leaks + 10 SpiderFoot-class = 27
+    expect(result.connectorResults.length).toBe(27);
   });
 
   it("should include new signal rules in the rule descriptions", async () => {

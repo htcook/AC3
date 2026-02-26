@@ -117,6 +117,7 @@
     "@types/react-dom": "^19.2.1",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/coverage-v8": "^4.0.18",
     "add": "^2.0.6",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.31.4",

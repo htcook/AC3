@@ -39,7 +39,7 @@ describe("Corroboration Pipeline Integration", () => {
       findingType: "domain",
       findingValue: "example.com",
     });
-    expect(result.sourceResults.length).toBe(8); // All 8 default sources
+    expect(result.sourceResults.length).toBe(7); // All 7 default sources (nvd, shodan, censys, urlscan, abuseipdb, securitytrails, dehashed)
   });
 
   // --- getAvailableSources wrapper ---

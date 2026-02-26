@@ -132,6 +132,7 @@ const EngagementAutomation = lazy(() => import("./pages/EngagementAutomation"));
 const ThreatEnrichment = lazy(() => import("./pages/ThreatEnrichment"));
 const InfraWiki = lazy(() => import("./pages/InfraWiki"));
 const LiveInfra = lazy(() => import("./pages/LiveInfra"));
+const Workflows = lazy(() => import("./pages/Workflows"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -184,6 +185,9 @@ function Router() {
         <Route path="/login" component={Login} />
         <Route path="/dashboard">
           <ProtectedRoute component={Dashboard} />
+        </Route>
+        <Route path="/workflows">
+          <ProtectedRoute component={Workflows} />
         </Route>
         <Route path="/engagements">
           <ProtectedRoute component={Engagements} />

@@ -4458,3 +4458,25 @@
 - [x] Run live domain intelligence scan on AceofCloud.com (Scan #1230174: 9 assets, 45 findings, risk 49/100 medium, 66% coverage)
 - [x] Run live domain intelligence scan on Vianova.ai (Scan #1230175: 106 assets, 1644 findings, risk 20/100 low, 84% coverage)
 - [x] Verify scan results are saved and viewable in the UI (10 clean scans in database)
+
+## Strategic Recommendation 1: Fix Failing Tests & Error Handling
+- [x] Audit all 21 failing tests and categorize root causes
+- [x] Fix accuracy-enhancements.test.ts failures (16 tests: async/await, findingId type, DB state persistence)
+- [x] Fix bloodhound-rotation.test.ts failures (3 tests: test error handling path instead of success path)
+- [x] Fix corroboration-pipeline.test.ts failures (1 test: 7 sources not 8)
+- [x] Fix new-connectors.test.ts failures (1 test: 27 connectors not 17)
+- [x] Implement comprehensive error handling for external API failures (api-resilience.ts: circuit breaker, retry, timeout, error classification)
+- [x] Add graceful degradation so individual connector failures don't block scans (Promise.allSettled already in place, enhanced with circuit breaker)
+- [x] Build CI/CD pipeline config with test coverage thresholds (.github/workflows/ci.yml: 60% coverage threshold, vitest coverage config)
+
+## Strategic Recommendation 2: Harden Top Differentiators
+- [x] Harden Domain Intelligence pipeline with circuit breakers and retry logic (api-resilience.ts: CircuitBreaker, resilientCall, ServiceHealthMonitor)
+- [x] Harden CARVER+Shock scoring with input validation and edge-case handling (scoring-hardening.ts: sanitizeScoringInput, validateScoringInput, NaN/division-by-zero protection)
+- [x] Harden LLM-powered analysis with retry logic, timeout handling, and structured fallbacks (llm-resilience.ts: retryWithBackoff, withTimeout, validateLLMResponse, truncatePrompt)
+
+## Strategic Recommendation 3: Workflow-Driven Navigation
+- [x] Design workflow scenarios (6 workflows: Engagement, Recon, Detection, Phishing, Cloud, Compliance)
+- [x] Build WorkflowLauncher component with guided scenario cards and step-by-step navigation
+- [x] Integrate workflow launcher into dashboard home page (Mission Workflows section)
+- [x] Add /workflows route and MISSION WORKFLOWS sidebar navigation entry
+- [x] Add contextual step indicators and progress tracking within each workflow

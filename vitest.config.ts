@@ -16,5 +16,20 @@ export default defineConfig({
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
     testTimeout: 30000,
+    coverage: {
+      provider: "v8",
+      include: ["server/lib/**/*.ts"],
+      exclude: [
+        "server/**/*.test.ts",
+        "server/**/*.spec.ts",
+        "server/_core/**",
+        "node_modules/**",
+      ],
+      thresholds: {
+        statements: 40,
+        functions: 35,
+      },
+      reporter: ["text", "text-summary", "json-summary"],
+    },
   },
 });
