@@ -55,6 +55,8 @@ import {
   Lock,
   Unlock,
   BarChart3,
+  Users,
+  ArrowLeftRight,
 } from "lucide-react";
 
 // ─── Safety tier colors ─────────────────────────────────────────────────
@@ -948,6 +950,294 @@ function SimulationDialog({ graphId, onSimulated }: { graphId: string; onSimulat
   );
 }
 
+// ─── Execute on Caldera Dialog ──────────────────────────────────────────
+
+function ExecuteDialog({ graphId, onExecuted }: { graphId: string; onExecuted?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [agentPaw, setAgentPaw] = useState("");
+  const [scanMode, setScanMode] = useState("active-standard");
+  const [dryRun, setDryRun] = useState(true);
+  const [result, setResult] = useState<any>(null);
+
+  const agents = trpc.abilityGraph.agents.useQuery(undefined, { enabled: open });
+
+  const execute = trpc.abilityGraph.execute.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      if (data.status === "completed") {
+        toast.success(`Execution completed: ${data.nodesCompleted.length} succeeded`);
+      } else if (data.status === "failed") {
+        toast.warning(`Execution finished with ${data.nodesFailed.length} failure(s)`);
+      }
+      onExecuted?.();
+    },
+    onError: (err) => toast.error(`Execution failed: ${err.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="default" size="sm" className="gap-1.5">
+          <Zap className="w-3.5 h-3.5" />
+          Execute
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Execute on Caldera Agent</DialogTitle>
+          <DialogDescription>
+            Dispatch this graph's abilities to a live Caldera agent for execution.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <Label>Target Agent</Label>
+            <Select value={agentPaw} onValueChange={setAgentPaw}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select agent…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(agents.data || []).map((a: any) => (
+                  <SelectItem key={a.paw} value={a.paw}>
+                    {a.host} ({a.platform}) — {a.paw}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {agents.data?.length === 0 && (
+              <p className="text-xs text-amber-400 mt-1">No agents available. Deploy a Caldera agent first.</p>
+            )}
+          </div>
+
+          <div>
+            <Label>Scan Mode</Label>
+            <Select value={scanMode} onValueChange={setScanMode}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="passive">Passive</SelectItem>
+                <SelectItem value="active-low">Active Low</SelectItem>
+                <SelectItem value="active-standard">Active Standard</SelectItem>
+                <SelectItem value="active-aggressive">Active Aggressive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="dryRun"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              className="rounded border-border"
+            />
+            <Label htmlFor="dryRun" className="text-sm cursor-pointer">
+              Dry Run (simulate without dispatching)
+            </Label>
+          </div>
+
+          <Button
+            onClick={() => execute.mutate({ graphId, agentPaw, scanMode: scanMode as any, dryRun })}
+            disabled={execute.isPending || !agentPaw}
+            className="w-full"
+          >
+            {execute.isPending ? (
+              <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Executing…</>
+            ) : (
+              <><Zap className="w-4 h-4 mr-2" /> {dryRun ? "Dry Run" : "Execute Live"}</>
+            )}
+          </Button>
+
+          {result && (
+            <div className="space-y-3 border-t border-border/50 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Execution Results</span>
+                <Badge variant="outline" className={`text-xs ${
+                  result.status === "completed" ? "text-emerald-400 border-emerald-500/30" :
+                  result.status === "failed" ? "text-red-400 border-red-500/30" :
+                  "text-amber-400 border-amber-500/30"
+                }`}>
+                  {result.status}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>{result.nodesCompleted.length} completed</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-red-400" />
+                  <span>{result.nodesFailed.length} failed</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                  <span>{result.nodesSkipped.length} skipped</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span>{result.nodesBlocked.length} blocked</span>
+                </div>
+              </div>
+              {result.operationId && (
+                <div className="text-xs text-muted-foreground">
+                  Caldera Operation: <span className="font-mono">{result.operationId}</span>
+                </div>
+              )}
+              {result.executionLog?.length > 0 && (
+                <div className="max-h-40 overflow-y-auto space-y-1 text-xs">
+                  {result.executionLog.slice(-10).map((entry: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-muted-foreground">
+                      <span className="font-mono text-[10px] shrink-0">
+                        {new Date(entry.timestamp).toLocaleTimeString()}
+                      </span>
+                      <span className={`${
+                        entry.event === "success" ? "text-emerald-400" :
+                        entry.event === "failure" ? "text-red-400" :
+                        entry.event === "block" ? "text-amber-400" :
+                        ""
+                      }`}>
+                        {entry.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Generate from Actor Dialog ─────────────────────────────────────────
+
+function GenerateFromActorDialog({ onCreated }: { onCreated?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [actorId, setActorId] = useState("");
+  const [targetEnv, setTargetEnv] = useState("enterprise-windows");
+  const [result, setResult] = useState<any>(null);
+  const [, navigate] = useLocation();
+
+  const templates = trpc.abilityGraph.actorTemplates.useQuery(
+    { limit: 50 },
+    { enabled: open },
+  );
+
+  const generate = trpc.abilityGraph.generateFromActor.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      toast.success(`Generated ${data.name}: ${data.nodeCount} nodes, ${data.edgeCount} edges`);
+      onCreated?.();
+    },
+    onError: (err) => toast.error(`Generation failed: ${err.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setResult(null); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <Users className="w-3.5 h-3.5" />
+          From Actor
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Generate from Threat Actor</DialogTitle>
+          <DialogDescription>
+            Auto-generate an ability graph from a threat actor's known techniques.
+          </DialogDescription>
+        </DialogHeader>
+
+        {!result ? (
+          <div className="space-y-4">
+            <div>
+              <Label>Threat Actor</Label>
+              <Select value={actorId} onValueChange={setActorId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select actor…" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {(templates.data || []).map((a: any) => (
+                    <SelectItem key={a.actorId} value={a.actorId}>
+                      <span className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] px-1">
+                          {a.type}
+                        </Badge>
+                        {a.name}
+                        <span className="text-muted-foreground text-xs">({a.techniqueCount} TTPs)</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {templates.isLoading && (
+                <p className="text-xs text-muted-foreground mt-1">Loading actors…</p>
+              )}
+              {templates.data?.length === 0 && (
+                <p className="text-xs text-amber-400 mt-1">
+                  No actors with techniques found. Seed the threat catalog first.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label>Target Environment</Label>
+              <Select value={targetEnv} onValueChange={setTargetEnv}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="enterprise-windows">Enterprise Windows</SelectItem>
+                  <SelectItem value="enterprise-linux">Enterprise Linux</SelectItem>
+                  <SelectItem value="cloud-aws">Cloud (AWS)</SelectItem>
+                  <SelectItem value="cloud-azure">Cloud (Azure)</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => generate.mutate({ actorId, targetEnvironment: targetEnv })}
+                disabled={generate.isPending || !actorId}
+              >
+                {generate.isPending ? (
+                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Generating…</>
+                ) : (
+                  <><Brain className="w-4 h-4 mr-2" /> Generate Graph</>
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-emerald-400 font-semibold mb-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Graph Generated
+              </div>
+              <div className="text-sm space-y-1">
+                <div><span className="text-muted-foreground">Name:</span> {result.name}</div>
+                <div><span className="text-muted-foreground">Nodes:</span> {result.nodeCount}</div>
+                <div><span className="text-muted-foreground">Edges:</span> {result.edgeCount}</div>
+                <div><span className="text-muted-foreground">Tactics:</span> {result.tactics?.join(", ")}</div>
+                <div><span className="text-muted-foreground">Safety Tier:</span> {result.safetyTier?.replace("_", " ")}</div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setOpen(false); setResult(null); }}>Close</Button>
+              <Button onClick={() => { setOpen(false); navigate(`/ability-graph/${result.graphId}`); }}>
+                <Eye className="w-4 h-4 mr-2" />
+                View Graph
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────
 
 export default function AbilityGraph() {
@@ -1028,6 +1318,7 @@ export default function AbilityGraph() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ExecuteDialog graphId={selectedGraphId} onExecuted={() => graphDetail.refetch()} />
             <SimulationDialog graphId={selectedGraphId} onSimulated={() => graphDetail.refetch()} />
             <Button
               variant="outline"
@@ -1168,7 +1459,14 @@ export default function AbilityGraph() {
             Compose, visualize, and simulate attack emulation DAGs from MITRE ATT&CK technique chains
           </p>
         </div>
-        <CreateGraphDialog onCreated={() => graphList.refetch()} />
+        <div className="flex items-center gap-2">
+          <GenerateFromActorDialog onCreated={() => graphList.refetch()} />
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/ability-graph-compare")}>
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            Compare
+          </Button>
+          <CreateGraphDialog onCreated={() => graphList.refetch()} />
+        </div>
       </div>
 
       {/* Stats */}

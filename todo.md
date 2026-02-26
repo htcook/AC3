@@ -4875,3 +4875,154 @@
 - [x] Add tRPC router for graph CRUD, execution, and visualization
 - [x] Build Ability Graph Visualizer UI page
 - [x] Write vitest tests for all graph operations (69 tests passing)
+
+## Attack Emulation Enhancement — Phase 3b: Live Caldera Execution
+- [x] Build caldera-graph-executor.ts — connect graph walk to Caldera operation dispatch
+- [x] Map ability graph nodes to Caldera abilities via API
+- [x] Implement sequential execution following topological order
+- [x] Add real-time status polling and node status updates
+- [x] Handle cleanup commands on failure/abort
+- [x] Add execution controls (start, pause, abort) to tRPC router
+- [x] Add live execution panel to Ability Graph UI
+
+## Attack Emulation Enhancement — Phase 3c: Threat Actor Graph Templates
+- [x] Build actor-graph-templates.ts — auto-generate graphs from APT library profiles
+- [x] Query threat catalog for actor techniques and map to ability nodes
+- [x] Generate edges based on tactic ordering and technique dependencies
+- [x] Add "Generate Graph" button to threat actor detail pages
+- [x] Add tRPC procedure for one-click graph generation from actor ID
+- [x] Support diverse actor profiles (APT29, Lazarus, FIN7, etc.)
+
+## Attack Emulation Enhancement — Phase 3d: Graph Diff/Comparison
+- [x] Build graph-diff-engine.ts — compute structural and technique overlap
+- [x] Calculate Jaccard similarity for technique sets
+- [x] Identify unique, shared, and divergent nodes between two graphs
+- [x] Map tactic coverage differences
+- [x] Add tRPC procedure for graph comparison
+- [x] Build side-by-side graph comparison UI page
+- [x] Add Venn diagram and overlap matrix visualization
+
+## Attack Emulation Enhancement — Phase 4c: Bidirectional C2 Learning & Execution
+- [x] Build c2-learning-engine.ts — pull execution results from Caldera operations back into TTP knowledge
+- [x] Implement technique confidence scoring from real-world execution outcomes
+- [x] Build execution-to-TTP feedback loop — success/failure rates update ttpKnowledge confidence
+- [x] Add environmental constraint validation from live execution results
+- [x] Build expected telemetry verification — compare expected vs actual detection signals
+- [x] Wire C2 learning into post-execution hooks in caldera-graph-executor
+- [x] Add tRPC procedures for C2 learning dashboard (execution history, confidence trends, learning stats)
+- [x] Build C2 Learning Dashboard UI — execution history, technique confidence, detection gap analysis
+- [x] Write vitest tests for c2-learning-engine (94 tests passing)
+
+## Attack Emulation Enhancement — Phase 4d: Multi-C2 Unified Abstraction Layer
+- [x] Build c2-abstraction.ts — unified interface for Caldera, Metasploit, Sliver, and Empire
+- [x] Implement CalderaC2Adapter — wrap existing Caldera API integration
+- [x] Implement MetasploitC2Adapter — connect to Metasploit RPC API (msfrpcd)
+- [x] Implement SliverC2Adapter — connect to Sliver gRPC/REST API
+- [x] Unified agent/session listing across all C2 frameworks
+- [x] Unified ability/module dispatch (Caldera abilities, MSF modules, Sliver commands)
+- [x] Unified result collection and normalization
+- [x] Add C2 connection health checks and status monitoring
+- [x] Add DB tables for C2 connections and execution history
+- [x] Wire multi-C2 dispatch into ability graph executor
+- [x] Add tRPC procedures for multi-C2 management (list C2s, agents, dispatch, results)
+- [x] Build Multi-C2 Dashboard UI — unified agent view, C2 status cards, execution dispatch
+- [x] Write vitest tests for c2-abstraction layer (94 tests passing)
+
+## Attack Emulation Enhancement — Phase 4e: Exploit Catalog + Asset Matching Integration
+- [x] Build exploit-asset-matcher.ts — LLM-driven exploit selection from catalog based on discovery scan results
+- [x] Query exploit catalog for matching exploits by service, version, CVE, platform
+- [x] Cross-reference discovery scan results (Shodan, Censys, Nmap, URLScan) with exploit prerequisites
+- [x] LLM-assisted exploit recommendation — rank exploits by likelihood of success against discovered assets
+- [x] Map matched exploits to C2 modules (Caldera abilities, MSF modules, Sliver commands, Empire modules)
+- [x] Build exploit-to-ability-node converter — generate graph nodes from matched exploits
+- [x] Auto-generate targeted ability graphs from discovery scan + exploit catalog
+- [x] Add tRPC procedures for exploit matching (match by asset, match by scan, recommend exploits)
+- [x] Wire exploit matcher into ability graph generation pipeline
+- [x] Build Exploit Matcher UI panel — show matched exploits per asset, confidence scores, one-click graph generation
+- [x] Write vitest tests for exploit-asset-matcher
+
+## Attack Emulation Enhancement — Phase 3e: Empire C2 Integration
+- [x] Build Empire C2 adapter in c2-abstraction.ts (REST API v2 client)
+- [x] Add Empire to C2FrameworkType union type
+- [x] Register Empire adapter in C2Registry
+- [x] Map Empire stagers/modules to MITRE techniques (30+ built-in modules)
+- [x] Add Empire agent listing, task dispatch, and result collection
+- [x] Wire Empire into exploit-asset-matcher C2 module mapping
+- [x] Add Empire connection secrets (EMPIRE_BASE_URL, EMPIRE_API_KEY)
+- [x] Include Empire in Multi-C2 Command Center UI
+
+## Attack Emulation Enhancement — Phase 3f: Unified C2 Module Builder
+- [x] Design C2CustomModule interface (name, code, platform, technique mapping, C2 targets)
+- [x] Create c2_custom_modules DB table for storing custom modules
+- [x] Build c2-module-builder.ts — create/edit/validate/push modules to all 4 C2 frameworks
+- [x] Caldera module push — generate ability YAML and POST to Caldera API
+- [x] Metasploit module push — generate Ruby module and upload via MSF RPC
+- [x] Sliver module push — generate BOF/extension and register via API
+- [x] Empire module push — generate PowerShell/Python/C# module and POST to Empire API
+- [x] Add module templates (recon, credential access, lateral movement, persistence, exfiltration)
+- [x] Add MITRE ATT&CK technique auto-mapping for custom modules
+- [x] Add module validation (syntax check, platform compatibility, safety tier assessment)
+- [x] Add tRPC procedures for module CRUD, push-to-C2, and template listing
+- [x] Build Module Builder UI — code editor, platform selector, technique mapper, push controls
+- [x] Write vitest tests for c2-module-builder
+
+## Attack Emulation Enhancement — Phase 3g: Dynamic Module Generation Pipeline
+- [x] Build dynamic-module-generator.ts — LLM-driven module generation from asset discovery + vuln context
+- [x] Ingest discovery scan results (Shodan, Censys, Nmap, URLScan) to identify targetable services
+- [x] Ingest vulnerability scan reports to identify exploitable CVEs per asset
+- [x] Cross-reference exploit catalog entries with discovered assets for module targeting
+- [x] LLM-assisted code generation — produce Caldera YAML, MSF Ruby, Empire PS/Python, Sliver BOF per target
+- [x] Auto-select C2 framework based on target platform, available agents, and module compatibility
+- [x] Generate pre/post-exploitation module chains based on red team workflow phase (recon → initial access → privesc → lateral → exfil)
+- [x] Build module validation pipeline — syntax check, safety tier assessment, OPSEC scoring
+- [x] Auto-wire generated modules into ability graph nodes with correct preconditions and edges
+- [x] Feed execution results back into generator for iterative module refinement
+- [x] Add tRPC procedures for dynamic generation (generate-for-asset, generate-for-scan, generate-chain)
+- [x] Build Dynamic Module Generator UI — asset selector, workflow phase picker, generated module preview, one-click push
+- [x] Write vitest tests for dynamic-module-generator
+
+## Attack Emulation Enhancement — Phase 3e: FIPS 140-2/3 Compliance Layer
+- [x] Build fips-compliance.ts — cryptographic validation, algorithm enforcement, key management
+- [x] Implement FIPS-approved algorithm registry (AES-256-GCM, SHA-256/384/512, RSA-2048+, ECDSA P-256/P-384, HMAC-SHA256)
+- [x] Build crypto operation validator — flag non-FIPS algorithms in C2 payloads, modules, and communications
+- [x] Build key management module — FIPS-compliant key generation, rotation, storage, and destruction
+- [x] Add TLS/mTLS validation — ensure C2 channels use FIPS-approved cipher suites
+- [x] Build payload crypto auditor — scan generated modules for non-compliant crypto usage
+- [x] Add FIPS mode toggle — enforce/audit/disabled modes for operational flexibility
+- [x] Build compliance report generator — document crypto usage, key lifecycle, and algorithm compliance
+- [x] Wire FIPS validation into C2 module builder — flag non-compliant modules before push
+- [x] Wire FIPS validation into dynamic module generator — ensure generated code uses approved algorithms
+- [x] Add FIPS compliance status to ability graph nodes — visual indicator of crypto compliance
+- [x] Add DB table for FIPS audit trail (algorithm usage, key events, compliance violations)
+- [x] Add tRPC procedures for FIPS status, compliance reports, and configuration
+- [x] Build FIPS Compliance UI — compliance dashboard, algorithm audit, key management, violation alerts
+- [x] Write vitest tests for fips-compliance-engine (94 tests passing)
+
+## Attack Emulation Enhancement — Phase 3h: Cross-C2 Orchestration Engine
+- [x] Build c2-orchestrator.ts — coordinated multi-framework operation execution
+- [x] Implement cross-C2 ability chains (e.g., Caldera recon → MSF exploit → Sliver implant → Empire persist)
+- [x] Build C2 handoff engine — automatic framework switching based on kill chain phase and capability
+- [x] Build shared agent context — pass discovered credentials, sessions, pivots between C2 frameworks
+- [x] Implement kill chain phase router — map each phase to the best-fit C2 framework
+- [x] Build coordinated timing engine — synchronize multi-C2 actions with configurable delays
+- [x] Implement fallback chains — if primary C2 fails, auto-switch to backup framework
+- [x] Build cross-C2 result aggregator — unified view of results across all frameworks
+- [x] Wire orchestrator into ability graph executor for multi-C2 graph walks
+- [x] Add tRPC procedures for orchestrated operations (create, execute, monitor, abort)
+- [x] Write vitest tests for c2-orchestrator
+
+## Attack Emulation Enhancement — Phase 3i: GoPhish C2 Integration
+- [x] Build GoPhish adapter for C2 abstraction layer — campaign dispatch, result polling, webhook handling
+- [x] Implement phishing-to-C2 pipeline — GoPhish delivers payload → C2 catches callback
+- [x] Build payload-campaign linker — associate GoPhish templates with C2 payloads (Caldera/Sliver/Empire agents)
+- [x] Implement credential capture → C2 feed — pass harvested creds from GoPhish to C2 for lateral movement
+- [x] Build campaign-to-operation mapper — link GoPhish campaigns to ability graph operations
+- [x] Implement phishing success → auto-trigger — when target clicks/submits, auto-dispatch C2 post-exploitation
+- [x] Build unified campaign timeline — merge GoPhish events with C2 execution events
+- [x] Wire GoPhish into cross-C2 orchestrator as initial access phase
+- [x] Add tRPC procedures for GoPhish-C2 coordination
+- [x] Write vitest tests for GoPhish C2 integration
+
+## FIPS Deployment Documentation
+- [x] Write FIPS 140-2/3 provider installation and configuration guide
+- [x] Add runtime FIPS readiness validator to startup sequence

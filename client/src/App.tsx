@@ -148,6 +148,9 @@ const SubfinderPage = lazy(() => import("./pages/SubfinderPage"));
 const HttpxPage = lazy(() => import("./pages/HttpxPage"));
 const NaabuPage = lazy(() => import("./pages/NaabuPage"));
 const AbilityGraphPage = lazy(() => import("./pages/AbilityGraph"));
+const GraphComparePage = lazy(() => import("./pages/GraphCompare"));
+const C2CommandCenter = lazy(() => import("./pages/C2CommandCenter"));
+const ThreatActorCrawler = lazy(() => import("./pages/ThreatActorCrawler"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -654,6 +657,15 @@ function Router() {
         </Route>
         <Route path="/ability-graph/:graphId">
           {() => <ProtectedRoute component={AbilityGraphPage} />}
+        </Route>
+        <Route path="/ability-graph-compare">
+          <ProtectedRoute component={GraphComparePage} />
+        </Route>
+        <Route path="/c2-command-center">
+          <ProtectedRoute component={C2CommandCenter} />
+        </Route>
+        <Route path="/threat-actor-crawler">
+          <ProtectedRoute component={ThreatActorCrawler} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

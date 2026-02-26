@@ -946,7 +946,7 @@ export async function createGraph(params: {
     sourceType: params.sourceType,
     sourceId: params.sourceId || null,
     actorName: params.actorName || null,
-    tactics: JSON.stringify(tactics),
+    tactics: tactics as any,
     techniqueCount: new Set(sorted.map(n => n.techniqueId)).size,
     nodeCount: sorted.length,
     edgeCount: params.edges.length,

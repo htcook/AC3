@@ -83,6 +83,7 @@ import {
   Globe,
   Wifi,
   GitMerge,
+  Satellite,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 
@@ -143,6 +144,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
           { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
           { href: "/ability-graph", icon: GitBranch, label: "ABILITY GRAPH" },
+          { href: "/ability-graph-compare", icon: ArrowLeftRight, label: "GRAPH COMPARE" },
           { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
           { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
           { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },
@@ -266,6 +268,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
           { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
           { href: "/sliver-c2", icon: Hexagon, label: "IMPLANT C2" },
+          { href: "/c2-command-center", icon: Radio, label: "C2 COMMAND CENTER" },
         ],
       },
     ],
@@ -293,6 +296,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
           { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
           { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
+          { href: "/threat-actor-crawler", icon: Satellite, label: "ACTOR INTEL CRAWLER" },
           { href: "/scan-scheduler", icon: Clock, label: "SCAN SCHEDULER" },
           { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
           { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },

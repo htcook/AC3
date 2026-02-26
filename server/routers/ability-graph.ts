@@ -28,6 +28,80 @@ import {
   type EdgeCondition,
 } from "../lib/ability-graph-engine";
 import type { ScanMode } from "../lib/scan-policy-engine";
+import {
+  getC2Registry,
+  type C2FrameworkType,
+} from "../lib/c2-abstraction";
+import {
+  processExecutionFeedback,
+  getLearningStats,
+  getExecutionHistory,
+  calculateTechniqueReliability,
+} from "../lib/c2-learning-engine";
+import {
+  matchExploitsToScan,
+  llmRecommendExploits,
+  generateTargetedGraph,
+} from "../lib/exploit-asset-matcher";
+import {
+  executeGraph,
+  abortExecution,
+  pauseExecution,
+  resumeExecution,
+  getExecutionState,
+  getExecutionLog,
+  getCalderaAgents,
+  buildEnvironmentFromAgent,
+  type ExecutionConfig,
+} from "../lib/caldera-graph-executor";
+import {
+  generateGraphFromActorProfile,
+  getAvailableActorTemplates,
+} from "../lib/actor-graph-templates";
+import {
+  compareGraphs,
+  computeOverlapMatrix,
+} from "../lib/graph-diff-engine";
+import {
+  createOrchestrationPlan,
+  executeOrchestrationPlan,
+  getOrchestrationPlan,
+  listOrchestrationPlans,
+  abortOrchestrationPlan,
+  getOrchestrationStats,
+  type OrchestrationPlan,
+} from "../lib/c2-orchestrator";
+import {
+  generateModuleCode,
+  generateDynamicModules,
+  buildModule,
+  pushModulesToC2,
+  getModuleTemplates,
+  type ModuleSpec,
+  type GeneratedModule,
+} from "../lib/c2-module-builder";
+import {
+  runIntelligenceCrawl,
+  runTargetedEnrichment,
+  analyzeDataGaps,
+  getCrawlerStats,
+  getCrawlHistory,
+  getCrawlSources,
+  toggleCrawlSource,
+  isCrawlRunning,
+} from "../lib/threat-actor-crawler";
+import {
+  generateComplianceReport,
+  listKeys as listFipsKeys,
+  generateKey as generateFipsKey,
+  rotateKey as rotateFipsKey,
+  revokeKey as revokeFipsKey,
+  getAuditLog as getFipsAuditLog,
+  getAlgorithmUsageStats,
+  validateOperation,
+  getKeysNeedingRotation,
+  isAlgorithmApproved,
+} from "../lib/fips-compliance";
 
 // ─── Input schemas ──────────────────────────────────────────────────────
 
@@ -87,7 +161,7 @@ const environmentContextSchema = z.object({
   openPorts: z.array(z.number()).default([]),
   registryKeys: z.array(z.string()).optional(),
   files: z.array(z.string()).optional(),
-  customFacts: z.record(z.union([z.string(), z.number(), z.boolean()])).default({}),
+  customFacts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
 });
 
 // ─── Router ─────────────────────────────────────────────────────────────
@@ -362,6 +436,574 @@ export const abilityGraphRouter = router({
   stats: protectedProcedure.query(async () => {
     return getGraphStats();
   }),
+
+  // ─── Get available Caldera agents ───
+  agents: protectedProcedure.query(async () => {
+    return getCalderaAgents();
+  }),
+
+  // ─── Execute graph against a Caldera agent ───
+  execute: protectedProcedure
+    .input(z.object({
+      graphId: z.string(),
+      agentPaw: z.string(),
+      scanMode: z.enum(["passive", "active-low", "active-standard", "active-aggressive"]).default("active-standard"),
+      dryRun: z.boolean().default(false),
+      operationName: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const agents = await getCalderaAgents();
+      const agent = agents.find(a => a.paw === input.agentPaw);
+      if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agent not found" });
+
+      const environment = buildEnvironmentFromAgent(agent);
+      const config: ExecutionConfig = {
+        graphId: input.graphId,
+        agentPawId: input.agentPaw,
+        scanMode: input.scanMode as ScanMode,
+        environment,
+        dryRun: input.dryRun,
+        operationName: input.operationName,
+      };
+
+      const state = await executeGraph(config);
+      return state;
+    }),
+
+  // ─── Get execution state ───
+  executionState: protectedProcedure
+    .input(z.object({ graphId: z.string() }))
+    .query(({ input }) => {
+      return getExecutionState(input.graphId);
+    }),
+
+  // ─── Get execution log ───
+  executionLog: protectedProcedure
+    .input(z.object({
+      graphId: z.string(),
+      since: z.string().optional(),
+    }))
+    .query(({ input }) => {
+      return getExecutionLog(input.graphId, input.since);
+    }),
+
+  // ─── Abort execution ───
+  abortExecution: protectedProcedure
+    .input(z.object({ graphId: z.string() }))
+    .mutation(async ({ input }) => {
+      const state = await abortExecution(input.graphId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "No active execution" });
+      return state;
+    }),
+
+  // ─── Pause execution ───
+  pauseExecution: protectedProcedure
+    .input(z.object({ graphId: z.string() }))
+    .mutation(async ({ input }) => {
+      const state = await pauseExecution(input.graphId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "No active execution or not running" });
+      return state;
+    }),
+
+  // ─── Resume execution ───
+  resumeExecution: protectedProcedure
+    .input(z.object({ graphId: z.string() }))
+    .mutation(async ({ input }) => {
+      const state = await resumeExecution(input.graphId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "No paused execution" });
+      return state;
+    }),
+
+  // ─── Generate graph from threat actor profile ───
+  generateFromActor: protectedProcedure
+    .input(z.object({
+      actorId: z.string(),
+      targetEnvironment: z.string().default("enterprise-windows"),
+      includeAlternatives: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await generateGraphFromActorProfile({
+        actorId: input.actorId,
+        targetEnvironment: input.targetEnvironment,
+        includeAlternatives: input.includeAlternatives,
+        createdBy: ctx.user?.openId,
+      });
+      return result;
+    }),
+
+  // ─── Get available actor templates ───
+  actorTemplates: protectedProcedure
+    .input(z.object({
+      type: z.enum(["apt", "cybercrime", "ransomware", "hacktivist", "unknown"]).optional(),
+      limit: z.number().default(50),
+    }).optional())
+    .query(async ({ input }) => {
+      return getAvailableActorTemplates({
+        type: input?.type,
+        limit: input?.limit,
+      });
+    }),
+
+  // ─── Compare two graphs ───
+  compare: protectedProcedure
+    .input(z.object({
+      graphIdA: z.string(),
+      graphIdB: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const result = await compareGraphs(input.graphIdA, input.graphIdB);
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "One or both graphs not found" });
+      return result;
+    }),
+
+  // ─── Compute overlap matrix for multiple graphs ───
+  overlapMatrix: protectedProcedure
+    .input(z.object({
+      graphIds: z.array(z.string()).min(2).max(10),
+    }))
+    .query(async ({ input }) => {
+      return computeOverlapMatrix(input.graphIds);
+    }),
+
+  // ─── Multi-C2 Health Check ───
+  c2Health: protectedProcedure.query(async () => {
+    const registry = getC2Registry();
+    return registry.healthCheckAll();
+  }),
+
+  // ─── Multi-C2 Aggregate Stats ───
+  c2Stats: protectedProcedure.query(async () => {
+    const registry = getC2Registry();
+    return registry.getAggregateStats();
+  }),
+
+  // ─── Multi-C2 List All Agents ───
+  c2Agents: protectedProcedure
+    .input(z.object({
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const registry = getC2Registry();
+      if (input?.framework) {
+        const adapter = registry.get(input.framework as C2FrameworkType);
+        return adapter ? adapter.listAgents() : [];
+      }
+      return registry.listAllAgents();
+    }),
+
+  // ─── Multi-C2 Search Modules ───
+  c2Modules: protectedProcedure
+    .input(z.object({
+      query: z.string(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]).optional(),
+    }))
+    .query(async ({ input }) => {
+      const registry = getC2Registry();
+      if (input.framework) {
+        const adapter = registry.get(input.framework as C2FrameworkType);
+        return adapter ? adapter.searchModules(input.query) : [];
+      }
+      return registry.searchAllModules(input.query);
+    }),
+
+  // ─── Multi-C2 Dispatch Task ───
+  c2Dispatch: protectedProcedure
+    .input(z.object({
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      agentId: z.string(),
+      moduleId: z.string(),
+      options: z.record(z.string(), z.any()).optional(),
+      timeout: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const registry = getC2Registry();
+      const result = await registry.dispatch({
+        framework: input.framework as C2FrameworkType,
+        agentId: input.agentId,
+        moduleId: input.moduleId,
+        options: input.options,
+        timeout: input.timeout,
+      });
+
+      // Feed result into learning engine
+      if (result.status === "success" || result.status === "failed") {
+        await processExecutionFeedback({
+          techniqueId: input.moduleId,
+          framework: input.framework as C2FrameworkType,
+          taskResult: result,
+          targetContext: {
+            platform: "unknown",
+            architecture: "x64",
+            hostname: "unknown",
+            privileges: "user",
+          },
+        }).catch(() => {});
+      }
+
+      return result;
+    }),
+
+  // ─── Multi-C2 Poll Task Result ───
+  c2PollResult: protectedProcedure
+    .input(z.object({
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      taskId: z.string(),
+      agentId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const registry = getC2Registry();
+      const adapter = registry.get(input.framework as C2FrameworkType);
+      if (!adapter) throw new TRPCError({ code: "NOT_FOUND", message: `No adapter for ${input.framework}` });
+      const result = await adapter.pollResult(input.taskId, input.agentId);
+
+      // Feed completed results into learning engine
+      if (result.status === "success" || result.status === "failed") {
+        await processExecutionFeedback({
+          techniqueId: result.moduleId || "",
+          framework: input.framework as C2FrameworkType,
+          taskResult: result,
+          targetContext: {
+            platform: "unknown",
+            architecture: "x64",
+            hostname: "unknown",
+            privileges: "user",
+          },
+        }).catch(() => {});
+      }
+
+      return result;
+    }),
+
+  // ─── Multi-C2 Kill Agent ───
+  c2KillAgent: protectedProcedure
+    .input(z.object({
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      agentId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const registry = getC2Registry();
+      const adapter = registry.get(input.framework as C2FrameworkType);
+      if (!adapter) throw new TRPCError({ code: "NOT_FOUND", message: `No adapter for ${input.framework}` });
+      const success = await adapter.killAgent(input.agentId);
+      return { success };
+    }),
+
+  // ─── C2 Learning Stats ───
+  learningStats: protectedProcedure.query(async () => {
+    return getLearningStats();
+  }),
+
+  // ─── C2 Learning History ───
+  learningHistory: protectedProcedure
+    .input(z.object({
+      limit: z.number().default(50),
+      techniqueId: z.string().optional(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return getExecutionHistory({
+        limit: input?.limit,
+        techniqueId: input?.techniqueId,
+        framework: input?.framework as C2FrameworkType | undefined,
+      });
+    }),
+
+  // ─── C2 Technique Reliability ───
+  techniqueReliability: protectedProcedure
+    .input(z.object({
+      techniqueId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      return calculateTechniqueReliability(input.techniqueId);
+    }),
+
+  // ─── Exploit Matching: Match by Scan ───
+  matchExploitsByScan: protectedProcedure
+    .input(z.object({
+      scanId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return matchExploitsToScan(input.scanId);
+    }),
+
+  // ─── Generate Targeted Graph from Scan ───
+  generateTargetedGraph: protectedProcedure
+    .input(z.object({
+      scanId: z.number(),
+      maxNodes: z.number().default(30),
+      engagementContext: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return generateTargetedGraph({
+        scanId: input.scanId,
+        maxNodes: input.maxNodes,
+        engagementContext: input.engagementContext,
+      });
+    }),
+
+  // ─── Get visualization data (nodes + edges with layout) ───
+  // ─── Cross-C2 Orchestration ───
+  createOrchestration: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      description: z.string().default(""),
+      graphId: z.string(),
+      targetHost: z.string(),
+      frameworkAssignments: z.record(z.string(), z.string()).default({}),
+      phishingCampaignId: z.string().optional(),
+      enableLearning: z.boolean().default(true),
+      maxParallel: z.number().default(3),
+      scanMode: z.enum(["passive", "active-low", "active-standard", "active-aggressive"]).default("active-standard"),
+    }))
+    .mutation(async ({ input }) => {
+      const graphData = await getGraph(input.graphId);
+      if (!graphData) throw new TRPCError({ code: "NOT_FOUND", message: "Graph not found" });
+
+      return createOrchestrationPlan({
+        name: input.name,
+        description: input.description,
+        nodes: graphData.nodes || [],
+        edges: graphData.edges || [],
+        scanMode: input.scanMode as ScanMode,
+        maxParallel: input.maxParallel,
+      });
+    }),
+
+  startOrchestration: protectedProcedure
+    .input(z.object({ orchestrationId: z.string() }))
+    .mutation(async ({ input }) => {
+      return executeOrchestrationPlan(input.orchestrationId, {
+        os: "windows",
+        hostname: "target",
+        privilegeLevel: "user",
+        networkAccess: "internal",
+        installedSoftware: [],
+        runningServices: [],
+        openPorts: [],
+        customFacts: {},
+      });
+    }),
+
+  orchestrationStatus: protectedProcedure
+    .input(z.object({ orchestrationId: z.string() }))
+    .query(async ({ input }) => {
+      return getOrchestrationPlan(input.orchestrationId);
+    }),
+
+  orchestrationStats: protectedProcedure.query(async () => {
+    return getOrchestrationStats();
+  }),
+
+  listOrchestrations: protectedProcedure.query(async () => {
+    return listOrchestrationPlans();
+  }),
+
+  abortOrchestration: protectedProcedure
+    .input(z.object({ orchestrationId: z.string() }))
+    .mutation(async ({ input }) => {
+      return abortOrchestrationPlan(input.orchestrationId);
+    }),
+
+  // ─── C2 Module Builder ───
+  generateModule: protectedProcedure
+    .input(z.object({
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      techniqueId: z.string(),
+      techniqueName: z.string(),
+      platform: z.string().default("windows"),
+      targetService: z.string().optional(),
+      targetVersion: z.string().optional(),
+      cveId: z.string().optional(),
+      customPayload: z.string().optional(),
+      evasionLevel: z.enum(["none", "basic", "advanced", "maximum"]).default("basic"),
+    }))
+    .mutation(async ({ input }) => {
+      const spec: ModuleSpec = {
+        name: input.techniqueName,
+        description: `Module for ${input.techniqueId}: ${input.techniqueName}`,
+        author: "Ace C3 Auto-Generator",
+        category: "exploitation" as any,
+        platforms: [input.platform as any],
+        techniqueIds: [input.techniqueId],
+        language: input.framework === "metasploit" ? "ruby" : input.framework === "sliver" ? "go" : "python",
+        targetFrameworks: [input.framework as any],
+        requiresAdmin: false,
+        requiresNetwork: true,
+        opsecRating: 5,
+        safetyTier: "medium_risk",
+        parameters: [],
+      };
+      return generateModuleCode(spec);
+    }),
+
+  generateModulesFromAssets: protectedProcedure
+    .input(z.object({
+      scanId: z.number(),
+      frameworks: z.array(z.enum(["caldera", "metasploit", "sliver", "empire"])).default(["caldera", "metasploit"]),
+      evasionLevel: z.enum(["none", "basic", "advanced", "maximum"]).default("basic"),
+    }))
+    .mutation(async ({ input }) => {
+      return generateDynamicModules({
+        assets: [],
+        killChainPhase: "exploitation",
+        objective: `Generate modules from scan ${input.scanId}`,
+        constraints: {
+          maxSafetyTier: "medium_risk",
+          requireStealth: input.evasionLevel !== "none",
+          allowedPlatforms: ["windows", "linux"],
+          preferredFrameworks: input.frameworks as any[],
+        },
+      });
+    }),
+
+  moduleTemplates: protectedProcedure.query(async () => {
+    return getModuleTemplates();
+  }),
+
+  pushModules: protectedProcedure
+    .input(z.object({
+      modules: z.array(z.object({
+        code: z.string(),
+        filename: z.string(),
+      })),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+    }))
+    .mutation(async ({ input }) => {
+      return pushModulesToC2(input.modules.map(m => ({
+        code: m.code,
+        filename: m.filename,
+        framework: input.framework as any,
+        language: "python" as any,
+        metadata: {},
+      })));
+    }),
+
+  // ─── Threat Actor Intelligence Crawler ───
+  crawlIntel: protectedProcedure
+    .input(z.object({
+      actorNames: z.array(z.string()).optional(),
+      maxResults: z.number().default(50),
+    }).optional())
+    .mutation(async ({ input }) => {
+      return runIntelligenceCrawl({
+        actorFocus: input?.actorNames,
+        maxArticlesPerSource: input?.maxResults,
+      });
+    }),
+
+  enrichActors: protectedProcedure
+    .input(z.object({
+      actorNames: z.array(z.string()).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      return runTargetedEnrichment({
+        actorIds: input?.actorNames,
+      });
+    }),
+
+  analyzeGaps: protectedProcedure
+    .input(z.object({
+      actorIds: z.array(z.string()).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return analyzeDataGaps(input?.actorIds);
+    }),
+
+  crawlerStats: protectedProcedure.query(async () => {
+    return getCrawlerStats();
+  }),
+
+  crawlHistory: protectedProcedure.query(async () => {
+    return getCrawlHistory();
+  }),
+
+  crawlSources: protectedProcedure.query(async () => {
+    return getCrawlSources();
+  }),
+
+  toggleCrawlSource: protectedProcedure
+    .input(z.object({
+      sourceId: z.string(),
+      enabled: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      return toggleCrawlSource(input.sourceId, input.enabled);
+    }),
+
+  isCrawlRunning: protectedProcedure.query(async () => {
+    return isCrawlRunning();
+  }),
+
+  // ─── FIPS Compliance ───
+  fipsReport: protectedProcedure.query(async () => {
+    return generateComplianceReport();
+  }),
+
+  fipsKeys: protectedProcedure
+    .input(z.object({
+      status: z.enum(["active", "expired", "revoked", "pending-rotation"]).optional(),
+      purpose: z.enum(["encryption", "signing", "authentication", "key-wrapping", "derivation"]).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return listFipsKeys(input || {});
+    }),
+
+  fipsGenerateKey: protectedProcedure
+    .input(z.object({
+      algorithm: z.string(),
+      keyLength: z.number(),
+      purpose: z.enum(["encryption", "signing", "authentication", "key-wrapping", "derivation"]),
+      expiresInDays: z.number().default(365),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return generateFipsKey({
+        ...input,
+        owner: ctx.user?.name || "system",
+      });
+    }),
+
+  fipsRotateKey: protectedProcedure
+    .input(z.object({ keyId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      return rotateFipsKey(input.keyId, ctx.user?.name || "system");
+    }),
+
+  fipsRevokeKey: protectedProcedure
+    .input(z.object({ keyId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      revokeFipsKey(input.keyId, ctx.user?.name || "system");
+      return { success: true };
+    }),
+
+  fipsAuditLog: protectedProcedure
+    .input(z.object({
+      operation: z.enum(["encrypt", "decrypt", "sign", "verify", "hash", "derive", "generate", "rotate", "revoke", "validate"]).optional(),
+      keyId: z.string().optional(),
+      limit: z.number().default(100),
+    }).optional())
+    .query(async ({ input }) => {
+      return getFipsAuditLog(input || {});
+    }),
+
+  fipsAlgorithmUsage: protectedProcedure.query(async () => {
+    return getAlgorithmUsageStats();
+  }),
+
+  fipsValidateOperation: protectedProcedure
+    .input(z.object({
+      algorithm: z.string(),
+      keyLength: z.number().optional(),
+      operation: z.enum(["encrypt", "decrypt", "sign", "verify", "hash", "derive"]),
+    }))
+    .query(async ({ input }) => {
+      return validateOperation(input);
+    }),
+
+  fipsKeysNeedingRotation: protectedProcedure
+    .input(z.object({ daysBeforeExpiry: z.number().default(30) }).optional())
+    .query(async ({ input }) => {
+      return getKeysNeedingRotation(input?.daysBeforeExpiry || 30);
+    }),
 
   // ─── Get visualization data (nodes + edges with layout) ───
   visualize: protectedProcedure
