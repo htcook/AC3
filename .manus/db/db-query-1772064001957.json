@@ -1,0 +1,460 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets, totalFindings, overallRiskScore, createdAt FROM domain_intel_scans ORDER BY createdAt DESC LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets, totalFindings, overallRiskScore, createdAt FROM domain_intel_scans ORDER BY createdAt DESC LIMIT 50;",
+  "rows": [
+    {
+      "id": "1230169",
+      "primaryDomain": "get-test-1771395951731.com",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-26 00:00:00"
+    },
+    {
+      "id": "1230170",
+      "primaryDomain": "test-monitor-1771395951137.com",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-26 00:00:00"
+    },
+    {
+      "id": "1230168",
+      "primaryDomain": "get-test-1771395951731.com",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 23:59:54"
+    },
+    {
+      "id": "1230167",
+      "primaryDomain": "test-monitor-1771395951137.com",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 23:59:50"
+    },
+    {
+      "id": "1230165",
+      "primaryDomain": "ack-test-1771385685092.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:55:00"
+    },
+    {
+      "id": "1230166",
+      "primaryDomain": "trpc-ack-1771385691282.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:55:00"
+    },
+    {
+      "id": "1230163",
+      "primaryDomain": "changes-test-1771385684690.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:50:00"
+    },
+    {
+      "id": "1230164",
+      "primaryDomain": "get-test-1771385683872.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:50:00"
+    },
+    {
+      "id": "1230162",
+      "primaryDomain": "test-monitor-1771385683356.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:45:00"
+    },
+    {
+      "id": "1230161",
+      "primaryDomain": "trpc-ack-1771383835118.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:45:00"
+    },
+    {
+      "id": "1230160",
+      "primaryDomain": "vianova.ai",
+      "status": "passive_recon",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 23:43:00"
+    },
+    {
+      "id": "1230159",
+      "primaryDomain": "changes-test-1771383828300.com",
+      "status": "scan_complete",
+      "totalAssets": "1",
+      "totalFindings": "373",
+      "overallRiskScore": "70",
+      "createdAt": "2026-02-25 23:40:00"
+    },
+    {
+      "id": "1230158",
+      "primaryDomain": "ack-test-1771383828732.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:40:00"
+    },
+    {
+      "id": "1230156",
+      "primaryDomain": "test-monitor-1771383826883.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:36:48"
+    },
+    {
+      "id": "1230157",
+      "primaryDomain": "get-test-1771383827436.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:36:48"
+    },
+    {
+      "id": "1230155",
+      "primaryDomain": "test-monitor-1771383826883.com",
+      "status": "scan_complete",
+      "totalAssets": "1",
+      "totalFindings": "373",
+      "overallRiskScore": "70",
+      "createdAt": "2026-02-25 23:35:00"
+    },
+    {
+      "id": "1230154",
+      "primaryDomain": "trpc-ack-1771363838337.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:35:00"
+    },
+    {
+      "id": "1230152",
+      "primaryDomain": "changes-test-1771363831563.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:30:00"
+    },
+    {
+      "id": "1230153",
+      "primaryDomain": "ack-test-1771363831978.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:30:00"
+    },
+    {
+      "id": "1230151",
+      "primaryDomain": "get-test-1771363830662.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:25:56"
+    },
+    {
+      "id": "1230150",
+      "primaryDomain": "test-monitor-1771363830143.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:25:54"
+    },
+    {
+      "id": "1230149",
+      "primaryDomain": "get-test-1771363830662.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:25:09"
+    },
+    {
+      "id": "1230148",
+      "primaryDomain": "test-monitor-1771363830143.com",
+      "status": "scan_complete",
+      "totalAssets": "1",
+      "totalFindings": "379",
+      "overallRiskScore": "70",
+      "createdAt": "2026-02-25 23:25:09"
+    },
+    {
+      "id": "1230146",
+      "primaryDomain": "test-monitor-1771363830143.com",
+      "status": "scan_complete",
+      "totalAssets": "1",
+      "totalFindings": "374",
+      "overallRiskScore": "73",
+      "createdAt": "2026-02-25 23:25:00"
+    },
+    {
+      "id": "1230147",
+      "primaryDomain": "get-test-1771363830662.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:25:00"
+    },
+    {
+      "id": "1230145",
+      "primaryDomain": "trpc-ack-1771357816550.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:20:00"
+    },
+    {
+      "id": "1230144",
+      "primaryDomain": "ack-test-1771357810186.com",
+      "status": "scan_complete",
+      "totalAssets": "2",
+      "totalFindings": "746",
+      "overallRiskScore": "66",
+      "createdAt": "2026-02-25 23:20:00"
+    },
+    {
+      "id": "1230142",
+      "primaryDomain": "get-test-1771357808866.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:15:47"
+    },
+    {
+      "id": "1230143",
+      "primaryDomain": "changes-test-1771357809771.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:15:47"
+    },
+    {
+      "id": "1230141",
+      "primaryDomain": "changes-test-1771357809771.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:13:57"
+    },
+    {
+      "id": "1230140",
+      "primaryDomain": "get-test-1771357808866.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:13:57"
+    },
+    {
+      "id": "1230139",
+      "primaryDomain": "test-monitor-1771357808332.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:10:00"
+    },
+    {
+      "id": "1230138",
+      "primaryDomain": "trpc-ack-1771357749632.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:10:00"
+    },
+    {
+      "id": "1230136",
+      "primaryDomain": "changes-test-1771357742959.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:05:00"
+    },
+    {
+      "id": "1230137",
+      "primaryDomain": "ack-test-1771357743364.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:05:00"
+    },
+    {
+      "id": "1230135",
+      "primaryDomain": "get-test-1771357742120.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:00:00"
+    },
+    {
+      "id": "1230134",
+      "primaryDomain": "test-monitor-1771357741597.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 23:00:00"
+    },
+    {
+      "id": "1230132",
+      "primaryDomain": "ack-test-1771344149596.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:55:00"
+    },
+    {
+      "id": "1230133",
+      "primaryDomain": "trpc-ack-1771344155762.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:55:00"
+    },
+    {
+      "id": "1230131",
+      "primaryDomain": "threat-model-1772060040536.com",
+      "status": "completed",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 22:54:00"
+    },
+    {
+      "id": "1230130",
+      "primaryDomain": "campaigns-1772060039479.com",
+      "status": "completed",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL",
+      "createdAt": "2026-02-25 22:53:59"
+    },
+    {
+      "id": "1230129",
+      "primaryDomain": "trpc-get-1772060038439.com",
+      "status": "completed",
+      "totalAssets": "5",
+      "totalFindings": "0",
+      "overallRiskScore": "60",
+      "createdAt": "2026-02-25 22:53:58"
+    },
+    {
+      "id": "1230128",
+      "primaryDomain": "findings-1772060034924.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:54"
+    },
+    {
+      "id": "1230127",
+      "primaryDomain": "scores-1772060033880.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:53"
+    },
+    {
+      "id": "1230124",
+      "primaryDomain": "other-1772060032410.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:52"
+    },
+    {
+      "id": "1230120",
+      "primaryDomain": "saas-1772060031987.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:52"
+    },
+    {
+      "id": "1230122",
+      "primaryDomain": "iaas-1772060032195.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:52"
+    },
+    {
+      "id": "1230123",
+      "primaryDomain": "mixed_hosting-1772060032301.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:52"
+    },
+    {
+      "id": "1230121",
+      "primaryDomain": "paas-1772060032093.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:52"
+    },
+    {
+      "id": "1230125",
+      "primaryDomain": "asset-test-1772060032516.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "createdAt": "2026-02-25 22:53:52"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\ttotalFindings\toverallRiskScore\tcreatedAt\n1230169\tget-test-1771395951731.com\tpassive_recon\t0\t0\tNULL\t2026-02-26 00:00:00\n1230170\ttest-monitor-1771395951137.com\tpassive_recon\t0\t0\tNULL\t2026-02-26 00:00:00\n1230168\tget-test-1771395951731.com\tpassive_recon\t0\t0\tNULL\t2026-02-25 23:59:54\n1230167\ttest-monitor-1771395951137.com\tpassive_recon\t0\t0\tNULL\t2026-02-25 23:59:50\n1230165\tack-test-1771385685092.com\tscan_complete\t0\t0\t0\t2026-02-25 23:55:00\n1230166\ttrpc-ack-1771385691282.com\tscan_complete\t0\t0\t0\t2026-02-25 23:55:00\n1230163\tchanges-test-1771385684690.com\tscan_complete\t0\t0\t0\t2026-02-25 23:50:00\n1230164\tget-test-1771385683872.com\tscan_complete\t0\t0\t0\t2026-02-25 23:50:00\n1230162\ttest-monitor-1771385683356.com\tscan_complete\t0\t0\t0\t2026-02-25 23:45:00\n1230161\ttrpc-ack-1771383835118.com\tscan_complete\t0\t0\t0\t2026-02-25 23:45:00\n1230160\tvianova.ai\tpassive_recon\t0\t0\tNULL\t2026-02-25 23:43:00\n1230159\tchanges-test-1771383828300.com\tscan_complete\t1\t373\t70\t2026-02-25 23:40:00\n1230158\tack-test-1771383828732.com\tscan_complete\t0\t0\t0\t2026-02-25 23:40:00\n1230156\ttest-monitor-1771383826883.com\tscan_complete\t0\t0\t0\t2026-02-25 23:36:48\n1230157\tget-test-1771383827436.com\tscan_complete\t0\t0\t0\t2026-02-25 23:36:48\n1230155\ttest-monitor-1771383826883.com\tscan_complete\t1\t373\t70\t2026-02-25 23:35:00\n1230154\ttrpc-ack-1771363838337.com\tscan_complete\t0\t0\t0\t2026-02-25 23:35:00\n1230152\tchanges-test-1771363831563.com\tscan_complete\t0\t0\t0\t2026-02-25 23:30:00\n1230153\tack-test-1771363831978.com\tscan_complete\t0\t0\t0\t2026-02-25 23:30:00\n1230151\tget-test-1771363830662.com\tscan_complete\t0\t0\t0\t2026-02-25 23:25:56\n1230150\ttest-monitor-1771363830143.com\tscan_complete\t0\t0\t0\t2026-02-25 23:25:54\n1230149\tget-test-1771363830662.com\tscan_complete\t0\t0\t0\t2026-02-25 23:25:09\n1230148\ttest-monitor-1771363830143.com\tscan_complete\t1\t379\t70\t2026-02-25 23:25:09\n1230146\ttest-monitor-1771363830143.com\tscan_complete\t1\t374\t73\t2026-02-25 23:25:00\n1230147\tget-test-1771363830662.com\tscan_complete\t0\t0\t0\t2026-02-25 23:25:00\n1230145\ttrpc-ack-1771357816550.com\tscan_complete\t0\t0\t0\t2026-02-25 23:20:00\n1230144\tack-test-1771357810186.com\tscan_complete\t2\t746\t66\t2026-02-25 23:20:00\n1230142\tget-test-1771357808866.com\tscan_complete\t0\t0\t0\t2026-02-25 23:15:47\n1230143\tchanges-test-1771357809771.com\tscan_complete\t0\t0\t0\t2026-02-25 23:15:47\n1230141\tchanges-test-1771357809771.com\tscan_complete\t0\t0\t0\t2026-02-25 23:13:57\n1230140\tget-test-1771357808866.com\tscan_complete\t0\t0\t0\t2026-02-25 23:13:57\n1230139\ttest-monitor-1771357808332.com\tscan_complete\t0\t0\t0\t2026-02-25 23:10:00\n1230138\ttrpc-ack-1771357749632.com\tscan_complete\t0\t0\t0\t2026-02-25 23:10:00\n1230136\tchanges-test-1771357742959.com\tscan_complete\t0\t0\t0\t2026-02-25 23:05:00\n1230137\tack-test-1771357743364.com\tscan_complete\t0\t0\t0\t2026-02-25 23:05:00\n1230135\tget-test-1771357742120.com\tscan_complete\t0\t0\t0\t2026-02-25 23:00:00\n1230134\ttest-monitor-1771357741597.com\tscan_complete\t0\t0\t0\t2026-02-25 23:00:00\n1230132\tack-test-1771344149596.com\tscan_complete\t0\t0\t0\t2026-02-25 22:55:00\n1230133\ttrpc-ack-1771344155762.com\tscan_complete\t0\t0\t0\t2026-02-25 22:55:00\n1230131\tthreat-model-1772060040536.com\tcompleted\t0\t0\tNULL\t2026-02-25 22:54:00\n1230130\tcampaigns-1772060039479.com\tcompleted\t0\t0\tNULL\t2026-02-25 22:53:59\n1230129\ttrpc-get-1772060038439.com\tcompleted\t5\t0\t60\t2026-02-25 22:53:58\n1230128\tfindings-1772060034924.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:54\n1230127\tscores-1772060033880.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:53\n1230124\tother-1772060032410.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:52\n1230120\tsaas-1772060031987.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:52\n1230122\tiaas-1772060032195.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:52\n1230123\tmixed_hosting-1772060032301.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:52\n1230121\tpaas-1772060032093.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:52\n1230125\tasset-test-1772060032516.com\tscan_complete\t0\t0\t0\t2026-02-25 22:53:52\n",
+  "stderr": "",
+  "execution_time_ms": 435
+}

@@ -4452,3 +4452,9 @@
 - [x] Write new tests for integrated connectors (cross-module-enrichment, discovery-engine, llm-post-enrichment)
 - [x] Add tRPC router for standalone Discovery Engine access
 - [x] Wire discovery engine router into appRouter
+
+## Live Scan Execution & Cleanup
+- [x] Delete all empty test scans from database (845 test scans, 8753 test assets, 729 test monitors, 416 monitor changes deleted)
+- [x] Run live domain intelligence scan on AceofCloud.com (Scan #1230174: 9 assets, 45 findings, risk 49/100 medium, 66% coverage)
+- [x] Run live domain intelligence scan on Vianova.ai (Scan #1230175: 106 assets, 1644 findings, risk 20/100 low, 84% coverage)
+- [x] Verify scan results are saved and viewable in the UI (10 clean scans in database)
