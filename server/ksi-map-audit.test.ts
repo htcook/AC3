@@ -74,9 +74,8 @@ const KSI_THEMES: KSITheme[] = [
     ],
   },
   {
-    id: "pva", name: "Persistent Validation & Assessment", totalKSIs: 4, directCoverage: 1, supportingCoverage: 2,
+    id: "pva", name: "Persistent Validation & Assessment", totalKSIs: 3, directCoverage: 1, supportingCoverage: 1,
     ksis: [
-      { id: "KSI-PVA-001", name: "Authorization Data Sharing", status: "supporting", aceModules: ["OSCAL Export", "Evidence Chain"] },
       { id: "KSI-PVA-002", name: "Ongoing Assessment Reports", status: "direct", aceModules: ["Post-Engagement Report", "Evidence Chain", "Report Generator"] },
       { id: "KSI-PVA-003", name: "Significant Change Notification", status: "supporting", aceModules: ["Config Baseline Engine", "Audit Log"] },
       { id: "KSI-PVA-004", name: "Feedback Mechanism", status: "planned", aceModules: ["Evidence Chain"] },
@@ -232,9 +231,9 @@ describe("FedRAMP KSI Map — Data Integrity Audit", () => {
     }
   });
 
-  it("total KSIs across all themes equals 46", () => {
+  it("total KSIs across all themes equals 45", () => {
     const total = KSI_THEMES.reduce((sum, t) => sum + t.totalKSIs, 0);
-    expect(total).toBe(46);
+    expect(total).toBe(45);
   });
 
   it("coverage percentage is accurately calculated", () => {
@@ -246,7 +245,7 @@ describe("FedRAMP KSI Map — Data Integrity Audit", () => {
     expect(pct).toBeLessThanOrEqual(75); // We know we have gaps
     expect(pct).toBeGreaterThanOrEqual(40); // But we do cover a lot
     expect(direct).toBe(16);
-    expect(supporting).toBe(14);
+    expect(supporting).toBe(13);
   });
 
   it("no phantom modules are referenced (regression guard)", () => {

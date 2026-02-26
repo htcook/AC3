@@ -4808,3 +4808,6 @@
 - [x] Add nav items for all three tools in sidebar (ProjectDiscovery section)
 - [x] Write vitest tests for all three services (24 tests passing)
 - [x] Add routes in App.tsx for all three pages
+
+## Cleanup
+- [x] Remove FedRAMP Authorization (KSI-PVA-001) as a tracked KSI from FedRAMPKSIMap and tests

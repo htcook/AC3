@@ -74,19 +74,13 @@ const KSI_THEMES: KSITheme[] = [
     abbrev: "PVA",
     icon: ShieldCheck,
     color: "text-emerald-400",
-    totalKSIs: 4,
+    totalKSIs: 3,
     directCoverage: 1,
-    supportingCoverage: 2,
-    description: "Machine-based validation at 3-day/7-day cadence, authorization data sharing via trust centers, and ongoing assessment reports.",
+    supportingCoverage: 1,
+    description: "Machine-based validation at 3-day/7-day cadence, ongoing assessment reports, and significant change notification.",
     cspValue: "ACE C3 generates OSCAL-formatted evidence packages from validation results and produces ongoing assessment reports with evidence artifacts. Validation Scheduler automates assessment cadence at FedRAMP-mandated frequencies.",
     agencyValue: "Agencies ingest OSCAL exports submitted by CSPs using ACE C3 to verify assessment data in machine-readable format. Evidence Chain provides tamper-resistant audit trails of all validation activities. Agencies passively monitor CSP assessment cadence, completeness, and remediation status without conducting any active testing.",
     ksis: [
-      {
-        id: "KSI-PVA-001", name: "Authorization Data Sharing", status: "supporting",
-        aceModules: ["OSCAL Export", "Evidence Chain"],
-        cspDetail: "OSCAL Export generates machine-readable SSP, SAR, and POA&M documents from platform data. Evidence Chain maintains tamper-resistant records of all assessment activities with S3-stored artifacts.",
-        agencyDetail: "Ingest OSCAL-formatted authorization packages submitted by CSPs. Evidence Chain records provide an immutable audit trail of when assessments were performed, what was tested, and what evidence was captured. Agencies review submitted data — no active testing is initiated."
-      },
       {
         id: "KSI-PVA-002", name: "Ongoing Assessment Reports", status: "direct",
         aceModules: ["Post-Engagement Report", "Evidence Chain", "Report Generator"],
