@@ -197,6 +197,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
       { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
       { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
+      { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
       { href: "/scan-scheduler", icon: Clock, label: "SCAN SCHEDULER" },
       { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
       { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },

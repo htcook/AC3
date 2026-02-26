@@ -4706,3 +4706,110 @@ export const workflowStepHistory = mysqlTable("workflow_step_history", {
 });
 export type WorkflowStepHistory = typeof workflowStepHistory.$inferSelect;
 export type InsertWorkflowStepHistory = typeof workflowStepHistory.$inferInsert;
+
+
+// ─── Web Crawler / Scanner Results ────────────────────────────────────────
+/**
+ * Lightweight web crawl results for discovered assets.
+ * Stores security-relevant metadata extracted from publicly accessible pages:
+ * response headers, technology fingerprints, forms, links, exposed paths, etc.
+ */
+export const webCrawlResults = mysqlTable("web_crawl_results", {
+  id: int("id").autoincrement().primaryKey(),
+  // Link to domain intel
+  scanId: int("scanId"),                // FK to domain_intel_scans
+  assetId: int("assetId"),              // FK to discovered_assets
+  engagementId: int("engagementId"),    // FK to engagements
+  // Target
+  targetUrl: varchar("targetUrl", { length: 2048 }).notNull(),
+  finalUrl: varchar("finalUrl", { length: 2048 }),  // after redirects
+  domain: varchar("domain", { length: 255 }).notNull(),
+  // Crawl metadata
+  status: mysqlEnum("crawlStatus", [
+    "queued", "crawling", "completed", "failed", "timeout"
+  ]).default("queued").notNull(),
+  httpStatus: int("httpStatus"),
+  responseTimeMs: int("responseTimeMs"),
+  contentType: varchar("contentType", { length: 128 }),
+  contentLength: int("contentLength"),
+  // Depth tracking
+  depth: int("depth").default(0).notNull(),   // 0 = root page
+  parentCrawlId: int("parentCrawlId"),        // FK to self for link tree
+  // Security headers analysis
+  securityHeaders: json("securityHeaders"),   // { present: [], missing: [], misconfigured: [] }
+  securityHeaderGrade: varchar("securityHeaderGrade", { length: 4 }), // A+, A, B, C, D, F
+  // Technology detection
+  detectedTechnologies: json("detectedTechnologies"), // [{ name, version, category, confidence }]
+  serverHeader: varchar("serverHeader", { length: 255 }),
+  poweredBy: varchar("poweredBy", { length: 255 }),
+  // Page content analysis
+  pageTitle: varchar("pageTitle", { length: 512 }),
+  metaDescription: text("metaDescription"),
+  // Discovered links & resources
+  internalLinks: json("internalLinks"),     // string[] of same-domain URLs
+  externalLinks: json("externalLinks"),     // string[] of external URLs
+  resourceUrls: json("resourceUrls"),       // JS/CSS/image URLs
+  // Forms & inputs (potential attack surface)
+  forms: json("forms"),                     // [{ action, method, inputs: [{ name, type }] }]
+  // Exposed paths & files
+  exposedPaths: json("exposedPaths"),       // [{ path, status, type }] robots.txt, .env, .git, etc.
+  robotsTxt: text("robotsTxt"),             // raw robots.txt content
+  securityTxt: text("securityTxt"),         // raw security.txt content
+  sitemapUrls: json("sitemapUrls"),         // URLs from sitemap.xml
+  // Cookie analysis
+  cookies: json("cookies"),                 // [{ name, secure, httpOnly, sameSite, domain, path }]
+  // TLS/SSL info
+  tlsInfo: json("tlsInfo"),                 // { protocol, cipher, validFrom, validTo, issuer, subject }
+  // Security findings
+  findings: json("findings"),              // [{ severity, title, description, category, remediation }]
+  findingCounts: json("findingCounts"),    // { critical, high, medium, low, info }
+  totalFindings: int("totalFindings").default(0),
+  // Raw response headers (for manual review)
+  rawHeaders: json("rawHeaders"),          // full header object
+  // Crawl config
+  crawlConfig: json("crawlConfig"),        // { maxDepth, maxPages, timeout, userAgent, followRedirects }
+  // Timestamps
+  crawledBy: varchar("crawledBy", { length: 64 }),
+  startedAt: bigint("startedAt", { mode: "number" }),
+  completedAt: bigint("completedAt", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type WebCrawlResult = typeof webCrawlResults.$inferSelect;
+export type InsertWebCrawlResult = typeof webCrawlResults.$inferInsert;
+
+/**
+ * Web crawl jobs — tracks a batch crawl operation across multiple URLs
+ */
+export const webCrawlJobs = mysqlTable("web_crawl_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: varchar("jobId", { length: 64 }).notNull().unique(),
+  // Context
+  scanId: int("scanId"),
+  engagementId: int("engagementId"),
+  // Config
+  targetDomain: varchar("targetDomain", { length: 255 }).notNull(),
+  seedUrls: json("seedUrls"),            // string[] of starting URLs
+  maxDepth: int("maxDepth").default(2).notNull(),
+  maxPages: int("maxPages").default(50).notNull(),
+  timeoutMs: int("timeoutMs").default(30000).notNull(),
+  respectRobotsTxt: boolean("respectRobotsTxt").default(true).notNull(),
+  // Status
+  status: mysqlEnum("jobStatus", [
+    "queued", "running", "completed", "failed", "cancelled"
+  ]).default("queued").notNull(),
+  // Aggregated stats
+  totalUrlsQueued: int("totalUrlsQueued").default(0),
+  totalUrlsCrawled: int("totalUrlsCrawled").default(0),
+  totalUrlsFailed: int("totalUrlsFailed").default(0),
+  totalFindings: int("totalFindings").default(0),
+  findingSummary: json("findingSummary"),  // { critical, high, medium, low, info }
+  technologiesSummary: json("technologiesSummary"), // aggregated tech stack
+  securityGrade: varchar("securityGrade", { length: 4 }),
+  // Timing
+  startedBy: varchar("startedBy", { length: 64 }),
+  startedAt: bigint("startedAt", { mode: "number" }),
+  completedAt: bigint("completedAt", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type WebCrawlJob = typeof webCrawlJobs.$inferSelect;
+export type InsertWebCrawlJob = typeof webCrawlJobs.$inferInsert;

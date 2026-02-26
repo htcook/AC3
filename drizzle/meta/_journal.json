@@ -337,6 +337,13 @@
       "when": 1772073469820,
       "tag": "0047_equal_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1772076546366,
+      "tag": "0048_gray_lightspeed",
+      "breakpoints": true
     }
   ]
 }

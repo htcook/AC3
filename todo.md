@@ -4512,3 +4512,14 @@
 ## Vite HMR WebSocket Fix
 - [x] Fix Vite WebSocket HMR connection error in proxied environment
 - [x] Verify /nvd-cve-matcher page loads without errors
+
+## Lightweight Web Crawler / Scanner for Domain Intelligence
+- [x] Research and select lightweight Node.js crawling libraries (axios + cheerio, no headless browser)
+- [x] Design crawl_results DB schema (web_crawl_jobs + web_crawl_results tables)
+- [x] Implement server-side web crawler service with security-focused extraction
+- [x] Add tRPC router for crawler operations (quickScan, crawlDomain, listJobs)
+- [x] Build Web Scanner UI page with Quick Scan, Domain Crawl, and History tabs
+- [x] Integrate crawler step into Domain Intelligence and Start Engagement workflows
+- [x] Extract security-relevant metadata (headers, cookies, forms, tech stack, exposed paths, TLS)
+- [x] Write vitest tests for crawler service (15 tests passing)
+- [x] Browser verification of end-to-end crawl workflow
