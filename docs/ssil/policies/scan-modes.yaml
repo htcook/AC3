@@ -1,0 +1,73 @@
+version: 1
+default_profile: strict_passive
+profiles:
+  strict_passive:
+    description: >
+      Passive-only posture. No active probing, no fuzzing, no auth brute forcing.
+      Allowed: DNS lookups, TLS handshake metadata, HTTP HEAD/GET with safe headers (no payload injection),
+      banner grabs that do not change server state.
+    allowed_scanners:
+      - zgrab2
+      - custom_dns
+      - custom_tls
+      - custom_http_headers
+    allowed_modes:
+      - passive
+    disallowed:
+      - active_scan
+      - exploitation
+      - brute_force
+      - auth_guessing
+      - payload_injection
+    rate_limits:
+      per_host_rps: 0.5
+      per_domain_concurrent: 2
+      global_concurrent: 50
+    logging:
+      log_level: INFO
+      retain_days: 90
+      include_request_hashes: true
+      include_response_hashes: true
+      store_raw_responses: false
+
+  balanced:
+    description: >
+      Passive-first with low-impact active checks allowed only after gating rules trigger.
+    allowed_scanners:
+      - zgrab2
+      - nuclei
+      - custom_dns
+      - custom_tls
+      - custom_http_headers
+    allowed_modes:
+      - passive
+      - active-low
+    rate_limits:
+      per_host_rps: 1
+      per_domain_concurrent: 4
+      global_concurrent: 100
+    logging:
+      log_level: INFO
+      retain_days: 90
+      store_raw_responses: false
+
+  aggressive_internal:
+    description: >
+      For explicitly authorized internal environments only.
+    allowed_scanners:
+      - zgrab2
+      - nuclei
+      - nmap_orchestrated
+    allowed_modes:
+      - passive
+      - active-low
+      - active-standard
+      - active-aggressive
+    rate_limits:
+      per_host_rps: 5
+      per_domain_concurrent: 10
+      global_concurrent: 250
+    logging:
+      log_level: DEBUG
+      retain_days: 30
+      store_raw_responses: false

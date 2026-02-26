@@ -1,0 +1,26 @@
+version: 1
+name: nuclei
+license: MIT
+recommended_modes: ["passive","active-low"]
+notes:
+  - Use curated template sets and allowlist tags for safe scans.
+  - Convert nuclei findings into SSIL scan_observation objects.
+
+config:
+  templates:
+    curated_dir: scanners/nuclei/templates-curated
+    allow_tags_default: ["misconfig","headers","tls","exposures"]
+    block_tags_default: ["rce","ssrf","sqli","cmdi","deserialization","bruteforce"]
+  output:
+    format: jsonl
+    normalize:
+      map_fields:
+        template_id: template-id
+        severity: info.severity
+        host: host
+        matched_at: matched-at
+
+emission:
+  scanner:
+    name: nuclei
+    adapter: nuclei-wrapper

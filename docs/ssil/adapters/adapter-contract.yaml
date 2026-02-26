@@ -1,0 +1,32 @@
+version: 1
+title: Scanner Adapter Contract
+description: >
+  Defines how scanner tools integrate with the Service Scanner Integration Layer (SSIL).
+  Adapters must emit normalized Scan Observation objects that validate against
+  schema/scan_observation.schema.json.
+
+interface:
+  inputs:
+    - asset:
+        host: string
+        port: int
+        protocol: string
+    - policy_profile: string
+    - requested_mode: string  # passive | active-low | active-standard | active-aggressive
+    - allowlist:
+        template_tags: [string]
+        paths: [string]
+    - blocklist:
+        template_tags: [string]
+        paths: [string]
+  outputs:
+    - scan_observation: object  # must validate
+    - adapter_metrics:
+        duration_ms: int
+        requests_made: int
+        errors: [string]
+
+requirements:
+  - Do not store raw responses; store only hashes/fingerprints
+  - Redact sensitive headers and tokens
+  - Provide stable observation_id generation (hash of key fields)

@@ -1,0 +1,80 @@
+version: 1
+profile_id: strict_passive
+title: Strict Passive Mode Compliance Profile
+purpose: >
+  Enforce a strict passive scanning posture suitable for conservative environments and
+  compliance-focused deployments. Prevents any actions likely to alter target state.
+
+controls:
+  guardrails:
+    - id: SP-01
+      requirement: No payload injection (no fuzzing, no attack strings, no form submissions).
+      enforcement:
+        - block_http_methods: ["POST","PUT","PATCH","DELETE"]
+        - block_body_bytes: true
+        - allow_only_safe_headers: true
+
+    - id: SP-02
+      requirement: No authentication guessing/bruteforce.
+      enforcement:
+        - disable_credential_stuffing: true
+        - disable_login_workflows: true
+
+    - id: SP-03
+      requirement: No exploit modules.
+      enforcement:
+        - disable_exploitation: true
+        - nuclei_template_tags_blocklist:
+            - rce
+            - sqli
+            - ssrf
+            - cmdi
+            - deserialization
+            - bruteforce
+            - takeover-exploit
+
+    - id: SP-04
+      requirement: Rate limiting to avoid service impact.
+      enforcement:
+        - per_host_rps: 0.5
+        - per_domain_concurrent: 2
+        - global_concurrent: 50
+        - jitter_ms_range: [50, 250]
+
+    - id: SP-05
+      requirement: Privacy-preserving evidence collection.
+      enforcement:
+        - store_raw_responses: false
+        - store_html_bodies: false
+        - store_only_hashes: true
+        - redact_headers:
+            - Authorization
+            - Cookie
+            - Set-Cookie
+
+allowed_actions:
+  dns:
+    - resolve_a_aaaa
+    - resolve_mx
+    - resolve_txt
+    - resolve_cname
+    - whois_lookup_optional
+  tls:
+    - handshake_metadata
+    - certificate_chain_parse
+    - expiry_check
+    - cipher_suite_inventory
+  http:
+    - HEAD
+    - GET_root_only
+    - fetch_security_headers
+    - robots_txt
+    - well_known_security_txt
+  banners:
+    - tcp_banner_grab_metadata_only
+
+attestation:
+  statement: >
+    When Strict Passive Mode is enabled, the system enforces technical controls that
+    prevent active exploitation, payload injection, and authentication attacks. Evidence
+    retention is limited to metadata and hashes to reduce data sensitivity.

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schema/risk_card.schema.json",
+  "title": "SSIL Risk Card (Explainable)",
+  "type": "object",
+  "required": [
+    "risk_id",
+    "asset_id",
+    "final_score",
+    "components",
+    "summary",
+    "recommendations",
+    "timestamp"
+  ],
+  "properties": {
+    "risk_id": {
+      "type": "string"
+    },
+    "asset_id": {
+      "type": "string"
+    },
+    "final_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "components": {
+      "type": "object",
+      "required": [
+        "cvss",
+        "carver",
+        "bia",
+        "confidence_weight"
+      ],
+      "properties": {
+        "cvss": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "carver": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "bia": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "confidence_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "why_it_matters": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

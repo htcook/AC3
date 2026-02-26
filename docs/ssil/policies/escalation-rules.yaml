@@ -1,0 +1,46 @@
+version: 1
+description: Passive → Active gating rules.
+notes:
+  - Escalation only applies when profile allows the target mode.
+  - Strict passive profile never escalates beyond passive.
+
+rules:
+  - id: esc-001
+    name: Admin surface discovered -> allow active-low (nuclei safe templates)
+    when:
+      all:
+        - signal.category == "auth_surface"
+        - signal.signal_type == "exposure"
+        - signal.confidence >= 0.85
+    then:
+      request_mode: active-low
+      allow_scanners: ["nuclei"]
+      template_tags_allowlist: ["misconfig","headers","tls","exposures"]
+      template_tags_blocklist: ["rce","ssrf","sqli","cmdi","deserialization","bruteforce"]
+
+  - id: esc-002
+    name: Dangling CNAME indicators -> enrich with DNS takeover templates (passive checks only)
+    when:
+      all:
+        - signal.category == "dns_takeover"
+        - signal.signal_type in ["weak_signal","exposure"]
+        - signal.confidence >= 0.70
+    then:
+      request_mode: passive
+      allow_scanners: ["custom_dns"]
+      actions:
+        - "resolve_target"
+        - "check_known_dangling_patterns"
+
+  - id: esc-003
+    name: Exposed management port -> active-low fingerprint only
+    when:
+      all:
+        - observation.observation_type == "service_banner"
+        - observation.severity in ["medium","high","critical"]
+        - observation.confidence >= 0.80
+    then:
+      request_mode: active-low
+      allow_scanners: ["zgrab2"]
+      actions:
+        - "protocol_probe_metadata_only"
