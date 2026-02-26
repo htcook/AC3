@@ -837,4 +837,29 @@ export const agentManagerRouter = router({
       },
     };
   }),
+
+  // ─── TLS Audit ──────────────────────────────────────────────────────
+
+  /** Audit current TLS configuration for FIPS compliance */
+  auditTLS: protectedProcedure.query(async () => {
+    const { auditTLSConfiguration } = await import("../lib/fips-tls");
+    const { isFIPSTLSEnforced } = await import("../lib/fips-tls-global");
+    const audit = auditTLSConfiguration();
+    return {
+      ...audit,
+      globalEnforcement: isFIPSTLSEnforced(),
+      timestamp: Date.now(),
+    };
+  }),
+
+  /** Test a TLS connection to a remote host for FIPS compliance */
+  testTLSConnection: protectedProcedure
+    .input(z.object({
+      hostname: z.string().min(1),
+      port: z.number().min(1).max(65535).default(443),
+    }))
+    .mutation(async ({ input }) => {
+      const { testFIPSTLSConnection } = await import("../lib/fips-tls");
+      return testFIPSTLSConnection(input.hostname, input.port);
+    }),
 });

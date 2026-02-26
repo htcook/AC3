@@ -46,15 +46,18 @@ export async function getDb() {
     dbUrl = dbUrl.replace(/[?&]ssl=[^&]*/g, '').replace(/\?$/, '');
     
     if (needsSsl) {
-      // For TiDB Cloud, pass ssl as connection option via mysql2 pool
+      // FIPS 140-3: Enforce FIPS-approved TLS cipher suites on DB connection
+      const { getFIPSDatabaseSSLConfig } = await import('./lib/fips-tls');
+      const fipsSSL = getFIPSDatabaseSSLConfig();
       const mysql2 = await import('mysql2');
       const pool = mysql2.createPool({
         uri: dbUrl,
-        ssl: { rejectUnauthorized: false },
+        ...fipsSSL,
         waitForConnections: true,
         connectionLimit: 10,
       });
       _db = drizzle({ client: pool });
+      console.log('[Database] FIPS TLS enforced on connection');
     } else {
       _db = drizzle(dbUrl);
     }

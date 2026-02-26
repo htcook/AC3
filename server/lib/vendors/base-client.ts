@@ -3,6 +3,7 @@
  * Provides OAuth2/token auth, circuit breaker, health checks, and normalized error handling.
  */
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
+import { getFIPSHttpsAgent } from "../fips-tls";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ export abstract class BaseVendorClient {
     this.connectionConfig = connectionConfig;
     this.circuit = { failures: 0, lastFailure: 0, isOpen: false, halfOpenAttempts: 0 };
 
+    // FIPS 140-3: Enforce FIPS-approved TLS on all vendor API connections
     this.httpClient = axios.create({
       baseURL: connectionConfig.baseUrl,
       timeout: connectionConfig.timeout ?? 30_000,
@@ -99,6 +101,7 @@ export abstract class BaseVendorClient {
         "Accept": "application/json",
         ...connectionConfig.customHeaders,
       },
+      httpsAgent: getFIPSHttpsAgent(),
     });
   }
 

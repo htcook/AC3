@@ -380,12 +380,22 @@ export const appRouter = router({
         sshKeyPath: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        await db.createCredential(input);
+        const { encryptServerCredential } = await import("./lib/credential-crypto");
+        const encryptedInput = { ...input } as any;
+        if (input.password) {
+          const enc = encryptServerCredential(input.password);
+          encryptedInput.password = JSON.stringify(enc);
+        }
+        if (input.apiKey) {
+          const enc = encryptServerCredential(input.apiKey);
+          encryptedInput.apiKey = JSON.stringify(enc);
+        }
+        await db.createCredential(encryptedInput);
         await db.logActivity({
           userId: ctx.user.id,
           serverId: input.serverId,
           action: 'credential_created',
-          details: `Added ${input.credentialType} credential`,
+          details: `Added ${input.credentialType} credential (FIPS encrypted)`,
         });
         return { success: true };
       }),
@@ -400,11 +410,21 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;
-        await db.updateCredential(id, updates);
+        const { encryptServerCredential } = await import("./lib/credential-crypto");
+        const encryptedUpdates = { ...updates } as any;
+        if (updates.password) {
+          const enc = encryptServerCredential(updates.password);
+          encryptedUpdates.password = JSON.stringify(enc);
+        }
+        if (updates.apiKey) {
+          const enc = encryptServerCredential(updates.apiKey);
+          encryptedUpdates.apiKey = JSON.stringify(enc);
+        }
+        await db.updateCredential(id, encryptedUpdates);
         await db.logActivity({
           userId: ctx.user.id,
           action: 'credential_updated',
-          details: `Updated credential ID: ${id}`,
+          details: `Updated credential ID: ${id} (FIPS encrypted)`,
         });
         return { success: true };
       }),

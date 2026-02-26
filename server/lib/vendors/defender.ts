@@ -5,6 +5,7 @@
  */
 import axios from "axios";
 import { BaseVendorClient, VendorError } from "./base-client";
+import { getFIPSHttpsAgent } from "../fips-tls";
 import type {
   VendorAuthConfig,
   VendorConnectionConfig,
@@ -108,6 +109,7 @@ export class DefenderClient extends BaseVendorClient {
         {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           timeout: 15_000,
+          httpsAgent: getFIPSHttpsAgent(),
         }
       );
 

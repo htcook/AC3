@@ -128,14 +128,19 @@ export const sshKeysRouter = router({
       // Generate fingerprint from public key
       const fingerprint = generateFingerprint(publicKey);
 
+      // FIPS 140-3: Encrypt private key at rest
+      const { encryptSSHPrivateKey, encryptServerCredential } = await import("../lib/credential-crypto");
+      const encryptedPrivateKey = JSON.stringify(encryptSSHPrivateKey(privateKey));
+      const encryptedPassphrase = input.passphrase ? JSON.stringify(encryptServerCredential(input.passphrase)) : null;
+
       const [result] = await dbConn.insert(sshKeys).values({
         name: input.name,
         fingerprint,
         publicKey: opensshPublicKey,
-        privateKey,
+        privateKey: encryptedPrivateKey,
         keyType: input.keyType,
         bitLength: actualBitLength,
-        passphrase: input.passphrase || null,
+        passphrase: encryptedPassphrase,
         isDefault: false,
         createdBy: ctx.user?.openId || null,
       }).$returningId();
@@ -167,13 +172,18 @@ export const sshKeysRouter = router({
 
       const fingerprint = generateFingerprint(input.publicKey);
 
+      // FIPS 140-3: Encrypt private key at rest
+      const { encryptSSHPrivateKey, encryptServerCredential } = await import("../lib/credential-crypto");
+      const encryptedPrivateKey = JSON.stringify(encryptSSHPrivateKey(input.privateKey));
+      const encryptedPassphrase = input.passphrase ? JSON.stringify(encryptServerCredential(input.passphrase)) : null;
+
       const [result] = await dbConn.insert(sshKeys).values({
         name: input.name,
         fingerprint,
         publicKey: input.publicKey,
-        privateKey: input.privateKey,
+        privateKey: encryptedPrivateKey,
         keyType: input.keyType,
-        passphrase: input.passphrase || null,
+        passphrase: encryptedPassphrase,
         isDefault: false,
         createdBy: ctx.user?.openId || null,
       }).$returningId();
@@ -297,9 +307,13 @@ export const sshKeysRouter = router({
       const opensshPublicKey = convertPemToOpenSSH(publicKey, input.keyType, existingKey.name);
       const fingerprint = generateFingerprint(publicKey);
 
+      // FIPS 140-3: Encrypt rotated private key at rest
+      const { encryptSSHPrivateKey } = await import("../lib/credential-crypto");
+      const encryptedPrivateKey = JSON.stringify(encryptSSHPrivateKey(privateKey));
+
       await dbConn.update(sshKeys).set({
         publicKey: opensshPublicKey,
-        privateKey,
+        privateKey: encryptedPrivateKey,
         fingerprint,
         keyType: input.keyType,
       }).where(eq(sshKeys.id, input.id));

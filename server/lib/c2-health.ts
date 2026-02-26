@@ -11,6 +11,13 @@
  */
 
 import { getFIPSCrypto, type EncryptedPayload } from "./fips-crypto";
+import { getFIPSHttpsAgent } from "./fips-tls";
+
+// FIPS 140-3: All outbound C2 connections use FIPS-approved TLS
+const fipsFetchOptions = () => ({
+  // @ts-ignore - Node.js specific agent option for fetch
+  agent: getFIPSHttpsAgent(),
+});
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -63,6 +70,7 @@ async function checkCaldera(baseUrl: string, authConfig: Record<string, unknown>
         "Accept": "application/json",
       },
       signal: controller.signal,
+      ...fipsFetchOptions(),
     });
     clearTimeout(timeout);
 
@@ -140,6 +148,7 @@ async function checkSliver(baseUrl: string, authConfig: Record<string, unknown>)
         "Accept": "application/json",
       },
       signal: controller.signal,
+      ...fipsFetchOptions(),
     });
     clearTimeout(timeout);
 
@@ -170,6 +179,7 @@ async function checkSliver(baseUrl: string, authConfig: Record<string, unknown>)
         const rootResp = await fetch(rootUrl, {
           method: "GET",
           signal: rootController.signal,
+          ...fipsFetchOptions(),
         });
         clearTimeout(rootTimeout);
         const rootLatency = Date.now() - startTime;
@@ -238,6 +248,7 @@ async function checkMetasploit(baseUrl: string, authConfig: Record<string, unkno
       method: "GET",
       headers,
       signal: controller.signal,
+      ...fipsFetchOptions(),
     });
     clearTimeout(timeout);
 
@@ -275,6 +286,7 @@ async function checkMetasploit(baseUrl: string, authConfig: Record<string, unkno
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password }),
           signal: authController.signal,
+          ...fipsFetchOptions(),
         });
         clearTimeout(authTimeout);
         const authLatency = Date.now() - startTime;

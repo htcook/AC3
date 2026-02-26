@@ -11,6 +11,7 @@ import { createContext } from "./context";
 import { ENV } from "./env";
 import { serveStatic, setupVite } from "./vite";
 import { eventHub } from "../lib/ws-event-hub";
+import { enforceFIPSTLS } from "../lib/fips-tls-global";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -32,6 +33,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // FIPS 140-3: Enforce FIPS-approved TLS globally before any connections
+  enforceFIPSTLS();
+
   const app = express();
   const server = createServer(app);
   // Trust proxy headers (X-Forwarded-Proto, X-Forwarded-Host) so Express

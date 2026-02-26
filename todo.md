@@ -4647,3 +4647,15 @@
 - [x] Owner notification on compliance degradation
 - [x] Last audit timestamp tracking
 - [x] Audit schedule configuration
+
+## FIPS 140-3 Data-at-Rest / Data-in-Transit Remediation
+- [x] Migrate credential-crypto.ts to use FIPSCryptoService (replace ad-hoc AES-256-GCM with HKDF key derivation)
+- [x] Encrypt server_credentials (password, apiKey) at rest via FIPS crypto before DB insert
+- [x] Encrypt SSH private keys at rest via FIPS crypto before DB insert
+- [x] Enforce FIPS-approved TLS cipher suites on database connections
+- [x] Enforce FIPS-approved TLS cipher suites on all outbound HTTP/axios calls (C2, vendor APIs)
+- [x] Replace HS256 JWT signing with HMAC-SHA256 via FIPS crypto service (or document HS256 FIPS status)
+  - Note: HS256 uses HMAC-SHA256 which is FIPS-approved. No change needed — documented.
+- [x] Create FIPS TLS configuration helper for Node.js https.Agent
+- [x] Write tests for FIPS-wrapped credential encryption/decryption
+- [x] Write tests for FIPS TLS enforcement on outbound connections

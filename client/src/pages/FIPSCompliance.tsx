@@ -380,6 +380,137 @@ function ComplianceHistory() {
   );
 }
 
+// ─── TLS Audit Panel ──────────────────────────────────────────────────────
+
+function TLSAuditPanel() {
+  const tlsAudit = trpc.agentManager.auditTLS.useQuery();
+  const testConnection = trpc.agentManager.testTLSConnection.useMutation({
+    onSuccess: (data) => {
+      if (data.connected && data.fipsApproved) {
+        toast.success(`TLS connection FIPS-compliant: ${data.protocol} / ${data.cipher}`);
+      } else if (data.connected) {
+        toast.warning(`Connected but cipher ${data.cipher} may not be FIPS-approved`);
+      } else {
+        toast.error(`Connection failed: ${data.error || "Unknown error"}`);
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const [testHost, setTestHost] = useState("");
+
+  if (tlsAudit.isLoading) return <Skeleton className="h-48 bg-zinc-800/50" />;
+
+  const data = tlsAudit.data;
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Server className="h-5 w-5 text-blue-400" />
+          TLS Configuration Audit
+        </CardTitle>
+        <CardDescription>Data-in-transit FIPS compliance — cipher suites, protocol versions, and global enforcement</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Global Enforcement Status */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50">
+            <div className="text-xs text-zinc-500 mb-1">Global TLS Enforcement</div>
+            <div className="flex items-center gap-2">
+              {data?.globalEnforcement ? (
+                <><CheckCircle className="h-4 w-4 text-emerald-400" /><span className="text-sm text-emerald-400">Active</span></>
+              ) : (
+                <><XCircle className="h-4 w-4 text-red-400" /><span className="text-sm text-red-400">Inactive</span></>
+              )}
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50">
+            <div className="text-xs text-zinc-500 mb-1">Minimum TLS Version</div>
+            <span className="text-sm font-mono text-zinc-200">{data?.minVersion || "—"}</span>
+          </div>
+          <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50">
+            <div className="text-xs text-zinc-500 mb-1">FIPS Cipher Suites</div>
+            <span className="text-sm font-mono text-zinc-200">{data?.cipherSuites?.length || 0} approved</span>
+          </div>
+        </div>
+
+        {/* Cipher Suite List */}
+        <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50">
+          <div className="text-xs text-zinc-500 mb-2">Approved Cipher Suites (NIST SP 800-52 Rev. 2)</div>
+          <div className="flex flex-wrap gap-1">
+            {data?.cipherSuites?.map((cipher, i) => (
+              <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-emerald-500/10 text-emerald-400 font-mono">
+                {cipher}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Non-Compliant Ciphers */}
+        {data?.nonCompliantCiphers && data.nonCompliantCiphers.length > 0 && (
+          <div className="p-3 rounded-lg bg-red-900/10 border border-red-800/30">
+            <div className="text-xs text-red-400 mb-2 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Non-FIPS Ciphers in Node.js Defaults (blocked by global enforcement)
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {data.nonCompliantCiphers.slice(0, 10).map((cipher, i) => (
+                <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-red-500/10 text-red-400 font-mono line-through">
+                  {cipher}
+                </span>
+              ))}
+              {data.nonCompliantCiphers.length > 10 && (
+                <span className="text-xs text-red-400">+{data.nonCompliantCiphers.length - 10} more</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Connection Tester */}
+        <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50">
+          <div className="text-xs text-zinc-500 mb-2">Test TLS Connection</div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="hostname (e.g. api.example.com)"
+              value={testHost}
+              onChange={(e) => setTestHost(e.target.value)}
+              className="flex-1 px-3 py-1.5 rounded bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!testHost || testConnection.isPending}
+              onClick={() => testConnection.mutate({ hostname: testHost, port: 443 })}
+            >
+              {testConnection.isPending ? "Testing..." : "Test"}
+            </Button>
+          </div>
+          {testConnection.data && (
+            <div className="mt-2 text-xs space-y-1">
+              <div className="flex items-center gap-2">
+                {testConnection.data.fipsApproved ? (
+                  <CheckCircle className="h-3 w-3 text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="h-3 w-3 text-amber-400" />
+                )}
+                <span className="text-zinc-300">
+                  {testConnection.data.connected ? "Connected" : "Failed"} — {testConnection.data.protocol} / {testConnection.data.cipher}
+                </span>
+              </div>
+              {testConnection.data.error && (
+                <div className="text-red-400">{testConnection.data.error}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs text-zinc-600">{data?.details}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────
 
 export default function FIPSCompliance() {
@@ -399,6 +530,9 @@ export default function FIPSCompliance() {
 
         {/* Status */}
         <FIPSStatusCard />
+
+        {/* TLS Audit */}
+        <TLSAuditPanel />
 
         {/* Audit Runner */}
         <AuditRunner />
