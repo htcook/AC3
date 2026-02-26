@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS mtls_certificates (\n  id VARCHAR(36) PRIMARY KEY,\n  type ENUM('ca', 'client') NOT NULL,\n  commonName VARCHAR(255) NOT NULL,\n  serialNumber VARCHAR(64) NOT NULL,\n  issuer VARCHAR(255) NOT NULL,\n  subject VARCHAR(255) NOT NULL,\n  validFrom BIGINT NOT NULL,\n  validTo BIGINT NOT NULL,\n  fingerprint VARCHAR(128) NOT NULL,\n  certificate TEXT NOT NULL,\n  encryptedPrivateKey TEXT NOT NULL,\n  c2ServerId VARCHAR(36),\n  status ENUM('active', 'revoked', 'expired') DEFAULT 'active' NOT NULL,\n  createdAt BIGINT NOT NULL,\n  INDEX idx_type_status (type, status),\n  INDEX idx_c2server (c2ServerId, status)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS mtls_certificates (\n  id VARCHAR(36) PRIMARY KEY,\n  type ENUM('ca', 'client') NOT NULL,\n  commonName VARCHAR(255) NOT NULL,\n  serialNumber VARCHAR(64) NOT NULL,\n  issuer VARCHAR(255) NOT NULL,\n  subject VARCHAR(255) NOT NULL,\n  validFrom BIGINT NOT NULL,\n  validTo BIGINT NOT NULL,\n  fingerprint VARCHAR(128) NOT NULL,\n  certificate TEXT NOT NULL,\n  encryptedPrivateKey TEXT NOT NULL,\n  c2ServerId VARCHAR(36),\n  status ENUM('active', 'revoked', 'expired') DEFAULT 'active' NOT NULL,\n  createdAt BIGINT NOT NULL,\n  INDEX idx_type_status (type, status),\n  INDEX idx_c2server (c2ServerId, status)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 340
+}

@@ -22,6 +22,12 @@ import {
   Server,
   FileText,
   Copy,
+  Database,
+  ArrowRightLeft,
+  ShieldPlus,
+  Award,
+  Trash2,
+  Download,
 } from "lucide-react";
 
 function formatTimestamp(ts: number | null | undefined): string {
@@ -513,6 +519,294 @@ function TLSAuditPanel() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────
 
+// ─── Credential Migration Panel ──────────────────────────────────────────
+
+function CredentialMigrationPanel() {
+  const scanQuery = trpc.agentManager.scanCredentialMigration.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const migrateMutation = trpc.agentManager.runCredentialMigration.useMutation({
+    onSuccess: (report) => {
+      toast.success(
+        `Migration complete: ${report.summary.totalMigrated} migrated, ${report.summary.totalFailed} failed (${report.durationMs}ms)`
+      );
+      scanQuery.refetch();
+    },
+    onError: (err) => toast.error(`Migration failed: ${err.message}`),
+  });
+
+  const scan = scanQuery.data;
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader>
+        <CardTitle className="text-zinc-100 flex items-center gap-2">
+          <Database className="h-5 w-5 text-blue-400" />
+          Credential Migration to FIPS
+        </CardTitle>
+        <CardDescription>
+          Detect and re-encrypt legacy credentials with FIPS 140-3 approved cryptography
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {scanQuery.isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        ) : scan ? (
+          <>
+            {/* Summary Bar */}
+            <div className="flex items-center gap-4 p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  {scan.summary.migrationNeeded ? (
+                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5 text-emerald-400" />
+                  )}
+                  <span className="text-sm font-medium text-zinc-200">
+                    {scan.summary.migrationNeeded
+                      ? `${scan.summary.totalLegacy} credentials need FIPS migration`
+                      : "All credentials are FIPS-encrypted"}
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="w-full bg-zinc-700 rounded-full h-2">
+                  <div
+                    className="bg-emerald-500 h-2 rounded-full transition-all"
+                    style={{ width: `${scan.summary.fipsPercentage}%` }}
+                  />
+                </div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {scan.summary.totalFips} / {scan.summary.totalCredentials} FIPS-encrypted ({scan.summary.fipsPercentage}%)
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => migrateMutation.mutate()}
+                disabled={!scan.summary.migrationNeeded || migrateMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-500"
+              >
+                {migrateMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <ArrowRightLeft className="h-4 w-4 mr-1" />
+                )}
+                {migrateMutation.isPending ? "Migrating..." : "Run Migration"}
+              </Button>
+            </div>
+
+            {/* Breakdown Table */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-700/30">
+                <div className="text-xs text-zinc-500 mb-1">Server Credentials</div>
+                <div className="text-lg font-mono text-zinc-200">{scan.serverCredentials.total}</div>
+                <div className="text-xs text-zinc-500">
+                  <span className="text-emerald-400">{scan.serverCredentials.fips} FIPS</span>
+                  {scan.serverCredentials.legacy > 0 && (
+                    <span className="text-amber-400 ml-2">{scan.serverCredentials.legacy} legacy</span>
+                  )}
+                  {scan.serverCredentials.plaintext > 0 && (
+                    <span className="text-red-400 ml-2">{scan.serverCredentials.plaintext} plaintext</span>
+                  )}
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-700/30">
+                <div className="text-xs text-zinc-500 mb-1">SSH Keys</div>
+                <div className="text-lg font-mono text-zinc-200">{scan.sshKeys.total}</div>
+                <div className="text-xs text-zinc-500">
+                  <span className="text-emerald-400">{scan.sshKeys.fips} FIPS</span>
+                  {scan.sshKeys.legacy > 0 && (
+                    <span className="text-amber-400 ml-2">{scan.sshKeys.legacy} legacy</span>
+                  )}
+                  {scan.sshKeys.plaintext > 0 && (
+                    <span className="text-red-400 ml-2">{scan.sshKeys.plaintext} plaintext</span>
+                  )}
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-700/30">
+                <div className="text-xs text-zinc-500 mb-1">Cloud Credentials</div>
+                <div className="text-lg font-mono text-zinc-200">{scan.cloudCredentials.total}</div>
+                <div className="text-xs text-zinc-500">
+                  <span className="text-emerald-400">{scan.cloudCredentials.fips} FIPS</span>
+                  {scan.cloudCredentials.legacy > 0 && (
+                    <span className="text-amber-400 ml-2">{scan.cloudCredentials.legacy} legacy</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-zinc-500">Unable to scan credentials</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── mTLS Certificate Panel ─────────────────────────────────────────────
+
+function MTLSCertificatePanel() {
+  const certsQuery = trpc.agentManager.listMTLSCerts.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const ensureCAMutation = trpc.agentManager.ensureMTLSCA.useMutation({
+    onSuccess: () => {
+      toast.success("Internal CA initialized");
+      certsQuery.refetch();
+    },
+    onError: (err) => toast.error(`CA initialization failed: ${err.message}`),
+  });
+  const revokeMutation = trpc.agentManager.revokeMTLSCert.useMutation({
+    onSuccess: () => {
+      toast.success("Certificate revoked");
+      certsQuery.refetch();
+    },
+    onError: (err) => toast.error(`Revocation failed: ${err.message}`),
+  });
+
+  const certs = certsQuery.data ?? [];
+  const caCerts = certs.filter((c) => c.type === "ca");
+  const clientCerts = certs.filter((c) => c.type === "client");
+  const hasCA = caCerts.some((c) => c.status === "active");
+
+  function handleDownload(cert: { certificate: string; commonName: string }) {
+    const blob = new Blob([cert.certificate], { type: "application/x-pem-file" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${cert.commonName.replace(/[^a-zA-Z0-9.-]/g, "_")}.pem`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-zinc-100 flex items-center gap-2">
+              <Award className="h-5 w-5 text-purple-400" />
+              mTLS Client Certificates
+            </CardTitle>
+            <CardDescription>
+              ECDSA P-256 client certificates for mutual TLS authentication with C2 servers
+            </CardDescription>
+          </div>
+          {!hasCA && (
+            <Button
+              size="sm"
+              onClick={() => ensureCAMutation.mutate()}
+              disabled={ensureCAMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-500"
+            >
+              {ensureCAMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <ShieldPlus className="h-4 w-4 mr-1" />
+              )}
+              Initialize CA
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {certsQuery.isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : (
+          <>
+            {/* CA Status */}
+            <div className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+              <div className="flex items-center gap-2 mb-2">
+                {hasCA ? (
+                  <CheckCircle className="h-5 w-5 text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5 text-amber-400" />
+                )}
+                <span className="text-sm font-medium text-zinc-200">
+                  {hasCA ? "Internal CA Active" : "No Internal CA — initialize to enable mTLS"}
+                </span>
+              </div>
+              {caCerts.filter((c) => c.status === "active").map((ca) => (
+                <div key={ca.id} className="text-xs text-zinc-500 space-y-1 mt-2">
+                  <div>CN: <span className="text-zinc-400 font-mono">{ca.commonName}</span></div>
+                  <div>Fingerprint: <span className="text-zinc-400 font-mono">{ca.fingerprint.slice(0, 32)}...</span></div>
+                  <div>Valid: {formatTimestamp(ca.validFrom)} → {formatTimestamp(ca.validTo)}</div>
+                  <div>Algorithm: <Badge variant="outline" className="text-xs">ECDSA P-256 + SHA-256</Badge></div>
+                </div>
+              ))}
+            </div>
+
+            {/* Client Certificates */}
+            {clientCerts.length > 0 ? (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-zinc-300">Client Certificates ({clientCerts.length})</h4>
+                {clientCerts.map((cert) => (
+                  <div
+                    key={cert.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/30 border border-zinc-700/30"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Key className="h-4 w-4 text-zinc-500" />
+                        <span className="text-sm font-mono text-zinc-300">{cert.commonName}</span>
+                        <Badge
+                          variant="outline"
+                          className={cert.status === "active"
+                            ? "text-emerald-400 border-emerald-500/30"
+                            : cert.status === "revoked"
+                            ? "text-red-400 border-red-500/30"
+                            : "text-amber-400 border-amber-500/30"}
+                        >
+                          {cert.status}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-zinc-500 mt-1">
+                        Serial: {cert.serialNumber.slice(0, 16)}... | Expires: {formatTimestamp(cert.validTo)}
+                        {cert.c2ServerId && <span> | Server: {cert.c2ServerId.slice(0, 8)}...</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDownload(cert)}
+                        title="Download PEM"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      {cert.status === "active" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => revokeMutation.mutate({ id: cert.id })}
+                          disabled={revokeMutation.isPending}
+                          title="Revoke"
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : hasCA ? (
+              <p className="text-sm text-zinc-500">
+                No client certificates issued yet. Issue certificates from the Agent Manager when adding C2 servers.
+              </p>
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function FIPSCompliance() {
   return (
     <AppShell>
@@ -530,6 +824,12 @@ export default function FIPSCompliance() {
 
         {/* Status */}
         <FIPSStatusCard />
+
+        {/* Credential Migration */}
+        <CredentialMigrationPanel />
+
+        {/* mTLS Certificates */}
+        <MTLSCertificatePanel />
 
         {/* TLS Audit */}
         <TLSAuditPanel />

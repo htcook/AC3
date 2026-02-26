@@ -4659,3 +4659,22 @@
 - [x] Create FIPS TLS configuration helper for Node.js https.Agent
 - [x] Write tests for FIPS-wrapped credential encryption/decryption
 - [x] Write tests for FIPS TLS enforcement on outbound connections
+
+## Legacy Credential Migration to FIPS
+- [x] Migration script to detect plaintext/legacy-encrypted credentials in DB
+- [x] Re-encrypt server_credentials (password, apiKey) with FIPS crypto
+- [x] Re-encrypt SSH private keys with FIPS crypto
+- [x] Re-encrypt cloud provider credentials with FIPS crypto
+- [x] Migration status tracking (migrated count, errors, timestamp)
+- [x] Admin UI panel showing migration progress and trigger button
+- [x] Rollback safety: preserve original encrypted data during migration
+- [x] Tests for migration logic
+
+## mTLS Client Certificates for C2 Connections
+- [x] ECDSA P-256 client certificate generation via FIPS crypto service
+- [x] Self-signed CA for internal mTLS certificate issuance
+- [x] Per-C2-server client certificate storage in database
+- [x] mTLS configuration on outbound C2 health check connections
+- [x] Certificate rotation and expiry tracking
+- [x] Admin UI for certificate management (generate, view, revoke, download)
+- [x] Tests for mTLS certificate generation and connection

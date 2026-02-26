@@ -11,13 +11,36 @@
  */
 
 import { getFIPSCrypto, type EncryptedPayload } from "./fips-crypto";
-import { getFIPSHttpsAgent } from "./fips-tls";
+import { getFIPSHttpsAgent, createFIPSHttpsAgent } from "./fips-tls";
+import { getMTLSConfigForServer } from "./mtls-certs";
+import https from "https";
 
 // FIPS 140-3: All outbound C2 connections use FIPS-approved TLS
 const fipsFetchOptions = () => ({
   // @ts-ignore - Node.js specific agent option for fetch
   agent: getFIPSHttpsAgent(),
 });
+
+/**
+ * Build fetch options with mTLS if a client certificate is available for this server.
+ * Falls back to standard FIPS TLS if no mTLS cert exists.
+ */
+async function mtlsFetchOptions(serverId: string) {
+  try {
+    const mtls = await getMTLSConfigForServer(serverId);
+    if (mtls) {
+      const agent = createFIPSHttpsAgent({
+        cert: mtls.cert,
+        key: mtls.key,
+        ca: mtls.ca,
+      });
+      return { agent };
+    }
+  } catch {
+    // Fall back to standard FIPS TLS
+  }
+  return fipsFetchOptions();
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -53,7 +76,7 @@ function decryptAuthConfig(serverId: string, encrypted: string): Record<string, 
 
 // ─── CALDERA Health Check ───────────────────────────────────────────────
 
-async function checkCaldera(baseUrl: string, authConfig: Record<string, unknown>): Promise<HealthCheckResult> {
+async function checkCaldera(baseUrl: string, authConfig: Record<string, unknown>, fetchOpts?: Record<string, any>): Promise<HealthCheckResult> {
   const startTime = Date.now();
   const apiKey = (authConfig.apiKey as string) || "";
 
@@ -70,7 +93,7 @@ async function checkCaldera(baseUrl: string, authConfig: Record<string, unknown>
         "Accept": "application/json",
       },
       signal: controller.signal,
-      ...fipsFetchOptions(),
+      ...(fetchOpts ?? fipsFetchOptions()),
     });
     clearTimeout(timeout);
 
@@ -131,7 +154,7 @@ async function checkCaldera(baseUrl: string, authConfig: Record<string, unknown>
 
 // ─── Sliver Health Check ────────────────────────────────────────────────
 
-async function checkSliver(baseUrl: string, authConfig: Record<string, unknown>): Promise<HealthCheckResult> {
+async function checkSliver(baseUrl: string, authConfig: Record<string, unknown>, fetchOpts?: Record<string, any>): Promise<HealthCheckResult> {
   const startTime = Date.now();
   const token = (authConfig.token as string) || (authConfig.apiKey as string) || "";
 
@@ -148,7 +171,7 @@ async function checkSliver(baseUrl: string, authConfig: Record<string, unknown>)
         "Accept": "application/json",
       },
       signal: controller.signal,
-      ...fipsFetchOptions(),
+      ...(fetchOpts ?? fipsFetchOptions()),
     });
     clearTimeout(timeout);
 
@@ -179,7 +202,7 @@ async function checkSliver(baseUrl: string, authConfig: Record<string, unknown>)
         const rootResp = await fetch(rootUrl, {
           method: "GET",
           signal: rootController.signal,
-          ...fipsFetchOptions(),
+          ...(fetchOpts ?? fipsFetchOptions()),
         });
         clearTimeout(rootTimeout);
         const rootLatency = Date.now() - startTime;
@@ -223,7 +246,7 @@ async function checkSliver(baseUrl: string, authConfig: Record<string, unknown>)
 
 // ─── Metasploit Health Check ────────────────────────────────────────────
 
-async function checkMetasploit(baseUrl: string, authConfig: Record<string, unknown>): Promise<HealthCheckResult> {
+async function checkMetasploit(baseUrl: string, authConfig: Record<string, unknown>, fetchOpts?: Record<string, any>): Promise<HealthCheckResult> {
   const startTime = Date.now();
   const apiKey = (authConfig.apiKey as string) || (authConfig.token as string) || "";
   const username = (authConfig.username as string) || "";
@@ -248,7 +271,7 @@ async function checkMetasploit(baseUrl: string, authConfig: Record<string, unkno
       method: "GET",
       headers,
       signal: controller.signal,
-      ...fipsFetchOptions(),
+      ...(fetchOpts ?? fipsFetchOptions()),
     });
     clearTimeout(timeout);
 
@@ -286,7 +309,7 @@ async function checkMetasploit(baseUrl: string, authConfig: Record<string, unkno
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password }),
           signal: authController.signal,
-          ...fipsFetchOptions(),
+          ...(fetchOpts ?? fipsFetchOptions()),
         });
         clearTimeout(authTimeout);
         const authLatency = Date.now() - startTime;
@@ -338,13 +361,16 @@ async function checkMetasploit(baseUrl: string, authConfig: Record<string, unkno
 export async function checkC2Health(server: C2ServerRecord): Promise<HealthCheckResult> {
   const authConfig = decryptAuthConfig(server.id, server.authConfigEncrypted);
 
+  // Attempt mTLS — falls back to standard FIPS TLS if no client cert exists
+  const fetchOpts = await mtlsFetchOptions(server.id);
+
   switch (server.type) {
     case "caldera":
-      return checkCaldera(server.baseUrl, authConfig);
+      return checkCaldera(server.baseUrl, authConfig, fetchOpts);
     case "sliver":
-      return checkSliver(server.baseUrl, authConfig);
+      return checkSliver(server.baseUrl, authConfig, fetchOpts);
     case "metasploit":
-      return checkMetasploit(server.baseUrl, authConfig);
+      return checkMetasploit(server.baseUrl, authConfig, fetchOpts);
     default:
       return {
         status: "error",

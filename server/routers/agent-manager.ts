@@ -22,6 +22,16 @@ import { getFIPSCrypto } from "../lib/fips-crypto";
 import { checkC2Health } from "../lib/c2-health";
 import { processHeartbeat, runWatchdogSweep, type HeartbeatPayload } from "../lib/agent-heartbeat";
 import { runScheduledFipsAudit } from "../lib/fips-audit-scheduler";
+import { scanCredentials, runFullMigration } from "../lib/credential-migration";
+import {
+  ensureCA,
+  issueClientCertForServer,
+  listCertificates,
+  revokeCertificate,
+  getCertificateWithKey,
+  getMTLSConfigForServer,
+  type CertificateInfo,
+} from "../lib/mtls-certs";
 
 // ─── Input Schemas ────────────────────────────────────────────────────────
 
@@ -861,5 +871,99 @@ export const agentManagerRouter = router({
     .mutation(async ({ input }) => {
       const { testFIPSTLSConnection } = await import("../lib/fips-tls");
       return testFIPSTLSConnection(input.hostname, input.port);
+    }),
+
+  // ─── Credential Migration ─────────────────────────────────────────────
+
+  /** Scan all credential tables and report migration status (dry run). */
+  scanCredentialMigration: protectedProcedure.query(async () => {
+    const scan = await scanCredentials();
+    const totalLegacy =
+      scan.serverCredentials.legacy + scan.serverCredentials.plaintext +
+      scan.sshKeys.legacy + scan.sshKeys.plaintext +
+      scan.cloudCredentials.legacy;
+    const totalFips =
+      scan.serverCredentials.fips + scan.sshKeys.fips + scan.cloudCredentials.fips;
+    const totalAll =
+      scan.serverCredentials.total + scan.sshKeys.total + scan.cloudCredentials.total;
+
+    return {
+      ...scan,
+      summary: {
+        totalCredentials: totalAll,
+        totalFips,
+        totalLegacy,
+        migrationNeeded: totalLegacy > 0,
+        fipsPercentage: totalAll > 0 ? Math.round((totalFips / totalAll) * 100) : 100,
+      },
+      timestamp: Date.now(),
+    };
+  }),
+
+  /** Run the full credential migration (re-encrypt all legacy credentials with FIPS). */
+  runCredentialMigration: protectedProcedure.mutation(async () => {
+    const report = await runFullMigration();
+    return report;
+  }),
+
+  // ─── mTLS Certificate Management ──────────────────────────────────────
+
+  /** Ensure the internal CA exists and return its info (without private key). */
+  ensureMTLSCA: protectedProcedure.mutation(async () => {
+    const ca = await ensureCA();
+    const { privateKey, ...info } = ca;
+    return info;
+  }),
+
+  /** Issue a client certificate for a specific C2 server. */
+  issueClientCert: protectedProcedure
+    .input(z.object({
+      c2ServerId: z.string().min(1),
+      serverName: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const cert = await issueClientCertForServer(input.c2ServerId, input.serverName);
+      const { privateKey, ...info } = cert;
+      return info;
+    }),
+
+  /** List all mTLS certificates (CA + client). */
+  listMTLSCerts: protectedProcedure.query(async () => {
+    const certs = await listCertificates();
+    return certs;
+  }),
+
+  /** Revoke a certificate by ID. */
+  revokeMTLSCert: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const success = await revokeCertificate(input.id);
+      if (!success) throw new TRPCError({ code: "NOT_FOUND", message: "Certificate not found" });
+      return { success: true };
+    }),
+
+  /** Download a certificate (PEM format, no private key). */
+  downloadCert: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const cert = await getCertificateWithKey(input.id);
+      if (!cert) throw new TRPCError({ code: "NOT_FOUND", message: "Certificate not found" });
+      return {
+        certificate: cert.certificate,
+        commonName: cert.commonName,
+        fingerprint: cert.fingerprint,
+      };
+    }),
+
+  /** Check mTLS status for a specific C2 server. */
+  getMTLSStatus: protectedProcedure
+    .input(z.object({ c2ServerId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const config = await getMTLSConfigForServer(input.c2ServerId);
+      return {
+        enabled: config !== null,
+        hasCert: config !== null,
+        hasCA: config !== null,
+      };
     }),
 });
