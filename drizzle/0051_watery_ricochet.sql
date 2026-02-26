@@ -1,0 +1,1 @@
+ALTER TABLE `agent_audit_log` MODIFY COLUMN `recordHash` varchar(128) NOT NULL DEFAULT '';

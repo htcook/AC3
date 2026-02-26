@@ -262,6 +262,19 @@ function AgentList() {
     onError: (e) => toast.error(e.message),
   });
 
+  const watchdogMut = trpc.agentManager.runWatchdog.useMutation({
+    onSuccess: (result) => {
+      utils.agentManager.listAgents.invalidate();
+      utils.agentManager.dashboardStats.invalidate();
+      if (result.markedLost > 0) {
+        toast.warning(`Watchdog: ${result.markedLost} agent(s) marked as lost`);
+      } else {
+        toast.success(`Watchdog sweep: ${result.scannedAgents} agents scanned, all healthy`);
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -297,6 +310,16 @@ function AgentList() {
           </SelectContent>
         </Select>
         <span className="text-xs text-zinc-500">{data?.total ?? 0} agents</span>
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+          onClick={() => watchdogMut.mutate()}
+          disabled={watchdogMut.isPending}
+        >
+          <Activity className="h-3.5 w-3.5 mr-1" />
+          {watchdogMut.isPending ? "Sweeping..." : "Run Watchdog"}
+        </Button>
       </div>
 
       {agents.length === 0 ? (
@@ -325,10 +348,20 @@ function AgentList() {
                         {agent.targetHostname && <span>{agent.targetHostname}</span>}
                         {agent.targetIp && <span>{agent.targetIp}</span>}
                         <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
+                          {agent.status === "active" && agent.lastHeartbeat && (Date.now() - agent.lastHeartbeat) < (agent.beaconIntervalSeconds ?? 60) * 2000 ? (
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                          ) : agent.status === "lost" ? (
+                            <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                          ) : (
+                            <Clock className="h-3 w-3" />
+                          )}
                           {formatRelativeTime(agent.lastHeartbeat)}
                         </span>
                         <span>TTL: {Math.floor((agent.ttlSeconds ?? 0) / 3600)}h</span>
+                        <span className="text-zinc-600">WD: {Math.floor((agent.watchdogSeconds ?? 14400) / 3600)}h</span>
                       </div>
                       {agent.description && (
                         <p className="text-xs text-zinc-600 mt-1 max-w-lg truncate">{agent.description}</p>

@@ -19,6 +19,9 @@ import {
 } from "../../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { getFIPSCrypto } from "../lib/fips-crypto";
+import { checkC2Health } from "../lib/c2-health";
+import { processHeartbeat, runWatchdogSweep, type HeartbeatPayload } from "../lib/agent-heartbeat";
+import { runScheduledFipsAudit } from "../lib/fips-audit-scheduler";
 
 // ─── Input Schemas ────────────────────────────────────────────────────────
 
@@ -290,7 +293,7 @@ export const agentManagerRouter = router({
     return { id, name: input.name, type: input.type };
   }),
 
-  /** Test connectivity to a C2 server */
+  /** Test connectivity to a C2 server with real HTTP health probes */
   testC2Connection: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
@@ -304,32 +307,32 @@ export const agentManagerRouter = router({
 
       if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "C2 server not found" });
 
-      const startTime = Date.now();
-      let status: "connected" | "disconnected" | "error" = "disconnected";
-      let message = "";
-
-      try {
-        const url = new URL(server.baseUrl);
-        status = "connected";
-        message = `Successfully connected to ${server.type} server at ${url.hostname}`;
-      } catch (e: any) {
-        status = "error";
-        message = e.message;
-      }
-
-      const latencyMs = Date.now() - startTime;
+      // Perform real HTTP health check
+      const result = await checkC2Health({
+        id: server.id,
+        name: server.name,
+        type: server.type as "caldera" | "sliver" | "metasploit",
+        baseUrl: server.baseUrl,
+        authConfigEncrypted: server.authConfigEncrypted,
+      });
 
       await db
         .update(c2Servers)
         .set({
-          status,
+          status: result.status,
           lastHealthCheck: Date.now(),
-          healthDetails: { latencyMs, message },
+          healthDetails: {
+            latencyMs: result.latencyMs,
+            message: result.message,
+            serverTime: result.serverTime,
+          },
+          version: result.version ?? server.version,
+          capabilities: result.capabilities ?? server.capabilities,
           updatedAt: Date.now(),
         })
         .where(eq(c2Servers.id, input.id));
 
-      return { status, latencyMs, message };
+      return result;
     }),
 
   /** Remove a C2 server */
@@ -716,6 +719,43 @@ export const agentManagerRouter = router({
           : `Audit chain BROKEN at entry ${brokenAt}`,
       };
     }),
+
+  // ─── Heartbeat & Watchdog ────────────────────────────────────────────
+
+  /** Process an agent heartbeat (public endpoint — agents authenticate via registration token) */
+  heartbeat: publicProcedure
+    .input(
+      z.object({
+        agentId: z.string(),
+        registrationToken: z.string().optional(),
+        platform: z.string().optional(),
+        architecture: z.string().optional(),
+        username: z.string().optional(),
+        privilege: z.enum(["user", "elevated"]).optional(),
+        executors: z.array(z.string()).optional(),
+        pid: z.number().optional(),
+        hostname: z.string().optional(),
+        internalIp: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const payload: HeartbeatPayload = {
+        ...input,
+        ipAddress: (ctx.req as any)?.ip || (ctx.req as any)?.headers?.["x-forwarded-for"] || undefined,
+        userAgent: (ctx.req as any)?.headers?.["user-agent"] || undefined,
+      };
+      return processHeartbeat(payload);
+    }),
+
+  /** Manually trigger a watchdog sweep (admin) */
+  runWatchdog: protectedProcedure.mutation(async () => {
+    return runWatchdogSweep();
+  }),
+
+  /** Manually trigger a scheduled FIPS audit (admin) */
+  runScheduledFipsAudit: protectedProcedure.mutation(async () => {
+    return runScheduledFipsAudit();
+  }),
 
   // ─── Dashboard Stats ────────────────────────────────────────────────
 

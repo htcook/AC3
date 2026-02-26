@@ -5027,7 +5027,7 @@ export const agentAuditLog = mysqlTable("agent_audit_log", {
   actorType: mysqlEnum("actorType", ["operator", "system", "agent"]).notNull(),
   details: json("details"),
   // Integrity chain (HMAC-SHA256)
-  recordHash: varchar("recordHash", { length: 64 }).notNull(),
+  recordHash: varchar("recordHash", { length: 128 }).notNull().default(""),
   previousHash: varchar("previousHash", { length: 64 }).notNull(),
   // Metadata
   ipAddress: varchar("ipAddress", { length: 45 }),

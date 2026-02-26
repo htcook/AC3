@@ -4626,3 +4626,24 @@
 - [x] Agent lifecycle state machine
 - [x] FedRAMP/CMMC compliance mapping
 - [x] Competitive positioning analysis
+
+## Live C2 Connectivity
+- [x] Real HTTP health checks for CALDERA servers (GET /api/v2/health)
+- [x] Real HTTP health checks for Sliver servers (gRPC-style health probe)
+- [x] Real HTTP health checks for Metasploit servers (MSFRPC auth check)
+- [x] Latency measurement and version detection
+- [x] Connection status persistence in database
+
+## Agent Heartbeat Ingestion
+- [x] Webhook/polling endpoint for agent beacon check-ins
+- [x] Heartbeat data parsing (system info, IP, platform)
+- [x] Automatic lastHeartbeat timestamp updates
+- [x] Watchdog timer: auto-mark agents as "lost" when beacon expires
+- [x] Background scheduler for watchdog sweep
+- [x] Audit log entries for heartbeat and lost events
+
+## Scheduled FIPS Compliance Audits
+- [x] Background cron job for daily FIPS audits
+- [x] Owner notification on compliance degradation
+- [x] Last audit timestamp tracking
+- [x] Audit schedule configuration

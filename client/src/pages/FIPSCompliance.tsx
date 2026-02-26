@@ -216,6 +216,98 @@ function AuditRunner() {
   );
 }
 
+// ─── Scheduled Audit Panel ───────────────────────────────────────────────
+
+function ScheduledAuditPanel() {
+  const utils = trpc.useUtils();
+  const scheduledAuditMut = trpc.agentManager.runScheduledFipsAudit.useMutation({
+    onSuccess: (data) => {
+      utils.agentManager.fipsHistory.invalidate();
+      if (data.overallStatus === "compliant") {
+        toast.success("Scheduled audit passed — all checks compliant");
+      } else if (data.degraded) {
+        toast.error(`Compliance DEGRADED — owner ${data.notificationSent ? "notified" : "notification failed"}`);
+      } else {
+        toast.warning(`Audit completed: ${data.overallStatus}`);
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Card className="bg-zinc-900/50 border-zinc-800">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="h-5 w-5 text-purple-400" />
+            Scheduled Compliance Audit
+          </CardTitle>
+          <Button
+            onClick={() => scheduledAuditMut.mutate()}
+            disabled={scheduledAuditMut.isPending}
+            variant="outline"
+            className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${scheduledAuditMut.isPending ? "animate-spin" : ""}`} />
+            {scheduledAuditMut.isPending ? "Running..." : "Run Now"}
+          </Button>
+        </div>
+        <CardDescription>
+          Runs automatically daily at 02:00 UTC. Compares results against previous audit and sends
+          owner notifications on compliance degradation.
+        </CardDescription>
+      </CardHeader>
+
+      {scheduledAuditMut.data && (
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50 text-center">
+              <p className={`text-lg font-bold ${
+                scheduledAuditMut.data.overallStatus === "compliant" ? "text-emerald-400" :
+                scheduledAuditMut.data.overallStatus === "warning" ? "text-amber-400" : "text-red-400"
+              }`}>
+                {scheduledAuditMut.data.overallStatus.toUpperCase()}
+              </p>
+              <p className="text-xs text-zinc-500">Overall Status</p>
+            </div>
+            <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50 text-center">
+              <p className="text-lg font-bold text-zinc-300">{scheduledAuditMut.data.checks.length}</p>
+              <p className="text-xs text-zinc-500">Checks Run</p>
+            </div>
+            <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50 text-center">
+              <p className={`text-lg font-bold ${scheduledAuditMut.data.degraded ? "text-red-400" : "text-emerald-400"}`}>
+                {scheduledAuditMut.data.degraded ? "YES" : "NO"}
+              </p>
+              <p className="text-xs text-zinc-500">Degraded</p>
+            </div>
+            <div className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50 text-center">
+              <p className={`text-lg font-bold ${scheduledAuditMut.data.notificationSent ? "text-blue-400" : "text-zinc-500"}`}>
+                {scheduledAuditMut.data.notificationSent ? "SENT" : "—"}
+              </p>
+              <p className="text-xs text-zinc-500">Notification</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {scheduledAuditMut.data.checks.map((check, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/30 border border-zinc-800/50">
+                <div className="flex items-center gap-3">
+                  {complianceIcon(check.status)}
+                  <div>
+                    <p className="text-sm font-medium text-zinc-300">{check.component}</p>
+                    <p className="text-xs text-zinc-500">{check.checkType.replace(/_/g, " ")}</p>
+                  </div>
+                </div>
+                {complianceStatusBadge(check.status)}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 // ─── Compliance History ───────────────────────────────────────────────────
 
 function ComplianceHistory() {
@@ -310,6 +402,9 @@ export default function FIPSCompliance() {
 
         {/* Audit Runner */}
         <AuditRunner />
+
+        {/* Scheduled Audit */}
+        <ScheduledAuditPanel />
 
         {/* History */}
         <ComplianceHistory />

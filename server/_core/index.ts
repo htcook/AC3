@@ -363,6 +363,22 @@ async function startServer() {
         console.warn("[ScanScheduler] Failed to initialize scan scheduler:", err);
       });
 
+      // Initialize Agent Watchdog Scheduler (every 60 seconds)
+      import("../lib/agent-heartbeat").then(({ startWatchdogScheduler }) => {
+        startWatchdogScheduler(60_000);
+        console.log("[AgentWatchdog] Agent watchdog scheduler initialized (60s interval)");
+      }).catch((err) => {
+        console.warn("[AgentWatchdog] Failed to initialize watchdog scheduler:", err);
+      });
+
+      // Initialize Scheduled FIPS Compliance Audit (daily at 02:00 UTC)
+      import("../lib/fips-audit-scheduler").then(({ initFipsAuditScheduler }) => {
+        initFipsAuditScheduler();
+        console.log("[FIPSAudit] Scheduled FIPS compliance audit initialized");
+      }).catch((err) => {
+        console.warn("[FIPSAudit] Failed to initialize FIPS audit scheduler:", err);
+      });
+
       console.log("[Background] All background schedulers initialized");
     }, BACKGROUND_DELAY);
   });
