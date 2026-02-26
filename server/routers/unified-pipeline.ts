@@ -158,7 +158,7 @@ export const unifiedPipelineRouter = router({
       durationMs: z.number().optional(),
       errors: z.array(z.string()).optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const run = pipelineRuns.get(input.runId);
       if (!run) throw new Error(`Pipeline run ${input.runId} not found`);
 
@@ -232,6 +232,15 @@ export const unifiedPipelineRouter = router({
 
       // Update run status
       run.status = 'running';
+
+      // ─── SSIL: Auto-ingest pipeline findings into observation normalizer ───
+      try {
+        const { ingestUnifiedPipelineFindings } = await import("../lib/observation-ingestor");
+        const ingestion = await ingestUnifiedPipelineFindings(input.tool, input.findings);
+        console.log(`[UnifiedPipeline→SSIL] ${input.tool}: Ingested ${ingestion.observations} observations, ${ingestion.signals} signals, ${ingestion.riskCards} risk cards`);
+      } catch (err: any) {
+        console.error(`[UnifiedPipeline→SSIL] Ingestion failed (non-fatal): ${err.message}`);
+      }
 
       return {
         findingsAdded: pipelineFindings.length,

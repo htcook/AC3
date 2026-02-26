@@ -478,4 +478,118 @@ export const ssilRouter = router({
       },
     };
   }),
+
+  // ─── Real-Time Streaming ─────────────────────────────────────────────────
+
+  /** Poll for recent ingestion events (long-polling style) */
+  streamEvents: protectedProcedure
+    .input(z.object({
+      since: z.number().optional(),
+      limit: z.number().min(1).max(100).default(50),
+    }))
+    .query(async ({ input }) => {
+      const { getRecentEvents, getIngestionStats } = await import("../lib/observation-ingestor");
+      const events = getRecentEvents(input.since, input.limit);
+      const stats = getIngestionStats();
+      return { events, stats, serverTime: Date.now() };
+    }),
+
+  /** Get ingestion stats per scanner */
+  ingestionStats: protectedProcedure.query(async () => {
+    const { getIngestionStats } = await import("../lib/observation-ingestor");
+    return getIngestionStats();
+  }),
+
+  /** Get recent observations with pagination for live view */
+  liveObservations: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(25),
+      cursor: z.number().optional(),
+      scanner: z.string().optional(),
+      severity: z.enum(["info", "low", "medium", "high", "critical"]).optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const conditions = [];
+      if (input.cursor) conditions.push(lte(scanObservations.id, input.cursor));
+      if (input.scanner) conditions.push(eq(scanObservations.scannerName, input.scanner));
+      if (input.severity) conditions.push(eq(scanObservations.severity, input.severity));
+
+      const rows = await db.select()
+        .from(scanObservations)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(scanObservations.id))
+        .limit(input.limit + 1);
+
+      const hasMore = rows.length > input.limit;
+      const items = hasMore ? rows.slice(0, input.limit) : rows;
+      const nextCursor = hasMore ? items[items.length - 1]?.id : undefined;
+
+      return { items, nextCursor, hasMore };
+    }),
+
+  /** Get risk cards with full details for drill-down */
+  getRiskCard: protectedProcedure
+    .input(z.object({ riskId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const [card] = await db.select().from(scanRiskCards).where(eq(scanRiskCards.riskId, input.riskId));
+      if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Risk card not found" });
+
+      // Fetch contributing signals
+      const signalIds = (card as any).signalIds as string[] | null;
+      let signals: any[] = [];
+      if (signalIds && signalIds.length > 0) {
+        const { inArray } = await import("drizzle-orm");
+        signals = await db.select().from(scanSignals).where(inArray(scanSignals.signalId, signalIds));
+      } else {
+        // Fallback: fetch signals by assetId
+        signals = await db.select().from(scanSignals).where(eq(scanSignals.assetId, card.assetId));
+      }
+
+      // Fetch related observations
+      const observationIds = signals.flatMap((s: any) => (s.sourceObservations as string[]) || []);
+      let observations: any[] = [];
+      if (observationIds.length > 0) {
+        const { inArray } = await import("drizzle-orm");
+        const uniqueIds = [...new Set(observationIds)];
+        observations = await db.select().from(scanObservations).where(inArray(scanObservations.observationId, uniqueIds));
+      }
+
+      return { card, signals, observations };
+    }),
+
+  /** List all risk cards with pagination */
+  listRiskCards: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(25),
+      offset: z.number().default(0),
+      minScore: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const conditions = [];
+      if (input.minScore !== undefined) conditions.push(gte(scanRiskCards.finalScore, input.minScore));
+
+      const [countResult] = await db.select({ count: sql<number>`count(*)` })
+        .from(scanRiskCards)
+        .where(conditions.length ? and(...conditions) : undefined);
+
+      const cards = await db.select()
+        .from(scanRiskCards)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(scanRiskCards.finalScore))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return { cards, total: countResult?.count || 0 };
+    }),
+
+  /** Get signals for a specific asset */
+  getAssetSignals: protectedProcedure
+    .input(z.object({ assetId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      return db.select().from(scanSignals).where(eq(scanSignals.assetId, input.assetId));
+    }),
 });

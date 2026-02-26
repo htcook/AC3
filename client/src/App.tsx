@@ -141,6 +141,10 @@ const SSILDashboard = lazy(() => import("./pages/SSILDashboard"));
 const SSILPolicies = lazy(() => import("./pages/SSILPolicies"));
 const SSILGuardrails = lazy(() => import("./pages/SSILGuardrails"));
 const SSILObservations = lazy(() => import("./pages/SSILObservations"));
+const SSILRiskCardDetail = lazy(() => import("./pages/SSILRiskCardDetail"));
+const SubfinderPage = lazy(() => import("./pages/SubfinderPage"));
+const HttpxPage = lazy(() => import("./pages/HttpxPage"));
+const NaabuPage = lazy(() => import("./pages/NaabuPage"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -623,6 +627,18 @@ function Router() {
         </Route>
         <Route path="/ssil/observations">
           <ProtectedRoute component={SSILObservations} />
+        </Route>
+        <Route path="/ssil/risk-card/:riskId">
+          <ProtectedRoute component={SSILRiskCardDetail} />
+        </Route>
+        <Route path="/tools/subfinder">
+          <ProtectedRoute component={SubfinderPage} />
+        </Route>
+        <Route path="/tools/httpx">
+          <ProtectedRoute component={HttpxPage} />
+        </Route>
+        <Route path="/tools/naabu">
+          <ProtectedRoute component={NaabuPage} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

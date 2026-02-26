@@ -238,6 +238,25 @@ export const webAppScanningRouter = router({
         }
       }
 
+      // ─── SSIL: Auto-ingest ZAP findings into observation normalizer ───
+      try {
+        const { ingestVulnScanImportFindings } = await import("../lib/observation-ingestor");
+        const zapFindings = findings.map((f: any) => ({
+          hostIp: new URL(f.url || 'http://unknown').hostname,
+          port: parseInt(new URL(f.url || 'http://unknown').port) || (f.url?.startsWith('https') ? 443 : 80),
+          title: f.alertName || f.name || 'ZAP Finding',
+          severity: f.severity || 'info',
+          description: f.description,
+          solution: f.solution,
+          cveId: f.cweId ? `CWE-${f.cweId}` : null,
+          importId: input.scanId,
+        }));
+        const ingestion = await ingestVulnScanImportFindings(zapFindings);
+        console.log(`[WebAppScan→SSIL] Ingested ${ingestion.observations} observations, ${ingestion.signals} signals, ${ingestion.riskCards} risk cards`);
+      } catch (err: any) {
+        console.error(`[WebAppScan→SSIL] Ingestion failed (non-fatal): ${err.message}`);
+      }
+
       return { triaged: results.length, results };
     }),
 

@@ -95,6 +95,7 @@ import { webCrawlerRouter } from "./routers/web-crawler";
 import { vendorIntegrationsRouter } from "./routers/vendor-integrations";
 import { agentManagerRouter } from "./routers/agent";
 import { ssilRouter } from "./routers/ssil";
+import { projectDiscoveryRouter } from "./routers/projectdiscovery";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -272,6 +273,7 @@ export const appRouter = router({
   vendorIntegrations: vendorIntegrationsRouter,
   agentManager: agentManagerRouter,
   ssil: ssilRouter,
+  projectDiscovery: projectDiscoveryRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

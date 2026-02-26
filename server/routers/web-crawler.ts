@@ -130,6 +130,15 @@ export const webCrawlerRouter = router({
         }
       }
 
+      // ─── SSIL: Auto-ingest web crawler results into observation normalizer ───
+      try {
+        const { ingestWebCrawlerPageResults } = await import("../lib/observation-ingestor");
+        const ingestion = await ingestWebCrawlerPageResults(result.pages || []);
+        console.log(`[WebCrawler→SSIL] Ingested ${ingestion.observations} observations, ${ingestion.signals} signals, ${ingestion.riskCards} risk cards`);
+      } catch (err: any) {
+        console.error(`[WebCrawler→SSIL] Ingestion failed (non-fatal): ${err.message}`);
+      }
+
       return result;
     }),
 

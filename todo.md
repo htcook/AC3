@@ -4765,3 +4765,46 @@
 - [x] Add hybrid risk card generation (CVSS + CARVER + BIA)
 - [x] Add scan_signals, scan_risk_cards, scan_policies, guardrail_violations DB tables
 - [x] Write comprehensive vitest test suite (45 tests passing)
+
+## Wire Normalizer into Live Scan Flows
+- [x] Integrate adaptNmapResults() into nmap scanner completion handler
+- [x] Integrate adaptNucleiResults() into nuclei scanner completion handler
+- [x] Integrate adaptZgrab2Results() into zgrab2 scanner completion handler
+- [x] Integrate adaptWebCrawlerResults() into web crawler completion handler
+- [x] Integrate adaptDomainIntelResults() into domain intel completion handler
+- [x] Integrate adaptVulnScanResults() into vuln scanner completion handler
+- [x] Auto-persist normalized observations to scan_observations table
+- [x] Auto-derive signals and persist to scan_signals table
+- [x] Auto-generate risk cards and persist to scan_risk_cards table
+
+## Real-Time Observation Streaming
+- [x] Add polling-based real-time updates to Observations page
+- [x] Add live observation count badge in sidebar nav
+- [x] Add auto-refresh toggle with configurable interval
+- [x] Show new observations with highlight animation
+- [x] Add sound/visual notification for critical findings
+
+## Risk Card Detail View
+- [x] Create RiskCardDetail page with drill-down from risk cards
+- [x] Show contributing signals with severity and confidence
+- [x] Show evidence artifacts and fingerprints
+- [x] Show recommended remediations
+- [x] Show CVSS/CARVER/BIA score breakdown visualization
+- [x] Add route and navigation for risk card detail
+- [x] Write tests for new features (58 tests passing)
+
+## ProjectDiscovery Tool Integration (subfinder, httpx, naabu)
+- [x] Audit existing scanner services for integration patterns
+- [x] Create subfinder service wrapper (subdomain enumeration via API)
+- [x] Create httpx service wrapper (HTTP probing via API)
+- [x] Create naabu service wrapper (port scanning via API)
+- [x] Add subfinder/httpx/naabu tRPC router with scan/results procedures
+- [x] Wire subfinder into observation normalizer (subdomain → observations)
+- [x] Wire httpx into observation normalizer (HTTP probe + TLS → observations)
+- [x] Wire naabu into observation normalizer (port scan → observations)
+- [x] Build Subfinder UI panel with domain input, results table, CSV export
+- [x] Build httpx UI panel with target input, probe results, tech detection
+- [x] Build Naabu UI panel with target input, port scan results, service breakdown
+- [x] Add nav items for all three tools in sidebar (ProjectDiscovery section)
+- [x] Write vitest tests for all three services (24 tests passing)
+- [x] Add routes in App.tsx for all three pages

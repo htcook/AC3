@@ -818,6 +818,7 @@ export function generateRiskCards(
       whyItMatters: `This score combines CVSS (${maxCvss.toFixed(1)}), CARVER+SHOCK (${avgCarver.toFixed(1)}), and BIA (${bia.toFixed(1)}) weighted by confidence (${avgConfidence.toFixed(2)}).`,
       evidence: assetSigs.flatMap((s) => s.sourceObservations as string[]),
       recommendations,
+      signalIds: assetSigs.map((s) => s.signalId),
       createdAt: Date.now(),
     });
   }

@@ -5154,8 +5154,10 @@ export const scanRiskCards = mysqlTable("scan_risk_cards", {
   whyItMatters: text("whyItMatters"),
   evidence: json("evidence").$type<string[]>(),
   recommendations: json("recommendations").$type<string[]>().notNull(),
+  signalIds: json("signalIds").$type<string[]>(),
   // Timestamps
   createdAt: bigint("riskCardCreatedAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("riskCardUpdatedAt", { mode: "number" }),
 });
 export type ScanRiskCard = typeof scanRiskCards.$inferSelect;
 export type InsertScanRiskCard = typeof scanRiskCards.$inferInsert;

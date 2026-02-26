@@ -123,6 +123,15 @@ export const vulnScannerRouter = router({
       
       const fpReduction = estimateFPReduction(corroborationReport);
 
+      // ─── SSIL: Auto-ingest into observation normalizer ───
+      try {
+        const { ingestVulnScanImportFindings } = await import("../lib/observation-ingestor");
+        const ingestion = await ingestVulnScanImportFindings(importedFindings);
+        console.log(`[VulnScanner→SSIL] Ingested ${ingestion.observations} observations, ${ingestion.signals} signals, ${ingestion.riskCards} risk cards`);
+      } catch (err: any) {
+        console.error(`[VulnScanner→SSIL] Ingestion failed (non-fatal): ${err.message}`);
+      }
+
       return {
         id: importId,
         totalVulns: result.totalVulns,

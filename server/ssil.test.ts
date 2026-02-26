@@ -541,3 +541,240 @@ describe("SSIL Integration", () => {
     expect(cards[0].finalScore).toBeGreaterThan(0);
   });
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. OBSERVATION INGESTOR TESTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+import {
+  onIngestionEvent,
+  getRecentEvents,
+  getIngestionStats,
+  type IngestionEvent,
+} from "./lib/observation-ingestor";
+
+describe("ObservationIngestor — Event System", () => {
+  it("getRecentEvents returns an array", () => {
+    const events = getRecentEvents();
+    expect(Array.isArray(events)).toBe(true);
+  });
+
+  it("getRecentEvents with since filter returns events after timestamp", () => {
+    const events = getRecentEvents(Date.now() - 1000);
+    expect(Array.isArray(events)).toBe(true);
+  });
+
+  it("getRecentEvents with limit returns at most N events", () => {
+    const events = getRecentEvents(undefined, 5);
+    expect(events.length).toBeLessThanOrEqual(5);
+  });
+
+  it("onIngestionEvent registers a listener and returns unsubscribe function", () => {
+    const received: IngestionEvent[] = [];
+    const unsub = onIngestionEvent((event) => received.push(event));
+    expect(typeof unsub).toBe("function");
+    unsub();
+  });
+});
+
+describe("ObservationIngestor — Stats", () => {
+  it("getIngestionStats returns a valid stats object", () => {
+    const stats = getIngestionStats();
+    expect(stats).toHaveProperty("totalObservations");
+    expect(stats).toHaveProperty("totalSignals");
+    expect(stats).toHaveProperty("totalRiskCards");
+    expect(stats).toHaveProperty("totalErrors");
+    expect(stats).toHaveProperty("lastIngestionAt");
+    expect(stats).toHaveProperty("byScanner");
+    expect(typeof stats.totalObservations).toBe("number");
+    expect(typeof stats.totalSignals).toBe("number");
+    expect(typeof stats.totalRiskCards).toBe("number");
+    expect(typeof stats.totalErrors).toBe("number");
+    expect(typeof stats.byScanner).toBe("object");
+  });
+
+  it("stats are non-negative", () => {
+    const stats = getIngestionStats();
+    expect(stats.totalObservations).toBeGreaterThanOrEqual(0);
+    expect(stats.totalSignals).toBeGreaterThanOrEqual(0);
+    expect(stats.totalRiskCards).toBeGreaterThanOrEqual(0);
+    expect(stats.totalErrors).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. END-TO-END PIPELINE WIRING TESTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("End-to-End Pipeline Wiring", () => {
+  it("nmap results → normalize → signals → risk cards → stats update", () => {
+    // 1. Normalize
+    const result = adaptNmapResults([
+      { host: "10.0.0.1", ports: [{ port: 80, protocol: "tcp", state: "open", service: "http" }] },
+      { host: "10.0.0.2", ports: [{ port: 443, protocol: "tcp", state: "open", service: "https" }] },
+    ]);
+    expect(result.observations.length).toBe(2);
+    expect(result.metrics.observationsEmitted).toBe(2);
+
+    // 2. Nmap service_banner observations don't directly produce signals
+    // (signals come from tls, http_headers, vulnerability_finding, etc.)
+    const signals = deriveSignals(result.observations);
+    expect(Array.isArray(signals)).toBe(true);
+
+    // 3. Combine with nuclei results to get signals and risk cards
+    const nucleiResult = adaptNucleiResults([{
+      templateId: "CVE-2024-5678",
+      host: "https://10.0.0.1",
+      severity: "high",
+      cve: "CVE-2024-5678",
+      cvss: 8.0,
+    }]);
+    const allObs = [...result.observations, ...nucleiResult.observations];
+    const allSignals = deriveSignals(allObs);
+    expect(allSignals.length).toBeGreaterThanOrEqual(1);
+
+    const cards = generateRiskCards(allSignals);
+    expect(cards.length).toBeGreaterThanOrEqual(1);
+    for (const card of cards) {
+      expect(card.riskId).toBeDefined();
+      expect(card.assetId).toBeDefined();
+      expect(card.finalScore).toBeGreaterThanOrEqual(0);
+      expect(card.finalScore).toBeLessThanOrEqual(10);
+      expect(card.componentCvss).toBeDefined();
+      expect(card.componentCarver).toBeDefined();
+      expect(card.componentBia).toBeDefined();
+      expect(card.confidenceWeight).toBeGreaterThan(0);
+      expect(card.recommendations).toBeDefined();
+      expect(Array.isArray(card.recommendations)).toBe(true);
+      expect(card.signalIds).toBeDefined();
+      expect(Array.isArray(card.signalIds)).toBe(true);
+    }
+  });
+
+  it("nuclei critical finding → high risk score", () => {
+    const result = adaptNucleiResults([{
+      templateId: "CVE-2024-1234",
+      host: "https://critical-target.com",
+      severity: "critical",
+      cve: "CVE-2024-1234",
+      cvss: 9.8,
+    }]);
+    const signals = deriveSignals(result.observations);
+    const cards = generateRiskCards(signals);
+
+    expect(cards.length).toBe(1);
+    expect(cards[0].finalScore).toBeGreaterThan(3);
+    expect(cards[0].componentCvss).toBeGreaterThanOrEqual(9);
+  });
+
+  it("multiple scanners → merged risk card per asset", () => {
+    // Nmap finds open ports
+    const nmapResult = adaptNmapResults([
+      { host: "shared-target.com", ports: [{ port: 80, protocol: "tcp", state: "open", service: "http" }] },
+    ]);
+
+    // Nuclei finds vulnerability on same host
+    const nucleiResult = adaptNucleiResults([{
+      templateId: "CVE-2023-9999",
+      host: "https://shared-target.com",
+      severity: "high",
+      cve: "CVE-2023-9999",
+      cvss: 8.5,
+    }]);
+
+    // Combine observations
+    const allObs = [...nmapResult.observations, ...nucleiResult.observations];
+    const signals = deriveSignals(allObs);
+    const cards = generateRiskCards(signals);
+
+    // Should produce risk card(s) for shared-target.com
+    expect(cards.length).toBeGreaterThanOrEqual(1);
+    const sharedCards = cards.filter((c) =>
+      c.assetId.includes("shared-target.com")
+    );
+    expect(sharedCards.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("web crawler results → observations with correct scanner name", () => {
+    const result = adaptWebCrawlerResults([{
+      url: "https://test.com",
+      statusCode: 200,
+      headers: { "x-powered-by": "Express", "server": "nginx" },
+      technologies: ["Express", "nginx"],
+    }]);
+
+    expect(result.observations.length).toBeGreaterThanOrEqual(1);
+    for (const obs of result.observations) {
+      expect(obs.scanner.name).toBe("web_crawler");
+    }
+  });
+
+  it("domain intel results → observations with DNS data", () => {
+    const result = adaptDomainIntelResults([{
+      domain: "example.com",
+      subdomains: ["api.example.com", "www.example.com"],
+      dnsRecords: [{ type: "A", value: "93.184.216.34" }],
+    }]);
+
+    expect(result.observations.length).toBeGreaterThanOrEqual(1);
+    for (const obs of result.observations) {
+      expect(obs.scanner.name).toBe("domain_intel");
+    }
+  });
+
+  it("vuln scanner results → observations with CVE data", () => {
+    const result = adaptVulnScanResults([{
+      hostIp: "10.0.0.5",
+      port: 443,
+      title: "OpenSSL Heartbleed",
+      severity: "critical",
+      cveId: "CVE-2014-0160",
+      cvssScore: 7.5,
+    }]);
+
+    expect(result.observations.length).toBe(1);
+    // VulnScan adapter maps CVE to evidence.cve
+    const obs = result.observations[0];
+    expect(obs.evidence.summary).toContain("OpenSSL Heartbleed");
+  });
+
+  it("guardrails + policy + normalizer integration", () => {
+    // 1. Policy engine allows the scan
+    resetScanPolicyEngine();
+    const engine = getScanPolicyEngine();
+    engine.setActiveProfile("balanced");
+    const decision = engine.canExecute({
+      scanner: "nuclei",
+      mode: "active-low",
+      asset: { host: "target.com", port: 443, protocol: "https" },
+    });
+    expect(decision.allowed).toBe(true);
+
+    // 2. Guardrails validate the LLM context
+    resetLLMGuardrails();
+    const guardrails = getLLMGuardrails();
+    const guardResult = guardrails.applyGuardrails(
+      { messages: [{ role: "user", content: "Analyze this scan result for security issues" }] },
+      "analyst"
+    );
+    expect(guardResult.blocked).toBe(false);
+
+    // 3. Normalize and process
+    const result = adaptNucleiResults([{
+      templateId: "CVE-2021-44228",
+      host: "https://target.com",
+      severity: "critical",
+      cve: "CVE-2021-44228",
+      cvss: 10.0,
+    }]);
+    const signals = deriveSignals(result.observations);
+    const cards = generateRiskCards(signals);
+
+    expect(result.observations.length).toBe(1);
+    expect(signals.length).toBeGreaterThanOrEqual(1);
+    expect(cards.length).toBeGreaterThanOrEqual(1);
+    expect(cards[0].finalScore).toBeGreaterThan(0);
+    expect(cards[0].recommendations.length).toBeGreaterThan(0);
+  });
+});

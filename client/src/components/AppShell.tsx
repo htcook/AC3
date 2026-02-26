@@ -80,6 +80,9 @@ import {
   Scan,
   BrainCircuit,
   FileStack,
+  Globe,
+  Wifi,
+  Network,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 
@@ -380,6 +383,15 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ssil/policies", icon: ShieldCheck, label: "SCAN POLICIES" },
           { href: "/ssil/guardrails", icon: BrainCircuit, label: "LLM GUARDRAILS" },
           { href: "/ssil/observations", icon: FileStack, label: "OBSERVATIONS" },
+        ],
+      },
+      {
+        id: "admin-pdtools",
+        label: "ProjectDiscovery",
+        items: [
+          { href: "/tools/subfinder", icon: Globe, label: "SUBFINDER" },
+          { href: "/tools/httpx", icon: Wifi, label: "HTTPX" },
+          { href: "/tools/naabu", icon: Network, label: "NAABU" },
         ],
       },
     ],

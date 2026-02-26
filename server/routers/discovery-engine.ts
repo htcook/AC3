@@ -65,6 +65,15 @@ export const discoveryEngineRouter = router({
         enrichmentModules: input.enrichmentModules,
       });
 
+      // ─── SSIL: Auto-ingest discovery results into observation normalizer ───
+      try {
+        const { ingestDomainIntelPipelineResults } = await import("../lib/observation-ingestor");
+        const ingestion = await ingestDomainIntelPipelineResults(result);
+        console.log(`[DiscoveryEngine→SSIL] Ingested ${ingestion.observations} observations, ${ingestion.signals} signals, ${ingestion.riskCards} risk cards`);
+      } catch (err: any) {
+        console.error(`[DiscoveryEngine→SSIL] Ingestion failed (non-fatal): ${err.message}`);
+      }
+
       return result;
     }),
 
