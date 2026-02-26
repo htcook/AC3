@@ -4480,3 +4480,31 @@
 - [x] Integrate workflow launcher into dashboard home page (Mission Workflows section)
 - [x] Add /workflows route and MISSION WORKFLOWS sidebar navigation entry
 - [x] Add contextual step indicators and progress tracking within each workflow
+
+## Circuit Breaker Integration into Live Connectors
+- [ ] Wire circuit breaker into Shodan passive connector fetch calls
+- [ ] Wire circuit breaker into Censys passive connector fetch calls
+- [ ] Wire circuit breaker into SecurityTrails passive connector fetch calls
+- [ ] Wire circuit breaker into remaining API-dependent connectors
+- [ ] Add service health endpoint to expose circuit breaker states
+- [ ] Write tests for circuit breaker integration
+
+## Workflow State Persistence
+- [x] Add workflow_sessions DB schema table (user, workflow type, current step, state data, timestamps)
+- [x] Add tRPC endpoints for workflow CRUD (create, get, update, list, delete)
+- [x] Update WorkflowLauncher UI to load/save workflow progress
+- [x] Add resume workflow capability from dashboard
+- [x] Write tests for workflow persistence (31 tests passing)
+
+## GitHub Export & CI/CD
+- [ ] Verify .github/workflows/ci.yml is complete and correct
+- [ ] Add .gitignore for production readiness
+- [ ] Guide user to export via Settings > GitHub panel
+
+## Login Testing & Enterprise Auth Architecture
+- [x] Test login flow end-to-end and identify errors
+- [x] Verify red ADMiN123 admin account is active and preserved
+- [x] Fix any login/auth errors found (fixed useToast import in WorkflowLauncher)
+- [x] Run full test suite to verify no regressions
+- [x] Write enterprise auth architecture recommendations (RBAC, OAuth/SAML, AWS deployment) → docs/aws-rbac-auth-architecture.md
+- [x] Ensure red admin account stays active during development/testing

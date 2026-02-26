@@ -8,7 +8,8 @@ import {
   Fish, Mail, MousePointerClick, Eye, FileWarning, Send, Globe, Shield,
   Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert,
   Rocket, Building2, ArrowRight, Layers, BarChart3, Play, Pause,
-  CheckCircle2, XCircle, Loader2, Plus, History, Radar, Flame, Radio
+  CheckCircle2, XCircle, Loader2, Plus, History, Radar, Flame, Radio,
+  Briefcase, ShieldCheck
 } from "lucide-react";
 import ZeroDayFeed from "@/components/ZeroDayFeed";
 import { useState, useEffect, useMemo } from "react";

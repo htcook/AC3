@@ -1,18 +1,20 @@
 /**
- * WorkflowLauncher — Guided Scenario Navigation
- * ───────────────────────────────────────────────
+ * WorkflowLauncher — Guided Scenario Navigation with State Persistence
+ * ─────────────────────────────────────────────────────────────────────
  * Replaces the need to navigate 108 sidebar items by providing
  * guided workflows that surface the right modules in sequence.
  *
  * Each workflow is a multi-step scenario with:
  * - Clear description of what it accomplishes
  * - Sequential steps that link to the right pages
- * - Progress tracking across the workflow
+ * - Persistent progress tracking (saved to DB via tRPC)
+ * - Resume capability for in-progress workflows
  * - Contextual tips for each step
  */
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 import {
   Crosshair, Shield, Search, Rocket, Fish, Cloud, FileText,
   ChevronRight, ChevronDown, Play, CheckCircle2, Circle,
@@ -20,8 +22,10 @@ import {
   AlertTriangle, Globe2, Server, Eye, Workflow, Layers,
   ShieldCheck, Radio, Radar, Bug, ClipboardCheck, Gauge,
   ScrollText, Briefcase, BarChart3, Clock, Network,
+  RotateCcw, Pause, History, Loader2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 // ─── Workflow Definitions ────────────────────────────────────────────
 
@@ -153,7 +157,7 @@ const WORKFLOWS: WorkflowDefinition[] = [
     id: "compliance-report",
     title: "Generate Compliance Report",
     subtitle: "Regulatory compliance documentation",
-    description: "Map security findings to compliance frameworks (NIST, FedRAMP, SOC2, ISO 27001), generate OSCAL exports, and produce audit-ready documentation with evidence chains.",
+    description: "Map assessment findings to compliance frameworks (NIST 800-53, FedRAMP, SOC2, ISO 27001), generate BIA reports, and export OSCAL packages for continuous monitoring.",
     icon: FileText,
     iconColor: "text-purple-400",
     bgGradient: "from-purple-500/10 to-purple-600/5",
@@ -185,15 +189,66 @@ function DifficultyBadge({ level }: { level: "beginner" | "intermediate" | "adva
   );
 }
 
+// ─── Progress Bar ───────────────────────────────────────────────────
+
+function ProgressBar({ current, total }: { current: number; total: number }) {
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-border/30 overflow-hidden">
+        <div
+          className="h-full bg-primary transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">
+        {current}/{total}
+      </span>
+    </div>
+  );
+}
+
 // ─── Workflow Card ───────────────────────────────────────────────────
 
-function WorkflowCard({ workflow, onSelect }: { workflow: WorkflowDefinition; onSelect: () => void }) {
+interface ActiveSession {
+  id: number;
+  workflowId: string;
+  currentStepIndex: number;
+  status: string;
+  startedAt: string | number;
+}
+
+function WorkflowCard({
+  workflow,
+  onSelect,
+  activeSession,
+  onResume,
+}: {
+  workflow: WorkflowDefinition;
+  onSelect: () => void;
+  activeSession?: ActiveSession;
+  onResume?: (sessionId: number) => void;
+}) {
   const Icon = workflow.icon;
+  const isActive = !!activeSession;
+
   return (
     <button
-      onClick={onSelect}
-      className={`group relative w-full text-left p-5 border border-border/50 bg-gradient-to-br ${workflow.bgGradient} hover:border-primary/40 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5`}
+      onClick={isActive && onResume ? () => onResume(activeSession.id) : onSelect}
+      className={`group relative w-full text-left p-5 border bg-gradient-to-br ${workflow.bgGradient} transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 ${
+        isActive
+          ? "border-primary/50 hover:border-primary/70 ring-1 ring-primary/20"
+          : "border-border/50 hover:border-primary/40"
+      }`}
     >
+      {/* Active indicator */}
+      {isActive && (
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-0.5 bg-primary/20 border border-primary/30">
+          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+          <span className="text-[9px] font-mono uppercase tracking-wider text-primary">In Progress</span>
+        </div>
+      )}
+
       <div className="flex items-start gap-4">
         <div className={`flex-shrink-0 p-2.5 border border-border/50 bg-background/50 ${workflow.iconColor}`}>
           <Icon className="w-5 h-5" />
@@ -206,6 +261,17 @@ function WorkflowCard({ workflow, onSelect }: { workflow: WorkflowDefinition; on
             <DifficultyBadge level={workflow.difficulty} />
           </div>
           <p className="text-xs text-muted-foreground mb-3">{workflow.subtitle}</p>
+
+          {/* Progress bar for active workflows */}
+          {isActive && (
+            <div className="mb-3">
+              <ProgressBar
+                current={activeSession.currentStepIndex}
+                total={workflow.steps.length}
+              />
+            </div>
+          )}
+
           <div className="flex items-center gap-4 text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
@@ -215,6 +281,12 @@ function WorkflowCard({ workflow, onSelect }: { workflow: WorkflowDefinition; on
               <Layers className="w-3 h-3" />
               {workflow.steps.length} steps
             </span>
+            {isActive && (
+              <span className="flex items-center gap-1 text-primary">
+                <Play className="w-3 h-3" />
+                Resume
+              </span>
+            )}
           </div>
         </div>
         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
@@ -225,10 +297,30 @@ function WorkflowCard({ workflow, onSelect }: { workflow: WorkflowDefinition; on
 
 // ─── Workflow Detail View ────────────────────────────────────────────
 
-function WorkflowDetail({ workflow, onBack }: { workflow: WorkflowDefinition; onBack: () => void }) {
+function WorkflowDetail({
+  workflow,
+  onBack,
+  session,
+  onStart,
+  onAdvance,
+  onAbandon,
+  isStarting,
+}: {
+  workflow: WorkflowDefinition;
+  onBack: () => void;
+  session?: any;
+  onStart: () => void;
+  onAdvance: (stepIndex: number) => void;
+  onAbandon: () => void;
+  isStarting: boolean;
+}) {
   const [, navigate] = useLocation();
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const Icon = workflow.icon;
+
+  const currentStepIndex = session?.currentStepIndex ?? 0;
+  const isActive = session?.status === "in_progress";
+  const isCompleted = session?.status === "completed";
 
   return (
     <div className="space-y-6">
@@ -254,10 +346,29 @@ function WorkflowDetail({ workflow, onBack }: { workflow: WorkflowDefinition; on
                   <Clock className="w-3 h-3" />
                   {workflow.estimatedTime}
                 </span>
+                {isActive && (
+                  <span className="text-[10px] text-primary font-mono uppercase tracking-wider flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                    In Progress
+                  </span>
+                )}
+                {isCompleted && (
+                  <span className="text-[10px] text-green-400 font-mono uppercase tracking-wider flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Completed
+                  </span>
+                )}
               </div>
             </div>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">{workflow.description}</p>
+
+          {/* Progress bar */}
+          {isActive && (
+            <div className="mt-3">
+              <ProgressBar current={currentStepIndex} total={workflow.steps.length} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -269,25 +380,60 @@ function WorkflowDetail({ workflow, onBack }: { workflow: WorkflowDefinition; on
         {workflow.steps.map((step, index) => {
           const StepIcon = step.icon;
           const isExpanded = expandedStep === step.id;
+          const isStepCompleted = isActive && index < currentStepIndex;
+          const isCurrentStep = isActive && index === currentStepIndex;
+          const isPending = !isActive || index > currentStepIndex;
+
           return (
             <div
               key={step.id}
-              className={`border border-border/50 ${step.optional ? "border-dashed" : ""} bg-card/30 transition-all`}
+              className={`border transition-all ${
+                isStepCompleted
+                  ? "border-green-500/30 bg-green-500/5"
+                  : isCurrentStep
+                  ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                  : step.optional
+                  ? "border-dashed border-border/50 bg-card/30"
+                  : "border-border/50 bg-card/30"
+              }`}
             >
               <button
                 onClick={() => setExpandedStep(isExpanded ? null : step.id)}
                 className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/20 transition-colors"
               >
-                <div className="flex-shrink-0 w-6 h-6 border border-border/50 flex items-center justify-center text-[10px] font-mono text-muted-foreground">
-                  {index + 1}
+                <div className={`flex-shrink-0 w-6 h-6 border flex items-center justify-center text-[10px] font-mono ${
+                  isStepCompleted
+                    ? "border-green-500/50 bg-green-500/20 text-green-400"
+                    : isCurrentStep
+                    ? "border-primary/50 bg-primary/20 text-primary"
+                    : "border-border/50 text-muted-foreground"
+                }`}>
+                  {isStepCompleted ? (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  ) : isCurrentStep ? (
+                    <Play className="w-3 h-3" />
+                  ) : (
+                    index + 1
+                  )}
                 </div>
-                <StepIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <StepIcon className={`w-4 h-4 flex-shrink-0 ${
+                  isStepCompleted ? "text-green-400" : isCurrentStep ? "text-primary" : "text-muted-foreground"
+                }`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{step.title}</span>
+                    <span className={`text-sm font-medium ${
+                      isStepCompleted ? "text-green-400" : isCurrentStep ? "text-primary" : "text-foreground"
+                    }`}>
+                      {step.title}
+                    </span>
                     {step.optional && (
                       <span className="text-[9px] font-mono uppercase tracking-wider text-muted-foreground border border-border/50 px-1.5 py-0.5">
                         Optional
+                      </span>
+                    )}
+                    {isCurrentStep && (
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-primary border border-primary/30 px-1.5 py-0.5 bg-primary/10">
+                        Current
                       </span>
                     )}
                   </div>
@@ -307,18 +453,38 @@ function WorkflowDetail({ workflow, onBack }: { workflow: WorkflowDefinition; on
                       <p className="text-xs text-primary/80">{step.tip}</p>
                     </div>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs font-mono uppercase tracking-wider"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(step.href);
-                    }}
-                  >
-                    <ArrowRight className="w-3 h-3 mr-1.5" />
-                    Open {step.title}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs font-mono uppercase tracking-wider"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(step.href);
+                      }}
+                    >
+                      <ArrowRight className="w-3 h-3 mr-1.5" />
+                      Open {step.title}
+                    </Button>
+                    {isActive && isCurrentStep && (
+                      <Button
+                        size="sm"
+                        className="text-xs font-mono uppercase tracking-wider bg-green-600 hover:bg-green-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAdvance(index);
+                        }}
+                      >
+                        <CheckCircle2 className="w-3 h-3 mr-1.5" />
+                        Mark Complete
+                      </Button>
+                    )}
+                    {isActive && isStepCompleted && (
+                      <span className="text-[10px] font-mono text-green-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Completed
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -326,23 +492,151 @@ function WorkflowDetail({ workflow, onBack }: { workflow: WorkflowDefinition; on
         })}
       </div>
 
-      {/* Quick Start */}
-      <div className="border border-primary/30 bg-primary/5 p-4">
+      {/* Action Bar */}
+      <div className={`border p-4 ${
+        isActive ? "border-primary/30 bg-primary/5" : isCompleted ? "border-green-500/30 bg-green-500/5" : "border-primary/30 bg-primary/5"
+      }`}>
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="text-sm font-display tracking-wider text-primary">Quick Start</h4>
-            <p className="text-xs text-muted-foreground mt-1">Jump to the first step of this workflow</p>
+            {isActive ? (
+              <>
+                <h4 className="text-sm font-display tracking-wider text-primary">Continue Workflow</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Step {currentStepIndex + 1} of {workflow.steps.length}: {workflow.steps[currentStepIndex]?.title}
+                </p>
+              </>
+            ) : isCompleted ? (
+              <>
+                <h4 className="text-sm font-display tracking-wider text-green-400">Workflow Completed</h4>
+                <p className="text-xs text-muted-foreground mt-1">All steps have been completed</p>
+              </>
+            ) : (
+              <>
+                <h4 className="text-sm font-display tracking-wider text-primary">Quick Start</h4>
+                <p className="text-xs text-muted-foreground mt-1">Begin this workflow and track your progress</p>
+              </>
+            )}
           </div>
-          <Button
-            size="sm"
-            className="font-mono uppercase tracking-wider text-xs"
-            onClick={() => navigate(workflow.steps[0].href)}
-          >
-            <Play className="w-3 h-3 mr-1.5" />
-            Begin Workflow
-          </Button>
+          <div className="flex items-center gap-2">
+            {isActive && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-mono uppercase tracking-wider text-xs text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
+                onClick={onAbandon}
+              >
+                <X className="w-3 h-3 mr-1.5" />
+                Abandon
+              </Button>
+            )}
+            {isActive ? (
+              <Button
+                size="sm"
+                className="font-mono uppercase tracking-wider text-xs"
+                onClick={() => navigate(workflow.steps[currentStepIndex]?.href ?? workflow.steps[0].href)}
+              >
+                <Play className="w-3 h-3 mr-1.5" />
+                Go to Current Step
+              </Button>
+            ) : isCompleted ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="font-mono uppercase tracking-wider text-xs"
+                onClick={onStart}
+                disabled={isStarting}
+              >
+                <RotateCcw className="w-3 h-3 mr-1.5" />
+                Start Again
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="font-mono uppercase tracking-wider text-xs"
+                onClick={onStart}
+                disabled={isStarting}
+              >
+                {isStarting ? (
+                  <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                ) : (
+                  <Play className="w-3 h-3 mr-1.5" />
+                )}
+                Begin Workflow
+              </Button>
+            )}
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Workflow History ────────────────────────────────────────────────
+
+function WorkflowHistory({ onClose }: { onClose: () => void }) {
+  const { data: history, isLoading } = trpc.workflow.getHistory.useQuery({ limit: 20 });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+          Workflow History
+        </h3>
+        <button
+          onClick={onClose}
+          className="text-xs text-muted-foreground hover:text-primary font-mono uppercase tracking-wider"
+        >
+          Close
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : !history?.length ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <History className="w-8 h-8 mx-auto mb-3 opacity-50" />
+          <p className="text-sm">No workflow history yet</p>
+          <p className="text-xs mt-1">Start a workflow to begin tracking progress</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {history.map((session: any) => {
+            const wf = WORKFLOWS.find(w => w.id === session.workflowId);
+            if (!wf) return null;
+            const Icon = wf.icon;
+            return (
+              <div
+                key={session.id}
+                className="flex items-center gap-3 p-3 border border-border/50 bg-card/30"
+              >
+                <div className={`flex-shrink-0 p-1.5 border border-border/50 bg-background/50 ${wf.iconColor}`}>
+                  <Icon className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">{wf.title}</span>
+                    <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 border ${
+                      session.status === "completed"
+                        ? "text-green-400 border-green-500/30 bg-green-500/10"
+                        : session.status === "abandoned"
+                        ? "text-rose-400 border-rose-500/30 bg-rose-500/10"
+                        : "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                    }`}>
+                      {session.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground font-mono">
+                    <span>Step {session.currentStepIndex}/{wf.steps.length}</span>
+                    <span>{new Date(session.startedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -352,8 +646,61 @@ function WorkflowDetail({ workflow, onBack }: { workflow: WorkflowDefinition; on
 export default function WorkflowLauncher() {
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+
+  // tRPC queries and mutations
+  const { data: activeWorkflows, refetch: refetchActive } = trpc.workflow.getActive.useQuery(
+    undefined,
+    { refetchOnWindowFocus: false }
+  );
+
+  const startMutation = trpc.workflow.start.useMutation({
+    onSuccess: () => {
+      refetchActive();
+      toast.success("Workflow started — your progress will be saved automatically.");
+    },
+    onError: (err) => {
+      toast.error(`Failed to start workflow: ${err.message}`);
+    },
+  });
+
+  const advanceMutation = trpc.workflow.advanceStep.useMutation({
+    onSuccess: (data) => {
+      refetchActive();
+      if (data?.status === "completed") {
+        toast.success("Workflow completed! All steps have been finished.");
+      } else {
+        toast.success("Step completed — moving to the next step.");
+      }
+    },
+    onError: (err) => {
+      toast.error(`Failed to advance step: ${err.message}`);
+    },
+  });
+
+  const abandonMutation = trpc.workflow.abandon.useMutation({
+    onSuccess: () => {
+      refetchActive();
+      setSelectedWorkflow(null);
+      toast.success("Workflow abandoned. You can start a new one anytime.");
+    },
+    onError: (err) => {
+      toast.error(`Failed to abandon workflow: ${err.message}`);
+    },
+  });
+
+  // Find active session for a given workflow
+  const getActiveSession = useCallback(
+    (workflowId: string): ActiveSession | undefined => {
+      return (activeWorkflows as any[])?.find(
+        (s: any) => s.workflowId === workflowId && s.status === "in_progress"
+      );
+    },
+    [activeWorkflows]
+  );
 
   const selected = WORKFLOWS.find(w => w.id === selectedWorkflow);
+  const activeSession = selectedWorkflow ? getActiveSession(selectedWorkflow) : undefined;
 
   const filteredWorkflows = searchQuery
     ? WORKFLOWS.filter(w =>
@@ -364,18 +711,61 @@ export default function WorkflowLauncher() {
       )
     : WORKFLOWS;
 
+  const activeCount = (activeWorkflows as any[])?.filter((s: any) => s.status === "in_progress").length ?? 0;
+
+  if (showHistory) {
+    return <WorkflowHistory onClose={() => setShowHistory(false)} />;
+  }
+
   if (selected) {
-    return <WorkflowDetail workflow={selected} onBack={() => setSelectedWorkflow(null)} />;
+    return (
+      <WorkflowDetail
+        workflow={selected}
+        onBack={() => setSelectedWorkflow(null)}
+        session={activeSession}
+        onStart={() => startMutation.mutate({ workflowId: selected.id })}
+        onAdvance={(stepIndex) =>
+          activeSession &&
+          advanceMutation.mutate({
+            sessionId: activeSession.id,
+            completedStepIndex: stepIndex,
+          })
+        }
+        onAbandon={() =>
+          activeSession && abandonMutation.mutate({ sessionId: activeSession.id })
+        }
+        isStarting={startMutation.isPending}
+      />
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="font-display text-lg tracking-wider text-foreground">Mission Workflows</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Guided scenarios that surface the right modules in sequence. Choose a workflow to get started.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="font-display text-lg tracking-wider text-foreground">Mission Workflows</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Guided scenarios that surface the right modules in sequence. Choose a workflow to get started.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {activeCount > 0 && (
+            <span className="text-[10px] font-mono uppercase tracking-wider text-primary flex items-center gap-1.5 px-2 py-1 border border-primary/30 bg-primary/10">
+              <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+              {activeCount} Active
+            </span>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs font-mono uppercase tracking-wider"
+            onClick={() => setShowHistory(true)}
+          >
+            <History className="w-3 h-3 mr-1.5" />
+            History
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -397,6 +787,8 @@ export default function WorkflowLauncher() {
             key={workflow.id}
             workflow={workflow}
             onSelect={() => setSelectedWorkflow(workflow.id)}
+            activeSession={getActiveSession(workflow.id)}
+            onResume={(sessionId) => setSelectedWorkflow(workflow.id)}
           />
         ))}
       </div>
@@ -415,7 +807,7 @@ export default function WorkflowLauncher() {
         <div>
           <p className="text-xs text-muted-foreground">
             <span className="text-foreground font-medium">Power users:</span> All 108 modules are still accessible via the sidebar navigation.
-            Workflows provide guided paths through the most common scenarios.
+            Workflows provide guided paths through the most common scenarios. Your progress is automatically saved and can be resumed anytime.
           </p>
         </div>
       </div>

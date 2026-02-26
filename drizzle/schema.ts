@@ -4667,3 +4667,42 @@ export const attackPlaybookExecutions = mysqlTable("attack_playbook_executions",
   status: mysqlEnum("status", ["running", "paused", "completed", "failed", "aborted"]).notNull().default("running"),
 });
 export type AttackPlaybookExecution = typeof attackPlaybookExecutions.$inferSelect;
+
+
+// ─── Workflow State Persistence ─────────────────────────────────────
+// Stores user workflow progress so they can resume multi-step guided
+// scenarios (engagements, recon, detection validation, etc.) across sessions.
+
+export const workflowSessions = mysqlTable("workflow_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(),
+  workflowId: varchar("workflow_id", { length: 64 }).notNull(),  // e.g., "new-engagement", "domain-recon"
+  workflowName: varchar("workflow_name", { length: 255 }).notNull(),
+  currentStepIndex: int("current_step_index").notNull().default(0),
+  totalSteps: int("total_steps").notNull(),
+  status: mysqlEnum("status", ["in_progress", "completed", "abandoned"]).notNull().default("in_progress"),
+  stepData: json("step_data"),          // JSON object with data collected at each step
+  contextData: json("context_data"),    // Additional context (selected domain, engagement ID, etc.)
+  startedAt: bigint("started_at", { mode: "number" }).notNull(),
+  lastActivityAt: bigint("last_activity_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+});
+export type WorkflowSession = typeof workflowSessions.$inferSelect;
+export type InsertWorkflowSession = typeof workflowSessions.$inferInsert;
+
+export const workflowStepHistory = mysqlTable("workflow_step_history", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: int("session_id").notNull(),
+  stepIndex: int("step_index").notNull(),
+  stepId: varchar("step_id", { length: 64 }).notNull(),     // e.g., "define-roe", "run-scan"
+  stepName: varchar("step_name", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "skipped", "failed"]).notNull().default("pending"),
+  inputData: json("input_data"),        // Data the user provided at this step
+  outputData: json("output_data"),      // Result data from this step (scan ID, report URL, etc.)
+  linkedEntityType: varchar("linked_entity_type", { length: 64 }),  // e.g., "scan", "engagement", "campaign"
+  linkedEntityId: varchar("linked_entity_id", { length: 255 }),     // ID of the linked entity
+  startedAt: bigint("started_at", { mode: "number" }),
+  completedAt: bigint("completed_at", { mode: "number" }),
+});
+export type WorkflowStepHistory = typeof workflowStepHistory.$inferSelect;
+export type InsertWorkflowStepHistory = typeof workflowStepHistory.$inferInsert;

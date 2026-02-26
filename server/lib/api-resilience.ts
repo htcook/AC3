@@ -112,7 +112,7 @@ function getCircuit(service: string): CircuitBreakerState {
   return circuits.get(service)!;
 }
 
-function recordSuccess(service: string): void {
+export function recordSuccess(service: string): void {
   const circuit = getCircuit(service);
   circuit.state = "closed";
   circuit.failures = 0;
@@ -120,7 +120,7 @@ function recordSuccess(service: string): void {
   circuit.lastSuccessAt = Date.now();
 }
 
-function recordFailure(service: string, error: ClassifiedError, config: CircuitBreakerConfig = DEFAULT_CB_CONFIG): void {
+export function recordFailure(service: string, error: ClassifiedError, config: CircuitBreakerConfig = DEFAULT_CB_CONFIG): void {
   const circuit = getCircuit(service);
   circuit.failures++;
   circuit.lastFailureAt = Date.now();
@@ -136,7 +136,7 @@ function recordFailure(service: string, error: ClassifiedError, config: CircuitB
   }
 }
 
-function shouldAllowRequest(service: string, config: CircuitBreakerConfig = DEFAULT_CB_CONFIG): { allowed: boolean; reason?: string } {
+export function shouldAllowRequest(service: string, config: CircuitBreakerConfig = DEFAULT_CB_CONFIG): { allowed: boolean; reason?: string } {
   const circuit = getCircuit(service);
   
   if (circuit.state === "closed") {

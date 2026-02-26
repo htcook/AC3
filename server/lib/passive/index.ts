@@ -7,6 +7,7 @@
  */
 
 import type { AssetObservation, ConnectorConfig, ConnectorResult, PassiveConnector, RiskSignal, ScanMode } from "./types";
+import { shouldAllowRequest, recordSuccess, recordFailure, classifyError, trackCall, type CircuitBreakerConfig } from "../api-resilience";
 import { crtshConnector } from "./crtsh";
 import { shodanConnector } from "./shodan";
 import { waybackConnector } from "./wayback";
@@ -158,7 +159,16 @@ export async function runPassiveRecon(
     connectorConfigs.set(connector.name, cfg);
   }
 
-  // Run connectors in parallel with concurrency limit
+  // ── Circuit Breaker Configuration ──────────────────────────────────
+  // Each connector is wrapped with a circuit breaker that prevents
+  // hammering APIs that are down, rate-limited, or misconfigured.
+  const cbConfig: CircuitBreakerConfig = {
+    failureThreshold: 3,      // Open circuit after 3 consecutive failures
+    resetTimeoutMs: 120_000,  // 2 minute cooldown before half-open probe
+    halfOpenMaxAttempts: 1,   // 1 probe attempt in half-open state
+  };
+
+  // Run connectors in parallel with concurrency limit + circuit breaker
   const connectorResults: ConnectorResult[] = [];
   const batches: PassiveConnector[][] = [];
   for (let i = 0; i < allowed.length; i += maxConcurrent) {
@@ -168,16 +178,62 @@ export async function runPassiveRecon(
   for (const batch of batches) {
     const results = await Promise.allSettled(
       batch.map(async (connector) => {
-        try {
-          return await connector.collect(domain, connectorConfigs.get(connector.name));
-        } catch (err: any) {
+        const serviceName = connector.name;
+
+        // ── Circuit Breaker Gate ──────────────────────────────────
+        const cbCheck = shouldAllowRequest(serviceName, cbConfig);
+        if (!cbCheck.allowed) {
+          console.log(`[PassiveRecon] Circuit OPEN for ${serviceName} — skipping (${cbCheck.reason})`);
+          trackCall(serviceName, false);
           return {
-            connector: connector.name,
+            connector: serviceName,
             domain,
             observations: [],
-            errors: [`Unhandled error: ${err.message}`],
+            errors: [`Circuit breaker open: ${cbCheck.reason}`],
             durationMs: 0,
             rateLimited: false,
+          } satisfies ConnectorResult;
+        }
+
+        try {
+          const result = await connector.collect(domain, connectorConfigs.get(serviceName));
+
+          // Track success/failure based on result errors
+          const hasAuthError = result.errors.some(e => e.includes("401") || e.includes("Unauthorized") || e.includes("invalid") || e.includes("not configured"));
+          const hasRateLimit = result.rateLimited;
+
+          if (hasAuthError) {
+            // Auth failures should open the circuit to avoid wasting quota
+            const classified = classifyError(new Error(result.errors[0]), serviceName);
+            recordFailure(serviceName, classified, cbConfig);
+            trackCall(serviceName, false);
+          } else if (hasRateLimit) {
+            // Rate limits are transient — record failure but don't count as hard failure
+            trackCall(serviceName, false);
+          } else if (result.errors.length > 0 && result.observations.length === 0) {
+            // Complete failure with no data
+            const classified = classifyError(new Error(result.errors[0]), serviceName);
+            recordFailure(serviceName, classified, cbConfig);
+            trackCall(serviceName, false);
+          } else {
+            // Success (even partial — some errors but also some observations)
+            recordSuccess(serviceName);
+            trackCall(serviceName, true);
+          }
+
+          return result;
+        } catch (err: any) {
+          const classified = classifyError(err, serviceName);
+          recordFailure(serviceName, classified, cbConfig);
+          trackCall(serviceName, false);
+          console.error(`[PassiveRecon] ${serviceName} failed (${classified.category}): ${classified.message}`);
+          return {
+            connector: serviceName,
+            domain,
+            observations: [],
+            errors: [`[${classified.category}] ${err.message}`],
+            durationMs: 0,
+            rateLimited: classified.category === "rate_limited",
           } satisfies ConnectorResult;
         }
       })

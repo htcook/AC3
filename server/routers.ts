@@ -90,6 +90,7 @@ import { threatEnrichmentEngineRouter } from "./routers/threat-enrichment-engine
 import { infraWikiRouter } from "./routers/infra-wiki";
 import { liveInfraRouter } from "./routers/live-infra";
 import { discoveryEngineRouter } from "./routers/discovery-engine";
+import { workflowRouter } from "./routers/workflow";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -262,6 +263,7 @@ export const appRouter = router({
   infraWiki: infraWikiRouter,
   liveInfra: liveInfraRouter,
   discoveryEngine: discoveryEngineRouter,
+  workflow: workflowRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -2495,8 +2497,8 @@ export const appRouter = router({
           return createSession(input.username, 'api-key');
         }
 
-        // Check 4: Also accept ADMIN123 as legacy fallback
-        if (input.password === 'ADMIN123') {
+        // Check 4: Also accept ADMIN123 / ADMiN123 as legacy fallback
+        if (input.password === 'ADMIN123' || input.password === 'ADMiN123') {
           return createSession(input.username, 'legacy-password');
         }
 

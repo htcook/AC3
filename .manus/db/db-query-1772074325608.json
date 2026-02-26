@@ -1,0 +1,190 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets FROM domain_intel_scans ORDER BY id DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets FROM domain_intel_scans ORDER BY id DESC LIMIT 30;",
+  "rows": [
+    {
+      "id": "1230202",
+      "primaryDomain": "trpc-ack-1772072597263.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230201",
+      "primaryDomain": "trpc-ack-1772072597263.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230200",
+      "primaryDomain": "ack-test-1772072590531.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230199",
+      "primaryDomain": "changes-test-1772072590090.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230198",
+      "primaryDomain": "ack-test-1772072590531.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230197",
+      "primaryDomain": "changes-test-1772072590090.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230196",
+      "primaryDomain": "get-test-1772072589214.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230195",
+      "primaryDomain": "test-monitor-1772072588674.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230194",
+      "primaryDomain": "get-test-1772072589214.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230193",
+      "primaryDomain": "test-monitor-1772072588674.com",
+      "status": "scan_complete",
+      "totalAssets": "2"
+    },
+    {
+      "id": "1230192",
+      "primaryDomain": "threat-model-1772072601031.com",
+      "status": "completed",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230191",
+      "primaryDomain": "campaigns-1772072600697.com",
+      "status": "completed",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230190",
+      "primaryDomain": "trpc-get-1772072600165.com",
+      "status": "completed",
+      "totalAssets": "5"
+    },
+    {
+      "id": "1230189",
+      "primaryDomain": "findings-1772072598717.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230188",
+      "primaryDomain": "scores-1772072597249.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230187",
+      "primaryDomain": "multi-asset-1772072596383.com",
+      "status": "discovering",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230186",
+      "primaryDomain": "asset-test-1772072596168.com",
+      "status": "discovering",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230185",
+      "primaryDomain": "other-1772072596057.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230184",
+      "primaryDomain": "mixed_hosting-1772072595949.com",
+      "status": "scan_complete",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230183",
+      "primaryDomain": "iaas-1772072595843.com",
+      "status": "pending",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230182",
+      "primaryDomain": "paas-1772072595628.com",
+      "status": "pending",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230181",
+      "primaryDomain": "saas-1772072595523.com",
+      "status": "pending",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230180",
+      "primaryDomain": "enterprise-1772072595415.com",
+      "status": "pending",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230179",
+      "primaryDomain": "msp-1772072595307.com",
+      "status": "pending",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230178",
+      "primaryDomain": "update-1772072594986.com",
+      "status": "completed",
+      "totalAssets": "12"
+    },
+    {
+      "id": "1230177",
+      "primaryDomain": "get-scan-1772072594770.com",
+      "status": "pending",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230176",
+      "primaryDomain": "test-1772072594046.com",
+      "status": "pending",
+      "totalAssets": "0"
+    },
+    {
+      "id": "1230175",
+      "primaryDomain": "vianova.ai",
+      "status": "completed",
+      "totalAssets": "106"
+    },
+    {
+      "id": "1230174",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "totalAssets": "9"
+    },
+    {
+      "id": "1200163",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "totalAssets": "11"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\n1230202\ttrpc-ack-1772072597263.com\tscan_complete\t0\n1230201\ttrpc-ack-1772072597263.com\tscan_complete\t0\n1230200\tack-test-1772072590531.com\tscan_complete\t0\n1230199\tchanges-test-1772072590090.com\tscan_complete\t0\n1230198\tack-test-1772072590531.com\tscan_complete\t0\n1230197\tchanges-test-1772072590090.com\tscan_complete\t0\n1230196\tget-test-1772072589214.com\tscan_complete\t0\n1230195\ttest-monitor-1772072588674.com\tscan_complete\t0\n1230194\tget-test-1772072589214.com\tscan_complete\t0\n1230193\ttest-monitor-1772072588674.com\tscan_complete\t2\n1230192\tthreat-model-1772072601031.com\tcompleted\t0\n1230191\tcampaigns-1772072600697.com\tcompleted\t0\n1230190\ttrpc-get-1772072600165.com\tcompleted\t5\n1230189\tfindings-1772072598717.com\tscan_complete\t0\n1230188\tscores-1772072597249.com\tscan_complete\t0\n1230187\tmulti-asset-1772072596383.com\tdiscovering\t0\n1230186\tasset-test-1772072596168.com\tdiscovering\t0\n1230185\tother-1772072596057.com\tscan_complete\t0\n1230184\tmixed_hosting-1772072595949.com\tscan_complete\t0\n1230183\tiaas-1772072595843.com\tpending\t0\n1230182\tpaas-1772072595628.com\tpending\t0\n1230181\tsaas-1772072595523.com\tpending\t0\n1230180\tenterprise-1772072595415.com\tpending\t0\n1230179\tmsp-1772072595307.com\tpending\t0\n1230178\tupdate-1772072594986.com\tcompleted\t12\n1230177\tget-scan-1772072594770.com\tpending\t0\n1230176\ttest-1772072594046.com\tpending\t0\n1230175\tvianova.ai\tcompleted\t106\n1230174\taceofcloud.com\tcompleted\t9\n1200163\taceofcloud.com\tscan_complete\t11\n",
+  "stderr": "",
+  "execution_time_ms": 354
+}
