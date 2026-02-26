@@ -142,6 +142,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
           { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
           { href: "/emulation-playbooks", icon: BookMarked, label: "EMULATION PLAYBOOKS" },
+          { href: "/ability-graph", icon: GitBranch, label: "ABILITY GRAPH" },
           { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
           { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
           { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },

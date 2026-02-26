@@ -20,10 +20,12 @@ import {
   exploitIntelligence,
   threatActors,
   ttpKnowledge,
+  darkwebEnrichedRecords,
   type InsertAttackSequenceTemplate,
   type InsertExploitIntelligence,
+  type InsertTtpKnowledge,
 } from "../../drizzle/schema";
-import { eq, and, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, sql, isNull, inArray, desc, gt, isNotNull } from "drizzle-orm";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -58,6 +60,29 @@ interface ExtractedAttackSequence {
   narrative: string;
   lessonsLearned: string;
   emulationGuidance: string;
+  // Phase 1 extension: environmental assumptions extracted from DFIR evidence
+  environmentalAssumptions: {
+    operatingSystem: string[];           // e.g. ["Windows Server 2019", "Ubuntu 22.04"]
+    networkTopology: string;             // e.g. "flat_network", "segmented", "air_gapped"
+    securityControls: string[];          // e.g. ["CrowdStrike Falcon", "Palo Alto NGFW"]
+    identityProvider: string;            // e.g. "Active Directory", "Azure AD", "Okta"
+    cloudProvider: string;               // e.g. "AWS", "Azure", "GCP", "on-prem"
+    privilegeLevel: string;              // e.g. "user", "local_admin", "domain_admin"
+    patchLevel: string;                  // e.g. "current", "30_days_behind", "unpatched"
+    monitoringGaps: string[];            // e.g. ["no_sysmon", "limited_dns_logging"]
+    assumptions: string[];               // free-form assumptions derived from report context
+  };
+  // Phase 1 extension: expected telemetry signals per phase
+  expectedTelemetry: {
+    phase: number;
+    signals: {
+      source: string;                    // e.g. "Sysmon", "Windows Security", "EDR"
+      eventId: string;                   // e.g. "4688", "1", "ProcessCreate"
+      description: string;
+      detectable: boolean;               // whether this signal is typically visible
+      confidence: string;                // "high", "medium", "low"
+    }[];
+  }[];
 }
 
 export async function extractAttackSequence(reportId: number): Promise<ExtractedAttackSequence | null> {
@@ -87,6 +112,8 @@ You must identify:
 7. A narrative summary of the attack flow
 8. Lessons learned for defenders
 9. How to emulate this attack in a Caldera adversary emulation exercise
+10. Environmental assumptions — infer the target OS, network topology, security controls, identity provider, cloud provider, privilege levels, patch state, and monitoring gaps from the report evidence
+11. Expected telemetry — for each attack phase, list the detection signals (log sources, event IDs) that SHOULD fire if monitoring is properly configured, and whether each signal is typically detectable
 
 Be extremely specific. Use real MITRE technique IDs. If the report doesn't contain enough detail for a field, use your expert knowledge to infer the most likely techniques based on the described behavior.
 
@@ -180,11 +207,54 @@ ${truncatedContent}`,
             narrative: { type: "string", description: "Narrative summary of the full attack flow (2-3 paragraphs)" },
             lessonsLearned: { type: "string", description: "Key takeaways for defenders" },
             emulationGuidance: { type: "string", description: "How to emulate this attack in Caldera" },
+            environmentalAssumptions: {
+              type: "object",
+              properties: {
+                operatingSystem: { type: "array", items: { type: "string" }, description: "Target OS versions inferred from report" },
+                networkTopology: { type: "string", description: "flat_network, segmented, air_gapped, hybrid" },
+                securityControls: { type: "array", items: { type: "string" }, description: "EDR, firewall, SIEM products mentioned or inferred" },
+                identityProvider: { type: "string", description: "Active Directory, Azure AD, Okta, etc." },
+                cloudProvider: { type: "string", description: "AWS, Azure, GCP, on-prem, hybrid" },
+                privilegeLevel: { type: "string", description: "Starting privilege: user, local_admin, domain_admin" },
+                patchLevel: { type: "string", description: "current, 30_days_behind, 90_days_behind, unpatched" },
+                monitoringGaps: { type: "array", items: { type: "string" }, description: "Gaps that enabled the attack" },
+                assumptions: { type: "array", items: { type: "string" }, description: "Free-form assumptions from report context" },
+              },
+              required: ["operatingSystem", "networkTopology", "securityControls", "identityProvider", "cloudProvider", "privilegeLevel", "patchLevel", "monitoringGaps", "assumptions"],
+              additionalProperties: false,
+            },
+            expectedTelemetry: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  phase: { type: "integer", description: "Phase order number" },
+                  signals: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        source: { type: "string", description: "Log source: Sysmon, Windows Security, EDR, etc." },
+                        eventId: { type: "string", description: "Event ID or signal name" },
+                        description: { type: "string", description: "What this signal indicates" },
+                        detectable: { type: "boolean", description: "Whether typically visible with standard monitoring" },
+                        confidence: { type: "string", description: "high, medium, low" },
+                      },
+                      required: ["source", "eventId", "description", "detectable", "confidence"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["phase", "signals"],
+                additionalProperties: false,
+              },
+            },
           },
           required: [
             "phases", "actors", "malware", "exploits", "attackType",
             "complexity", "targetEnvironment", "targetSectors", "dwellTime",
             "narrative", "lessonsLearned", "emulationGuidance",
+            "environmentalAssumptions", "expectedTelemetry",
           ],
           additionalProperties: false,
         },
@@ -507,6 +577,14 @@ export async function processReport(reportId: number): Promise<ProcessingResult>
       // Step 5: Update TTP knowledge
       result.ttpsUpdated = await updateTtpKnowledgeFromReport(reportId);
 
+      // Step 6: Bidirectional enrichment — pull catalog/darkweb data to strengthen TTP knowledge
+      try {
+        const enriched = await bidirectionalEnrich(extracted);
+        result.ttpsUpdated += enriched;
+      } catch (e: any) {
+        console.warn(`[AttackSequenceLearner] Bidirectional enrichment failed: ${e.message}`);
+      }
+
       // Mark as training-ready
       await db.update(incidentReports)
         .set({ status: "training_ready" })
@@ -613,4 +691,518 @@ export async function getLearnerStats(): Promise<{
     topActors: [], // Would need a more complex query across JSON fields
     topTechniques: [], // Would need JSON extraction query
   };
+}
+
+// ─── Threat Catalog Integration ──────────────────────────────────────────
+
+/**
+ * Learn from the Threat Intelligence Catalog.
+ * Ingests ThreatGroupProfile techniques into ttpKnowledge with
+ * environmental context derived from actor targeting patterns.
+ */
+export async function learnFromCatalog(options?: {
+  actorTypes?: string[];
+  threatLevels?: string[];
+  limit?: number;
+}): Promise<{
+  actorsProcessed: number;
+  techniquesIngested: number;
+  knowledgeUpdated: number;
+  errors: string[];
+}> {
+  const db = await requireDb();
+  const result = { actorsProcessed: 0, techniquesIngested: 0, knowledgeUpdated: 0, errors: [] as string[] };
+
+  // Query threat actors with techniques
+  const conditions: any[] = [isNotNull(threatActors.techniques)];
+  if (options?.actorTypes?.length) {
+    conditions.push(inArray(threatActors.type, options.actorTypes as any));
+  }
+  if (options?.threatLevels?.length) {
+    conditions.push(inArray(threatActors.threatLevel, options.threatLevels as any));
+  }
+
+  const actors = await db.select()
+    .from(threatActors)
+    .where(and(...conditions))
+    .orderBy(desc(threatActors.confidence))
+    .limit(options?.limit ?? 100);
+
+  for (const actor of actors) {
+    try {
+      const techniques = (actor.techniques as any[]) || [];
+      const tools = (actor.tools as string[]) || [];
+      const malware = (actor.malware as string[]) || [];
+      const targetSectors = (actor.targetSectors as string[]) || [];
+      const targetRegions = (actor.targetRegions as string[]) || [];
+
+      for (const tech of techniques) {
+        if (!tech.id) continue;
+        result.techniquesIngested++;
+
+        // Check if TTP knowledge already exists
+        const existing = await db.select()
+          .from(ttpKnowledge)
+          .where(eq(ttpKnowledge.techniqueId, tech.id))
+          .limit(1);
+
+        // Build environmental constraints from actor targeting patterns
+        const envConstraints = {
+          targetedSectors: targetSectors,
+          targetedRegions: targetRegions,
+          associatedActors: [{ id: actor.actorId, name: actor.name, type: actor.type, confidence: actor.confidence }],
+          associatedTools: tools.filter(t => tech.description?.toLowerCase().includes(t.toLowerCase()) || true).slice(0, 10),
+          associatedMalware: malware.slice(0, 10),
+          sophisticationLevel: actor.sophistication || "intermediate",
+          motivation: actor.motivation || "unknown",
+        };
+
+        // Build expected telemetry from actor's known IOC patterns
+        const expectedTelemetry = {
+          actorFingerprints: {
+            tools: tools.slice(0, 5),
+            malware: malware.slice(0, 5),
+            actorType: actor.type,
+          },
+          catalogSource: true,
+          catalogConfidence: actor.confidence || 50,
+        };
+
+        if (existing.length > 0) {
+          // Merge environmental constraints with existing knowledge
+          const existingEnv = (existing[0].environmentalConstraints as any) || {};
+          const existingTelemetry = (existing[0].expectedTelemetry as any) || {};
+
+          const mergedActors = [
+            ...((existingEnv.associatedActors as any[]) || []),
+            ...envConstraints.associatedActors,
+          ];
+          // Deduplicate actors by id
+          const uniqueActors = Array.from(
+            new Map(mergedActors.map(a => [a.id, a])).values()
+          );
+
+          const mergedEnv = {
+            ...existingEnv,
+            targetedSectors: [...new Set([...(existingEnv.targetedSectors || []), ...envConstraints.targetedSectors])],
+            targetedRegions: [...new Set([...(existingEnv.targetedRegions || []), ...envConstraints.targetedRegions])],
+            associatedActors: uniqueActors,
+            associatedTools: [...new Set([...(existingEnv.associatedTools || []), ...envConstraints.associatedTools])],
+            associatedMalware: [...new Set([...(existingEnv.associatedMalware || []), ...envConstraints.associatedMalware])],
+          };
+
+          const mergedTelemetry = {
+            ...existingTelemetry,
+            actorFingerprints: [
+              ...((existingTelemetry.actorFingerprints as any[]) || []),
+              expectedTelemetry.actorFingerprints,
+            ].slice(0, 20),
+            catalogSource: true,
+            catalogConfidence: Math.max(existingTelemetry.catalogConfidence || 0, expectedTelemetry.catalogConfidence),
+          };
+
+          // Boost confidence if multiple sources corroborate
+          const newConfidence = Math.min(100, (existing[0].confidence || 50) + 5);
+
+          await db.update(ttpKnowledge)
+            .set({
+              environmentalConstraints: mergedEnv,
+              expectedTelemetry: mergedTelemetry,
+              confidence: newConfidence,
+              dataSource: existing[0].dataSource === "llm-enriched" ? "llm+catalog" : existing[0].dataSource + "+catalog",
+              updatedAt: new Date(),
+            })
+            .where(eq(ttpKnowledge.techniqueId, tech.id));
+          result.knowledgeUpdated++;
+        } else {
+          // Create new TTP knowledge entry from catalog data
+          await db.insert(ttpKnowledge).values({
+            techniqueId: tech.id,
+            techniqueName: tech.name || tech.id,
+            tactic: tech.tactic || "unknown",
+            description: tech.description || `${tech.name} — sourced from threat catalog (${actor.name})`,
+            executionMethods: [],
+            toolsUsed: tools.map(t => ({ name: t, type: "offensive" as const, description: "", commonActors: [actor.name] })),
+            iocPatterns: [],
+            artifacts: [],
+            detectionRules: [],
+            eventLogSources: [],
+            calderaAbilities: [],
+            attackChainPosition: tech.tactic || "unknown",
+            prerequisiteTechniques: [],
+            followUpTechniques: [],
+            defensiveGaps: [],
+            redTeamValue: tech.score || 5,
+            blueTeamPriority: 5,
+            purpleTeamNotes: `Sourced from threat catalog: ${actor.name} (${actor.type})`,
+            environmentalConstraints: envConstraints,
+            expectedTelemetry: expectedTelemetry,
+            dataSource: "catalog",
+            confidence: Math.min(actor.confidence || 50, 70), // Cap at 70 since catalog-only lacks deep analysis
+            lastEnriched: new Date(),
+          } as any);
+          result.knowledgeUpdated++;
+        }
+      }
+      result.actorsProcessed++;
+    } catch (e: any) {
+      result.errors.push(`Actor ${actor.actorId}: ${e.message}`);
+    }
+  }
+
+  console.log(`[AttackSequenceLearner] Catalog ingestion: ${result.actorsProcessed} actors, ${result.techniquesIngested} techniques, ${result.knowledgeUpdated} knowledge entries updated`);
+  return result;
+}
+
+// ─── Darkweb Intelligence Integration ────────────────────────────────────
+
+/**
+ * Learn from Darkweb Enriched Records.
+ * Extracts TTPs from LLM-enriched darkweb events and correlates
+ * with existing TTP knowledge for real-world validation.
+ */
+export async function learnFromDarkweb(options?: {
+  minRiskScore?: number;
+  sinceDays?: number;
+  limit?: number;
+}): Promise<{
+  recordsProcessed: number;
+  techniquesExtracted: number;
+  knowledgeUpdated: number;
+  iocsCrossReferenced: number;
+  errors: string[];
+}> {
+  const db = await requireDb();
+  const result = {
+    recordsProcessed: 0,
+    techniquesExtracted: 0,
+    knowledgeUpdated: 0,
+    iocsCrossReferenced: 0,
+    errors: [] as string[],
+  };
+
+  const minScore = options?.minRiskScore ?? 30;
+  const sinceDays = options?.sinceDays ?? 90;
+  const cutoff = new Date(Date.now() - sinceDays * 86400000);
+
+  // Query darkweb enriched records with MITRE techniques
+  const records = await db.select()
+    .from(darkwebEnrichedRecords)
+    .where(
+      and(
+        isNotNull(darkwebEnrichedRecords.mitreTechniques),
+        gt(darkwebEnrichedRecords.riskScore, minScore),
+        gt(darkwebEnrichedRecords.createdAt, cutoff),
+      )
+    )
+    .orderBy(desc(darkwebEnrichedRecords.riskScore))
+    .limit(options?.limit ?? 200);
+
+  for (const record of records) {
+    try {
+      const techniques = (record.mitreTechniques as string[]) || [];
+      const tactics = (record.mitreTactics as string[]) || [];
+      const relatedActors = (record.relatedActors as string[]) || [];
+      const relatedCves = (record.relatedCves as string[]) || [];
+      const relatedIocs = (record.relatedIocs as any[]) || [];
+      const affectedSectors = (record.affectedSectors as string[]) || [];
+      const affectedCountries = (record.affectedCountries as string[]) || [];
+
+      for (const techId of techniques) {
+        if (!techId || !techId.startsWith("T")) continue;
+        result.techniquesExtracted++;
+
+        const existing = await db.select()
+          .from(ttpKnowledge)
+          .where(eq(ttpKnowledge.techniqueId, techId))
+          .limit(1);
+
+        // Build darkweb-sourced environmental context
+        const darkwebContext = {
+          source: "darkweb",
+          riskScore: record.riskScore,
+          threatAssessment: record.threatAssessment?.substring(0, 500),
+          relatedActors,
+          relatedCves,
+          affectedSectors,
+          affectedCountries,
+          observedAt: record.createdAt?.toISOString(),
+        };
+
+        // Build expected telemetry from darkweb IOCs
+        const darkwebTelemetry = {
+          darkwebIocs: relatedIocs.slice(0, 20),
+          darkwebCves: relatedCves,
+          darkwebValidated: true,
+          darkwebRiskScore: record.riskScore,
+          darkwebObservedAt: record.createdAt?.toISOString(),
+        };
+
+        if (existing.length > 0) {
+          const existingEnv = (existing[0].environmentalConstraints as any) || {};
+          const existingTelemetry = (existing[0].expectedTelemetry as any) || {};
+
+          // Merge darkweb context into environmental constraints
+          const darkwebSources = [...((existingEnv.darkwebSources as any[]) || []), darkwebContext];
+          // Keep last 10 darkweb sources
+          const mergedEnv = {
+            ...existingEnv,
+            darkwebSources: darkwebSources.slice(-10),
+            darkwebValidated: true,
+            lastDarkwebSighting: record.createdAt?.toISOString(),
+            targetedSectors: [...new Set([...(existingEnv.targetedSectors || []), ...affectedSectors])],
+            targetedRegions: [...new Set([...(existingEnv.targetedRegions || []), ...affectedCountries])],
+          };
+
+          // Merge IOCs into expected telemetry
+          const existingIocs = (existingTelemetry.darkwebIocs as any[]) || [];
+          const allIocs = [...existingIocs, ...relatedIocs];
+          // Deduplicate IOCs by value
+          const uniqueIocs = Array.from(
+            new Map(allIocs.map((ioc: any) => [ioc.value || JSON.stringify(ioc), ioc])).values()
+          ).slice(0, 50);
+
+          const mergedTelemetry = {
+            ...existingTelemetry,
+            darkwebIocs: uniqueIocs,
+            darkwebCves: [...new Set([...(existingTelemetry.darkwebCves || []), ...relatedCves])],
+            darkwebValidated: true,
+            darkwebRiskScore: Math.max(existingTelemetry.darkwebRiskScore || 0, record.riskScore || 0),
+            lastDarkwebObserved: record.createdAt?.toISOString(),
+          };
+
+          // Boost confidence for darkweb-validated techniques
+          const newConfidence = Math.min(100, (existing[0].confidence || 50) + 3);
+
+          await db.update(ttpKnowledge)
+            .set({
+              environmentalConstraints: mergedEnv,
+              expectedTelemetry: mergedTelemetry,
+              confidence: newConfidence,
+              dataSource: existing[0].dataSource?.includes("darkweb")
+                ? existing[0].dataSource
+                : (existing[0].dataSource || "unknown") + "+darkweb",
+              updatedAt: new Date(),
+            })
+            .where(eq(ttpKnowledge.techniqueId, techId));
+          result.knowledgeUpdated++;
+          result.iocsCrossReferenced += relatedIocs.length;
+        } else {
+          // Create new TTP knowledge entry from darkweb data
+          const tactic = tactics[0] || "unknown";
+          await db.insert(ttpKnowledge).values({
+            techniqueId: techId,
+            techniqueName: techId, // Will be enriched later by ttp-engine
+            tactic,
+            description: `Observed in darkweb intelligence. ${record.summary?.substring(0, 300) || ""}`,
+            executionMethods: [],
+            toolsUsed: [],
+            iocPatterns: relatedIocs.map((ioc: any) => ({
+              type: ioc.type || "unknown",
+              pattern: ioc.value || "",
+              description: "Sourced from darkweb intelligence",
+              confidence: "medium" as const,
+              volatility: "medium" as const,
+            })),
+            artifacts: [],
+            detectionRules: [],
+            eventLogSources: [],
+            calderaAbilities: [],
+            attackChainPosition: tactic,
+            prerequisiteTechniques: [],
+            followUpTechniques: [],
+            defensiveGaps: [],
+            redTeamValue: Math.round((record.riskScore || 50) / 10),
+            blueTeamPriority: Math.round((record.riskScore || 50) / 10),
+            purpleTeamNotes: `Sourced from darkweb intelligence (risk score: ${record.riskScore})`,
+            environmentalConstraints: {
+              darkwebSources: [darkwebContext],
+              darkwebValidated: true,
+              lastDarkwebSighting: record.createdAt?.toISOString(),
+              targetedSectors: affectedSectors,
+              targetedRegions: affectedCountries,
+            },
+            expectedTelemetry: darkwebTelemetry,
+            dataSource: "darkweb",
+            confidence: Math.min(record.riskScore || 40, 60), // Cap at 60 since darkweb-only lacks verification
+            lastEnriched: new Date(),
+          } as any);
+          result.knowledgeUpdated++;
+          result.iocsCrossReferenced += relatedIocs.length;
+        }
+      }
+      result.recordsProcessed++;
+    } catch (e: any) {
+      result.errors.push(`Record ${record.id}: ${e.message}`);
+    }
+  }
+
+  console.log(`[AttackSequenceLearner] Darkweb ingestion: ${result.recordsProcessed} records, ${result.techniquesExtracted} techniques, ${result.knowledgeUpdated} knowledge entries, ${result.iocsCrossReferenced} IOCs cross-referenced`);
+  return result;
+}
+
+// ─── Bidirectional Enrichment ────────────────────────────────────────────
+
+/**
+ * After processing a DFIR report, pull matching catalog/darkweb data
+ * to strengthen the confidence and fill gaps in TTP knowledge.
+ * Also feeds environmental assumptions from DFIR back into the catalog.
+ */
+async function bidirectionalEnrich(extracted: ExtractedAttackSequence): Promise<number> {
+  const db = await requireDb();
+  let updated = 0;
+
+  // Collect all technique IDs from the extracted sequence
+  const techniqueIds = new Set<string>();
+  for (const phase of extracted.phases) {
+    for (const tech of phase.techniques) {
+      if (tech.id) techniqueIds.add(tech.id);
+    }
+  }
+  if (techniqueIds.size === 0) return 0;
+
+  const techArray = Array.from(techniqueIds);
+
+  // 1. Pull matching threat actors from catalog that use these techniques
+  const matchingActors = await db.select({
+    actorId: threatActors.actorId,
+    name: threatActors.name,
+    type: threatActors.type,
+    techniques: threatActors.techniques,
+    tools: threatActors.tools,
+    malware: threatActors.malware,
+    targetSectors: threatActors.targetSectors,
+    confidence: threatActors.confidence,
+  })
+    .from(threatActors)
+    .where(isNotNull(threatActors.techniques))
+    .limit(200);
+
+  // Find actors whose techniques overlap with the extracted report
+  const overlappingActors = matchingActors.filter(actor => {
+    const actorTechs = (actor.techniques as any[]) || [];
+    return actorTechs.some(t => techniqueIds.has(t.id));
+  });
+
+  // 2. Pull matching darkweb records that reference these techniques
+  const matchingDarkweb = await db.select()
+    .from(darkwebEnrichedRecords)
+    .where(isNotNull(darkwebEnrichedRecords.mitreTechniques))
+    .orderBy(desc(darkwebEnrichedRecords.riskScore))
+    .limit(100);
+
+  const overlappingDarkweb = matchingDarkweb.filter(record => {
+    const techs = (record.mitreTechniques as string[]) || [];
+    return techs.some(t => techniqueIds.has(t));
+  });
+
+  // 3. For each technique in the report, enrich with catalog + darkweb data
+  for (const techId of techArray) {
+    const existing = await db.select()
+      .from(ttpKnowledge)
+      .where(eq(ttpKnowledge.techniqueId, techId))
+      .limit(1);
+
+    if (existing.length === 0) continue;
+
+    const entry = existing[0];
+    const existingEnv = (entry.environmentalConstraints as any) || {};
+    const existingTelemetry = (entry.expectedTelemetry as any) || {};
+
+    // Enrich from catalog actors
+    const actorsForTech = overlappingActors.filter(a =>
+      ((a.techniques as any[]) || []).some(t => t.id === techId)
+    );
+
+    let envUpdates: any = { ...existingEnv };
+    let telemetryUpdates: any = { ...existingTelemetry };
+    let confidenceBoost = 0;
+    let sourceAdditions: string[] = [];
+
+    if (actorsForTech.length > 0) {
+      const catalogActors = actorsForTech.map(a => ({
+        id: a.actorId, name: a.name, type: a.type, confidence: a.confidence,
+      }));
+      const existingActors = (envUpdates.associatedActors as any[]) || [];
+      const allActors = [...existingActors, ...catalogActors];
+      envUpdates.associatedActors = Array.from(
+        new Map(allActors.map(a => [a.id, a])).values()
+      );
+
+      const allTools = actorsForTech.flatMap(a => (a.tools as string[]) || []);
+      envUpdates.associatedTools = [...new Set([...(envUpdates.associatedTools || []), ...allTools])];
+
+      const allSectors = actorsForTech.flatMap(a => (a.targetSectors as string[]) || []);
+      envUpdates.targetedSectors = [...new Set([...(envUpdates.targetedSectors || []), ...allSectors])];
+
+      confidenceBoost += Math.min(actorsForTech.length * 2, 10);
+      sourceAdditions.push("catalog");
+    }
+
+    // Enrich from darkweb records
+    const darkwebForTech = overlappingDarkweb.filter(r =>
+      ((r.mitreTechniques as string[]) || []).includes(techId)
+    );
+
+    if (darkwebForTech.length > 0) {
+      envUpdates.darkwebValidated = true;
+      envUpdates.lastDarkwebSighting = darkwebForTech[0].createdAt?.toISOString();
+
+      const darkwebIocs = darkwebForTech.flatMap(r => (r.relatedIocs as any[]) || []);
+      const existingIocs = (telemetryUpdates.darkwebIocs as any[]) || [];
+      const allIocs = [...existingIocs, ...darkwebIocs];
+      telemetryUpdates.darkwebIocs = Array.from(
+        new Map(allIocs.map((ioc: any) => [ioc.value || JSON.stringify(ioc), ioc])).values()
+      ).slice(0, 50);
+
+      const darkwebCves = darkwebForTech.flatMap(r => (r.relatedCves as string[]) || []);
+      telemetryUpdates.darkwebCves = [...new Set([...(telemetryUpdates.darkwebCves || []), ...darkwebCves])];
+      telemetryUpdates.darkwebValidated = true;
+
+      confidenceBoost += Math.min(darkwebForTech.length * 2, 8);
+      sourceAdditions.push("darkweb");
+    }
+
+    // Enrich from DFIR environmental assumptions
+    if (extracted.environmentalAssumptions) {
+      const assumptions = extracted.environmentalAssumptions;
+      envUpdates.dfirAssumptions = {
+        ...(envUpdates.dfirAssumptions || {}),
+        operatingSystem: [...new Set([...(envUpdates.dfirAssumptions?.operatingSystem || []), ...(assumptions.operatingSystem || [])])],
+        networkTopology: assumptions.networkTopology || envUpdates.dfirAssumptions?.networkTopology,
+        securityControls: [...new Set([...(envUpdates.dfirAssumptions?.securityControls || []), ...(assumptions.securityControls || [])])],
+        privilegeLevel: assumptions.privilegeLevel || envUpdates.dfirAssumptions?.privilegeLevel,
+        assumptions: [...new Set([...(envUpdates.dfirAssumptions?.assumptions || []), ...(assumptions.assumptions || [])])],
+      };
+    }
+
+    // Enrich from DFIR expected telemetry
+    if (extracted.expectedTelemetry) {
+      telemetryUpdates.dfirTelemetry = extracted.expectedTelemetry;
+    }
+
+    if (confidenceBoost > 0 || sourceAdditions.length > 0) {
+      const newConfidence = Math.min(100, (entry.confidence || 50) + confidenceBoost);
+      let newSource = entry.dataSource || "unknown";
+      for (const src of sourceAdditions) {
+        if (!newSource.includes(src)) {
+          newSource += `+${src}`;
+        }
+      }
+
+      await db.update(ttpKnowledge)
+        .set({
+          environmentalConstraints: envUpdates,
+          expectedTelemetry: telemetryUpdates,
+          confidence: newConfidence,
+          dataSource: newSource,
+          updatedAt: new Date(),
+        })
+        .where(eq(ttpKnowledge.techniqueId, techId));
+      updated++;
+    }
+  }
+
+  console.log(`[AttackSequenceLearner] Bidirectional enrichment: ${updated} TTP entries updated from ${overlappingActors.length} catalog actors and ${overlappingDarkweb.length} darkweb records`);
+  return updated;
 }

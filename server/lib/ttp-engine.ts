@@ -143,7 +143,27 @@ Return JSON with this exact structure:
   ],
   "redTeamValue": 8,
   "blueTeamPriority": 7,
-  "purpleTeamNotes": "Specific notes for purple team exercises using this technique"
+  "purpleTeamNotes": "Specific notes for purple team exercises using this technique",
+  "environmentalConstraints": {
+    "requiredOS": ["windows", "linux", "macos"],
+    "requiredPrivileges": "user|admin|system|root",
+    "requiredNetworkAccess": "local|internal|external|any",
+    "requiredSoftware": ["Software or service that must be present"],
+    "securityControlsToEvade": ["EDR", "AV", "SIEM", "firewall"],
+    "commonMisconfigurations": ["Misconfiguration that enables this technique"],
+    "cloudApplicability": "aws|azure|gcp|none|all",
+    "containerApplicability": "docker|kubernetes|none|all"
+  },
+  "expectedTelemetry": {
+    "processEvents": ["Process creation patterns to expect"],
+    "networkSignatures": ["Network traffic patterns generated"],
+    "fileSystemChanges": ["Files created, modified, or deleted"],
+    "registryChanges": ["Registry keys modified (Windows)"],
+    "authenticationEvents": ["Login/auth events generated"],
+    "logSources": ["Specific log sources that capture this activity"],
+    "detectionTimeWindow": "seconds|minutes|hours|days",
+    "noiseLevel": "high|medium|low"
+  }
 }`,
       },
     ],
@@ -182,6 +202,8 @@ Return JSON with this exact structure:
     redTeamValue: parsed.redTeamValue || 5,
     blueTeamPriority: parsed.blueTeamPriority || 5,
     purpleTeamNotes: parsed.purpleTeamNotes || "",
+    environmentalConstraints: parsed.environmentalConstraints || null,
+    expectedTelemetry: parsed.expectedTelemetry || null,
     dataSource: "llm-enriched",
     confidence: 75,
     lastEnriched: new Date(),

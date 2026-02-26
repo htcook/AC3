@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `ability_graph_edges` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `edge_id` varchar(64) NOT NULL,\n  `graph_id` varchar(64) NOT NULL,\n  `source_node_id` varchar(64) NOT NULL,\n  `target_node_id` varchar(64) NOT NULL,\n  `condition` varchar(32) NOT NULL DEFAULT 'on_success',\n  `condition_expression` text,\n  `output_match_pattern` varchar(512),\n  `weight` int DEFAULT 1,\n  `label` varchar(255),\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  CONSTRAINT `ability_graph_edges_id` PRIMARY KEY(`id`),\n  CONSTRAINT `ability_graph_edges_edge_id_unique` UNIQUE(`edge_id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `ability_graph_edges` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `edge_id` varchar(64) NOT NULL,\n  `graph_id` varchar(64) NOT NULL,\n  `source_node_id` varchar(64) NOT NULL,\n  `target_node_id` varchar(64) NOT NULL,\n  `condition` varchar(32) NOT NULL DEFAULT 'on_success',\n  `condition_expression` text,\n  `output_match_pattern` varchar(512),\n  `weight` int DEFAULT 1,\n  `label` varchar(255),\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  CONSTRAINT `ability_graph_edges_id` PRIMARY KEY(`id`),\n  CONSTRAINT `ability_graph_edges_edge_id_unique` UNIQUE(`edge_id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 187
+}

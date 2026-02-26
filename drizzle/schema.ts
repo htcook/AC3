@@ -809,6 +809,9 @@ export const ttpKnowledge = mysqlTable("ttp_knowledge", {
   redTeamValue: int("redTeamValue"), // 1-10 how valuable for red team exercises
   blueTeamPriority: int("blueTeamPriority"), // 1-10 how important for blue team to detect
   purpleTeamNotes: text("purpleTeamNotes"), // Notes for purple team exercises
+  // Environmental context (Phase 2 extension)
+  environmentalConstraints: json("environmentalConstraints"), // { requiredOS, networkAccess, privileges, dependencies, contraindications }
+  expectedTelemetry: json("expectedTelemetry"), // Array of { source, eventId, description, detectable, confidence, phase }
   // Metadata
   dataSource: varchar("dataSource", { length: 128 }), // mitre, llm-enriched, manual
   confidence: int("confidence"), // 0-100
@@ -5254,3 +5257,83 @@ export const observationAlertHistory = mysqlTable("observation_alert_history", {
 });
 export type ObservationAlert = typeof observationAlertHistory.$inferSelect;
 export type InsertObservationAlert = typeof observationAlertHistory.$inferInsert;
+
+
+// ─── Ability Graph Engine ───────────────────────────────────────────────
+/**
+ * Directed Acyclic Graph (DAG) for composing and executing
+ * Caldera abilities as structured attack emulation plans.
+ */
+export const abilityGraphs = mysqlTable("ability_graphs", {
+  id: int("id").autoincrement().primaryKey(),
+  graphId: varchar("graph_id", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  sourceType: varchar("source_type", { length: 64 }).notNull(), // manual, technique_chain, actor_profile, incident_report, playbook
+  sourceId: varchar("source_id", { length: 128 }),
+  actorName: varchar("actor_name", { length: 255 }),
+  tactics: json("tactics").$type<string[]>(),
+  techniqueCount: int("technique_count").default(0),
+  nodeCount: int("node_count").default(0),
+  edgeCount: int("edge_count").default(0),
+  status: varchar("status", { length: 32 }).default("draft").notNull(), // draft, validated, ready, running, completed, failed, aborted
+  safetyTier: varchar("safety_tier", { length: 32 }).default("medium_impact").notNull(),
+  scanMode: varchar("scan_mode", { length: 32 }).default("active-standard").notNull(),
+  executionId: varchar("execution_id", { length: 128 }),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  nodesCompleted: int("nodes_completed").default(0),
+  nodesFailed: int("nodes_failed").default(0),
+  nodesSkipped: int("nodes_skipped").default(0),
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type AbilityGraph = typeof abilityGraphs.$inferSelect;
+export type InsertAbilityGraph = typeof abilityGraphs.$inferInsert;
+
+export const abilityGraphNodes = mysqlTable("ability_graph_nodes", {
+  id: int("id").autoincrement().primaryKey(),
+  nodeId: varchar("node_id", { length: 64 }).notNull().unique(),
+  graphId: varchar("graph_id", { length: 64 }).notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  description: text("description"),
+  techniqueId: varchar("technique_id", { length: 32 }).notNull(),
+  techniqueName: varchar("technique_name", { length: 255 }).notNull(),
+  tactic: varchar("tactic", { length: 128 }).notNull(),
+  calderaAbilityId: varchar("caldera_ability_id", { length: 128 }),
+  executor: varchar("executor", { length: 32 }),
+  platform: varchar("platform", { length: 32 }),
+  command: text("command"),
+  cleanupCommand: text("cleanup_command"),
+  payload: text("payload"),
+  preconditions: json("preconditions"), // Array of Precondition objects
+  exitCriteria: json("exit_criteria"), // Array of ExitCriteria objects
+  safetyTier: varchar("safety_tier", { length: 32 }).default("medium_impact").notNull(),
+  timeout: int("timeout").default(300),
+  retryCount: int("retry_count").default(1),
+  status: varchar("status", { length: 32 }).default("pending").notNull(), // pending, ready, running, success, failed, skipped, blocked
+  executionOrder: int("execution_order").default(0),
+  layer: int("layer").default(0),
+  executionResult: json("execution_result"), // { exitCode, stdout, stderr, startedAt, completedAt, agentId }
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type AbilityGraphNode = typeof abilityGraphNodes.$inferSelect;
+export type InsertAbilityGraphNode = typeof abilityGraphNodes.$inferInsert;
+
+export const abilityGraphEdges = mysqlTable("ability_graph_edges", {
+  id: int("id").autoincrement().primaryKey(),
+  edgeId: varchar("edge_id", { length: 64 }).notNull().unique(),
+  graphId: varchar("graph_id", { length: 64 }).notNull(),
+  sourceNodeId: varchar("source_node_id", { length: 64 }).notNull(),
+  targetNodeId: varchar("target_node_id", { length: 64 }).notNull(),
+  condition: varchar("condition", { length: 32 }).default("on_success").notNull(), // always, on_success, on_failure, on_output_match, on_precondition, conditional
+  conditionExpression: text("condition_expression"),
+  outputMatchPattern: varchar("output_match_pattern", { length: 512 }),
+  weight: int("weight").default(1),
+  label: varchar("label", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type AbilityGraphEdge = typeof abilityGraphEdges.$inferSelect;
+export type InsertAbilityGraphEdge = typeof abilityGraphEdges.$inferInsert;

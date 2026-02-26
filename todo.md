@@ -4838,6 +4838,40 @@
 ## Attack Emulation Enhancement Integration Review
 - [ ] Review Attack Emulation Enhancement Integration document
 - [ ] Analyze integration points with existing threat actor data pipeline
-- [ ] Identify how to enhance threat emulation capabilities
-- [ ] Map enrichment opportunities for platform features
-- [ ] Deliver integration analysis and recommendations
+- [x] Identify how to enhance threat emulation capabilities
+- [x] Map enrichment opportunities for platform features
+- [x] Deliver integration analysis and recommendations
+
+## Attack Emulation Enhancement — Phase 1: DFIR-to-TTP Extension
+- [x] Add environmentalAssumptions to ExtractedAttackSequence interface
+- [x] Update LLM extraction prompt to populate environmental assumptions
+- [x] Add expectedTelemetry to ExtractedAttackSequence interface
+- [x] Update LLM extraction prompt to populate expected telemetry per phase
+- [ ] Build adaptDfirResults() adapter in observation normalizer
+- [ ] Wire DFIR adapter into processReport() pipeline in attack-sequence-learner
+
+## Attack Emulation Enhancement — Phase 1b: Threat Catalog + Darkweb Intel Integration
+- [x] Build learnFromCatalog() — ingest ThreatGroupProfile techniques into ttpKnowledge
+- [x] Build learnFromDarkweb() — extract TTPs from darkweb enriched records
+- [x] Add bidirectional enrichment in processReport() — pull catalog/darkweb data to strengthen confidence
+- [x] Cross-reference darkweb mitreTechniques with ttpKnowledge for real-world validation
+- [x] Feed darkweb IOCs into environmental assumptions (leaked creds → privilege assumptions)
+- [x] Wire catalog actor techniques into attack-sequence-learner for template generation
+
+## Attack Emulation Enhancement — Phase 2: Evidence-Anchored ATT&CK Mapper
+- [x] Add environmentalConstraints JSON column to ttpKnowledge table
+- [x] Add expectedTelemetry JSON column to ttpKnowledge table
+- [x] Extend enrichTechnique() in ttp-engine to populate new fields
+- [x] Update LLM enrichment prompt for environmental constraints and telemetry signals
+
+## Attack Emulation Enhancement — Phase 3: Ability Graph Engine
+- [x] Design AbilityNode and AbilityEdge interfaces
+- [x] Create ability_graph_nodes and ability_graph_edges DB tables
+- [x] Build ability-graph-engine.ts with DAG operations (build, sort, evaluate, walk)
+- [x] Implement precondition evaluation logic
+- [x] Implement exit criteria evaluation and conditional edge following
+- [x] Implement safety tier gating via scan policy engine
+- [x] Build LLM-assisted technique-to-ability decomposition
+- [x] Add tRPC router for graph CRUD, execution, and visualization
+- [x] Build Ability Graph Visualizer UI page
+- [x] Write vitest tests for all graph operations (69 tests passing)
