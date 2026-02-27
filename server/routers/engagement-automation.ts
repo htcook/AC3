@@ -121,6 +121,14 @@ export const engagementAutomationRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: log target domain/IP for audit trail ──
+      // Note: this mutation creates the engagement, so no engagementId exists yet.
+      // Targets are validated when the pipeline dispatches active tools.
+      const launchTargets = [input.targetDomain, input.targetIpRange].filter(Boolean);
+      if (launchTargets.length > 0) {
+        console.log(`[ScopeGuard] Engagement launch targets logged: ${launchTargets.join(", ")}`);
+      }
+
       const db = await getDbSafe();
       const template = ENGAGEMENT_TEMPLATES[input.templateId];
       if (!template) throw new Error(`Unknown template: ${input.templateId}`);

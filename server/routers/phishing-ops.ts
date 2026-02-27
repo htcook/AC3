@@ -517,13 +517,19 @@ Make the phishing content highly realistic and tailored to the target domain and
       phishingUrl: z.string(),
       launchDate: z.string().optional(),
       sendByDate: z.string().optional(),
+      engagementId: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-
       const [draft] = await db.select().from(phishingDrafts)
         .where(eq(phishingDrafts.id, input.draftId));
       if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
+
+      // ── ROE Scope Enforcement: validate phishing target domain is in scope ──
+      if (input.engagementId && draft.targetDomain) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, draft.targetDomain, "GoPhish Campaign Launch", ctx);
+      };
       if (draft.status !== "deployed") {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Draft must be deployed to GoPhish before launching" });
       }

@@ -81,7 +81,15 @@ export const adAttackSimRouter = router({
       functionalLevel: z.string().optional(),
       connectionConfig: z.any().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate domain controller and domain are in scope ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.domainName, "AD Environment Registration", ctx);
+        if (input.domainController) {
+          await enforceTargetScope(input.engagementId, input.domainController, "AD Domain Controller", ctx);
+        }
+      }
       const { getDb } = await import("../db");
       const { adEnvironments } = await import("../../drizzle/schema");
       const db = await getDb();

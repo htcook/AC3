@@ -5094,3 +5094,82 @@
 - [x] Identify gaps where tools are not contributing data to reports
 - [x] Fix any missing data capture or display issues (crossModuleEnrichment, postEnrichmentAnalysis, discoveryCoverage full object, emailSecurityReport)
 - [x] Write vitest tests to verify tool result capture (11 tests)
+## ROE Scope Enforcement — Automatic Boundary Guard
+- [x] Build centralized scope-guard.ts library with IP/CIDR, domain, URL, and exclusion matching
+- [x] Create ROE scope resolver that loads scope from both engagement.roeScope and roeDocuments fields
+- [x] Build tRPC middleware (scopeEnforcedProcedure) that auto-validates targets before any mutation
+- [x] Wire scope enforcement into Metasploit exploit execution (metasploit-catalog.ts)
+- [x] Wire scope enforcement into Metasploit session interactions (msf-sessions.ts)
+- [x] Wire scope enforcement into ZAP web app scanning (web-app-scanning.ts)
+- [x] Wire scope enforcement into Nuclei scanner (nuclei-scanner.ts)
+- [ ] Wire scope enforcement into C2 orchestrator dispatch (c2-orchestrator.ts)
+- [ ] Wire scope enforcement into C2 abstraction layer dispatch (c2-abstraction.ts)
+- [ ] Wire scope enforcement into Caldera graph executor (caldera-graph-executor.ts)
+- [x] Wire scope enforcement into GoPhish phishing ops (phishing-ops.ts)
+- [x] Wire scope enforcement into ProjectDiscovery tools (projectdiscovery.ts)
+- [x] Wire scope enforcement into active verification probes (active-verification.ts)
+- [ ] Wire scope enforcement into vulnerability scanner (vuln-scanner.ts)
+- [x] Wire scope enforcement into discovery engine (discovery-engine.ts)
+- [x] Wire scope enforcement into unified pipeline phase transitions
+- [x] Wire scope enforcement into payload generator (payload-generator.ts)
+- [x] Wire scope enforcement into AD attack simulation (ad-attack-sim.ts)
+- [ ] Wire scope enforcement into agentless BAS (agentless-bas.ts)
+- [x] Wire scope enforcement into evasion engine (evasion-engine.ts)
+- [x] Wire scope enforcement into email security testing (email-security.ts)
+- [ ] Wire scope enforcement into EDR validation (edr-validation.ts)
+- [ ] Wire scope enforcement into NGFW validation (ngfw-validation.ts)
+- [ ] Wire scope enforcement into cloud attack paths (cloud-attack-paths.ts)
+- [x] Wire scope enforcement into ICS/OT security (ics-ot-security.ts)
+- [ ] Wire scope enforcement into CI/CD pipeline testing (cicd-pipeline.ts)
+- [x] Wire scope enforcement into API security testing (api-security.ts)
+- [x] Wire scope enforcement into Atomic Red Team execution (atomic-red-team.ts)
+- [x] Wire scope enforcement into Sliver C2 (sliver-c2.ts)
+- [x] Add out-of-scope violation logging to offensive audit log
+- [x] Add time-window enforcement (testing window hours + testing days from ROE)
+- [x] Write vitest tests for scope-guard boundary enforcement
+## Active Service Scanning & Fingerprinting Engine
+- [x] Build nmap-orchestrator.ts — SSH-based Nmap execution on operator servers with XML output parsing
+- [ ] Build service-fingerprinter.ts — protocol-specific fingerprinting for admin services
+- [ ] Add SSH fingerprinting (version, algorithms, key exchange, HASSH)
+- [ ] Add SMTP fingerprinting (banner, EHLO capabilities, STARTTLS, auth methods, open relay check)
+- [ ] Add FTP/SFTP fingerprinting (banner, anonymous login check, TLS support, directory listing)
+- [ ] Add SNMP fingerprinting (community string check, version detection, system info extraction)
+- [ ] Add RDP fingerprinting (NLA detection, encryption level, certificate info)
+- [ ] Add SMB fingerprinting (version, signing, null session, shares enumeration)
+- [ ] Add Telnet fingerprinting (banner, authentication type)
+- [ ] Add LDAP fingerprinting (anonymous bind check, base DN enumeration, TLS support)
+- [ ] Add VNC fingerprinting (version, authentication type, encryption)
+- [ ] Add MySQL/MSSQL/PostgreSQL fingerprinting (version, auth method, TLS)
+- [ ] Add Redis/MongoDB fingerprinting (version, auth required, exposed commands)
+- [x] Build nmap-scanner tRPC router with scan launch, status, and results endpoints
+- [ ] Add nmap_orchestrated to ToolModule type in unified-pipeline.ts
+- [ ] Add service_fingerprinter to ToolModule type in unified-pipeline.ts
+- [ ] Wire Nmap into TOOL_PHASE_MATRIX enumeration phase
+- [ ] Wire service fingerprinter into TOOL_PHASE_MATRIX enumeration phase
+- [ ] Add Nmap server configuration to metasploitServers or create scanServers table
+- [ ] Build scan orchestration: port scan → service fingerprint → vuln check pipeline
+- [x] Write vitest tests for nmap-orchestrator and service-fingerprinter
+
+## ZAP LLM Attack Playbook System
+- [x] Build ZAP attack playbook library with LLM system prompts for each attack phase
+- [x] Webapp fingerprinting playbook (tech stack, frameworks, CMS, WAF detection)
+- [x] Site crawling & spidering playbook (AJAX spider, traditional spider, auth crawling)
+- [x] Secrets discovery playbook (API keys, tokens, credentials in JS/HTML/headers/comments)
+- [x] Injection testing playbook (SQLi, XSS, SSTI, LDAP, OS command, XXE)
+- [x] Authentication bypass playbook (brute force, session fixation, JWT attacks, OAuth flaws)
+- [x] Backend infrastructure enumeration (S3 buckets, API endpoints, storage URLs, cloud metadata)
+- [x] API security testing playbook (REST/GraphQL/SOAP fuzzing, BOLA/BFLA, mass assignment)
+- [x] Server-side vulnerability playbook (SSRF, path traversal, file inclusion, RCE vectors)
+- [x] Wire ZAP playbooks into the unified pipeline active scanning phases
+
+## ZAP LLM Attack Playbook System
+- [x] Build ZAP attack playbook library with LLM system prompts for each attack phase
+- [x] Webapp fingerprinting playbook
+- [x] Site crawling and spidering playbook
+- [x] Secrets discovery playbook
+- [x] Injection testing playbook
+- [x] Authentication bypass playbook
+- [x] Backend infrastructure enumeration playbook
+- [x] API security testing playbook
+- [x] Server-side vulnerability playbook
+- [x] Wire ZAP playbooks into unified pipeline

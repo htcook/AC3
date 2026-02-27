@@ -62,8 +62,15 @@ export const nucleiScannerRouter = router({
       timeout: z.number().default(10),
       headless: z.boolean().default(false),
       interactsh: z.boolean().default(true),
+      engagementId: z.number().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate all scan targets ──
+      if (input.engagementId && input.targets.length > 0) {
+        const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceMultiTargetScope(input.engagementId, input.targets, "Nuclei Scanner", ctx);
+      }
+
       const scan = {
         id: ++scanCounter,
         ...input,

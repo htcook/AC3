@@ -71,8 +71,14 @@ export const projectDiscoveryRouter = router({
         recursive: z.boolean().default(false),
         maxEnumerationTime: z.number().default(300),
         rateLimit: z.number().default(100),
+        engagementId: z.number().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // ── ROE Scope Enforcement ──
+        if (input.engagementId) {
+          const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceTargetScope(input.engagementId, input.domain, "Subfinder", ctx);
+        }
         const record: ScanRecord = {
           id: ++scanCounter,
           tool: "subfinder",
@@ -148,8 +154,14 @@ export const projectDiscoveryRouter = router({
         method: z.string().default("GET"),
         matchCodes: z.array(z.number()).optional(),
         filterCodes: z.array(z.number()).optional(),
+        engagementId: z.number().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // ── ROE Scope Enforcement ──
+        if (input.engagementId) {
+          const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceMultiTargetScope(input.engagementId, input.targets, "httpx", ctx);
+        }
         const record: ScanRecord = {
           id: ++scanCounter,
           tool: "httpx",
@@ -232,8 +244,14 @@ export const projectDiscoveryRouter = router({
         serviceDiscovery: z.boolean().default(true),
         serviceVersion: z.boolean().default(false),
         passiveMode: z.boolean().default(false),
+        engagementId: z.number().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // ── ROE Scope Enforcement ──
+        if (input.engagementId) {
+          const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceMultiTargetScope(input.engagementId, input.targets, "Naabu Port Scanner", ctx);
+        }
         const record: ScanRecord = {
           id: ++scanCounter,
           tool: "naabu",

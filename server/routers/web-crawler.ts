@@ -40,6 +40,13 @@ export const webCrawlerRouter = router({
       engagementId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      if (input.engagementId) {
+        const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+        const allTargets = [input.domain, ...(input.seedUrls || [])].filter(Boolean);
+        await enforceMultiTargetScope(input.engagementId, allTargets, "Web Crawler", ctx);
+      }
+
       const { crawlDomain } = await import("../lib/web-crawler");
       const { getDb } = await import("../db");
       const { webCrawlJobs, webCrawlResults } = await import("../../drizzle/schema");

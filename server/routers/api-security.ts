@@ -70,7 +70,12 @@ export const apiSecurityRouter = router({
       authType: z.enum(["none", "api_key", "bearer", "basic", "oauth2", "custom"]).optional(),
       authConfig: z.any().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate API target URL ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.baseUrl, "API Security Target", ctx);
+      }
       const { getDb } = await import("../db");
       const { apiTargets } = await import("../../drizzle/schema");
       const db = await getDb();

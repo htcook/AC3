@@ -223,6 +223,12 @@ export const metasploitCatalogRouter = router({
       dryRun: z.boolean().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.targetHost, "Metasploit", ctx);
+      }
+
       const { metasploitServers, exploitJobs } = await import("../../drizzle/schema");
       const { getDbRequired } = await import("../db");
       const { eq } = await import("drizzle-orm");

@@ -124,8 +124,14 @@ export const atomicRedTeamRouter = router({
       inputArgs: z.record(z.string(), z.any()).optional(),
       attackChainId: z.string().optional(),
       calderaOperationId: z.string().optional(),
+      engagementId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate target host ──
+      if (input.engagementId && input.targetHost) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.targetHost, `Atomic Red Team: ${input.techniqueId}`, ctx);
+      }
       try {
         const executionId = await atomicRT.createExecution({
           ...input,

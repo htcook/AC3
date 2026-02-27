@@ -186,8 +186,24 @@ export const msfSessionsRouter = router({
       sessionId: z.string(),
       sessionType: z.enum(["shell", "meterpreter"]),
       command: z.string().min(1),
+      engagementId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate session target is in scope ──
+      if (input.engagementId) {
+        try {
+          const client = await getClientForServer(input.serverId);
+          const sessionList = await client.listSessions();
+          const session = sessionList[input.sessionId];
+          if (session?.target_host) {
+            const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+            await enforceTargetScope(input.engagementId, session.target_host, `MSF ${input.sessionType} Write`, ctx);
+          }
+        } catch (scopeErr: any) {
+          if (scopeErr?.code === 'FORBIDDEN') throw scopeErr;
+          console.warn(`[ScopeGuard] Could not validate MSF session target: ${scopeErr}`);
+        }
+      }
       // ─── Audit Log (RED tier — session interaction) ───
       const { logOffensiveAction } = await import("../lib/roe-guard");
       logOffensiveAction({
@@ -313,8 +329,24 @@ export const msfSessionsRouter = router({
       serverId: z.number(),
       sessionId: z.string(),
       command: z.string().min(1),
+      engagementId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate session target is in scope ──
+      if (input.engagementId) {
+        try {
+          const client = await getClientForServer(input.serverId);
+          const sessionList = await client.listSessions();
+          const session = sessionList[input.sessionId];
+          if (session?.target_host) {
+            const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+            await enforceTargetScope(input.engagementId, session.target_host, `Meterpreter Command`, ctx);
+          }
+        } catch (scopeErr: any) {
+          if (scopeErr?.code === 'FORBIDDEN') throw scopeErr;
+          console.warn(`[ScopeGuard] Could not validate MSF session target: ${scopeErr}`);
+        }
+      }
       // ─── Audit Log (RED tier — meterpreter command) ───
       const { logOffensiveAction } = await import("../lib/roe-guard");
       logOffensiveAction({

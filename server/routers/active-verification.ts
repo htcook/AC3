@@ -11,8 +11,15 @@ export const activeVerificationRouter = router({
       targetHost: z.string().min(1),
       targetPort: z.number().optional().default(443),
       protocol: z.enum(["http", "https"]).optional().default("https"),
+      engagementId: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.targetHost, "Active Verification Probe", ctx);
+      }
+
       const { runProbe, BUILTIN_PROBES } = await import("../lib/active-verification");
       const probe = BUILTIN_PROBES.find(p => p.id === input.probeId);
       if (!probe) throw new Error(`Probe "${input.probeId}" not found`);
@@ -29,8 +36,15 @@ export const activeVerificationRouter = router({
       protocol: z.enum(["http", "https"]).optional().default("https"),
       cveIds: z.array(z.string()).optional(),
       tags: z.array(z.string()).optional(),
+      engagementId: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.targetHost, "Active Verification Suite", ctx);
+      }
+
       const { runVerificationSuite } = await import("../lib/active-verification");
       return runVerificationSuite(
         input.targetHost,

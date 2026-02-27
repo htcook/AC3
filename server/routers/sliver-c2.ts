@@ -59,8 +59,15 @@ export const sliverC2Router = router({
         limitHostname: z.string().optional(),
         limitUsername: z.string().optional(),
       }).optional(),
+      engagementId: z.number().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate implant callback host ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.host, "Sliver C2 Implant Generation", ctx);
+      }
+
       const implant = {
         id: ++implantCounter,
         ...input,
@@ -104,8 +111,17 @@ export const sliverC2Router = router({
       os: z.string(),
       arch: z.string(),
       pid: z.number().optional(),
+      engagementId: z.number().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate session source is in scope ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        // Validate the remote address (the compromised host) is in scope
+        const ipOnly = input.remoteAddress.split(":")[0]; // strip port if present
+        await enforceTargetScope(input.engagementId, ipOnly, "Sliver C2 Session Registration", ctx);
+      }
+
       const implant = implants.find(i => i.id === input.implantId);
       const session = {
         id: ++sessionCounter,
@@ -133,10 +149,24 @@ export const sliverC2Router = router({
         'pivot', 'port_forward', 'socks5',
       ]),
       args: z.record(z.string(), z.string()).optional(),
+      engagementId: z.number().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const session = sessions.find(s => s.id === input.sessionId);
       if (!session) throw new Error(`Session ${input.sessionId} not found`);
+
+      // ── ROE Scope Enforcement: validate session target is still in scope ──
+      if (input.engagementId && session.remoteAddress) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        const ipOnly = session.remoteAddress.split(":")[0];
+        await enforceTargetScope(input.engagementId, ipOnly, `Sliver Task: ${input.taskType}`, ctx);
+      }
+
+      // ── ROE Scope Enforcement: block lateral movement to out-of-scope targets ──
+      if (input.engagementId && (input.taskType === 'pivot' || input.taskType === 'port_forward') && input.args?.target) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.args.target, `Sliver Lateral: ${input.taskType}`, ctx);
+      }
 
       const task = {
         id: `task-${Date.now()}`,

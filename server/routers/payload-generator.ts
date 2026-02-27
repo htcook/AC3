@@ -226,9 +226,13 @@ export const payloadGeneratorRouter = router({
         arch: z.string().optional(),
         platform: z.string().optional(),
         extraOptions: z.record(z.string(), z.string()).optional(),
+        engagementId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: note - LHOST is the listener (our server), not the target.
+      // Payload generation itself doesn't target a host, but we log it for audit.
+      // The actual target validation happens when the payload is delivered/executed.
       const { generatedPayloads, metasploitServers } = await import("../../drizzle/schema");
       const { getDbRequired } = await import("../db");
       const { logOffensiveAction } = await import("../lib/roe-guard");

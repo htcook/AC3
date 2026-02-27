@@ -40,8 +40,19 @@ export const discoveryEngineRouter = router({
       enrichmentModules: z.array(z.enum([
         "domain_intel", "bug_bounty", "threat_enrichment", "opsec",
       ])).default(["domain_intel", "bug_bounty", "threat_enrichment", "opsec"]),
+      engagementId: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate all discovery targets ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        for (const t of input.targets) {
+          const target = t.domain || t.ip || t.cidr;
+          if (target) {
+            await enforceTargetScope(input.engagementId, target, "Discovery Engine", ctx);
+          }
+        }
+      }
       const { runDiscoveryPipeline } = await import("../lib/discovery-engine");
 
       const targets = input.targets.map(t => ({

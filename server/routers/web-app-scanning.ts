@@ -86,8 +86,16 @@ export const webAppScanningRouter = router({
       graphqlEndpointUrl: z.string().url().optional(),
       graphqlSchemaUrl: z.string().url().optional(),
       soapWsdlUrl: z.string().url().optional(),
+      discoveredTechnologies: z.array(z.string()).optional(),
+      playbookPhase: z.enum(["crawling", "fingerprinting", "secrets_hunting", "injection_testing", "foothold_acquisition", "api_testing", "full"]).optional(),
+      engagementId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate target URL ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.targetUrl, "ZAP Web App Scan", ctx);
+      }
       const { startScan, generateLLMScanConfig } = await import("../lib/zap-scanner");
 
       let llmConfig;
@@ -114,6 +122,8 @@ export const webAppScanningRouter = router({
         graphqlEndpointUrl: input.graphqlEndpointUrl,
         graphqlSchemaUrl: input.graphqlSchemaUrl,
         soapWsdlUrl: input.soapWsdlUrl,
+        discoveredTechnologies: input.discoveredTechnologies || input.techStackHints,
+        playbookPhase: input.playbookPhase,
       });
     }),
 

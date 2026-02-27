@@ -25,8 +25,17 @@ export const emailSecurityRouter = router({
       gatewayType: z.enum(["proofpoint", "mimecast", "defender", "barracuda", "custom"]),
       targetEmail: z.string(),
       payloadType: z.enum(["phishing_link", "malware_attachment", "credential_harvest", "bec_impersonation", "macro_doc"]),
+      engagementId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate target email domain is in scope ──
+      if (input.engagementId && input.targetEmail) {
+        const emailDomain = input.targetEmail.split("@")[1];
+        if (emailDomain) {
+          const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceTargetScope(input.engagementId, emailDomain, "Email Security Test", ctx);
+        }
+      }
       const { getDb } = await import("../db");
       const { emailSecurityTests } = await import("../../drizzle/schema");
       const db = await getDb();
@@ -71,8 +80,13 @@ export const emailSecurityRouter = router({
     return stats;
   }),
   analyzeDomain: protectedProcedure
-    .input(z.object({ domain: z.string().min(1) }))
-    .mutation(async ({ input }) => {
+    .input(z.object({ domain: z.string().min(1), engagementId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate domain is in scope ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.domain, "Email Security Analysis", ctx);
+      }
       const { analyzeEmailSecurity } = await import("../lib/email-security-analyzer");
       const report = await analyzeEmailSecurity(input.domain);
       return report;

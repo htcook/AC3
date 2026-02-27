@@ -101,7 +101,20 @@ export const unifiedPipelineRouter = router({
       outOfScope: z.array(z.string()).optional(),
       engagementId: z.number().optional(),
     }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate all targets against engagement ROE ──
+      if (input.engagementId) {
+        const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+        const allTargets = [
+          input.domain,
+          ...(input.targetIps || []),
+          ...(input.targetUrls || []),
+        ].filter(Boolean);
+        if (allTargets.length > 0) {
+          await enforceMultiTargetScope(input.engagementId, allTargets, "Unified Pipeline", ctx);
+        }
+      }
+
       const runId = generateRunId();
       const target: PipelineTarget = {
         domain: input.domain,

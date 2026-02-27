@@ -26,6 +26,17 @@ import { getDb } from "../db";
 import { webAppScans, webAppFindings } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import {
+  selectPlaybook,
+  applyPlaybookToZap,
+  generateEnhancedSystemPrompt,
+  getRulesForTechStack,
+  getFootholdRules,
+  getMsfModulesForTechStack,
+  type PlaybookPhase,
+  type ZapPlaybookConfig,
+  type ZapApiConfig,
+} from "./zap-attack-playbooks";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -245,51 +256,79 @@ interface ZapAlert {
  * Comprehensive ZAP knowledge base system prompt for the LLM orchestrator.
  * This teaches the LLM about every ZAP feature so it can intelligently configure scans.
  */
-const ZAP_ORCHESTRATOR_SYSTEM_PROMPT = `You are an expert OWASP ZAP scan orchestrator for the Ace C3 offensive security platform. You have deep knowledge of every ZAP feature and must configure optimal scans based on the target's technology stack.
+const ZAP_ORCHESTRATOR_SYSTEM_PROMPT = `You are an expert OWASP ZAP scan orchestrator for the Ace C3 offensive security platform. You configure optimal scans based on the target's discovered technology stack. Your goal is to gain a foothold on the server by finding exploitable vulnerabilities, leaked secrets, exposed backend storage, and API credentials.
 
 ## ZAP API Categories You Can Configure:
 1. **spider** — Traditional crawler: maxDepth (1-10), maxChildren (0-100), threadCount (1-20), handleParameters, parseComments, parseGit, parseSVNEntries, parseRobotsTxt, parseSitemapXml, postForm, processForm, acceptCookies, sendRefererHeader
 2. **ajaxSpider** — JavaScript-heavy app crawler: browserType (firefox/chrome/htmlunit), maxCrawlDepth (0-10), maxCrawlStates (0-1000000), maxDuration (0-60 min), numberOfBrowsers (1-4), clickDefaultElems, clickElemsOnce, eventWait (ms), randomInputs
 3. **ascan** (Active Scanner) — Vulnerability testing: scanPolicy, threadPerHost (1-20), delayInMs (0-5000), handleAntiCSRFTokens, injectPluginIdInHeader, scanHeadersAllRequests, maxRuleDurationInMins, maxScanDurationInMins
 4. **pscan** (Passive Scanner) — Non-intrusive analysis: enableAllScanners, maxAlertsPerRule, scanOnlyInScope
-5. **authentication** — Login handling: formBased (loginUrl, loginRequestData, usernameParameter, passwordParameter), jsonBased (loginUrl, loginRequestData), httpAuth (hostname, realm, port), scriptBased (scriptName, scriptEngine)
-6. **context** — Scope management: includeInContext (URL regex), excludeFromContext (URL regex), technologyList (ASP/Java/PHP/Python/Ruby/JavaScript/etc.)
-7. **script** — Custom attack scripts: active rules, passive rules, authentication, httpsender, targeted, standalone
-8. **forcedUser** — Authenticated scanning with specific user context
-9. **openapi** — Import OpenAPI/Swagger specs for API testing
-10. **graphql** — Import GraphQL schemas for API testing
-11. **soap** — Import WSDL for SOAP API testing
-12. **reports** — Generate HTML/XML/JSON/PDF reports
+5. **authentication** — Login handling: formBased, jsonBased, httpAuth, scriptBased
+6. **context** — Scope management: includeInContext, excludeFromContext, technologyList
+7. **script** — Custom attack scripts
+8. **forcedUser** — Authenticated scanning
+9. **openapi/graphql/soap** — Import API specs
+
+## CRITICAL: ZAP Scan Rule IDs by Technology
+You MUST reference these exact rule IDs in your customRules array to enable/disable specific checks.
+
+### Universal Foothold Rules (ALWAYS enable for active scans):
+- 40012: XSS Reflected | 40014: XSS Persistent | 40016: XSS Persistent (Prime)
+- 40018: SQL Injection | 40019: SQL Injection (MySQL) | 40020: SQL Injection (Hypersonic) | 40021: SQL Injection (Oracle) | 40022: SQL Injection (PostgreSQL) | 40024: SQL Injection (SQLite) | 40027: SQL Injection (MsSQL)
+- 90019: Server Side Code Injection (eval/exec) | 90020: Remote OS Command Injection
+- 40003: CRLF Injection | 6: Path Traversal | 7: Remote File Inclusion
+- 40032: .htaccess Info Leak | 40034: .env Info Leak | 40035: Hidden File Finder
+- 10095: Backup File Disclosure | 10048: Spring Actuator Info Leak
+- 90034: Cloud Metadata Potentially Exposed (AWS/GCP/Azure IMDS)
+- 40042: Spring4Shell (CVE-2022-22965) | 40043: Log4Shell (CVE-2021-44228)
+- 40045: Spring Actuator Test | 90021: XPath Injection | 90023: XML External Entity Attack
+- 40009: Server Side Include | 40008: Parameter Tampering | 40013: Session ID in URL Rewrite
+
+### Secrets & Backend Storage Discovery Rules:
+- 40034: .env Information Leak (DB creds, API keys, S3 secrets)
+- 40032: .htaccess Information Leak (rewrite rules, auth configs)
+- 40035: Hidden File Finder (backup files, config dumps, .git)
+- 10095: Backup File Disclosure (*.bak, *.old, *.orig, *.save)
+- 90034: Cloud Metadata (AWS IMDS → IAM creds → S3 bucket access)
+- 10048: Spring Actuator (env endpoint → DB/S3/API credentials)
+- 10045: Source Code Disclosure (WEB-INF/web.xml, .svn, .git)
+- 41: Source Code Disclosure (SVN) | 42: Source Code Disclosure (Git) | 43: Source Code Disclosure (File Inclusion)
+- 0: Directory Browsing (find exposed /uploads, /backups, /storage)
+
+### Technology-Specific Rules:
+**PHP**: 90019 (Code Injection via eval), 7 (Remote File Include), 6 (Path Traversal/LFI), 40034 (.env), 30001 (Buffer Overflow), 40003 (CRLF)
+**Java/Spring**: 40042 (Spring4Shell), 40043 (Log4Shell), 40045 (Spring Actuator), 10048 (Actuator Info), 90019 (EL Injection), 90023 (XXE), 40029 (TRACE)
+**Python/Django/Flask**: 90019 (SSTI Jinja2), 40018 (SQLi), 90020 (Command Injection), 40034 (.env), 6 (Path Traversal)
+**Node.js/Express**: 40018 (NoSQL Injection via SQLi scanner), 90019 (Prototype Pollution via code injection), 40034 (.env), 40028 (ELMAH Info Leak)
+**ASP.NET**: 40029 (TRACE), 40032 (.htaccess/web.config), 10095 (Backup), 90019 (ViewState deserialization), 40034 (.env)
+**WordPress**: 40034 (.env), 40035 (Hidden Files: wp-config.php.bak), 10095 (Backup), 0 (Directory Browsing /wp-content/uploads)
+**Ruby/Rails**: 90019 (SSTI ERB), 40018 (SQLi), 90020 (Command Injection), 40034 (.env), 10095 (Backup database.yml)
+**API (REST/GraphQL)**: 40018 (Injection), 40003 (CRLF), 40008 (Parameter Tampering), 90020 (Command Injection), 40013 (Session in URL)
+
+### Injection Testing for Foothold (prioritize HIGH strength):
+- SQL Injection: 40018, 40019, 40020, 40021, 40022, 40024, 40027 → leads to DB dump, credential theft, or OS command via xp_cmdshell/INTO OUTFILE
+- Command Injection: 90020 → direct RCE
+- Code Injection: 90019 → eval/exec → RCE
+- SSTI: 90019 → template engine RCE (Jinja2, Twig, Freemarker, ERB)
+- File Include: 7 (RFI → webshell), 6 (LFI → /etc/passwd, source code)
+- XXE: 90023 → file read, SSRF, potential RCE
+- File Upload: test via parameter tampering (40008) + hidden file discovery (40035)
 
 ## Scan Policies:
-- **Default Policy**: All rules enabled at default thresholds — good general purpose
-- **Light/Quick**: Fewer rules, faster — good for CI/CD pipelines
+- **Default Policy**: All rules enabled at default thresholds
+- **Heavy/Thorough**: Maximum coverage — set all injection rules to HIGH strength/INSANE threshold
 - **API-Focused**: No UI-related checks — for REST/GraphQL APIs
-- **Heavy/Thorough**: Maximum coverage — for pre-production security audits
-
-## Technology-Specific Tuning:
-- **React/Angular/Vue SPA**: MUST use ajaxSpider (not just traditional spider), increase maxCrawlStates, enable clickDefaultElems
-- **WordPress/Drupal/Joomla**: Enable CMS-specific scan rules, parse comments for version info, check wp-admin/wp-login paths
-- **Spring Boot/Java**: Enable Java deserialization checks, SSTI, EL injection, check /actuator endpoints
-- **Django/Flask/Python**: Enable SSTI (Jinja2), check /admin, debug mode detection, check for Django-specific headers
-- **Rails/Ruby**: Enable mass assignment checks, SSTI (ERB), check for Rails-specific headers
-- **ASP.NET**: Enable ViewState tampering, check web.config exposure, .NET deserialization
-- **Node.js/Express**: Check for prototype pollution, NoSQL injection, SSRF via request library
-- **PHP**: Enable PHP-specific injection (eval, include, preg_replace), check for phpinfo(), check .env exposure
-- **API-only (REST)**: Skip spider, import OpenAPI spec, focus on auth bypass, IDOR, mass assignment, rate limiting
-- **GraphQL API**: Import schema, test for introspection, nested query DoS, authorization bypass
 
 ## Authentication Strategies:
-- **Form login**: Detect login form fields, configure formBased auth with logged-in/logged-out indicators
-- **JWT/Bearer token**: Configure script-based auth to inject Authorization header
-- **OAuth2**: Use browser-based auth or script to complete OAuth flow
-- **API key**: Configure replacer rule to inject API key header
-- **Session cookie**: Configure cookie-based session management
+- **Form login**: formBased auth with logged-in/logged-out indicators
+- **JWT/Bearer token**: script-based auth to inject Authorization header
+- **OAuth2**: browser-based or script to complete OAuth flow
+- **API key**: replacer rule to inject API key header
 
 ## Output Format:
 Return a JSON object with these fields:
 {
-  "scanPolicy": "Default Policy" | "Light" | "API" | "Heavy",
+  "scanPolicy": "Default Policy" | "Heavy" | "API",
   "useAjaxSpider": boolean,
   "spiderConfig": { maxDepth, maxChildren, threadCount, parseComments, parseGit, parseSitemapXml, postForm },
   "ajaxSpiderConfig": { maxCrawlDepth, maxCrawlStates, maxDuration, numberOfBrowsers, clickDefaultElems },
@@ -300,9 +339,18 @@ Return a JSON object with these fields:
   "contextIncludes": ["regex patterns"],
   "contextExcludes": ["regex patterns for logout, static assets"],
   "importSpec": null | { type: "openapi" | "graphql" | "soap", url: "spec URL" },
-  "customRules": ["specific scan rules to enable/disable"],
-  "rationale": "Brief explanation of why these settings were chosen"
-}`;
+  "customRules": ["enable:40018:HIGH:INSANE", "enable:90019:HIGH:INSANE", "enable:40034:MEDIUM:DEFAULT", ...],
+  "rationale": "Brief explanation including which foothold vectors are prioritized and why"
+}
+
+## IMPORTANT:
+- customRules format: "enable:<ruleId>:<strength>:<threshold>" or "disable:<ruleId>"
+- Strength: OFF, DEFAULT, LOW, MEDIUM, HIGH, INSANE
+- Threshold: OFF, DEFAULT, LOW, MEDIUM, HIGH
+- For foothold acquisition: set all injection rules to HIGH strength, INSANE threshold
+- For secrets discovery: enable 40034, 40032, 40035, 10095, 90034, 10048 at MEDIUM strength
+- ALWAYS include technology-specific rules based on detected stack
+- ALWAYS include secrets/storage discovery rules regardless of technology`;
 
 export interface LLMScanConfig {
   scanPolicy: string;
@@ -760,7 +808,11 @@ export async function startScan(params: {
   graphqlEndpointUrl?: string;
   graphqlSchemaUrl?: string;
   soapWsdlUrl?: string;
-}): Promise<{ scanId: number; spiderScanId?: string; status: string; llmConfig?: LLMScanConfig; specImportResult?: any }> {
+  /** Attack playbook phase — selects technology-tuned scan rules */
+  playbookPhase?: PlaybookPhase;
+  /** Discovered technologies from web crawler / fingerprinting */
+  discoveredTechnologies?: string[];
+}): Promise<{ scanId: number; spiderScanId?: string; status: string; llmConfig?: LLMScanConfig; specImportResult?: any; playbookApplied?: string }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
@@ -774,11 +826,24 @@ export async function startScan(params: {
     throw new Error(`Invalid target URL: ${params.targetUrl}`);
   }
 
-  // Generate LLM scan config if not provided
+  // Generate LLM scan config if not provided — enhanced with tech-specific rule intelligence
   const llmConfig = params.llmConfig || await generateLLMScanConfig({
     targetUrl: params.targetUrl,
     scanMode: params.scanMode,
+    techStackHints: params.discoveredTechnologies,
   });
+
+  // Select and apply attack playbook based on discovered technologies
+  const technologies = params.discoveredTechnologies || llmConfig.technologies || [];
+  const playbookPhase = params.playbookPhase || (params.scanMode === "active" ? "full" : "crawling");
+  const playbook = selectPlaybook(playbookPhase, technologies, {
+    useAjaxSpider: llmConfig.useAjaxSpider,
+    apiSpec: params.openApiSpecUrl ? { type: "openapi", url: params.openApiSpecUrl }
+      : params.graphqlEndpointUrl ? { type: "graphql", url: params.graphqlEndpointUrl }
+      : params.soapWsdlUrl ? { type: "soap", url: params.soapWsdlUrl }
+      : undefined,
+  });
+  console.log(`[ZAP Playbook] Selected: ${playbook.name} with ${playbook.enabledRules.length} rules for tech: [${technologies.join(", ")}]`);
 
   // Determine effective scan type based on mode
   const effectiveScanType = params.scanMode === "passive" ? "spider_only" : params.scanType;
@@ -846,6 +911,61 @@ export async function startScan(params: {
       }
     }
 
+    // ─── Apply ZAP Context: scope, technologies, and playbook rules ─────────
+    const zapApiCfg: ZapApiConfig = { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey };
+
+    // Create ZAP context for scope management
+    try {
+      const ctxResult = await zapRequest("/JSON/context/action/newContext/", {
+        contextName: `scan-${scanId}`,
+      }, cfg);
+      const contextId = ctxResult.contextId;
+
+      // Set in-scope URL patterns
+      const includes = llmConfig.contextIncludes?.length
+        ? llmConfig.contextIncludes
+        : [`${parsedUrl.origin}.*`];
+      for (const pattern of includes) {
+        await zapRequest("/JSON/context/action/includeInContext/", {
+          contextName: `scan-${scanId}`,
+          regex: pattern,
+        }, cfg).catch(() => {});
+      }
+
+      // Set exclusions (logout, static assets)
+      for (const pattern of (llmConfig.contextExcludes || [])) {
+        await zapRequest("/JSON/context/action/excludeFromContext/", {
+          contextName: `scan-${scanId}`,
+          regex: pattern,
+        }, cfg).catch(() => {});
+      }
+
+      // Set technology list so ZAP tunes its scan rules
+      if (technologies.length > 0) {
+        // Exclude all first, then include only detected technologies
+        await zapRequest("/JSON/context/action/excludeAllContextTechnologies/", {
+          contextName: `scan-${scanId}`,
+        }, cfg).catch(() => {});
+        for (const tech of technologies) {
+          await zapRequest("/JSON/context/action/includeContextTechnologies/", {
+            contextName: `scan-${scanId}`,
+            technologyName: tech,
+          }, cfg).catch(() => {});
+        }
+      }
+
+      console.log(`[ZAP Context] Created context scan-${scanId} with ${includes.length} includes, ${technologies.length} technologies`);
+    } catch (err: any) {
+      console.warn(`[ZAP Context] Failed to create context: ${err.message} — continuing with default`);
+    }
+
+    // Apply playbook rules to ZAP scan policy BEFORE scanning
+    if (playbook && params.scanMode === "active") {
+      console.log(`[ZAP Playbook] Pre-applying ${playbook.name} (${playbook.enabledRules.length} enabled, ${playbook.disabledRules.length} disabled)`);
+      const pbResult = await applyPlaybookToZap(playbook, zapApiCfg, zapRequest);
+      console.log(`[ZAP Playbook] Applied: ${pbResult.rulesConfigured} rules configured, ${pbResult.errors.length} errors`);
+    }
+
     // Apply LLM-configured spider settings
     if (llmConfig.spiderConfig) {
       const sc = llmConfig.spiderConfig;
@@ -872,7 +992,14 @@ export async function startScan(params: {
       zapSpiderScanId: String(spiderScanId),
     }).where(eq(webAppScans.id, scanId));
 
-    return { scanId, spiderScanId: String(spiderScanId), status: "spidering", llmConfig, specImportResult };
+    return {
+      scanId,
+      spiderScanId: String(spiderScanId),
+      status: "spidering",
+      llmConfig,
+      specImportResult,
+      playbookApplied: playbook?.name,
+    };
   } catch (err: any) {
     await db.update(webAppScans).set({
       status: "error",
@@ -975,7 +1102,22 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
           };
         }
 
-        // Active mode: start active scan
+        // Active mode: apply playbook rules before starting active scan
+        const storedPlaybook = scan.llmScanConfig ? (() => {
+          try {
+            const storedConfig = JSON.parse(scan.llmScanConfig);
+            const techs = storedConfig.technologies || [];
+            return selectPlaybook("full", techs);
+          } catch { return null; }
+        })() : null;
+        if (storedPlaybook) {
+          console.log(`[ZAP Playbook] Applying ${storedPlaybook.name} (${storedPlaybook.enabledRules.length} rules) before active scan`);
+          const zapApiCfg = { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey };
+          const pbResult = await applyPlaybookToZap(storedPlaybook, zapApiCfg, zapRequest);
+          if (pbResult.errors.length > 0) {
+            console.warn(`[ZAP Playbook] ${pbResult.errors.length} errors applying playbook:`, pbResult.errors);
+          }
+        }
         const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
           url: scan.targetUrl,
           recurse: "true",
@@ -1023,6 +1165,22 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
           };
         }
 
+        // Apply playbook rules before starting active scan after AJAX spider
+        const storedPlaybook2 = scan.llmScanConfig ? (() => {
+          try {
+            const storedConfig = JSON.parse(scan.llmScanConfig);
+            const techs = storedConfig.technologies || [];
+            return selectPlaybook("full", techs);
+          } catch { return null; }
+        })() : null;
+        if (storedPlaybook2) {
+          console.log(`[ZAP Playbook] Applying ${storedPlaybook2.name} (${storedPlaybook2.enabledRules.length} rules) before active scan (post-AJAX)`);
+          const zapApiCfg2 = { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey };
+          const pbResult2 = await applyPlaybookToZap(storedPlaybook2, zapApiCfg2, zapRequest);
+          if (pbResult2.errors.length > 0) {
+            console.warn(`[ZAP Playbook] ${pbResult2.errors.length} errors applying playbook:`, pbResult2.errors);
+          }
+        }
         // Start active scan after AJAX spider
         const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
           url: scan.targetUrl,

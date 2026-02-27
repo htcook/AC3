@@ -598,8 +598,13 @@ export const evasionEngineRouter = router({
 
   /** Probe a target for WAF/EDR defenses before running operations */
   probeDefenses: protectedProcedure
-    .input(z.object({ targetUrl: z.string().url() }))
-    .mutation(async ({ input }) => {
+    .input(z.object({ targetUrl: z.string().url(), engagementId: z.number().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.targetUrl, "Evasion Engine", ctx);
+      }
       const { probeDefenses } = await import("../lib/evasion-integrations");
       return probeDefenses(input.targetUrl);
     }),
@@ -614,6 +619,11 @@ export const evasionEngineRouter = router({
       maxEvasionAttempts: z.number().min(1).max(20).default(10),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      {
+        const { checkScopeForMutation } = await import("../lib/scope-enforcement-middleware");
+        await checkScopeForMutation(input, ctx, "evasionEngine.evasionScan");
+      }
       const { runEvasionAwareScan } = await import("../lib/evasion-integrations");
       return runEvasionAwareScan({
         targetUrl: input.targetUrl,

@@ -79,8 +79,14 @@ export const icsOtSecurityRouter = router({
     .input(z.object({
       ip: z.string().min(1),
       port: z.number().optional(),
+      engagementId: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate target IP ──
+      if (input.engagementId && input.ip) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.ip, "ICS/OT Device Fingerprint", ctx);
+      }
       return fingerprintDevice(input.ip || "", input.port || 502);
     }),
 
@@ -129,8 +135,17 @@ export const icsOtSecurityRouter = router({
       zone: z.string().optional(),
       criticality: z.string().default("medium"),
       description: z.string().optional(),
+      engagementId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // ── ROE Scope Enforcement: validate device IP is in scope ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope(input.engagementId, input.ipAddress, "ICS/OT Device Registration", ctx);
+        if (input.hostname) {
+          await enforceTargetScope(input.engagementId, input.hostname, "ICS/OT Device Registration", ctx);
+        }
+      }
       const db = await getDbRequired();
       const result = await db.insert(icsDevices).values({
         userId: ctx.user!.id,

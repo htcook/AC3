@@ -417,6 +417,16 @@ export const agentManagerRouter = router({
   requestDeployment: protectedProcedure
     .input(agentDeployInput)
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement: validate target host/IP for agent deployment ──
+      if (input.engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        if (input.targetIp) {
+          await enforceTargetScope(input.engagementId, input.targetIp, "Agent Deployment", ctx);
+        }
+        if (input.targetHostname) {
+          await enforceTargetScope(input.engagementId, input.targetHostname, "Agent Deployment", ctx);
+        }
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 

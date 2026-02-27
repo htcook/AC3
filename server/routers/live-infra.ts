@@ -132,8 +132,16 @@ export const liveInfraRouter = router({
       .input(z.object({
         target: z.object({ id: z.string(), name: z.string(), host: z.string(), port: z.number().default(22), tags: z.array(z.string()).default([]) }),
         checkIds: z.array(z.string()).optional(),
+        engagementId: z.number().optional(),
       }))
-      .mutation(async ({ input }) => scans.executeScan(input.target, input.checkIds)),
+      .mutation(async ({ input, ctx }) => {
+        // ── ROE Scope Enforcement: validate target host ──
+        if (input.engagementId) {
+          const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceTargetScope(input.engagementId, input.target.host, "Live Infra Scan", ctx);
+        }
+        return scans.executeScan(input.target, input.checkIds);
+      }),
 
     scheduled: router({
       list: protectedProcedure.query(() => scans.listScheduledScans()),
