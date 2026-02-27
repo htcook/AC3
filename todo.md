@@ -5087,3 +5087,10 @@
 - [x] Add tRPC procedures for technique detail, history, and remediation
 - [x] Build technique drill-down UI with clickable techniques, payload list, scan history, and remediation
 - [x] Write vitest tests for ATLAS technique drill-down
+
+## Domain Scan Report Audit
+- [x] Audit all integrated scanners/tools in the domain scan pipeline
+- [x] Verify each tool captures and returns results to the scan report
+- [x] Identify gaps where tools are not contributing data to reports
+- [x] Fix any missing data capture or display issues (crossModuleEnrichment, postEnrichmentAnalysis, discoveryCoverage full object, emailSecurityReport)
+- [x] Write vitest tests to verify tool result capture (11 tests)

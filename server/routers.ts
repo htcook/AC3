@@ -4209,6 +4209,17 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               potentialFindings: result.potentialFindingsCount || 0,
               discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
               discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+              // Full discovery coverage object for the Coverage tab
+              discoveryCoverage: result.discoveryCoverage ? {
+                coverageScore: result.discoveryCoverage.coverageScore,
+                coverageBand: result.discoveryCoverage.coverageBand,
+                priorities: result.discoveryCoverage.priorities,
+                assessment: result.discoveryCoverage.assessment,
+                structuralGaps: result.discoveryCoverage.structuralGaps,
+                actionableGaps: result.discoveryCoverage.actionableGaps,
+              } : undefined,
+              // Email security analysis for the Email Security tab
+              emailSecurityReport: (result as any).emailSecurityReport || (result as any).emailSecurity || undefined,
               executiveSummary: result.executiveSummary,
               threatModelSummary: result.threatModelSummary,
               // Keep KEV enrichment summary but trim the full match list
@@ -4323,6 +4334,26 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 findingCount: a.postureFindings.length,
                 vulnRiskScore: a.vulnRiskScore,
               })),
+              // Cross-module enrichment results (Bug Bounty, Threat Intel, OpSec, Discovery)
+              crossModuleEnrichment: result.crossModuleEnrichment ? {
+                bugBounty: result.crossModuleEnrichment.bugBounty,
+                threatIntel: result.crossModuleEnrichment.threatIntel,
+                opsec: result.crossModuleEnrichment.opsec,
+                discoveryDeepDive: result.crossModuleEnrichment.discoveryDeepDive,
+                summary: result.crossModuleEnrichment.summary,
+              } : undefined,
+              // Post-enrichment LLM analysis (attack paths, blind spots, recommendations)
+              postEnrichmentAnalysis: result.postEnrichmentAnalysis ? {
+                executiveAnalysis: (result.postEnrichmentAnalysis as any).executiveAnalysis || result.postEnrichmentAnalysis.overallAssessment,
+                attackPaths: result.postEnrichmentAnalysis.attackPaths?.slice(0, 20),
+                blindSpots: result.postEnrichmentAnalysis.blindSpots?.slice(0, 20),
+                prioritizedRecommendations: result.postEnrichmentAnalysis.prioritizedRecommendations?.slice(0, 30),
+                crossFindingCorrelations: result.postEnrichmentAnalysis.crossFindingCorrelations?.slice(0, 20),
+                threatActorMapping: result.postEnrichmentAnalysis.threatActorMapping?.slice(0, 15),
+                overallAssessment: result.postEnrichmentAnalysis.overallAssessment,
+                confidenceStatement: result.postEnrichmentAnalysis.confidenceStatement,
+                enrichmentSources: (result.postEnrichmentAnalysis as any).enrichmentSources,
+              } : undefined,
             };
 
             // If scan-only mode, skip threat actor matching and campaign design
@@ -4726,6 +4757,17 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               potentialFindings: result.potentialFindingsCount || 0,
               discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
               discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+              // Full discovery coverage object for the Coverage tab
+              discoveryCoverage: result.discoveryCoverage ? {
+                coverageScore: result.discoveryCoverage.coverageScore,
+                coverageBand: result.discoveryCoverage.coverageBand,
+                priorities: result.discoveryCoverage.priorities,
+                assessment: result.discoveryCoverage.assessment,
+                structuralGaps: result.discoveryCoverage.structuralGaps,
+                actionableGaps: result.discoveryCoverage.actionableGaps,
+              } : undefined,
+              // Email security analysis for the Email Security tab
+              emailSecurityReport: (result as any).emailSecurityReport || (result as any).emailSecurity || undefined,
               executiveSummary: result.executiveSummary,
               threatModelSummary: result.threatModelSummary,
               kevEnrichment: result.kevEnrichment ? {
@@ -4765,6 +4807,26 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 findingCount: a.postureFindings.length,
                 vulnRiskScore: a.vulnRiskScore,
               })),
+              // Cross-module enrichment results (Bug Bounty, Threat Intel, OpSec, Discovery)
+              crossModuleEnrichment: result.crossModuleEnrichment ? {
+                bugBounty: result.crossModuleEnrichment.bugBounty,
+                threatIntel: result.crossModuleEnrichment.threatIntel,
+                opsec: result.crossModuleEnrichment.opsec,
+                discoveryDeepDive: result.crossModuleEnrichment.discoveryDeepDive,
+                summary: result.crossModuleEnrichment.summary,
+              } : undefined,
+              // Post-enrichment LLM analysis (attack paths, blind spots, recommendations)
+              postEnrichmentAnalysis: result.postEnrichmentAnalysis ? {
+                executiveAnalysis: (result.postEnrichmentAnalysis as any).executiveAnalysis || result.postEnrichmentAnalysis.overallAssessment,
+                attackPaths: result.postEnrichmentAnalysis.attackPaths?.slice(0, 20),
+                blindSpots: result.postEnrichmentAnalysis.blindSpots?.slice(0, 20),
+                prioritizedRecommendations: result.postEnrichmentAnalysis.prioritizedRecommendations?.slice(0, 30),
+                crossFindingCorrelations: result.postEnrichmentAnalysis.crossFindingCorrelations?.slice(0, 20),
+                threatActorMapping: result.postEnrichmentAnalysis.threatActorMapping?.slice(0, 15),
+                overallAssessment: result.postEnrichmentAnalysis.overallAssessment,
+                confidenceStatement: result.postEnrichmentAnalysis.confidenceStatement,
+                enrichmentSources: (result.postEnrichmentAnalysis as any).enrichmentSources,
+              } : undefined,
               retriedAt: new Date().toISOString(),
             };
 
@@ -5728,6 +5790,17 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               potentialFindings: result.potentialFindingsCount,
               discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
               discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+              // Full discovery coverage object for the Coverage tab
+              discoveryCoverage: result.discoveryCoverage ? {
+                coverageScore: result.discoveryCoverage.coverageScore,
+                coverageBand: result.discoveryCoverage.coverageBand,
+                priorities: result.discoveryCoverage.priorities,
+                assessment: result.discoveryCoverage.assessment,
+                structuralGaps: result.discoveryCoverage.structuralGaps,
+                actionableGaps: result.discoveryCoverage.actionableGaps,
+              } : undefined,
+              // Email security analysis for the Email Security tab
+              emailSecurityReport: (result as any).emailSecurityReport || (result as any).emailSecurity || undefined,
               enrichedOrgProfile: orgProfile,
               biaProfile,
               enrichmentSources: enrichResult.orgProfile.enrichmentSources,
