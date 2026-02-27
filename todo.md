@@ -5438,3 +5438,33 @@
 - [x] Descriptions placed directly under page heading for immediate visibility
 - [x] Verified build compiles cleanly with all descriptions
 - [x] All 170 test files pass (4,269 tests)
+
+## DigitalOcean Token Refresh (Round 2)
+- [x] Request fresh DigitalOcean API token with preventMatching
+- [x] Validate new token with vitest (2 tests pass)
+
+### Wire OEM Credentials into Active Testing Tools
+- [x] Create credential-tester.ts engine with automated testing for SSH, FTP, MySQL, PostgreSQL, Redis, MongoDB, VNC, HTTP admin panels
+- [x] Create credential auto-injection service for SSH brute-force testing
+- [x] Create credential auto-injection service for FTP login testing
+- [x] Create credential auto-injection service for admin panel/web auth testing (HTTP Basic + form-based)
+- [x] Add tRPC procedures for tools to query matched credentials by asset/service (getForService, getForZap, runTests)
+- [x] Wire credential tester into domain intel pipeline Stage 3.98 (auto-tests after OEM matching)
+- [x] Wire credential tester into discovery chain orchestrator (auto-tests after service fingerprinting)
+- [x] enrichFingerprintsWithCredentialTests enriches fingerprint results with confirmed default creds
+- [x] getCredentialsForZapPlaybook generates ZAP auth playbook credential lists
+- [ ] Add UI indicator showing available default creds per asset in scan results
+- [ ] Integrate with NucleiScanner default-logins template selection
+## Engagement-Scoped Error Filtering
+- [x] Add engagementContext JSON column to platform_errors table (already present)
+- [x] Update error logger to accept and store engagement context with engagementId/engagementName
+- [x] Add engagement-scoped filtering to getRecentErrors (engagementId, engagementName)
+- [x] Add engagement-scoped filtering to getErrorStats (per-engagement stats)
+- [x] Add getEngagementList function to extract distinct engagements from error data
+- [x] Add engagement selector/filter dropdown to Error Dashboard UI (Crosshair icon)
+- [x] Add engagement context display in error detail dialog (badges for ID, name, client)
+- [x] Add engagement badge on error list cards
+- [x] Add errorLog.engagements tRPC procedure for listing engagements
+- [x] Stats cards update dynamically when engagement filter is selected
+- [x] 22 new vitest tests covering engagement filtering and credential pipeline integration
+- [ ] Tag errors with active engagement ID from client context (requires engagement context provider)

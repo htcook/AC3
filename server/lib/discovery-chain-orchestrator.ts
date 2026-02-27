@@ -911,6 +911,39 @@ export async function executeChain(
           const { convertFingerprintFindings } = await import("./unified-pipeline");
           fpStage.findings = convertFingerprintFindings(fpResult.results, "enumeration");
 
+          // ─── Auto-test OEM credentials against fingerprinted services ───
+          try {
+            const { enrichFingerprintsWithCredentialTests } = await import("./credential-tester");
+            const fpResultsForCredTest = (fpResult.results || []).filter((r: any) => r.host && r.port && r.protocol);
+            if (fpResultsForCredTest.length > 0) {
+              console.log(`[DiscoveryChain] Running OEM credential tests against ${fpResultsForCredTest.length} fingerprinted services`);
+              const credTestResult = await enrichFingerprintsWithCredentialTests(
+                fpResultsForCredTest,
+                [], // technologies extracted from fingerprints themselves
+                { engagementId: config.engagementId, operatorId: config.operatorId },
+              );
+              const successCount = credTestResult.credentialResults.successfulLogins;
+              if (successCount > 0) {
+                console.log(`[DiscoveryChain] ✓ ${successCount} default credential(s) confirmed across fingerprinted services`);
+              } else {
+                console.log(`[DiscoveryChain] No default credentials confirmed (${credTestResult.credentialResults.totalCredentialsTested} tested)`);
+              }
+              // Store credential test summary in fingerprinter stage metadata
+              fpStage.rawOutput = {
+                ...((typeof fpStage.rawOutput === 'object' && fpStage.rawOutput) || { results: fpResult.results }),
+                credentialTestSummary: {
+                  totalTested: credTestResult.credentialResults.totalCredentialsTested,
+                  successfulLogins: successCount,
+                  failedAttempts: credTestResult.credentialResults.failedAttempts,
+                  timeouts: credTestResult.credentialResults.timeouts,
+                  errors: credTestResult.credentialResults.errors,
+                },
+              };
+            }
+          } catch (credErr: any) {
+            console.warn(`[DiscoveryChain] Credential testing failed (non-fatal): ${credErr.message}`);
+          }
+
           callbacks.onStageComplete?.(run, "service_fingerprinter");
         } catch (err: any) {
           fpStage.status = "failed";

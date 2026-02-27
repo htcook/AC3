@@ -40,6 +40,7 @@ import {
   AlertCircle,
   Info,
   Clock,
+  Crosshair,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -64,16 +65,24 @@ export default function ErrorDashboard() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [resolvedFilter, setResolvedFilter] = useState<string>("unresolved");
+  const [engagementFilter, setEngagementFilter] = useState<string>("all");
   const [selectedError, setSelectedError] = useState<any>(null);
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
 
-  const stats = trpc.errorLog.stats.useQuery();
+  // Fetch distinct engagements that have errors
+  const engagements = trpc.errorLog.engagements.useQuery();
+  const engagementList = (engagements.data || []) as Array<{ engagementId: number; engagementName: string; errorCount: number }>;
+
+  const activeEngagementId = engagementFilter !== "all" ? Number(engagementFilter) : undefined;
+
+  const stats = trpc.errorLog.stats.useQuery(activeEngagementId ? { engagementId: activeEngagementId } : {});
   const errors = trpc.errorLog.list.useQuery({
     limit: 100,
     search: search || undefined,
     severity: severityFilter !== "all" ? severityFilter : undefined,
     source: sourceFilter !== "all" ? sourceFilter : undefined,
     resolved: resolvedFilter === "all" ? undefined : resolvedFilter === "resolved",
+    engagementId: activeEngagementId,
   });
 
   const resolveMutation = trpc.errorLog.resolve.useMutation({
@@ -212,6 +221,22 @@ export default function ErrorDashboard() {
             <SelectItem value="resolved">Resolved</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={engagementFilter} onValueChange={setEngagementFilter}>
+          <SelectTrigger className="w-[200px]">
+            <div className="flex items-center gap-2">
+              <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+              <SelectValue placeholder="Engagement" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Engagements</SelectItem>
+            {engagementList.map((eng) => (
+              <SelectItem key={eng.engagementId} value={String(eng.engagementId)}>
+                {eng.engagementName} ({eng.errorCount})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           variant="outline"
           size="sm"
@@ -289,6 +314,15 @@ export default function ErrorDashboard() {
                     </div>
                     <p className="text-sm font-medium mt-1 truncate">{err.message}</p>
                     <div className="flex items-center gap-3 mt-1.5">
+                      {(() => {
+                        const ctx = typeof err.engagementContext === 'string' ? (() => { try { return JSON.parse(err.engagementContext); } catch { return null; } })() : err.engagementContext;
+                        return ctx?.engagementName ? (
+                          <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-400">
+                            <Crosshair className="w-2.5 h-2.5 mr-1" />
+                            {ctx.engagementName}
+                          </Badge>
+                        ) : null;
+                      })()}
                       <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(err.createdAt).toLocaleString()}
@@ -367,13 +401,49 @@ export default function ErrorDashboard() {
                   </div>
                 )}
 
+                {(() => {
+                  const ctx = typeof selectedError.engagementContext === 'string'
+                    ? (() => { try { return JSON.parse(selectedError.engagementContext); } catch { return null; } })()
+                    : selectedError.engagementContext;
+                  return ctx ? (
+                    <div>
+                      <label className="text-xs text-muted-foreground uppercase tracking-wider">Engagement Context</label>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {ctx.engagementId && (
+                          <Badge variant="outline" className="border-cyan-500/30 text-cyan-400">
+                            <Crosshair className="w-3 h-3 mr-1" /> ID: {ctx.engagementId}
+                          </Badge>
+                        )}
+                        {ctx.engagementName && (
+                          <Badge variant="outline" className="border-cyan-500/30 text-cyan-400">
+                            {ctx.engagementName}
+                          </Badge>
+                        )}
+                        {ctx.clientName && (
+                          <Badge variant="outline" className="border-purple-500/30 text-purple-400">
+                            Client: {ctx.clientName}
+                          </Badge>
+                        )}
+                      </div>
+                      {Object.keys(ctx).filter(k => !['engagementId','engagementName','clientName'].includes(k)).length > 0 && (
+                        <pre className="text-xs font-mono bg-muted/50 rounded-lg p-3 mt-2 overflow-x-auto max-h-24">
+                          {JSON.stringify(
+                            Object.fromEntries(Object.entries(ctx).filter(([k]) => !['engagementId','engagementName','clientName'].includes(k))),
+                            null, 2
+                          )}
+                        </pre>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+
                 {selectedError.clientMeta && (
                   <div>
                     <label className="text-xs text-muted-foreground uppercase tracking-wider">Client Metadata</label>
                     <pre className="text-xs font-mono bg-muted/50 rounded-lg p-3 mt-1 overflow-x-auto max-h-32">
                       {JSON.stringify(
                         typeof selectedError.clientMeta === "string"
-                          ? JSON.parse(selectedError.clientMeta)
+                          ? (() => { try { return JSON.parse(selectedError.clientMeta); } catch { return selectedError.clientMeta; } })()
                           : selectedError.clientMeta,
                         null,
                         2

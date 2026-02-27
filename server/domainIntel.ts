@@ -276,6 +276,24 @@ export interface PipelineResult {
     matchedTechnology: string;
     matchedAsset: string;
   }>;
+  /** Summary of automated credential testing against discovered services */
+  credentialTestSummary?: {
+    totalTargets: number;
+    totalCredentialsTested: number;
+    successfulLogins: number;
+    failedAttempts: number;
+    timeouts: number;
+    errors: number;
+    confirmedCredentials: Array<{
+      host: string;
+      port: number;
+      protocol: string;
+      vendor: string;
+      product: string;
+      username: string;
+      accessLevel: string;
+    }>;
+  };
 }
 
 export interface BreachDataSummary {
@@ -2408,6 +2426,70 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] OEM credential matching failed (non-fatal): ${err.message}`);
   }
 
+  // Stage 3.98: Automated Credential Testing
+  // Test matched OEM credentials against discovered services with open ports
+  let credentialTestSummary: PipelineResult['credentialTestSummary'];
+  if (oemCredentials.length > 0) {
+    try {
+      const { runCredentialTests, getCredentialsForService } = await import('./lib/credential-tester');
+      // Build targets from assets that have open ports and matched credentials
+      const credTestTargets: Array<{ host: string; port: number; protocol: string; product?: string; technologies?: Array<{ name?: string; vendor?: string; version?: string; cpe?: string }> }> = [];
+      for (const analysis of analyses) {
+        const asset = analysis.asset;
+        const openPorts = (asset as any).openPorts || [];
+        for (const portInfo of openPorts) {
+          const port = typeof portInfo === 'number' ? portInfo : portInfo?.port;
+          if (!port) continue;
+          // Determine protocol from port
+          const protocol = port === 22 ? 'ssh' : port === 21 ? 'ftp' : port === 23 ? 'telnet'
+            : port === 3306 ? 'mysql' : port === 5432 ? 'postgresql' : port === 6379 ? 'redis'
+            : port === 27017 ? 'mongodb' : port === 5900 ? 'vnc'
+            : (port === 80 || port === 443 || port === 8080 || port === 8443) ? 'http' : 'tcp';
+          credTestTargets.push({
+            host: asset.hostname,
+            port,
+            protocol,
+            product: portInfo?.service || undefined,
+            technologies: (asset.technologies || []).map((t: string) => ({ name: t })),
+          });
+        }
+      }
+      if (credTestTargets.length > 0) {
+        console.log(`[DomainIntel] Stage 3.98: Running credential tests against ${credTestTargets.length} services`);
+        const testResult = await runCredentialTests(credTestTargets, {
+          concurrency: 3,
+          timeoutMs: 8000,
+          maxCredsPerTarget: 5,
+        });
+        const confirmedCreds = testResult.results.filter(r => r.status === 'success').map(r => ({
+          host: r.target.host,
+          port: r.target.port,
+          protocol: r.credential.protocol,
+          vendor: r.credential.vendor,
+          product: r.credential.product,
+          username: r.credential.username,
+          accessLevel: r.confirmedAccess || r.credential.accessLevel,
+        }));
+        credentialTestSummary = {
+          totalTargets: testResult.totalTargets,
+          totalCredentialsTested: testResult.totalCredentialsTested,
+          successfulLogins: testResult.successfulLogins,
+          failedAttempts: testResult.failedAttempts,
+          timeouts: testResult.timeouts,
+          errors: testResult.errors,
+          confirmedCredentials: confirmedCreds,
+        };
+        if (testResult.successfulLogins > 0) {
+          console.log(`[DomainIntel] Stage 3.98: ${testResult.successfulLogins} default credential(s) CONFIRMED across ${new Set(confirmedCreds.map(c => c.host)).size} hosts`);
+        } else {
+          console.log(`[DomainIntel] Stage 3.98: No default credentials confirmed (${testResult.totalCredentialsTested} tested)`);
+        }
+      }
+    } catch (credTestErr: any) {
+      console.error(`[DomainIntel] Stage 3.98 credential testing failed (non-fatal): ${credTestErr.message}`);
+    }
+  }
+
   return {
     orgProfile: org,
     assets: analyses,
@@ -2434,5 +2516,6 @@ export async function runDomainIntelPipeline(
     crossModuleEnrichment,
     postEnrichmentAnalysis,
     oemCredentials,
+    credentialTestSummary,
   };
 }

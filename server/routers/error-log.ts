@@ -7,7 +7,7 @@
  */
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
-import { logPlatformError, getRecentErrors, resolveError, getErrorStats, purgeOldErrors } from "../lib/error-logger";
+import { logPlatformError, getRecentErrors, resolveError, getErrorStats, purgeOldErrors, getEngagementList } from "../lib/error-logger";
 import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredentials, BUILTIN_DEFAULT_CREDS } from "../lib/oem-default-creds";
 import { invokeLLM } from "../_core/llm";
 
@@ -32,7 +32,7 @@ export const errorLogRouter = router({
       return { logged: !!id, errorId: id };
     }),
 
-  /** Get recent errors for the dashboard */
+  /** Get recent errors for the dashboard — supports engagement-scoped filtering */
   list: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(200).default(50),
@@ -41,14 +41,26 @@ export const errorLogRouter = router({
       severity: z.string().optional(),
       resolved: z.boolean().optional(),
       search: z.string().optional(),
+      engagementId: z.number().optional(),
+      engagementName: z.string().optional(),
     }).optional())
     .query(async ({ input }) => {
       return getRecentErrors(input || {});
     }),
 
-  /** Get error statistics */
-  stats: protectedProcedure.query(async () => {
-    return getErrorStats();
+  /** Get error statistics — optionally scoped to an engagement */
+  stats: protectedProcedure
+    .input(z.object({
+      engagementId: z.number().optional(),
+      engagementName: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return getErrorStats(input || {});
+    }),
+
+  /** List distinct engagements that have logged errors */
+  engagements: protectedProcedure.query(async () => {
+    return getEngagementList();
   }),
 
   /** Resolve or unresolve an error */
@@ -127,6 +139,79 @@ export const oemCredsRouter = router({
     const count = await seedBuiltinCredentials();
     return { seeded: count };
   }),
+
+  /** Run credential tests against fingerprinted services */
+  runTests: protectedProcedure
+    .input(z.object({
+      targets: z.array(z.object({
+        host: z.string(),
+        port: z.number(),
+        protocol: z.string(),
+        product: z.string().optional(),
+        banner: z.string().optional(),
+        technologies: z.array(z.object({
+          name: z.string().optional(),
+          vendor: z.string().optional(),
+          version: z.string().optional(),
+          cpe: z.string().optional(),
+        })).optional(),
+      })),
+      engagementId: z.number().optional(),
+      concurrency: z.number().min(1).max(10).default(3),
+      timeoutMs: z.number().min(1000).max(30000).default(8000),
+      maxCredsPerTarget: z.number().min(1).max(20).default(10),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { runCredentialTests } = await import("../lib/credential-tester");
+      const summary = await runCredentialTests(input.targets, {
+        concurrency: input.concurrency,
+        timeoutMs: input.timeoutMs,
+        maxCredsPerTarget: input.maxCredsPerTarget,
+        engagementId: input.engagementId,
+        operatorId: ctx.user?.id,
+      });
+      // Convert Map to plain object for serialization
+      const byTargetObj: Record<string, any[]> = {};
+      summary.byTarget.forEach((v, k) => { byTargetObj[k] = v; });
+      return {
+        totalTargets: summary.totalTargets,
+        totalCredentialsTested: summary.totalCredentialsTested,
+        successfulLogins: summary.successfulLogins,
+        failedAttempts: summary.failedAttempts,
+        timeouts: summary.timeouts,
+        errors: summary.errors,
+        results: summary.results,
+        byTarget: byTargetObj,
+      };
+    }),
+
+  /** Get matched credentials for a specific host:port (for operator reference) */
+  getForService: protectedProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number(),
+      protocol: z.string(),
+      product: z.string().optional(),
+      banner: z.string().optional(),
+      technologies: z.array(z.object({
+        name: z.string().optional(),
+        vendor: z.string().optional(),
+        version: z.string().optional(),
+        cpe: z.string().optional(),
+      })).optional(),
+    }))
+    .query(({ input }) => {
+      const { getCredentialsForService } = require("../lib/credential-tester");
+      return getCredentialsForService(input);
+    }),
+
+  /** Get credentials formatted for ZAP auth playbooks */
+  getForZap: protectedProcedure
+    .input(z.object({ technologies: z.array(z.string()) }))
+    .query(({ input }) => {
+      const { getCredentialsForZapPlaybook } = require("../lib/credential-tester");
+      return getCredentialsForZapPlaybook(input.technologies);
+    }),
 });
 
 export const aiChatRouter = router({
