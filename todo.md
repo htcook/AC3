@@ -5217,3 +5217,28 @@
 - [ ] Add getSummary procedure for fingerprint report generation
 - [x] Wire into unified pipeline enumeration phase alongside Naabu port scanning
 - [ ] Connect fingerprint results to observation normalizer for SSIL ingestion
+
+## Nmap tRPC Router
+- [x] Build Nmap tRPC router exposing orchestrator via API
+- [x] 14 procedures: scan, quickScan, serviceScan, osScan, scriptScan, vulnScan, adminPortScan, getResult, getResultAsObservations, getHistory, getProfiles, getScriptCategories, getAdminPorts, preflight
+- [x] Scope enforcement on all 7 active scan mutations via enforceMultiTargetScope
+- [x] 8 scan profiles (quick/standard/deep/stealth/service/udp/vuln/custom) with descriptions
+- [x] 7 NSE script categories (auth/discovery/vuln/brute/safe_recon/web/smb) with 80+ scripts
+- [x] Admin port scan using ADMIN_SERVICE_PORTS catalog with categorized results
+- [x] CVE extraction from vuln scan script output
+- [x] SSIL observation conversion via getResultAsObservations
+- [x] In-memory scan history with filtering (engagement, profile, status) and pagination
+- [x] Registered in main appRouter as nmap: nmapRouter
+- [x] 147 vitest tests all passing
+- [x] Full scan mutation with scope enforcement
+- [x] Quick scan mutation (top ports only)
+- [x] Service version scan mutation (-sV)
+- [x] OS detection scan mutation (-O)
+- [x] NSE script scan mutation
+- [x] Vulnerability scan profile mutation
+- [x] Get scan result query
+- [x] Get scan history query
+- [x] Get predefined scan profiles query
+- [x] Preflight server check mutation
+- [x] Register in main router
+- [x] Write tests (147 passing)
