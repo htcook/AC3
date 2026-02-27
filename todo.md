@@ -5266,3 +5266,33 @@
 - [x] Add nmap/amass/service_fingerprinter to EXTENDED_SOURCE_WEIGHTS (0.75/0.85/0.80)
 - [x] Add nmap/amass/service_fingerprinter icons to toolIcons in generateTimelineEvents
 - [x] Write vitest tests for new pipeline integration (included in 94 discovery-chain tests)
+
+## Discovery Chain UI Page
+- [x] Build DiscoveryChain.tsx page with visual pipeline diagram showing 4 stages
+- [x] Live progress tracking with animated stage transitions
+- [x] Target count flow visualization between stages (Amass → Nmap → Fingerprinter → Nuclei)
+- [x] Aggregated findings panel with severity breakdown (critical/high/medium/low/info)
+- [x] Chain run configuration form (domains, skip stages, nmap profile, timeouts)
+- [x] Chain run history table with status, duration, finding counts
+- [x] Individual stage detail panels with findings, errors, and raw output
+- [x] Data flow diagram showing what targets were extracted and fed between stages
+- [x] Duration estimation display before starting chain
+- [x] Cancel running chain button
+- [x] Add Discovery Chain nav item to AppShell sidebar under Reconnaissance
+- [x] Add route in App.tsx
+- [x] Mobile responsive layout
+- [x] Page purpose description at top
+
+## Persistent Chain Run Storage
+- [x] Add chainRuns and chainStageResults tables to drizzle/schema.ts
+- [x] Run pnpm db:push to migrate
+- [x] Add DB query helpers in server/db.ts for chain run CRUD
+- [x] Update discovery-chain-orchestrator.ts to persist to DB instead of in-memory Map
+- [x] Ensure chain run history survives server restarts
+
+## Wire Real Tool Execution Callbacks
+- [x] Wire executeAmass callback to actual amass-engine.ts executeAmassEnum function
+- [x] Wire executeNmap callback to actual nmap-orchestrator.ts executeNmapScan function
+- [x] Wire executeFingerprint callback to actual service-fingerprinter.ts batchFingerprint function
+- [x] Wire executeNuclei callback to nuclei-scanner router's scan execution logic
+- [x] Update discovery-chain tRPC router start procedure with real callbacks

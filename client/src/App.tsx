@@ -152,6 +152,7 @@ const GraphComparePage = lazy(() => import("./pages/GraphCompare"));
 const C2CommandCenter = lazy(() => import("./pages/C2CommandCenter"));
 const ThreatActorCrawler = lazy(() => import("./pages/ThreatActorCrawler"));
 const AISecurityValidation = lazy(() => import("./pages/AISecurityValidation"));
+const DiscoveryChain = lazy(() => import("./pages/DiscoveryChain"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -670,6 +671,9 @@ function Router() {
         </Route>
         <Route path="/ai-security-validation">
           <ProtectedRoute component={AISecurityValidation} />
+        </Route>
+        <Route path="/discovery-chain">
+          <ProtectedRoute component={DiscoveryChain} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

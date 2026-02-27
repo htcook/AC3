@@ -294,6 +294,7 @@ const NAV_GROUPS: NavGroup[] = [
         id: "intel-recon",
         label: "Reconnaissance",
         items: [
+          { href: "/discovery-chain", icon: GitMerge, label: "DISCOVERY CHAIN" },
           { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
           { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
           { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },

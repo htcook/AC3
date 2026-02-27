@@ -1517,6 +1517,75 @@ export async function batchLookupKev(cveIds: string[]): Promise<Map<string, IocF
   return result;
 }
 
+// ─── Discovery Chain DB Helpers ─────────────────────────────────────────────
+
+import { chainRuns, InsertChainRunRow, ChainRunRow, chainStageResults, InsertChainStageResultRow, ChainStageResultRow } from "../drizzle/schema";
+
+export async function insertChainRun(data: InsertChainRunRow): Promise<ChainRunRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  await db.insert(chainRuns).values(data);
+  const [row] = await db.select().from(chainRuns).where(eq(chainRuns.chainId, data.chainId)).limit(1);
+  return row || null;
+}
+
+export async function updateChainRunDb(chainId: string, data: Partial<InsertChainRunRow>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(chainRuns).set(data).where(eq(chainRuns.chainId, chainId));
+}
+
+export async function getChainRunByChainId(chainId: string): Promise<ChainRunRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(chainRuns).where(eq(chainRuns.chainId, chainId)).limit(1);
+  return row || null;
+}
+
+export async function listChainRunsDb(filter?: {
+  status?: string;
+  engagementId?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<{ total: number; runs: ChainRunRow[] }> {
+  const db = await getDb();
+  if (!db) return { total: 0, runs: [] };
+  const conditions: any[] = [];
+  if (filter?.status) conditions.push(eq(chainRuns.status, filter.status));
+  if (filter?.engagementId) conditions.push(eq(chainRuns.engagementId, filter.engagementId));
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(chainRuns).where(whereClause);
+  const rows = await db.select().from(chainRuns).where(whereClause).orderBy(desc(chainRuns.startedAt)).limit(filter?.limit || 25).offset(filter?.offset || 0);
+  return { total: Number(countResult?.count || 0), runs: rows };
+}
+
+export async function deleteChainRunDb(chainId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(chainStageResults).where(eq(chainStageResults.chainId, chainId));
+  await db.delete(chainRuns).where(eq(chainRuns.chainId, chainId));
+}
+
+export async function upsertChainStageResultDb(data: InsertChainStageResultRow): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db.select().from(chainStageResults)
+    .where(and(eq(chainStageResults.chainId, data.chainId), eq(chainStageResults.stageId, data.stageId)))
+    .limit(1);
+  if (existing.length > 0) {
+    await db.update(chainStageResults).set(data)
+      .where(and(eq(chainStageResults.chainId, data.chainId), eq(chainStageResults.stageId, data.stageId)));
+  } else {
+    await db.insert(chainStageResults).values(data);
+  }
+}
+
+export async function getChainStageResultsDb(chainId: string): Promise<ChainStageResultRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(chainStageResults).where(eq(chainStageResults.chainId, chainId));
+}
+
 /**
  * Get KEV catalog statistics: total entries, ransomware-linked, overdue by CISA deadline.
  */

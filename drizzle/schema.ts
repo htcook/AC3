@@ -5337,3 +5337,64 @@ export const abilityGraphEdges = mysqlTable("ability_graph_edges", {
 });
 export type AbilityGraphEdge = typeof abilityGraphEdges.$inferSelect;
 export type InsertAbilityGraphEdge = typeof abilityGraphEdges.$inferInsert;
+
+// ─── Discovery Chain Orchestrator Tables ────────────────────────────────────
+
+export const chainRuns = mysqlTable("chain_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  chainId: varchar("chain_id", { length: 64 }).notNull().unique(),
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  progress: int("progress").default(0).notNull(),
+  currentStage: varchar("current_stage", { length: 32 }),
+  cancelled: boolean("cancelled").default(false).notNull(),
+  domains: json("domains").notNull(),
+  seedIps: json("seed_ips"),
+  seedUrls: json("seed_urls"),
+  engagementId: int("engagement_id"),
+  operatorId: varchar("operator_id", { length: 64 }),
+  skipStages: json("skip_stages"),
+  stageConfig: json("stage_config"),
+  maxDurationSec: int("max_duration_sec").default(3600),
+  continueOnPartialFailure: boolean("continue_on_partial_failure").default(false),
+  totalFindings: int("total_findings").default(0),
+  totalSubdomains: int("total_subdomains").default(0),
+  totalHosts: int("total_hosts").default(0),
+  totalOpenPorts: int("total_open_ports").default(0),
+  totalServices: int("total_services").default(0),
+  totalVulnerabilities: int("total_vulnerabilities").default(0),
+  findingsBySeverity: json("findings_by_severity"),
+  findingsByStage: json("findings_by_stage"),
+  stagesCompleted: int("stages_completed").default(0),
+  stagesTotal: int("stages_total").default(4),
+  stagesFailed: int("stages_failed").default(0),
+  stagesSkipped: int("stages_skipped").default(0),
+  uniqueCves: json("unique_cves"),
+  attackTechniques: json("attack_techniques"),
+  startedAt: bigint("started_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  durationMs: bigint("duration_ms", { mode: "number" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ChainRunRow = typeof chainRuns.$inferSelect;
+export type InsertChainRunRow = typeof chainRuns.$inferInsert;
+
+export const chainStageResults = mysqlTable("chain_stage_results", {
+  id: int("id").autoincrement().primaryKey(),
+  chainId: varchar("chain_id", { length: 64 }).notNull(),
+  stageId: varchar("stage_id", { length: 32 }).notNull(),
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  inputTargetCount: int("input_target_count").default(0),
+  outputCount: int("output_count").default(0),
+  findingCount: int("finding_count").default(0),
+  errors: json("errors"),
+  findings: json("findings"),
+  rawOutput: mediumtext("raw_output"),
+  startedAt: bigint("started_at", { mode: "number" }).default(0),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  durationMs: bigint("duration_ms", { mode: "number" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ChainStageResultRow = typeof chainStageResults.$inferSelect;
+export type InsertChainStageResultRow = typeof chainStageResults.$inferInsert;

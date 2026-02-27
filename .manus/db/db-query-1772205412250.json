@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `chain_stage_results` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `chain_id` varchar(64) NOT NULL,\n  `stage_id` varchar(32) NOT NULL,\n  `status` varchar(32) NOT NULL DEFAULT 'pending',\n  `input_target_count` int DEFAULT 0,\n  `output_count` int DEFAULT 0,\n  `finding_count` int DEFAULT 0,\n  `errors` json,\n  `findings` json,\n  `raw_output` mediumtext,\n  `started_at` bigint DEFAULT 0,\n  `completed_at` bigint,\n  `duration_ms` bigint,\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `chain_stage_results_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `chain_stage_results` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `chain_id` varchar(64) NOT NULL,\n  `stage_id` varchar(32) NOT NULL,\n  `status` varchar(32) NOT NULL DEFAULT 'pending',\n  `input_target_count` int DEFAULT 0,\n  `output_count` int DEFAULT 0,\n  `finding_count` int DEFAULT 0,\n  `errors` json,\n  `findings` json,\n  `raw_output` mediumtext,\n  `started_at` bigint DEFAULT 0,\n  `completed_at` bigint,\n  `duration_ms` bigint,\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `chain_stage_results_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 219
+}
