@@ -71,7 +71,10 @@ export type ToolModule =
   | 'nvd_kev'
   | 'corroboration'
   | 'scoring'
-  | 'detection_rules';
+  | 'detection_rules'
+  | 'amass'
+  | 'nmap'
+  | 'service_fingerprinter';
 
 export interface PipelineStageConfig {
   phase: PipelinePhase;
@@ -162,7 +165,7 @@ export interface PipelineRun {
 export const PIPELINE_STAGES: PipelineStageConfig[] = [
   {
     phase: 'recon',
-    tools: ['passive_osint', 'zap_passive', 'nuclei_info', 'atomic_red_team'],
+    tools: ['passive_osint', 'zap_passive', 'nuclei_info', 'atomic_red_team', 'amass', 'nmap'],
     description: 'Passive discovery and enumeration — map the attack surface without touching the target directly. OSINT connectors gather DNS, certificates, breached credentials, and cloud assets. Web scanner passive spider discovers web application structure. Template scanner info-level templates fingerprint technology stacks. Adversary emulation recon techniques (T1595, T1592) validate what an attacker would see.',
     requiresPriorPhase: false,
     canRunParallel: true,
@@ -170,8 +173,8 @@ export const PIPELINE_STAGES: PipelineStageConfig[] = [
   },
   {
     phase: 'enumeration',
-    tools: ['zap_active', 'nuclei_info', 'api_security', 'passive_osint'],
-    description: 'Active probing and deep enumeration — crawl web applications, discover API endpoints, enumerate services. Web scanner active/AJAX spider performs deep crawling of JavaScript-heavy apps. Template scanner medium templates enumerate services and configurations. API security engine tests OpenAPI/GraphQL endpoints. Active DNS and banner verification confirms passive findings.',
+    tools: ['zap_active', 'nuclei_info', 'api_security', 'passive_osint', 'amass', 'nmap', 'service_fingerprinter'],
+    description: 'Active probing and deep enumeration — crawl web applications, discover API endpoints, enumerate services. Web scanner active/AJAX spider performs deep crawling of JavaScript-heavy apps. Template scanner medium templates enumerate services and configurations. API security engine tests OpenAPI/GraphQL endpoints. Active DNS and banner verification confirms passive findings. Amass active subdomain enumeration discovers additional attack surface via DNS brute-force and zone transfers. Nmap port scanning and service detection identifies open ports. Service fingerprinter performs protocol-specific probing of SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, databases, and other administrative services.',
     requiresPriorPhase: true,
     canRunParallel: true,
     estimatedDurationMinutes: 20,
@@ -324,6 +327,24 @@ export const TOOL_PHASE_MATRIX: Record<ToolModule, {
     role: 'Detection rule validation — test SIEM/EDR rules against atomic test results',
     inputsFrom: ['atomic_red_team', 'caldera', 'sliver_c2', 'zap_active', 'nuclei_vuln'],
     outputsTo: [],
+  },
+  amass: {
+    phases: ['recon', 'enumeration'],
+    role: 'Subdomain enumeration — passive OSINT, active DNS brute-force, zone transfers, cert transparency scraping. Discovers additional attack surface beyond initial scope.',
+    inputsFrom: ['passive_osint'],
+    outputsTo: ['nmap', 'service_fingerprinter', 'zap_passive', 'nuclei_info', 'scoring'],
+  },
+  nmap: {
+    phases: ['recon', 'enumeration'],
+    role: 'Port scanning and service detection — SYN/TCP/UDP scanning, OS fingerprinting, version detection, NSE script execution. Identifies open ports and running services on discovered hosts.',
+    inputsFrom: ['passive_osint', 'amass'],
+    outputsTo: ['service_fingerprinter', 'nuclei_info', 'nuclei_vuln', 'metasploit', 'nvd_kev', 'scoring'],
+  },
+  service_fingerprinter: {
+    phases: ['enumeration'],
+    role: 'Protocol-specific service fingerprinting — SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, Telnet, MySQL, PostgreSQL, MSSQL, Redis, MongoDB, VNC. Extracts banners, versions, security flags, default credential checks, and risk indicators.',
+    inputsFrom: ['nmap', 'passive_osint', 'amass'],
+    outputsTo: ['nuclei_vuln', 'metasploit', 'nvd_kev', 'corroboration', 'scoring'],
   },
 };
 

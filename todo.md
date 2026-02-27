@@ -5198,6 +5198,22 @@
 - [x] Telnet fingerprinting (banner, authentication type)
 - [x] Database fingerprinting (MySQL, MSSQL, PostgreSQL, Redis, MongoDB)
 - [x] VNC fingerprinting (version, authentication type, encryption)
-- [ ] Build service-fingerprinter tRPC router (next step)
-- [ ] Wire into unified pipeline enumeration phase (next step)
+- [x] Build service-fingerprinter tRPC router (next step)
+- [x] Wire into unified pipeline enumeration phase (next step)
 - [x] Write vitest tests for service fingerprinting engine (48 tests passing)
+
+## Amass Execution Engine
+- [ ] Research Amass v4 CLI capabilities and output formats
+- [ ] Build amass-engine.ts with SSH-based remote execution (same pattern as nmap-orchestrator)
+- [ ] Implement active enumeration modes: DNS brute-force, zone transfers, cert transparency
+- [ ] Implement passive enumeration mode for comparison
+- [ ] Parse Amass JSON output into unified asset format
+- [ ] Wire scope enforcement into Amass engine
+- [x] Build Amass tRPC router
+- [x] Wire into unified pipeline enumeration phase
+
+## Service Fingerprinter tRPC Router
+- [x] Build service-fingerprinter tRPC router with fingerprint, batchFingerprint, autoFingerprint procedures
+- [ ] Add getSummary procedure for fingerprint report generation
+- [x] Wire into unified pipeline enumeration phase alongside Naabu port scanning
+- [ ] Connect fingerprint results to observation normalizer for SSIL ingestion

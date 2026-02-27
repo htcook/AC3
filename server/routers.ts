@@ -98,6 +98,8 @@ import { ssilRouter } from "./routers/ssil";
 import { projectDiscoveryRouter } from "./routers/projectdiscovery";
 import { abilityGraphRouter } from "./routers/ability-graph";
 import { aiSecurityValidationRouter } from "./routers/ai-security-validation";
+import { serviceFingerprintRouter } from "./routers/service-fingerprinter";
+import { amassRouter } from "./routers/amass";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -278,6 +280,8 @@ export const appRouter = router({
   projectDiscovery: projectDiscoveryRouter,
   abilityGraph: abilityGraphRouter,
   aiSecurityValidation: aiSecurityValidationRouter,
+  serviceFingerprint: serviceFingerprintRouter,
+  amass: amassRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
