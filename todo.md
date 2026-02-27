@@ -5052,3 +5052,8 @@
 - [x] Add tRPC procedures for scheduler management (start, stop, configure, status)
 - [x] Build Crawler Scheduler UI — interval controls, status dashboard, crawl history
 - [x] Write vitest tests for crawler-scheduler
+## Dashboard Scan Input Fix
+- [x] Fix scan input to run scans inline without redirecting to another page
+- [x] Support multiple domains, URLs, and IPs in a single scan submission
+- [x] Show scan progress and results directly on the dashboard
+- [x] Write vitest tests for updated scan behavior

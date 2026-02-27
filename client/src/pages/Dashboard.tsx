@@ -58,6 +58,14 @@ export default function Dashboard() {
   const [scanProgress, setScanProgress] = useState<string[]>([]);
   const [dashScanId, setDashScanId] = useState<number | null>(null);
 
+  // Quick scan bar state (multi-target)
+  const [quickTargets, setQuickTargets] = useState('');
+  const [isQuickScanning, setIsQuickScanning] = useState(false);
+  const [quickScanIds, setQuickScanIds] = useState<number[]>([]);
+  const [quickScanProgress, setQuickScanProgress] = useState<string[]>([]);
+  const [quickScanResults, setQuickScanResults] = useState<Array<{ scanId: number; domain: string; status: string; riskScore?: number; totalAssets?: number; riskBand?: string }>>([]);
+  const [scanCompleted, setScanCompleted] = useState(false);
+
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     servers: true,
@@ -116,7 +124,10 @@ export default function Dashboard() {
     },
   });
 
-  // Poll for scan status while running from Dashboard
+  // Quick scan mutation (for the quick scan bar)
+  const quickStartScan = trpc.domainIntel.startScan.useMutation();
+
+  // Poll for scan status while running from Dashboard (engagement form)
   const dashScanStatus = trpc.domainIntel.getScanStatus.useQuery(
     { scanId: dashScanId! },
     {
@@ -125,22 +136,73 @@ export default function Dashboard() {
     }
   );
 
-  // React to scan status changes from Dashboard
+  // Poll for quick scan status (first active scan)
+  const activeQuickScanId = quickScanIds.find(id => {
+    const result = quickScanResults.find(r => r.scanId === id);
+    return !result || (result.status !== 'completed' && result.status !== 'scan_complete' && result.status !== 'failed');
+  }) ?? null;
+  const quickScanStatus = trpc.domainIntel.getScanStatus.useQuery(
+    { scanId: activeQuickScanId! },
+    {
+      enabled: isQuickScanning && activeQuickScanId !== null,
+      refetchInterval: 3000,
+    }
+  );
+
+  // React to quick scan status changes
+  useEffect(() => {
+    if (!quickScanStatus.data || !isQuickScanning || !activeQuickScanId) return;
+    const { status, overallRiskScore, totalAssets, overallRiskBand } = quickScanStatus.data;
+    if (status === 'completed' || status === 'scan_complete' || status === 'failed') {
+      setQuickScanResults(prev => {
+        const existing = prev.find(r => r.scanId === activeQuickScanId);
+        if (existing) {
+          return prev.map(r => r.scanId === activeQuickScanId ? { ...r, status, riskScore: overallRiskScore ?? undefined, totalAssets: totalAssets ?? undefined, riskBand: overallRiskBand ?? undefined } : r);
+        }
+        const domain = quickScanStatus.data.primaryDomain || 'unknown';
+        return [...prev, { scanId: activeQuickScanId, domain, status, riskScore: overallRiskScore ?? undefined, totalAssets: totalAssets ?? undefined, riskBand: overallRiskBand ?? undefined }];
+      });
+      // Update progress
+      const completedCount = quickScanResults.filter(r => r.status === 'completed' || r.status === 'scan_complete' || r.status === 'failed').length + 1;
+      if (status === 'completed' || status === 'scan_complete') {
+        setQuickScanProgress(prev => [...prev, `✓ Scan complete for ${quickScanStatus.data.primaryDomain}`]);
+      } else {
+        setQuickScanProgress(prev => [...prev, `✗ Scan failed for ${quickScanStatus.data.primaryDomain}`]);
+      }
+      // Check if all scans are done
+      if (completedCount >= quickScanIds.length) {
+        setIsQuickScanning(false);
+        setScanCompleted(true);
+        toast.success(`All ${quickScanIds.length} scan(s) completed!`);
+      }
+    } else {
+      // Update in-progress status
+      setQuickScanResults(prev => {
+        const existing = prev.find(r => r.scanId === activeQuickScanId);
+        if (existing) {
+          return prev.map(r => r.scanId === activeQuickScanId ? { ...r, status } : r);
+        }
+        return [...prev, { scanId: activeQuickScanId, domain: quickScanStatus.data.primaryDomain || 'unknown', status }];
+      });
+    }
+  }, [quickScanStatus.data, isQuickScanning, activeQuickScanId, quickScanIds.length]);
+
+  // React to engagement scan status changes from Dashboard — NO REDIRECT
   useEffect(() => {
     if (!dashScanStatus.data || !isScanning) return;
     const { status } = dashScanStatus.data;
     if (status === 'completed' || status === 'scan_complete') {
       setIsScanning(false);
-      setScanProgress([]);
-      toast.success(status === 'scan_complete' ? 'Domain scan complete! Review results before starting engagement...' : 'Domain Intel scan completed! Redirecting to results...');
-      navigate(`/domain-intel/${dashScanId}`);
+      setScanProgress(prev => [...prev, '✓ Pipeline completed successfully!']);
+      setScanCompleted(true);
+      toast.success('Domain Intel scan completed! View results below.');
     } else if (status === 'failed') {
       setIsScanning(false);
-      setScanProgress([]);
+      setScanProgress(prev => [...prev, '✗ Pipeline failed.']);
       setDashScanId(null);
       toast.error('Pipeline failed. Please try again.');
     }
-  }, [dashScanStatus.data, isScanning, dashScanId, navigate]);
+  }, [dashScanStatus.data, isScanning, dashScanId]);
 
   useEffect(() => {
     if (healthData !== undefined) setServerStatus(healthData ? 'online' : 'offline');
@@ -180,12 +242,71 @@ export default function Dashboard() {
     toast.success('Refreshing all data...');
   };
 
+  // Parse multi-target input: supports domains, URLs, IPs separated by commas, spaces, or newlines
+  const parseTargets = (input: string): string[] => {
+    return input
+      .split(/[,\n\s]+/)
+      .map(t => t.trim().toLowerCase())
+      .filter(Boolean)
+      .map(t => t.replace(/^https?:\/\//, '').replace(/\/.*$/, '')) // strip protocol and path
+      .filter((t, i, arr) => arr.indexOf(t) === i); // deduplicate
+  };
+
+  const handleQuickScan = async () => {
+    const targets = parseTargets(quickTargets);
+    if (targets.length === 0) {
+      toast.error('Enter at least one domain, URL, or IP address');
+      return;
+    }
+    if (targets.length > 10) {
+      toast.error('Maximum 10 targets per batch scan');
+      return;
+    }
+    setIsQuickScanning(true);
+    setQuickScanProgress([`Launching ${targets.length} scan(s)...`]);
+    setQuickScanResults([]);
+    setQuickScanIds([]);
+    setScanCompleted(false);
+
+    const ids: number[] = [];
+    for (const target of targets) {
+      try {
+        const result = await quickStartScan.mutateAsync({
+          primaryDomain: target,
+          clientType: 'enterprise',
+          sector: 'Technology',
+          customerName: target,
+          criticalFunctions: [],
+          scanOnly: true,
+        });
+        ids.push(result.scanId);
+        setQuickScanProgress(prev => [...prev, `Pipeline started for ${target}`]);
+        setQuickScanResults(prev => [...prev, { scanId: result.scanId, domain: target, status: 'discovering' }]);
+      } catch (err: any) {
+        setQuickScanProgress(prev => [...prev, `✗ Failed to start scan for ${target}: ${err.message || 'Unknown error'}`]);
+      }
+    }
+    setQuickScanIds(ids);
+    if (ids.length === 0) {
+      setIsQuickScanning(false);
+      toast.error('All scans failed to start');
+    } else {
+      toast.success(`${ids.length} scan(s) launched!`);
+    }
+  };
+
   const handleStartEngagement = () => {
-    if (!domain.trim()) {
+    // Parse the domain field for multiple targets
+    const targets = parseTargets(domain);
+    if (targets.length === 0) {
       toast.error('Enter a target domain to begin');
       return;
     }
+    const primaryDomain = targets[0];
+    const additionalDomains = targets.slice(1);
+    
     setIsScanning(true);
+    setScanCompleted(false);
     setScanProgress(['Initializing OSINT pipeline...']);
 
     // Simulate progress updates
@@ -198,16 +319,36 @@ export default function Dashboard() {
       { delay: 20000, msg: 'Generating campaign recommendations...' },
     ];
     steps.forEach(({ delay, msg }) => {
-      setTimeout(() => setScanProgress(prev => [...prev, msg]), delay);
+      setTimeout(() => {
+        if (isScanning) setScanProgress(prev => [...prev, msg]);
+      }, delay);
     });
 
     startScan.mutate({
-      primaryDomain: domain.trim(),
+      primaryDomain,
+      additionalDomains: additionalDomains.length > 0 ? additionalDomains : undefined,
       clientType: clientType as any,
       sector: sector || 'Technology',
-      customerName: companyName || domain.trim(),
+      customerName: companyName || primaryDomain,
       criticalFunctions: [],
     });
+  };
+
+  const resetQuickScan = () => {
+    setQuickTargets('');
+    setIsQuickScanning(false);
+    setQuickScanIds([]);
+    setQuickScanProgress([]);
+    setQuickScanResults([]);
+    setScanCompleted(false);
+  };
+
+  const resetEngagementScan = () => {
+    setDomain('');
+    setIsScanning(false);
+    setDashScanId(null);
+    setScanProgress([]);
+    setScanCompleted(false);
   };
 
   const recentCompletedScans = useMemo(() => {
@@ -246,7 +387,7 @@ export default function Dashboard() {
       <div className="p-4 sm:p-6 space-y-6">
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* DOMAIN SCAN — Quick scan bar                                    */}
+        {/* DOMAIN SCAN — Quick scan bar (multi-target, inline execution)    */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         <section className="bg-gradient-to-r from-cyan-950/40 via-card to-card border-2 border-cyan-500/30 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-3">
@@ -256,38 +397,128 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground mb-4">
             Launch an AI-powered reconnaissance pipeline with active DNS verification,
             banner fingerprinting, vulnerability correlation, and threat actor matching.
+            Enter multiple targets separated by commas, spaces, or newlines.
           </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const val = (e.currentTarget.elements.namedItem('quickDomain') as HTMLInputElement)?.value?.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-              if (val) navigate(`/domain-intel?domain=${encodeURIComponent(val)}`);
-            }}
-            className="flex items-center gap-0 max-w-2xl"
-          >
-            <div className="relative flex-1">
-              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500/60" />
-              <input
-                name="quickDomain"
-                type="text"
-                placeholder="Enter a domain (e.g., example.com)"
-                className="w-full pl-11 pr-4 py-3.5 bg-background/80 border-2 border-cyan-500/30 border-r-0 text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
+          <div className="space-y-3">
+            <div className="flex items-start gap-0 max-w-3xl">
+              <div className="relative flex-1">
+                <Globe className="absolute left-3 top-3.5 w-5 h-5 text-cyan-500/60" />
+                <textarea
+                  value={quickTargets}
+                  onChange={(e) => setQuickTargets(e.target.value)}
+                  placeholder="Enter domains, URLs, or IPs (e.g., example.com, 192.168.1.1, https://target.io)"
+                  className="w-full pl-11 pr-4 py-3 bg-background/80 border-2 border-cyan-500/30 border-r-0 text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:border-cyan-500 transition-colors resize-none"
+                  rows={quickTargets.includes('\n') || quickTargets.length > 60 ? 3 : 1}
+                  disabled={isQuickScanning}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !isQuickScanning) {
+                      e.preventDefault();
+                      handleQuickScan();
+                    }
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleQuickScan}
+                disabled={isQuickScanning || !quickTargets.trim()}
+                className="flex items-center gap-2 px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-display tracking-wider text-sm transition-colors border-2 border-cyan-500 hover:border-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed h-[46px]"
+              >
+                {isQuickScanning ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> SCANNING...</>
+                ) : (
+                  <><Search className="w-4 h-4" /> SCAN</>
+                )}
+              </button>
             </div>
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-6 py-3.5 bg-cyan-500 hover:bg-cyan-400 text-black font-display tracking-wider text-sm transition-colors border-2 border-cyan-500 hover:border-cyan-400"
-            >
-              <Search className="w-4 h-4" />
-              SCAN
-            </button>
-          </form>
-          <div className="flex items-center gap-4 sm:gap-6 mt-4 text-[10px] text-muted-foreground font-display tracking-wider flex-wrap">
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> DNS VERIFICATION</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> BANNER DETECTION</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> CVE CORRELATION</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> THREAT MATCHING</span>
+            {quickTargets.trim() && !isQuickScanning && !scanCompleted && (
+              <div className="flex items-center gap-2 text-[10px] text-cyan-400 font-display tracking-wider">
+                <Target className="w-3 h-3" />
+                {parseTargets(quickTargets).length} target(s) detected: {parseTargets(quickTargets).slice(0, 5).join(', ')}{parseTargets(quickTargets).length > 5 ? ` +${parseTargets(quickTargets).length - 5} more` : ''}
+              </div>
+            )}
+            <div className="flex items-center gap-4 sm:gap-6 text-[10px] text-muted-foreground font-display tracking-wider flex-wrap">
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> DNS VERIFICATION</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> BANNER DETECTION</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> CVE CORRELATION</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> THREAT MATCHING</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500" /> MULTI-TARGET</span>
+            </div>
           </div>
+
+          {/* Quick Scan Progress */}
+          {(isQuickScanning || (quickScanResults.length > 0 && quickScanIds.length > 0)) && (
+            <div className="mt-4 bg-background/80 border border-cyan-500/30 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  {isQuickScanning ? (
+                    <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  )}
+                  <span className="text-xs font-display tracking-wider text-cyan-400">
+                    {isQuickScanning ? 'SCANNING IN PROGRESS' : 'SCAN COMPLETE'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {quickScanResults.filter(r => r.status === 'completed' || r.status === 'scan_complete').length}/{quickScanIds.length} completed
+                  </span>
+                </div>
+                {!isQuickScanning && (
+                  <button onClick={resetQuickScan} className="text-[10px] font-display tracking-wider text-muted-foreground hover:text-foreground transition-colors">
+                    NEW SCAN
+                  </button>
+                )}
+              </div>
+
+              {/* Progress log */}
+              <div className="space-y-1 mb-3 max-h-32 overflow-y-auto">
+                {quickScanProgress.map((msg, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    {msg.startsWith('✓') ? (
+                      <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+                    ) : msg.startsWith('✗') ? (
+                      <XCircle className="w-3 h-3 text-red-500 shrink-0" />
+                    ) : (
+                      <Loader2 className="w-3 h-3 text-cyan-400 animate-spin shrink-0" />
+                    )}
+                    <span className={msg.startsWith('✓') ? 'text-muted-foreground' : msg.startsWith('✗') ? 'text-red-400' : 'text-foreground'}>{msg}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Results cards */}
+              {quickScanResults.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {quickScanResults.map((result) => {
+                    const isDone = result.status === 'completed' || result.status === 'scan_complete';
+                    const isFailed = result.status === 'failed';
+                    const riskColor = (result.riskScore ?? 0) >= 80 ? 'border-red-500/50 text-red-400' : (result.riskScore ?? 0) >= 60 ? 'border-orange-500/50 text-orange-400' : (result.riskScore ?? 0) >= 40 ? 'border-yellow-500/50 text-yellow-400' : 'border-green-500/50 text-green-400';
+                    return (
+                      <div key={result.scanId} className={`bg-card border-2 ${isDone ? riskColor : isFailed ? 'border-red-500/30' : 'border-cyan-500/20'} p-3 transition-all`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-sm truncate flex-1">{result.domain}</span>
+                          {isDone && result.riskScore !== undefined && (
+                            <span className={`font-display text-lg ml-2 ${riskColor.split(' ')[1]}`}>{result.riskScore}</span>
+                          )}
+                          {!isDone && !isFailed && <Loader2 className="w-4 h-4 text-cyan-400 animate-spin ml-2" />}
+                          {isFailed && <XCircle className="w-4 h-4 text-red-500 ml-2" />}
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-[10px] text-muted-foreground uppercase">
+                            {isDone ? `${result.totalAssets ?? 0} assets · ${result.riskBand ?? 'N/A'}` : isFailed ? 'FAILED' : result.status.replace(/_/g, ' ').toUpperCase()}
+                          </span>
+                          {isDone && (
+                            <Link href={`/domain-intel/${result.scanId}`}>
+                              <span className="text-[9px] font-display tracking-wider text-cyan-400 hover:text-cyan-300 cursor-pointer">VIEW RESULTS →</span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -309,23 +540,34 @@ export default function Dashboard() {
             </div>
 
             <div className="mt-5 space-y-4">
-              {/* Domain Input — Primary */}
+              {/* Domain Input — Primary (supports multiple targets) */}
               <div>
-                <label className="text-[10px] font-display tracking-widest text-muted-foreground mb-1.5 block">TARGET DOMAIN *</label>
+                <label className="text-[10px] font-display tracking-widest text-muted-foreground mb-1.5 block">TARGET DOMAIN(S) * <span className="text-muted-foreground/60">— separate multiple with commas, spaces, or newlines</span></label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/60" />
-                    <input
-                      type="text"
+                    <Globe className="absolute left-3 top-3 w-4 h-4 text-primary/60" />
+                    <textarea
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
-                      placeholder="e.g., acmecorp.com"
-                      className="w-full pl-10 pr-4 py-3 bg-background/80 border-2 border-primary/30 text-sm font-mono focus:outline-none focus:border-primary transition-colors"
-                      onKeyDown={(e) => e.key === 'Enter' && !isScanning && handleStartEngagement()}
-                      disabled={isScanning}
+                      placeholder="e.g., acmecorp.com, subsidiary.io, 10.0.0.1"
+                      className="w-full pl-10 pr-4 py-3 bg-background/80 border-2 border-primary/30 text-sm font-mono focus:outline-none focus:border-primary transition-colors resize-none"
+                      rows={domain.includes('\n') || domain.length > 50 ? 3 : 1}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey && !isScanning) {
+                          e.preventDefault();
+                          handleStartEngagement();
+                        }
+                      }}
+                      disabled={isScanning || scanCompleted}
                     />
                   </div>
                 </div>
+                {domain.trim() && !isScanning && !scanCompleted && parseTargets(domain).length > 1 && (
+                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-primary font-display tracking-wider">
+                    <Target className="w-3 h-3" />
+                    {parseTargets(domain).length} targets: {parseTargets(domain).join(', ')}
+                  </div>
+                )}
               </div>
 
               {/* Context Fields */}
@@ -385,24 +627,38 @@ export default function Dashboard() {
 
               {/* Launch Button */}
               <div className="flex items-center gap-3">
-                <Button
-                  onClick={handleStartEngagement}
-                  disabled={isScanning || !domain.trim()}
-                  className="font-display tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-sm"
-                  size="lg"
-                >
-                  {isScanning ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      SCANNING...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 mr-2" />
-                      LAUNCH PIPELINE
-                    </>
-                  )}
-                </Button>
+                {!scanCompleted ? (
+                  <Button
+                    onClick={handleStartEngagement}
+                    disabled={isScanning || !domain.trim()}
+                    className="font-display tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-sm"
+                    size="lg"
+                  >
+                    {isScanning ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        SCANNING...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4 mr-2" />
+                        LAUNCH PIPELINE
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <>
+                    <Link href={`/domain-intel/${dashScanId}`}>
+                      <Button className="font-display tracking-wider bg-green-600 hover:bg-green-500 text-white px-8 py-3 text-sm" size="lg">
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        VIEW FULL RESULTS
+                      </Button>
+                    </Link>
+                    <Button onClick={resetEngagementScan} variant="outline" size="lg" className="font-display tracking-wider text-sm">
+                      NEW SCAN
+                    </Button>
+                  </>
+                )}
                 <Link href="/domain-intel">
                   <Button variant="outline" size="lg" className="font-display tracking-wider text-sm">
                     ADVANCED OPTIONS
@@ -411,21 +667,38 @@ export default function Dashboard() {
               </div>
 
               {/* Scan Progress */}
-              {isScanning && scanProgress.length > 0 && (
-                <div className="bg-background/80 border border-primary/30 p-4 mt-3">
+              {(isScanning || scanCompleted) && scanProgress.length > 0 && (
+                <div className={`bg-background/80 border ${scanCompleted ? 'border-green-500/30' : 'border-primary/30'} p-4 mt-3`}>
                   <div className="flex items-center gap-2 mb-2">
-                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                    <span className="text-xs font-display tracking-wider text-primary">PIPELINE IN PROGRESS</span>
+                    {scanCompleted ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                    )}
+                    <span className={`text-xs font-display tracking-wider ${scanCompleted ? 'text-green-400' : 'text-primary'}`}>
+                      {scanCompleted ? 'PIPELINE COMPLETE' : 'PIPELINE IN PROGRESS'}
+                    </span>
+                    {dashScanStatus.data && (
+                      <span className="text-[10px] text-muted-foreground">
+                        — {(dashScanStatus.data.status || '').replace(/_/g, ' ').toUpperCase()}
+                        {dashScanStatus.data.totalAssets ? ` · ${dashScanStatus.data.totalAssets} assets` : ''}
+                        {dashScanStatus.data.overallRiskScore ? ` · Risk: ${dashScanStatus.data.overallRiskScore}` : ''}
+                      </span>
+                    )}
                   </div>
                   <div className="space-y-1">
                     {scanProgress.map((msg, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs">
-                        {i < scanProgress.length - 1 ? (
+                        {msg.startsWith('✓') ? (
+                          <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+                        ) : msg.startsWith('✗') ? (
+                          <XCircle className="w-3 h-3 text-red-500 shrink-0" />
+                        ) : i < scanProgress.length - 1 ? (
                           <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
                         ) : (
                           <Loader2 className="w-3 h-3 text-primary animate-spin shrink-0" />
                         )}
-                        <span className={i < scanProgress.length - 1 ? 'text-muted-foreground' : 'text-foreground'}>{msg}</span>
+                        <span className={msg.startsWith('✓') ? 'text-green-400' : msg.startsWith('✗') ? 'text-red-400' : i < scanProgress.length - 1 ? 'text-muted-foreground' : 'text-foreground'}>{msg}</span>
                       </div>
                     ))}
                   </div>
