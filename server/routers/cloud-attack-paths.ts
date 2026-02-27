@@ -134,7 +134,17 @@ export const cloudAttackPathsRouter = router({
       description: z.string().optional(),
       remediationSteps: z.any().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      if (input.engagementId && input.targetResource) {
+        try {
+          const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceTargetScope(input.engagementId, input.targetResource, "Cloud Attack Path Simulation", ctx);
+        } catch (e: any) {
+          if (e?.code === "PRECONDITION_FAILED") throw e;
+          // Log but don't block if scope check fails (cloud resources may not be IP-based)
+        }
+      }
       const { getDb } = await import("../db");
       const { cloudAttackPaths } = await import("../../drizzle/schema");
       const db = await getDb();

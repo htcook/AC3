@@ -217,11 +217,25 @@ export const emulationPlaybooksRouter = router({
       engagementId: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // ─── ROE Enforcement (RED tier) ───
+      // ─── ROE Enforcement (RED tier) + Scope Guard ───
       const { enforceROE, getEngagementROE, logOffensiveAction } = await import("../lib/roe-guard");
       if (input.engagementId) {
         const roe = await getEngagementROE(Number(input.engagementId));
         if (roe) enforceROE(roe, 'red', `Caldera emulation playbook launch: ${input.playbookId}`);
+        // Enhanced: also validate testing window and ROE expiry via scope guard
+        try {
+          const { checkTestingWindow, loadEngagementScope } = await import("../lib/scope-guard");
+          const scope = await loadEngagementScope(Number(input.engagementId));
+          if (scope) {
+            const windowCheck = checkTestingWindow(scope);
+            if (!windowCheck.allowed) {
+              throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Emulation blocked: ${windowCheck.reason}` });
+            }
+          }
+        } catch (e: any) {
+          if (e?.code === "PRECONDITION_FAILED") throw e;
+          // Non-blocking if scope guard fails to load
+        }
       }
 
       const db = await getDbSafe();

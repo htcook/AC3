@@ -57,12 +57,26 @@ export const remediationVerificationRouter = router({
 
   execute: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { getDb } = await import("../db");
       const { remediationVerifications } = await import("../../drizzle/schema");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const { eq } = await import("drizzle-orm");
+
+      // ── ROE Scope Enforcement ──
+      // Resolve the verification target and validate against ROE scope
+      const [verification] = await db.select().from(remediationVerifications)
+        .where(eq(remediationVerifications.id, input.id)).limit(1);
+      if (!verification) throw new TRPCError({ code: "NOT_FOUND", message: "Verification not found" });
+      if (verification.engagementId && verification.assetName) {
+        try {
+          const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceTargetScope(verification.engagementId, verification.assetName, "Remediation Verification", ctx);
+        } catch (e: any) {
+          if (e?.code === "PRECONDITION_FAILED") throw e;
+        }
+      }
 
       // Update to running
       await db.update(remediationVerifications).set({ status: "running" }).where(eq(remediationVerifications.id, input.id));

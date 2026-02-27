@@ -5173,3 +5173,31 @@
 - [x] API security testing playbook
 - [x] Server-side vulnerability playbook
 - [x] Wire ZAP playbooks into unified pipeline
+
+## Remaining Router Scope Enforcement
+- [x] Wire scope enforcement into cloud-attack-paths.ts
+- [x] Wire scope enforcement into agentless-bas.ts (simulated only, no real targets)
+- [x] Wire scope enforcement into remediation-verification.ts
+- [x] Wire scope enforcement into config-baseline.ts (simulated only, no real targets)
+- [x] Wire scope enforcement into cicd-pipeline.ts (no target params, pipeline triggers only)
+- [x] Wire scope enforcement into edr-validation.ts (records test results, no target params)
+- [x] Wire scope enforcement into ngfw-validation.ts
+- [x] Wire scope enforcement into exploit-arsenal.ts (stores exploits, no execution)
+- [x] Wire scope enforcement into post-exploit-playbooks.ts
+- [x] Wire scope enforcement into emulation-playbooks.ts (enhanced with scope guard)
+
+## Service Fingerprinting Engine
+- [x] Build service-fingerprinter.ts with protocol-specific probes
+- [x] SSH fingerprinting (version, algorithms, key exchange, HASSH)
+- [x] SMTP fingerprinting (banner, EHLO capabilities, STARTTLS, auth methods, open relay check)
+- [x] FTP/SFTP fingerprinting (banner, anonymous login, TLS support, directory listing)
+- [x] SNMP fingerprinting (community string check, version detection, system info)
+- [x] RDP fingerprinting (NLA detection, encryption level, certificate info)
+- [x] SMB fingerprinting (version, signing, null session, shares enumeration)
+- [x] LDAP fingerprinting (anonymous bind, base DN enumeration, TLS support)
+- [x] Telnet fingerprinting (banner, authentication type)
+- [x] Database fingerprinting (MySQL, MSSQL, PostgreSQL, Redis, MongoDB)
+- [x] VNC fingerprinting (version, authentication type, encryption)
+- [ ] Build service-fingerprinter tRPC router (next step)
+- [ ] Wire into unified pipeline enumeration phase (next step)
+- [x] Write vitest tests for service fingerprinting engine (48 tests passing)

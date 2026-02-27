@@ -31,6 +31,11 @@ export const ngfwValidationRouter = router({
       firewallVendor: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      // ── ROE Scope Enforcement ──
+      if (input.targetIp && (input as any).engagementId) {
+        const { enforceTargetScope } = await import("../lib/scope-enforcement-middleware");
+        await enforceTargetScope((input as any).engagementId, input.targetIp, "NGFW Validation", ctx);
+      }
       const { getDb } = await import("../db");
       const { ngfwValidationTests } = await import("../../drizzle/schema");
       const db = await getDb();
