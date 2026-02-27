@@ -17,7 +17,7 @@ import {
   TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare,
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
-  Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft
+  Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -304,6 +304,8 @@ export default function DomainIntelResults() {
   const exploitMatches = pipeline?.exploitMatches as any;
   const crossModuleEnrichment = pipeline?.crossModuleEnrichment as any;
   const postEnrichmentAnalysis = pipeline?.postEnrichmentAnalysis as any;
+  const credentialTestSummary = pipeline?.credentialTestSummary as any;
+  const oemCredentials = pipeline?.oemCredentials as any;
 
   // Build unified asset list: DB assets + pipeline subdomains not already in DB assets
   const dbAssetHostnames = new Set((assets as any[]).map((a: any) => (a.hostname || '').toLowerCase()));
@@ -856,6 +858,24 @@ export default function DomainIntelResults() {
             </CardContent>
           </Card>
         )}
+        {(credentialTestSummary || oemCredentials) && (
+          <Card className={`border-${credentialTestSummary?.confirmed > 0 ? 'red' : 'amber'}-500/20`}>
+            <CardContent className="p-4 text-center">
+              <p className={`text-3xl font-bold ${credentialTestSummary?.confirmed > 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                {credentialTestSummary?.confirmed || 0}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Default Creds Confirmed</p>
+              {credentialTestSummary?.tested > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {credentialTestSummary.tested} tested, {credentialTestSummary.failed || 0} failed
+                </p>
+              )}
+              {!credentialTestSummary && oemCredentials?.length > 0 && (
+                <p className="text-[10px] text-amber-400/80 mt-0.5">{oemCredentials.length} OEM creds matched</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Tabs */}
@@ -882,6 +902,7 @@ export default function DomainIntelResults() {
             <TabsTrigger value="takeover">Takeover</TabsTrigger>
             <TabsTrigger value="cve-actors">CVE Actors</TabsTrigger>
             <TabsTrigger value="takeover-poc">Takeover PoC</TabsTrigger>
+            {(credentialTestSummary || oemCredentials) && <TabsTrigger value="credentials">Default Creds</TabsTrigger>}
             {crossModuleEnrichment && <TabsTrigger value="enrichment">Enrichment</TabsTrigger>}
             {postEnrichmentAnalysis && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
           </TabsList>
@@ -910,6 +931,7 @@ export default function DomainIntelResults() {
             <TabsTrigger value="takeover">Takeover</TabsTrigger>
             <TabsTrigger value="cve-actors">CVE Actors</TabsTrigger>
             <TabsTrigger value="takeover-poc">Takeover PoC</TabsTrigger>
+            {(credentialTestSummary || oemCredentials) && <TabsTrigger value="credentials">Default Creds</TabsTrigger>}
             {crossModuleEnrichment && <TabsTrigger value="enrichment">Enrichment</TabsTrigger>}
             {postEnrichmentAnalysis && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
           </TabsList>
@@ -1441,6 +1463,42 @@ export default function DomainIntelResults() {
                         });
                         if (assetPorts.length === 0) return null;
                         return <Badge variant="outline" className="text-[10px] text-sky-400 border-sky-500/30"><Network className="h-2.5 w-2.5 mr-0.5 inline" />{assetPorts.length} port{assetPorts.length !== 1 ? 's' : ''}</Badge>;
+                      })()}
+                      {/* Credential indicator badge */}
+                      {(() => {
+                        const hostname = asset.hostname?.toLowerCase() || '';
+                        const dns = (asset.dnsRecords || {}) as Record<string, any>;
+                        let ip = '';
+                        if (dns.A && Array.isArray(dns.A) && dns.A.length > 0) {
+                          ip = typeof dns.A[0] === 'string' ? dns.A[0] : dns.A[0]?.address || '';
+                        }
+                        // Check credential test results
+                        const confirmedCreds = credentialTestSummary?.results?.filter((r: any) =>
+                          r.status === 'confirmed' && (r.host === hostname || r.host === ip)
+                        ) || [];
+                        // Check OEM matches
+                        const matchedOem = oemCredentials?.filter((c: any) => {
+                          const techs = ((asset.technologies || []) as string[]).map((t: string) => t.toLowerCase());
+                          return techs.some((t: string) => 
+                            t.includes(c.vendor?.toLowerCase() || '') || 
+                            t.includes(c.product?.toLowerCase() || '')
+                          );
+                        }) || [];
+                        if (confirmedCreds.length > 0) {
+                          return (
+                            <Badge variant="destructive" className="text-[10px] gap-0.5" title={`${confirmedCreds.length} confirmed default credential(s): ${confirmedCreds.map((c: any) => c.username).join(', ')}`}>
+                              <KeyRound className="h-2.5 w-2.5" /> {confirmedCreds.length} cred{confirmedCreds.length !== 1 ? 's' : ''} confirmed
+                            </Badge>
+                          );
+                        }
+                        if (matchedOem.length > 0) {
+                          return (
+                            <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30 gap-0.5" title={`${matchedOem.length} OEM default credential(s) matched: ${matchedOem.slice(0,3).map((c: any) => `${c.vendor} ${c.username}`).join(', ')}${matchedOem.length > 3 ? '...' : ''}`}>
+                              <KeyRound className="h-2.5 w-2.5" /> {matchedOem.length} default cred{matchedOem.length !== 1 ? 's' : ''}
+                            </Badge>
+                          );
+                        }
+                        return null;
                       })()}
                     </div>
                   </div>
@@ -2353,12 +2411,13 @@ export default function DomainIntelResults() {
                             <th className="text-left px-3 py-2 font-medium">Risk</th>
                             <th className="text-left px-3 py-2 font-medium">Technologies / Apps</th>
                             <th className="text-left px-3 py-2 font-medium">Ports & Services</th>
+                            <th className="text-left px-3 py-2 font-medium">Creds</th>
                             <th className="text-left px-3 py-2 font-medium">Discovery</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {sorted.length === 0 ? (
-                            <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No assets matching your filters</td></tr>
+                            <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No assets matching your filters</td></tr>
                           ) : sorted.map((item, i) => (
                             <tr key={i} className={`hover:bg-muted/20 ${item.riskBand === 'critical' ? 'bg-red-500/5' : item.riskBand === 'high' ? 'bg-orange-500/5' : ''}`}>
                               <td className="px-3 py-2">
@@ -2438,6 +2497,22 @@ export default function DomainIntelResults() {
                                     <span className="text-[10px] text-muted-foreground italic">no ports</span>
                                   )}
                                 </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                {(() => {
+                                  const h = item.hostname?.toLowerCase() || '';
+                                  const ip = item.ip || '';
+                                  const confirmed = credentialTestSummary?.results?.filter((r: any) =>
+                                    r.status === 'confirmed' && (r.host === h || r.host === ip)
+                                  ) || [];
+                                  const oem = oemCredentials?.filter((c: any) => {
+                                    const techs = item.technologies.map((t: string) => t.toLowerCase());
+                                    return techs.some((t: string) => t.includes(c.vendor?.toLowerCase() || '') || t.includes(c.product?.toLowerCase() || ''));
+                                  }) || [];
+                                  if (confirmed.length > 0) return <Badge variant="destructive" className="text-[10px] gap-0.5"><KeyRound className="h-2.5 w-2.5" />{confirmed.length}</Badge>;
+                                  if (oem.length > 0) return <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30 gap-0.5"><KeyRound className="h-2.5 w-2.5" />{oem.length}</Badge>;
+                                  return <span className="text-[10px] text-muted-foreground">—</span>;
+                                })()}
                               </td>
                               <td className="px-3 py-2">
                                 <Badge variant="outline" className={`text-[10px] ${
@@ -4064,6 +4139,177 @@ export default function DomainIntelResults() {
         <TabsContent value="takeover-poc" className="space-y-4">
           <TakeoverPocTab scanId={scanId} />
         </TabsContent>
+
+        {/* Default Credentials Tab */}
+        {(credentialTestSummary || oemCredentials) && (
+          <TabsContent value="credentials" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-amber-400" />
+                  OEM / Default Credential Test Results
+                </CardTitle>
+                <CardDescription>
+                  Automated testing of manufacturer default credentials against discovered services.
+                  Confirmed credentials represent verified access using factory-default username/password combinations.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Summary Stats */}
+                {credentialTestSummary && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-muted/30 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold">{credentialTestSummary.tested || 0}</p>
+                      <p className="text-[10px] text-muted-foreground">Services Tested</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 text-center">
+                      <p className={`text-2xl font-bold ${credentialTestSummary.confirmed > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {credentialTestSummary.confirmed || 0}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Confirmed Access</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-amber-400">{credentialTestSummary.failed || 0}</p>
+                      <p className="text-[10px] text-muted-foreground">Auth Rejected</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-zinc-400">{credentialTestSummary.errors || 0}</p>
+                      <p className="text-[10px] text-muted-foreground">Connection Errors</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirmed Credentials Table */}
+                {credentialTestSummary?.results?.filter((r: any) => r.status === 'confirmed').length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-red-400 tracking-wider mb-2 flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5" /> CONFIRMED DEFAULT CREDENTIALS
+                    </h4>
+                    <div className="border border-red-500/20 rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-red-500/10 text-left">
+                            <th className="px-3 py-2 font-medium">Service</th>
+                            <th className="px-3 py-2 font-medium">Host</th>
+                            <th className="px-3 py-2 font-medium">Port</th>
+                            <th className="px-3 py-2 font-medium">Username</th>
+                            <th className="px-3 py-2 font-medium">Vendor</th>
+                            <th className="px-3 py-2 font-medium">Risk</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50">
+                          {credentialTestSummary.results
+                            .filter((r: any) => r.status === 'confirmed')
+                            .map((r: any, i: number) => (
+                              <tr key={i} className="hover:bg-red-500/5">
+                                <td className="px-3 py-2 font-mono">{r.service || r.protocol}</td>
+                                <td className="px-3 py-2 font-mono">{r.host}</td>
+                                <td className="px-3 py-2 font-mono">{r.port}</td>
+                                <td className="px-3 py-2 font-mono text-red-400">{r.username}</td>
+                                <td className="px-3 py-2">{r.vendor || 'Unknown'}</td>
+                                <td className="px-3 py-2">
+                                  <Badge variant="destructive" className="text-[9px]">CRITICAL</Badge>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* OEM Credential Matches (not yet tested or no test results) */}
+                {oemCredentials?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-amber-400 tracking-wider mb-2 flex items-center gap-1.5">
+                      <KeyRound className="h-3.5 w-3.5" /> OEM CREDENTIAL MATCHES ({oemCredentials.length})
+                    </h4>
+                    <div className="border border-amber-500/20 rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-amber-500/10 text-left">
+                            <th className="px-3 py-2 font-medium">Vendor</th>
+                            <th className="px-3 py-2 font-medium">Product</th>
+                            <th className="px-3 py-2 font-medium">Protocol</th>
+                            <th className="px-3 py-2 font-medium">Username</th>
+                            <th className="px-3 py-2 font-medium">Source</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50">
+                          {oemCredentials.slice(0, 50).map((cred: any, i: number) => (
+                            <tr key={i} className="hover:bg-amber-500/5">
+                              <td className="px-3 py-2">{cred.vendor}</td>
+                              <td className="px-3 py-2">{cred.product || cred.model || '-'}</td>
+                              <td className="px-3 py-2 font-mono">{cred.protocol || cred.service || '-'}</td>
+                              <td className="px-3 py-2 font-mono text-amber-400">{cred.username}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{cred.source || 'OEM Database'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {oemCredentials.length > 50 && (
+                        <p className="px-3 py-2 text-[10px] text-muted-foreground border-t border-border/50">
+                          Showing 50 of {oemCredentials.length} matched credentials
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* All Test Results */}
+                {credentialTestSummary?.results?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground tracking-wider mb-2">ALL TEST RESULTS</h4>
+                    <div className="border border-border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-muted/30 text-left">
+                            <th className="px-3 py-2 font-medium">Status</th>
+                            <th className="px-3 py-2 font-medium">Service</th>
+                            <th className="px-3 py-2 font-medium">Host</th>
+                            <th className="px-3 py-2 font-medium">Port</th>
+                            <th className="px-3 py-2 font-medium">Username</th>
+                            <th className="px-3 py-2 font-medium">Details</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50">
+                          {credentialTestSummary.results.map((r: any, i: number) => (
+                            <tr key={i} className="hover:bg-muted/20">
+                              <td className="px-3 py-2">
+                                <Badge
+                                  variant={r.status === 'confirmed' ? 'destructive' : 'outline'}
+                                  className={`text-[9px] ${
+                                    r.status === 'confirmed' ? '' :
+                                    r.status === 'failed' ? 'border-emerald-500/50 text-emerald-400' :
+                                    'border-zinc-500/50 text-zinc-400'
+                                  }`}
+                                >
+                                  {r.status?.toUpperCase()}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 font-mono">{r.service || r.protocol}</td>
+                              <td className="px-3 py-2 font-mono">{r.host}</td>
+                              <td className="px-3 py-2 font-mono">{r.port}</td>
+                              <td className="px-3 py-2 font-mono">{r.username}</td>
+                              <td className="px-3 py-2 text-muted-foreground truncate max-w-[200px]">{r.error || r.details || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {!credentialTestSummary && !oemCredentials?.length && (
+                  <div className="text-center py-8">
+                    <KeyRound className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No credential test data available for this scan</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {/* Cross-Module Enrichment Tab */}
         {crossModuleEnrichment && (

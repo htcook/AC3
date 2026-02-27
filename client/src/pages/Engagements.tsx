@@ -245,9 +245,17 @@ export default function Engagements() {
       toast.error('Name and customer name are required');
       return;
     }
+    // Enforce: at least one target domain or IP range required
+    if (!editingId && !formData.targetDomain && !formData.targetIpRange) {
+      toast.error('At least one target domain or IP range is required to create an engagement.');
+      return;
+    }
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...formData });
     } else {
+      if (!formData.roeDocumentId) {
+        toast.info('A Rules of Engagement document will be auto-created with your target scope. Review it in the RoE Builder.', { duration: 5000 });
+      }
       createMutation.mutate(formData);
     }
   }
@@ -434,7 +442,7 @@ export default function Engagements() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground tracking-wider block mb-1">TARGET DOMAIN</label>
+                  <label className="text-xs text-muted-foreground tracking-wider block mb-1">TARGET DOMAIN {!editingId && <span className="text-destructive">*</span>}</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -455,10 +463,10 @@ export default function Engagements() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">Enter domain and click SCAN to run OSINT recon before creating the engagement</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Enter domain(s) and click SCAN to run OSINT recon. Comma-separated for multiple. {!editingId && <span className="text-amber-500">Required: at least one domain or IP range.</span>}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground tracking-wider block mb-1">TARGET IP RANGE</label>
+                  <label className="text-xs text-muted-foreground tracking-wider block mb-1">TARGET IP RANGE {!editingId && <span className="text-destructive">*</span>}</label>
                   <input
                     type="text"
                     value={formData.targetIpRange}
@@ -497,6 +505,28 @@ export default function Engagements() {
                     className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary resize-none"
                   />
                 </div>
+                <div>
+                  <label className="text-xs text-muted-foreground tracking-wider block mb-1 flex items-center gap-1.5">
+                    <Crosshair className="w-3.5 h-3.5" /> C2 FRAMEWORK
+                  </label>
+                  <select
+                    value={(formData as any).c2Framework || 'caldera'}
+                    onChange={(e) => setFormData(p => ({ ...p, c2Framework: e.target.value } as any))}
+                    className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
+                  >
+                    <option value="caldera">Caldera (Default)</option>
+                    <option value="sliver">Sliver</option>
+                    <option value="metasploit">Metasploit</option>
+                    <option value="cobalt_strike">Cobalt Strike</option>
+                  </select>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {!editingId ? (
+                      <span className="text-emerald-500">A Caldera operation will be auto-created. You can switch C2 frameworks after creation.</span>
+                    ) : (
+                      <span>Change the C2 framework for this engagement. Caldera operations sync automatically.</span>
+                    )}
+                  </p>
+                </div>
                 <div className="md:col-span-2">
                   <label className="text-xs text-muted-foreground tracking-wider block mb-1 flex items-center gap-1.5">
                     <Scale className="w-3.5 h-3.5" /> RULES OF ENGAGEMENT
@@ -506,7 +536,7 @@ export default function Engagements() {
                     onChange={(e) => setFormData(p => ({ ...p, roeDocumentId: e.target.value ? Number(e.target.value) : null }))}
                     className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
                   >
-                    <option value="">— No RoE linked —</option>
+                    <option value="">— Auto-create RoE from targets —</option>
                     {roeDocuments?.map((doc: any) => (
                       <option key={doc.id} value={doc.id}>
                         {doc.title} (v{doc.version}) — {doc.status.replace(/_/g, ' ').toUpperCase()}
@@ -514,7 +544,11 @@ export default function Engagements() {
                     ))}
                   </select>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Link an existing Rules of Engagement document to this engagement. <a href="/roe-builder" className="text-primary hover:underline">Create new RoE</a>
+                    {!editingId && !formData.roeDocumentId ? (
+                      <span className="text-amber-500">A draft RoE will be auto-created with your target domains/IPs as in-scope items. Review it in the <a href="/roe-builder" className="text-primary hover:underline">RoE Builder</a> before activating.</span>
+                    ) : (
+                      <span>Link an existing Rules of Engagement document. <a href="/roe-builder" className="text-primary hover:underline">Create new RoE</a></span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -652,6 +686,21 @@ export default function Engagements() {
                         </div>
                         {engagement.description && (
                           <p className="text-sm text-muted-foreground mt-2 line-clamp-1">{engagement.description}</p>
+                        )}
+                        {/* Caldera C2 Operation */}
+                        {(engagement as any).calderaOperationId && (
+                          <a
+                            href="https://caldera.aceofcloud.io"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 mt-2 text-xs text-orange-400 hover:text-orange-300 font-display tracking-wider"
+                          >
+                            <Crosshair className="w-3 h-3" />
+                            CALDERA OP: {(engagement as any).calderaOperationId.substring(0, 8)}...
+                            <span className="px-1.5 py-0.5 text-[10px] bg-orange-500/20 text-orange-300">
+                              C2 LINKED
+                            </span>
+                          </a>
                         )}
                         {/* Linked RoE document */}
                         {engagement.roeDocumentId && (() => {

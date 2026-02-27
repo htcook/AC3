@@ -5467,4 +5467,46 @@
 - [x] Add errorLog.engagements tRPC procedure for listing engagements
 - [x] Stats cards update dynamically when engagement filter is selected
 - [x] 22 new vitest tests covering engagement filtering and credential pipeline integration
-- [ ] Tag errors with active engagement ID from client context (requires engagement context provider)
+- [x] Tag errors with active engagement ID from client context (EngagementContext provider built)
+
+## Delete Test Engagements & Enforce RoE + Scope
+- [x] Delete 209 test engagements from database (kept 3 real: AceofCloud, Lexis Nexis, Vianova)
+- [x] Force RoE upload/creation as mandatory when creating an engagement (auto-creates draft RoE)
+- [x] Require at least one target domain or IP range on engagement creation
+- [x] Enforce engagement builder domains/IPs/IP ranges in scope guard (loadEngagementScope merges targetDomain + targetIpRange)
+- [x] Enforce RoE builder in-scope domain inputs in scope guard (merges inScopeItems from RoE)
+## Engagement Context Provider
+- [x] Create EngagementContext.tsx with useEngagement() hook and EngagementProvider
+- [x] Persist active engagement in localStorage for cross-page state
+- [x] Auto-tag error logging with current engagement context (useErrorCapture updated)
+- [x] Wire EngagementProvider into App.tsx root
+- [x] Add EngagementSwitcher dropdown to DashboardLayout sidebar
+- [x] Update logClientError procedure to accept engagementContext
+## Credential Test Results in Scan Report UI
+- [x] Display confirmed default credentials in Domain Intel Results page
+- [x] Add Default Credentials tab with service/username/password/confidence table
+- [x] Show credential test summary card in stats grid (confirmed/tested count)
+- [x] Color-coded confidence badges (high=green, medium=yellow, low=red)
+## Per-Asset Credential Indicator Badges
+- [x] Add KeyRound icon badge on asset cards when OEM default creds matched
+- [x] Add Creds column to inventory table with count badge
+- [x] Orange badge with credential count links to credentials tab
+
+## Default Caldera C2 for Exploits & Auto-Campaign Creation
+- [x] Create caldera-preflight.ts with validateCalderaConnection() and checkCalderaStatus()
+- [x] Add getCalderaListenerDefaults() for LHOST/LPORT defaults from Caldera server
+- [x] Default payload generator LHOST/LPORT to Caldera C2 server IP/port
+- [x] Add c2Framework and deployCalderaAgent fields to payload generate input
+- [x] Caldera IP/port preflight connectivity check before payload build (PRECONDITION_FAILED on failure)
+- [x] Auto-generate Caldera Sandcat agent stager (Windows PS1 + Linux SH) alongside MSF payloads
+- [x] Store agent stager in S3 and link to payload record extraOptions
+- [x] Auto-create Caldera operation on engagement creation (paused state, auto-selects adversary)
+- [x] Link calderaOperationId back to engagement record after creation
+- [x] Non-fatal Caldera failure — engagement still created if C2 server unreachable
+- [x] Add C2 Framework selector to engagement form (Caldera/Sliver/Metasploit/Cobalt Strike)
+- [x] Show Caldera operation badge on engagement cards (orange, links to Caldera UI)
+- [x] calderaPreflight tRPC procedure for UI status checks
+- [x] getOptions returns calderaDefaults with server status/version
+- [x] 22 vitest tests covering preflight, stager generation, campaign creation, framework selector
+- [ ] Add Caldera agent stager download button to payload detail UI
+- [ ] Add Sliver/Cobalt Strike operation auto-creation when those frameworks are selected

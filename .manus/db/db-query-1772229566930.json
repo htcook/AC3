@@ -1,0 +1,110 @@
+{
+  "query": "SELECT id, name, customerName FROM engagements WHERE name LIKE '%test%' OR name LIKE '%Test%' OR name LIKE '%demo%' OR name LIKE '%Demo%' OR name LIKE '%sample%' OR customerName LIKE '%test%' OR customerName LIKE '%Test%' OR customerName LIKE '%Acme%' LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, name, customerName FROM engagements WHERE name LIKE '%test%' OR name LIKE '%Test%' OR name LIKE '%demo%' OR name LIKE '%Demo%' OR name LIKE '%sample%' OR customerName LIKE '%test%' OR customerName LIKE '%Test%' OR customerName LIKE '%Acme%' LIMIT 20;",
+  "rows": [
+    {
+      "id": "1230075",
+      "name": "Report Test Engagement 1772075763133",
+      "customerName": "Report Test Corp"
+    },
+    {
+      "id": "1230076",
+      "name": "Report Get Test 1772075763342",
+      "customerName": "Get Test Corp"
+    },
+    {
+      "id": "1230077",
+      "name": "Report Update Test 1772075763650",
+      "customerName": "Update Test Corp"
+    },
+    {
+      "id": "1230078",
+      "name": "Report List Test 1772075764060",
+      "customerName": "List Test Corp"
+    },
+    {
+      "id": "1230079",
+      "name": "Client Type Test 1772075764616",
+      "customerName": "Client Type Corp"
+    },
+    {
+      "id": "1230080",
+      "name": "Report Type Test 1772075766145",
+      "customerName": "Report Type Corp"
+    },
+    {
+      "id": "1230083",
+      "name": "Test Engagement for Linking",
+      "customerName": "Test Corp"
+    },
+    {
+      "id": "1230084",
+      "name": "Results Test Engagement 1772075816145",
+      "customerName": "Results Test Corp"
+    },
+    {
+      "id": "1230085",
+      "name": "tRPC Results Test 1772075816831",
+      "customerName": "tRPC Test Corp"
+    },
+    {
+      "id": "1230086",
+      "name": "Report Test Engagement 1772077250367",
+      "customerName": "Report Test Corp"
+    },
+    {
+      "id": "1230087",
+      "name": "Report Get Test 1772077250568",
+      "customerName": "Get Test Corp"
+    },
+    {
+      "id": "1230088",
+      "name": "Report Update Test 1772077250865",
+      "customerName": "Update Test Corp"
+    },
+    {
+      "id": "1230089",
+      "name": "Report List Test 1772077251264",
+      "customerName": "List Test Corp"
+    },
+    {
+      "id": "1230090",
+      "name": "Client Type Test 1772077251814",
+      "customerName": "Client Type Corp"
+    },
+    {
+      "id": "1230091",
+      "name": "Report Type Test 1772077253304",
+      "customerName": "Report Type Corp"
+    },
+    {
+      "id": "1230094",
+      "name": "Results Test Engagement 1772077290054",
+      "customerName": "Results Test Corp"
+    },
+    {
+      "id": "1230095",
+      "name": "tRPC Results Test 1772077290722",
+      "customerName": "tRPC Test Corp"
+    },
+    {
+      "id": "1230096",
+      "name": "Test Engagement for Linking",
+      "customerName": "Test Corp"
+    },
+    {
+      "id": "1230097",
+      "name": "Report Test Engagement 1772078080025",
+      "customerName": "Report Test Corp"
+    },
+    {
+      "id": "1230098",
+      "name": "Report Get Test 1772078080226",
+      "customerName": "Get Test Corp"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tcustomerName\n1230075\tReport Test Engagement 1772075763133\tReport Test Corp\n1230076\tReport Get Test 1772075763342\tGet Test Corp\n1230077\tReport Update Test 1772075763650\tUpdate Test Corp\n1230078\tReport List Test 1772075764060\tList Test Corp\n1230079\tClient Type Test 1772075764616\tClient Type Corp\n1230080\tReport Type Test 1772075766145\tReport Type Corp\n1230083\tTest Engagement for Linking\tTest Corp\n1230084\tResults Test Engagement 1772075816145\tResults Test Corp\n1230085\ttRPC Results Test 1772075816831\ttRPC Test Corp\n1230086\tReport Test Engagement 1772077250367\tReport Test Corp\n1230087\tReport Get Test 1772077250568\tGet Test Corp\n1230088\tReport Update Test 1772077250865\tUpdate Test Corp\n1230089\tReport List Test 1772077251264\tList Test Corp\n1230090\tClient Type Test 1772077251814\tClient Type Corp\n1230091\tReport Type Test 1772077253304\tReport Type Corp\n1230094\tResults Test Engagement 1772077290054\tResults Test Corp\n1230095\ttRPC Results Test 1772077290722\ttRPC Test Corp\n1230096\tTest Engagement for Linking\tTest Corp\n1230097\tReport Test Engagement 1772078080025\tReport Test Corp\n1230098\tReport Get Test 1772078080226\tGet Test Corp\n",
+  "stderr": "",
+  "execution_time_ms": 66
+}

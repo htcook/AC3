@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { lazy, Suspense, useEffect } from "react";
 import { GlobalAiChat } from "./components/GlobalAiChat";
 import { useErrorCapture } from "./hooks/useErrorCapture";
+import { EngagementProvider } from "./contexts/EngagementContext";
 
 // ─── Lazy-loaded pages (reduces initial bundle / HTTP requests) ──────────────
 const Home = lazy(() => import("./pages/Home"));
@@ -702,11 +703,13 @@ function App() {
   return (
     <ErrorBoundary scope="app-root">
       <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-          <GlobalAiChat />
-        </TooltipProvider>
+        <EngagementProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+            <GlobalAiChat />
+          </TooltipProvider>
+        </EngagementProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

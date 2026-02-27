@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Crosshair, ChevronDown } from "lucide-react";
+import { useEngagement } from "@/contexts/EngagementContext";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -178,6 +179,9 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
+          {/* Engagement Switcher */}
+          <EngagementSwitcher isCollapsed={isCollapsed} />
+
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
               {menuItems.map(item => {
@@ -260,5 +264,92 @@ function DashboardLayoutContent({
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>
+  );
+}
+
+/** Compact engagement switcher for the sidebar */
+function EngagementSwitcher({ isCollapsed }: { isCollapsed: boolean }) {
+  const { activeEngagement, setActiveEngagement, engagements, clearEngagement } = useEngagement();
+  const [open, setOpen] = useState(false);
+
+  const statusColors: Record<string, string> = {
+    active: "bg-emerald-500",
+    planning: "bg-amber-500",
+    paused: "bg-orange-500",
+    completed: "bg-blue-500",
+    archived: "bg-zinc-500",
+  };
+
+  if (isCollapsed) {
+    return (
+      <div className="px-2 py-1">
+        <button
+          onClick={() => setOpen(!open)}
+          className="w-full h-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+          title={activeEngagement ? `Active: ${activeEngagement.name}` : "No engagement selected"}
+        >
+          <Crosshair className={`h-4 w-4 ${activeEngagement ? "text-primary" : "text-muted-foreground"}`} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-2 border-b border-border/50">
+      <div className="relative">
+        <button
+          onClick={() => setOpen(!open)}
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent/50 transition-colors text-left"
+        >
+          <Crosshair className={`h-3.5 w-3.5 shrink-0 ${activeEngagement ? "text-primary" : "text-muted-foreground"}`} />
+          <div className="flex-1 min-w-0">
+            {activeEngagement ? (
+              <>
+                <p className="text-xs font-medium truncate leading-none">{activeEngagement.name}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusColors[activeEngagement.status || ""] || "bg-zinc-500"}`} />
+                  <span className="text-[10px] text-muted-foreground truncate">{activeEngagement.customerName}</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">No engagement</p>
+            )}
+          </div>
+          <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+
+        {open && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+            {activeEngagement && (
+              <button
+                onClick={() => { clearEngagement(); setOpen(false); }}
+                className="w-full px-3 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-accent/50 border-b border-border/50"
+              >
+                Clear selection
+              </button>
+            )}
+            {engagements.length === 0 ? (
+              <p className="px-3 py-2 text-[10px] text-muted-foreground">No engagements found</p>
+            ) : (
+              engagements.map(eng => (
+                <button
+                  key={eng.id}
+                  onClick={() => { setActiveEngagement(eng); setOpen(false); }}
+                  className={`w-full px-3 py-1.5 text-left hover:bg-accent/50 transition-colors ${
+                    activeEngagement?.id === eng.id ? "bg-accent/30" : ""
+                  }`}
+                >
+                  <p className="text-xs font-medium truncate">{eng.name}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusColors[eng.status || ""] || "bg-zinc-500"}`} />
+                    <span className="text-[10px] text-muted-foreground truncate">{eng.customerName}</span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

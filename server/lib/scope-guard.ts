@@ -512,13 +512,15 @@ export async function loadEngagementScope(engagementId: number): Promise<ROEScop
     const db = await getDb();
     if (!db) return null;
 
-    // Get engagement with roeScope
+    // Get engagement with roeScope + target fields
     const [eng] = await db
       .select({
         roeScope: engagements.roeScope,
         roeDocumentId: engagements.roeDocumentId,
         roeStatus: engagements.roeStatus,
         roeExpiryDate: engagements.roeExpiryDate,
+        targetDomain: engagements.targetDomain,
+        targetIpRange: engagements.targetIpRange,
       })
       .from(engagements)
       .where(eq(engagements.id, engagementId))
@@ -528,6 +530,30 @@ export async function loadEngagementScope(engagementId: number): Promise<ROEScop
 
     // Start with engagement.roeScope
     const scope: ROEScopeData = (eng.roeScope as ROEScopeData) || {};
+
+    // Merge engagement-level targetDomain and targetIpRange as baseline scope
+    // These are always enforced even if the RoE document hasn't been fully completed
+    if (eng.targetDomain) {
+      const domains = eng.targetDomain.split(/[,;\s]+/).map((d: string) => d.trim()).filter(Boolean);
+      if (!scope.inScopeDomains) scope.inScopeDomains = [];
+      for (const domain of domains) {
+        const alreadyExists = scope.inScopeDomains.some(d => d.domain.toLowerCase() === domain.toLowerCase());
+        if (!alreadyExists) {
+          scope.inScopeDomains.push({ domain, includeSubdomains: true, description: 'From engagement builder' });
+        }
+      }
+    }
+    if (eng.targetIpRange) {
+      const ranges = eng.targetIpRange.split(/[,;\s]+/).map((r: string) => r.trim()).filter(Boolean);
+      if (!scope.inScopeIpRanges) scope.inScopeIpRanges = [];
+      for (const range of ranges) {
+        const cidr = range.includes('/') ? range : `${range}/32`;
+        const alreadyExists = scope.inScopeIpRanges.some(r => r.cidr === cidr);
+        if (!alreadyExists) {
+          scope.inScopeIpRanges.push({ cidr, description: 'From engagement builder' });
+        }
+      }
+    }
 
     // Try to load the linked ROE document for richer scope data
     let roeDoc: any = null;

@@ -2681,16 +2681,210 @@ export const appRouter = router({
         roeDocumentId: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        // Validate: at least one target domain or IP range is required
+        if (!input.targetDomain && !input.targetIpRange) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'At least one target domain or IP range is required to create an engagement.',
+          });
+        }
+
         const id = await db.createEngagement({
           ...input,
           createdBy: ctx.user.id,
         });
+
+        // Auto-create RoE document if none linked
+        let roeDocId = input.roeDocumentId ?? null;
+        if (!roeDocId) {
+          const { roeDocuments } = await import('../drizzle/schema');
+          const { getDb } = await import('./db');
+          const dbConn = await getDb();
+          if (dbConn) {
+            // Build initial scope from engagement targets
+            const inScopeDomains: Array<{ domain: string; includeSubdomains: boolean; description: string }> = [];
+            const inScopeIpRanges: Array<{ cidr: string; description: string }> = [];
+
+            if (input.targetDomain) {
+              // Support comma-separated domains
+              const domains = input.targetDomain.split(/[,;\s]+/).map(d => d.trim()).filter(Boolean);
+              for (const domain of domains) {
+                inScopeDomains.push({
+                  domain,
+                  includeSubdomains: true,
+                  description: `Primary target domain from engagement builder`,
+                });
+              }
+            }
+            if (input.targetIpRange) {
+              // Support comma-separated IP ranges
+              const ranges = input.targetIpRange.split(/[,;\s]+/).map(r => r.trim()).filter(Boolean);
+              for (const range of ranges) {
+                inScopeIpRanges.push({
+                  cidr: range.includes('/') ? range : `${range}/32`,
+                  description: `Target IP range from engagement builder`,
+                });
+              }
+            }
+
+            const [roeResult] = await dbConn.insert(roeDocuments).values({
+              title: `RoE — ${input.name}`,
+              engagementId: id,
+              organizationName: input.customerName,
+              testingFirmName: 'ACE C3 — AceofCloud',
+              status: 'draft',
+              inScopeDomains: inScopeDomains.length > 0 ? inScopeDomains : undefined,
+              inScopeIpRanges: inScopeIpRanges.length > 0 ? inScopeIpRanges : undefined,
+              testingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+              testTimezone: 'America/New_York',
+              createdBy: ctx.user.id,
+              lastModifiedBy: ctx.user.id,
+              purpose: `Rules of Engagement for ${input.name} — ${input.customerName}. Auto-generated during engagement creation. Please review and complete all sections before activating the engagement.`,
+            } as any);
+            roeDocId = roeResult.insertId;
+
+            // Link the RoE document back to the engagement
+            const { engagements } = await import('../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            await dbConn.update(engagements)
+              .set({ roeDocumentId: roeDocId, roeStatus: 'pending' })
+              .where(eq(engagements.id, id));
+          }
+        }
+
+        // Also seed the engagement's roeScope JSON from targetDomain/targetIpRange
+        // so the scope guard can enforce even before the RoE document is fully completed
+        if (input.targetDomain || input.targetIpRange) {
+          const roeScope: any = {};
+          if (input.targetDomain) {
+            const domains = input.targetDomain.split(/[,;\s]+/).map(d => d.trim()).filter(Boolean);
+            roeScope.inScopeDomains = domains.map(d => ({
+              domain: d,
+              includeSubdomains: true,
+              description: 'From engagement builder',
+            }));
+          }
+          if (input.targetIpRange) {
+            const ranges = input.targetIpRange.split(/[,;\s]+/).map(r => r.trim()).filter(Boolean);
+            roeScope.inScopeIpRanges = ranges.map(r => ({
+              cidr: r.includes('/') ? r : `${r}/32`,
+              description: 'From engagement builder',
+            }));
+          }
+          const { engagements } = await import('../drizzle/schema');
+          const { eq } = await import('drizzle-orm');
+          const { getDb } = await import('./db');
+          const dbConn = await getDb();
+          if (dbConn) {
+            await dbConn.update(engagements)
+              .set({ roeScope })
+              .where(eq(engagements.id, id));
+          }
+        }
+
+        // ── Auto-Create Caldera Operation/Campaign ──────────────────────────
+        // Every engagement gets a Caldera operation by default.
+        // Preflight check ensures the server is reachable before attempting.
+        let calderaOpId: string | null = input.calderaOperationId || null;
+        let calderaError: string | null = null;
+
+        if (!calderaOpId) {
+          try {
+            const { validateCalderaConnection } = await import('../lib/caldera-preflight');
+            const preflight = await validateCalderaConnection({ timeout: 8000 });
+            console.log(`[EngagementCreate] Caldera preflight OK: ${preflight.ip}:${preflight.port} (${preflight.latencyMs}ms)`);
+
+            // Create a new Caldera operation for this engagement
+            const opName = `${input.name} — ${input.customerName} [#${id}]`;
+            const calderaBaseUrl = preflight.baseUrl;
+            const calderaApiKey = (await import('../_core/env')).ENV.calderaApiKey;
+
+            // First, get or create a default adversary profile
+            let adversaryId = input.calderaAdversaryId || null;
+            if (!adversaryId) {
+              // Use the default "red" adversary or create one
+              try {
+                const advResponse = await fetch(`${calderaBaseUrl}/api/v2/adversaries`, {
+                  headers: { KEY: calderaApiKey },
+                  signal: AbortSignal.timeout(5000),
+                });
+                if (advResponse.ok) {
+                  const adversaries = await advResponse.json();
+                  // Prefer an adversary named after the engagement type, or fall back to first available
+                  const typeMatch = adversaries.find((a: any) =>
+                    a.name?.toLowerCase().includes(input.engagementType.replace('_', ' '))
+                  );
+                  adversaryId = typeMatch?.adversary_id || adversaries[0]?.adversary_id || null;
+                }
+              } catch {
+                // Non-fatal — create operation without specific adversary
+              }
+            }
+
+            // Create the operation
+            const opPayload: Record<string, any> = {
+              name: opName,
+              group: 'red',
+              state: 'paused', // Start paused — operator activates when ready
+              auto_close: false,
+              jitter: '2/8',
+              visibility: 51,
+            };
+            if (adversaryId) {
+              opPayload.adversary = { adversary_id: adversaryId };
+            }
+
+            const opResponse = await fetch(`${calderaBaseUrl}/api/v2/operations`, {
+              method: 'POST',
+              headers: {
+                KEY: calderaApiKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(opPayload),
+              signal: AbortSignal.timeout(10000),
+            });
+
+            if (opResponse.ok) {
+              const opData = await opResponse.json();
+              calderaOpId = opData.id || opData.operation_id || null;
+              console.log(`[EngagementCreate] Caldera operation created: ${calderaOpId} for engagement #${id}`);
+
+              // Link the operation back to the engagement
+              if (calderaOpId) {
+                const { engagements: engTable } = await import('../drizzle/schema');
+                const { eq: eqOp } = await import('drizzle-orm');
+                const { getDb: getDbOp } = await import('./db');
+                const dbOp = await getDbOp();
+                if (dbOp) {
+                  await dbOp.update(engTable)
+                    .set({
+                      calderaOperationId: calderaOpId,
+                      ...(adversaryId ? { calderaAdversaryId: adversaryId } : {}),
+                    })
+                    .where(eqOp(engTable.id, id));
+                }
+              }
+            } else {
+              calderaError = `Caldera operation creation failed: HTTP ${opResponse.status}`;
+              console.warn(`[EngagementCreate] ${calderaError}`);
+            }
+          } catch (calErr: any) {
+            calderaError = calErr.message || 'Caldera campaign auto-creation failed';
+            console.warn(`[EngagementCreate] Caldera auto-campaign failed (non-fatal): ${calderaError}`);
+          }
+        }
+
         await db.logActivity({
           userId: ctx.user.id,
           action: 'engagement_created',
-          details: `Created engagement: ${input.name} for ${input.customerName}`,
+          details: `Created engagement: ${input.name} for ${input.customerName}${roeDocId ? ` (RoE #${roeDocId} auto-created)` : ''}${calderaOpId ? ` (Caldera op: ${calderaOpId})` : ''}`,
         });
-        return { id };
+        return {
+          id,
+          roeDocumentId: roeDocId,
+          calderaOperationId: calderaOpId,
+          calderaError,
+        };
       }),
 
     update: protectedProcedure
