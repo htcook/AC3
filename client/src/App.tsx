@@ -151,6 +151,7 @@ const AbilityGraphPage = lazy(() => import("./pages/AbilityGraph"));
 const GraphComparePage = lazy(() => import("./pages/GraphCompare"));
 const C2CommandCenter = lazy(() => import("./pages/C2CommandCenter"));
 const ThreatActorCrawler = lazy(() => import("./pages/ThreatActorCrawler"));
+const AISecurityValidation = lazy(() => import("./pages/AISecurityValidation"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -666,6 +667,9 @@ function Router() {
         </Route>
         <Route path="/threat-actor-crawler">
           <ProtectedRoute component={ThreatActorCrawler} />
+        </Route>
+        <Route path="/ai-security-validation">
+          <ProtectedRoute component={AISecurityValidation} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

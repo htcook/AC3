@@ -152,6 +152,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ngfw-validation", icon: Shield, label: "NGFW VALIDATION" },
           { href: "/email-security", icon: Zap, label: "EMAIL SECURITY" },
           { href: "/remediation-verification", icon: ClipboardCheck, label: "REMEDIATION VERIFY" },
+          { href: "/ai-security-validation", icon: BrainCircuit, label: "AI SECURITY (ATLAS)" },
         ],
       },
       {

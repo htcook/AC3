@@ -97,6 +97,7 @@ import { agentManagerRouter } from "./routers/agent";
 import { ssilRouter } from "./routers/ssil";
 import { projectDiscoveryRouter } from "./routers/projectdiscovery";
 import { abilityGraphRouter } from "./routers/ability-graph";
+import { aiSecurityValidationRouter } from "./routers/ai-security-validation";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -276,6 +277,7 @@ export const appRouter = router({
   ssil: ssilRouter,
   projectDiscovery: projectDiscoveryRouter,
   abilityGraph: abilityGraphRouter,
+  aiSecurityValidation: aiSecurityValidationRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

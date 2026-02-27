@@ -5057,3 +5057,16 @@
 - [x] Support multiple domains, URLs, and IPs in a single scan submission
 - [x] Show scan progress and results directly on the dashboard
 - [x] Write vitest tests for updated scan behavior
+
+## AI Security Validation Module (MITRE ATLAS)
+- [x] Build ai-security-validation.ts engine with MITRE ATLAS technique mapping
+- [x] Implement prompt injection test suite (direct, indirect, multi-turn, encoding-based)
+- [x] Implement model extraction / theft probes (API query patterns, confidence score analysis)
+- [x] Implement adversarial input evasion tests (perturbation, homoglyph, semantic)
+- [x] Implement data poisoning detection checks
+- [x] Implement AI supply chain validation (dependency, model provenance)
+- [x] Build AI security posture scoring and risk assessment
+- [x] Add tRPC procedures for running AI validation scans and retrieving results
+- [x] Build AI Security Validation dashboard UI page with test results and posture score
+- [x] Register route and navigation entry in App.tsx and AppShell
+- [x] Write vitest tests for the AI Security Validation module
