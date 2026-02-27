@@ -5362,3 +5362,10 @@
 - [x] Find all claims of 80%+ KSI coverage
 - [x] Analyze actual KSI mapping to calculate real coverage percentage
 - [x] Update all references to reflect accurate percentage
+
+## Dual CVSS + Hybrid Score Display
+- [x] Show separate CVSS score and Hybrid score side-by-side on each asset risk rating
+- [x] Show dual scores on each finding card (CVE findings, posture findings, etc.)
+- [x] Add visual distinction between CVSS (industry standard) and Hybrid (Ace C3 proprietary)
+- [x] Add tooltips explaining what each score represents
+- [x] Apply to DomainIntelResults asset cards, finding cards, and risk summary sections

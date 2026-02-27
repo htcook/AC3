@@ -642,7 +642,28 @@ export default function DomainIntelResults() {
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Review & Curate Findings
           </Button>
-          <RiskGauge score={scan.overallRiskScore || 0} band={scan.overallRiskBand || "low"} />
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col items-center">
+              <RiskGauge score={scan.overallRiskScore || 0} band={scan.overallRiskBand || "low"} />
+              <span className="text-[9px] text-muted-foreground mt-1">Ace C3 Hybrid</span>
+            </div>
+            {(() => {
+              const assetList = (assets || []) as any[];
+              const cvssValues = assetList.map((a: any) => (a.cvssEstimate || 0) / 10).filter((v: number) => v > 0);
+              const avgCvss = cvssValues.length > 0 ? cvssValues.reduce((s: number, v: number) => s + v, 0) / cvssValues.length : 0;
+              const maxCvss = cvssValues.length > 0 ? Math.max(...cvssValues) : 0;
+              return (
+                <div className="flex flex-col items-center gap-1">
+                  <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-4 py-2 text-center">
+                    <span className="text-2xl font-bold text-cyan-400">{avgCvss.toFixed(1)}</span>
+                    <span className="text-xs text-cyan-400/70">/10</span>
+                  </div>
+                  <span className="text-[9px] text-cyan-400/60">Avg CVSS</span>
+                  <span className="text-[8px] text-muted-foreground/50">Max: {maxCvss.toFixed(1)}</span>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
 
@@ -935,7 +956,11 @@ export default function DomainIntelResults() {
                       <p className="font-mono text-xs truncate">{asset.hostname}</p>
                       <div className="flex items-center justify-between mt-1">
                         <span className="text-xs opacity-70">{asset.assetType}</span>
-                        <span className="text-sm font-bold">{asset.hybridRiskScore}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] text-cyan-400 font-mono" title="CVSS Estimate (Industry Standard)">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
+                          <span className="text-[9px] text-muted-foreground">/</span>
+                          <span className="text-sm font-bold" title="Ace C3 Hybrid Risk Score">{asset.hybridRiskScore}</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -972,8 +997,14 @@ export default function DomainIntelResults() {
                     {/* Header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${RISK_COLORS[band]}`}>
-                          <span className="text-lg font-bold">{asset.hybridRiskScore}</span>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${RISK_COLORS[band]}`} title="Ace C3 Hybrid Risk Score">
+                            <span className="text-lg font-bold">{asset.hybridRiskScore}</span>
+                          </div>
+                          <div className="flex flex-col items-center px-2 py-1 rounded border border-cyan-500/30 bg-cyan-500/5" title="CVSS Estimate (Industry Standard 0-10)">
+                            <span className="text-lg font-bold text-cyan-400">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
+                            <span className="text-[8px] text-cyan-400/70 uppercase">CVSS</span>
+                          </div>
                         </div>
                         <div>
                           <p className="font-mono font-semibold">{asset.hostname}</p>
@@ -1051,18 +1082,27 @@ export default function DomainIntelResults() {
                             <span className="text-amber-400 font-medium">Likelihood (CVSS+Exposure)</span>
                             <span className={`font-bold ${(asset.likelihoodScore || 0) >= 70 ? 'text-amber-400' : (asset.likelihoodScore || 0) >= 40 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.likelihoodScore || 0}/100</span>
                           </div>
-                          <div className="flex justify-between text-[11px] pt-1 border-t border-border">
-                            <span className="text-muted-foreground">Hybrid Risk Score</span>
-                            <span className={`font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}/100</span>
+                          <div className="pt-2 border-t border-border space-y-1.5">
+                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Score Comparison</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="rounded-md border border-cyan-500/30 bg-cyan-500/5 p-2 text-center" title="CVSS Estimate — Industry-standard vulnerability severity score derived from CVE data and technology analysis">
+                                <span className="text-lg font-bold text-cyan-400">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
+                                <span className="text-[10px] text-cyan-400/70">/10</span>
+                                <p className="text-[9px] text-cyan-400/60 mt-0.5">CVSS Estimate</p>
+                                <p className="text-[8px] text-muted-foreground/50">Industry Standard</p>
+                              </div>
+                              <div className={`rounded-md border p-2 text-center ${band === 'critical' ? 'border-red-500/30 bg-red-500/5' : band === 'high' ? 'border-orange-500/30 bg-orange-500/5' : band === 'medium' ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}`} title="Ace C3 Hybrid Risk Score — Proprietary score combining CARVER impact, SHOCK disruption, CVSS likelihood, and contextual exposure factors">
+                                <span className={`text-lg font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}</span>
+                                <span className="text-[10px] text-muted-foreground">/100</span>
+                                <p className={`text-[9px] mt-0.5 ${band === 'critical' ? 'text-red-400/60' : band === 'high' ? 'text-orange-400/60' : band === 'medium' ? 'text-yellow-400/60' : 'text-emerald-400/60'}`}>Hybrid Risk</p>
+                                <p className="text-[8px] text-muted-foreground/50">Ace C3 Proprietary</p>
+                              </div>
+                            </div>
+                            <div className="text-[8px] text-muted-foreground/60 italic">Hybrid = √(Impact × Likelihood) · CVSS = vulnerability severity estimate</div>
                           </div>
-                          <div className="text-[9px] text-muted-foreground italic">Risk = √(Impact × Likelihood)</div>
                           <div className="flex justify-between text-[11px] pt-1 border-t border-border/50">
                             <span className="text-muted-foreground">Mission Impact</span>
                             <span className="font-bold">{((asset.missionImpactScore || 0) / 10).toFixed(1)}/10</span>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-muted-foreground">CVSS Estimate</span>
-                            <span className="font-bold">{((asset.cvssEstimate || 0) / 10).toFixed(1)}/10</span>
                           </div>
                           <div className="flex justify-between text-[11px]">
                             <span className="text-muted-foreground">Confidence</span>
@@ -1349,8 +1389,14 @@ export default function DomainIntelResults() {
                   className="p-4 cursor-pointer flex items-center gap-4"
                   onClick={() => setExpandedAsset(isExpanded ? null : asset.id)}
                 >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${RISK_COLORS[band]}`}>
-                    <span className="text-sm font-bold">{asset.hybridRiskScore}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${RISK_COLORS[band]}`} title="Ace C3 Hybrid Risk Score">
+                      <span className="text-sm font-bold">{asset.hybridRiskScore}</span>
+                    </div>
+                    <div className="flex flex-col items-center w-8" title="CVSS Estimate (0-10)">
+                      <span className="text-xs font-bold text-cyan-400">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
+                      <span className="text-[7px] text-cyan-400/60">CVSS</span>
+                    </div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -1446,28 +1492,38 @@ export default function DomainIntelResults() {
                             </div>
                           ))}
                         </div>
-                        <div className="mt-3 flex gap-4 text-xs flex-wrap">
-                          <div>
-                            <span className="text-sky-400 font-medium">Impact:</span>{" "}
-                            <span className="font-bold">{asset.impactScore || 0}/100</span>
+                        <div className="mt-3 space-y-2">
+                          <div className="flex gap-3 items-start">
+                            <div className="rounded-md border border-cyan-500/30 bg-cyan-500/5 px-3 py-1.5 text-center" title="CVSS Estimate — Industry-standard vulnerability severity">
+                              <span className="text-base font-bold text-cyan-400">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
+                              <span className="text-[9px] text-cyan-400/70">/10</span>
+                              <p className="text-[8px] text-cyan-400/60">CVSS</p>
+                            </div>
+                            <div className={`rounded-md border px-3 py-1.5 text-center ${band === 'critical' ? 'border-red-500/30 bg-red-500/5' : band === 'high' ? 'border-orange-500/30 bg-orange-500/5' : band === 'medium' ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}`} title="Ace C3 Hybrid Risk Score — Proprietary score">
+                              <span className={`text-base font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}</span>
+                              <span className="text-[9px] text-muted-foreground">/100</span>
+                              <p className={`text-[8px] ${band === 'critical' ? 'text-red-400/60' : band === 'high' ? 'text-orange-400/60' : band === 'medium' ? 'text-yellow-400/60' : 'text-emerald-400/60'}`}>Hybrid</p>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs flex-1">
+                              <div>
+                                <span className="text-sky-400 font-medium">Impact:</span>{" "}
+                                <span className="font-bold">{asset.impactScore || 0}/100</span>
+                              </div>
+                              <div>
+                                <span className="text-amber-400 font-medium">Likelihood:</span>{" "}
+                                <span className="font-bold">{asset.likelihoodScore || 0}/100</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Mission Impact:</span>{" "}
+                                <span className="font-bold">{((asset.missionImpactScore || 0) / 10).toFixed(1)}/10</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Confidence:</span>{" "}
+                                <span className="font-bold">{asset.confidence || 0}%</span>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-amber-400 font-medium">Likelihood:</span>{" "}
-                            <span className="font-bold">{asset.likelihoodScore || 0}/100</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Mission Impact:</span>{" "}
-                            <span className="font-bold">{(asset.missionImpactScore || 0) / 10}/10</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">CVSS Est:</span>{" "}
-                            <span className="font-bold">{(asset.cvssEstimate || 0) / 10}/10</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Confidence:</span>{" "}
-                            <span className="font-bold">{asset.confidence || 0}%</span>
-                          </div>
-                          <div className="w-full text-[9px] text-muted-foreground italic">Risk = √(Impact × Likelihood)</div>
+                          <div className="text-[8px] text-muted-foreground/60 italic">CVSS = vulnerability severity estimate · Hybrid = √(Impact × Likelihood)</div>
                         </div>
                       </div>
                     </div>
@@ -1517,7 +1573,7 @@ export default function DomainIntelResults() {
                                 ) : (
                                   <>
                                     <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10{f.corroborationTier === "probable" ? " (cap)" : ""}</Badge>
-                                    {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
+                                    {f.cvssScore && <Badge variant="outline" className="text-[10px] text-cyan-400 border-cyan-500/40">CVSS: {f.cvssScore}</Badge>}
                                     <Badge variant="outline" className="text-[10px]">Likely: {f.likelihood}/10</Badge>
                                   </>
                                 )}
@@ -3607,7 +3663,7 @@ export default function DomainIntelResults() {
                                     </Badge>
                                   )}
                                   <Badge variant="outline" className="text-[10px]">Severity: {f.severity}/10</Badge>
-                                  {f.cvssScore && <Badge variant="outline" className="text-[10px]">CVSS: {f.cvssScore}</Badge>}
+                                  {f.cvssScore && <Badge variant="outline" className="text-[10px] text-cyan-400 border-cyan-500/40">CVSS: {f.cvssScore}</Badge>}
                                   <Badge variant="outline" className="text-[10px]">Likelihood: {f.likelihood}/10</Badge>
                                   {(() => {
                                     const isRemoteUnauth = f.cveIds?.some((cve: string) => {
@@ -5091,7 +5147,7 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
                               vuln.severity === "medium" ? "bg-yellow-600/80 text-white" :
                               "bg-blue-600/80 text-white"
                             }`}>{vuln.severity?.toUpperCase()}</Badge>
-                            {vuln.cvssScore && <Badge variant="outline" className="text-[8px] font-mono">CVSS {vuln.cvssScore}</Badge>}
+                            {vuln.cvssScore && <Badge variant="outline" className="text-[8px] font-mono text-cyan-400 border-cyan-500/40">CVSS {vuln.cvssScore}</Badge>}
                             {vuln.kevListed && <Badge className="bg-red-600/80 text-white text-[8px]">KEV</Badge>}
                             {vuln.inTheWild && <Badge className="bg-purple-600/80 text-white text-[8px]">0-DAY</Badge>}
                             {vuln.exploitAvailable && !vuln.inTheWild && <Badge className="bg-amber-600/80 text-white text-[8px]">EXPLOIT</Badge>}
@@ -7199,7 +7255,7 @@ function TechVulnsTab({ scanId }: { scanId: number }) {
                             cve.severity === 'medium' ? 'text-amber-400 border-amber-500/40' :
                             'text-muted-foreground'
                           }`}>{cve.severity}</Badge>
-                          {cve.cvssScore && <span className="text-[10px] text-muted-foreground">CVSS {cve.cvssScore}</span>}
+                          {cve.cvssScore && <span className="text-[10px] text-cyan-400">CVSS {cve.cvssScore}</span>}
                           {cve.exploitAvailable && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">Exploit Available</Badge>}
                           {cve.kevListed && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">KEV Listed</Badge>}
                         </div>
@@ -7783,7 +7839,7 @@ function CveActorEnrichmentTab({ scanId }: { scanId: number }) {
               </div>
               <div className="flex items-center gap-3">
                 {cve.priorityScore != null && priorityBar(cve.priorityScore)}
-                <Badge variant="outline" className="text-[10px]">CVSS {cve.cvssScore}</Badge>
+                <Badge variant="outline" className="text-[10px] text-cyan-400 border-cyan-500/40">CVSS {cve.cvssScore}</Badge>
                 <Badge variant="outline" className="text-[10px]">{cve.actors?.length || 0} actor(s)</Badge>
                 {expandedCve === cve.cveId ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
