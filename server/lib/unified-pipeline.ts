@@ -556,6 +556,49 @@ export function getPhaseTools(
         reason = 'CARVER+Shock/CVSS hybrid risk scoring with all collected intelligence';
         break;
       }
+      case 'amass': {
+        if (phase === 'recon') {
+          priority = 80;
+          reason = 'Subdomain enumeration via passive OSINT, cert transparency, and DNS brute-force';
+        } else {
+          const subdomains = priorFindings.filter(f => f.evidence?.assetType === 'subdomain' || f.evidence?.assetType === 'domain');
+          if (subdomains.length > 0) {
+            priority = 85;
+            reason = `${subdomains.length} domains discovered — active subdomain enumeration recommended for deeper coverage`;
+          } else {
+            priority = 70;
+            reason = 'Active subdomain enumeration to expand attack surface';
+          }
+        }
+        break;
+      }
+      case 'nmap': {
+        if (phase === 'recon') {
+          priority = 75;
+          reason = 'Quick port scan for initial service discovery on known hosts';
+        } else {
+          const hosts = priorFindings.filter(f => f.type === 'asset' && (f.evidence?.assetType === 'ip' || f.evidence?.assetType === 'subdomain'));
+          if (hosts.length > 0) {
+            priority = 90;
+            reason = `${hosts.length} hosts discovered — port scanning and service detection recommended`;
+          } else {
+            priority = 70;
+            reason = 'Port scanning and service detection on target hosts';
+          }
+        }
+        break;
+      }
+      case 'service_fingerprinter': {
+        const openPorts = priorFindings.filter(f => f.evidence?.ports || (f.port && f.type === 'asset'));
+        if (openPorts.length > 0) {
+          priority = 85;
+          reason = `${openPorts.length} open ports discovered — protocol-specific fingerprinting recommended for SSH, SMTP, FTP, SNMP, RDP, SMB, databases`;
+        } else {
+          priority = 60;
+          reason = 'Protocol-specific service fingerprinting for admin port enumeration';
+        }
+        break;
+      }
       default:
         break;
     }
@@ -911,6 +954,21 @@ export const ACTIVE_DISCOVERY_SOURCES = {
     coverageTags: ['edr', 'siem', 'detection_gap'],
     description: 'Adversary validation tests reveal detection gaps in defensive tooling',
   },
+  amass: {
+    coversPriorities: [1, 2, 5],  // Subdomain Enum, DNS Records, Network Topology
+    coverageTags: ['subdomain', 'dns', 'ip', 'asn', 'certificate', 'network_topology'],
+    description: 'Subdomain enumeration via passive OSINT, cert transparency, DNS brute-force, and zone transfers',
+  },
+  nmap: {
+    coversPriorities: [3, 4, 6],  // Port Enum, Service/Version, OS Fingerprinting
+    coverageTags: ['port', 'service', 'version', 'os', 'banner', 'nse_script', 'vulnerability'],
+    description: 'Port scanning, service detection, OS fingerprinting, and NSE script execution',
+  },
+  service_fingerprinter: {
+    coversPriorities: [3, 4, 7],  // Port Enum, Service/Version, Admin Services
+    coverageTags: ['protocol', 'banner', 'version', 'security_flag', 'default_cred', 'admin_service', 'risk_indicator'],
+    description: 'Protocol-specific fingerprinting for SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, databases with security flag analysis',
+  },
 };
 
 // ─── Corroboration Source Extensions ─────────────────────────────────
@@ -931,6 +989,9 @@ export const EXTENDED_SOURCE_WEIGHTS: Record<string, number> = {
   caldera: 0.90,
   gophish: 0.70,
   bloodhound: 0.85,
+  amass: 0.75,
+  nmap: 0.85,
+  service_fingerprinter: 0.80,
 };
 
 // ─── Engagement Timeline Event Generators ────────────────────────────
@@ -977,6 +1038,9 @@ export function generateTimelineEvents(findings: PipelineFinding[]): {
     detection_rules: 'FileSearch',
     api_security: 'Lock',
     nvd_kev: 'Database',
+    amass: 'Network',
+    nmap: 'Scan',
+    service_fingerprinter: 'Fingerprint',
   };
 
   const severityColors: Record<string, string> = {
@@ -1004,6 +1068,199 @@ export function generateTimelineEvents(findings: PipelineFinding[]): {
       corroboratingTools: f.corroboratingTools,
     },
   }));
+}
+
+// ─── Nmap / Amass / Service Fingerprinter Finding Converters ────────
+
+/**
+ * Convert Nmap scan results to pipeline findings format.
+ * Produces one finding per open port per host.
+ */
+export function convertNmapFindings(
+  hosts: Array<{
+    host: string;
+    ports: Array<{
+      port: number;
+      protocol: string;
+      service: string | null;
+      version: string | null;
+      banner: string | null;
+      serviceConfidence: number;
+      scripts: Array<{ id: string; output: string }>;
+    }>;
+    os: string | null;
+    tags: string[];
+    nmapVersion: string;
+    scanRunId: string;
+    policyProfile: string;
+  }>,
+  phase: PipelinePhase
+): PipelineFinding[] {
+  const findings: PipelineFinding[] = [];
+  for (const host of hosts) {
+    for (const port of host.ports) {
+      const cveMatches = port.scripts
+        .flatMap(s => (s.output.match(/CVE-\d{4}-\d{4,}/gi) || []))
+        .map(c => c.toUpperCase());
+      const hasCve = cveMatches.length > 0;
+      findings.push({
+        id: `nmap-${phase}-${host.host}-${port.port}-${port.protocol}`,
+        phase,
+        tool: 'nmap' as ToolModule,
+        type: hasCve ? 'vulnerability' : 'asset',
+        severity: hasCve ? 'medium' : 'info',
+        title: hasCve
+          ? `Nmap CVE detected on ${host.host}:${port.port} (${port.service || port.protocol})`
+          : `Open port ${port.port}/${port.protocol} on ${host.host} — ${port.service || 'unknown'}`,
+        description: port.version
+          ? `Service: ${port.service || 'unknown'}, Version: ${port.version}${host.os ? `, OS: ${host.os}` : ''}`
+          : `Service: ${port.service || 'unknown'}${host.os ? `, OS: ${host.os}` : ''}`,
+        host: host.host,
+        port: port.port,
+        cveId: cveMatches[0] || undefined,
+        attackTechnique: 'T1046', // Network Service Discovery
+        confidence: Math.round(port.serviceConfidence * 100),
+        evidence: {
+          protocol: port.protocol,
+          service: port.service,
+          version: port.version,
+          banner: port.banner,
+          os: host.os,
+          scripts: port.scripts,
+          cves: cveMatches,
+          scanRunId: host.scanRunId,
+          policyProfile: host.policyProfile,
+          assetType: 'port',
+          ports: [port.port],
+        },
+        timestamp: Date.now(),
+        crossRefs: [],
+        corroborated: false,
+        corroboratingTools: [],
+      });
+    }
+  }
+  return findings;
+}
+
+/**
+ * Convert Amass subdomain enumeration results to pipeline findings format.
+ * Produces one finding per discovered subdomain.
+ */
+export function convertAmassFindings(
+  subdomains: Array<{
+    type: 'subdomain';
+    name: string;
+    domain: string;
+    ips: string[];
+    asns: number[];
+    sources: string[];
+    tag: string;
+    discoveredAt: number;
+    tool: 'amass';
+    mode: string;
+  }>,
+  phase: PipelinePhase
+): PipelineFinding[] {
+  return subdomains.map((sub, i) => ({
+    id: `amass-${phase}-${sub.name}-${i}`,
+    phase,
+    tool: 'amass' as ToolModule,
+    type: 'asset' as const,
+    severity: 'info' as const,
+    title: `Subdomain discovered: ${sub.name}`,
+    description: `${sub.name} (${sub.ips.length} IPs, ${sub.sources.length} sources, tag: ${sub.tag}, mode: ${sub.mode})`,
+    host: sub.ips[0] || sub.name,
+    attackTechnique: 'T1590.002', // Gather Victim Network Information: DNS
+    confidence: sub.tag === 'cert' ? 90 : sub.tag === 'dns' ? 85 : 70,
+    evidence: {
+      assetType: 'subdomain',
+      subdomain: sub.name,
+      domain: sub.domain,
+      ips: sub.ips,
+      asns: sub.asns,
+      sources: sub.sources,
+      tag: sub.tag,
+      mode: sub.mode,
+    },
+    timestamp: sub.discoveredAt || Date.now(),
+    crossRefs: [],
+    corroborated: false,
+    corroboratingTools: [],
+  }));
+}
+
+/**
+ * Convert Service Fingerprinter results to pipeline findings format.
+ * Produces one finding per fingerprinted service.
+ */
+export function convertFingerprintFindings(
+  results: Array<{
+    protocol: string;
+    host: string;
+    port: number;
+    banner: string | null;
+    version: string | null;
+    product: string | null;
+    os: string | null;
+    securityFlags: Record<string, any>;
+    riskIndicators: Array<{ type: string; severity: string; description: string }>;
+    mitreRelevance: string[];
+    potentialCves: string[];
+    error: string | null;
+  }>,
+  phase: PipelinePhase
+): PipelineFinding[] {
+  return results
+    .filter(r => !r.error)
+    .map((r, i) => {
+      const hasRisks = r.riskIndicators.length > 0;
+      const hasCves = r.potentialCves.length > 0;
+      const severity: PipelineFinding['severity'] = hasCves
+        ? 'medium'
+        : hasRisks
+          ? r.riskIndicators.some(ri => ri.severity === 'critical' || ri.severity === 'high') ? 'medium' : 'low'
+          : 'info';
+      return {
+        id: `fingerprint-${phase}-${r.host}-${r.port}-${r.protocol}-${i}`,
+        phase,
+        tool: 'service_fingerprinter' as ToolModule,
+        type: (hasCves || hasRisks ? 'misconfiguration' : 'asset') as PipelineFinding['type'],
+        severity,
+        title: hasRisks
+          ? `${r.protocol.toUpperCase()} risk on ${r.host}:${r.port} — ${r.riskIndicators[0]?.description || 'security issue'}`
+          : `${r.protocol.toUpperCase()} service fingerprinted on ${r.host}:${r.port}`,
+        description: [
+          r.product && `Product: ${r.product}`,
+          r.version && `Version: ${r.version}`,
+          r.banner && `Banner: ${r.banner.substring(0, 200)}`,
+          r.os && `OS: ${r.os}`,
+          r.riskIndicators.length > 0 && `Risks: ${r.riskIndicators.map(ri => ri.description).join('; ')}`,
+        ].filter(Boolean).join(', '),
+        host: r.host,
+        port: r.port,
+        cveId: r.potentialCves[0] || undefined,
+        attackTechnique: r.mitreRelevance[0] || 'T1046',
+        confidence: r.version ? 80 : r.banner ? 65 : 50,
+        evidence: {
+          protocol: r.protocol,
+          banner: r.banner,
+          version: r.version,
+          product: r.product,
+          os: r.os,
+          securityFlags: r.securityFlags,
+          riskIndicators: r.riskIndicators,
+          mitreRelevance: r.mitreRelevance,
+          potentialCves: r.potentialCves,
+          assetType: 'service',
+          ports: [r.port],
+        },
+        timestamp: Date.now(),
+        crossRefs: [],
+        corroborated: false,
+        corroboratingTools: [],
+      };
+    });
 }
 
 // ─── Exports ─────────────────────────────────────────────────────────

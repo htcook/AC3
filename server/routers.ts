@@ -101,6 +101,7 @@ import { aiSecurityValidationRouter } from "./routers/ai-security-validation";
 import { serviceFingerprintRouter } from "./routers/service-fingerprinter";
 import { amassRouter } from "./routers/amass";
 import { nmapRouter } from "./routers/nmap";
+import { discoveryChainRouter } from "./routers/discovery-chain";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -284,6 +285,7 @@ export const appRouter = router({
   serviceFingerprint: serviceFingerprintRouter,
   amass: amassRouter,
   nmap: nmapRouter,
+  discoveryChain: discoveryChainRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

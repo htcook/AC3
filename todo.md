@@ -5142,12 +5142,12 @@
 - [ ] Add MySQL/MSSQL/PostgreSQL fingerprinting (version, auth method, TLS)
 - [ ] Add Redis/MongoDB fingerprinting (version, auth required, exposed commands)
 - [x] Build nmap-scanner tRPC router with scan launch, status, and results endpoints
-- [ ] Add nmap_orchestrated to ToolModule type in unified-pipeline.ts
-- [ ] Add service_fingerprinter to ToolModule type in unified-pipeline.ts
-- [ ] Wire Nmap into TOOL_PHASE_MATRIX enumeration phase
-- [ ] Wire service fingerprinter into TOOL_PHASE_MATRIX enumeration phase
+- [x] Add nmap_orchestrated to ToolModule type in unified-pipeline.ts
+- [x] Add service_fingerprinter to ToolModule type in unified-pipeline.ts
+- [x] Wire Nmap into TOOL_PHASE_MATRIX enumeration phase
+- [x] Wire service fingerprinter into TOOL_PHASE_MATRIX enumeration phase
 - [ ] Add Nmap server configuration to metasploitServers or create scanServers table
-- [ ] Build scan orchestration: port scan → service fingerprint → vuln check pipeline
+- [x] Build scan orchestration: port scan → service fingerprint → vuln check pipeline (discovery chain orchestrator)
 - [x] Write vitest tests for nmap-orchestrator and service-fingerprinter
 
 ## ZAP LLM Attack Playbook System
@@ -5242,3 +5242,27 @@
 - [x] Preflight server check mutation
 - [x] Register in main router
 - [x] Write tests (147 passing)
+
+## Discovery Chain Orchestrator
+- [x] Build discovery-chain-orchestrator.ts engine that auto-sequences Amass → Nmap → Service Fingerprinter → Nuclei
+- [x] Chain stage definitions with data flow: Amass subdomains → Nmap port scan → Service Fingerprinter → Nuclei vuln scan
+- [x] Auto-target extraction: Amass discovered subdomains/IPs feed into Nmap targets (extractNmapTargetsFromAmass)
+- [x] Auto-target extraction: Nmap open ports feed into Service Fingerprinter targets (extractFingerprintTargetsFromNmap)
+- [x] Auto-target extraction: Nmap/Fingerprinter services feed into Nuclei templates (extractNucleiTargetsFromResults + selectNucleiTemplates)
+- [x] Chain execution engine with stage lifecycle (pending/running/completed/failed/skipped/cancelled)
+- [x] Scope enforcement at every stage via enforceMultiTargetScope
+- [x] Chain run state management with progress tracking (createChainRun, getChainRun, getChainRuns)
+- [x] Configurable chain options (skip stages, custom timeouts, continueOnPartialFailure, stage-specific config)
+- [x] Chain result aggregation with unified findings across all stages (computeChainSummary)
+- [x] Build discovery-chain tRPC router with start/getStatus/getFindings/cancel/getHistory/getStageDefinitions/estimateDuration/getDataFlow procedures
+- [x] Write vitest tests for discovery chain orchestrator (94 tests passing)
+
+## Nmap Pipeline Integration Enhancement
+- [x] Add nmap/amass/service_fingerprinter priority boost cases in getPhaseTools()
+- [x] Add convertNmapFindings() to unified-pipeline.ts for Nmap → PipelineFinding conversion
+- [x] Add convertAmassFindings() to unified-pipeline.ts for Amass → PipelineFinding conversion
+- [x] Add convertFingerprintFindings() for Service Fingerprinter → PipelineFinding conversion
+- [x] Add nmap/amass/service_fingerprinter to ACTIVE_DISCOVERY_SOURCES with coverage tags and priorities
+- [x] Add nmap/amass/service_fingerprinter to EXTENDED_SOURCE_WEIGHTS (0.75/0.85/0.80)
+- [x] Add nmap/amass/service_fingerprinter icons to toolIcons in generateTimelineEvents
+- [x] Write vitest tests for new pipeline integration (included in 94 discovery-chain tests)
