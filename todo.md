@@ -5510,3 +5510,17 @@
 - [x] 22 vitest tests covering preflight, stager generation, campaign creation, framework selector
 - [ ] Add Caldera agent stager download button to payload detail UI
 - [ ] Add Sliver/Cobalt Strike operation auto-creation when those frameworks are selected
+
+## NucleiScanner Default-Login Credential Integration
+- [x] Review Nuclei scanner integration and credential-tester exports
+- [x] Build nuclei-credential-mapper.ts with 34 product→template mappings (web panels, network devices, databases, remote access)
+- [x] buildNucleiCredentialInjection() maps CredentialCandidates to Nuclei template IDs + variables
+- [x] getCredentialInjectionForTargets() parses scan targets and auto-looks up OEM credentials
+- [x] buildNucleiCliArgs() generates -t and -var flags for Nuclei CLI
+- [x] Inject confirmed OEM credentials into Nuclei scan pipeline (startScan mutation)
+- [x] Auto-select 'default-logins' template category when credentials exist for target services
+- [x] Non-fatal credential injection — scan proceeds if mapper fails
+- [x] Add 'Auto-Credential Injection Active' indicator in scan config dialog
+- [x] Show credential template count + matched creds on scan cards (orange KeyRound badge)
+- [x] Toast notification shows injected template count on scan start
+- [x] 22 vitest tests covering template mapping, CLI args, summary, and target parsing — all passing

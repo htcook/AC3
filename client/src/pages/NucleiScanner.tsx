@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import {
   Loader2, ScanLine, Play, Target, Shield, Bug, AlertTriangle,
-  BarChart3, Clock, CheckCircle2, XCircle, FileText, Zap, Activity
+  BarChart3, Clock, CheckCircle2, XCircle, FileText, Zap, Activity, KeyRound
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
@@ -39,8 +39,14 @@ export default function NucleiScanner() {
   const categoriesQuery = trpc.nucleiScanner.listTemplateCategories.useQuery();
 
   const startScan = trpc.nucleiScanner.startScan.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Scan started: ${data.scanId}`);
+    onSuccess: (data: any) => {
+      if (data.credentialInjection?.templatesInjected > 0) {
+        toast.success(
+          `Scan #${data.scanId} started with ${data.credentialInjection.templatesInjected} auto-injected default-login templates (${data.credentialInjection.credentialsMatched} credentials matched)`
+        );
+      } else {
+        toast.success(`Scan started: ${data.scanId}`);
+      }
       setShowNewScan(false);
       setTargets("");
       setSelectedCategories([]);
@@ -110,6 +116,15 @@ export default function NucleiScanner() {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">Leave empty to use all templates.</p>
+                  <div className="mt-2 p-2.5 bg-orange-500/10 border border-orange-500/20 rounded-md">
+                    <p className="text-xs text-orange-400 flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span className="font-medium">Auto-Credential Injection Active</span>
+                    </p>
+                    <p className="text-[10px] text-orange-400/70 mt-1">
+                      Confirmed OEM default credentials from the credential-tester will be automatically mapped to matching Nuclei default-login templates. The "default-logins" category is auto-selected when credentials are found for scan targets.
+                    </p>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -215,6 +230,11 @@ export default function NucleiScanner() {
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {scan.targets?.length || 0} target(s) · {scan.stats?.templatesLoaded?.toLocaleString() || 0} templates · {scan.stats?.matchesFound || 0} matches
+                          {scan.stats?.credentialTemplatesInjected > 0 && (
+                            <span className="text-orange-400 ml-1">
+                              · <KeyRound className="w-3 h-3 inline" /> {scan.stats.credentialTemplatesInjected} cred templates ({scan.stats.credentialsMatched} creds)
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

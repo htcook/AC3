@@ -71,6 +71,33 @@ export const nucleiScannerRouter = router({
         await enforceMultiTargetScope(input.engagementId, input.targets, "Nuclei Scanner", ctx);
       }
 
+      // ── Credential Auto-Injection ──────────────────────────────────────
+      // Look up confirmed/candidate OEM default credentials for scan targets
+      // and auto-inject matching Nuclei default-login templates.
+      let credentialInjection: any = null;
+      try {
+        const { getCredentialInjectionForTargets } = await import("../lib/nuclei-credential-mapper");
+        credentialInjection = await getCredentialInjectionForTargets(input.targets);
+
+        if (credentialInjection.templates.length > 0) {
+          console.log(
+            `[NucleiScanner] Auto-injecting ${credentialInjection.stats.totalTemplates} default-login templates ` +
+            `with ${credentialInjection.stats.totalCredentials} credentials for scan targets`
+          );
+
+          // Auto-add 'default-logins' category if not already selected
+          if (!input.templateCategories?.includes('default-logins')) {
+            input.templateCategories = [
+              ...(input.templateCategories || []),
+              'default-logins',
+            ];
+          }
+        }
+      } catch (credErr: any) {
+        // Non-fatal — scan proceeds without credential injection
+        console.warn(`[NucleiScanner] Credential injection failed (non-fatal):`, credErr.message);
+      }
+
       const scan = {
         id: ++scanCounter,
         ...input,
@@ -78,12 +105,15 @@ export const nucleiScannerRouter = router({
         startedAt: Date.now(),
         completedAt: null as number | null,
         findings: [] as any[],
+        credentialInjection,
         stats: {
           templatesLoaded: 0,
           templatesExecuted: 0,
           hostsScanned: input.targets.length,
           matchesFound: 0,
           requestsSent: 0,
+          credentialTemplatesInjected: credentialInjection?.stats?.totalTemplates || 0,
+          credentialsMatched: credentialInjection?.stats?.totalCredentials || 0,
         },
       };
 
@@ -100,7 +130,17 @@ export const nucleiScannerRouter = router({
       scan.stats.requestsSent = templateCount * input.targets.length;
 
       scans.push(scan);
-      return { scanId: scan.id, status: 'running', targets: input.targets };
+      return {
+        scanId: scan.id,
+        status: 'running',
+        targets: input.targets,
+        credentialInjection: credentialInjection ? {
+          templatesInjected: credentialInjection.stats.totalTemplates,
+          credentialsMatched: credentialInjection.stats.totalCredentials,
+          templateIds: credentialInjection.templateIds,
+          byProtocol: credentialInjection.stats.byProtocol,
+        } : null,
+      };
     }),
 
   /**
