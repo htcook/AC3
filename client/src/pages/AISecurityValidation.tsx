@@ -3,6 +3,7 @@
  * ────────────────────────────────────────────────
  * Validates customer AI/LLM deployments against prompt injection,
  * model extraction, adversarial evasion, data poisoning, and supply chain attacks.
+ * Includes Prompt Guardrail Recommender and ATLAS Technique Drill-Down.
  *
  * Author: Harrison Cook — AceofCloud
  */
@@ -20,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   BrainCircuit,
@@ -46,6 +48,16 @@ import {
   BarChart3,
   FileText,
   Bot,
+  Lock,
+  Code,
+  Copy,
+  ExternalLink,
+  BookOpen,
+  Wrench,
+  Layers,
+  ArrowLeft,
+  Download,
+  Sparkles,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -106,8 +118,21 @@ function severityBadge(severity: string) {
   );
 }
 
+function effortBadge(effort: string) {
+  const colors: Record<string, string> = {
+    low: "bg-green-500/20 text-green-400 border-green-500/30",
+    medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    high: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  };
+  return (
+    <Badge variant="outline" className={colors[effort] || colors.medium}>
+      {effort.toUpperCase()} EFFORT
+    </Badge>
+  );
+}
+
 // ─── Overview Tab ────────────────────────────────────────────────────────────
-function OverviewTab() {
+function OverviewTab({ onTechniqueClick }: { onTechniqueClick: (id: string) => void }) {
   const { data: overview, isLoading } = trpc.aiSecurityValidation.getOverview.useQuery();
   const { data: techniques } = trpc.aiSecurityValidation.getTechniques.useQuery();
   const { data: categories } = trpc.aiSecurityValidation.getCategories.useQuery();
@@ -153,7 +178,7 @@ function OverviewTab() {
         </Card>
       </div>
 
-      {/* MITRE ATLAS Technique Catalog */}
+      {/* MITRE ATLAS Technique Catalog — clickable for drill-down */}
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -161,14 +186,18 @@ function OverviewTab() {
             MITRE ATLAS Technique Catalog
           </CardTitle>
           <CardDescription>
-            Adversarial Threat Landscape for AI Systems — {techniques?.length ?? 0} techniques mapped
+            Click any technique to view detailed information, related payloads, and remediation guidance
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[400px]">
             <div className="space-y-2">
               {techniques?.map((t: any) => (
-                <div key={t.id} className="flex items-start gap-3 p-3 bg-muted/30 border border-border rounded-md hover:border-primary/30 transition-colors">
+                <div
+                  key={t.id}
+                  className="flex items-start gap-3 p-3 bg-muted/30 border border-border rounded-md hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer group"
+                  onClick={() => onTechniqueClick(t.id)}
+                >
                   <code className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded shrink-0 mt-0.5">
                     {t.id}
                   </code>
@@ -180,6 +209,7 @@ function OverviewTab() {
                       {severityBadge(t.severity)}
                     </div>
                   </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0 mt-1" />
                 </div>
               ))}
             </div>
@@ -310,7 +340,6 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Target Configuration */}
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -323,11 +352,7 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Target Name</Label>
-              <Input
-                placeholder="e.g., Production ChatBot API"
-                value={name}
-                onChange={e => setName(e.target.value)}
-              />
+              <Input placeholder="e.g., Production ChatBot API" value={name} onChange={e => setName(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>System Type</Label>
@@ -344,18 +369,11 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
               </Select>
             </div>
           </div>
-
           <div className="space-y-2">
             <Label>Endpoint URL</Label>
-            <Input
-              placeholder="https://api.example.com/v1/chat/completions"
-              value={endpoint}
-              onChange={e => setEndpoint(e.target.value)}
-            />
+            <Input placeholder="https://api.example.com/v1/chat/completions" value={endpoint} onChange={e => setEndpoint(e.target.value)} />
           </div>
-
           <Separator />
-
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Auth Type</Label>
@@ -372,54 +390,30 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
             {authType !== "none" && (
               <div className="space-y-2 col-span-2">
                 <Label>{authType === "api-key" ? "API Key" : authType === "basic" ? "Credentials (user:pass)" : "Bearer Token"}</Label>
-                <Input
-                  type="password"
-                  placeholder={authType === "api-key" ? "sk-..." : authType === "basic" ? "user:password" : "Bearer token"}
-                  value={authToken}
-                  onChange={e => setAuthToken(e.target.value)}
-                />
+                <Input type="password" placeholder={authType === "api-key" ? "sk-..." : authType === "basic" ? "user:password" : "Bearer token"} value={authToken} onChange={e => setAuthToken(e.target.value)} />
               </div>
             )}
           </div>
-
           {authType === "api-key" && (
             <div className="space-y-2">
               <Label>Header Name</Label>
-              <Input
-                placeholder="X-API-Key"
-                value={authHeader}
-                onChange={e => setAuthHeader(e.target.value)}
-              />
+              <Input placeholder="X-API-Key" value={authHeader} onChange={e => setAuthHeader(e.target.value)} />
             </div>
           )}
-
           <Separator />
-
           <div className="space-y-2">
             <Label>Request Body Template</Label>
-            <Input
-              placeholder='{"prompt": "{{payload}}"}'
-              value={bodyTemplate}
-              onChange={e => setBodyTemplate(e.target.value)}
-              className="font-mono text-xs"
-            />
+            <Input placeholder='{"prompt": "{{payload}}"}' value={bodyTemplate} onChange={e => setBodyTemplate(e.target.value)} className="font-mono text-xs" />
             <p className="text-xs text-muted-foreground">Use {"{{payload}}"} as placeholder for test payloads</p>
           </div>
-
           <div className="space-y-2">
             <Label>Response Field Path</Label>
-            <Input
-              placeholder="choices.0.message.content"
-              value={responseField}
-              onChange={e => setResponseField(e.target.value)}
-              className="font-mono text-xs"
-            />
+            <Input placeholder="choices.0.message.content" value={responseField} onChange={e => setResponseField(e.target.value)} className="font-mono text-xs" />
             <p className="text-xs text-muted-foreground">Dot-notation path to extract the AI response from JSON</p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Test Categories */}
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -434,9 +428,7 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
               <div
                 key={key}
                 className={`flex items-center justify-between p-3 border rounded-md cursor-pointer transition-colors ${
-                  enabledCategories.includes(key)
-                    ? "border-primary/50 bg-primary/5"
-                    : "border-border bg-muted/20 opacity-60"
+                  enabledCategories.includes(key) ? "border-primary/50 bg-primary/5" : "border-border bg-muted/20 opacity-60"
                 }`}
                 onClick={() => toggleCategory(key)}
               >
@@ -447,17 +439,13 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
                     <div className="text-xs text-muted-foreground">{meta.desc}</div>
                   </div>
                 </div>
-                <Switch
-                  checked={enabledCategories.includes(key)}
-                  onCheckedChange={() => toggleCategory(key)}
-                />
+                <Switch checked={enabledCategories.includes(key)} onCheckedChange={() => toggleCategory(key)} />
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Scan Settings */}
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -495,12 +483,7 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
         </CardContent>
       </Card>
 
-      {/* Launch */}
-      <Button
-        onClick={handleSubmit}
-        disabled={startScan.isPending || !name.trim() || !endpoint.trim()}
-        className="w-full h-12 text-base"
-      >
+      <Button onClick={handleSubmit} disabled={startScan.isPending || !name.trim() || !endpoint.trim()} className="w-full h-12 text-base">
         {startScan.isPending ? (
           <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Starting Scan...</>
         ) : (
@@ -512,7 +495,7 @@ function NewScanTab({ onScanStarted }: { onScanStarted: (scanId: string) => void
 }
 
 // ─── Scan Results Tab ────────────────────────────────────────────────────────
-function ScanResultsTab() {
+function ScanResultsTab({ onViewGuardrails }: { onViewGuardrails: (scanId: string) => void }) {
   const { data: scans, isLoading, refetch } = trpc.aiSecurityValidation.listScans.useQuery();
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
   const { data: scanDetail } = trpc.aiSecurityValidation.getScan.useQuery(
@@ -547,7 +530,6 @@ function ScanResultsTab() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Scan list */}
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-muted-foreground mb-3">SCAN HISTORY</h3>
         <ScrollArea className="h-[600px]">
@@ -555,9 +537,7 @@ function ScanResultsTab() {
             <div
               key={scan.scanId}
               className={`p-3 border rounded-md cursor-pointer mb-2 transition-colors ${
-                selectedScanId === scan.scanId
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/30"
+                selectedScanId === scan.scanId ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
               }`}
               onClick={() => setSelectedScanId(scan.scanId)}
             >
@@ -591,7 +571,6 @@ function ScanResultsTab() {
         </ScrollArea>
       </div>
 
-      {/* Scan detail */}
       <div className="lg:col-span-2">
         {!selectedScanId ? (
           <div className="text-center py-20 text-muted-foreground">
@@ -603,7 +582,11 @@ function ScanResultsTab() {
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : (
-          <ScanDetailView scan={scanDetail} onDelete={() => deleteScan.mutate({ scanId: selectedScanId })} />
+          <ScanDetailView
+            scan={scanDetail}
+            onDelete={() => deleteScan.mutate({ scanId: selectedScanId })}
+            onViewGuardrails={() => onViewGuardrails(selectedScanId)}
+          />
         )}
       </div>
     </div>
@@ -611,12 +594,11 @@ function ScanResultsTab() {
 }
 
 // ─── Scan Detail View ────────────────────────────────────────────────────────
-function ScanDetailView({ scan, onDelete }: { scan: any; onDelete: () => void }) {
+function ScanDetailView({ scan, onDelete, onViewGuardrails }: { scan: any; onDelete: () => void; onViewGuardrails: () => void }) {
   const posture = scan.postureScore;
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold">{scan.targetName}</h3>
@@ -625,24 +607,24 @@ function ScanDetailView({ scan, onDelete }: { scan: any; onDelete: () => void })
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {scan.status === "completed" && (
+            <Button variant="outline" size="sm" className="text-primary border-primary/30" onClick={onViewGuardrails}>
+              <Lock className="w-4 h-4 mr-1" /> Generate Guardrails
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="text-red-400 border-red-500/30" onClick={onDelete}>
             <Trash2 className="w-4 h-4 mr-1" /> Delete
           </Button>
         </div>
       </div>
 
-      {/* Posture Score */}
       <Card className={`border ${scoreBg(posture.overall)}`}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-muted-foreground">Overall AI Security Posture</div>
-              <div className={`text-4xl font-bold ${scoreColor(posture.overall)}`}>
-                {posture.overall}%
-              </div>
-              <div className={`text-sm font-medium ${scoreColor(posture.overall)}`}>
-                {scoreLabel(posture.overall)}
-              </div>
+              <div className={`text-4xl font-bold ${scoreColor(posture.overall)}`}>{posture.overall}%</div>
+              <div className={`text-sm font-medium ${scoreColor(posture.overall)}`}>{scoreLabel(posture.overall)}</div>
             </div>
             <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
               {posture.categories && Object.entries(posture.categories).map(([cat, score]: [string, any]) => {
@@ -660,7 +642,6 @@ function ScanDetailView({ scan, onDelete }: { scan: any; onDelete: () => void })
         </CardContent>
       </Card>
 
-      {/* Summary */}
       {scan.summary && (
         <Card className="bg-card border-border">
           <CardContent className="p-4">
@@ -686,7 +667,6 @@ function ScanDetailView({ scan, onDelete }: { scan: any; onDelete: () => void })
         </Card>
       )}
 
-      {/* Test Results */}
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-base">Test Results</CardTitle>
@@ -730,6 +710,558 @@ function ScanDetailView({ scan, onDelete }: { scan: any; onDelete: () => void })
           </ScrollArea>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ─── Guardrail Recommender Tab ──────────────────────────────────────────────
+function GuardrailRecommenderTab({ preselectedScanId }: { preselectedScanId: string | null }) {
+  const { data: scans } = trpc.aiSecurityValidation.listScans.useQuery();
+  const completedScans = useMemo(() => scans?.filter((s: any) => s.status === "completed") ?? [], [scans]);
+  const [selectedScanId, setSelectedScanId] = useState<string | null>(preselectedScanId);
+  const [exportLang, setExportLang] = useState<string>("python");
+
+  // Update selection when preselected changes
+  useMemo(() => {
+    if (preselectedScanId) setSelectedScanId(preselectedScanId);
+  }, [preselectedScanId]);
+
+  const { data: guardrails, isLoading: loadingGuardrails } = trpc.aiSecurityValidation.generateGuardrails.useQuery(
+    { scanId: selectedScanId! },
+    { enabled: !!selectedScanId },
+  );
+
+  const { data: exportData, isLoading: loadingExport } = trpc.aiSecurityValidation.exportGuardrails.useQuery(
+    { scanId: selectedScanId!, language: exportLang as any },
+    { enabled: !!selectedScanId && !!guardrails },
+  );
+
+  const { data: guardrailTypes } = trpc.aiSecurityValidation.getGuardrailTypes.useQuery();
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
+  };
+
+  if (completedScans.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <Lock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+        <h3 className="text-lg font-medium mb-2">No Completed Scans</h3>
+        <p className="text-muted-foreground text-sm">
+          Complete an AI security scan first, then guardrail recommendations will be auto-generated based on which tests failed.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Scan Selector */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Sparkles className="w-5 h-5 text-primary" />
+            Guardrail Recommender
+          </CardTitle>
+          <CardDescription>
+            Auto-generates custom guardrail rules based on which tests failed in your scan. Select a completed scan to generate recommendations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex-1 space-y-2">
+              <Label>Select Completed Scan</Label>
+              <Select value={selectedScanId ?? ""} onValueChange={setSelectedScanId}>
+                <SelectTrigger><SelectValue placeholder="Choose a scan..." /></SelectTrigger>
+                <SelectContent>
+                  {completedScans.map((scan: any) => (
+                    <SelectItem key={scan.scanId} value={scan.scanId}>
+                      {scan.targetName} — {scan.postureScore?.overall ?? 0}% ({new Date(scan.completedAt ?? scan.startedAt).toLocaleDateString()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loadingGuardrails && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+          <span className="text-muted-foreground">Generating guardrail recommendations...</span>
+        </div>
+      )}
+
+      {guardrails && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-card border-border">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold text-primary">{guardrails.totalRules}</div>
+                <div className="text-xs text-muted-foreground mt-1">TOTAL RULES</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold text-red-400">{guardrails.criticalRules}</div>
+                <div className="text-xs text-muted-foreground mt-1">CRITICAL RULES</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold text-amber-400">{guardrails.categoriesAffected}</div>
+                <div className="text-xs text-muted-foreground mt-1">CATEGORIES</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="p-4 text-center">
+                <div className={`text-3xl font-bold ${scoreColor(guardrails.estimatedPostureImprovement ?? 0)}`}>
+                  +{guardrails.estimatedPostureImprovement ?? 0}%
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">EST. IMPROVEMENT</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Guardrail Rules by Category */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Shield className="w-5 h-5 text-amber-400" />
+                Recommended Guardrail Rules
+              </CardTitle>
+              <CardDescription>
+                Rules are prioritized by severity and estimated effectiveness
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px]">
+                <div className="space-y-3">
+                  {guardrails.rules?.map((rule: any, idx: number) => (
+                    <div key={idx} className="p-4 bg-muted/30 border border-border rounded-md">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-primary shrink-0" />
+                          <span className="text-sm font-medium">{rule.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {severityBadge(rule.priority)}
+                          {effortBadge(rule.effort)}
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">{rule.description}</p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                          {rule.type}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {rule.category}
+                        </Badge>
+                        {rule.atlasIds?.map((id: string) => (
+                          <code key={id} className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                            {id}
+                          </code>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>Effectiveness: <span className="text-green-400 font-medium">{rule.effectiveness}%</span></span>
+                        {rule.falsePositiveRate && (
+                          <span>False Positive Rate: <span className="text-yellow-400 font-medium">{rule.falsePositiveRate}%</span></span>
+                        )}
+                      </div>
+                      {rule.implementation && (
+                        <div className="mt-2 p-2 bg-background/50 rounded border border-border">
+                          <code className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">{rule.implementation}</code>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Export Code */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Code className="w-5 h-5 text-green-400" />
+                Export Guardrail Code
+              </CardTitle>
+              <CardDescription>
+                Export all recommended guardrails as deployable code in your preferred language
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Select value={exportLang} onValueChange={setExportLang}>
+                  <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="python">Python</SelectItem>
+                    <SelectItem value="typescript">TypeScript</SelectItem>
+                    <SelectItem value="regex">Regex Rules</SelectItem>
+                  </SelectContent>
+                </Select>
+                {exportData && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    {exportData.ruleCount} rules exported
+                  </div>
+                )}
+              </div>
+
+              {loadingExport ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary mr-2" />
+                  <span className="text-sm text-muted-foreground">Generating code...</span>
+                </div>
+              ) : exportData?.code ? (
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute top-2 right-2 z-10"
+                    onClick={() => copyToClipboard(exportData.code)}
+                  >
+                    <Copy className="w-3 h-3 mr-1" /> Copy
+                  </Button>
+                  <ScrollArea className="h-[400px] bg-background/50 rounded border border-border p-4">
+                    <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap">{exportData.code}</pre>
+                  </ScrollArea>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {/* Guardrail Types Reference */}
+          {guardrailTypes && (
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Layers className="w-5 h-5 text-purple-400" />
+                  Guardrail Type Reference
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {guardrailTypes.map((gt: any) => (
+                    <div key={gt.type} className="p-3 bg-muted/30 border border-border rounded-md">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Wrench className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium">{gt.label}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{gt.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── ATLAS Technique Drill-Down Tab ─────────────────────────────────────────
+function ATLASDrillDownTab({ preselectedTechniqueId }: { preselectedTechniqueId: string | null }) {
+  const { data: summaries, isLoading } = trpc.aiSecurityValidation.getTechniqueSummaries.useQuery();
+  const [selectedId, setSelectedId] = useState<string | null>(preselectedTechniqueId);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Update selection when preselected changes
+  useMemo(() => {
+    if (preselectedTechniqueId) setSelectedId(preselectedTechniqueId);
+  }, [preselectedTechniqueId]);
+
+  const { data: detail, isLoading: loadingDetail } = trpc.aiSecurityValidation.getTechniqueDetail.useQuery(
+    { techniqueId: selectedId! },
+    { enabled: !!selectedId },
+  );
+
+  const { data: remediation } = trpc.aiSecurityValidation.getRemediation.useQuery(
+    { techniqueId: selectedId! },
+    { enabled: !!selectedId },
+  );
+
+  const filteredSummaries = useMemo(() => {
+    if (!summaries) return [];
+    if (!searchQuery.trim()) return summaries;
+    const q = searchQuery.toLowerCase();
+    return summaries.filter((s: any) =>
+      s.id.toLowerCase().includes(q) ||
+      s.name.toLowerCase().includes(q) ||
+      s.tactic.toLowerCase().includes(q)
+    );
+  }, [summaries, searchQuery]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+        <span className="text-muted-foreground">Loading ATLAS techniques...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Technique List */}
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <Input
+            placeholder="Search techniques..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="bg-muted/30"
+          />
+        </div>
+        <h3 className="text-sm font-medium text-muted-foreground">
+          {filteredSummaries.length} ATLAS TECHNIQUES
+        </h3>
+        <ScrollArea className="h-[650px]">
+          <div className="space-y-1.5">
+            {filteredSummaries.map((t: any) => (
+              <div
+                key={t.id}
+                className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                  selectedId === t.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
+                }`}
+                onClick={() => setSelectedId(t.id)}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <code className="text-xs font-mono text-primary">{t.id}</code>
+                  {severityBadge(t.severity)}
+                </div>
+                <div className="text-sm font-medium">{t.name}</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{t.tactic}</Badge>
+                  <span className="text-[10px] text-muted-foreground">{t.payloadCount} payloads</span>
+                  {t.hasRemediation && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-green-500/10 text-green-400 border-green-500/30">
+                      <Wrench className="w-2.5 h-2.5 mr-0.5" /> Remediation
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Technique Detail */}
+      <div className="lg:col-span-2">
+        {!selectedId ? (
+          <div className="text-center py-20 text-muted-foreground">
+            <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-50" />
+            <p>Select a technique to view details</p>
+          </div>
+        ) : loadingDetail ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : detail ? (
+          <TechniqueDetailView detail={detail} remediation={remediation} />
+        ) : (
+          <div className="text-center py-20 text-muted-foreground">
+            <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-50" />
+            <p>Technique not found</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Technique Detail View ──────────────────────────────────────────────────
+function TechniqueDetailView({ detail, remediation }: { detail: any; remediation: any }) {
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <code className="text-sm font-mono text-primary bg-primary/10 px-2 py-1 rounded">{detail.technique.id}</code>
+          {severityBadge(detail.technique.severity)}
+          <Badge variant="outline" className="text-[10px]">{detail.technique.category}</Badge>
+        </div>
+        <h2 className="text-xl font-bold">{detail.technique.name}</h2>
+        <p className="text-sm text-muted-foreground mt-1">{detail.technique.description}</p>
+      </div>
+
+      {/* Key Info */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="bg-card border-border">
+          <CardContent className="p-3 text-center">
+            <div className="text-lg font-bold text-primary">{detail.relatedPayloads?.length ?? 0}</div>
+            <div className="text-xs text-muted-foreground">PAYLOADS</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-3 text-center">
+            <div className="text-lg font-bold text-amber-400">{detail.technique.tactic}</div>
+            <div className="text-xs text-muted-foreground">TACTIC</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-3 text-center">
+            <div className="text-lg font-bold text-cyan-400">{detail.historicalResults?.length ?? 0}</div>
+            <div className="text-xs text-muted-foreground">HISTORICAL RESULTS</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Related Payloads */}
+      {detail.relatedPayloads && detail.relatedPayloads.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="w-5 h-5 text-red-400" />
+              Related Test Payloads
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[250px]">
+              <div className="space-y-2">
+                {detail.relatedPayloads.map((payload: any, idx: number) => (
+                  <div key={idx} className="p-3 bg-muted/30 border border-border rounded-md">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{payload.name}</span>
+                      {severityBadge(payload.severity)}
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{payload.description}</p>
+                    <div className="p-2 bg-background/50 rounded border border-border">
+                      <code className="text-[11px] font-mono text-red-300 break-all">{payload.payload}</code>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Historical Results */}
+      {detail.historicalResults && detail.historicalResults.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="w-5 h-5 text-cyan-400" />
+              Historical Scan Results
+            </CardTitle>
+            <CardDescription>
+              Past scan results for this technique across all targets
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px]">
+              <div className="space-y-2">
+                {detail.historicalResults.map((result: any, idx: number) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-md">
+                    <div className="flex items-center gap-2">
+                      {result.passed ? (
+                        <ShieldCheck className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <ShieldAlert className="w-4 h-4 text-red-400" />
+                      )}
+                      <div>
+                        <div className="text-sm font-medium">{result.targetName}</div>
+                        <div className="text-xs text-muted-foreground">{new Date(result.testedAt).toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={result.passed ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+                      {result.passed ? "PASSED" : "FAILED"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Remediation Guidance */}
+      {remediation && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Wrench className="w-5 h-5 text-green-400" />
+              Remediation Guidance
+            </CardTitle>
+            <CardDescription>
+              Step-by-step guidance to mitigate this technique
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Overview */}
+            <div>
+              <h4 className="text-sm font-medium mb-2">Overview</h4>
+              <p className="text-sm text-muted-foreground">{remediation.overview}</p>
+            </div>
+
+            <Separator />
+
+            {/* Steps */}
+            {remediation.steps && remediation.steps.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-3">Implementation Steps</h4>
+                <div className="space-y-3">
+                  {remediation.steps.map((step: any, idx: number) => (
+                    <div key={idx} className="flex gap-3">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold shrink-0 mt-0.5">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{step.title}</div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+                        {step.code && (
+                          <div className="mt-2 p-2 bg-background/50 rounded border border-border">
+                            <code className="text-[11px] font-mono text-muted-foreground whitespace-pre-wrap">{step.code}</code>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* References */}
+            {remediation.references && remediation.references.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">References</h4>
+                <div className="space-y-1">
+                  {remediation.references.map((ref: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs">
+                      <ExternalLink className="w-3 h-3 text-primary shrink-0" />
+                      <a href={ref.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        {ref.title}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Difficulty & Effectiveness */}
+            <div className="flex items-center gap-6 text-xs text-muted-foreground pt-2">
+              {remediation.difficulty && (
+                <span>Difficulty: <span className="font-medium text-foreground">{remediation.difficulty}</span></span>
+              )}
+              {remediation.estimatedEffectiveness && (
+                <span>Effectiveness: <span className="font-medium text-green-400">{remediation.estimatedEffectiveness}%</span></span>
+              )}
+              {remediation.timeToImplement && (
+                <span>Time: <span className="font-medium text-foreground">{remediation.timeToImplement}</span></span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -794,11 +1326,7 @@ function QuickAssessmentTab() {
             </div>
           ))}
 
-          <Button
-            onClick={() => assess.mutate(answers)}
-            disabled={assess.isPending}
-            className="w-full mt-4"
-          >
+          <Button onClick={() => assess.mutate(answers)} disabled={assess.isPending} className="w-full mt-4">
             {assess.isPending ? (
               <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Assessing...</>
             ) : (
@@ -857,6 +1385,18 @@ function QuickAssessmentTab() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function AISecurityValidation() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [guardrailScanId, setGuardrailScanId] = useState<string | null>(null);
+  const [drilldownTechniqueId, setDrilldownTechniqueId] = useState<string | null>(null);
+
+  const handleViewGuardrails = (scanId: string) => {
+    setGuardrailScanId(scanId);
+    setActiveTab("guardrails");
+  };
+
+  const handleTechniqueClick = (techniqueId: string) => {
+    setDrilldownTechniqueId(techniqueId);
+    setActiveTab("atlas-drilldown");
+  };
 
   return (
     <AppShell>
@@ -879,7 +1419,7 @@ export default function AISecurityValidation() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-muted/50">
+          <TabsList className="bg-muted/50 flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="overview" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Shield className="w-4 h-4 mr-1.5" /> Overview
             </TabsTrigger>
@@ -889,19 +1429,31 @@ export default function AISecurityValidation() {
             <TabsTrigger value="results" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChart3 className="w-4 h-4 mr-1.5" /> Scan Results
             </TabsTrigger>
+            <TabsTrigger value="guardrails" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Lock className="w-4 h-4 mr-1.5" /> Guardrails
+            </TabsTrigger>
+            <TabsTrigger value="atlas-drilldown" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BookOpen className="w-4 h-4 mr-1.5" /> ATLAS Drill-Down
+            </TabsTrigger>
             <TabsTrigger value="quick-assessment" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <ShieldCheck className="w-4 h-4 mr-1.5" /> Quick Assessment
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
-            <OverviewTab />
+            <OverviewTab onTechniqueClick={handleTechniqueClick} />
           </TabsContent>
           <TabsContent value="new-scan">
             <NewScanTab onScanStarted={(id) => setActiveTab("results")} />
           </TabsContent>
           <TabsContent value="results">
-            <ScanResultsTab />
+            <ScanResultsTab onViewGuardrails={handleViewGuardrails} />
+          </TabsContent>
+          <TabsContent value="guardrails">
+            <GuardrailRecommenderTab preselectedScanId={guardrailScanId} />
+          </TabsContent>
+          <TabsContent value="atlas-drilldown">
+            <ATLASDrillDownTab preselectedTechniqueId={drilldownTechniqueId} />
           </TabsContent>
           <TabsContent value="quick-assessment">
             <QuickAssessmentTab />

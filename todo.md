@@ -5070,3 +5070,20 @@
 - [x] Build AI Security Validation dashboard UI page with test results and posture score
 - [x] Register route and navigation entry in App.tsx and AppShell
 - [x] Write vitest tests for the AI Security Validation module
+
+## Prompt Guardrail Recommender
+- [x] Build guardrail-recommender.ts engine that analyzes failed scan tests and generates custom guardrail rules
+- [x] Implement rule generation for each attack category (prompt injection, model extraction, etc.)
+- [x] Generate deployable guardrail code snippets (Python, TypeScript, regex patterns)
+- [x] Add severity-weighted priority ranking for recommended guardrails
+- [x] Add tRPC procedures for generating and retrieving guardrail recommendations
+- [x] Build Guardrail Recommender tab in AI Security Validation dashboard
+- [x] Write vitest tests for guardrail recommender
+
+## ATLAS Technique Drill-Down
+- [x] Build technique detail data layer with related payloads, remediation guidance, and references
+- [x] Add remediation guidance per technique with implementation examples
+- [x] Track historical scan results per technique across all scans
+- [x] Add tRPC procedures for technique detail, history, and remediation
+- [x] Build technique drill-down UI with clickable techniques, payload list, scan history, and remediation
+- [x] Write vitest tests for ATLAS technique drill-down

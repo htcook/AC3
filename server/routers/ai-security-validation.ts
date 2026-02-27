@@ -25,6 +25,19 @@ import {
   type AITargetConfig,
   type TestCategory,
 } from "../lib/ai-security-validation";
+import {
+  generateGuardrailRecommendations,
+  getGuardrailTemplatesForCategory,
+  getGuardrailTypes,
+  exportGuardrailConfig,
+  type GuardrailLanguage,
+} from "../lib/guardrail-recommender";
+import {
+  getTechniqueDetail,
+  getTechniqueSummaries,
+  getRemediationGuidance,
+  getTechniquesWithRemediation,
+} from "../lib/atlas-technique-drilldown";
 
 const testCategoryEnum = z.enum([
   "prompt-injection",
@@ -170,6 +183,94 @@ export const aiSecurityValidationRouter = router({
     .mutation(({ input }) => {
       return { deleted: deleteScan(input.scanId) };
     }),
+
+  // ── Guardrail Recommender ─────────────────────────────────────────
+
+  /**
+   * Generate guardrail recommendations from a completed scan
+   */
+  generateGuardrails: protectedProcedure
+    .input(z.object({ scanId: z.string() }))
+    .query(({ input }) => {
+      const scan = getScanResult(input.scanId);
+      if (!scan) return null;
+      if (scan.status !== "completed") return null;
+      return generateGuardrailRecommendations(scan);
+    }),
+
+  /**
+   * Export guardrail rules as deployable code
+   */
+  exportGuardrails: protectedProcedure
+    .input(z.object({
+      scanId: z.string(),
+      language: z.enum(["python", "typescript", "regex"]),
+    }))
+    .query(({ input }) => {
+      const scan = getScanResult(input.scanId);
+      if (!scan || scan.status !== "completed") return null;
+      const recommendation = generateGuardrailRecommendations(scan);
+      const code = exportGuardrailConfig(recommendation, input.language as GuardrailLanguage);
+      return { code, language: input.language, ruleCount: recommendation.totalRules };
+    }),
+
+  /**
+   * Get guardrail templates available for a specific category
+   */
+  getGuardrailTemplates: protectedProcedure
+    .input(z.object({ category: testCategoryEnum }))
+    .query(({ input }) => {
+      const templates = getGuardrailTemplatesForCategory(input.category as TestCategory);
+      return templates.map(t => ({
+        name: t.name,
+        description: t.description,
+        type: t.type,
+        category: t.category,
+        effectiveness: t.effectiveness,
+        effort: t.estimatedEffort,
+      }));
+    }),
+
+  /**
+   * Get all available guardrail types
+   */
+  getGuardrailTypes: protectedProcedure.query(() => {
+    return getGuardrailTypes();
+  }),
+
+  // ── ATLAS Technique Drill-Down ──────────────────────────────────────
+
+  /**
+   * Get detailed information for a specific ATLAS technique
+   */
+  getTechniqueDetail: protectedProcedure
+    .input(z.object({ techniqueId: z.string() }))
+    .query(({ input }) => {
+      return getTechniqueDetail(input.techniqueId);
+    }),
+
+  /**
+   * Get summary list of all techniques with coverage stats
+   */
+  getTechniqueSummaries: protectedProcedure.query(() => {
+    return getTechniqueSummaries();
+  }),
+
+  /**
+   * Get remediation guidance for a specific technique
+   */
+  getRemediation: protectedProcedure
+    .input(z.object({ techniqueId: z.string() }))
+    .query(({ input }) => {
+      return getRemediationGuidance(input.techniqueId);
+    }),
+
+  /**
+   * Get list of techniques that have remediation guidance
+   */
+  getTechniquesWithRemediation: protectedProcedure.query(() => {
+    return getTechniquesWithRemediation();
+  }),
 
   /**
    * Run a quick posture assessment (checklist-based, no live endpoint needed)
