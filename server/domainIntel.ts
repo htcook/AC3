@@ -2120,7 +2120,11 @@ export async function runDomainIntelPipeline(
   try {
     const { analyzeEmailSecurity, generateEmailPostureFindings } = await import('./lib/email-security-analyzer');
     emailSecurityReport = await analyzeEmailSecurity(org.primaryDomain);
-    console.log(`[DomainIntel] Email security: grade=${emailSecurityReport.overallGrade}, score=${emailSecurityReport.overallScore}, weaknesses=${emailSecurityReport.totalWeaknesses}, phishing=${emailSecurityReport.phishingDifficultyRating}`);
+    const hasMx = emailSecurityReport.mx?.records?.length > 0;
+    console.log(`[DomainIntel] Email security: grade=${emailSecurityReport.overallGrade}, score=${emailSecurityReport.overallScore}, weaknesses=${emailSecurityReport.totalWeaknesses}, phishing=${emailSecurityReport.phishingDifficultyRating}, hasMX=${hasMx}`);
+    if (!hasMx) {
+      console.log(`[DomainIntel] No MX records for ${org.primaryDomain} — SPF/DKIM findings suppressed (not a mail server)`);
+    }
 
     // Generate posture findings from email security weaknesses
     const emailFindings = generateEmailPostureFindings(org.primaryDomain, emailSecurityReport);

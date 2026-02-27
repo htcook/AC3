@@ -168,7 +168,7 @@ function PageLoader() {
 }
 
 // Protected route wrapper that requires authentication
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+function ProtectedRoute({ component: Component, pageName }: { component: React.ComponentType; pageName?: string }) {
   const [, setLocation] = useLocation();
   const { data: session, isLoading } = trpc.calderaAuth.session.useQuery();
 
@@ -194,15 +194,19 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     return null;
   }
 
-  return <Component />;
+  return (
+    <PageErrorBoundary pageName={pageName ?? Component.displayName ?? Component.name ?? 'Page'}>
+      <Component />
+    </PageErrorBoundary>
+  );
 }
 
 function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/login" component={Login} />
+        <Route path="/">{() => <PageErrorBoundary pageName="Home"><Home /></PageErrorBoundary>}</Route>
+        <Route path="/login">{() => <PageErrorBoundary pageName="Login"><Login /></PageErrorBoundary>}</Route>
         <Route path="/dashboard">
           <ProtectedRoute component={Dashboard} />
         </Route>

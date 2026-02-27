@@ -24,6 +24,23 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Split heavy vendor libraries into separate chunks
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
+            if (id.includes('mermaid')) return 'vendor-mermaid';
+            if (id.includes('cytoscape')) return 'vendor-cytoscape';
+            if (id.includes('@radix-ui')) return 'vendor-radix';
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('codemirror') || id.includes('@codemirror') || id.includes('@lezer')) return 'vendor-editor';
+            if (id.includes('katex')) return 'vendor-katex';
+          }
+        },
+      },
+    },
   },
   server: {
     host: true,

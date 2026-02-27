@@ -5382,3 +5382,21 @@
 - [x] Add Array.isArray defensive guard to routers.ts threat actor matching
 - [x] Fix vuln-feeds test timeouts (increased from 60s/30s to 120s)
 - [x] Fix DigitalOcean test to handle expired/revoked tokens gracefully
+## DigitalOcean Token Update
+- [x] Request updated DigitalOcean access token from user
+- [x] Verify new token authenticates successfully (still 403 - same token re-provided)
+## Global React Error Boundary
+- [x] Create ErrorBoundary component with styled fallback UI (already existed)
+- [x] Wrap route-level components in App.tsx with ErrorBoundary
+- [x] Add reset/retry functionality to error fallback (already existed)
+- [x] Write vitest test for ErrorBoundary component
+## Code-Split Large Chunks
+- [x] Convert DomainIntelResults to lazy-loaded dynamic import (already was lazy)
+- [x] Convert other large page components (>150KB) to lazy imports (all already lazy)
+- [x] Add Suspense fallback loading states (already present)
+- [x] Verify build output shows reduced chunk sizes (manualChunks added)
+## SPF/DKIM Findings Filter for Non-Mail Servers
+- [x] Identify where SPF/DKIM posture findings are generated in the pipeline
+- [x] Add logic to skip SPF/DKIM checks for assets that aren't mail servers
+- [x] Ensure mail-server detection uses MX records (no MX = no mail server)
+- [x] Write vitest test for the filtering logic (6 tests pass)
