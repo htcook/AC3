@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM domain_intel_scans WHERE primaryDomain REGEXP '^(test-|get-|trpc-|threat-model-|campaigns-|update-|asset-test-|multi-asset-|scores-|findings-|get-scan-|enterprise-[0-9]|msp-[0-9]|saas-[0-9]|paas-[0-9]|iaas-[0-9]|mixed_hosting-[0-9]|other-[0-9])';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DELETE FROM domain_intel_scans WHERE primaryDomain REGEXP '^(test-|get-|trpc-|threat-model-|campaigns-|update-|asset-test-|multi-asset-|scores-|findings-|get-scan-|enterprise-[0-9]|msp-[0-9]|saas-[0-9]|paas-[0-9]|iaas-[0-9]|mixed_hosting-[0-9]|other-[0-9])';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 65
+}

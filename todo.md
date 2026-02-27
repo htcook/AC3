@@ -5524,3 +5524,21 @@
 - [x] Show credential template count + matched creds on scan cards (orange KeyRound badge)
 - [x] Toast notification shows injected template count on scan start
 - [x] 22 vitest tests covering template mapping, CLI args, summary, and target parsing — all passing
+
+## Fix Broken Sidebar Links & Cleanup
+- [x] Investigated source of test scans — vitest integration tests writing to production DB (no test DB isolation)
+- [x] Audited all 127 sidebar nav links against App.tsx routes — zero broken links found
+- [x] Deleted test scan data from database (test-monitor-*, get-test-*, trpc-get-*, threat-model-*, campaigns-*)
+- [x] Fixed 404 page to use AppShell wrapper with dark theme, sidebar nav, and quick nav links
+- [x] Identified vitest as source — tests use production DATABASE_URL (needs test DB isolation in future)
+
+## Sidebar Navigation Consolidation & Deep Audit
+- [x] Extracted all 127 sidebar items across 8 groups and 22 sub-sections
+- [x] Cross-referenced all sidebar hrefs against App.tsx routes — zero broken links
+- [x] Consolidated sidebar from 127 items to 59 items (54% reduction)
+- [x] Merged related pages into hub pages (ROE→Engagements, HTTPX/Naabu→Discovery Toolkit, etc.)
+- [x] Grouped red team and pentest items intuitively: Exploit Ops (Phishing + Exploits + C2), Emulation (Agents + Validation)
+- [x] All categories collapsed by default (only active group auto-expands)
+- [x] Reduced sub-sections from 22 to 14 for cleaner navigation
+- [x] Delivered consolidation analysis report
+- [x] 17 vitest tests for sidebar structure — all passing

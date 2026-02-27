@@ -1,0 +1,14 @@
+{
+  "query": "SELECT \n  (SELECT COUNT(*) FROM domain_intel_scans) as total_scans,\n  (SELECT COUNT(*) FROM domain_intel_scans WHERE primaryDomain REGEXP '^(test-|get-|trpc-|threat-model-|campaigns-|update-|asset-test-|multi-asset-|scores-|findings-|get-scan-|enterprise-[0-9]|msp-[0-9]|saas-[0-9]|paas-[0-9]|iaas-[0-9]|mixed_hosting-[0-9]|other-[0-9])') as test_scans;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT \n  (SELECT COUNT(*) FROM domain_intel_scans) as total_scans,\n  (SELECT COUNT(*) FROM domain_intel_scans WHERE primaryDomain REGEXP '^(test-|get-|trpc-|threat-model-|campaigns-|update-|asset-test-|multi-asset-|scores-|findings-|get-scan-|enterprise-[0-9]|msp-[0-9]|saas-[0-9]|paas-[0-9]|iaas-[0-9]|mixed_hosting-[0-9]|other-[0-9])') as test_scans;",
+  "rows": [
+    {
+      "total_scans": "38",
+      "test_scans": "19"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_scans\ttest_scans\n38\t19\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

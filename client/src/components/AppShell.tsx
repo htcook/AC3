@@ -124,23 +124,16 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
           { href: "/workflows", icon: Rocket, label: "MISSION WORKFLOWS" },
           { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
-          { href: "/roe-builder", icon: ScrollText, label: "ROE BUILDER" },
           { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
-          { href: "/campaign-execution", icon: Activity, label: "CAMPAIGN EXEC" },
-          { href: "/engagement-automation", icon: Zap, label: "ENGAGEMENT AUTO" },
-          { href: "/engagement-pipeline", icon: Workflow, label: "AUTO PIPELINE" },
+          { href: "/engagement-automation", icon: Zap, label: "AUTOMATION HUB" },
         ],
       },
       {
         id: "cmd-scoring",
-        label: "Risk & Scoring",
+        label: "Risk & Analysis",
         items: [
-          { href: "/scoring", icon: Crosshair, label: "RISK SCORING" },
-          { href: "/risk-trending", icon: BarChart3, label: "RISK TRENDING" },
+          { href: "/scoring", icon: Crosshair, label: "RISK CENTER" },
           { href: "/ai-attack-planner", icon: Brain, label: "AI ATTACK PLANNER" },
-          { href: "/corroboration-engine", icon: Microscope, label: "CORROBORATION" },
-          { href: "/nvd-cve-matcher", icon: ScanSearch, label: "NVD CVE MATCHER" },
-          { href: "/unified-pipeline", icon: Layers3, label: "UNIFIED PIPELINE" },
           { href: "/preflight-checks", icon: Gauge, label: "PRE-FLIGHT CHECKS" },
           { href: "/attack-coverage", icon: Map, label: "ATT&CK COVERAGE" },
         ],
@@ -159,22 +152,17 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
           { href: "/discovery-chain", icon: GitMerge, label: "DISCOVERY CHAIN" },
           { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
-          { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
           { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
-          { href: "/scan-scheduler", icon: Clock, label: "SCAN SCHEDULER" },
-          { href: "/scan-compare", icon: ArrowLeftRight, label: "SCAN COMPARE" },
           { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
         ],
       },
       {
         id: "surf-tools",
-        label: "Discovery Tools",
+        label: "Scanning & Enumeration",
         items: [
-          { href: "/tools/subfinder", icon: Globe, label: "SUBFINDER" },
-          { href: "/tools/httpx", icon: Wifi, label: "HTTPX" },
-          { href: "/tools/naabu", icon: Network, label: "NAABU" },
-          { href: "/nuclei-scanner", icon: ScanLine, label: "NUCLEI SCANNER" },
-          { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
+          { href: "/tools/subfinder", icon: Globe, label: "DISCOVERY TOOLKIT" },
+          { href: "/nuclei-scanner", icon: ScanLine, label: "VULN SCANNING" },
+          { href: "/scan-scheduler", icon: Clock, label: "SCAN MANAGEMENT" },
         ],
       },
       {
@@ -183,12 +171,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
           { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
           { href: "/cloud-attack-paths", icon: Cloud, label: "CLOUD PATHS" },
-          { href: "/ad-attack-sim", icon: Server, label: "AD ATTACK SIM" },
-          { href: "/ad-domain-connector", icon: Network, label: "AD CONNECTOR" },
-          { href: "/ad-attack-path-graph", icon: GitBranch, label: "PATH GRAPH" },
-          { href: "/forest-mapper", icon: TreePine, label: "FOREST MAPPER" },
-          { href: "/bloodhound-import", icon: Crosshair, label: "AD GRAPH IMPORT" },
-          { href: "/attack-path-discovery", icon: GitBranch, label: "PATH DISCOVERY" },
+          { href: "/ad-attack-sim", icon: Server, label: "AD SECURITY" },
         ],
       },
     ],
@@ -204,10 +187,8 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Agents & Emulation",
         items: [
           { href: "/agents", icon: Cpu, label: "AGENTS" },
-          { href: "/agent-manager", icon: Fingerprint, label: "AGENT MANAGER" },
           { href: "/emulation-playbooks", icon: BookMarked, label: "PLAYBOOKS" },
           { href: "/ability-graph", icon: GitBranch, label: "ABILITY GRAPH" },
-          { href: "/ability-graph-compare", icon: ArrowLeftRight, label: "GRAPH COMPARE" },
           { href: "/atomic-red-team", icon: Atom, label: "ATT&CK TESTS" },
           { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
         ],
@@ -217,16 +198,9 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Defense Validation",
         items: [
           { href: "/purple-team", icon: Eye, label: "PURPLE TEAM" },
-          { href: "/edr-validation", icon: ShieldCheck, label: "EDR VALIDATION" },
-          { href: "/agentless-bas", icon: ShieldCheck, label: "AGENTLESS BAS" },
-          { href: "/ngfw-validation", icon: Shield, label: "NGFW VALIDATION" },
-          { href: "/email-security", icon: Zap, label: "EMAIL SECURITY" },
-          { href: "/ai-security-validation", icon: BrainCircuit, label: "AI SECURITY (ATLAS)" },
-          { href: "/rule-validator", icon: ShieldCheck, label: "RULE VALIDATOR" },
+          { href: "/edr-validation", icon: ShieldCheck, label: "DEFENSE TESTING" },
           { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
-          { href: "/continuous-validation", icon: Calendar, label: "CONTINUOUS VALIDATION" },
-          { href: "/active-verification", icon: Radar, label: "ACTIVE VERIFICATION" },
-          { href: "/remediation-verification", icon: ClipboardCheck, label: "REMEDIATION VERIFY" },
+          { href: "/continuous-validation", icon: Calendar, label: "VALIDATION OPS" },
         ],
       },
     ],
@@ -242,9 +216,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Phishing Campaigns",
         items: [
           { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
-          { href: "/campaign-wizard", icon: Rocket, label: "LAUNCH WIZARD" },
-          { href: "/landing-page-builder", icon: Palette, label: "PAGE BUILDER" },
-          { href: "/template-generator", icon: Sparkles, label: "TEMPLATE GEN" },
+          { href: "/landing-page-builder", icon: Palette, label: "PHISHING ASSETS" },
         ],
       },
       {
@@ -252,7 +224,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Exploit Tooling",
         items: [
           { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
-          { href: "/validation-engine", icon: FlaskConical, label: "VALIDATION ENGINE" },
           { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
           { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
           { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
@@ -262,14 +233,10 @@ const NAV_GROUPS: NavGroup[] = [
         id: "exp-c2",
         label: "C2 & Post-Exploit",
         items: [
-          { href: "/c2-command-center", icon: Radio, label: "C2 COMMAND CENTER" },
-          { href: "/msf-servers", icon: Server, label: "C2 SERVERS" },
-          { href: "/sliver-c2", icon: Hexagon, label: "IMPLANT C2" },
+          { href: "/c2-command-center", icon: Radio, label: "C2 HUB" },
           { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
           { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
           { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
-          { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
-          { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
         ],
       },
     ],
@@ -285,29 +252,19 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Threat Intelligence",
         items: [
           { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
-          { href: "/threat-catalog", icon: Database, label: "THREAT CATALOG" },
           { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
           { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
           { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
-          { href: "/threat-actor-crawler", icon: Satellite, label: "ACTOR INTEL CRAWLER" },
+          { href: "/threat-actor-crawler", icon: Satellite, label: "ACTOR INTEL" },
           { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
         ],
       },
       {
         id: "intel-credentials",
-        label: "Credentials & Exposure",
+        label: "Credentials & Export",
         items: [
-          { href: "/cloud-credentials", icon: Key, label: "CLOUD CREDENTIALS" },
-          { href: "/credential-alerts", icon: Bell, label: "CREDENTIAL ALERTS" },
-          { href: "/credential-auto-rotation", icon: RefreshCw, label: "AUTO-ROTATION" },
-        ],
-      },
-      {
-        id: "intel-export",
-        label: "Data Export",
-        items: [
-          { href: "/stix-export", icon: FileJson, label: "STIX/TAXII EXPORT" },
-          { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
+          { href: "/cloud-credentials", icon: Key, label: "CREDENTIAL CENTER" },
+          { href: "/stix-export", icon: FileJson, label: "DATA EXPORT" },
         ],
       },
     ],
@@ -320,26 +277,10 @@ const NAV_GROUPS: NavGroup[] = [
     subSections: [
       {
         id: "ksi-core",
-        label: "Indicators & Evidence",
+        label: "Indicators & Compliance",
         items: [
-          { href: "/ksi-dashboard", icon: BadgeCheck, label: "INDICATORS DASHBOARD" },
-          { href: "/ksi-evidence-chain", icon: ShieldAlert, label: "EVIDENCE CHAIN" },
-          { href: "/ksi-auto-collector", icon: Zap, label: "AUTO-COLLECTION" },
-          { href: "/ksi-threat-map", icon: Crosshair, label: "THREAT MAP" },
-          { href: "/ksi-validation", icon: ClipboardCheck, label: "VALIDATION SCHEDULER" },
-          { href: "/attack-vector-engine", icon: Crosshair, label: "ATTACK VECTORS" },
-          { href: "/compensating-controls", icon: ShieldPlus, label: "COMPENSATING CONTROLS" },
-          { href: "/scheduled-collection", icon: Clock, label: "SCHEDULED COLLECTION" },
-        ],
-      },
-      {
-        id: "ksi-compliance",
-        label: "Compliance",
-        items: [
-          { href: "/compliance", icon: FileText, label: "COMPLIANCE" },
-          { href: "/compliance-mapper", icon: ClipboardCheck, label: "COMPLIANCE MAPPER" },
-          { href: "/fips-compliance", icon: Lock, label: "FIPS COMPLIANCE" },
-          { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
+          { href: "/ksi-dashboard", icon: BadgeCheck, label: "KSI DASHBOARD" },
+          { href: "/compliance", icon: FileText, label: "COMPLIANCE CENTER" },
         ],
       },
     ],
@@ -351,26 +292,13 @@ const NAV_GROUPS: NavGroup[] = [
     icon: BarChart3,
     subSections: [
       {
-        id: "rpt-reports",
-        label: "Reports",
+        id: "rpt-all",
+        label: "Reports & Guides",
         items: [
-          { href: "/post-engagement-report", icon: FileText, label: "ENGAGEMENT REPORT" },
-          { href: "/reports/generate", icon: BarChart3, label: "REPORT GENERATOR" },
-          { href: "/bia-report", icon: ClipboardCheck, label: "AUTO-BIA REPORT" },
-          { href: "/report-templates", icon: FileText, label: "REPORT TEMPLATES" },
-        ],
-      },
-      {
-        id: "rpt-guides",
-        label: "Guides & Reference",
-        items: [
-          { href: "/guide/gophish", icon: BookOpen, label: "PHISHING OPS GUIDE" },
-          { href: "/guide/caldera", icon: BookOpen, label: "EMULATION GUIDE" },
-          { href: "/templates", icon: FileText, label: "TEMPLATE LIBRARY" },
-          { href: "/campaign-archetypes", icon: Layers, label: "ARCHETYPES" },
-          { href: "/abilities-library", icon: Layers, label: "ABILITIES" },
-          { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
-          { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING PIPELINE" },
+          { href: "/reports/generate", icon: BarChart3, label: "REPORTS" },
+          { href: "/guide/gophish", icon: BookOpen, label: "GUIDES" },
+          { href: "/ttp-knowledge", icon: Brain, label: "KNOWLEDGE BASE" },
+          { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING" },
         ],
       },
     ],
@@ -382,52 +310,14 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Settings,
     subSections: [
       {
-        id: "plat-team",
-        label: "Team & Access",
+        id: "plat-admin",
+        label: "Administration",
         items: [
           { href: "/team", icon: Users, label: "TEAM" },
-          { href: "/tenants", icon: Users, label: "TENANTS" },
-          { href: "/activity", icon: FileText, label: "ACTIVITY" },
           { href: "/audit-log", icon: FileText, label: "AUDIT LOG" },
-        ],
-      },
-      {
-        id: "plat-integrations",
-        label: "Integrations",
-        items: [
-          { href: "/siem-connectors", icon: Radio, label: "SIEM CONNECTORS" },
-          { href: "/siem-feedback", icon: Radio, label: "SIEM FEEDBACK" },
-          { href: "/soar-connectors", icon: ArrowLeftRight, label: "SOAR CONNECTORS" },
-          { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
-          { href: "/cicd-pipeline", icon: Workflow, label: "CI/CD PIPELINE" },
-        ],
-      },
-      {
-        id: "plat-ssil",
-        label: "SSIL",
-        items: [
-          { href: "/ssil", icon: Scan, label: "SSIL DASHBOARD" },
-          { href: "/ssil/policies", icon: ShieldCheck, label: "SCAN POLICIES" },
-          { href: "/ssil/guardrails", icon: BrainCircuit, label: "LLM GUARDRAILS" },
-          { href: "/ssil/observations", icon: FileStack, label: "OBSERVATIONS" },
-          { href: "/ssil/alerts", icon: Bell, label: "ALERT RULES" },
-          { href: "/ssil/correlation", icon: GitMerge, label: "CORRELATION" },
-        ],
-      },
-      {
-        id: "plat-infra",
-        label: "Infrastructure",
-        items: [
-          { href: "/evidence", icon: Archive, label: "EVIDENCE LOCKER" },
-          { href: "/infra-reference", icon: Globe2, label: "INFRASTRUCTURE" },
-          { href: "/infra-wiki", icon: Network, label: "INFRA WIKI" },
-          { href: "/live-infra", icon: Server, label: "LIVE INFRASTRUCTURE" },
-        ],
-      },
-      {
-        id: "plat-monitoring",
-        label: "Monitoring",
-        items: [
+          { href: "/siem-connectors", icon: Radio, label: "INTEGRATIONS" },
+          { href: "/ssil", icon: Scan, label: "SSIL" },
+          { href: "/live-infra", icon: Server, label: "INFRASTRUCTURE" },
           { href: "/error-dashboard", icon: Bug, label: "ERROR DASHBOARD" },
           { href: "/oem-credentials", icon: Key, label: "DEFAULT CREDENTIALS" },
         ],
@@ -866,7 +756,7 @@ function NavSearch({
         ))}
         {!query.trim() && (
           <div className="px-4 py-8 text-center text-muted-foreground/40 text-xs font-display tracking-wider">
-            TYPE TO SEARCH 113 PAGES
+            TYPE TO SEARCH ALL PAGES
           </div>
         )}
       </div>

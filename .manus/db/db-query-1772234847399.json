@@ -1,0 +1,190 @@
+{
+  "query": "SELECT id, primaryDomain, status, createdAt FROM domain_intel_scans ORDER BY id DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, createdAt FROM domain_intel_scans ORDER BY id DESC LIMIT 30;",
+  "rows": [
+    {
+      "id": "1380208",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 22:14:54"
+    },
+    {
+      "id": "1380207",
+      "primaryDomain": "get-test-1772228035460.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:45:02"
+    },
+    {
+      "id": "1380206",
+      "primaryDomain": "test-monitor-1772228035334.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:45:02"
+    },
+    {
+      "id": "1380205",
+      "primaryDomain": "threat-model-1772228047762.com",
+      "status": "completed",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380204",
+      "primaryDomain": "campaigns-1772228047727.com",
+      "status": "completed",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380203",
+      "primaryDomain": "trpc-get-1772228047626.com",
+      "status": "completed",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380202",
+      "primaryDomain": "findings-1772228047423.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380201",
+      "primaryDomain": "scores-1772228047282.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380200",
+      "primaryDomain": "multi-asset-1772228047123.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380199",
+      "primaryDomain": "asset-test-1772228047094.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380198",
+      "primaryDomain": "other-1772228047078.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380197",
+      "primaryDomain": "mixed_hosting-1772228047064.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380196",
+      "primaryDomain": "iaas-1772228046998.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:07"
+    },
+    {
+      "id": "1380195",
+      "primaryDomain": "paas-1772228046984.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:06"
+    },
+    {
+      "id": "1380194",
+      "primaryDomain": "saas-1772228046968.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:06"
+    },
+    {
+      "id": "1380193",
+      "primaryDomain": "enterprise-1772228046955.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:06"
+    },
+    {
+      "id": "1380192",
+      "primaryDomain": "msp-1772228046939.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:06"
+    },
+    {
+      "id": "1380191",
+      "primaryDomain": "update-1772228046892.com",
+      "status": "completed",
+      "createdAt": "2026-02-27 21:34:06"
+    },
+    {
+      "id": "1380190",
+      "primaryDomain": "get-scan-1772228046862.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:06"
+    },
+    {
+      "id": "1380189",
+      "primaryDomain": "test-1772228046602.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 21:34:06"
+    },
+    {
+      "id": "1380176",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 19:26:05"
+    },
+    {
+      "id": "1380175",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 19:26:05"
+    },
+    {
+      "id": "1380047",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 17:40:37"
+    },
+    {
+      "id": "1380046",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 17:40:37"
+    },
+    {
+      "id": "1380022",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 15:47:07"
+    },
+    {
+      "id": "1380013",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 15:31:27"
+    },
+    {
+      "id": "1290209",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 00:55:50"
+    },
+    {
+      "id": "1260003",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-26 05:32:57"
+    },
+    {
+      "id": "1230175",
+      "primaryDomain": "vianova.ai",
+      "status": "completed",
+      "createdAt": "2026-02-26 00:24:43"
+    },
+    {
+      "id": "1230174",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "createdAt": "2026-02-26 00:21:35"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\tcreatedAt\n1380208\taceofcloud.com\tscan_complete\t2026-02-27 22:14:54\n1380207\tget-test-1772228035460.com\tscan_complete\t2026-02-27 21:45:02\n1380206\ttest-monitor-1772228035334.com\tscan_complete\t2026-02-27 21:45:02\n1380205\tthreat-model-1772228047762.com\tcompleted\t2026-02-27 21:34:07\n1380204\tcampaigns-1772228047727.com\tcompleted\t2026-02-27 21:34:07\n1380203\ttrpc-get-1772228047626.com\tcompleted\t2026-02-27 21:34:07\n1380202\tfindings-1772228047423.com\tscan_complete\t2026-02-27 21:34:07\n1380201\tscores-1772228047282.com\tscan_complete\t2026-02-27 21:34:07\n1380200\tmulti-asset-1772228047123.com\tscan_complete\t2026-02-27 21:34:07\n1380199\tasset-test-1772228047094.com\tscan_complete\t2026-02-27 21:34:07\n1380198\tother-1772228047078.com\tscan_complete\t2026-02-27 21:34:07\n1380197\tmixed_hosting-1772228047064.com\tscan_complete\t2026-02-27 21:34:07\n1380196\tiaas-1772228046998.com\tscan_complete\t2026-02-27 21:34:07\n1380195\tpaas-1772228046984.com\tscan_complete\t2026-02-27 21:34:06\n1380194\tsaas-1772228046968.com\tscan_complete\t2026-02-27 21:34:06\n1380193\tenterprise-1772228046955.com\tscan_complete\t2026-02-27 21:34:06\n1380192\tmsp-1772228046939.com\tscan_complete\t2026-02-27 21:34:06\n1380191\tupdate-1772228046892.com\tcompleted\t2026-02-27 21:34:06\n1380190\tget-scan-1772228046862.com\tscan_complete\t2026-02-27 21:34:06\n1380189\ttest-1772228046602.com\tscan_complete\t2026-02-27 21:34:06\n1380176\tdashboard-dev.vianovahealth.com\tscan_complete\t2026-02-27 19:26:05\n1380175\tapi.dev.vianova.ai\tscan_complete\t2026-02-27 19:26:05\n1380047\tdashboard-dev.vianovahealth.com\tscan_complete\t2026-02-27 17:40:37\n1380046\tapi.dev.vianova.ai\tscan_complete\t2026-02-27 17:40:37\n1380022\tvianova.ai\tscan_complete\t2026-02-27 15:47:07\n1380013\taceofcloud.com\tscan_complete\t2026-02-27 15:31:27\n1290209\tvianova.ai\tscan_complete\t2026-02-27 00:55:50\n1260003\tvianova.ai\tscan_complete\t2026-02-26 05:32:57\n1230175\tvianova.ai\tcompleted\t2026-02-26 00:24:43\n1230174\taceofcloud.com\tcompleted\t2026-02-26 00:21:35\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}
