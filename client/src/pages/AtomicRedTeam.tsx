@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
+import { safeJsonParse } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -610,7 +611,7 @@ export default function AtomicRedTeam() {
                     <div>
                       <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Input Arguments</h4>
                       <div className="space-y-1">
-                        {Object.entries(JSON.parse(selectedTest.inputArguments)).map(([key, val]: [string, any]) => (
+                        {Object.entries(safeJsonParse<Record<string, any>>(selectedTest.inputArguments, {})).map(([key, val]: [string, any]) => (
                           <div key={key} className="flex items-center gap-2 p-2 rounded bg-background/50 border border-border/30">
                             <code className="text-xs font-mono text-primary">{key}</code>
                             <span className="text-xs text-muted-foreground">({val.type})</span>

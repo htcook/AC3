@@ -4399,17 +4399,18 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               try {
                 const { matchThreatActors } = await import('./lib/threat-actor-matcher');
                 const allTech: string[] = [];
-                for (const a of result.assets) {
-                  if (a.asset.technologies) allTech.push(...a.asset.technologies);
+                const assets = Array.isArray(result.assets) ? result.assets : [];
+                for (const a of assets) {
+                  if (a.asset?.technologies) allTech.push(...a.asset.technologies);
                 }
                 threatActorMatches = await matchThreatActors({
                   sector: pipelineInput.sector,
                   clientType: pipelineInput.clientType,
                   discoveredTechnologies: allTech,
-                  discoveredAssets: result.assets.map(a => ({
-                    hostname: a.asset.hostname,
-                    assetType: a.asset.assetType,
-                    technologies: a.asset.technologies,
+                  discoveredAssets: assets.map(a => ({
+                    hostname: a.asset?.hostname,
+                    assetType: a.asset?.assetType,
+                    technologies: a.asset?.technologies,
                   })),
                   riskScore: result.overallRiskScore,
                   criticalFunctions: pipelineInput.criticalFunctions,

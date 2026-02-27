@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeJsonParse } from "@/lib/utils";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -323,8 +324,8 @@ function ScanCard({ scan, onPoll, onRefresh }: { scan: any; onPoll: (id: number)
     { enabled: false }
   );
 
-  const alertCounts = scan.alertCounts ? JSON.parse(scan.alertCounts) : { high: 0, medium: 0, low: 0, info: 0 };
-  const techStack = scan.detectedTechStack ? JSON.parse(scan.detectedTechStack) : [];
+  const alertCounts = scan.alertCounts ? safeJsonParse(scan.alertCounts, { high: 0, medium: 0, low: 0, info: 0 }) : { high: 0, medium: 0, low: 0, info: 0 };
+  const techStack = scan.detectedTechStack ? safeJsonParse<any[]>(scan.detectedTechStack, []) : [];
   const modeConfig = MODE_CONFIG[scan.scanMode as keyof typeof MODE_CONFIG] || MODE_CONFIG.passive;
   const ModeIcon = modeConfig.icon;
   const isRunning = !["completed", "error"].includes(scan.status);

@@ -5369,3 +5369,16 @@
 - [x] Add visual distinction between CVSS (industry standard) and Hybrid (Ace C3 proprietary)
 - [x] Add tooltips explaining what each score represents
 - [x] Apply to DomainIntelResults asset cards, finding cards, and risk summary sections
+## Critical UI Error Fixes
+- [x] Add safeJsonParse utility to prevent component crashes from malformed JSON data
+- [x] Fix unguarded JSON.parse in AttackVectorEngine.tsx (5 instances in render paths)
+- [x] Fix unguarded JSON.parse in AtomicRedTeam.tsx (1 instance in render path)
+- [x] Fix unguarded JSON.parse in AttackPaths.tsx (4 instances in render paths)
+- [x] Fix unguarded JSON.parse in DomainIntelResults.tsx (3 instances in render paths)
+- [x] Fix unguarded JSON.parse in EmulationPlaybooks.tsx (2 instances in render paths)
+- [x] Fix unguarded JSON.parse in WebAppScanner.tsx (2 instances in render paths)
+- [x] Fix unguarded JSON.parse in Webhooks.tsx (2 instances in render paths)
+- [x] Add Array.isArray defensive guard to scan-scheduler.ts buildScanSnapshot
+- [x] Add Array.isArray defensive guard to routers.ts threat actor matching
+- [x] Fix vuln-feeds test timeouts (increased from 60s/30s to 120s)
+- [x] Fix DigitalOcean test to handle expired/revoked tokens gracefully

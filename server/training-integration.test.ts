@@ -115,19 +115,19 @@ describe("AppShell Navigation - Training Dashboard", () => {
     expect(content).toContain("TRAINING PIPELINE");
   });
 
-  it("training-dashboard route should be in the intelligence nav group", async () => {
+  it("training-dashboard route should be in the reports & knowledge nav group", async () => {
     const fs = await import("fs");
     const path = await import("path");
     const appShellPath = path.resolve(__dirname, "../client/src/components/AppShell.tsx");
     const content = fs.readFileSync(appShellPath, "utf-8");
-    // The training-dashboard entry should appear between INTELLIGENCE label and KNOWLEDGE BASE
-    const intelligenceIdx = content.indexOf('"INTELLIGENCE"');
-    const knowledgeIdx = content.indexOf('"KNOWLEDGE BASE"');
+    // After sidebar reorganization, training-dashboard is in REPORTS & KNOWLEDGE group
+    const reportsIdx = content.indexOf('"REPORTS & KNOWLEDGE"');
+    const platformIdx = content.indexOf('"PLATFORM"');
     const trainingIdx = content.indexOf("/training-dashboard");
-    expect(intelligenceIdx).toBeGreaterThan(-1);
-    expect(knowledgeIdx).toBeGreaterThan(-1);
-    expect(trainingIdx).toBeGreaterThan(intelligenceIdx);
-    expect(trainingIdx).toBeLessThan(knowledgeIdx);
+    expect(reportsIdx).toBeGreaterThan(-1);
+    expect(platformIdx).toBeGreaterThan(-1);
+    expect(trainingIdx).toBeGreaterThan(reportsIdx);
+    expect(trainingIdx).toBeLessThan(platformIdx);
   });
 });
 

@@ -1,6 +1,7 @@
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeJsonParse } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -361,7 +362,7 @@ export default function AttackPaths() {
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {(() => {
-                      const nodes = typeof path.nodes === "string" ? JSON.parse(path.nodes) : path.nodes;
+                      const nodes = typeof path.nodes === "string" ? safeJsonParse<any[]>(path.nodes, []) : path.nodes;
                       return `${Array.isArray(nodes) ? nodes.length : 0} nodes`;
                     })()}
                   </div>
@@ -402,13 +403,13 @@ export default function AttackPaths() {
               </CardHeader>
               <CardContent>
                 <AttackPathGraph
-                  nodes={typeof selectedAp.nodes === "string" ? JSON.parse(selectedAp.nodes as string) : (selectedAp.nodes as any[] || [])}
-                  edges={typeof selectedAp.edges === "string" ? JSON.parse(selectedAp.edges as string) : (selectedAp.edges as any[] || [])}
+                  nodes={typeof selectedAp.nodes === "string" ? safeJsonParse<any[]>(selectedAp.nodes as string, []) : (selectedAp.nodes as any[] || [])}
+                  edges={typeof selectedAp.edges === "string" ? safeJsonParse<any[]>(selectedAp.edges as string, []) : (selectedAp.edges as any[] || [])}
                 />
                 {/* Node summary */}
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {(() => {
-                    const nodes = typeof selectedAp.nodes === "string" ? JSON.parse(selectedAp.nodes as string) : (selectedAp.nodes || []);
+                    const nodes = typeof selectedAp.nodes === "string" ? safeJsonParse<any[]>(selectedAp.nodes as string, []) : (selectedAp.nodes || []);
                     const typeCounts: Record<string, number> = {};
                     for (const n of (nodes as any[])) {
                       typeCounts[n.type] = (typeCounts[n.type] || 0) + 1;

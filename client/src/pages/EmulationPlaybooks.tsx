@@ -1,6 +1,7 @@
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeJsonParse } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import AppShell from "@/components/AppShell";
 
 function AdversaryProfileCard({ profile: raw }: { profile: unknown }) {
   if (!raw) return null;
-  const profile: any = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const profile: any = typeof raw === "string" ? safeJsonParse(raw, {}) : raw;
   return (
     <div className="rounded-lg border p-4 bg-zinc-900/50">
       <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
@@ -392,7 +393,7 @@ export default function EmulationPlaybooks() {
                   <h4 className="text-sm font-semibold mb-3">Kill Chain Phases</h4>
                   {(() => {
                     const phases = typeof selectedPb.phases === "string"
-                      ? JSON.parse(selectedPb.phases)
+                      ? safeJsonParse<any[]>(selectedPb.phases, [])
                       : selectedPb.phases;
                     if (!Array.isArray(phases) || phases.length === 0) {
                       return <p className="text-sm text-muted-foreground">No phases defined</p>;

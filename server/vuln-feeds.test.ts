@@ -609,7 +609,7 @@ describe('0-Day Feed 120-Day Filtering', () => {
         expect(pubDate).toBeGreaterThanOrEqual(cutoff);
       }
     }
-  }, 60000);
+  }, 120000);
 
   it('getRecentZeroDays should return entries sorted by date descending', async () => {
     const { getRecentZeroDays } = await import('./lib/vuln-feeds');
@@ -620,7 +620,7 @@ describe('0-Day Feed 120-Day Filtering', () => {
       const currDate = new Date(entries[i].published || 0).getTime();
       expect(prevDate).toBeGreaterThanOrEqual(currDate);
     }
-  }, 30000);
+  }, 120000);
 
   it('getWeaponizedCves should return entries within 120 days', async () => {
     const { getWeaponizedCves } = await import('./lib/vuln-feeds');

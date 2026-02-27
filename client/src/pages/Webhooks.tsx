@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeJsonParse } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -237,7 +238,7 @@ export default function Webhooks() {
                     <Badge variant="outline" className="text-[10px]">{wh.format}</Badge>
                     <span className="text-xs text-muted-foreground">
                       {(() => {
-                        const events = typeof wh.events === "string" ? JSON.parse(wh.events) : wh.events;
+                        const events = typeof wh.events === "string" ? safeJsonParse<string[]>(wh.events, []) : wh.events;
                         return `${Array.isArray(events) ? events.length : 0} events`;
                       })()}
                     </span>
@@ -324,7 +325,7 @@ export default function Webhooks() {
                   <div className="flex flex-wrap gap-1">
                     {(() => {
                       const events = typeof selectedWh.events === "string"
-                        ? JSON.parse(selectedWh.events)
+                        ? safeJsonParse<string[]>(selectedWh.events, [])
                         : selectedWh.events;
                       return (events as string[] || []).map((ev: string) => (
                         <Badge key={ev} variant="outline" className="text-[10px]">

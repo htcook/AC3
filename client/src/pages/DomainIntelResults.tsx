@@ -2,6 +2,7 @@
 import AppShell from "@/components/AppShell";
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeJsonParse } from "@/lib/utils";
 import { useParams, useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -182,7 +183,7 @@ export default function DomainIntelResults() {
     exploitable: r.exploitable ?? false,
     scoreAdjustment: r.scoreAdjustment ?? 0,
     durationMs: r.durationMs ?? 0,
-    evidence: r.evidence ? (typeof r.evidence === 'string' ? JSON.parse(r.evidence) : r.evidence) : null,
+    evidence: r.evidence ? (typeof r.evidence === 'string' ? safeJsonParse(r.evidence, null) : r.evidence) : null,
     errorMessage: r.errorMessage,
     timestamp: r.completedAt ? String(r.completedAt) : r.startedAt ? String(r.startedAt) : '',
     evidenceUrl: r.evidenceUrl ?? null,
@@ -577,7 +578,7 @@ export default function DomainIntelResults() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => {
                 const allFindings = assets.flatMap((a: any) => {
-                  const findings = a.postureFindings || (a.analysis ? JSON.parse(a.analysis)?.postureFindings : []) || [];
+                  const findings = a.postureFindings || (a.analysis ? safeJsonParse<any>(a.analysis, {})?.postureFindings : []) || [];
                   return findings;
                 });
                 exportFindings(scan.primaryDomain, allFindings, 'csv');
@@ -587,7 +588,7 @@ export default function DomainIntelResults() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
                 const allFindings = assets.flatMap((a: any) => {
-                  const findings = a.postureFindings || (a.analysis ? JSON.parse(a.analysis)?.postureFindings : []) || [];
+                  const findings = a.postureFindings || (a.analysis ? safeJsonParse<any>(a.analysis, {})?.postureFindings : []) || [];
                   return findings;
                 });
                 exportFindings(scan.primaryDomain, allFindings, 'pdf');

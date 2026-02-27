@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeJsonParse } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -252,17 +253,17 @@ export default function AttackVectorEngine() {
                           )}
                           {vector.mitreTechniques && (
                             <span className="flex items-center gap-1">
-                              <Target className="h-3 w-3" /> {JSON.parse(vector.mitreTechniques || "[]").length} techniques
+                              <Target className="h-3 w-3" /> {safeJsonParse<any[]>(vector.mitreTechniques, []).length} techniques
                             </span>
                           )}
                           {vector.calderaAbilityIds && (
                             <span className="flex items-center gap-1">
-                              <Swords className="h-3 w-3 text-purple-500" /> {JSON.parse(vector.calderaAbilityIds || "[]").length} Caldera abilities
+                              <Swords className="h-3 w-3 text-purple-500" /> {safeJsonParse<any[]>(vector.calderaAbilityIds, []).length} Caldera abilities
                             </span>
                           )}
                           {vector.msfModuleIds && (
                             <span className="flex items-center gap-1">
-                              <Terminal className="h-3 w-3 text-blue-500" /> {JSON.parse(vector.msfModuleIds || "[]").length} MSF modules
+                              <Terminal className="h-3 w-3 text-blue-500" /> {safeJsonParse<any[]>(vector.msfModuleIds, []).length} MSF modules
                             </span>
                           )}
                         </div>
@@ -394,12 +395,12 @@ export default function AttackVectorEngine() {
                           {pb.estimatedDuration && <span>Duration: {pb.estimatedDuration}</span>}
                           {pb.calderaAbilities && (
                             <span className="text-purple-400">
-                              {JSON.parse(pb.calderaAbilities || "[]").length} Caldera abilities
+                              {safeJsonParse<any[]>(pb.calderaAbilities, []).length} Caldera abilities
                             </span>
                           )}
                           {pb.msfModules && (
                             <span className="text-blue-400">
-                              {JSON.parse(pb.msfModules || "[]").length} MSF modules
+                              {safeJsonParse<any[]>(pb.msfModules, []).length} MSF modules
                             </span>
                           )}
                         </div>

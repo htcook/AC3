@@ -367,12 +367,12 @@ function buildScanSnapshot(scanId: number, domain: string, result: any) {
     }
   }
 
-  if (result.assets) {
+  if (Array.isArray(result.assets)) {
     for (const a of result.assets) {
-      if (a.asset.technologies) {
+      if (a.asset?.technologies) {
         for (const t of a.asset.technologies) {
           if (!technologies.has(t)) technologies.set(t, { hosts: [a.asset.hostname] });
-          else technologies.get(t).hosts.push(a.asset.hostname);
+          else technologies.get(t)!.hosts.push(a.asset.hostname);
         }
       }
     }
