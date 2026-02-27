@@ -1,0 +1,160 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets, totalFindings, overallRiskScore, discoveryCoverageScore, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i') as created FROM domain_intel_scans WHERE status IN ('completed', 'scan_complete') ORDER BY createdAt DESC LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets, totalFindings, overallRiskScore, discoveryCoverageScore, DATE_FORMAT(createdAt, '%Y-%m-%d %H:%i') as created FROM domain_intel_scans WHERE status IN ('completed', 'scan_complete') ORDER BY createdAt DESC LIMIT 15;",
+  "rows": [
+    {
+      "id": "1380025",
+      "primaryDomain": "get-test-1772077248678.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:55"
+    },
+    {
+      "id": "1380024",
+      "primaryDomain": "trpc-ack-1772116754834.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:50"
+    },
+    {
+      "id": "1380023",
+      "primaryDomain": "trpc-ack-1772116754834.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:50"
+    },
+    {
+      "id": "1380022",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "109",
+      "totalFindings": "1343",
+      "overallRiskScore": "20",
+      "discoveryCoverageScore": "89",
+      "created": "2026-02-27 15:47"
+    },
+    {
+      "id": "1380020",
+      "primaryDomain": "ack-test-1772116753947.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:40"
+    },
+    {
+      "id": "1380021",
+      "primaryDomain": "get-test-1772116753774.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:40"
+    },
+    {
+      "id": "1380018",
+      "primaryDomain": "get-test-1772116753774.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:40"
+    },
+    {
+      "id": "1380019",
+      "primaryDomain": "ack-test-1772116753947.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:40"
+    },
+    {
+      "id": "1380016",
+      "primaryDomain": "get-test-1772075761378.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:36"
+    },
+    {
+      "id": "1380017",
+      "primaryDomain": "changes-test-1772116753883.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:36"
+    },
+    {
+      "id": "1380014",
+      "primaryDomain": "get-test-1772075761378.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:35"
+    },
+    {
+      "id": "1380015",
+      "primaryDomain": "changes-test-1772116753883.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:35"
+    },
+    {
+      "id": "1380013",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "totalAssets": "13",
+      "totalFindings": "505",
+      "overallRiskScore": "48",
+      "discoveryCoverageScore": "63",
+      "created": "2026-02-27 15:31"
+    },
+    {
+      "id": "1380012",
+      "primaryDomain": "changes-test-1772116753883.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:30"
+    },
+    {
+      "id": "1380010",
+      "primaryDomain": "get-test-1772074535119.com",
+      "status": "scan_complete",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0",
+      "discoveryCoverageScore": "0",
+      "created": "2026-02-27 15:25"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\ttotalFindings\toverallRiskScore\tdiscoveryCoverageScore\tcreated\n1380025\tget-test-1772077248678.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:55\n1380024\ttrpc-ack-1772116754834.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:50\n1380023\ttrpc-ack-1772116754834.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:50\n1380022\tvianova.ai\tscan_complete\t109\t1343\t20\t89\t2026-02-27 15:47\n1380020\tack-test-1772116753947.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:40\n1380021\tget-test-1772116753774.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:40\n1380018\tget-test-1772116753774.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:40\n1380019\tack-test-1772116753947.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:40\n1380016\tget-test-1772075761378.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:36\n1380017\tchanges-test-1772116753883.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:36\n1380014\tget-test-1772075761378.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:35\n1380015\tchanges-test-1772116753883.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:35\n1380013\taceofcloud.com\tscan_complete\t13\t505\t48\t63\t2026-02-27 15:31\n1380012\tchanges-test-1772116753883.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:30\n1380010\tget-test-1772074535119.com\tscan_complete\t0\t0\t0\t0\t2026-02-27 15:25\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

@@ -1,0 +1,17 @@
+{
+  "query": "SELECT COUNT(*) as total_scans, SUM(CASE WHEN totalAssets = 0 AND totalFindings = 0 THEN 1 ELSE 0 END) as empty_scans, SUM(CASE WHEN totalAssets > 0 OR totalFindings > 0 THEN 1 ELSE 0 END) as real_scans, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_scans, SUM(CASE WHEN primaryDomain LIKE '%test%' THEN 1 ELSE 0 END) as test_domain_scans FROM domain_intel_scans;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as total_scans, SUM(CASE WHEN totalAssets = 0 AND totalFindings = 0 THEN 1 ELSE 0 END) as empty_scans, SUM(CASE WHEN totalAssets > 0 OR totalFindings > 0 THEN 1 ELSE 0 END) as real_scans, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_scans, SUM(CASE WHEN primaryDomain LIKE '%test%' THEN 1 ELSE 0 END) as test_domain_scans FROM domain_intel_scans;",
+  "rows": [
+    {
+      "total_scans": "484",
+      "empty_scans": "415",
+      "real_scans": "69",
+      "failed_scans": "0",
+      "test_domain_scans": "200"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_scans\tempty_scans\treal_scans\tfailed_scans\ttest_domain_scans\n484\t415\t69\t0\t200\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

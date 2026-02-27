@@ -2,7 +2,7 @@
 import AppShell from "@/components/AppShell";
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -703,6 +703,26 @@ export default function DomainIntelResults() {
         );
       })()}
 
+      {/* Passive Discovery Disclaimer */}
+      {(scan.status === 'scan_complete' || scan.status === 'engagement_complete') && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Info className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-400">Passive Discovery Results</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                These results are based on <strong>passive discovery and open-source intelligence (OSINT)</strong> — no active scanning, probing, or exploitation was performed against the target. 
+                Findings include publicly available DNS records, certificate transparency logs, Shodan data, WHOIS records, and technology fingerprinting from HTTP headers. 
+                Port and service data comes from third-party databases and may not reflect the current live state of the target infrastructure.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                To confirm these findings with <strong>active scanning and vulnerability enumeration</strong>, create a formal engagement with a signed Rules of Engagement (ROE) document authorizing direct interaction with the target.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Scan Complete — Start Engagement Banner */}
       {scan.status === 'scan_complete' && !engagementRunning && (
         <Card className="border-cyan-500/30 bg-cyan-500/5">
@@ -718,18 +738,26 @@ export default function DomainIntelResults() {
                 </p>
               </div>
             </div>
-            <Button
-              className="bg-purple-600 hover:bg-purple-700 shrink-0"
-              onClick={() => startEngagement.mutate({ scanId })}
-              disabled={startEngagement.isPending}
-            >
-              {startEngagement.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Zap className="h-4 w-4 mr-2" />
-              )}
-              Start Full Engagement
-            </Button>
+            <div className="flex gap-2 shrink-0">
+              <Link href="/engagements">
+                <Button variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create Engagement & ROE
+                </Button>
+              </Link>
+              <Button
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={() => startEngagement.mutate({ scanId })}
+                disabled={startEngagement.isPending}
+              >
+                {startEngagement.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
+                Start Full Engagement
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -7495,7 +7523,7 @@ function CveActorEnrichmentTab({ scanId }: { scanId: number }) {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [onlyActiveExploits, setOnlyActiveExploits] = useState(false);
   const [onlyKev, setOnlyKev] = useState(false);
-  const [sortBy, setSortBy] = useState<"priority" | "cvss" | "actors">("priority");
+  const [sortBy, setSortBy] = useState<"priority" | "cvss" | "actors" | "date">("date");
 
   if (isLoading) return (
     <Card><CardContent className="flex items-center justify-center py-16">
@@ -7535,6 +7563,11 @@ function CveActorEnrichmentTab({ scanId }: { scanId: number }) {
     }
     // Sort
     cves.sort((a: any, b: any) => {
+      if (sortBy === "date") {
+        const dateA = a.publishedDate ? new Date(a.publishedDate).getTime() : 0;
+        const dateB = b.publishedDate ? new Date(b.publishedDate).getTime() : 0;
+        return dateB - dateA;
+      }
       if (sortBy === "priority") return (b.priorityScore || 0) - (a.priorityScore || 0);
       if (sortBy === "cvss") return (b.cvssScore || 0) - (a.cvssScore || 0);
       return (b.actors?.length || 0) - (a.actors?.length || 0);
@@ -7677,7 +7710,7 @@ function CveActorEnrichmentTab({ scanId }: { scanId: number }) {
 
               <span className="text-xs font-display tracking-wider text-muted-foreground">SORT:</span>
               <div className="flex gap-1.5">
-                {(["priority", "cvss", "actors"] as const).map((s) => (
+                {(["date", "priority", "cvss", "actors"] as const).map((s) => (
                   <button
                     key={s}
                     onClick={() => setSortBy(s)}

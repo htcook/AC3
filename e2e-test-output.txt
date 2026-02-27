@@ -1,0 +1,143 @@
+═══════════════════════════════════════════════════════════════
+  END-TO-END TEST: databank.com — Discovery, Scanning & Scoring
+═══════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════╗
+║  PHASE 1: PASSIVE RECONNAISSANCE                           ║
+╚══════════════════════════════════════════════════════════════╝
+
+API Keys configured:
+  SHODAN_API_KEY: ✓ SET
+  CENSYS_API_ID: ✓ SET
+  CENSYS_API_SECRET: ✓ SET
+  URLSCAN_API_KEY: ✓ SET
+  SECURITYTRAILS_API_KEY: ✓ SET
+  DEHASHED_API_KEY: ✓ SET
+  DEHASHED_EMAIL: ✓ SET
+
+Running passive recon against databank.com (standard mode)...
+
+[PassiveRecon] Red team discovery coverage: 89% (9/10 priorities)
+┌─────────────────────────────────────────────────────────────┐
+│  CONNECTOR RESULTS                                          │
+├──────────────────────┬──────────┬────────┬─────────┬────────┤
+│ Connector            │ Obs      │ Errors │ Time(ms)│ Status │
+├──────────────────────┼──────────┼────────┼─────────┼────────┤
+│ shodan_internetdb    │      1   │        │    2103 │ OK     │
+│ crtsh                │    112   │        │   23080 │ OK     │
+│ shodan               │    317   │ Shodan host detail 146.88.184.216: This operation was aborted  │   53381 │ OK     │
+│ wayback              │    502   │        │   27258 │ OK     │
+│ censys               │      0   │ Censys API credentials invalid  │    2362 │ EMPTY  │
+│ urlscan              │     36   │        │    2693 │ OK     │
+│ rdap                 │      3   │        │    4384 │ OK     │
+│ ripestat             │      2   │        │    2945 │ OK     │
+│ securitytrails       │      0   │ SecurityTrails subdomains error: SecurityTrails API key invalid,SecurityTrails domain details error: SecurityTrails API key invalid  │    4654 │ EMPTY  │
+│ dehashed             │     33   │        │    3403 │ OK     │
+│ binaryedge           │      0   │ BinaryEdge API key not configured — skipping  │       0 │ EMPTY  │
+│ greynoise            │      0   │ GreyNoise API key not configured — skipping  │       0 │ EMPTY  │
+│ email_security       │      4   │        │     147 │ OK     │
+│ http_security        │      3   │        │    4671 │ OK     │
+│ cloud_assets         │     10   │        │    4727 │ OK     │
+│ dns_deep             │      4   │        │      81 │ OK     │
+│ github_leaks         │      0   │ [env_files] GitHub API error: 401 Unauthorized,[api_keys] GitHub API error: 401 Unauthorized,[passwords] GitHub API error: 401 Unauthorized,[config_files] GitHub API error: 401 Unauthorized,[docker_compose] GitHub API error: 401 Unauthorized,[terraform] GitHub API error: 401 Unauthorized,[internal_ips] GitHub API error: 401 Unauthorized,[database_strings] GitHub API error: 401 Unauthorized  │   15766 │ EMPTY  │
+│ virustotal           │      0   │ No API key provided  │       0 │ EMPTY  │
+│ hibp                 │      0   │ No API key provided  │       0 │ EMPTY  │
+│ whoisxml             │      0   │ No API key provided  │       0 │ EMPTY  │
+│ leakix               │      0   │ No API key provided  │       0 │ EMPTY  │
+│ fullhunt             │      0   │ No API key provided  │       0 │ EMPTY  │
+│ netlas               │      0   │ No API key provided  │       0 │ EMPTY  │
+│ hunter               │      0   │ No API key provided  │       0 │ EMPTY  │
+│ social-media         │     11   │        │     944 │ OK     │
+│ abuseipdb            │      0   │ No API key provided  │       0 │ EMPTY  │
+│ passivetotal         │      0   │ No API key provided  │       0 │ EMPTY  │
+└──────────────────────┴──────────┴────────┴─────────┴────────┘
+
+PASSIVE RECON SUMMARY:
+  Total observations: 1035
+  Total risk signals: 108
+  Duration: undefinedms
+  Connectors with data: 13/27
+  Connectors skipped: 0
+  Connectors rate-limited: 0
+  Connectors with errors: 0
+
+ASSET TYPE BREAKDOWN:
+  url: 541
+  subdomain: 341
+  ip: 114
+  breach: 31
+  txt: 4
+  ns: 2
+  asn: 1
+  mx: 1
+
+RISK SIGNALS (108):
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [high] undefined (undefined)
+  [high] undefined (undefined)
+  [medium] undefined (undefined)
+  [high] undefined (undefined)
+  [high] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+  [medium] undefined (undefined)
+
+SAMPLE OBSERVATIONS (first 15):
+  [ip] 192.0.66.176 (InternetDB) — source: shodan_internetdb, confidence: undefined
+    tags: port:80, port:443, cpe:cpe:/a:f5:nginx, open_ports:2, vuln_count:0
+  [subdomain] dfw3support.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] stagepartnersapi.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] dfw3status.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] kb-ext.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] kb.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] stageportalapi.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] dfw3externalservices.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] salesforceapi.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] dfw3istatus.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] stagesalesforceapi.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] dfw3partnersapi.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] stagepartners.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] portalapi.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+  [subdomain] stagesupport.databank.com — source: crtsh, confidence: undefined
+    tags: ct_log, certificate
+
+╔══════════════════════════════════════════════════════════════╗
+║  PHASE 2: FULL DOMAIN INTEL PIPELINE                       ║
+╚══════════════════════════════════════════════════════════════╝
+
+Running full domain intel pipeline...
+  Target: databank.com
+  Sector: Technology / Data Centers
+  Compliance: SOC2, HIPAA, PCI-DSS
+
+[Database] FIPS TLS enforced on connection
+[Database] Connected successfully
+  → Stage: passive_recon
+[PassiveRecon] Red team discovery coverage: 89% (9/10 priorities)
+[DomainIntel] Passive Recon: 533 observations from 12 connectors, 87 risk signals detected
+  → Stage: discovering
+[DomainIntel] Merged 230 passive recon subdomains into asset pipeline (260 total assets now)

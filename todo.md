@@ -5296,3 +5296,69 @@
 - [x] Wire executeFingerprint callback to actual service-fingerprinter.ts batchFingerprint function
 - [x] Wire executeNuclei callback to nuclei-scanner router's scan execution logic
 - [x] Update discovery-chain tRPC router start procedure with real callbacks
+
+## End-to-End Testing: databank.com Discovery, Scanning & Scoring
+- [ ] Run domain intel pipeline against databank.com
+- [ ] Verify all 27 passive connectors execute (Shodan, Censys, crt.sh, SecurityTrails, URLScan, etc.)
+- [ ] Test discovery engine individual lookups (Shodan host, SecurityTrails subdomains, Censys certs)
+- [ ] Verify asset enumeration produces subdomains, IPs, technologies, certificates
+- [ ] Test hybrid scoring engine (CARVER + Shock + CVSS) on discovered assets
+- [ ] Verify rescoring pipeline and scoring audit timeline
+- [ ] Test cross-module enrichment and post-enrichment analysis
+- [ ] Document all findings, connector results, and scoring output
+- [ ] Fix any issues found during testing
+
+## Sidebar Menu Audit & Reorganization
+- [x] Audit all current sidebar menu items and their groupings
+- [x] Identify misplaced items (features in wrong groups)
+- [x] Identify clutter (too many top-level items, redundant entries)
+- [x] Design improved menu hierarchy with logical groupings
+- [x] Implement sidebar reorganization in AppShell.tsx
+- [x] Ensure all routes still work after reorganization
+
+## Scan Result Population Verification
+- [ ] Verify domain intel scan results are saved to DB after pipeline runs
+- [ ] Verify passive recon observations are persisted and queryable
+- [ ] Check that scan history page shows completed scans
+- [ ] Verify risk signals have proper title/source fields (not undefined)
+- [ ] Verify all working connectors populate their results correctly
+- [ ] Check that discovered assets are stored with technologies and scores
+
+## Scan Result Population Fixes (Vianova/AceofCloud issue)
+- [ ] Trace how domain intel pipeline saves results to DB after scan completes
+- [ ] Trace how Amass/Subfinder/HTTPX/Naabu results flow into scan history
+- [ ] Check if passive recon observations are persisted to scan_results table
+- [ ] Check if discovered ports/services from connectors are stored properly
+- [ ] Fix any gaps where tool output is computed but not written to DB
+- [ ] Verify scan history page queries show all tool results
+- [ ] Fix risk signals showing undefined title/source fields
+
+## DB Cleanup: Remove Empty Test Scans
+- [x] Delete all domain_intel_scans with 0 totalAssets and 0 totalFindings (test/empty scans)
+- [x] Delete orphaned discovered_assets and chain_stage_results for deleted scans
+- [ ] Add admin cleanup endpoint to router for future maintenance
+
+## CVE List Ordering
+- [x] Order all CVE lists matched to assets by most recent publication date
+- [x] Sort CVEs in postureFindings, kevEnrichment matches, and exploit matches by date descending
+- [x] Ensure UI displays CVEs in date-descending order
+
+## Threat Actor Default Sorting
+- [x] Set default threat actor sorting to most recently active (by last_active date descending)
+- [x] Apply to threat intel page, threat actor matcher results, and domain intel threat actor matches
+
+## Passive Scan Disclaimer & Engagement CTA
+- [x] Add prominent passive-only disclaimer banner to scan results page
+- [x] Explain that results are based on passive discovery, not direct active scanning
+- [x] Add CTA prompting user to create an engagement and generate ROE for client review/signature
+- [x] CTA should link to engagement creation and ROE generation flows
+- [x] Banner should appear after scan completes, before findings section
+
+## What's New Modal Update
+- [x] Update What's New modal with latest features (discovery chain, nmap, pipeline wiring, etc.)
+- [x] Add recent improvements and fixes
+
+## KSI Coverage Percentage Correction
+- [x] Find all claims of 80%+ KSI coverage
+- [x] Analyze actual KSI mapping to calculate real coverage percentage
+- [x] Update all references to reflect accurate percentage

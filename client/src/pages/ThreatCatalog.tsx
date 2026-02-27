@@ -55,7 +55,7 @@ const THREAT_LEVEL_COLORS: Record<string, string> = {
 export default function ThreatCatalog() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<GroupType>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("name");
+  const [sortBy, setSortBy] = useState<SortBy>("lastActive");
   const [page, setPage] = useState(1);
   const [syncing, setSyncing] = useState(false);
   const [syncSource, setSyncSource] = useState<string | null>(null);
@@ -67,7 +67,7 @@ export default function ThreatCatalog() {
     page,
     pageSize: 60,
     sortBy,
-    sortOrder: "asc",
+    sortOrder: sortBy === "lastActive" ? "desc" : "asc",
   });
 
   const syncCatalog = trpc.threatIntel.syncCatalog.useMutation({
