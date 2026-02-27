@@ -194,6 +194,7 @@ const NgfwValidationPage = () => {
       <div className="p-4 md:p-8 bg-background text-foreground min-h-screen">
             <header className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-bold">NGFW Validation</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Test and validate Next-Generation Firewall rules and policies. This page lets you run targeted tests against NGFW deployments to verify that security policies are correctly enforced — testing application-layer filtering, IPS signatures, URL categorization, and SSL inspection. Review test results to identify policy gaps and misconfigurations that could be exploited.</p>
                 <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2 h-4 w-4" /> Add Test</Button>

@@ -5400,3 +5400,41 @@
 - [x] Add logic to skip SPF/DKIM checks for assets that aren't mail servers
 - [x] Ensure mail-server detection uses MX records (no MX = no mail server)
 - [x] Write vitest test for the filtering logic (6 tests pass)
+
+## Test Scan Cleanup
+- [x] Clean up test scan records from DB (133 empty + 37 stuck)
+- [x] Clean up test OSINT monitors from DB (timestamp-based domains)
+- [x] Add scan-scheduler filter to skip test/timestamp domains
+
+## Automated Error Logging & Recovery System
+- [x] Create platform_errors DB table schema
+- [x] Build error-logger service (server/lib/error-logger.ts)
+- [x] Add error logging tRPC procedures (errorLog router)
+- [x] Update ErrorBoundary to log errors to DB
+- [x] Create useErrorCapture hook for global error capture
+- [x] Wire useErrorCapture into App.tsx root
+- [x] Build Error Dashboard page with filters, stats, and bulk actions
+- [x] Add Error Dashboard to sidebar navigation under PLATFORM group
+
+## Global AI Chat Widget
+- [x] Build floating AI chat button visible on every page (GlobalAiChat component)
+- [x] Wire chat to LLM backend via errorLog.aiChat tRPC procedure
+- [x] Auto-include recent errors and current page context in chat
+- [x] Add ability to report issues directly from chat
+- [x] Style consistent with platform brutalist aesthetic
+
+## OEM Default Credential Auto-Collection
+- [x] Build comprehensive OEM default credentials database (80+ entries: routers, firewalls, SCADA, web apps, databases, IoT, etc.)
+- [x] Add auto-matching logic: when technologies are identified during discovery, cross-reference against default creds DB
+- [x] Store matched credentials as intelligence data (NOT risk-rated findings) for use in active testing/exploit phases
+- [x] Integrate into domain intel pipeline after technology fingerprinting (Stage 3.96)
+- [x] Add OEM Credentials reference page for operators
+- [x] Add OEM Credentials to sidebar navigation under PLATFORM group
+- [x] Credentials accessible to operators, LLM AI chat, and automated tools (SSH/FTP/admin testing)
+
+## Page Descriptions Audit
+- [x] Add descriptions to all 38 pages missing them
+- [x] Each description explains purpose, key functions, and user workflow in plain English
+- [x] Descriptions placed directly under page heading for immediate visibility
+- [x] Verified build compiles cleanly with all descriptions
+- [x] All 170 test files pass (4,269 tests)

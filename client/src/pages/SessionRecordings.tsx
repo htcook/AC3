@@ -371,6 +371,7 @@ export default function SessionRecordings() {
             <Monitor className="h-6 w-6 text-red-500" />
             Session Recordings
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Review recorded operator sessions from active engagements. Each recording captures the commands executed, outputs received, and timestamps for every action taken during a red team operation. Use these recordings for quality assurance, training, evidence documentation, and post-engagement review. Filter by operator, engagement, or date range to find specific sessions.</p>
           <p className="text-zinc-400 text-sm mt-1">
             Review and replay past session interactions for evidence and reporting
           </p>

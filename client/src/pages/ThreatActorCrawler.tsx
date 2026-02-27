@@ -673,6 +673,7 @@ export default function ThreatActorCrawler() {
               </div>
               ACTOR INTEL CRAWLER
             </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Automatically crawl and collect intelligence on threat actors from public and private sources. This tool scrapes threat reports, APT profiles, and campaign analyses to build comprehensive threat actor dossiers. Configure crawl targets, set collection frequency, and review newly discovered threat actor activity. Use this intelligence to inform your adversary emulation plans and ensure your testing reflects real-world threats.</p>
             <p className="text-sm text-zinc-400 mt-1">Continuous OSINT enrichment — 25+ sources · scheduled crawls · LLM gap analysis · auto-enrichment</p>
           </div>
         </div>

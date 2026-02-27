@@ -97,6 +97,7 @@ export default function PurpleTeam() {
             <Shield className="h-6 w-6 text-violet-400" />
             Purple Team &amp; Detection Tests
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Coordinate purple team exercises where red and blue teams work together in real-time. This page provides a shared workspace for running attack scenarios, documenting defensive detections, and mapping gaps. Red team operators execute techniques while blue team members log whether each attack was detected, blocked, or missed. Use the results to build a detection coverage matrix and prioritize defensive improvements.</p>
           <p className="text-muted-foreground mt-1">
             Track red vs blue team results and identify detection gaps
           </p>

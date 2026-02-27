@@ -193,6 +193,7 @@ export default function ScanHistory() {
                 <Globe className="h-6 w-6 text-purple-400" />
                 Scan History
               </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Review the complete history of all domain intelligence scans, vulnerability scans, and reconnaissance operations. Filter by date, domain, status, or scan type to find specific results. Click any scan to view its full findings, asset inventory, and risk scores. Use the comparison feature to track how a target's security posture has changed between scans. The cleanup tool lets admins remove empty or test scans.</p>
               <p className="text-muted-foreground text-sm mt-0.5">
                 Browse, filter, and manage all domain intelligence scans. Click any completed scan to view full results.
               </p>

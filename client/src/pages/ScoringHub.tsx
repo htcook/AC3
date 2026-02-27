@@ -509,6 +509,7 @@ export default function ScoringHub() {
             <Crosshair className="w-6 h-6 text-cyan-400" />
             Adaptive Risk Scoring Engine
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Central dashboard for all risk scoring methodologies used across the platform. View and configure how assets, vulnerabilities, and findings are scored — including CVSS, CARVER, SHOCK, and hybrid risk calculations. Compare scoring models side-by-side, adjust weighting factors, and see how score changes propagate across your assessments. Use this to ensure consistent, defensible risk prioritization across all engagements.</p>
           <p className="text-sm text-zinc-400 mt-1">
             Mission-aware hybrid scoring with dynamic re-assessment during discovery
           </p>

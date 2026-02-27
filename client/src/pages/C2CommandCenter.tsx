@@ -671,6 +671,7 @@ export default function C2CommandCenter() {
               </div>
               C2 COMMAND CENTER
             </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Central hub for managing Command & Control infrastructure across all active engagements. Monitor C2 server status, manage listeners, view active callbacks, and issue commands to compromised systems. This page provides unified visibility into Caldera, Sliver, and other C2 frameworks. Use it to coordinate post-exploitation activities, manage implant communications, and track operator actions during red team operations.</p>
             <p className="text-sm text-zinc-400 mt-1">Unified multi-framework C2 orchestration — Caldera · Metasploit · Sliver · Empire · Cobalt Strike · GoPhish</p>
           </div>
         </div>

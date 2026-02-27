@@ -86,6 +86,7 @@ export default function KsiValidation() {
             <ClipboardCheck className="h-7 w-7 text-blue-500" />
             Indicator Validation Scheduler
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Validate Key Security Indicators against multiple corroborating sources. This page runs automated cross-checks to confirm or refute collected intelligence — verifying IOCs against threat feeds, checking CVE applicability against your asset inventory, and scoring indicator reliability. Review validation results and promote confirmed indicators to your active threat model.</p>
           <p className="text-muted-foreground mt-1">
             Automated validation scheduling and tracking for FedRAMP KSIs
           </p>

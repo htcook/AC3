@@ -5398,3 +5398,47 @@ export const chainStageResults = mysqlTable("chain_stage_results", {
 });
 export type ChainStageResultRow = typeof chainStageResults.$inferSelect;
 export type InsertChainStageResultRow = typeof chainStageResults.$inferInsert;
+
+
+// ─── Platform Error Logging ─────────────────────────────────────────────────
+export const platformErrors = mysqlTable("platform_errors", {
+  id: int("id").autoincrement().primaryKey(),
+  source: varchar("source", { length: 32 }).notNull(),
+  severity: varchar("severity", { length: 16 }).notNull().default("error"),
+  message: text("message").notNull(),
+  stack: mediumtext("stack"),
+  page: varchar("page", { length: 512 }),
+  endpoint: varchar("endpoint", { length: 256 }),
+  statusCode: int("status_code"),
+  userId: int("user_id"),
+  engagementContext: json("engagement_context"),
+  clientMeta: json("client_meta"),
+  resolved: boolean("resolved").notNull().default(false),
+  resolvedNote: text("resolved_note"),
+  resolvedAt: timestamp("resolved_at"),
+  retryCount: int("retry_count").default(0),
+  autoRecovered: boolean("auto_recovered").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type PlatformErrorRow = typeof platformErrors.$inferSelect;
+export type InsertPlatformError = typeof platformErrors.$inferInsert;
+
+// ─── OEM Default Credentials (intelligence data for active testing) ─────────
+export const oemDefaultCredentials = mysqlTable("oem_default_credentials", {
+  id: int("id").autoincrement().primaryKey(),
+  vendor: varchar("vendor", { length: 128 }).notNull(),
+  product: varchar("product", { length: 256 }).notNull(),
+  version: varchar("version", { length: 128 }),
+  protocol: varchar("protocol", { length: 64 }).notNull(),
+  port: int("port"),
+  username: varchar("username", { length: 256 }).notNull(),
+  password: varchar("password", { length: 512 }).notNull(),
+  accessLevel: varchar("access_level", { length: 64 }),
+  notes: text("notes"),
+  cveReference: varchar("cve_reference", { length: 64 }),
+  source: varchar("source", { length: 256 }),
+  tags: json("tags"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type OemDefaultCredentialRow = typeof oemDefaultCredentials.$inferSelect;
+export type InsertOemDefaultCredential = typeof oemDefaultCredentials.$inferInsert;

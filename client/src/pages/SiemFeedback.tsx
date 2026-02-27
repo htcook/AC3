@@ -105,6 +105,7 @@ export default function SiemFeedback() {
             <header className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">SIEM Detection Feedback</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Track how your SIEM responds to simulated attacks and provide feedback on detection accuracy. This page shows which emulated techniques triggered SIEM alerts, which were missed, and which generated false positives. Use the feedback loop to help blue teams tune their detection rules and improve SIEM coverage. Map detection gaps to specific MITRE ATT&CK techniques for targeted improvement.</p>
                     <p className="text-muted-foreground">Manage SIEM integrations and review detection results.</p>
                 </div>
             </header>

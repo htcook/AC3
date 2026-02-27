@@ -86,6 +86,7 @@ const ReportTemplatesPage = () => {
       <Card>
         <CardHeader>
           <CardTitle>Report Templates</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Manage and customize report templates for different engagement types and deliverables. Create templates for penetration test reports, vulnerability assessments, red team summaries, and executive briefings. Each template defines the structure, sections, branding, and data fields that will be auto-populated from your engagement findings.</p>
           <Dialog open={isFormOpen} onOpenChange={setFormOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setSelectedTemplate(null)}>Create Template</Button>

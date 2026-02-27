@@ -102,6 +102,7 @@ import { serviceFingerprintRouter } from "./routers/service-fingerprinter";
 import { amassRouter } from "./routers/amass";
 import { nmapRouter } from "./routers/nmap";
 import { discoveryChainRouter } from "./routers/discovery-chain";
+import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -286,6 +287,9 @@ export const appRouter = router({
   amass: amassRouter,
   nmap: nmapRouter,
   discoveryChain: discoveryChainRouter,
+  errorLog: errorLogRouter,
+  oemCreds: oemCredsRouter,
+  aiChat: aiChatRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

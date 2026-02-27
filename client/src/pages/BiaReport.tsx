@@ -158,6 +158,7 @@ export default function BiaReportPage() {
             <ClipboardCheck className="w-6 h-6 text-cyan-400" />
             Auto-BIA Report Generator
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Generate and review Business Impact Analysis reports that translate technical findings into business risk language. This page maps discovered vulnerabilities and attack paths to their potential business consequences — revenue loss, data breach costs, regulatory penalties, and operational disruption. Use these reports to communicate risk to executives and justify remediation investments.</p>
           <p className="text-sm text-zinc-400 mt-1">
             NIST IR 8286D-aligned Business Impact Analysis with FIPS 199 categorization
           </p>

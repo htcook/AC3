@@ -311,6 +311,7 @@ export default function FileTransfers() {
           <ArrowUpDown className="h-6 w-6 text-red-500" />
           File Transfers
         </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Upload, download, and manage files used during engagements. This page provides a secure file staging area for payloads, tools, exfiltrated data, and evidence. Upload files to make them available to agents and operators, browse transferred files by engagement, and track file movement for chain-of-custody documentation.</p>
         <p className="text-zinc-400 text-sm mt-1">
           Upload and download files to/from compromised targets via Meterpreter
         </p>

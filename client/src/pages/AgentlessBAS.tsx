@@ -212,6 +212,7 @@ export default function AgentlessBASPage() {
       <div className="p-6 bg-background text-foreground min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Agentless BAS</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Run breach and attack simulations without deploying agents on target systems. This page lets you configure and execute agentless security validation tests that probe your defenses from the outside — testing firewall rules, IDS/IPS detection, and network segmentation. Start a new simulation, monitor running tests, and review results to identify gaps in your security controls.</p>
         <Dialog open={createTestOpen} onOpenChange={setCreateTestOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> Create Test</Button>

@@ -58,6 +58,7 @@ export default function SSILGuardrails() {
               <BrainCircuit className="h-6 w-6 text-purple-400" />
               LLM Guardrails
             </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Configure safety guardrails for the Security Simulation & Intelligence Layer. Set boundaries on what automated testing can do — defining allowed IP ranges, excluded systems, time windows, and escalation thresholds. These guardrails ensure that automated security testing stays within the Rules of Engagement and doesn't accidentally impact production systems or exceed authorized scope.</p>
             <p className="text-muted-foreground mt-1">
               Safety controls for all LLM invocations — input sanitization, output filtering, exploit blocking
             </p>

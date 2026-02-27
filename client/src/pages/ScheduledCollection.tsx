@@ -84,6 +84,7 @@ export default function ScheduledCollection() {
             <Calendar className="h-7 w-7 text-blue-500" />
             Scheduled Auto-Collection
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Set up and manage scheduled intelligence collection tasks that run automatically. Configure recurring scans, OSINT collection, vulnerability checks, and threat feed updates on daily, weekly, or custom schedules. Monitor upcoming and past collection runs, review their results, and adjust schedules based on your operational tempo. This ensures your intelligence stays current without manual intervention.</p>
           <p className="text-muted-foreground mt-1">
             Automated evidence collection from all security sources at configurable cadences — feeding FedRAMP's Key Security Indicators evidence chain continuously
           </p>

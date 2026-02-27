@@ -59,6 +59,7 @@ export default function CompensatingControls() {
           <ShieldCheck className="h-6 w-6 text-green-500" />
           Compensating Control Awareness
         </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Document and track compensating controls for vulnerabilities that cannot be immediately remediated. When a finding requires a temporary mitigation instead of a direct fix, use this page to record the compensating control, its effectiveness score, and its expiration date. This ensures audit readiness and helps track which temporary measures need to be replaced with permanent fixes.</p>
         <p className="text-muted-foreground mt-1">
           Evaluate how existing security controls mitigate vulnerabilities and adjust risk scores accordingly.
         </p>

@@ -140,6 +140,7 @@ export default function TemplateLibrary() {
                 <FileText className="w-7 h-7 text-teal-400" />
                 Phishing Template Library
               </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Browse and manage reusable templates for operations, campaigns, reports, and assessments. This library contains pre-built configurations that can be cloned and customized for new engagements — saving setup time and ensuring consistency. Search by category, tag, or engagement type to find the right starting point, then customize it for your specific needs.</p>
               <p className="text-gray-400 mt-1">
                 {PHISHING_TEMPLATES.length} ready-to-use phishing templates across {Object.keys(TEMPLATE_CATEGORIES).length} categories
               </p>

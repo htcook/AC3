@@ -817,6 +817,7 @@ export default function FIPSCompliance() {
             <Lock className="h-7 w-7 text-amber-400" />
             FIPS 140-3 Compliance
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Audit and track FIPS 140-2/140-3 cryptographic compliance across your infrastructure. This page scans for non-compliant cryptographic implementations — weak ciphers, unapproved algorithms, and misconfigured TLS settings. View compliance status by asset, drill into specific violations, and generate compliance reports for federal and regulated environments.</p>
           <p className="text-sm text-zinc-500 mt-1">
             Platform-wide cryptographic compliance monitoring, algorithm validation, and audit trail
           </p>

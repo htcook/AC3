@@ -111,7 +111,7 @@ const SoarConnectorsPage = () => {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>SOAR Connectors</CardTitle>
-            <CardDescription>Manage bidirectional integrations with your SOAR platforms.</CardDescription>
+            <CardDescription>Configure integrations with Security Orchestration, Automation, and Response platforms. Connect to tools like Splunk SOAR, Cortex XSOAR, or Tines to automatically trigger playbooks when findings are discovered, push alerts to incident response workflows, or pull enrichment data back into the platform. Test connector health and review integration logs to ensure reliable automation.</CardDescription>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>

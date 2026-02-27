@@ -59,7 +59,13 @@ export async function checkAndTriggerScans(): Promise<{ monitorsChecked: number;
   let scansTriggered = 0;
 
   try {
-    const monitors = await db.getEnabledMonitors();
+    const allMonitors = await db.getEnabledMonitors();
+    // Filter out test/timestamp domains created by vitest
+    const isTestDomain = (domain: string) => /^(ack-test|trpc-ack|test-monitor|get-test|scan-test|pipeline-test)-\d{10,}\./i.test(domain) || /\d{13}\.(com|org|net)$/i.test(domain);
+    const monitors = allMonitors.filter(m => !isTestDomain(m.domain || ''));
+    if (monitors.length < allMonitors.length) {
+      console.log(`[ScanScheduler] Filtered out ${allMonitors.length - monitors.length} test domain monitor(s)`);
+    }
     monitorsChecked = monitors.length;
 
     if (monitors.length === 0) {

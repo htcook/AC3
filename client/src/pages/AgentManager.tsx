@@ -850,6 +850,7 @@ export default function AgentManager() {
               <Fingerprint className="h-7 w-7 text-emerald-400" />
               Agent Manager
             </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Monitor and manage all deployed agents across your infrastructure. View real-time agent status, heartbeat timing, and platform details. Use this page to check which agents are online, deploy new agents to target systems, or remove stale agents. Agents are the execution endpoints for adversary emulation operations.</p>
             <p className="text-sm text-zinc-500 mt-1">
               Multi-C2 agent lifecycle management with FIPS 140-3 cryptographic operations
             </p>

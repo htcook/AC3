@@ -179,6 +179,7 @@ export default function CicdPipelinePage() {
       <div className="max-w-7xl mx-auto space-y-6">
         <header>
           <h1 className="text-3xl font-bold tracking-tight">CI/CD Pipelines</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Configure and monitor automated security testing pipelines that run on schedule or trigger from events. Set up continuous validation workflows that automatically test your defenses — running emulation plans, scanning for new vulnerabilities, and verifying remediation. View pipeline run history, check for failures, and drill into individual test results.</p>
           <p className="text-muted-foreground mt-1">Manage CI/CD pipelines, trigger validation runs, and view history.</p>
         </header>
 

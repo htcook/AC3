@@ -199,6 +199,7 @@ export default function AttackPathDiscoveryPage() {
       <div className="p-8 bg-background text-foreground min-h-screen">
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Attack Path Discovery</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Visualize and analyze potential attack paths through your target environment. This tool maps relationships between discovered assets, vulnerabilities, and access points to show how an attacker could chain exploits to reach critical systems. Use the interactive graph to explore lateral movement opportunities, identify chokepoints, and prioritize which paths to test during your engagement.</p>
         <div className="space-x-2">
             <Dialog open={isAddNodeOpen} onOpenChange={setIsAddNodeOpen}>
                 <DialogTrigger asChild>

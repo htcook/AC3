@@ -968,6 +968,7 @@ export default function InfraWiki() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Infrastructure Wiki</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">View and manage your testing infrastructure topology. This page shows all servers, services, and network components in your offensive infrastructure — C2 servers, redirectors, phishing servers, and scanning nodes. Monitor their health status, view configuration details, and track which infrastructure components are assigned to which engagements.</p>
         <p className="text-sm text-zinc-400 mt-1">
           Red team infrastructure management based on operational tradecraft — redirectors, domain reputation, C2 traffic profiles, deployment automation, and OpSec hardening.
         </p>

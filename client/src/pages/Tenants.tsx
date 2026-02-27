@@ -209,6 +209,7 @@ export default function TenantsPage() {
       <header className="flex items-center justify-between mb-6">
         <div>
             <h1 className="text-3xl font-bold">Tenants</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Manage multi-tenant configurations for organizations that run engagements for multiple clients. Each tenant has isolated data, users, and settings. Use this page to create new tenants, configure their access permissions, assign team members, and manage tenant-specific settings. This ensures proper data segregation between client engagements and supports compliance requirements.</p>
             <p className="text-muted-foreground">Manage tenants, members, and roles for MSSP client isolation.</p>
         </div>
         <Dialog open={isTenantModalOpen} onOpenChange={setTenantModalOpen}>

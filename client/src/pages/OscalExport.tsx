@@ -84,6 +84,7 @@ export default function OscalExport() {
             <FileOutput className="h-7 w-7 text-blue-500" />
             OSCAL Export Engine
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Export your security assessment data in OSCAL (Open Security Controls Assessment Language) format for interoperability with GRC platforms and federal compliance systems. Select the assessment scope, choose the target OSCAL model (SSP, SAR, or POA&M), and generate machine-readable compliance artifacts that can be imported into tools like eMASS, CSAM, or other OSCAL-compatible systems.</p>
           <p className="text-muted-foreground mt-1">
             Generate machine-readable OSCAL v1.1.2 compliance documents for FedRAMP
           </p>

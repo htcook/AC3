@@ -105,6 +105,7 @@ export default function KsiAutoCollector() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Indicator Auto-Collection</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Configure and run automated collection of Key Security Indicators from multiple intelligence sources. This tool continuously gathers threat data, vulnerability feeds, and security metrics to keep your knowledge base current. Set up collection schedules, monitor feed health, and review newly collected indicators before they're integrated into your threat intelligence pipeline.</p>
           <p className="text-muted-foreground">
             Automatically feed evidence from existing scanners and tools into the Indicator Evidence Chain
           </p>

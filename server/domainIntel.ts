@@ -264,6 +264,18 @@ export interface PipelineResult {
   };
   crossModuleEnrichment?: CrossModuleEnrichmentResult;
   postEnrichmentAnalysis?: PostEnrichmentAnalysis;
+  oemCredentials?: Array<{
+    vendor: string;
+    product: string;
+    protocol: string;
+    port: number | null;
+    username: string;
+    password: string;
+    accessLevel: string;
+    tags: string[];
+    matchedTechnology: string;
+    matchedAsset: string;
+  }>;
 }
 
 export interface BreachDataSummary {
@@ -2369,6 +2381,33 @@ export async function runDomainIntelPipeline(
   }
   console.log(`[DomainIntel] Asset totals: ${analyses.length} analyzed + ${subdomainAssetCount} passive recon subdomains = ${analyses.length + subdomainAssetCount} total`);
 
+  // Stage 3.97: OEM Default Credential Auto-Collection
+  // Match discovered technologies against known default credentials for use in active testing
+  let oemCredentials: PipelineResult['oemCredentials'] = [];
+  try {
+    const { matchCredentialsForAssets, persistMatchedCredentials } = await import('./lib/oem-default-creds');
+    const allTechAssets = analyses.map(a => ({
+      hostname: a.asset.hostname,
+      technologies: a.asset.technologies || [],
+      technologyVersions: a.asset.technologyVersions || {},
+      openPorts: (a.asset as any).openPorts || [],
+    }));
+    oemCredentials = matchCredentialsForAssets(allTechAssets);
+    if (oemCredentials.length > 0) {
+      console.log(`[DomainIntel] OEM credential matching: ${oemCredentials.length} default credentials matched across ${new Set(oemCredentials.map(c => c.matchedAsset)).size} assets`);
+      // Persist to DB for reference by operators, AI chat, and automated tools
+      try {
+        await persistMatchedCredentials(org.primaryDomain, oemCredentials);
+      } catch (persistErr: any) {
+        console.error(`[DomainIntel] Failed to persist OEM credentials (non-fatal): ${persistErr.message}`);
+      }
+    } else {
+      console.log(`[DomainIntel] OEM credential matching: no default credentials matched`);
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] OEM credential matching failed (non-fatal): ${err.message}`);
+  }
+
   return {
     orgProfile: org,
     assets: analyses,
@@ -2394,5 +2433,6 @@ export async function runDomainIntelPipeline(
     emailSecurity: emailSecurityReport || undefined,
     crossModuleEnrichment,
     postEnrichmentAnalysis,
+    oemCredentials,
   };
 }

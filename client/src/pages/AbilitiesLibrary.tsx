@@ -321,6 +321,7 @@ export default function AbilitiesLibrary() {
               <Layers className="w-7 h-7 text-cyan-400" />
               Abilities Library
             </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Browse and manage the full catalog of adversary abilities (TTPs) available for emulation. Each ability maps to a MITRE ATT&CK technique and can be used in operations, campaigns, and automated testing. Search by technique ID, name, or tactic to find specific attack procedures, then add them to your operations or training exercises.</p>
             <p className="text-muted-foreground mt-1">
               Searchable catalog of {allAbilities.length} adversary abilities and {allIOCs.length} IOCs across {RANSOMWARE_PROFILES.length} ransomware groups
             </p>

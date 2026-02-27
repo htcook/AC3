@@ -55,6 +55,7 @@ export default function SSILPolicies() {
               <ShieldCheck className="h-6 w-6 text-cyan-400" />
               Scan Policy Engine
             </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Define and manage security policies that govern the Security Simulation & Intelligence Layer. Policies control how automated testing behaves — which techniques are allowed, what severity thresholds trigger alerts, and how findings are classified. Create policies for different engagement types (internal, external, web app) and assign them to specific operations or schedules.</p>
             <p className="text-muted-foreground mt-1">
               Manage scan mode profiles, rate limits, and escalation rules
             </p>

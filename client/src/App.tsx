@@ -6,6 +6,8 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { lazy, Suspense, useEffect } from "react";
+import { GlobalAiChat } from "./components/GlobalAiChat";
+import { useErrorCapture } from "./hooks/useErrorCapture";
 
 // ─── Lazy-loaded pages (reduces initial bundle / HTTP requests) ──────────────
 const Home = lazy(() => import("./pages/Home"));
@@ -153,6 +155,8 @@ const C2CommandCenter = lazy(() => import("./pages/C2CommandCenter"));
 const ThreatActorCrawler = lazy(() => import("./pages/ThreatActorCrawler"));
 const AISecurityValidation = lazy(() => import("./pages/AISecurityValidation"));
 const DiscoveryChain = lazy(() => import("./pages/DiscoveryChain"));
+const ErrorDashboard = lazy(() => import("./pages/ErrorDashboard"));
+const OemCredentials = lazy(() => import("./pages/OemCredentials"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -679,6 +683,12 @@ function Router() {
         <Route path="/discovery-chain">
           <ProtectedRoute component={DiscoveryChain} />
         </Route>
+        <Route path="/error-dashboard">
+          <ProtectedRoute component={ErrorDashboard} />
+        </Route>
+        <Route path="/oem-credentials">
+          <ProtectedRoute component={OemCredentials} />
+        </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
@@ -687,12 +697,15 @@ function Router() {
 }
 
 function App() {
+  useErrorCapture();
+
   return (
     <ErrorBoundary scope="app-root">
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
           <Router />
+          <GlobalAiChat />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

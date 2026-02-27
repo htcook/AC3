@@ -93,6 +93,7 @@ export default function ComplianceMapper() {
               <ClipboardCheck className="h-7 w-7 text-blue-400" />
               Compliance Framework Mapping
             </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Map your security findings and controls to compliance frameworks like NIST 800-53, ISO 27001, PCI DSS, HIPAA, and CMMC. This tool automatically correlates discovered vulnerabilities with specific compliance requirements to show which controls are satisfied and which have gaps. Use it to generate compliance-ready evidence and identify which findings have regulatory implications.</p>
             <p className="text-muted-foreground mt-1">
               SOC 2, ISO 27001, NIST CSF, PCI DSS, FedRAMP, DoD STIG, and CMMC 2.0 control mapping
             </p>

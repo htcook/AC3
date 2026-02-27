@@ -178,6 +178,7 @@ export default function ClientPortal() {
             )}
             <div>
               <h1 className="text-lg font-bold text-white">{clientName}</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Manage client-facing deliverables and engagement visibility. This portal lets you share findings, reports, and progress updates with clients in a controlled, professional format. Configure what each client can see, upload deliverables, and track client acknowledgments. Use this page to maintain transparent communication with stakeholders throughout the engagement lifecycle.</p>
               <p className="text-xs text-slate-500">Security Assessment Report</p>
             </div>
           </div>

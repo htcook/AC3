@@ -424,6 +424,14 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/live-infra", icon: Server, label: "LIVE INFRASTRUCTURE" },
         ],
       },
+      {
+        id: "plat-monitoring",
+        label: "Monitoring",
+        items: [
+          { href: "/error-dashboard", icon: Bug, label: "ERROR DASHBOARD" },
+          { href: "/oem-credentials", icon: Key, label: "DEFAULT CREDENTIALS" },
+        ],
+      },
     ],
   },
 ];

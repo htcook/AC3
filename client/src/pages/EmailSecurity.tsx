@@ -122,6 +122,7 @@ const EmailSecurityPage = () => {
       <div className="min-h-screen bg-background text-foreground p-8">
       <header className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Email Security Gateway Validation</h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Test and validate email security controls by sending crafted test emails through your target's email infrastructure. This page lets you configure test payloads (phishing templates, malicious attachments, spoofed headers), send them through the gateway, and track which ones were blocked, quarantined, or delivered. Use the results to assess email filtering effectiveness and identify bypass opportunities for social engineering campaigns.</p>
         <Dialog open={isCreateOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button><PlusCircle className="mr-2 h-4 w-4" /> Create Test</Button>

@@ -257,6 +257,7 @@ export default function AttackPaths() {
             <GitBranch className="h-6 w-6 text-purple-400" />
             Attack Path Visualization
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">View and interact with computed attack path graphs. Each path shows the step-by-step chain an attacker could follow — from initial access through privilege escalation to objective completion. Click on nodes to see details about each hop, the techniques involved, and the likelihood of success. Use these paths to guide your penetration testing priorities.</p>
           <p className="text-muted-foreground mt-1">
             Map and visualize attack paths showing how vulnerabilities chain across assets
           </p>

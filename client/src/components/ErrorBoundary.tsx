@@ -93,9 +93,28 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ json: payload }),
         signal: AbortSignal.timeout(5000),
-      }).catch(() => {
-        // Server might be down too — silently fail
-      });
+      }).catch(() => {});
+
+      // Also log to platform error tracking DB
+      await fetch("/api/trpc/errorLog.logClientError", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ json: {
+          source: "react_boundary",
+          severity: "critical",
+          message: `${error.name}: ${error.message}`,
+          stack: error.stack?.slice(0, 10000),
+          page: window.location.pathname,
+          clientMeta: {
+            incidentId: this.state.incidentId,
+            scope: this.props.scope,
+            viewport: payload.viewport,
+            userAgent: navigator.userAgent,
+            componentStack: errorInfo.componentStack?.split("\n").slice(0, 5).join("\n"),
+          },
+        } }),
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {});
 
       // Also log to console for developer visibility
       console.error(

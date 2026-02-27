@@ -122,6 +122,7 @@ export default function KsiEvidenceChain() {
             <ShieldAlert className="h-7 w-7 text-blue-500" />
             Indicator Evidence Chain
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Trace the full evidence chain for Key Security Indicators — from initial collection through analysis to final assessment. Each KSI shows its provenance: which source reported it, when it was collected, how it was validated, and what confidence level it carries. Use this page to verify intelligence quality and maintain audit trails for your threat assessments.</p>
           <p className="text-muted-foreground mt-1">
             Tamper-evident evidence collection with SHA-256 hash chaining for FedRAMP compliance
           </p>

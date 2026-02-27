@@ -519,6 +519,7 @@ export default function VendorIntegrations() {
             <Server className="h-7 w-7 text-emerald-400" />
             Vendor Integrations
           </h1>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Manage all third-party tool and service integrations. Configure API connections to Shodan, Censys, SecurityTrails, VirusTotal, and other security tools. Test connection health, view API usage metrics, and manage authentication credentials. This page is your central hub for ensuring all external data sources and tools are properly connected and functioning.</p>
           <p className="text-sm text-zinc-500 mt-1">
             Connect EDR, SIEM, and SOAR platforms for unified security operations
           </p>
