@@ -247,6 +247,9 @@ export async function generateModuleCode(
       case "empire":
         generated = await generateEmpireModule(spec);
         break;
+      case "cobaltstrike":
+        generated = await generateCobaltStrikeModule(spec);
+        break;
       default:
         continue;
     }
@@ -555,6 +558,15 @@ function validateFrameworkCode(gen: GeneratedModule): { errors: string[]; warnin
         warnings.push("Empire: Missing standard class definition");
       }
       break;
+
+    case "cobaltstrike":
+      if (gen.language === "bof" && !gen.code.includes("#include")) {
+        warnings.push("Cobalt Strike BOF: Missing C includes");
+      }
+      if (!gen.code.includes("beacon") && gen.language !== "bof") {
+        warnings.push("Cobalt Strike: Missing beacon reference in Aggressor script");
+      }
+      break;
   }
 
   return { errors, warnings };
@@ -685,6 +697,18 @@ export async function pushModulesToC2(
             framework: "empire",
             success: true,
             moduleId: `custom/${categoryToEmpireType(gen.metadata.moduleType || "collection")}/${gen.filename.replace(".py", "")}`,
+          });
+          break;
+        }
+
+        case "cobaltstrike": {
+          // CS Aggressor scripts and BOFs are loaded via the Script Manager
+          // or placed in the Team Server's scripts directory
+          const ext = gen.language === "bof" ? "o" : "cna";
+          results.push({
+            framework: "cobaltstrike",
+            success: true,
+            moduleId: `custom/${gen.filename.replace(/\.(cna|c|o)$/, "")}.${ext}`,
           });
           break;
         }
@@ -918,6 +942,48 @@ function generateId(): string {
     const r = (Math.random() * 16) | 0;
     return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
+}
+
+async function generateCobaltStrikeModule(spec: ModuleSpec): Promise<GeneratedModule> {
+  // If source code is provided, use it directly
+  if (spec.sourceCode) {
+    const isBof = spec.language === "bof";
+    return {
+      framework: "cobaltstrike" as C2FrameworkType,
+      code: spec.sourceCode,
+      filename: `${sanitizeName(spec.name)}.${isBof ? "c" : "cna"}`,
+      language: isBof ? "bof" as ModuleLanguage : "bash" as ModuleLanguage,
+      metadata: { moduleType: isBof ? "bof" : "aggressor" },
+    };
+  }
+
+  // Determine if this should be a BOF or Aggressor script
+  const isBof = spec.language === "bof" || spec.category === "credential_access" || spec.category === "discovery";
+
+  const response = await invokeLLM({
+    messages: [
+      {
+        role: "system",
+        content: isBof
+          ? `You are a Cobalt Strike Beacon Object File (BOF) author. Generate a complete C BOF source file. Include proper beacon.h includes, go() entry point, and BeaconPrintf for output. Use BeaconDataParse for arguments. Return ONLY the C code.`
+          : `You are a Cobalt Strike Aggressor Script author. Generate a complete .cna Aggressor script. Include proper beacon_command_register, alias definitions, and beacon_* API calls. Use Sleep scripting language. Return ONLY the Aggressor script code.`,
+      },
+      {
+        role: "user",
+        content: `Module: ${spec.name}\nDescription: ${spec.description}\nPlatforms: ${spec.platforms.join(", ")}\nParameters: ${JSON.stringify(spec.parameters)}\nRequires Admin: ${spec.requiresAdmin}\nATT&CK Techniques: ${spec.techniqueIds.join(", ")}\nCategory: ${spec.category}\nOPSEC Rating: ${spec.opsecRating}/10`,
+      },
+    ],
+  });
+
+  const code = extractCodeBlock(response.choices[0]?.message?.content as string || "", isBof ? "c" : "sleep");
+
+  return {
+    framework: "cobaltstrike" as C2FrameworkType,
+    code,
+    filename: `${sanitizeName(spec.name)}.${isBof ? "c" : "cna"}`,
+    language: isBof ? "bof" as ModuleLanguage : "bash" as ModuleLanguage,
+    metadata: { moduleType: isBof ? "bof" : "aggressor" },
+  };
 }
 
 function categoryToMsfType(category: ModuleCategory): string {

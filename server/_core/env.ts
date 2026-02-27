@@ -73,4 +73,11 @@ export const ENV = {
   MSF_RPC_USER: process.env.MSF_RPC_USER ?? "msf",
   MSF_RPC_PASS: process.env.MSF_RPC_PASS ?? "",
   MSF_RPC_SSL: process.env.MSF_RPC_SSL === "true",
+  // Cobalt Strike Team Server
+  CS_TEAM_SERVER_URL: process.env.CS_TEAM_SERVER_URL ?? "",
+  CS_TEAM_SERVER_PORT: parseInt(process.env.CS_TEAM_SERVER_PORT ?? "50050", 10),
+  CS_API_KEY: process.env.CS_API_KEY ?? "",
+  CS_API_PORT: parseInt(process.env.CS_API_PORT ?? "55553", 10),
+  CS_USERNAME: process.env.CS_USERNAME ?? "",
+  CS_PASSWORD: process.env.CS_PASSWORD ?? "",
 };

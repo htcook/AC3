@@ -5026,3 +5026,29 @@
 ## FIPS Deployment Documentation
 - [x] Write FIPS 140-2/3 provider installation and configuration guide
 - [x] Add runtime FIPS readiness validator to startup sequence
+
+## Attack Emulation Enhancement — Phase 5a: Cobalt Strike C2 Adapter
+- [x] Build CobaltStrikeAdapter in c2-abstraction.ts (Team Server REST/Aggressor API)
+- [x] Add 'cobaltstrike' to C2FrameworkType union type
+- [x] Implement beacon listing, task dispatch, and result collection
+- [x] Map Cobalt Strike BOFs and built-in commands to MITRE techniques
+- [x] Add listener/payload management (HTTP, HTTPS, DNS, SMB)
+- [x] Implement sleep/jitter control and beacon metadata
+- [x] Register in C2Registry with health checks
+- [x] Wire into cross-C2 orchestrator kill chain routing
+- [x] Add Cobalt Strike connection secrets (CS_TEAM_SERVER_URL, CS_API_KEY)
+- [x] Update C2 Command Center UI with Cobalt Strike panel
+- [x] Write vitest tests for Cobalt Strike adapter
+
+## Attack Emulation Enhancement — Phase 5b: Scheduled Threat Actor Crawler
+- [x] Build crawler-scheduler.ts — configurable interval scheduling engine
+- [x] Implement daily/weekly/custom cron-based crawl scheduling
+- [x] Add auto-enrichment pipeline — crawl results automatically update threat actor profiles
+- [x] Build crawl status tracking — last run, next run, success/failure counts, items enriched
+- [x] Add per-actor and per-source scheduling granularity
+- [x] Build crawl queue with priority ordering (stale actors first)
+- [x] Add rate limiting and backoff for OSINT sources
+- [x] Wire scheduler into server startup for automatic initialization
+- [x] Add tRPC procedures for scheduler management (start, stop, configure, status)
+- [x] Build Crawler Scheduler UI — interval controls, status dashboard, crawl history
+- [x] Write vitest tests for crawler-scheduler

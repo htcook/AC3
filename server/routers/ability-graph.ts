@@ -91,6 +91,23 @@ import {
   isCrawlRunning,
 } from "../lib/threat-actor-crawler";
 import {
+  startScheduler,
+  stopScheduler,
+  pauseScheduler,
+  resumeScheduler,
+  updateSchedulerConfig,
+  getSchedulerStatus,
+  getSchedulePresets,
+  enqueueJob,
+  cancelJob,
+  forceRunJob,
+  getJobHistory,
+  getQueueStatus,
+  type SchedulePreset,
+  type JobType,
+  type JobPriority,
+} from "../lib/crawler-scheduler";
+import {
   generateComplianceReport,
   listKeys as listFipsKeys,
   generateKey as generateFipsKey,
@@ -580,7 +597,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 List All Agents ───
   c2Agents: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]).optional(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]).optional(),
     }).optional())
     .query(async ({ input }) => {
       const registry = getC2Registry();
@@ -595,7 +612,7 @@ export const abilityGraphRouter = router({
   c2Modules: protectedProcedure
     .input(z.object({
       query: z.string(),
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]).optional(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]).optional(),
     }))
     .query(async ({ input }) => {
       const registry = getC2Registry();
@@ -609,7 +626,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 Dispatch Task ───
   c2Dispatch: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
       agentId: z.string(),
       moduleId: z.string(),
       options: z.record(z.string(), z.any()).optional(),
@@ -646,7 +663,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 Poll Task Result ───
   c2PollResult: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
       taskId: z.string(),
       agentId: z.string(),
     }))
@@ -677,7 +694,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 Kill Agent ───
   c2KillAgent: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
       agentId: z.string(),
     }))
     .mutation(async ({ input }) => {
@@ -698,7 +715,7 @@ export const abilityGraphRouter = router({
     .input(z.object({
       limit: z.number().default(50),
       techniqueId: z.string().optional(),
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]).optional(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]).optional(),
     }).optional())
     .query(async ({ input }) => {
       return getExecutionHistory({
@@ -807,7 +824,7 @@ export const abilityGraphRouter = router({
   // ─── C2 Module Builder ───
   generateModule: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
       techniqueId: z.string(),
       techniqueName: z.string(),
       platform: z.string().default("windows"),
@@ -839,7 +856,7 @@ export const abilityGraphRouter = router({
   generateModulesFromAssets: protectedProcedure
     .input(z.object({
       scanId: z.number(),
-      frameworks: z.array(z.enum(["caldera", "metasploit", "sliver", "empire"])).default(["caldera", "metasploit"]),
+      frameworks: z.array(z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"])).default(["caldera", "metasploit", "cobaltstrike"]),
       evasionLevel: z.enum(["none", "basic", "advanced", "maximum"]).default("basic"),
     }))
     .mutation(async ({ input }) => {
@@ -866,7 +883,7 @@ export const abilityGraphRouter = router({
         code: z.string(),
         filename: z.string(),
       })),
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
     }))
     .mutation(async ({ input }) => {
       return pushModulesToC2(input.modules.map(m => ({
@@ -932,6 +949,96 @@ export const abilityGraphRouter = router({
 
   isCrawlRunning: protectedProcedure.query(async () => {
     return isCrawlRunning();
+  }),
+
+  // ─── Crawler Scheduler ───
+  schedulerStatus: protectedProcedure.query(async () => {
+    return getSchedulerStatus();
+  }),
+
+  schedulerPresets: protectedProcedure.query(async () => {
+    return getSchedulePresets();
+  }),
+
+  startScheduler: protectedProcedure
+    .input(z.object({
+      preset: z.enum(["realtime", "aggressive", "standard", "conservative", "manual"]).optional(),
+      crawlIntervalMinutes: z.number().min(0).optional(),
+      enrichmentIntervalMinutes: z.number().min(0).optional(),
+      maxConcurrentJobs: z.number().min(1).max(5).optional(),
+      autoEnrichAfterCrawl: z.boolean().optional(),
+      maxActorsPerEnrichment: z.number().min(1).max(100).optional(),
+      retryFailedJobs: z.boolean().optional(),
+      maxRetries: z.number().min(0).max(10).optional(),
+      focusActors: z.array(z.string()).optional(),
+      notifyOnComplete: z.boolean().optional(),
+      notifyOnFailure: z.boolean().optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      return startScheduler(input || undefined);
+    }),
+
+  stopScheduler: protectedProcedure.mutation(async () => {
+    return stopScheduler();
+  }),
+
+  pauseScheduler: protectedProcedure.mutation(async () => {
+    return pauseScheduler();
+  }),
+
+  resumeScheduler: protectedProcedure.mutation(async () => {
+    return resumeScheduler();
+  }),
+
+  updateSchedulerConfig: protectedProcedure
+    .input(z.object({
+      preset: z.enum(["realtime", "aggressive", "standard", "conservative", "manual"]).optional(),
+      crawlIntervalMinutes: z.number().min(0).optional(),
+      enrichmentIntervalMinutes: z.number().min(0).optional(),
+      maxConcurrentJobs: z.number().min(1).max(5).optional(),
+      autoEnrichAfterCrawl: z.boolean().optional(),
+      maxActorsPerEnrichment: z.number().min(1).max(100).optional(),
+      retryFailedJobs: z.boolean().optional(),
+      maxRetries: z.number().min(0).max(10).optional(),
+      focusActors: z.array(z.string()).optional(),
+      notifyOnComplete: z.boolean().optional(),
+      notifyOnFailure: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return updateSchedulerConfig(input);
+    }),
+
+  enqueueJob: protectedProcedure
+    .input(z.object({
+      type: z.enum(["full_crawl", "targeted_enrichment", "gap_analysis", "source_check"]),
+      priority: z.enum(["critical", "high", "normal", "low"]).default("normal"),
+    }))
+    .mutation(async ({ input }) => {
+      return enqueueJob(input.type as JobType, input.priority as JobPriority);
+    }),
+
+  cancelJob: protectedProcedure
+    .input(z.object({ jobId: z.string() }))
+    .mutation(async ({ input }) => {
+      return cancelJob(input.jobId);
+    }),
+
+  forceRunJob: protectedProcedure
+    .input(z.object({
+      type: z.enum(["full_crawl", "targeted_enrichment", "gap_analysis", "source_check"]),
+    }))
+    .mutation(async ({ input }) => {
+      return forceRunJob(input.type as JobType);
+    }),
+
+  jobHistory: protectedProcedure
+    .input(z.object({ limit: z.number().default(50) }).optional())
+    .query(async ({ input }) => {
+      return getJobHistory(input?.limit);
+    }),
+
+  queueStatus: protectedProcedure.query(async () => {
+    return getQueueStatus();
   }),
 
   // ─── FIPS Compliance ───

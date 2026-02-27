@@ -20,10 +20,11 @@ import { ENV } from "../_core/env";
 import { getDb } from "../db";
 import { metasploitServers } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
+import { CobaltStrikeAdapter } from "./cobalt-strike-adapter";
 
 // ─── Unified Types ──────────────────────────────────────────────────────────
 
-export type C2FrameworkType = "caldera" | "metasploit" | "sliver" | "empire";
+export type C2FrameworkType = "caldera" | "metasploit" | "sliver" | "empire" | "cobaltstrike";
 
 export type C2AgentStatus = "active" | "dormant" | "dead" | "unknown";
 
@@ -1572,6 +1573,7 @@ export class C2Registry {
       C2Registry.instance.register(new MetasploitAdapter());
       C2Registry.instance.register(new SliverAdapter());
       C2Registry.instance.register(new EmpireAdapter());
+      C2Registry.instance.register(new CobaltStrikeAdapter());
     }
     return C2Registry.instance;
   }
@@ -1696,4 +1698,8 @@ export function getSliverAdapter(): SliverAdapter {
 
 export function getEmpireAdapter(): EmpireAdapter {
   return C2Registry.getInstance().get("empire") as EmpireAdapter;
+}
+
+export function getCobaltStrikeAdapter(): CobaltStrikeAdapter {
+  return C2Registry.getInstance().get("cobaltstrike") as CobaltStrikeAdapter;
 }

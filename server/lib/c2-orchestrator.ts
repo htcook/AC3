@@ -188,13 +188,13 @@ export interface OrchestrationLogEntry {
  * strengths. This is the starting point — the learning engine refines it.
  */
 const DEFAULT_FRAMEWORK_PRIORITY: Record<KillChainPhase, OrchestratedFramework[]> = {
-  reconnaissance: ["caldera", "metasploit", "empire"],
-  weaponization: ["metasploit", "empire", "sliver"],
-  delivery: ["gophish", "caldera", "empire"],
-  exploitation: ["metasploit", "caldera", "sliver", "empire"],
-  installation: ["sliver", "empire", "caldera", "metasploit"],
-  command_and_control: ["sliver", "empire", "caldera", "metasploit"],
-  actions_on_objectives: ["caldera", "metasploit", "empire", "sliver"],
+  reconnaissance: ["caldera", "metasploit", "cobaltstrike", "empire"],
+  weaponization: ["cobaltstrike", "metasploit", "empire", "sliver"],
+  delivery: ["gophish", "cobaltstrike", "caldera", "empire"],
+  exploitation: ["metasploit", "cobaltstrike", "caldera", "sliver", "empire"],
+  installation: ["cobaltstrike", "sliver", "empire", "caldera", "metasploit"],
+  command_and_control: ["cobaltstrike", "sliver", "empire", "caldera", "metasploit"],
+  actions_on_objectives: ["cobaltstrike", "caldera", "metasploit", "empire", "sliver"],
 };
 
 /**
@@ -235,6 +235,12 @@ const FRAMEWORK_CAPABILITIES: Record<OrchestratedFramework, {
     weaknesses: ["no post-exploitation", "no C2 channel", "email-only delivery"],
     bestFor: ["delivery"],
     agentTypes: [],
+  },
+  cobaltstrike: {
+    strengths: ["malleable C2 profiles", "beacon object files (BOFs)", "process injection", "lateral movement", "credential theft", "OPSEC features", "sleep/jitter control", "SMB/TCP/DNS beacons", "in-memory execution"],
+    weaknesses: ["commercial license required", "well-known signatures", "high detection rate without tuning"],
+    bestFor: ["weaponization", "installation", "command_and_control", "actions_on_objectives"],
+    agentTypes: ["beacon"],
   },
 };
 
@@ -1199,6 +1205,11 @@ function getPayloadModuleId(framework: C2FrameworkType, platform: string): strin
       linux: "stager/multi/bash",
       macos: "stager/osx/launcher",
     },
+    cobaltstrike: {
+      windows: "beacon_https",
+      linux: "beacon_https",
+      macos: "beacon_https",
+    },
   };
 
   return payloads[framework]?.[platform] || payloads[framework]?.["linux"] || "unknown";
@@ -1210,6 +1221,7 @@ function frameworkToSessionType(framework: C2FrameworkType): "shell" | "meterpre
     metasploit: "meterpreter",
     sliver: "beacon",
     empire: "implant",
+    cobaltstrike: "beacon",
   };
   return map[framework] || "shell";
 }

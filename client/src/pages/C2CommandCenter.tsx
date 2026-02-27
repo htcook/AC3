@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,26 +18,35 @@ import {
   XCircle, Zap, GitBranch, Layers, Target, Eye, Lock,
   ArrowRight, Clock, BarChart3, Brain, Hexagon, Crosshair,
   Package, Settings, Code, FileCode, Download, Upload,
-  Workflow, ArrowLeftRight, Gauge, Sparkles, Swords,
+  Workflow, ArrowLeftRight, Gauge, Sparkles, Swords, Diamond,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type C2Framework = "caldera" | "metasploit" | "sliver" | "empire";
+type C2Framework = "caldera" | "metasploit" | "sliver" | "empire" | "cobaltstrike";
 
 const FRAMEWORK_META: Record<C2Framework, { label: string; color: string; icon: React.ReactNode; description: string }> = {
   caldera: { label: "CALDERA", color: "bg-red-500/10 text-red-400 border-red-500/20", icon: <Target className="h-5 w-5 text-red-400" />, description: "MITRE ATT&CK adversary emulation" },
   metasploit: { label: "METASPLOIT", color: "bg-blue-500/10 text-blue-400 border-blue-500/20", icon: <Crosshair className="h-5 w-5 text-blue-400" />, description: "Exploitation framework" },
   sliver: { label: "SLIVER", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", icon: <Hexagon className="h-5 w-5 text-emerald-400" />, description: "Implant C2 framework" },
   empire: { label: "EMPIRE", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: <Swords className="h-5 w-5 text-purple-400" />, description: "PowerShell/Python post-exploitation" },
+  cobaltstrike: { label: "COBALT STRIKE", color: "bg-orange-500/10 text-orange-400 border-orange-500/20", icon: <Diamond className="h-5 w-5 text-orange-400" />, description: "Commercial red team C2 platform" },
+};
+
+const FRAMEWORK_BAR_COLORS: Record<C2Framework, string> = {
+  caldera: "bg-red-500",
+  metasploit: "bg-blue-500",
+  sliver: "bg-emerald-500",
+  empire: "bg-purple-500",
+  cobaltstrike: "bg-orange-500",
 };
 
 // ─── Framework Status Card ──────────────────────────────────────────────────
 
 function FrameworkStatusCard({ framework }: { framework: C2Framework }) {
   const meta = FRAMEWORK_META[framework];
-  const healthQuery = trpc.abilityGraph.c2Health.useQuery({ framework });
-  const health = healthQuery.data;
+  const healthQuery = trpc.abilityGraph.c2Health.useQuery();
+  const health = healthQuery.data?.find((h: any) => h.framework === framework);
 
   return (
     <Card className="bg-zinc-900/50 border-zinc-800">
@@ -72,12 +81,16 @@ function FrameworkStatusCard({ framework }: { framework: C2Framework }) {
             <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Agents</div>
           </div>
           <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-            <div className="text-lg font-mono font-bold text-white">{health?.activeOps ?? "—"}</div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Active Ops</div>
+            <div className="text-lg font-mono font-bold text-white">{health?.activeJobs ?? "—"}</div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Active Jobs</div>
           </div>
           <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-            <div className="text-lg font-mono font-bold text-white">{health?.moduleCount ?? "—"}</div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Modules</div>
+            <div className="text-lg font-mono font-bold text-white">
+              {health?.details?.moduleCount ?? health?.details?.listenerCount ?? "—"}
+            </div>
+            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
+              {framework === "cobaltstrike" ? "Listeners" : "Modules"}
+            </div>
           </div>
         </div>
         {health?.version && (
@@ -91,7 +104,10 @@ function FrameworkStatusCard({ framework }: { framework: C2Framework }) {
 // ─── Unified Agent Table ────────────────────────────────────────────────────
 
 function UnifiedAgentView() {
-  const agentsQuery = trpc.abilityGraph.c2ListAgents.useQuery({ framework: "caldera" });
+  const [frameworkFilter, setFrameworkFilter] = useState<string>("all");
+  const agentsQuery = trpc.abilityGraph.c2Agents.useQuery(
+    frameworkFilter !== "all" ? { framework: frameworkFilter as any } : undefined
+  );
   const [filter, setFilter] = useState("");
 
   return (
@@ -103,6 +119,17 @@ function UnifiedAgentView() {
           onChange={(e) => setFilter(e.target.value)}
           className="bg-zinc-900 border-zinc-700 max-w-md"
         />
+        <Select value={frameworkFilter} onValueChange={setFrameworkFilter}>
+          <SelectTrigger className="bg-zinc-900 border-zinc-700 w-48">
+            <SelectValue placeholder="All Frameworks" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Frameworks</SelectItem>
+            {Object.entries(FRAMEWORK_META).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" onClick={() => agentsQuery.refetch()} className="border-zinc-700">
           <RefreshCw className="h-4 w-4 mr-2" /> Refresh
         </Button>
@@ -125,14 +152,14 @@ function UnifiedAgentView() {
               <tr><td colSpan={6} className="p-8 text-center text-zinc-500">
                 <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" /> Loading agents...
               </td></tr>
-            ) : !agentsQuery.data?.agents?.length ? (
+            ) : !(agentsQuery.data as any)?.length ? (
               <tr><td colSpan={6} className="p-8 text-center text-zinc-500">
                 <Server className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 No agents connected. Deploy agents from each C2 framework to see them here.
               </td></tr>
             ) : (
-              agentsQuery.data.agents
-                .filter((a: any) => !filter || a.hostname?.toLowerCase().includes(filter.toLowerCase()) || a.platform?.toLowerCase().includes(filter.toLowerCase()))
+              (agentsQuery.data as any[])
+                .filter((a: any) => !filter || a.hostname?.toLowerCase().includes(filter.toLowerCase()) || a.platform?.toLowerCase().includes(filter.toLowerCase()) || a.framework?.toLowerCase().includes(filter.toLowerCase()))
                 .map((agent: any, i: number) => (
                   <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                     <td className="p-3">
@@ -146,8 +173,8 @@ function UnifiedAgentView() {
                     </td>
                     <td className="p-3 text-zinc-300 font-mono text-xs">{agent.platform || "—"}</td>
                     <td className="p-3">
-                      <Badge className={agent.alive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}>
-                        {agent.alive ? "ALIVE" : "DEAD"}
+                      <Badge className={agent.status === "active" ? "bg-emerald-500/10 text-emerald-400" : agent.status === "dormant" ? "bg-amber-500/10 text-amber-400" : "bg-red-500/10 text-red-400"}>
+                        {agent.status?.toUpperCase() || "UNKNOWN"}
                       </Badge>
                     </td>
                     <td className="p-3 text-zinc-400 text-xs font-mono">{agent.lastSeen ? new Date(agent.lastSeen).toLocaleString() : "—"}</td>
@@ -183,12 +210,12 @@ function ModuleBuilder() {
       setGeneratedCode(data?.code || "// Module generated successfully");
       toast.success("Module generated");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message),
   });
 
   const pushMut = trpc.abilityGraph.pushModules.useMutation({
     onSuccess: () => toast.success("Module pushed to C2"),
-    onError: (err) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message),
   });
 
   return (
@@ -334,7 +361,7 @@ function OrchestrationDashboard() {
       setShowCreate(false);
       listQuery.refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message),
   });
 
   const startMut = trpc.abilityGraph.startOrchestration.useMutation({
@@ -342,7 +369,7 @@ function OrchestrationDashboard() {
       toast.success("Orchestration started");
       listQuery.refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message),
   });
 
   const abortMut = trpc.abilityGraph.abortOrchestration.useMutation({
@@ -350,7 +377,7 @@ function OrchestrationDashboard() {
       toast.success("Orchestration aborted");
       listQuery.refetch();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err: any) => toast.error(err.message),
   });
 
   const stats = statsQuery.data;
@@ -388,7 +415,7 @@ function OrchestrationDashboard() {
           <DialogContent className="bg-zinc-900 border-zinc-700">
             <DialogHeader>
               <DialogTitle>Create Cross-C2 Orchestration</DialogTitle>
-              <DialogDescription>Coordinate operations across Caldera, Metasploit, Sliver, and Empire</DialogDescription>
+              <DialogDescription>Coordinate operations across Caldera, Metasploit, Sliver, Empire, and Cobalt Strike</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -400,7 +427,7 @@ function OrchestrationDashboard() {
                 <Select value={orchGraphId} onValueChange={setOrchGraphId}>
                   <SelectTrigger className="bg-zinc-800 border-zinc-700"><SelectValue placeholder="Select graph..." /></SelectTrigger>
                   <SelectContent>
-                    {graphsQuery.data?.map((g: any) => (
+                    {(graphsQuery.data as any)?.items?.map((g: any) => (
                       <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -483,8 +510,8 @@ function OrchestrationDashboard() {
                     </td>
                     <td className="p-3 text-zinc-300 font-mono text-xs">{completed}/{total}</td>
                     <td className="p-3">
-                      <div className="flex gap-1">
-                        {frameworks.map((f: any) => (
+                      <div className="flex gap-1 flex-wrap">
+                        {(frameworks as string[]).map((f: string) => (
                           <Badge key={f} className={FRAMEWORK_META[f as C2Framework]?.color || "bg-zinc-700"} variant="outline">
                             {f}
                           </Badge>
@@ -527,8 +554,8 @@ function OrchestrationDashboard() {
 // ─── Learning Dashboard ─────────────────────────────────────────────────────
 
 function LearningDashboard() {
-  const confidenceQuery = trpc.abilityGraph.c2ConfidenceTimeline.useQuery();
-  const recommendQuery = trpc.abilityGraph.recommendExploits.useQuery({ targetHost: "0.0.0.0", targetPort: 0 });
+  const learningQuery = trpc.abilityGraph.learningStats.useQuery();
+  const historyQuery = trpc.abilityGraph.learningHistory.useQuery();
 
   return (
     <div className="space-y-6">
@@ -536,35 +563,31 @@ function LearningDashboard() {
         <Card className="bg-zinc-900/50 border-zinc-800">
           <CardHeader>
             <CardTitle className="text-sm font-mono flex items-center gap-2">
-              <Brain className="h-4 w-4 text-purple-400" /> TECHNIQUE CONFIDENCE EVOLUTION
+              <Brain className="h-4 w-4 text-purple-400" /> EXECUTION HISTORY
             </CardTitle>
-            <CardDescription className="text-xs">How technique confidence scores change after real-world execution</CardDescription>
+            <CardDescription className="text-xs">Recent technique executions and their outcomes</CardDescription>
           </CardHeader>
           <CardContent>
-            {confidenceQuery.isLoading ? (
+            {historyQuery.isLoading ? (
               <div className="flex items-center justify-center h-40"><Loader2 className="h-5 w-5 animate-spin text-zinc-500" /></div>
-            ) : confidenceQuery.data?.timeline?.length ? (
+            ) : (historyQuery.data as any)?.records?.length ? (
               <div className="space-y-2 max-h-64 overflow-auto">
-                {confidenceQuery.data.timeline.slice(0, 20).map((entry: any, i: number) => (
+                {((historyQuery.data as any)?.records as any[] || []).slice(0, 20).map((entry: any, i: number) => (
                   <div key={i} className="flex items-center justify-between bg-zinc-800/50 rounded p-2">
                     <div>
                       <div className="text-xs font-mono text-white">{entry.techniqueId}</div>
                       <div className="text-[10px] text-zinc-500">{entry.framework}</div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">{entry.oldConfidence}%</span>
-                      <ArrowRight className="h-3 w-3 text-zinc-600" />
-                      <span className={`text-xs font-bold ${entry.newConfidence > entry.oldConfidence ? "text-emerald-400" : "text-red-400"}`}>
-                        {entry.newConfidence}%
-                      </span>
-                    </div>
+                    <Badge className={entry.result === "success" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}>
+                      {entry.result?.toUpperCase() || "UNKNOWN"}
+                    </Badge>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center text-zinc-500 py-8">
                 <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Execute operations to see confidence evolution</p>
+                <p className="text-sm">Execute operations to see execution history</p>
               </div>
             )}
           </CardContent>
@@ -580,7 +603,8 @@ function LearningDashboard() {
           <CardContent>
             <div className="space-y-4">
               {Object.entries(FRAMEWORK_META).map(([fw, meta]) => {
-                const successRate = Math.floor(Math.random() * 40 + 60); // Placeholder until real data flows
+                const fwStats = (learningQuery.data as any)?.byFramework?.[fw];
+                const successRate = fwStats?.rate ? Math.round(fwStats.rate * 100) : 0;
                 return (
                   <div key={fw} className="space-y-1">
                     <div className="flex items-center justify-between">
@@ -591,7 +615,7 @@ function LearningDashboard() {
                       <span className="text-xs font-mono text-zinc-400">{successRate}%</span>
                     </div>
                     <div className="bg-zinc-800 rounded-full h-2 overflow-hidden">
-                      <div className={`h-full rounded-full ${fw === "caldera" ? "bg-red-500" : fw === "metasploit" ? "bg-blue-500" : fw === "sliver" ? "bg-emerald-500" : "bg-purple-500"}`} style={{ width: `${successRate}%` }} />
+                      <div className={`h-full rounded-full ${FRAMEWORK_BAR_COLORS[fw as C2Framework]}`} style={{ width: `${successRate}%` }} />
                     </div>
                   </div>
                 );
@@ -612,18 +636,18 @@ function LearningDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-zinc-800/50 rounded-lg p-4">
               <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Best Initial Access</div>
-              <div className="text-sm font-mono text-white">GoPhish → Caldera</div>
-              <div className="text-[10px] text-zinc-500 mt-1">Phishing + adversary emulation pipeline</div>
+              <div className="text-sm font-mono text-white">GoPhish → Cobalt Strike</div>
+              <div className="text-[10px] text-zinc-500 mt-1">Phishing + beacon deployment pipeline</div>
             </div>
             <div className="bg-zinc-800/50 rounded-lg p-4">
               <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Best Lateral Movement</div>
-              <div className="text-sm font-mono text-white">Metasploit → Sliver</div>
-              <div className="text-[10px] text-zinc-500 mt-1">Exploit + implant handoff chain</div>
+              <div className="text-sm font-mono text-white">Cobalt Strike → Sliver</div>
+              <div className="text-[10px] text-zinc-500 mt-1">Beacon + implant handoff chain</div>
             </div>
             <div className="bg-zinc-800/50 rounded-lg p-4">
               <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Best Persistence</div>
-              <div className="text-sm font-mono text-white">Empire → Sliver</div>
-              <div className="text-[10px] text-zinc-500 mt-1">PowerShell staging + C2 fallback</div>
+              <div className="text-sm font-mono text-white">Empire → Cobalt Strike</div>
+              <div className="text-[10px] text-zinc-500 mt-1">PowerShell staging + beacon fallback</div>
             </div>
           </div>
         </CardContent>
@@ -647,12 +671,12 @@ export default function C2CommandCenter() {
               </div>
               C2 COMMAND CENTER
             </h1>
-            <p className="text-sm text-zinc-400 mt-1">Unified multi-framework C2 orchestration — Caldera · Metasploit · Sliver · Empire · GoPhish</p>
+            <p className="text-sm text-zinc-400 mt-1">Unified multi-framework C2 orchestration — Caldera · Metasploit · Sliver · Empire · Cobalt Strike · GoPhish</p>
           </div>
         </div>
 
         {/* Framework Status Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {(Object.keys(FRAMEWORK_META) as C2Framework[]).map((fw) => (
             <FrameworkStatusCard key={fw} framework={fw} />
           ))}
