@@ -5862,3 +5862,13 @@
 - [x] Section now always visible (shows during loading, on error, and when empty)
 - [x] Fixed DomainIntel scan cards: removed broken pipelineOutput reference
 - [x] All 20 domain intel tests passing
+
+## Censys API Migration (Platform PAT Auth)
+- [x] Research new Censys Platform API v3 endpoints and PAT auth
+- [x] Updated connector: POST /v3/global/search/query, GET /v3/global/asset/host/{ip}
+- [x] Updated auth: Bearer PAT token + X-Organization-ID header
+- [x] Updated query syntax: host.dns.names instead of deprecated services.tls.certificates.leaf.names
+- [x] Updated response parsing: result.hits[].host_v1.resource structure
+- [x] Added pagination support (page_token for multi-page results)
+- [x] Added certificate name extraction from svc.cert.parsed
+- [x] All 5 Censys API tests passing (auth, search, host lookup, connector integration)
