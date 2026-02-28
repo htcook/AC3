@@ -1,5 +1,5 @@
 /**
- * CARVER+Shock Scoring Hardening Layer
+ * Hybrid Risk Scoring Hardening Layer
  * ─────────────────────────────────────
  * Production hardening for the scoring engine:
  * - Input validation and sanitization for all scoring inputs

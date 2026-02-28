@@ -1,0 +1,121 @@
+{
+  "query": "SELECT actorId, name, actorType as type, origin, threatLevel, sophistication, motivation, firstSeen, lastActive, LEFT(description, 200) as descSnippet FROM threat_actors ORDER BY updatedAt DESC LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT actorId, name, actorType as type, origin, threatLevel, sophistication, motivation, firstSeen, lastActive, LEFT(description, 200) as descSnippet FROM threat_actors ORDER BY updatedAt DESC LIMIT 10",
+  "rows": [
+    {
+      "actorId": "uac-0050",
+      "name": "UAC-0050",
+      "type": "unknown",
+      "origin": "Russia",
+      "threatLevel": "low",
+      "sophistication": "basic",
+      "motivation": "espionage",
+      "firstSeen": "",
+      "lastActive": "",
+      "descSnippet": "UAC-0050 is a CERT-UA tracked Russian threat group that targets Ukrainian government organizations with the Remcos RAT. The group uses phishing campaigns themed around military and government communic"
+    },
+    {
+      "actorId": "scarcruft",
+      "name": "ScarCruft",
+      "type": "apt",
+      "origin": "North Korea",
+      "threatLevel": "high",
+      "sophistication": "advanced",
+      "motivation": "espionage",
+      "firstSeen": "",
+      "lastActive": "Fri, 27 Feb 2026 18:13:00 +0530",
+      "descSnippet": "ScarCruft is a Kaspersky-tracked North Korean threat group also known as APT37/Reaper. The group targets South Korean organizations, defectors, and journalists using zero-day exploits and custom malwa"
+    },
+    {
+      "actorId": "everything-bagel",
+      "name": "Everything Bagel",
+      "type": "unknown",
+      "origin": "NULL",
+      "threatLevel": "medium",
+      "sophistication": "advanced",
+      "motivation": "unknown",
+      "firstSeen": "NULL",
+      "lastActive": "NULL",
+      "descSnippet": "An adversary with all adversary abilities"
+    },
+    {
+      "actorId": "alphv-blackcat-simulation",
+      "name": "ALPHV/BlackCat Simulation",
+      "type": "apt",
+      "origin": "NULL",
+      "threatLevel": "medium",
+      "sophistication": "intermediate",
+      "motivation": "NULL",
+      "firstSeen": "NULL",
+      "lastActive": "NULL",
+      "descSnippet": "ALPHV/BlackCat simulation — RDP brute force, Mimikatz credential harvesting, Safe Mode AV bypass, ExMatter exfiltration, and cross-platform Rust encryption."
+    },
+    {
+      "actorId": "akira-simulation",
+      "name": "Akira Simulation",
+      "type": "apt",
+      "origin": "NULL",
+      "threatLevel": "medium",
+      "sophistication": "intermediate",
+      "motivation": "NULL",
+      "firstSeen": "NULL",
+      "lastActive": "NULL",
+      "descSnippet": "Akira ransomware simulation — Cisco VPN exploitation, LaZagne credential extraction, WinSCP exfiltration, and hybrid ChaCha20+RSA-4096 encryption."
+    },
+    {
+      "actorId": "cl0p-simulation",
+      "name": "Cl0p Simulation",
+      "type": "apt",
+      "origin": "NULL",
+      "threatLevel": "medium",
+      "sophistication": "intermediate",
+      "motivation": "NULL",
+      "firstSeen": "NULL",
+      "lastActive": "NULL",
+      "descSnippet": "Cl0p ransomware simulation — MOVEit/GoAnywhere exploitation, LEMURLOOT webshell deployment, mass file collection, and automated exfiltration."
+    },
+    {
+      "actorId": "black-basta-simulation",
+      "name": "Black Basta Simulation",
+      "type": "apt",
+      "origin": "NULL",
+      "threatLevel": "medium",
+      "sophistication": "intermediate",
+      "motivation": "NULL",
+      "firstSeen": "NULL",
+      "lastActive": "NULL",
+      "descSnippet": "Black Basta ransomware simulation — QakBot delivery, credential dumping, lateral movement via PsExec, rclone exfiltration, and ChaCha20+RSA encryption."
+    },
+    {
+      "actorId": "worm",
+      "name": "Worm",
+      "type": "unknown",
+      "origin": "NULL",
+      "threatLevel": "medium",
+      "sophistication": "advanced",
+      "motivation": "unknown",
+      "firstSeen": "NULL",
+      "lastActive": "NULL",
+      "descSnippet": "Move laterally any way possible"
+    },
+    {
+      "actorId": "you-shall-not-bypass",
+      "name": "You Shall (Not) Bypass",
+      "type": "unknown",
+      "origin": "NULL",
+      "threatLevel": "medium",
+      "sophistication": "intermediate",
+      "motivation": "unknown",
+      "firstSeen": "NULL",
+      "lastActive": "NULL",
+      "descSnippet": "This adversary consists of several abilities to bypass UAC on an updated Windows 10 system"
+    }
+  ],
+  "messages": [
+    "windows-worm-3\tWindows Worm #3",
+    "\tunknown\tNULL\tmedium\tintermediate\tunknown\tNULL\tNULL\tMove laterally with SMB and WinRM"
+  ],
+  "stdout": "actorId\tname\ttype\torigin\tthreatLevel\tsophistication\tmotivation\tfirstSeen\tlastActive\tdescSnippet\nuac-0050\tUAC-0050\tunknown\tRussia\tlow\tbasic\tespionage\t\t\tUAC-0050 is a CERT-UA tracked Russian threat group that targets Ukrainian government organizations with the Remcos RAT. The group uses phishing campaigns themed around military and government communic\nscarcruft\tScarCruft\tapt\tNorth Korea\thigh\tadvanced\tespionage\t\tFri, 27 Feb 2026 18:13:00 +0530\tScarCruft is a Kaspersky-tracked North Korean threat group also known as APT37/Reaper. The group targets South Korean organizations, defectors, and journalists using zero-day exploits and custom malwa\neverything-bagel\tEverything Bagel\tunknown\tNULL\tmedium\tadvanced\tunknown\tNULL\tNULL\tAn adversary with all adversary abilities\nalphv-blackcat-simulation\tALPHV/BlackCat Simulation\tapt\tNULL\tmedium\tintermediate\tNULL\tNULL\tNULL\tALPHV/BlackCat simulation — RDP brute force, Mimikatz credential harvesting, Safe Mode AV bypass, ExMatter exfiltration, and cross-platform Rust encryption.\nakira-simulation\tAkira Simulation\tapt\tNULL\tmedium\tintermediate\tNULL\tNULL\tNULL\tAkira ransomware simulation — Cisco VPN exploitation, LaZagne credential extraction, WinSCP exfiltration, and hybrid ChaCha20+RSA-4096 encryption.\ncl0p-simulation\tCl0p Simulation\tapt\tNULL\tmedium\tintermediate\tNULL\tNULL\tNULL\tCl0p ransomware simulation — MOVEit/GoAnywhere exploitation, LEMURLOOT webshell deployment, mass file collection, and automated exfiltration.\nblack-basta-simulation\tBlack Basta Simulation\tapt\tNULL\tmedium\tintermediate\tNULL\tNULL\tNULL\tBlack Basta ransomware simulation — QakBot delivery, credential dumping, lateral movement via PsExec, rclone exfiltration, and ChaCha20+RSA encryption.\nworm\tWorm\tunknown\tNULL\tmedium\tadvanced\tunknown\tNULL\tNULL\tMove laterally any way possible\nwindows-worm-3\tWindows Worm #3\n\tunknown\tNULL\tmedium\tintermediate\tunknown\tNULL\tNULL\tMove laterally with SMB and WinRM\nyou-shall-not-bypass\tYou Shall (Not) Bypass\tunknown\tNULL\tmedium\tintermediate\tunknown\tNULL\tNULL\tThis adversary consists of several abilities to bypass UAC on an updated Windows 10 system\n",
+  "stderr": "",
+  "execution_time_ms": 382
+}

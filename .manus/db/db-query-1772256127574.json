@@ -1,0 +1,120 @@
+{
+  "query": "SELECT id, scanId, domain, targetUrl, httpStatus, securityHeaderGrade, totalFindings, crawledBy, LEFT(pageTitle, 80) as title FROM web_crawl_results ORDER BY id DESC LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, scanId, domain, targetUrl, httpStatus, securityHeaderGrade, totalFindings, crawledBy, LEFT(pageTitle, 80) as title FROM web_crawl_results ORDER BY id DESC LIMIT 10",
+  "rows": [
+    {
+      "id": "1278",
+      "scanId": "1380385",
+      "domain": "www.aceofcloud.com",
+      "targetUrl": "https://www.aceofcloud.com",
+      "httpStatus": "200",
+      "securityHeaderGrade": "F",
+      "totalFindings": "9",
+      "crawledBy": "auto-crawl",
+      "title": "Ace of Cloud - Cybersecurity Solutions"
+    },
+    {
+      "id": "1277",
+      "scanId": "1380385",
+      "domain": "aceofcloud.com",
+      "targetUrl": "https://aceofcloud.com",
+      "httpStatus": "200",
+      "securityHeaderGrade": "F",
+      "totalFindings": "9",
+      "crawledBy": "auto-crawl",
+      "title": "Ace of Cloud - Cybersecurity Solutions"
+    },
+    {
+      "id": "1276",
+      "scanId": "1380318",
+      "domain": "voice.digital.business.comcast.com",
+      "targetUrl": "https://voice.digital.business.comcast.com",
+      "httpStatus": "403",
+      "securityHeaderGrade": "F",
+      "totalFindings": "11",
+      "crawledBy": "auto-crawl",
+      "title": "403 Forbidden"
+    },
+    {
+      "id": "1275",
+      "scanId": "1380298",
+      "domain": "acts-ndcac.fbi.gov",
+      "targetUrl": "https://acts-ndcac.fbi.gov",
+      "httpStatus": "403",
+      "securityHeaderGrade": "F",
+      "totalFindings": "11",
+      "crawledBy": "auto-crawl",
+      "title": ""
+    },
+    {
+      "id": "1274",
+      "scanId": "1380329",
+      "domain": "api.dev.finance.it.ucla.edu",
+      "targetUrl": "https://api.dev.finance.it.ucla.edu",
+      "httpStatus": "403",
+      "securityHeaderGrade": "F",
+      "totalFindings": "10",
+      "crawledBy": "auto-crawl",
+      "title": ""
+    },
+    {
+      "id": "1273",
+      "scanId": "1380326",
+      "domain": "healthpolicy.fas.harvard.edu",
+      "targetUrl": "https://healthpolicy.fas.harvard.edu",
+      "httpStatus": "200",
+      "securityHeaderGrade": "D",
+      "totalFindings": "8",
+      "crawledBy": "auto-crawl",
+      "title": "Harvard PhD Program in Health Policy | Harvard PhD Program in Health Policy"
+    },
+    {
+      "id": "1272",
+      "scanId": "1380326",
+      "domain": "careers.harvard.edu",
+      "targetUrl": "https://careers.harvard.edu",
+      "httpStatus": "200",
+      "securityHeaderGrade": "C",
+      "totalFindings": "13",
+      "crawledBy": "auto-crawl",
+      "title": "Be Part of Harvard. | Harvard University"
+    },
+    {
+      "id": "1271",
+      "scanId": "1380298",
+      "domain": "delivery.fbi.gov",
+      "targetUrl": "https://delivery.fbi.gov",
+      "httpStatus": "403",
+      "securityHeaderGrade": "C",
+      "totalFindings": "7",
+      "crawledBy": "auto-crawl",
+      "title": "This site has determined a security issue with your request."
+    },
+    {
+      "id": "1270",
+      "scanId": "1380298",
+      "domain": "fs1.fbi.gov",
+      "targetUrl": "https://fs1.fbi.gov",
+      "httpStatus": "404",
+      "securityHeaderGrade": "F",
+      "totalFindings": "11",
+      "crawledBy": "auto-crawl",
+      "title": "Not Found"
+    },
+    {
+      "id": "1269",
+      "scanId": "1380329",
+      "domain": "cpanel.korea-vietnam.humspace.ucla.edu",
+      "targetUrl": "https://cpanel.korea-vietnam.humspace.ucla.edu",
+      "httpStatus": "200",
+      "securityHeaderGrade": "F",
+      "totalFindings": "16",
+      "crawledBy": "auto-crawl",
+      "title": "cPanel Login"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tscanId\tdomain\ttargetUrl\thttpStatus\tsecurityHeaderGrade\ttotalFindings\tcrawledBy\ttitle\n1278\t1380385\twww.aceofcloud.com\thttps://www.aceofcloud.com\t200\tF\t9\tauto-crawl\tAce of Cloud - Cybersecurity Solutions\n1277\t1380385\taceofcloud.com\thttps://aceofcloud.com\t200\tF\t9\tauto-crawl\tAce of Cloud - Cybersecurity Solutions\n1276\t1380318\tvoice.digital.business.comcast.com\thttps://voice.digital.business.comcast.com\t403\tF\t11\tauto-crawl\t403 Forbidden\n1275\t1380298\tacts-ndcac.fbi.gov\thttps://acts-ndcac.fbi.gov\t403\tF\t11\tauto-crawl\t\n1274\t1380329\tapi.dev.finance.it.ucla.edu\thttps://api.dev.finance.it.ucla.edu\t403\tF\t10\tauto-crawl\t\n1273\t1380326\thealthpolicy.fas.harvard.edu\thttps://healthpolicy.fas.harvard.edu\t200\tD\t8\tauto-crawl\tHarvard PhD Program in Health Policy | Harvard PhD Program in Health Policy\n1272\t1380326\tcareers.harvard.edu\thttps://careers.harvard.edu\t200\tC\t13\tauto-crawl\tBe Part of Harvard. | Harvard University\n1271\t1380298\tdelivery.fbi.gov\thttps://delivery.fbi.gov\t403\tC\t7\tauto-crawl\tThis site has determined a security issue with your request.\n1270\t1380298\tfs1.fbi.gov\thttps://fs1.fbi.gov\t404\tF\t11\tauto-crawl\tNot Found\n1269\t1380329\tcpanel.korea-vietnam.humspace.ucla.edu\thttps://cpanel.korea-vietnam.humspace.ucla.edu\t200\tF\t16\tauto-crawl\tcPanel Login\n",
+  "stderr": "",
+  "execution_time_ms": 345
+}

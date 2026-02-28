@@ -102,6 +102,7 @@ import { serviceFingerprintRouter } from "./routers/service-fingerprinter";
 import { amassRouter } from "./routers/amass";
 import { nmapRouter } from "./routers/nmap";
 import { discoveryChainRouter } from "./routers/discovery-chain";
+import { crawlPhishRouter } from "./routers/crawl-phish";
 import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
 
 // Caldera session cookie name
@@ -287,6 +288,7 @@ export const appRouter = router({
   amass: amassRouter,
   nmap: nmapRouter,
   discoveryChain: discoveryChainRouter,
+  crawlPhish: crawlPhishRouter,
   errorLog: errorLogRouter,
   oemCreds: oemCredsRouter,
   aiChat: aiChatRouter,
@@ -463,6 +465,7 @@ export const appRouter = router({
 
       return {
         totalAdversaries: Array.isArray(adversaries) ? adversaries.length : 0,
+        totalThreatActors: await db.getThreatActorCount(),
         totalAbilities: Array.isArray(abilities) ? abilities.length : 0,
         activeOperations: Array.isArray(operations) ? operations.filter((o: any) => o.state === 'running').length : 0,
         totalAgents: Array.isArray(agents) ? agents.length : 0,
@@ -7027,8 +7030,8 @@ Make the phishing content highly realistic and tailored to the target domain and
       // Phishing exploits count (from catalog)
       const phishingExploits = catalogStats.bySource['phishing_library'] || 0;
 
-      // Platform modules count (hardcoded — these are UI sections, not DB entries)
-      const platformModules = 29;
+      // Platform modules count — 8 nav groups × ~4 sub-sections each
+      const platformModules = 32;
 
       return {
         exploitCatalogTotal: catalogStats.total,
@@ -7045,6 +7048,61 @@ Make the phishing content highly realistic and tailored to the target domain and
         lastUpdated: Date.now(),
       };
     }),
+    // Public feed of recent threat actors for homepage (limited fields, no sensitive data)
+    recentThreatActors: publicProcedure
+      .input(z.object({ limit: z.number().min(1).max(50).default(20) }).optional())
+      .query(async ({ input }) => {
+        const limit = input?.limit ?? 20;
+        const result = await db.listThreatActors({ limit, offset: 0 });
+        // Return only safe public fields — no calderaProfile, no stixId, no internal IDs
+        return {
+          actors: result.actors.map(a => ({
+            actorId: a.actorId,
+            name: a.name,
+            type: a.type,
+            origin: a.origin,
+            threatLevel: a.threatLevel,
+            sophistication: a.sophistication,
+            motivation: a.motivation,
+            firstSeen: a.firstSeen,
+            lastActive: a.lastActive,
+            description: a.description,
+            aliases: a.aliases,
+            targetSectors: a.targetSectors,
+            targetRegions: a.targetRegions,
+            techniques: a.techniques,
+            tools: a.tools,
+            malware: a.malware,
+          })),
+          total: result.total,
+        };
+      }),
+    // Public single threat actor detail for homepage modal (limited fields)
+    publicActorDetail: publicProcedure
+      .input(z.object({ actorId: z.string() }))
+      .query(async ({ input }) => {
+        const a = await db.getThreatActor(input.actorId);
+        if (!a) throw new TRPCError({ code: 'NOT_FOUND', message: 'Threat actor not found' });
+        return {
+          actorId: a.actorId,
+          name: a.name,
+          type: a.type,
+          origin: a.origin,
+          threatLevel: a.threatLevel,
+          sophistication: a.sophistication,
+          motivation: a.motivation,
+          firstSeen: a.firstSeen,
+          lastActive: a.lastActive,
+          description: a.description,
+          aliases: a.aliases,
+          targetSectors: a.targetSectors,
+          targetRegions: a.targetRegions,
+          techniques: a.techniques,
+          tools: a.tools,
+          malware: a.malware,
+          activityTimeline: a.activityTimeline,
+        };
+      }),
   }),
 
   // ─── Exploit Catalog (browser + enrichment management) ─────────────

@@ -798,7 +798,7 @@ export function computeIndustryModifier(industry: IndustryVertical): {
  *   score = ((CARVER_total / 70) * 0.5 + (CVSS / 10) * 0.3 + BIA * 0.2)
  *           * TierWeight * ShockMultiplier * IndustryModifier * Fips199Multiplier
  *
- * This extends the base CARVER+Shock scoring with:
+ * This extends the base Hybrid Risk scoring with:
  *   - Industry-specific asset tier classification
  *   - Industry risk amplification modifiers
  *   - Auto-BIA inference from scan signals

@@ -1,0 +1,75 @@
+{
+  "query": "SELECT id, scanId, domain, httpStatus, securityHeaderGrade, totalFindings, JSON_LENGTH(forms) as formCount, JSON_LENGTH(detectedTechnologies) as techCount, JSON_LENGTH(externalLinks) as extLinkCount, JSON_LENGTH(cookies) as cookieCount, JSON_LENGTH(exposedPaths) as exposedPathCount FROM web_crawl_results WHERE totalFindings > 0 ORDER BY totalFindings DESC LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, scanId, domain, httpStatus, securityHeaderGrade, totalFindings, JSON_LENGTH(forms) as formCount, JSON_LENGTH(detectedTechnologies) as techCount, JSON_LENGTH(externalLinks) as extLinkCount, JSON_LENGTH(cookies) as cookieCount, JSON_LENGTH(exposedPaths) as exposedPathCount FROM web_crawl_results WHERE totalFindings > 0 ORDER BY totalFindings DESC LIMIT 5",
+  "rows": [
+    {
+      "id": "421",
+      "scanId": "1380278",
+      "domain": "physicians.cvshealth.com",
+      "httpStatus": "200",
+      "securityHeaderGrade": "C",
+      "totalFindings": "106",
+      "formCount": "2",
+      "techCount": "1",
+      "extLinkCount": "1",
+      "cookieCount": "36",
+      "exposedPathCount": "0"
+    },
+    {
+      "id": "487",
+      "scanId": "1380292",
+      "domain": "portal-sts.leidos.com",
+      "httpStatus": "200",
+      "securityHeaderGrade": "F",
+      "totalFindings": "43",
+      "formCount": "0",
+      "techCount": "1",
+      "extLinkCount": "0",
+      "cookieCount": "6",
+      "exposedPathCount": "24"
+    },
+    {
+      "id": "900",
+      "scanId": "1380331",
+      "domain": "vpn.k12.com",
+      "httpStatus": "200",
+      "securityHeaderGrade": "B",
+      "totalFindings": "42",
+      "formCount": "0",
+      "techCount": "0",
+      "extLinkCount": "0",
+      "cookieCount": "9",
+      "exposedPathCount": "22"
+    },
+    {
+      "id": "493",
+      "scanId": "1380316",
+      "domain": "my.verizon.com",
+      "httpStatus": "200",
+      "securityHeaderGrade": "D",
+      "totalFindings": "42",
+      "formCount": "0",
+      "techCount": "0",
+      "extLinkCount": "0",
+      "cookieCount": "8",
+      "exposedPathCount": "22"
+    },
+    {
+      "id": "937",
+      "scanId": "1380375",
+      "domain": "jegfs.jacobs.com",
+      "httpStatus": "200",
+      "securityHeaderGrade": "F",
+      "totalFindings": "41",
+      "formCount": "0",
+      "techCount": "0",
+      "extLinkCount": "0",
+      "cookieCount": "6",
+      "exposedPathCount": "24"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tscanId\tdomain\thttpStatus\tsecurityHeaderGrade\ttotalFindings\tformCount\ttechCount\textLinkCount\tcookieCount\texposedPathCount\n421\t1380278\tphysicians.cvshealth.com\t200\tC\t106\t2\t1\t1\t36\t0\n487\t1380292\tportal-sts.leidos.com\t200\tF\t43\t0\t1\t0\t6\t24\n900\t1380331\tvpn.k12.com\t200\tB\t42\t0\t0\t0\t9\t22\n493\t1380316\tmy.verizon.com\t200\tD\t42\t0\t0\t0\t8\t22\n937\t1380375\tjegfs.jacobs.com\t200\tF\t41\t0\t0\t0\t6\t24\n",
+  "stderr": "",
+  "execution_time_ms": 396
+}

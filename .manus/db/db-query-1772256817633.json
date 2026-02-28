@@ -1,0 +1,19 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN actorType = 'apt' THEN 1 ELSE 0 END) as apt, SUM(CASE WHEN actorType = 'cybercrime' THEN 1 ELSE 0 END) as cybercrime, SUM(CASE WHEN actorType = 'ransomware' THEN 1 ELSE 0 END) as ransomware, SUM(CASE WHEN actorType = 'hacktivist' THEN 1 ELSE 0 END) as hacktivist, SUM(CASE WHEN threatLevel = 'critical' THEN 1 ELSE 0 END) as critical_level, SUM(CASE WHEN threatLevel = 'high' THEN 1 ELSE 0 END) as high_level FROM threat_actors",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as total, SUM(CASE WHEN actorType = 'apt' THEN 1 ELSE 0 END) as apt, SUM(CASE WHEN actorType = 'cybercrime' THEN 1 ELSE 0 END) as cybercrime, SUM(CASE WHEN actorType = 'ransomware' THEN 1 ELSE 0 END) as ransomware, SUM(CASE WHEN actorType = 'hacktivist' THEN 1 ELSE 0 END) as hacktivist, SUM(CASE WHEN threatLevel = 'critical' THEN 1 ELSE 0 END) as critical_level, SUM(CASE WHEN threatLevel = 'high' THEN 1 ELSE 0 END) as high_level FROM threat_actors",
+  "rows": [
+    {
+      "total": "1700",
+      "apt": "320",
+      "cybercrime": "92",
+      "ransomware": "365",
+      "hacktivist": "9",
+      "critical_level": "125",
+      "high_level": "410"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tapt\tcybercrime\transomware\thacktivist\tcritical_level\thigh_level\n1700\t320\t92\t365\t9\t125\t410\n",
+  "stderr": "",
+  "execution_time_ms": 350
+}

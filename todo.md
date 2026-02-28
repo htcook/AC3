@@ -5704,3 +5704,45 @@
 - [ ] Show SecurityTrails, crt.sh, DNS, and other connector data per asset
 - [ ] Add "Attacker's View" or "External Exposure" section to each asset showing raw connector evidence
 - [ ] Include full connector evidence in downloadable reports
+- [x] Re-run cargill.com scan to verify confirmed finding count drops with new KEV matching logic
+- [ ] Add "Attacker's View" panel to asset detail pages showing raw connector evidence grouped by source
+- [x] Complete ScoringHub Reference tab audit for remaining CARVER/FM 34-36 text before external demos
+- [x] Re-run vianova.ai scan with updated KEV matching logic
+- [x] Re-run aceofcloud.com scan with updated KEV matching logic
+- [ ] Monitor and troubleshoot running scans in real-time, fix pipeline errors as they appear
+- [ ] Design Business Intelligence Discovery (BID) process for automated BIA enrichment
+- [ ] Build BID data collection pipeline (website scraping, OSINT, SEC filings, LLM extraction)
+- [ ] Extract org mission, products, critical functions, regulatory environment, supply chain dependencies
+- [ ] Wire BID data into hybrid scoring BIA for more accurate sector classification and risk scoring
+- [ ] Add BID results display to scan results page showing discovered business context
+- [ ] Build Supply Chain Risk detection module (3rd party JS/CDN deps, DNS delegation, CNAME takeover risk, email providers, shared hosting)
+- [ ] Add Supply Chain Risk tab to scan results page showing third-party dependency map
+- [ ] Integrate supply chain findings into hybrid risk scoring
+- [x] Complete ScoringHub/scoring-engine CARVER+Shock/FM 34-36 audit — all user-visible references sanitized
+- [ ] Audit web crawler data collected vs displayed in scan results page
+- [ ] Display web crawler results in scan results page (external scripts, headers, cookies, forms, tech stack)
+- [ ] Include web crawler evidence in downloadable reports
+- [ ] Build crawl-to-phish pipeline: extract login forms, branding, CSS from crawled pages
+- [ ] Generate login portal clone phishing templates from crawled web assets
+- [ ] Generate supply-chain-matched phishing templates based on detected third-party vendors
+- [ ] Add phishing template gallery to GoPhish integration showing auto-generated templates
+- [ ] Ensure all phishing templates are RoE-gated (only available within active engagements)
+
+## Crawl-to-Phish Pipeline & UI Updates
+- [x] Wire crawl-phish router into main routers.ts
+- [x] Update Home page with current platform design and features
+- [x] Update What's New popup with latest capabilities
+- [x] Fix adversary count → use threat actor count (dynamic)
+- [x] Ensure all Home page stats are dynamic (not hardcoded)
+- [x] Write tests for crawl-phish generator
+- [x] Add public threat actor feed on home page with clickable detail modal
+- [x] Create public (no-auth) threat actor API endpoint for homepage feed
+- [x] Ensure threat actor detail view does NOT bypass authentication into dashboard
+
+## BIA Auto-Collection on Domain Scans
+- [x] Build multi-signal entity resolution (WHOIS org, SSL cert org, web crawl branding/copyright/about, social links) — must identify actual business, NOT hosting provider/CDN
+- [x] Wire BIA collection to automatically run when domain scans are triggered
+- [x] Store entity profile (org name, industry, sector) in domain scan results
+- [x] Enrich entity profile with company valuation, revenue/sales income (public filings, Crunchbase-style data)
+- [x] Use financial data to enhance BIA financial loss impact ratings
+- [x] Use identified entity to drive BIA analysis (NIST IR 8286D)

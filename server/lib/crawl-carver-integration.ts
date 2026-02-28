@@ -1,7 +1,7 @@
 /**
- * Crawl → CARVER+Shock Scoring Integration
+ * Crawl → Hybrid Risk Scoring Integration
  * ──────────────────────────────────────────
- * Maps web crawler findings to CARVER+Shock scoring dimensions so that
+ * Maps web crawler findings to Hybrid Risk scoring dimensions so that
  * web-layer vulnerabilities (missing headers, exposed paths, insecure cookies,
  * outdated technologies, TLS issues) automatically feed into the hybrid
  * risk scoring pipeline for target prioritization.
@@ -21,7 +21,7 @@
  *   CascadingEffects  — internal links count, resource dependencies → cascade potential
  *   Knowledge         — technology stack complexity, version disclosure → exploit knowledge
  *
- * Patent-pending: CARVER+Shock/CVSS Hybrid Risk Scoring Pipeline
+ * Patent-pending: Hybrid Risk/CVSS Hybrid Risk Scoring Pipeline
  * Created by Harrison Cook
  */
 
@@ -410,7 +410,7 @@ function generateCrawlPostureFindings(crawl: CrawlPageResult, hostname: string):
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Compute CARVER+Shock adjustments from web crawler results.
+ * Compute Hybrid Risk adjustments from web crawler results.
  * Returns additive adjustments to apply on top of existing scores.
  */
 export function computeCrawlCarverAdjustment(crawl: CrawlPageResult, hostname: string): CrawlCarverAdjustment {
@@ -473,7 +473,7 @@ export function computeCrawlCarverAdjustment(crawl: CrawlPageResult, hostname: s
 }
 
 /**
- * Apply crawl-derived CARVER+Shock adjustments to existing scores.
+ * Apply crawl-derived Hybrid Risk adjustments to existing scores.
  */
 export function applyCrawlAdjustments(
   existingCarver: { criticality: number; accessibility: number; recuperability: number; vulnerability: number; effect: number; recognizability: number },

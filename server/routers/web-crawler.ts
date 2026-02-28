@@ -390,7 +390,7 @@ export const webCrawlerRouter = router({
       };
     }),
 
-  // ─── Compute CARVER+Shock Adjustment from Crawl Result ───────────────
+  // ─── Compute Hybrid Risk Adjustment from Crawl Result ───────────────
   computeCarverScore: protectedProcedure
     .input(z.object({ resultId: z.number() }))
     .query(async ({ input }) => {

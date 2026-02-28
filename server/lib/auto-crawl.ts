@@ -136,7 +136,7 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
       );
 
       for (const { asset, url, result } of batchResults) {
-        // Compute CARVER+Shock adjustment from crawl findings
+        // Compute Hybrid Risk adjustment from crawl findings
         let assetCarverAdj: CrawlCarverAdjustment | null = null;
         if (result) {
           try {
@@ -290,6 +290,92 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
       ? `, webVulnScore=${aggregatedCarver.breakdown.overallWebVulnScore}, postureFindings=${aggregatedCarver.postureFindings.length}`
       : ", no CARVER adjustments";
     console.log(`[AutoCrawl] Completed for scan ${scanId}: ${totalCrawled}/${assetsToScan.length} assets crawled, ${totalFindings} findings, grade=${summary.worstGrade}${carverSummary} in ${completedAt - startedAt}ms`);
+
+    // ─── Entity Resolution + BIA Financial Enrichment ──────────────────
+    // After crawling, identify the actual business behind the domain and
+    // enrich with financial data for BIA impact scoring.
+    try {
+      console.log(`[EntityResolver] Starting entity resolution for scan ${scanId} (${domain})`);
+      const { resolveAndEnrichEntity, calculateFinancialImpact } = await import("./entity-resolver");
+
+      // Use the primary domain's crawl result (first successful crawl) for entity signals
+      const primaryCrawlResult = await db.select().from(webCrawlResults)
+        .where(eq(webCrawlResults.scanId, scanId))
+        .limit(1);
+
+      const crawlData = primaryCrawlResult[0];
+      if (crawlData) {
+        const entityProfile = await resolveAndEnrichEntity({
+          domain,
+          pageTitle: crawlData.pageTitle,
+          metaDescription: crawlData.metaDescription,
+          html: null, // We don't store full HTML, rely on other signals
+          externalLinks: crawlData.externalLinks as string[] | null,
+          tlsInfo: crawlData.tlsInfo as any,
+          whoisOrg: null, // Would need WHOIS lookup — available from passive recon
+          technologies: (crawlData.detectedTechnologies as any[])?.map((t: any) => t.name) || null,
+          rawHeaders: crawlData.rawHeaders as Record<string, string> | null,
+        });
+
+        // Calculate financial impact ratings
+        const financialImpact = calculateFinancialImpact(entityProfile);
+
+        // Store entity profile + financial impact in the scan's pipelineOutput
+        const [currentScan] = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, scanId)).limit(1);
+        if (currentScan) {
+          const existingOutput2 = (currentScan.pipelineOutput as any) || {};
+          await db.update(domainIntelScans)
+            .set({
+              pipelineOutput: {
+                ...existingOutput2,
+                entityProfile: {
+                  orgName: entityProfile.orgName,
+                  confidence: entityProfile.confidence,
+                  identificationMethod: entityProfile.identificationMethod,
+                  evidence: entityProfile.evidence,
+                  industry: entityProfile.industry,
+                  subSector: entityProfile.subSector,
+                  companySize: entityProfile.companySize,
+                  estimatedRevenue: entityProfile.estimatedRevenue,
+                  revenueConfidence: entityProfile.revenueConfidence,
+                  revenueSource: entityProfile.revenueSource,
+                  estimatedValuation: entityProfile.estimatedValuation,
+                  valuationConfidence: entityProfile.valuationConfidence,
+                  valuationSource: entityProfile.valuationSource,
+                  estimatedEmployees: entityProfile.estimatedEmployees,
+                  isPublicCompany: entityProfile.isPublicCompany,
+                  stockTicker: entityProfile.stockTicker,
+                  headquarters: entityProfile.headquarters,
+                  foundedYear: entityProfile.foundedYear,
+                  keyProducts: entityProfile.keyProducts,
+                  socialProfiles: entityProfile.socialProfiles,
+                  whoisOrg: entityProfile.whoisOrg,
+                  sslCertOrg: entityProfile.sslCertOrg,
+                  whoisIsHostingProvider: entityProfile.whoisIsHostingProvider,
+                },
+                financialImpact: {
+                  maxSingleIncidentLoss: financialImpact.maxSingleIncidentLoss,
+                  estimatedDailyRevenueLoss: financialImpact.estimatedDailyRevenueLoss,
+                  regulatoryFineExposure: financialImpact.regulatoryFineExposure,
+                  reputationalDamageEstimate: financialImpact.reputationalDamageEstimate,
+                  totalMaxExposure: financialImpact.totalMaxExposure,
+                  impactTier: financialImpact.impactTier,
+                  rationale: financialImpact.rationale,
+                },
+              },
+            })
+            .where(eq(domainIntelScans.id, scanId));
+
+          console.log(`[EntityResolver] Identified entity for scan ${scanId}: ${entityProfile.orgName} (confidence: ${entityProfile.confidence}%, method: ${entityProfile.identificationMethod})`);
+          console.log(`[EntityResolver] Financial impact tier: ${financialImpact.impactTier}, max exposure: $${(financialImpact.totalMaxExposure / 1_000_000).toFixed(1)}M`);
+        }
+      } else {
+        console.log(`[EntityResolver] No crawl data available for entity resolution on scan ${scanId}`);
+      }
+    } catch (entityErr: any) {
+      console.error(`[EntityResolver] Entity resolution failed for scan ${scanId} (non-fatal): ${entityErr.message}`);
+    }
+
     return summary;
   } catch (err: any) {
     console.error(`[AutoCrawl] Fatal error for scan ${scanId}: ${err.message}`);

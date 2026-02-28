@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import FedRAMPKSIMap from "@/components/FedRAMPKSIMap";
+import ThreatActorFeed from "@/components/ThreatActorFeed";
 import {
   Key, Terminal, Activity, Users, ExternalLink, ChevronRight, Zap, Cloud,
   Mail, Phone, MapPin, Target, Shield, Radar, Globe, Crosshair, FileText,
@@ -63,6 +64,8 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "LLM-driven exploit validation runs real checks against confirmed CVEs using exploit modules from multiple sources. Evidence capture stores console output, session data, and HTML proof reports." },
   { date: "Feb 2026", title: "Kill Chain Timeline & Event Streaming", desc: "Unified engagement timeline with WebSocket-powered live updates. Exploit results, agent deployments, scan progress, and atomic test executions appear instantly across all pages." },
   { date: "Feb 2026", title: "Phishing Exploit Library", desc: "17 advanced phishing techniques (BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing) auto-injected into campaign templates based on target intelligence." },
+  { date: "Feb 2026", title: "Crawl-to-Phish Pipeline", desc: "Generates GoPhish-ready phishing templates from crawled web pages. Login portal cloning extracts form structure, CSS, branding, and vendor detection (Microsoft 365, Okta, Google Workspace, Salesforce). Supply chain email generator creates vendor-matched phishing messages. All templates are RoE-gated within active engagements." },
+  { date: "Feb 2026", title: "Public Threat Actor Feed", desc: "Live threat actor intelligence feed on the homepage. Browse 1,700+ threat actor profiles with ATT&CK techniques, tools, malware, and target sectors. Filterable by type (APT, ransomware, cybercrime, hacktivist) with clickable detail modals — no authentication required." },
 ];
 
 function UpdatesPopup({ onClose }: { onClose: () => void }) {
@@ -166,6 +169,7 @@ export default function Home() {
             <a href="#who-its-for" className="hover:text-primary transition-colors">WHO IT'S FOR</a>
             <a href="#capabilities" className="hover:text-primary transition-colors">CAPABILITIES</a>
             <a href="#fedramp-20x" className="hover:text-primary transition-colors">FEDRAMP 20x</a>
+            <a href="#threat-feed" className="hover:text-primary transition-colors">THREAT FEED</a>
             <a href="#about" className="hover:text-primary transition-colors">ABOUT</a>
           </div>
           <div className="flex items-center gap-3">
@@ -364,8 +368,8 @@ export default function Home() {
             <AnimatedStat value={stats.calderaAbilities} label="EMULATION ABILITIES" suffix="" />
             <AnimatedStat value={1400} label="ATT&CK VALIDATION TESTS" suffix="+" />
             <AnimatedStat value={stats.threatActors} label="THREAT ACTORS" suffix="+" />
-            <AnimatedStat value={6} label="INTEGRATED TOOLS" suffix="" />
-            <AnimatedStat value={32} label="PLATFORM MODULES" suffix="" />
+            <AnimatedStat value={stats.exploitCatalogTotal} label="EXPLOIT CATALOG" suffix="+" />
+            <AnimatedStat value={stats.platformModules} label="PLATFORM MODULES" suffix="" />
           </div>
         </div>
       </section>
@@ -827,8 +831,15 @@ export default function Home() {
 
       <div className="w-full h-px bg-primary" />
 
-      {/* ─── FedRAMP KSI Map ────────────────────────────────── */}
+         {/* ─── FedRAMP KSI Map ────────────────────────────── */}
       <FedRAMPKSIMap />
+
+      <div className="w-full h-px bg-primary" />
+
+      {/* ─── Threat Actor Feed ──────────────────────────────────── */}
+      <div id="threat-feed">
+        <ThreatActorFeed />
+      </div>
 
       <div className="w-full h-px bg-primary" />
 

@@ -3,7 +3,7 @@
  * 
  * Scrapes a target domain's website for company/product/service information,
  * then enriches that data using online intelligence feeds to build a comprehensive
- * organizational profile for BIA and hybrid CARVER+Shock/CVSS scoring.
+ * organizational profile for BIA and hybrid Hybrid Risk/CVSS scoring.
  */
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -697,7 +697,7 @@ export function buildLLMPromptForBIA(orgProfile: OrgProfile, shodanData: ShodanE
     `DMARC: ${dnsData.dmarcRecord || 'Not configured'}`,
   ].join('\n');
 
-  return `Based on the following organizational profile and technical intelligence, generate a Business Impact Analysis (BIA) and CARVER+Shock scoring. Return a JSON object:
+  return `Based on the following organizational profile and technical intelligence, generate a Business Impact Analysis (BIA) and Hybrid Risk scoring. Return a JSON object:
 
 {
   "missionCriticalSystems": [

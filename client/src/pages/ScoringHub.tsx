@@ -165,7 +165,7 @@ function RadarChart({
       />
       {points.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r="4"
-          fill={p.category === "CARVER" ? "#06b6d4" : "#f59e0b"} stroke="#1f2937" strokeWidth="1"
+          fill={p.category === "CARVER" || p.category === "hybrid" ? "#06b6d4" : "#f59e0b"} stroke="#1f2937" strokeWidth="1"
         />
       ))}
       {points.map((p, i) => (
@@ -1473,7 +1473,7 @@ export default function ScoringHub() {
                           Hybrid
                         </Badge>
                       </div>
-                      <p className="text-[10px] text-zinc-400 mb-2 italic">"{factor.description || factor.fm34_36}"</p>
+                      <p className="text-[10px] text-zinc-400 mb-2 italic">"{factor.description || factor.digital || 'Multi-dimensional risk factor'}"</p>
                       <p className="text-[10px] text-zinc-300 mb-2">{factor.digital}</p>
                       <div className="space-y-1">
                         {factor.scale?.map((s: any, i: number) => (

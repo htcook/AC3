@@ -1,16 +1,15 @@
 /**
- * CARVER+Shock / CVSS v4.0 Hybrid Adaptive Scoring Engine
+ * Hybrid Adaptive Risk Scoring Engine
  * ─────────────────────────────────────────────────────────
- * Production-grade scoring module that translates military CARVER+Shock
- * targeting methodology (US Army FM 34-36) to digital asset criticality
- * assessment, combined with CVSS v4.0 vulnerability scoring and
- * LLM-based asset classification.
+ * Production-grade scoring module for digital asset criticality
+ * assessment using multi-dimensional hybrid risk analysis combined
+ * with CVSS v4.0 vulnerability scoring and LLM-based asset classification.
  *
  * Key capabilities:
- *   - CARVER factors mapped to digital asset context per FM 34-36 Appendix D
- *   - Shock factors adapted from FDA CARVER+Shock primer for cyber impact
+ *   - Multi-dimensional risk factors mapped to digital asset context
+ *   - Impact factors for cyber operational disruption analysis
  *   - CVSS v4.0 full metric parsing (Base/Threat/Environmental/Supplemental)
- *   - CVSS v4.0 → CARVER factor feed-through for automated enrichment
+ *   - CVSS v4.0 → hybrid factor feed-through for automated enrichment
  *   - FIPS 199 security categorization integration
  *   - LLM-based asset classification with device → platform → mission inference
  *   - Dynamic re-scoring as new intelligence emerges during discovery/enumeration
@@ -18,7 +17,7 @@
  *   - Criticality tier system aligned to RTO (Tier 1-5)
  *   - Audit trail: every scoring decision is logged with reasoning
  *
- * Patent-pending: CARVER+Shock/CVSS Hybrid Risk Scoring Pipeline
+ * Patent-pending: Hybrid Risk Scoring Pipeline
  * Created by Harrison Cook
  */
 
@@ -29,28 +28,28 @@ import { invokeLLM } from "../_core/llm";
 // ═══════════════════════════════════════════════════════════════════════
 
 export interface CarverScores {
-  /** How critical is the asset to mission success? (FM 34-36: Target Value) */
+  /** How critical is the asset to mission success? */
   criticality: number;
-  /** How accessible is the asset to an attacker? (FM 34-36: Can the element reach the target?) */
+  /** How accessible is the asset to an attacker? */
   accessibility: number;
-  /** How long to restore the asset after attack? (FM 34-36: Time to replace/repair/bypass) */
+  /** How long to restore the asset after attack? */
   recuperability: number;
-  /** How vulnerable is the asset to known attacks? (FM 34-36: Does the element have means?) */
+  /** How vulnerable is the asset to known attacks? */
   vulnerability: number;
-  /** What is the broader effect of a successful attack? (FM 34-36: Military/political/economic impact) */
+  /** What is the broader effect of a successful attack? */
   effect: number;
-  /** How easily can the asset be identified/fingerprinted? (FM 34-36: Degree of recognition) */
+  /** How easily can the asset be identified/fingerprinted? */
   recognizability: number;
 }
 
 export interface ShockScores {
-  /** How wide is the blast radius? (FDA: health/psychological/economic scope) */
+  /** How wide is the blast radius? */
   scope: number;
-  /** How difficult is incident response? (FDA: handling complexity) */
+  /** How difficult is incident response? */
   handling: number;
-  /** How much does it disrupt operations? (FDA: operational disruption) */
+  /** How much does it disrupt operations? */
   operationalImpact: number;
-  /** Does failure cascade to other systems? (FDA: collateral national economic impact) */
+  /** Does failure cascade to other systems? */
   cascadingEffects: number;
   /** How much specialized knowledge is needed to exploit? */
   knowledge: number;
@@ -458,7 +457,7 @@ export interface Fips199Category {
 }
 
 /**
- * Map FIPS 199 security categories to CARVER+Shock adjustments.
+ * Map FIPS 199 security categories to hybrid scoring adjustments.
  * FIPS 199 defines the security categorization for federal information systems,
  * but the concept applies broadly to any organization's asset classification.
  */
@@ -557,7 +556,7 @@ export const CRITICALITY_TIERS: Record<CriticalityTier, {
 };
 
 /**
- * Apply criticality tier floors to CARVER+Shock scores.
+ * Apply criticality tier floors to hybrid risk scores.
  */
 export function applyCriticalityTierFloors(
   carver: CarverScores,
@@ -581,98 +580,98 @@ export function applyCriticalityTierFloors(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §6 — FM 34-36 DIGITAL ASSET TRANSLATION TABLES
+// §6 — HYBRID RISK FACTOR DIGITAL TRANSLATION TABLES
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * FM 34-36 Appendix D CARVER factor scoring translated to digital assets.
- * Each factor retains the 1-10 scale from the original military methodology
- * but criteria are adapted for cyber operations targeting.
+ * Hybrid risk factor scoring translated to digital assets.
+ * Each factor uses a 1-10 scale with criteria adapted
+ * for cyber operations targeting and risk assessment.
  */
 export const CARVER_DIGITAL_TRANSLATION = {
   criticality: {
     name: "Criticality (Mission Value)",
-    fm34_36: "How important is the target to the overall system/mission?",
+    contextQuestion: "How important is the target to the overall system/mission?",
     digital: "How critical is this digital asset to the organization's essential missions and supporting functions?",
     scale: [
-      { range: [9, 10], military: "Immediate halt in output/production/service", digital: "Domain controller, primary DB, payment gateway — immediate halt to all dependent services" },
-      { range: [7, 8], military: "Halt within 1 day, or 66% curtailment", digital: "Email server, VPN concentrator, ERP — major business disruption within hours" },
-      { range: [5, 6], military: "Halt within 1 week, or 33% curtailment", digital: "CI/CD pipeline, monitoring stack, secondary DNS — degraded operations within days" },
-      { range: [3, 4], military: "Halt within 10 days, or 10% curtailment", digital: "Development server, staging environment, internal wiki — minor productivity loss" },
-      { range: [1, 2], military: "No significant effect on output", digital: "Test environment, deprecated system, static marketing page — no operational impact" },
+      { range: [9, 10], original: "Immediate halt in output/production/service", digital: "Domain controller, primary DB, payment gateway — immediate halt to all dependent services" },
+      { range: [7, 8], original: "Halt within 1 day, or 66% curtailment", digital: "Email server, VPN concentrator, ERP — major business disruption within hours" },
+      { range: [5, 6], original: "Halt within 1 week, or 33% curtailment", digital: "CI/CD pipeline, monitoring stack, secondary DNS — degraded operations within days" },
+      { range: [3, 4], original: "Halt within 10 days, or 10% curtailment", digital: "Development server, staging environment, internal wiki — minor productivity loss" },
+      { range: [1, 2], original: "No significant effect on output", digital: "Test environment, deprecated system, static marketing page — no operational impact" },
     ],
     subFactors: ["Time to impact", "Percentage of function curtailment", "Availability of surrogates", "Position in dependency chain"],
   },
   accessibility: {
     name: "Accessibility (Attack Surface)",
-    fm34_36: "Can the operational element reach the target?",
+    contextQuestion: "Can the attacker reach the target?",
     digital: "How reachable is the asset from an attacker's perspective, considering network position and authentication barriers?",
     scale: [
-      { range: [9, 10], military: "Easily accessible, standoff weapons can be employed", digital: "Internet-facing, no auth required, known service with public exploits" },
-      { range: [7, 8], military: "Inside perimeter fence but outdoors", digital: "Internet-facing with basic auth, or DMZ with known attack surface" },
-      { range: [5, 6], military: "Inside building, ground floor", digital: "DMZ with WAF/IDS, requires credential theft or social engineering" },
-      { range: [3, 4], military: "Inside building, 2nd floor/basement", digital: "Internal network, segmented VLAN, requires lateral movement" },
-      { range: [1, 2], military: "Not accessible or extreme difficulty", digital: "Air-gapped, hardware security module, or zero-trust microsegmented" },
+      { range: [9, 10], original: "Easily accessible, standoff weapons can be employed", digital: "Internet-facing, no auth required, known service with public exploits" },
+      { range: [7, 8], original: "Inside perimeter fence but outdoors", digital: "Internet-facing with basic auth, or DMZ with known attack surface" },
+      { range: [5, 6], original: "Inside building, ground floor", digital: "DMZ with WAF/IDS, requires credential theft or social engineering" },
+      { range: [3, 4], original: "Inside building, 2nd floor/basement", digital: "Internal network, segmented VLAN, requires lateral movement" },
+      { range: [1, 2], original: "Not accessible or extreme difficulty", digital: "Air-gapped, hardware security module, or zero-trust microsegmented" },
     ],
     subFactors: ["Network exposure", "Authentication barriers", "Firewall/WAF protection", "Physical access requirements"],
   },
   recuperability: {
     name: "Recuperability (Recovery Difficulty)",
-    fm34_36: "How long to replace, repair, or bypass?",
+    contextQuestion: "How long to replace, repair, or bypass?",
     digital: "How long to restore the asset to full operational capability after compromise or destruction?",
     scale: [
-      { range: [9, 10], military: "Replacement/repair requires 1 month+", digital: "Custom-built system, no backups, no documentation — months to rebuild" },
-      { range: [7, 8], military: "Replacement/repair requires 1 week to 1 month", digital: "Complex system, weekly backups, specialized knowledge required" },
-      { range: [5, 6], military: "Replacement/repair requires 72 hours to 1 week", digital: "Standard system, daily backups, documented recovery procedures" },
-      { range: [3, 4], military: "Replacement/repair requires 24 to 72 hours", digital: "Redundant system, hot standby, automated failover with manual intervention" },
-      { range: [1, 2], military: "Same day replacement/repair", digital: "Auto-scaling, instant failover, immutable infrastructure, containerized" },
+      { range: [9, 10], original: "Replacement/repair requires 1 month+", digital: "Custom-built system, no backups, no documentation — months to rebuild" },
+      { range: [7, 8], original: "Replacement/repair requires 1 week to 1 month", digital: "Complex system, weekly backups, specialized knowledge required" },
+      { range: [5, 6], original: "Replacement/repair requires 72 hours to 1 week", digital: "Standard system, daily backups, documented recovery procedures" },
+      { range: [3, 4], original: "Replacement/repair requires 24 to 72 hours", digital: "Redundant system, hot standby, automated failover with manual intervention" },
+      { range: [1, 2], original: "Same day replacement/repair", digital: "Auto-scaling, instant failover, immutable infrastructure, containerized" },
     ],
     subFactors: ["Backup frequency", "Recovery documentation", "Redundancy level", "Specialized knowledge required"],
   },
   vulnerability: {
     name: "Vulnerability (Exploitability)",
-    fm34_36: "Does the operational element have means to attack?",
+    contextQuestion: "Does the attacker have means to exploit?",
     digital: "Does the attacker have viable means to exploit this asset, considering known CVEs, misconfigurations, and available tooling?",
     scale: [
-      { range: [9, 10], military: "Vulnerable to small arms or charges ≤5 lbs", digital: "Known RCE with public exploit, actively exploited in the wild (KEV)" },
-      { range: [7, 8], military: "Vulnerable to light antiarmor or 5-10 lb charges", digital: "Known vulnerability with proof-of-concept, exploit kit available" },
-      { range: [5, 6], military: "Vulnerable to medium antiarmor or 10-30 lb charges", digital: "Known vulnerability, complex exploit chain required" },
-      { range: [3, 4], military: "Vulnerable to heavy antiarmor or 30-50 lb charges", digital: "Theoretical vulnerability, no public exploit, requires custom tooling" },
-      { range: [1, 2], military: "Invulnerable to all but extreme measures", digital: "No known vulnerabilities, hardened configuration, defense in depth" },
+      { range: [9, 10], original: "Vulnerable to small arms or charges ≤5 lbs", digital: "Known RCE with public exploit, actively exploited in the wild (KEV)" },
+      { range: [7, 8], original: "Vulnerable to light antiarmor or 5-10 lb charges", digital: "Known vulnerability with proof-of-concept, exploit kit available" },
+      { range: [5, 6], original: "Vulnerable to medium antiarmor or 10-30 lb charges", digital: "Known vulnerability, complex exploit chain required" },
+      { range: [3, 4], original: "Vulnerable to heavy antiarmor or 30-50 lb charges", digital: "Theoretical vulnerability, no public exploit, requires custom tooling" },
+      { range: [1, 2], original: "Invulnerable to all but extreme measures", digital: "No known vulnerabilities, hardened configuration, defense in depth" },
     ],
     subFactors: ["CVE count and severity", "Exploit availability", "Patch status", "Configuration hardening"],
   },
   effect: {
     name: "Effect (Organizational Impact)",
-    fm34_36: "Military, political, economic, psychological, sociological impacts",
+    contextQuestion: "Financial, regulatory, reputational, operational impacts",
     digital: "What are the broader organizational impacts of successful compromise — financial, regulatory, reputational, operational?",
     scale: [
-      { range: [9, 10], military: "Overwhelmingly positive effects for attacker", digital: "Data breach + regulatory fines + reputational damage + operational shutdown" },
-      { range: [7, 8], military: "Moderately positive effects for attacker", digital: "Service disruption + financial loss + customer impact" },
-      { range: [5, 6], military: "No significant effects; neutral", digital: "Limited operational impact, contained to single business unit" },
-      { range: [3, 4], military: "Moderately negative effects for attacker", digital: "Minimal impact, quickly contained, no data exposure" },
-      { range: [1, 2], military: "Overwhelmingly negative effects for attacker", digital: "No meaningful impact, honeypot/deception, attacker exposure risk" },
+      { range: [9, 10], original: "Overwhelmingly positive effects for attacker", digital: "Data breach + regulatory fines + reputational damage + operational shutdown" },
+      { range: [7, 8], original: "Moderately positive effects for attacker", digital: "Service disruption + financial loss + customer impact" },
+      { range: [5, 6], original: "No significant effects; neutral", digital: "Limited operational impact, contained to single business unit" },
+      { range: [3, 4], original: "Moderately negative effects for attacker", digital: "Minimal impact, quickly contained, no data exposure" },
+      { range: [1, 2], original: "Overwhelmingly negative effects for attacker", digital: "No meaningful impact, honeypot/deception, attacker exposure risk" },
     ],
     subFactors: ["Financial impact", "Regulatory consequences", "Reputational damage", "Operational disruption"],
   },
   recognizability: {
     name: "Recognizability (Discoverability)",
-    fm34_36: "Degree to which target can be identified",
+    contextQuestion: "Degree to which target can be identified",
     digital: "How easily can an attacker identify, fingerprint, and target this specific asset?",
     scale: [
-      { range: [9, 10], military: "Clearly recognizable under all conditions from distance", digital: "Banner grabbing reveals exact version, indexed by search engines, public documentation" },
-      { range: [7, 8], military: "Easily recognizable at small-arms range", digital: "Service type identifiable, version guessable from behavior patterns" },
-      { range: [5, 6], military: "Difficult in bad weather, might be confused", digital: "Service type identifiable but version hidden, generic error pages" },
-      { range: [3, 4], military: "Difficult even at close range, easily confused", digital: "Behind CDN/WAF, minimal fingerprint, custom headers stripped" },
-      { range: [1, 2], military: "Cannot be recognized except by experts", digital: "Completely obscured, no signatures, deception/honeypot deployed" },
+      { range: [9, 10], original: "Clearly recognizable under all conditions from distance", digital: "Banner grabbing reveals exact version, indexed by search engines, public documentation" },
+      { range: [7, 8], original: "Easily recognizable at small-arms range", digital: "Service type identifiable, version guessable from behavior patterns" },
+      { range: [5, 6], original: "Difficult in bad weather, might be confused", digital: "Service type identifiable but version hidden, generic error pages" },
+      { range: [3, 4], original: "Difficult even at close range, easily confused", digital: "Behind CDN/WAF, minimal fingerprint, custom headers stripped" },
+      { range: [1, 2], original: "Cannot be recognized except by experts", digital: "Completely obscured, no signatures, deception/honeypot deployed" },
     ],
     subFactors: ["Banner exposure", "Search engine indexing", "DNS/certificate transparency", "Error page information leakage"],
   },
 } as const;
 
 /**
- * FM 34-36 Shock factor translated to digital assets.
- * Adapted from FDA CARVER+Shock primer for cyber operations.
+ * Impact (Shock) factor translated to digital assets.
+ * Adapted for cyber operational disruption analysis.
  */
 export const SHOCK_DIGITAL_TRANSLATION = {
   scope: {
@@ -1125,7 +1124,7 @@ export function businessImpactToMultiplier(level: string): number {
  *   - FIPS 199 security categorization integration
  *   - Criticality tier floor enforcement
  *
- * IMPACT (0-1): Derived from CARVER+Shock mission impact with mission function weighting.
+ * IMPACT (0-1): Derived from hybrid risk mission impact with mission function weighting.
  * LIKELIHOOD (0-1): Driven by confirmed vulnerability evidence, exposure, and port risk.
  * RISK = sqrt(Impact × Likelihood) × 100
  */
@@ -1266,7 +1265,7 @@ export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile):
  *   - Device type → Platform type → Mission function inference chain
  *   - FIPS 199 security categorization
  *   - Criticality tier assignment (1-5)
- *   - CARVER+Shock factor suggestions based on classification
+ *   - Hybrid risk factor suggestions based on classification
  */
 export async function classifyAssets(
   assets: Array<{

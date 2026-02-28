@@ -96,7 +96,7 @@ function DashboardInner() {
   const { data: stats, refetch: refetchStats } = trpc.calderaProxy.getStats.useQuery(undefined, {
     refetchInterval: 30000,
   });
-  const calderaStats = stats || { totalAdversaries: 0, totalAbilities: 0, activeOperations: 0, totalAgents: 0 };
+  const calderaStats = stats || { totalAdversaries: 0, totalThreatActors: 0, totalAbilities: 0, activeOperations: 0, totalAgents: 0 };
 
   const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, { refetchInterval: 30000 });
   const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, { refetchInterval: 30000 });
@@ -856,7 +856,7 @@ function DashboardInner() {
         {/* ═══════════════════════════════════════════════════════════════ */}
         <section>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-            <MiniStat value={calderaStats.totalAdversaries.toString()} label="ADVERSARIES" color="text-primary" href="/adversaries" />
+            <MiniStat value={(calderaStats as any).totalThreatActors?.toString() || calderaStats.totalAdversaries.toString()} label="THREAT ACTORS" color="text-primary" href="/apt-library" />
             <MiniStat value={calderaStats.totalAbilities.toString()} label="ABILITIES" color="text-primary" href="/abilities-library" />
             <MiniStat value={calderaStats.activeOperations.toString()} label="OPERATIONS" color="text-primary" href="/operations/monitor" />
             <MiniStat value={calderaStats.totalAgents.toString()} label="AGENTS" color="text-primary" href="/agents" />

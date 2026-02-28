@@ -1,5 +1,5 @@
 /**
- * CARVER+Shock / CVSS v4.0 Hybrid Scoring Router (Enhanced)
+ * Hybrid Risk / CVSS v4.0 Hybrid Scoring Router (Enhanced)
  * ─────────────────────────────────────────────────────────
  * Manages scoring profiles, LLM-based asset classification,
  * CVSS v4.0 vector parsing and feed-through, FIPS 199 categorization,
@@ -194,7 +194,7 @@ export const scoringRouter = router({
     };
   }),
 
-  /** Get CARVER+Shock digital translation reference (FM 34-36 aligned) */
+  /** Get hybrid scoring digital translation reference */
   getCarverReference: protectedProcedure.query(() => {
     return {
       carver: CARVER_DIGITAL_TRANSLATION,

@@ -36,7 +36,7 @@
  * 
  * Phase 6: REPORTING & VALIDATION
  *   - Corroboration across all sources
- *   - CARVER+Shock scoring with all inputs
+ *   - Hybrid Risk scoring with all inputs
  *   - ATT&CK coverage heatmap aggregation
  *   - Detection rule validation via Atomic tests
  *   - Evidence capture & report generation
@@ -206,7 +206,7 @@ export const PIPELINE_STAGES: PipelineStageConfig[] = [
   {
     phase: 'reporting',
     tools: ['corroboration', 'scoring', 'detection_rules', 'atomic_red_team'],
-    description: 'Validation, scoring, and reporting — corroborate findings, compute risk scores, validate detection coverage. Corroboration engine performs final cross-source validation. CARVER+Shock scoring engine computes risk scores with all collected data. Detection rule validation runs adversary tests against SIEM/EDR rules. ATT&CK coverage heatmap shows tested vs. untested techniques. Evidence capture and report generation produce deliverables.',
+    description: 'Validation, scoring, and reporting — corroborate findings, compute risk scores, validate detection coverage. Corroboration engine performs final cross-source validation. Hybrid Risk scoring engine computes risk scores with all collected data. Detection rule validation runs adversary tests against SIEM/EDR rules. ATT&CK coverage heatmap shows tested vs. untested techniques. Evidence capture and report generation produce deliverables.',
     requiresPriorPhase: true,
     canRunParallel: true,
     estimatedDurationMinutes: 15,
@@ -318,7 +318,7 @@ export const TOOL_PHASE_MATRIX: Record<ToolModule, {
   },
   scoring: {
     phases: ['reporting'],
-    role: 'CARVER+Shock/CVSS hybrid risk scoring with all collected intelligence',
+    role: 'Hybrid Risk/CVSS hybrid risk scoring with all collected intelligence',
     inputsFrom: ['corroboration', 'zap_active', 'nuclei_vuln', 'metasploit', 'caldera', 'sliver_c2', 'atomic_red_team', 'passive_osint'],
     outputsTo: [],
   },
@@ -553,7 +553,7 @@ export function getPhaseTools(
       }
       case 'scoring': {
         priority = 95;
-        reason = 'CARVER+Shock/CVSS hybrid risk scoring with all collected intelligence';
+        reason = 'Hybrid Risk/CVSS hybrid risk scoring with all collected intelligence';
         break;
       }
       case 'amass': {
