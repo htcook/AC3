@@ -22,6 +22,8 @@ import { SentinelOneClient, createSentinelOneClient } from "./sentinelone";
 import { DefenderClient, createDefenderClient } from "./defender";
 import { SplunkClient, createSplunkClient } from "./splunk";
 import { XSOARClient, createXSOARClient } from "./xsoar";
+import { SentinelClient, createSentinelClient } from "./sentinel";
+import { CortexXDRClient, createCortexXDRClient } from "./cortex-xdr";
 
 // Re-export all types and clients
 export {
@@ -41,6 +43,8 @@ export {
   DefenderClient,
   SplunkClient,
   XSOARClient,
+  SentinelClient,
+  CortexXDRClient,
 };
 
 // ─── Vendor Metadata ─────────────────────────────────────────────────────────
@@ -105,6 +109,26 @@ export const VENDOR_METADATA: Record<VendorName, {
     description: "Security orchestration, automation, and response platform",
     capabilities: ["incidents", "indicators", "playbooks", "war_room", "automation"],
   },
+  sentinel: {
+    displayName: "Microsoft Sentinel",
+    category: "SIEM",
+    authType: "oauth2",
+    requiredFields: ["tenantId", "clientId", "clientSecret"],
+    optionalFields: [],
+    defaultBaseUrl: "",
+    description: "Cloud-native SIEM with KQL hunting, analytics rules, watchlists, and threat intelligence",
+    capabilities: ["incidents", "hunting_queries", "analytics_rules", "watchlists", "threat_intelligence", "ioc_push"],
+  },
+  cortex_xdr: {
+    displayName: "Palo Alto Cortex XDR",
+    category: "XDR",
+    authType: "token",
+    requiredFields: ["apiToken", "apiKeyId"],
+    optionalFields: ["region"],
+    defaultBaseUrl: "",
+    description: "Extended detection and response with XQL queries, endpoint actions, and IOC management",
+    capabilities: ["incidents", "alerts", "endpoints", "xql_queries", "isolation", "ioc_management"],
+  },
 };
 
 // ─── Client Cache ────────────────────────────────────────────────────────────
@@ -130,6 +154,10 @@ export function createVendorClient(
       return createSplunkClient(authConfig, connectionConfig);
     case "xsoar":
       return createXSOARClient(authConfig, connectionConfig);
+    case "sentinel":
+      return createSentinelClient(authConfig, connectionConfig);
+    case "cortex_xdr":
+      return createCortexXDRClient(authConfig, connectionConfig);
     default:
       throw new VendorError(vendor, `Unknown vendor: ${vendor}`, "UNKNOWN_VENDOR");
   }

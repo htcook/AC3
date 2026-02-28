@@ -25,7 +25,7 @@ import {
   XSOARClient,
 } from "../lib/vendors";
 
-const vendorEnum = z.enum(["crowdstrike", "sentinelone", "defender", "splunk", "xsoar"]);
+const vendorEnum = z.enum(["crowdstrike", "sentinelone", "defender", "splunk", "xsoar", "sentinel", "cortex_xdr"]);
 
 export const vendorIntegrationsRouter = router({
   // ─── List all vendor metadata (no auth needed for display) ─────────────────

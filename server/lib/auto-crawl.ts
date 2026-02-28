@@ -376,6 +376,132 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
       console.error(`[EntityResolver] Entity resolution failed for scan ${scanId} (non-fatal): ${entityErr.message}`);
     }
 
+    // ── Phase 4: Vendor Alert Correlation ──────────────────────────────────
+    try {
+      const { listIntegrations, getClientForIntegration, cacheVendorData } = await import("./vendors/index");
+      const integrations = await listIntegrations();
+      const enabledIntegrations = integrations.filter(i => i.enabled);
+
+      if (enabledIntegrations.length > 0) {
+        console.log(`[VendorCorrelation] Running alert correlation against ${enabledIntegrations.length} vendor(s) for scan ${scanId}`);
+
+        const correlationResults: Array<{
+          vendor: string;
+          displayName: string;
+          category: string;
+          alertCount: number;
+          incidentCount: number;
+          matchedIOCs: number;
+          topAlerts: Array<{ id: string; title: string; severity: string }>;
+        }> = [];
+
+        for (const integration of enabledIntegrations) {
+          try {
+            const client = await getClientForIntegration(integration.id);
+            const now = Date.now();
+            const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+            // Query for alerts/incidents related to the scanned domain
+            let alerts: any[] = [];
+            let incidents: any[] = [];
+
+            try {
+              // Try to get alerts with domain filter
+              if ('listAlerts' in client && typeof (client as any).listAlerts === 'function') {
+                alerts = await (client as any).listAlerts({
+                  limit: 25,
+                  timeRange: { start: thirtyDaysAgo, end: now },
+                });
+              }
+            } catch { /* vendor may not support alerts */ }
+
+            try {
+              if ('listIncidents' in client && typeof (client as any).listIncidents === 'function') {
+                incidents = await (client as any).listIncidents({
+                  limit: 25,
+                  timeRange: { start: thirtyDaysAgo, end: now },
+                });
+              }
+            } catch { /* vendor may not support incidents */ }
+
+            // Filter for domain-relevant alerts (hostname/IP match)
+            const domainAlerts = alerts.filter((a: any) =>
+              a.hostname?.includes(domain) ||
+              a.domain?.includes(domain) ||
+              a.title?.toLowerCase().includes(domain.toLowerCase())
+            );
+
+            const domainIncidents = incidents.filter((i: any) =>
+              i.title?.toLowerCase().includes(domain.toLowerCase()) ||
+              JSON.stringify(i.raw || {}).toLowerCase().includes(domain.toLowerCase())
+            );
+
+            // Cache the correlated data
+            const allCorrelated = [...domainAlerts, ...domainIncidents];
+            if (allCorrelated.length > 0) {
+              await cacheVendorData(integration.id, allCorrelated);
+            }
+
+            const { VENDOR_METADATA } = await import("./vendors/index");
+            const meta = VENDOR_METADATA[integration.vendor as keyof typeof VENDOR_METADATA];
+
+            correlationResults.push({
+              vendor: integration.vendor,
+              displayName: meta?.displayName || integration.displayName,
+              category: meta?.category || "Unknown",
+              alertCount: domainAlerts.length,
+              incidentCount: domainIncidents.length,
+              matchedIOCs: 0, // Future: cross-reference IOCs from scan findings
+              topAlerts: domainAlerts.slice(0, 5).map((a: any) => ({
+                id: a.id,
+                title: a.title,
+                severity: a.severity,
+              })),
+            });
+
+            console.log(`[VendorCorrelation] ${meta?.displayName}: ${domainAlerts.length} alerts, ${domainIncidents.length} incidents for ${domain}`);
+          } catch (vendorErr: any) {
+            console.warn(`[VendorCorrelation] ${integration.vendor} correlation failed (non-fatal): ${vendorErr.message}`);
+            correlationResults.push({
+              vendor: integration.vendor,
+              displayName: integration.displayName,
+              category: "Unknown",
+              alertCount: 0,
+              incidentCount: 0,
+              matchedIOCs: 0,
+              topAlerts: [],
+            });
+          }
+        }
+
+        // Store correlation results in pipelineOutput
+        const [currentScan3] = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, scanId)).limit(1);
+        if (currentScan3) {
+          const existingOutput3 = (currentScan3.pipelineOutput as any) || {};
+          await db.update(domainIntelScans)
+            .set({
+              pipelineOutput: {
+                ...existingOutput3,
+                vendorCorrelation: {
+                  correlatedAt: Date.now(),
+                  vendorCount: enabledIntegrations.length,
+                  totalAlerts: correlationResults.reduce((s, r) => s + r.alertCount, 0),
+                  totalIncidents: correlationResults.reduce((s, r) => s + r.incidentCount, 0),
+                  results: correlationResults,
+                },
+              },
+            })
+            .where(eq(domainIntelScans.id, scanId));
+        }
+
+        console.log(`[VendorCorrelation] Completed: ${correlationResults.reduce((s, r) => s + r.alertCount, 0)} total correlated alerts across ${enabledIntegrations.length} vendor(s)`);
+      } else {
+        console.log(`[VendorCorrelation] No enabled vendor integrations — skipping alert correlation for scan ${scanId}`);
+      }
+    } catch (vendorCorrelationErr: any) {
+      console.error(`[VendorCorrelation] Vendor correlation failed for scan ${scanId} (non-fatal): ${vendorCorrelationErr.message}`);
+    }
+
     return summary;
   } catch (err: any) {
     console.error(`[AutoCrawl] Fatal error for scan ${scanId}: ${err.message}`);

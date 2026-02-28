@@ -7,7 +7,7 @@ import { getFIPSHttpsAgent } from "../fips-tls";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type VendorName = "crowdstrike" | "sentinelone" | "defender" | "splunk" | "xsoar";
+export type VendorName = "crowdstrike" | "sentinelone" | "defender" | "splunk" | "xsoar" | "sentinel" | "cortex_xdr";
 
 export interface VendorAuthConfig {
   // OAuth2 (CrowdStrike, Defender)

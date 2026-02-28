@@ -5778,3 +5778,17 @@
 - [x] Show company valuation and revenue data
 - [x] Show BIA impact tiers (financial, operational, reputational)
 - [x] Show confidence score and signal sources
+
+## EDR/SIEM Vendor Integrations
+- [x] Build connector framework with shared base class and credential management (already exists)
+- [x] CrowdStrike Falcon connector stub (already exists)
+- [x] SentinelOne connector stub (already exists)
+- [x] Microsoft Defender for Endpoint connector stub (already exists)
+- [x] Microsoft Sentinel connector (SIEM - log analytics, incidents, hunting queries, playbooks)
+- [x] Palo Alto Cortex XDR connector (XDR - alerts, incidents, endpoint actions)
+- [x] Splunk connector stub (already exists)
+- [x] DB schema for connector configs (already exists)
+- [x] EDR/SIEM Integrations hub page with connector management UI (VendorIntegrations page exists)
+- [x] Wire vendor connectors into scan pipeline for alert correlation
+- [ ] Add vendor alert correlation tab to DomainIntelResults
+- [x] Write tests for new connectors

@@ -17,7 +17,7 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type VendorName = "crowdstrike" | "sentinelone" | "defender" | "splunk" | "xsoar";
+type VendorName = "crowdstrike" | "sentinelone" | "defender" | "splunk" | "xsoar" | "sentinel" | "cortex_xdr";
 
 interface VendorMeta {
   vendor: VendorName;
@@ -39,6 +39,8 @@ const VENDOR_ICONS: Record<VendorName, React.ReactNode> = {
   defender: <Shield className="h-5 w-5 text-blue-400" />,
   splunk: <Database className="h-5 w-5 text-green-400" />,
   xsoar: <Zap className="h-5 w-5 text-yellow-400" />,
+  sentinel: <Database className="h-5 w-5 text-cyan-400" />,
+  cortex_xdr: <Shield className="h-5 w-5 text-orange-400" />,
 };
 
 const VENDOR_COLORS: Record<VendorName, string> = {
@@ -47,12 +49,15 @@ const VENDOR_COLORS: Record<VendorName, string> = {
   defender: "border-blue-500/30 bg-blue-950/20",
   splunk: "border-green-500/30 bg-green-950/20",
   xsoar: "border-yellow-500/30 bg-yellow-950/20",
+  sentinel: "border-cyan-500/30 bg-cyan-950/20",
+  cortex_xdr: "border-orange-500/30 bg-orange-950/20",
 };
 
 const CATEGORY_BADGES: Record<string, string> = {
   EDR: "bg-red-900/50 text-red-300 border-red-700/50",
   SIEM: "bg-green-900/50 text-green-300 border-green-700/50",
   SOAR: "bg-yellow-900/50 text-yellow-300 border-yellow-700/50",
+  XDR: "bg-orange-900/50 text-orange-300 border-orange-700/50",
 };
 
 const STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
@@ -494,6 +499,8 @@ export default function VendorIntegrations() {
       case "defender": return ["hosts", "alerts", "vulnerabilities"];
       case "splunk": return ["notable_events"];
       case "xsoar": return ["incidents", "indicators"];
+      case "sentinel": return ["incidents", "hunting_queries", "analytics_rules"];
+      case "cortex_xdr": return ["incidents", "alerts", "endpoints"];
       default: return [];
     }
   };

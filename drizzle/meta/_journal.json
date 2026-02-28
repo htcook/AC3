@@ -414,6 +414,13 @@
       "when": 1772247660635,
       "tag": "0058_damp_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1772261357611,
+      "tag": "0059_salty_frog_thor",
+      "breakpoints": true
     }
   ]
 }

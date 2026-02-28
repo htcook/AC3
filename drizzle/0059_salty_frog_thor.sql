@@ -1,0 +1,1 @@
+ALTER TABLE `vendor_integrations` MODIFY COLUMN `vendor` enum('crowdstrike','sentinelone','defender','splunk','xsoar','sentinel','cortex_xdr') NOT NULL;

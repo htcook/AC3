@@ -4825,7 +4825,7 @@ export type InsertWebCrawlJob = typeof webCrawlJobs.$inferInsert;
 export const vendorIntegrations = mysqlTable("vendor_integrations", {
   id: int("id").autoincrement().primaryKey(),
   vendor: mysqlEnum("vendor", [
-    "crowdstrike", "sentinelone", "defender", "splunk", "xsoar"
+    "crowdstrike", "sentinelone", "defender", "splunk", "xsoar", "sentinel", "cortex_xdr"
   ]).notNull(),
   displayName: varchar("displayName", { length: 255 }).notNull(),
   enabled: boolean("enabled").default(false).notNull(),
