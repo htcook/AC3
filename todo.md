@@ -5918,3 +5918,33 @@
 - [x] Credential alerts already batched into single notification — no change needed
 - [x] Crawler scheduler: notifyOnComplete already false, notifyOnFailure acceptable — no change needed
 - [x] Verified dev server compiles and runs correctly with all changes
+
+## View Full Asset Details Button Fix & Entity Info in Scan Overview
+- [x] Fix View Full Asset Details button — converted Tabs to controlled component with activeTab state
+- [x] Add Entity Information & Hybrid Scoring Context card to Scan Overview
+- [x] Show org profile (name, sector, HQ, size, products, compliance)
+- [x] Show BIA distribution (critical/high/moderate/low) across all assets
+- [x] Show mission function and essential service breakdown with bar charts
+- [x] Show hybrid scoring methodology (CARVER 30%, Shock 25%, CVSS 25%, AI-BIA 20%)
+- [x] Show financial context that informs scoring weights
+
+## Org-Wide Domain Discovery Pipeline Stage
+- [x] Implement discoverOrgDomains() in org-domain-discovery.ts (560+ lines)
+- [x] Reverse WHOIS lookup using SecurityTrails associated domains API
+- [x] Certificate Transparency org search via crt.sh and Censys
+- [x] Shared infrastructure pivoting (NS, MX, IP range, ASN)
+- [x] Multi-signal ownership verification (WHOIS, SSL cert, NS, MX, ASN) with confidence scoring
+- [x] Mission relevance classification (product, service, infrastructure, marketing)
+- [x] Configurable confidence threshold (default 50%) — only verified domains added to scan
+- [x] Integrated as Phase 0 in discovery-engine.ts runDiscoveryPipeline
+- [x] Discovered domains feed into subdomain enumeration as additional targets
+- [x] orgDiscovery results stored in DiscoveryResult for scan output
+
+## KEV Matching Precision Fix
+- [x] Added version extraction from tech strings (e.g., Apache/2.4.49 → version 2.4.49)
+- [x] Added version relevance checking against KEV vulnerability version references
+- [x] Split broad TECH_TO_KEV_PATTERNS (apache no longer matches struts/log4j/tomcat)
+- [x] Tightened fuzzy matching: min 6 chars, blocklist for generic terms, word boundary matching
+- [x] Added tiered severity boosts: version-confirmed 10-15pts, unversioned 4-8pts, fuzzy 2-6pts
+- [x] Updated calculateKevRiskBoost to weight by match quality
+- [x] Yellow assets are from medium risk band (CARVER/Shock scoring) — correct behavior, not a bug

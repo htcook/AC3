@@ -115,6 +115,7 @@ export default function DomainIntelResults() {
   const [, navigate] = useLocation();
   const scanId = Number(params.id);
   const [expandedAsset, setExpandedAsset] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [heatmapExpandedAsset, setHeatmapExpandedAsset] = useState<number | null>(null);
   const [fpDialogOpen, setFpDialogOpen] = useState(false);
@@ -1014,7 +1015,7 @@ export default function DomainIntelResults() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         {scan.status === 'scan_complete' ? (
           <TabsList className="flex flex-wrap gap-1 w-full max-w-5xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -1095,6 +1096,204 @@ export default function DomainIntelResults() {
               </CardContent>
             </Card>
           )}
+
+          {/* Entity Information & Hybrid Scoring Context */}
+          {(() => {
+            const orgP = scan.orgProfile as any;
+            const ep = pipeline?.entityProfile as any;
+            const entity = ep || orgP;
+            if (!entity) return null;
+
+            // BIA distribution from assets
+            const biaLevels: Record<string, number> = {};
+            const missionFunctions: Record<string, number> = {};
+            const essentialServices: Record<string, number> = {};
+            (assets || []).forEach((a: any) => {
+              const bil = a.businessImpactLevel || 'unknown';
+              biaLevels[bil] = (biaLevels[bil] || 0) + 1;
+              const mf = a.missionFunction || 'unclassified';
+              missionFunctions[mf] = (missionFunctions[mf] || 0) + 1;
+              const es = a.essentialService || 'unclassified';
+              essentialServices[es] = (essentialServices[es] || 0) + 1;
+            });
+
+            const totalAssets = (assets || []).length;
+            const biaColors: Record<string, string> = {
+              critical: 'bg-red-500/20 text-red-400 border-red-500/40',
+              high: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
+              moderate: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+              low: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+              unknown: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40',
+            };
+
+            const fmtLabel = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const fmtCurrency = (v: number) => v >= 1e9 ? `$${(v/1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v/1e6).toFixed(0)}M` : `$${(v/1e3).toFixed(0)}K`;
+
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Database className="h-4 w-4 text-cyan-400" />
+                    Entity Information & Hybrid Scoring Context
+                  </CardTitle>
+                  <CardDescription className="text-xs">Organization profile, business impact analysis, and key inputs to the hybrid risk scoring engine</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {/* Entity Profile Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Org Identity */}
+                    <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+                      <h4 className="text-xs font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5" /> Organization
+                      </h4>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold">{entity.orgName || entity.customerName || scan.primaryDomain}</p>
+                        {(entity.industry || entity.sector) && (
+                          <p className="text-xs text-muted-foreground">{entity.industry || entity.sector}{entity.subSector ? ` — ${entity.subSector}` : ''}</p>
+                        )}
+                        {entity.headquarters && <p className="text-xs text-muted-foreground">HQ: {entity.headquarters}</p>}
+                        {entity.companySize && <p className="text-xs text-muted-foreground">Size: {fmtLabel(entity.companySize)}{entity.estimatedEmployees ? ` (~${entity.estimatedEmployees.toLocaleString()} employees)` : ''}</p>}
+                        {entity.foundedYear && <p className="text-xs text-muted-foreground">Founded: {entity.foundedYear}</p>}
+                        {entity.isPublicCompany && entity.stockTicker && <p className="text-xs text-muted-foreground">Ticker: {entity.stockTicker}</p>}
+                      </div>
+                    </div>
+
+                    {/* Key Products & Functions */}
+                    <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+                      <h4 className="text-xs font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="h-3.5 w-3.5" /> Key Products & Functions
+                      </h4>
+                      {entity.keyProducts && entity.keyProducts.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {entity.keyProducts.slice(0, 6).map((p: string, i: number) => (
+                            <Badge key={i} variant="outline" className="text-[10px] bg-purple-500/10 border-purple-500/30 text-purple-300">{p}</Badge>
+                          ))}
+                        </div>
+                      ) : entity.criticalFunctions && entity.criticalFunctions.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {entity.criticalFunctions.map((f: string, i: number) => (
+                            <Badge key={i} variant="outline" className="text-[10px] bg-purple-500/10 border-purple-500/30 text-purple-300">{fmtLabel(f)}</Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No products/functions identified</p>
+                      )}
+                      {entity.complianceFlags && entity.complianceFlags.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-[10px] text-muted-foreground mb-1">Compliance Frameworks:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {entity.complianceFlags.map((c: string, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[10px] bg-blue-500/10 border-blue-500/30 text-blue-300">{c}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Financial Context */}
+                    <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+                      <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <TrendingUp className="h-3.5 w-3.5" /> Financial & Impact Context
+                      </h4>
+                      <div className="space-y-1">
+                        {entity.estimatedRevenue && <p className="text-xs"><span className="text-muted-foreground">Est. Revenue:</span> <span className="font-semibold">{fmtCurrency(entity.estimatedRevenue)}</span></p>}
+                        {entity.estimatedValuation && <p className="text-xs"><span className="text-muted-foreground">Est. Valuation:</span> <span className="font-semibold">{fmtCurrency(entity.estimatedValuation)}</span></p>}
+                        {entity.clientType && <p className="text-xs"><span className="text-muted-foreground">Client Type:</span> <span className="font-semibold">{fmtLabel(entity.clientType)}</span></p>}
+                        {entity.confidence && <p className="text-xs"><span className="text-muted-foreground">Entity Confidence:</span> <span className="font-semibold">{entity.confidence}%</span></p>}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground italic mt-1">Financial context informs CARVER Criticality and Shock Effect scoring weights</p>
+                    </div>
+                  </div>
+
+                  {/* BIA Distribution */}
+                  {totalAssets > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Activity className="h-3.5 w-3.5" /> Business Impact Analysis Distribution
+                        <span className="text-muted-foreground font-normal">— {totalAssets} assets classified</span>
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                        {['critical', 'high', 'moderate', 'low', 'unknown'].map(level => {
+                          const count = biaLevels[level] || 0;
+                          const pct = totalAssets > 0 ? Math.round((count / totalAssets) * 100) : 0;
+                          return (
+                            <div key={level} className={`p-2 rounded-lg border ${biaColors[level] || biaColors.unknown}`}>
+                              <p className="text-[10px] uppercase font-semibold">{level}</p>
+                              <p className="text-lg font-bold">{count}</p>
+                              <p className="text-[10px] opacity-70">{pct}% of assets</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Mission Function Breakdown */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Mission Functions</p>
+                          <div className="space-y-1">
+                            {Object.entries(missionFunctions).sort(([,a],[,b]) => (b as number) - (a as number)).slice(0, 6).map(([fn, count]) => (
+                              <div key={fn} className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">{fmtLabel(fn)}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-20 h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                                    <div className="h-full bg-cyan-500/60 rounded-full" style={{ width: `${Math.round(((count as number) / totalAssets) * 100)}%` }} />
+                                  </div>
+                                  <span className="font-mono text-[10px] w-6 text-right">{count as number}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Essential Services</p>
+                          <div className="space-y-1">
+                            {Object.entries(essentialServices).sort(([,a],[,b]) => (b as number) - (a as number)).slice(0, 6).map(([svc, count]) => (
+                              <div key={svc} className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">{fmtLabel(svc)}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-20 h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                                    <div className="h-full bg-purple-500/60 rounded-full" style={{ width: `${Math.round(((count as number) / totalAssets) * 100)}%` }} />
+                                  </div>
+                                  <span className="font-mono text-[10px] w-6 text-right">{count as number}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hybrid Scoring Methodology */}
+                  <div className="p-3 rounded-lg bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-amber-500/5 border border-border/30">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                      <Brain className="h-3.5 w-3.5 text-purple-400" /> Hybrid Risk Scoring Components
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground mb-3">Each asset's risk score is computed from four weighted components, contextualized by the entity profile above:</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div className="p-2 rounded bg-red-500/10 border border-red-500/20">
+                        <p className="text-[10px] font-bold text-red-400">CARVER (30%)</p>
+                        <p className="text-[10px] text-muted-foreground">Criticality, Accessibility, Recuperability, Vulnerability, Effect, Recognizability — military-grade target analysis</p>
+                      </div>
+                      <div className="p-2 rounded bg-orange-500/10 border border-orange-500/20">
+                        <p className="text-[10px] font-bold text-orange-400">Shock 2.0 (25%)</p>
+                        <p className="text-[10px] text-muted-foreground">Scope, Handling, Operational Impact, Cascading Effects, Knowledge — psychological & societal disruption</p>
+                      </div>
+                      <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                        <p className="text-[10px] font-bold text-blue-400">CVSS v4 (25%)</p>
+                        <p className="text-[10px] text-muted-foreground">Technical vulnerability severity from posture findings, KEV matches, and CVE correlation</p>
+                      </div>
+                      <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                        <p className="text-[10px] font-bold text-emerald-400">AI-BIA (20%)</p>
+                        <p className="text-[10px] text-muted-foreground">Mission function weighting, essential service classification, and business impact level from entity context</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2 italic">Entity sector ({entity.industry || entity.sector || 'unknown'}), compliance requirements ({(entity.complianceFlags || []).join(', ') || 'none'}), and financial scale ({entity.estimatedRevenue ? fmtCurrency(entity.estimatedRevenue) + ' revenue' : 'unknown'}) directly influence CARVER Criticality and Shock Effect weights.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Risk Heatmap */}
           <Card>
@@ -1491,8 +1690,7 @@ export default function DomainIntelResults() {
                     <div className="flex justify-end pt-1">
                       <Button variant="outline" size="sm" className="text-xs" onClick={() => {
                         setExpandedAsset(asset.id);
-                        const tabsTrigger = document.querySelector('[data-value="assets"]') as HTMLElement;
-                        if (tabsTrigger) tabsTrigger.click();
+                        setActiveTab("assets");
                       }}>
                         <Eye className="h-3 w-3 mr-1" />
                         View Full Asset Details

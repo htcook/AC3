@@ -23,6 +23,7 @@
  */
 
 import { ENV } from "../_core/env";
+import { discoverOrgDomains, type OrgDiscoveryResult } from "./org-domain-discovery";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ export interface DiscoveryResult {
   summary: DiscoverySummary;
   enrichmentResults: EnrichmentResult[];
   llmAnalysis: LLMAnalysis | null;
+  orgDiscovery: OrgDiscoveryResult | null;
 }
 
 export interface SourceStats {
@@ -876,8 +878,89 @@ export async function runDiscoveryPipeline(
   onProgress?.("initializing", `Discovery scan ${discoveryId} starting for ${targets.length} target(s)`);
 
   // Extract domains and IPs from targets
-  const domains = targets.filter(t => t.domain).map(t => t.domain!);
+  let domains = targets.filter(t => t.domain).map(t => t.domain!);
   const ips = targets.filter(t => t.ip).map(t => t.ip!);
+
+  // ─── Phase 0: Org-Wide Domain Discovery ───────────────────────────
+  let orgDiscoveryResult: OrgDiscoveryResult | null = null;
+  if (domains.length > 0) {
+    onProgress?.("org_discovery", "Discovering all domains owned by the target organization");
+    try {
+      // Get org name from WHOIS of the primary (seed) domain
+      const seedDomain = domains[0];
+      let orgName = "";
+      let orgEmail: string | null = null;
+
+      if (fullConfig.enabledSources.securityTrails) {
+        try {
+          const whoisData = await securityTrailsWHOIS(seedDomain);
+          orgName = whoisData?.registrant?.organization
+            || whoisData?.registrant?.name
+            || whoisData?.contacts?.registrant?.organization
+            || whoisData?.contacts?.registrant?.name
+            || "";
+          orgEmail = whoisData?.registrant?.email
+            || whoisData?.contacts?.registrant?.email
+            || null;
+          onProgress?.("org_discovery", `Identified org: "${orgName}" (${orgEmail || "no email"}) from WHOIS`);
+        } catch (err: any) {
+          onProgress?.("org_discovery", `WHOIS org extraction failed: ${err.message}`);
+        }
+      }
+
+      if (orgName) {
+        orgDiscoveryResult = await discoverOrgDomains(
+          seedDomain,
+          orgName,
+          orgEmail,
+          {
+            minConfidenceThreshold: 60,
+            maxCandidates: 150,
+            enableWebVerification: false,
+            enableSpfPivoting: true,
+            lookupTimeoutMs: 15000,
+          },
+          (detail) => onProgress?.("org_discovery", detail),
+        );
+
+        // Add verified domains to the scan targets
+        const newDomains = orgDiscoveryResult.verifiedDomains
+          .filter(d => !domains.includes(d.domain))
+          .map(d => d.domain);
+
+        if (newDomains.length > 0) {
+          domains = [...domains, ...newDomains];
+          onProgress?.("org_discovery", `Added ${newDomains.length} verified org domains to scan scope: ${newDomains.join(", ")}`);
+        }
+
+        // Add org discovery stats
+        sourceStats.push({
+          source: "org_discovery",
+          hostsFound: 0,
+          portsFound: 0,
+          subdomainsFound: 0,
+          vulnsFound: 0,
+          responseTimeMs: orgDiscoveryResult.durationMs,
+          status: orgDiscoveryResult.verifiedDomains.length > 0 ? "success" : "partial",
+          error: null,
+        });
+      } else {
+        onProgress?.("org_discovery", "Skipped: could not determine org name from WHOIS");
+        sourceStats.push({
+          source: "org_discovery",
+          hostsFound: 0, portsFound: 0, subdomainsFound: 0, vulnsFound: 0,
+          responseTimeMs: 0, status: "skipped", error: "No org name available from WHOIS",
+        });
+      }
+    } catch (err: any) {
+      onProgress?.("org_discovery", `Org discovery failed (non-fatal): ${err.message}`);
+      sourceStats.push({
+        source: "org_discovery",
+        hostsFound: 0, portsFound: 0, subdomainsFound: 0, vulnsFound: 0,
+        responseTimeMs: 0, status: "failed", error: err.message,
+      });
+    }
+  }
 
   // ─── Phase 1: Subdomain Enumeration ────────────────────────────────
   onProgress?.("subdomain_enum", "Enumerating subdomains from multiple sources");
@@ -1015,6 +1098,7 @@ export async function runDiscoveryPipeline(
     summary,
     enrichmentResults,
     llmAnalysis: null,
+    orgDiscovery: orgDiscoveryResult,
   };
 
   // ─── Phase 5: LLM Analysis (if hosts found) ──────────────────────

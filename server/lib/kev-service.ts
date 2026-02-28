@@ -153,13 +153,79 @@ export function getKevStats(catalog: KevCatalog): KevStats {
 }
 
 /**
+ * Extract version from a technology string like "Apache/2.4.49", "nginx 1.21.3", "PHP/8.1.2"
+ */
+function extractVersion(tech: string): { name: string; version: string | null; major: number | null; minor: number | null; patch: number | null } {
+  // Common patterns: "Apache/2.4.49", "nginx/1.21.3", "PHP/8.1.2", "OpenSSH_8.9p1"
+  const patterns = [
+    /^([\w.\-\s]+?)[\/\s_]v?(\d+(?:\.\d+)*(?:[\-_]?[a-z]\d*)?)/i,
+    /^([\w.\-\s]+?)\s+version\s+(\d+(?:\.\d+)*)/i,
+  ];
+  for (const pat of patterns) {
+    const m = tech.match(pat);
+    if (m) {
+      const name = m[1].trim().toLowerCase();
+      const ver = m[2];
+      const parts = ver.split(".").map(p => parseInt(p, 10));
+      return { name, version: ver, major: parts[0] ?? null, minor: parts[1] ?? null, patch: parts[2] ?? null };
+    }
+  }
+  return { name: tech.toLowerCase().trim(), version: null, major: null, minor: null, patch: null };
+}
+
+/**
+ * Check if a KEV vulnerability name/description mentions a version range that matches the detected version.
+ * Returns: "confirmed" if version matches, "potential" if no version info to compare, "excluded" if version clearly doesn't match.
+ */
+function checkVersionRelevance(
+  detectedVersion: { version: string | null; major: number | null; minor: number | null },
+  kevVulnName: string,
+  kevDescription: string
+): "confirmed" | "potential" | "excluded" {
+  if (!detectedVersion.version || detectedVersion.major === null) return "potential";
+
+  const combined = (kevVulnName + " " + kevDescription).toLowerCase();
+
+  // Extract version references from KEV text
+  const versionRefs = combined.match(/(\d+\.\d+(?:\.\d+)*)/g);
+  if (!versionRefs || versionRefs.length === 0) return "potential"; // No version in KEV = can't confirm or exclude
+
+  // Check if any referenced version shares the same major.minor
+  for (const ref of versionRefs) {
+    const refParts = ref.split(".").map(p => parseInt(p, 10));
+    const refMajor = refParts[0];
+    const refMinor = refParts[1] ?? null;
+
+    if (refMajor === detectedVersion.major) {
+      // Same major version — if minor also matches or minor isn't specified, it's relevant
+      if (refMinor === null || detectedVersion.minor === null || refMinor === detectedVersion.minor) {
+        return "confirmed";
+      }
+      // Same major, different minor — still potentially relevant (e.g., "before 2.4.50" affects 2.4.49)
+      if (combined.includes("before") || combined.includes("prior to") || combined.includes("through")) {
+        return "confirmed";
+      }
+    }
+  }
+
+  // Has version refs but none match our major version — likely not relevant
+  return "excluded";
+}
+
+/**
  * Technology-to-product mapping for matching discovered technologies against KEV
  * Maps common technology names (from OSINT/domain intel) to KEV vendor/product patterns
+ * IMPORTANT: Each tech maps to SPECIFIC products only — no cross-product contamination
  */
 const TECH_TO_KEV_PATTERNS: Record<string, { vendors: string[]; products: string[] }> = {
-  // Web servers
-  "apache": { vendors: ["apache"], products: ["http server", "httpd", "tomcat", "struts", "log4j"] },
-  "nginx": { vendors: ["nginx"], products: ["nginx"] },
+  // Web servers — each maps to its OWN product only
+  "apache httpd": { vendors: ["apache"], products: ["http server", "httpd"] },
+  "apache http server": { vendors: ["apache"], products: ["http server", "httpd"] },
+  "apache": { vendors: ["apache"], products: ["http server", "httpd"] }, // Default apache = httpd, NOT struts/log4j/tomcat
+  "tomcat": { vendors: ["apache"], products: ["tomcat"] },
+  "struts": { vendors: ["apache"], products: ["struts"] },
+  "log4j": { vendors: ["apache"], products: ["log4j"] },
+  "nginx": { vendors: ["nginx", "f5"], products: ["nginx"] },
   "f5 big-ip": { vendors: ["f5"], products: ["big-ip", "big ip", "tmui", "traffic management"] },
   "big-ip": { vendors: ["f5"], products: ["big-ip", "big ip", "tmui", "traffic management"] },
   "iis": { vendors: ["microsoft"], products: ["internet information services", "iis"] },
@@ -167,39 +233,42 @@ const TECH_TO_KEV_PATTERNS: Record<string, { vendors: string[]; products: string
   "wordpress": { vendors: ["wordpress"], products: ["wordpress"] },
   "drupal": { vendors: ["drupal"], products: ["drupal"] },
   "joomla": { vendors: ["joomla"], products: ["joomla"] },
-  // Microsoft
+  // Microsoft — specific products only
   "exchange": { vendors: ["microsoft"], products: ["exchange server", "exchange"] },
   "sharepoint": { vendors: ["microsoft"], products: ["sharepoint"] },
-  "outlook": { vendors: ["microsoft"], products: ["outlook", "office"] },
-  "office 365": { vendors: ["microsoft"], products: ["office", "365"] },
-  "windows": { vendors: ["microsoft"], products: ["windows"] },
-  "active directory": { vendors: ["microsoft"], products: ["active directory", "windows server"] },
+  "outlook": { vendors: ["microsoft"], products: ["outlook"] },
+  "office 365": { vendors: ["microsoft"], products: ["office 365", "365"] },
+  "windows server": { vendors: ["microsoft"], products: ["windows server"] },
+  "active directory": { vendors: ["microsoft"], products: ["active directory"] },
   "azure": { vendors: ["microsoft"], products: ["azure"] },
   ".net": { vendors: ["microsoft"], products: [".net", "asp.net"] },
-  // Networking
-  "cisco": { vendors: ["cisco"], products: ["ios", "asa", "anyconnect", "webex"] },
-  "fortinet": { vendors: ["fortinet"], products: ["fortigate", "fortios", "forticlient"] },
+  // Networking — specific product lines
+  "cisco asa": { vendors: ["cisco"], products: ["asa", "adaptive security"] },
+  "cisco ios": { vendors: ["cisco"], products: ["ios"] },
+  "anyconnect": { vendors: ["cisco"], products: ["anyconnect"] },
+  "fortios": { vendors: ["fortinet"], products: ["fortios"] },
+  "fortigate": { vendors: ["fortinet"], products: ["fortigate", "fortios"] },
+  "forticlient": { vendors: ["fortinet"], products: ["forticlient"] },
   "palo alto": { vendors: ["palo alto", "paloalto"], products: ["pan-os", "globalprotect", "cortex"] },
   "juniper": { vendors: ["juniper"], products: ["junos", "srx"] },
   "sonicwall": { vendors: ["sonicwall"], products: ["sma", "sra", "sonicos"] },
   // VPN / Remote Access
   "pulse secure": { vendors: ["pulse secure", "ivanti"], products: ["pulse connect secure", "pulse secure"] },
-  "citrix": { vendors: ["citrix"], products: ["adc", "gateway", "netscaler", "xenapp", "xendesktop"] },
-  "vmware": { vendors: ["vmware"], products: ["vcenter", "esxi", "horizon", "workspace one"] },
-  // Cloud
-  "aws": { vendors: ["amazon"], products: ["aws", "ec2", "s3"] },
-  "google cloud": { vendors: ["google"], products: ["chrome", "cloud"] },
+  "citrix": { vendors: ["citrix"], products: ["adc", "gateway", "netscaler"] },
+  "vmware vcenter": { vendors: ["vmware"], products: ["vcenter"] },
+  "vmware esxi": { vendors: ["vmware"], products: ["esxi"] },
+  "vmware horizon": { vendors: ["vmware"], products: ["horizon"] },
   // Identity
   "okta": { vendors: ["okta"], products: ["okta"] },
-  "sso": { vendors: ["okta", "microsoft", "ping"], products: ["sso", "active directory"] },
-  // Databases
+  // Databases — specific products only
   "mysql": { vendors: ["oracle", "mysql"], products: ["mysql"] },
   "postgresql": { vendors: ["postgresql"], products: ["postgresql"] },
-  "oracle": { vendors: ["oracle"], products: ["database", "weblogic", "java"] },
+  "oracle database": { vendors: ["oracle"], products: ["database"] },
+  "oracle weblogic": { vendors: ["oracle"], products: ["weblogic"] },
   "mssql": { vendors: ["microsoft"], products: ["sql server"] },
-  // Java / Frameworks
-  "java": { vendors: ["oracle", "apache"], products: ["java", "log4j", "struts", "tomcat"] },
-  "log4j": { vendors: ["apache"], products: ["log4j"] },
+  "sql server": { vendors: ["microsoft"], products: ["sql server"] },
+  // Java — ONLY matches Java SE, NOT log4j/struts/tomcat
+  "java": { vendors: ["oracle"], products: ["java se", "jre", "jdk"] },
   "spring": { vendors: ["vmware", "spring"], products: ["spring framework", "spring cloud"] },
   // Security
   "crowdstrike": { vendors: ["crowdstrike"], products: ["falcon"] },
@@ -223,8 +292,9 @@ const TECH_TO_KEV_PATTERNS: Record<string, { vendors: string[]; products: string
   "jira": { vendors: ["atlassian"], products: ["jira"] },
   "solarwinds": { vendors: ["solarwinds"], products: ["orion", "serv-u"] },
   "barracuda": { vendors: ["barracuda"], products: ["email security gateway"] },
-  "progress": { vendors: ["progress"], products: ["moveit", "telerik"] },
+  "progress moveit": { vendors: ["progress"], products: ["moveit"] },
   "moveit": { vendors: ["progress"], products: ["moveit"] },
+  "telerik": { vendors: ["progress"], products: ["telerik"] },
 };
 
 /**
@@ -306,6 +376,11 @@ function mapKevToTechniques(kev: KevEntry): string[] {
 
 /**
  * Match discovered technologies against the KEV catalog
+ * Version-aware matching with three confidence tiers:
+ *   - version_confirmed: product matches AND detected version falls in the KEV's affected range
+ *   - exact_product: product matches but no version info to confirm/exclude
+ *   - product_family: vendor+product family match (lower confidence)
+ *   - fuzzy: name-only match (lowest confidence, reduced severity boost)
  */
 export function matchTechnologiesAgainstKev(
   technologies: string[],
@@ -314,10 +389,19 @@ export function matchTechnologiesAgainstKev(
   const matches: KevMatch[] = [];
   const seen = new Set<string>();
 
-  technologies.forEach(tech => {
-    const techLower = tech.toLowerCase().trim();
+  // Blocklist: generic terms that should NEVER trigger fuzzy matching
+  const FUZZY_BLOCKLIST = new Set([
+    "http", "https", "html", "css", "json", "xml", "api", "web", "app",
+    "mail", "smtp", "imap", "pop3", "ftp", "ssh", "dns", "tcp", "udp",
+    "ssl", "tls", "cdn", "waf", "load", "proxy", "cache", "server",
+    "linux", "unix", "cloud", "saas", "platform",
+  ]);
 
-    // Check direct technology mapping — REQUIRE product match (vendor-only is too broad)
+  technologies.forEach(tech => {
+    const parsed = extractVersion(tech);
+    const techLower = parsed.name;
+
+    // Phase 1: Mapped product matching with version awareness
     for (const [pattern, mapping] of Object.entries(TECH_TO_KEV_PATTERNS)) {
       if (techLower.includes(pattern) || pattern.includes(techLower)) {
         catalog.vulnerabilities.forEach(kev => {
@@ -329,10 +413,28 @@ export function matchTechnologiesAgainstKev(
           const vendorMatch = mapping.vendors.some(v => kevVendor.includes(v));
           const productMatch = mapping.products.some(p => kevProduct.includes(p));
 
-          // FIX: Require BOTH vendor AND product match to prevent cross-product contamination.
-          // Previously vendorMatch || productMatch caused "IIS" to match ALL Microsoft KEV entries
-          // (SharePoint, Windows CLFS, Office, etc.) because IIS maps to vendors:["microsoft"].
           if (vendorMatch && productMatch) {
+            // Version-aware confirmation
+            const versionCheck = checkVersionRelevance(
+              parsed,
+              kev.vulnerabilityName,
+              kev.shortDescription
+            );
+
+            if (versionCheck === "excluded") return; // Version clearly doesn't match — skip
+
+            const isVersionConfirmed = versionCheck === "confirmed";
+            const quality: KevMatch["matchQuality"] = isVersionConfirmed ? "exact_product" : "product_family";
+
+            // Severity boost scales with confidence
+            let boost: number;
+            if (isVersionConfirmed) {
+              boost = kev.knownRansomwareCampaignUse === "Known" ? 15 : 10;
+            } else {
+              // Unversioned match — lower boost since we can't confirm the version is affected
+              boost = kev.knownRansomwareCampaignUse === "Known" ? 8 : 4;
+            }
+
             seen.add(kev.cveID);
             matches.push({
               cveID: kev.cveID,
@@ -346,28 +448,37 @@ export function matchTechnologiesAgainstKev(
               knownRansomware: kev.knownRansomwareCampaignUse === "Known",
               matchType: "product",
               matchedOn: tech,
-              severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 12 : 8,
+              severityBoost: boost,
               suggestedTechniques: mapKevToTechniques(kev),
-              matchQuality: "exact_product",
+              matchQuality: quality,
             });
           }
         });
       }
     }
 
-    // Fuzzy matching: only match when the technology name closely matches the KEV PRODUCT
-    // (not just the vendor). This prevents "nginx" from matching all F5 entries, etc.
-    catalog.vulnerabilities.forEach(kev => {
-      if (seen.has(kev.cveID)) return;
-      const kevProduct = (kev.product || "").toLowerCase();
+    // Phase 2: Tightened fuzzy matching — only for specific, non-generic tech names
+    // Requires: min 6 chars, not in blocklist, exact word boundary match (not substring)
+    if (techLower.length >= 6 && !FUZZY_BLOCKLIST.has(techLower)) {
+      catalog.vulnerabilities.forEach(kev => {
+        if (seen.has(kev.cveID)) return;
+        const kevProduct = (kev.product || "").toLowerCase();
+        if (kevProduct.length < 4) return;
 
-      // Only match if the tech name is a close match to the KEV product name
-      // (not the vendor — vendor-only matching is too broad for passive scans)
-      if (
-        techLower.length >= 4 &&
-        (kevProduct.includes(techLower) || techLower.includes(kevProduct)) &&
-        kevProduct.length >= 3 // Avoid matching empty or very short product names
-      ) {
+        // Require exact word match, not just substring containment
+        // e.g., "gitlab" should match "GitLab" but NOT "digital"
+        const techWords = techLower.split(/[\s\/\-_]+/);
+        const productWords = kevProduct.split(/[\s\/\-_]+/);
+        const hasExactWordMatch = techWords.some(tw =>
+          tw.length >= 5 && productWords.some(pw => pw === tw || (pw.length >= 5 && pw.startsWith(tw)))
+        );
+
+        if (!hasExactWordMatch) return;
+
+        // Version check for fuzzy matches too
+        const versionCheck = checkVersionRelevance(parsed, kev.vulnerabilityName, kev.shortDescription);
+        if (versionCheck === "excluded") return;
+
         seen.add(kev.cveID);
         matches.push({
           cveID: kev.cveID,
@@ -381,16 +492,22 @@ export function matchTechnologiesAgainstKev(
           knownRansomware: kev.knownRansomwareCampaignUse === "Known",
           matchType: "technology",
           matchedOn: tech,
-          severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 10 : 6,
+          // Fuzzy matches get minimal severity boost — they're informational, not confirmed
+          severityBoost: versionCheck === "confirmed" ? 6 : 2,
           suggestedTechniques: mapKevToTechniques(kev),
           matchQuality: "fuzzy",
         });
-      }
-    });
+      });
+    }
   });
 
-  // Sort by severity boost (ransomware first), then by date added (newest first)
+  // Sort: version-confirmed first, then ransomware, then by date
   return matches.sort((a, b) => {
+    // Quality priority: exact_product > product_family > fuzzy
+    const qualityOrder: Record<string, number> = { exact_product: 0, product_family: 1, vendor_only: 2, fuzzy: 3 };
+    const qa = qualityOrder[a.matchQuality || "fuzzy"] ?? 3;
+    const qb = qualityOrder[b.matchQuality || "fuzzy"] ?? 3;
+    if (qa !== qb) return qa - qb;
     if (a.knownRansomware !== b.knownRansomware) return a.knownRansomware ? -1 : 1;
     return new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime();
   });
@@ -513,30 +630,50 @@ export function getKevChainSteps(
 
 /**
  * Enrich domain analysis risk score with KEV findings
+ * Only version-confirmed and exact_product matches contribute full boost.
+ * Fuzzy/unversioned matches contribute reduced boost.
  */
 export function calculateKevRiskBoost(kevMatches: KevMatch[]): {
   riskBoost: number;
   ransomwareExposure: boolean;
   criticalKevCount: number;
+  confirmedCount: number;
+  potentialCount: number;
   summary: string;
 } {
   if (kevMatches.length === 0) {
-    return { riskBoost: 0, ransomwareExposure: false, criticalKevCount: 0, summary: "No CISA KEV matches found." };
+    return { riskBoost: 0, ransomwareExposure: false, criticalKevCount: 0, confirmedCount: 0, potentialCount: 0, summary: "No CISA KEV matches found." };
   }
 
-  const ransomwareMatches = kevMatches.filter(m => m.knownRansomware);
-  const maxBoost = Math.min(
-    kevMatches.reduce((sum, m) => sum + Math.min(m.severityBoost, 8), 0),
-    20 // Cap at 20 points (was 40) — KEV boost is informational, not a score multiplier
-  );
+  const confirmed = kevMatches.filter(m => m.matchQuality === "exact_product");
+  const potential = kevMatches.filter(m => m.matchQuality !== "exact_product");
+  const ransomwareMatches = kevMatches.filter(m => m.knownRansomware && m.matchQuality !== "fuzzy");
+
+  // Only confirmed matches get full boost; fuzzy matches get minimal boost
+  const confirmedBoost = confirmed.reduce((sum, m) => sum + Math.min(m.severityBoost, 10), 0);
+  const potentialBoost = potential.reduce((sum, m) => sum + Math.min(m.severityBoost, 3), 0);
+  const maxBoost = Math.min(confirmedBoost + potentialBoost, 20);
+
+  const parts: string[] = [];
+  if (confirmed.length > 0) {
+    parts.push(`${confirmed.length} confirmed KEV match${confirmed.length > 1 ? "es" : ""} (version-verified)`);
+  }
+  if (potential.length > 0) {
+    parts.push(`${potential.length} potential match${potential.length > 1 ? "es" : ""} (version unconfirmed)`);
+  }
+  if (ransomwareMatches.length > 0) {
+    parts.push(`${ransomwareMatches.length} linked to known ransomware campaigns`);
+  }
 
   return {
     riskBoost: maxBoost,
     ransomwareExposure: ransomwareMatches.length > 0,
-    criticalKevCount: kevMatches.length,
-    summary: `${kevMatches.length} CISA KEV match${kevMatches.length > 1 ? "es" : ""} found across discovered technologies. ${ransomwareMatches.length > 0 ? `${ransomwareMatches.length} linked to known ransomware campaigns. ` : ""}Risk score boosted by ${maxBoost} points.`,
+    criticalKevCount: confirmed.length,
+    confirmedCount: confirmed.length,
+    potentialCount: potential.length,
+    summary: parts.join(". ") + `. Risk score boosted by ${maxBoost} points.`,
   };
 }
 
 // Export for testing
-export { mapKevToTechniques, TECH_TO_KEV_PATTERNS };
+export { mapKevToTechniques, TECH_TO_KEV_PATTERNS, extractVersion, checkVersionRelevance };
