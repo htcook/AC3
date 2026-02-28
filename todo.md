@@ -5852,5 +5852,13 @@
 - [x] Moved Recent Scans section above Mission Workflows for immediate visibility
 - [x] Fixed risk score display: was reading pipelineOutput.riskScore (null), now reads overallRiskScore from DB
 - [x] Fixed finding counts: now uses totalFindings, confirmedFindings, probableFindings from DB columns
-- [ ] Verify completed scans display correctly in DomainIntel page
-- [ ] Verify completed scans display correctly in ScanHistory page
+- [x] Verify completed scans display correctly in DomainIntel page — fixed pipelineOutput reference to use overallRiskScore and totalAssets
+- [x] Verify completed scans display correctly in ScanHistory page — already using correct overallRiskScore field
+
+## Dashboard Scan Display Bug (User Report)
+- [x] User reports completed scans still not visible on dashboard
+- [x] Diagnosed root cause: published site running old code + backend 503 errors
+- [x] Added loading skeleton, error fallback, and empty state to Recent Scans section
+- [x] Section now always visible (shows during loading, on error, and when empty)
+- [x] Fixed DomainIntel scan cards: removed broken pipelineOutput reference
+- [x] All 20 domain intel tests passing

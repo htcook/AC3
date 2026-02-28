@@ -102,7 +102,7 @@ function DashboardInner() {
   const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, { refetchInterval: 30000 });
 
   // Recent domain intel scans
-  const { data: recentScans } = trpc.domainIntel.listScans.useQuery();
+  const { data: recentScans, isLoading: scansLoading, isError: scansError } = trpc.domainIntel.listScans.useQuery();
 
   // Real threat actor data from DB
   const { data: threatStats } = trpc.threatIntel.stats.useQuery();
@@ -736,7 +736,7 @@ function DashboardInner() {
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* RECENT SCANS — Quick access to previous results                */}
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {recentCompletedScans.length > 0 && (
+        {(scansLoading || scansError || recentCompletedScans.length > 0) && (
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -753,6 +753,24 @@ function DashboardInner() {
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              {scansLoading && Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="bg-card border-2 border-border p-3 animate-pulse h-[130px]">
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+                  <div className="h-6 bg-muted rounded w-1/3 mb-2" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
+                </div>
+              ))}
+              {scansError && !scansLoading && recentCompletedScans.length === 0 && (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  <p className="text-sm">Unable to load scan data. The server may be temporarily unavailable.</p>
+                  <p className="text-xs mt-1">Try refreshing the page or check the <Link href="/domain-intel/history" className="text-cyan-400 underline">Scan History</Link> page.</p>
+                </div>
+              )}
+              {!scansLoading && !scansError && recentCompletedScans.length === 0 && recentScans && (
+                <div className="col-span-full text-center py-8 text-muted-foreground">
+                  <p className="text-sm">No completed scans yet. Launch a domain scan above to get started.</p>
+                </div>
+              )}
               {recentCompletedScans.map((scan: any) => {
                 const riskScore = scan.overallRiskScore || 0;
                 const riskColor = riskScore >= 80 ? 'text-red-500 border-red-500/30' : riskScore >= 60 ? 'text-orange-500 border-orange-500/30' : riskScore >= 40 ? 'text-yellow-500 border-yellow-500/30' : 'text-green-500 border-green-500/30';
