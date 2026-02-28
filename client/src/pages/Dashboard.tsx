@@ -731,6 +731,64 @@ function DashboardInner() {
         </section>
         </>)}
 
+        {isVisible('recent-scans') && (
+        <>
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* RECENT SCANS — Quick access to previous results                */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {recentCompletedScans.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-cyan-400" />
+                <h3 className="font-display text-sm tracking-wider text-cyan-400">RECENT SCANS</h3>
+                {allCompletedScans.length > 0 && (
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">{allCompletedScans.length} total completed</span>
+                )}
+              </div>
+              <Link href="/domain-intel/history">
+                <Button variant="ghost" size="sm" className="text-xs font-display tracking-wider">
+                  VIEW ALL {allCompletedScans.length} SCANS <ChevronRight className="w-3 h-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              {recentCompletedScans.map((scan: any) => {
+                const riskScore = scan.overallRiskScore || 0;
+                const riskColor = riskScore >= 80 ? 'text-red-500 border-red-500/30' : riskScore >= 60 ? 'text-orange-500 border-orange-500/30' : riskScore >= 40 ? 'text-yellow-500 border-yellow-500/30' : 'text-green-500 border-green-500/30';
+                const assetCount = scan.totalAssets || 0;
+                const findingCount = scan.totalFindings || 0;
+                const confirmedCount = scan.confirmedFindings || 0;
+                const probableCount = scan.probableFindings || 0;
+                return (
+                  <Link key={scan.id} href={`/domain-intel/${scan.id}`}>
+                    <div className={`bg-card border-2 ${riskColor} p-3 hover:bg-secondary/30 transition-all cursor-pointer h-full`}>
+                      <div className="font-mono text-sm truncate">{scan.primaryDomain}</div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-muted-foreground">{scan.clientType?.toUpperCase() || 'SCAN'}</span>
+                        <span className={`font-display text-lg ${riskColor.split(' ')[0]}`}>{riskScore}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded">{assetCount} assets</span>
+                        {findingCount > 0 && <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded">{findingCount} findings</span>}
+                        {confirmedCount > 0 && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">{confirmedCount} confirmed</span>}
+                        {probableCount > 0 && <span className="text-[9px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">{probableCount} probable</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                        <span className="text-[10px] text-muted-foreground">
+                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                        </span>
+                        <span className="text-[9px] font-display tracking-wider text-primary">VIEW RESULTS →</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+        </>)}
+
         {isVisible('mission-workflows') && (
         <>
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -776,64 +834,7 @@ function DashboardInner() {
         </section>
         </>)}
 
-        {isVisible('recent-scans') && (
-        <>
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* RECENT SCANS — Quick access to previous results                */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {recentCompletedScans.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-muted-foreground" />
-                <h3 className="font-display text-sm tracking-wider text-muted-foreground">RECENT SCANS</h3>
-                {allCompletedScans.length > 0 && (
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">{allCompletedScans.length} total completed</span>
-                )}
-              </div>
-              <Link href="/domain-intel/history">
-                <Button variant="ghost" size="sm" className="text-xs font-display tracking-wider">
-                  VIEW ALL {allCompletedScans.length} SCANS <ChevronRight className="w-3 h-3 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-              {recentCompletedScans.map((scan: any) => {
-                const output = scan.pipelineOutput as any;
-                const riskScore = output?.riskScore || scan.riskScore || 0;
-                const riskColor = riskScore >= 80 ? 'text-red-500 border-red-500/30' : riskScore >= 60 ? 'text-orange-500 border-orange-500/30' : riskScore >= 40 ? 'text-yellow-500 border-yellow-500/30' : 'text-green-500 border-green-500/30';
-                const assetCount = output?.assets?.length || scan.totalAssets || 0;
-                const findingCount = output?.postureFindings?.length || 0;
-                const confirmedCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'confirmed').length || 0;
-                const probableCount = output?.postureFindings?.filter((f: any) => f.corroborationTier === 'probable').length || 0;
-                return (
-                  <Link key={scan.id} href={`/domain-intel/${scan.id}`}>
-                    <div className={`bg-card border-2 ${riskColor} p-3 hover:bg-secondary/30 transition-all cursor-pointer h-full`}>
-                      <div className="font-mono text-sm truncate">{scan.primaryDomain}</div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-[10px] text-muted-foreground">{scan.clientType?.toUpperCase() || 'SCAN'}</span>
-                        <span className={`font-display text-lg ${riskColor.split(' ')[0]}`}>{riskScore}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded">{assetCount} assets</span>
-                        {findingCount > 0 && <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded">{findingCount} findings</span>}
-                        {confirmedCount > 0 && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">{confirmedCount} confirmed</span>}
-                        {probableCount > 0 && <span className="text-[9px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">{probableCount} probable</span>}
-                      </div>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
-                        <span className="text-[10px] text-muted-foreground">
-                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
-                        </span>
-                        <span className="text-[9px] font-display tracking-wider text-primary">VIEW RESULTS →</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
-        </>)}
+
 
         {isVisible('quick-access') && (
         <>

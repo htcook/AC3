@@ -5846,3 +5846,11 @@
 - [x] Retry databank.com scan (included in bulk retry batch)
 - [x] Bulk-retry all 31 stuck scans from last night (6 completed so far, 25 still processing in background)
 - [x] Monitor retry progress — 6 completed (274 assets, 1732 findings), 25 in-progress (discovering/analyzing/scoring)
+
+## Dashboard Scan Visibility Verification
+- [x] Verify completed scans display correctly in Dashboard — 138 completed scans visible with risk scores
+- [x] Moved Recent Scans section above Mission Workflows for immediate visibility
+- [x] Fixed risk score display: was reading pipelineOutput.riskScore (null), now reads overallRiskScore from DB
+- [x] Fixed finding counts: now uses totalFindings, confirmedFindings, probableFindings from DB columns
+- [ ] Verify completed scans display correctly in DomainIntel page
+- [ ] Verify completed scans display correctly in ScanHistory page
