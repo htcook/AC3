@@ -5830,3 +5830,12 @@
 - [x] Apply filter at database level in getDomainIntelScans() using REGEXP
 - [x] Filter applies to Dashboard, DomainIntel page, and ScanHistory page
 - [x] Write 5 vitest tests for scan filtering (all passing)
+
+## Scan Investigation & Fixes
+- [x] Diagnose databank.com scan failure (stuck in 'discovering' stage since 22:22 UTC, pipeline stalled during LLM discovery — retryable via UI)
+- [x] Investigate why only ~163 scans visible when 100+ successful scans were run last night (128 completed scans ARE in DB, frontend was capping display at 6)
+- [x] Fix DomainIntel page: increased default display from 6 to 12, added "Show All" toggle to expand to all completed scans
+- [x] Fix Dashboard: increased recent scans from 5 to 10, added total completed count badge, linked "View All" to ScanHistory
+- [x] Added count badges showing total completed scans and stuck scans
+- [x] ScanHistory page already had proper pagination (25/page) — no changes needed
+- [x] All 46 tests passing (20 domainIntel + 26 pipeline tests)

@@ -363,12 +363,15 @@ function DashboardInner() {
     setScanCompleted(false);
   };
 
-  const recentCompletedScans = useMemo(() => {
+  const allCompletedScans = useMemo(() => {
     if (!recentScans) return [];
     return recentScans
-      .filter((s: any) => s.status === 'completed' || s.status === 'scan_complete')
-      .slice(0, 5);
+      .filter((s: any) => s.status === 'completed' || s.status === 'scan_complete');
   }, [recentScans]);
+
+  const recentCompletedScans = useMemo(() => {
+    return allCompletedScans.slice(0, 10);
+  }, [allCompletedScans]);
 
   return (
     <AppShell activePath="/dashboard">
@@ -784,10 +787,13 @@ function DashboardInner() {
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-muted-foreground" />
                 <h3 className="font-display text-sm tracking-wider text-muted-foreground">RECENT SCANS</h3>
+                {allCompletedScans.length > 0 && (
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">{allCompletedScans.length} total completed</span>
+                )}
               </div>
-              <Link href="/domain-intel">
+              <Link href="/domain-intel/history">
                 <Button variant="ghost" size="sm" className="text-xs font-display tracking-wider">
-                  VIEW ALL <ChevronRight className="w-3 h-3 ml-1" />
+                  VIEW ALL {allCompletedScans.length} SCANS <ChevronRight className="w-3 h-3 ml-1" />
                 </Button>
               </Link>
             </div>

@@ -509,6 +509,8 @@ export default function DomainIntel() {
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichmentResult, setEnrichmentResult] = useState<any>(null);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
+  const [showAllStuck, setShowAllStuck] = useState(false);
 
   const quickScan = trpc.domainIntel.quickScan.useMutation({
     onSuccess: (data) => {
@@ -598,15 +600,29 @@ export default function DomainIntel() {
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               Completed Scan Reports
+              <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                {scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length} scans
+              </Badge>
             </h3>
-            <Button variant="ghost" size="sm" className="text-xs text-purple-400 hover:text-purple-300" onClick={() => navigate("/domain-intel/history")}>
-              View All {scansQuery.data.length} Scans →
-            </Button>
+            <div className="flex items-center gap-2">
+              {showAllCompleted ? (
+                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowAllCompleted(false)}>
+                  Show Less
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" className="text-xs text-purple-400 hover:text-purple-300" onClick={() => setShowAllCompleted(true)}>
+                  Show All {scansQuery.data.filter((s: any) => s.status === 'completed' || s.status === 'scan_complete').length} →
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => navigate("/domain-intel/history")}>
+                Full History →
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {scansQuery.data
               .filter((s: any) => s.status === 'completed' || s.status === 'scan_complete')
-              .slice(0, 6)
+              .slice(0, showAllCompleted ? undefined : 12)
               .map((scan: any) => {
                 const output = scan.pipelineOutput as any;
                 const riskScore = output?.riskScore || scan.overallRiskScore || 0;
@@ -1334,14 +1350,24 @@ export default function DomainIntel() {
       {/* ─── All Scans (with retry/delete for stuck/failed) ────────── */}
       {!isRunning && !isComplete && scansQuery.data && scansQuery.data.filter((s: any) => s.status !== 'completed' && s.status !== 'scan_complete').some((s: any) => s.status === 'failed' || s.status === 'pending' || isScanStuck(s)) && (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-orange-400" />
-            Scans Needing Attention
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-400" />
+              Scans Needing Attention
+              <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-400 border-orange-500/30">
+                {scansQuery.data.filter((s: any) => s.status === 'failed' || s.status === 'pending' || isScanStuck(s)).length}
+              </Badge>
+            </h3>
+            {scansQuery.data.filter((s: any) => s.status === 'failed' || s.status === 'pending' || isScanStuck(s)).length > 12 && (
+              <Button variant="ghost" size="sm" className="text-xs text-orange-400 hover:text-orange-300" onClick={() => setShowAllStuck(!showAllStuck)}>
+                {showAllStuck ? 'Show Less' : `Show All ${scansQuery.data.filter((s: any) => s.status === 'failed' || s.status === 'pending' || isScanStuck(s)).length}`}
+              </Button>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {scansQuery.data
               .filter((s: any) => s.status === 'failed' || s.status === 'pending' || isScanStuck(s))
-              .slice(0, 6)
+              .slice(0, showAllStuck ? undefined : 12)
               .map((scan: any) => {
                 const stuck = isScanStuck(scan);
                 const displayStatus = stuck ? 'stuck' : scan.status;
