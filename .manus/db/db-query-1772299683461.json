@@ -1,0 +1,50 @@
+{
+  "query": "SELECT status, COUNT(*) as cnt, MIN(totalAssets) as min_assets, MAX(totalAssets) as max_assets, MIN(totalFindings) as min_findings, MAX(totalFindings) as max_findings FROM domain_intel_scans GROUP BY status",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT status, COUNT(*) as cnt, MIN(totalAssets) as min_assets, MAX(totalAssets) as max_assets, MIN(totalFindings) as min_findings, MAX(totalFindings) as max_findings FROM domain_intel_scans GROUP BY status",
+  "rows": [
+    {
+      "status": "passive_recon",
+      "cnt": "2",
+      "min_assets": "0",
+      "max_assets": "0",
+      "min_findings": "0",
+      "max_findings": "0"
+    },
+    {
+      "status": "recommending",
+      "cnt": "6",
+      "min_assets": "0",
+      "max_assets": "0",
+      "min_findings": "0",
+      "max_findings": "0"
+    },
+    {
+      "status": "completed",
+      "cnt": "108",
+      "min_assets": "3",
+      "max_assets": "1107",
+      "min_findings": "0",
+      "max_findings": "18899"
+    },
+    {
+      "status": "scan_complete",
+      "cnt": "62",
+      "min_assets": "0",
+      "max_assets": "510",
+      "min_findings": "0",
+      "max_findings": "1888"
+    },
+    {
+      "status": "discovering",
+      "cnt": "27",
+      "min_assets": "0",
+      "max_assets": "0",
+      "min_findings": "0",
+      "max_findings": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tcnt\tmin_assets\tmax_assets\tmin_findings\tmax_findings\npassive_recon\t2\t0\t0\t0\t0\nrecommending\t6\t0\t0\t0\t0\ncompleted\t108\t3\t1107\t0\t18899\nscan_complete\t62\t0\t510\t0\t1888\ndiscovering\t27\t0\t0\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 348
+}

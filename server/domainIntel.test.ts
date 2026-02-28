@@ -436,3 +436,164 @@ describe("Domain Intel Engine types", () => {
     expect(typeof module.runDomainIntelPipeline).toBe("function");
   });
 });
+
+
+// ==================== SCAN FILTERING TESTS ====================
+describe("Auto-test scan filtering", () => {
+  it("should filter out platform-initiated auto-test scans from listing", async () => {
+    // Create an auto-test pattern scan
+    const autoTestId = await createDomainIntelScan({
+      primaryDomain: `enterprise-${Date.now()}.com`,
+      clientType: "enterprise",
+      sector: "Technology",
+      customerName: "Auto Test",
+      criticalFunctions: [],
+      complianceFlags: [],
+      status: "scan_complete",
+      totalAssets: 0,
+      totalFindings: 0,
+      createdBy: 1,
+    });
+    testScanIds.push(autoTestId);
+
+    // Create a real domain scan
+    const realId = await createDomainIntelScan({
+      primaryDomain: `realcompany-${Date.now()}.com`,
+      clientType: "enterprise",
+      sector: "Technology",
+      customerName: "Real Corp",
+      criticalFunctions: ["identity"],
+      complianceFlags: ["SOC2"],
+      status: "completed",
+      totalAssets: 15,
+      totalFindings: 42,
+      createdBy: 1,
+    });
+    testScanIds.push(realId);
+
+    const scans = await getDomainIntelScans();
+    const domains = scans.map((s: any) => s.primaryDomain);
+
+    // Auto-test scan should be filtered out
+    expect(domains).not.toContain(`enterprise-${autoTestId}.com`);
+    // But real scan should be present
+    const realScan = scans.find((s: any) => s.id === realId);
+    expect(realScan).toBeDefined();
+  });
+
+  it("should filter all auto-test domain patterns", async () => {
+    const patterns = [
+      `msp-${Date.now()}.com`,
+      `saas-${Date.now() + 1}.com`,
+      `paas-${Date.now() + 2}.com`,
+      `iaas-${Date.now() + 3}.com`,
+      `mixed_hosting-${Date.now() + 4}.com`,
+      `other-${Date.now() + 5}.com`,
+    ];
+
+    for (const domain of patterns) {
+      const id = await createDomainIntelScan({
+        primaryDomain: domain,
+        clientType: "enterprise",
+        sector: "Technology",
+        customerName: "Pattern Test",
+        criticalFunctions: [],
+        complianceFlags: [],
+        status: "scan_complete",
+        createdBy: 1,
+      });
+      testScanIds.push(id);
+    }
+
+    const scans = await getDomainIntelScans();
+    const domains = scans.map((s: any) => s.primaryDomain);
+
+    for (const pattern of patterns) {
+      expect(domains).not.toContain(pattern);
+    }
+  });
+
+  it("should NOT filter real domains that happen to start with a client type word", async () => {
+    // These should NOT be filtered — they're real domains
+    const realDomains = [
+      `enterprise-solutions.com`,
+      `msp-global.net`,
+      `saas-platform.io`,
+    ];
+
+    for (const domain of realDomains) {
+      const id = await createDomainIntelScan({
+        primaryDomain: domain,
+        clientType: "enterprise",
+        sector: "Technology",
+        customerName: "Real Domain Test",
+        criticalFunctions: [],
+        complianceFlags: [],
+        status: "completed",
+        totalAssets: 5,
+        createdBy: 1,
+      });
+      testScanIds.push(id);
+    }
+
+    const scans = await getDomainIntelScans();
+    const domains = scans.map((s: any) => s.primaryDomain);
+
+    // These real domains should still appear (they don't match the {type}-{timestamp}.com pattern)
+    for (const domain of realDomains) {
+      expect(domains).toContain(domain);
+    }
+  });
+
+  it("should keep real domain scans from testing runs", async () => {
+    // Simulate real domain scans like the ones from last night
+    const testingDomains = ["microsoft.com", "disney.com", "toyota.com", "cargill.com"];
+    const ids: number[] = [];
+
+    for (const domain of testingDomains) {
+      const id = await createDomainIntelScan({
+        primaryDomain: domain,
+        clientType: "enterprise",
+        sector: "Technology",
+        customerName: "Testing Run",
+        criticalFunctions: [],
+        complianceFlags: [],
+        status: "completed",
+        totalAssets: 50,
+        totalFindings: 100,
+        createdBy: 1,
+      });
+      testScanIds.push(id);
+      ids.push(id);
+    }
+
+    const scans = await getDomainIntelScans();
+
+    // All real domain scans should be present
+    for (const id of ids) {
+      const found = scans.find((s: any) => s.id === id);
+      expect(found).toBeDefined();
+    }
+  });
+
+  it("should filter auto-test scans via tRPC listScans", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+
+    // Create an auto-test scan
+    const autoId = await createDomainIntelScan({
+      primaryDomain: `enterprise-${Date.now()}.com`,
+      clientType: "enterprise",
+      sector: "Technology",
+      customerName: "tRPC Filter Test",
+      criticalFunctions: [],
+      complianceFlags: [],
+      status: "scan_complete",
+      createdBy: 1,
+    });
+    testScanIds.push(autoId);
+
+    const scans = await caller.domainIntel.listScans();
+    const ids = scans.map((s: any) => s.id);
+    expect(ids).not.toContain(autoId);
+  });
+});

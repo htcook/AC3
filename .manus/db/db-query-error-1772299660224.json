@@ -1,0 +1,12 @@
+{
+  "query": "SELECT id, domain, status, scan_type, created_at, \n  CASE WHEN pipeline_output IS NOT NULL THEN LENGTH(pipeline_output::text) ELSE 0 END as pipeline_size,\n  CASE WHEN results IS NOT NULL THEN LENGTH(results::text) ELSE 0 END as results_size\nFROM domain_scans \nORDER BY created_at DESC \nLIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, domain, status, scan_type, created_at, \n  CASE WHEN pipeline_output IS NOT NULL THEN LENGTH(pipeline_output::text) ELSE 0 END as pipeline_size,\n  CASE WHEN results IS NOT NULL THEN LENGTH(results::text) ELSE 0 END as results_size\nFROM domain_scans \nORDER BY created_at DESC \nLIMIT 50;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 2 column 69 near \"::text) ELSE 0 END as pipeline_size,",
+    "  CASE WHEN results IS NOT NULL THEN LENGTH(results::text) ELSE 0 END as results_size",
+    "FROM domain_scans ",
+    "ORDER BY created_at DESC ",
+    "LIMIT 50\""
+  ]
+}

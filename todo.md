@@ -5797,3 +5797,36 @@
 - [x] Investigate Caldera sync, IOC sync, and Vuln feed sync failures
 - [x] Fix root cause of sync failures (timeout too short for external APIs)
 - [x] Add better error handling and retry logic (fetchWithRetry with 2 retries, 3s delay, 30-45s timeouts)
+
+## Vendor Alert Correlation Tab in DomainIntelResults
+- [ ] Create server endpoint to fetch vendor correlation data for a scan
+- [ ] Build Vendor Alert Correlation tab UI component
+- [ ] Add tab trigger to both TabsLists in DomainIntelResults
+- [ ] Display correlated alerts grouped by vendor with severity indicators
+- [ ] Show alert timeline and detection coverage summary
+- [ ] Write tests for vendor correlation endpoint
+
+## Unified Security Posture Dashboard
+- [ ] Create SecurityPosture page with detection coverage aggregation
+- [ ] Show MITRE ATT&CK coverage heatmap across connected vendors
+- [ ] Gap analysis: identify uncovered techniques and blind spots
+- [ ] Vendor health status cards with last sync, alert counts, uptime
+- [ ] Detection coverage score (percentage of ATT&CK techniques covered)
+- [ ] Register route in App.tsx sidebar nav
+
+## Vendor Credential Setup Wizard
+- [ ] Build guided setup wizard component with step-by-step flow
+- [ ] Microsoft Sentinel: guided OAuth/tenant ID + workspace ID flow
+- [ ] Cortex XDR: API key + FQDN validation flow
+- [ ] CrowdStrike: client ID + secret validation flow
+- [ ] SentinelOne: API token + site URL validation flow
+- [ ] Splunk: host + token + index validation flow
+- [ ] Defender: tenant ID + client ID + secret validation flow
+- [ ] Test connection validation before saving credentials
+
+## Scan Display Filtering
+- [x] Filter out platform-initiated auto-test scans from dashboard (pattern: {clientType}-{timestamp}.com)
+- [x] Keep real domain scans from last night's testing runs (microsoft.com, disney.com, etc.)
+- [x] Apply filter at database level in getDomainIntelScans() using REGEXP
+- [x] Filter applies to Dashboard, DomainIntel page, and ScanHistory page
+- [x] Write 5 vitest tests for scan filtering (all passing)

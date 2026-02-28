@@ -1,4 +1,4 @@
-import { eq, desc, inArray, like, and, sql } from "drizzle-orm";
+import { eq, desc, inArray, like, and, sql, not, or, gt, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
@@ -689,7 +689,15 @@ export async function createDomainIntelScan(scan: InsertDomainIntelScan) {
 export async function getDomainIntelScans() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(domainIntelScans).orderBy(desc(domainIntelScans.createdAt));
+  // Filter out platform-initiated auto-test scans (pattern: {clientType}-{timestamp}.com)
+  // but keep all real domain scans including those from testing runs
+  return db.select().from(domainIntelScans)
+    .where(
+      not(
+        sql`${domainIntelScans.primaryDomain} REGEXP '^(msp|enterprise|saas|paas|iaas|mixed_hosting|other)-[0-9]+\\.com$'`
+      )
+    )
+    .orderBy(desc(domainIntelScans.createdAt));
 }
 
 export async function getDomainIntelScanById(id: number) {
