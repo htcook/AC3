@@ -1,4 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
+
+afterAll(async () => {
+  // Clean up all test scans created during this test run
+  for (const id of testScanIds) {
+    try {
+      await deleteDomainIntelScan(id);
+    } catch (_) { /* scan may already be deleted */ }
+  }
+});
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import {
@@ -8,7 +17,11 @@ import {
   updateDomainIntelScan,
   createDiscoveredAsset,
   getDiscoveredAssetsByScan,
+  deleteDomainIntelScan,
 } from "./db";
+
+// Track scan IDs created during tests for cleanup
+const testScanIds: number[] = [];
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -41,7 +54,7 @@ function createAuthContext(): TrpcContext {
 describe("Domain Intel Scan DB operations", () => {
   it("should create a domain intel scan", async () => {
     const id = await createDomainIntelScan({
-      primaryDomain: `test-${Date.now()}.com`,
+      primaryDomain: `test-scan-${Date.now()}.com`,
       additionalDomains: ["sub1.test.com"],
       clientType: "enterprise",
       sector: "Technology",
@@ -51,6 +64,7 @@ describe("Domain Intel Scan DB operations", () => {
       status: "pending",
       createdBy: 1,
     });
+    testScanIds.push(id);
     expect(id).toBeDefined();
     expect(typeof id).toBe("number");
     expect(id).toBeGreaterThan(0);
@@ -74,6 +88,7 @@ describe("Domain Intel Scan DB operations", () => {
       status: "pending",
       createdBy: 1,
     });
+    testScanIds.push(id);
     const scan = await getDomainIntelScanById(id);
     expect(scan).toBeDefined();
     expect(scan!.primaryDomain).toBe(domain);
@@ -92,6 +107,7 @@ describe("Domain Intel Scan DB operations", () => {
       status: "pending",
       createdBy: 1,
     });
+    testScanIds.push(id);
     await updateDomainIntelScan(id, {
       status: "completed",
       overallRiskScore: 75,
@@ -139,6 +155,7 @@ describe("Discovered Asset DB operations", () => {
       status: "discovering",
       createdBy: 1,
     });
+    testScanIds.push(scanId);
 
     const assetId = await createDiscoveredAsset({
       scanId,
@@ -171,6 +188,7 @@ describe("Discovered Asset DB operations", () => {
       status: "discovering",
       createdBy: 1,
     });
+    testScanIds.push(scanId);
 
     // Create multiple assets
     await createDiscoveredAsset({
@@ -216,6 +234,7 @@ describe("Discovered Asset DB operations", () => {
       status: "discovering",
       createdBy: 1,
     });
+    testScanIds.push(scanId);
 
     const carver = { criticality: 8, accessibility: 6, recuperability: 4, vulnerability: 7, effect: 9, recognizability: 3 };
     const shock = { scope: 7, handling: 5, operationalImpact: 8, cascadingEffects: 6, knowledge: 4 };
@@ -257,6 +276,7 @@ describe("Discovered Asset DB operations", () => {
       status: "discovering",
       createdBy: 1,
     });
+    testScanIds.push(scanId);
 
     const findings = [
       { id: "f1", assetRef: "vpn.retailcorp.com", title: "Weak VPN cipher", severity: 7, likelihood: 6, recommendedControls: ["Upgrade TLS"] },
@@ -311,6 +331,7 @@ describe("Domain Intel tRPC procedures", () => {
       totalAssets: 5,
       createdBy: 1,
     });
+    testScanIds.push(scanId);
 
     const result = await caller.domainIntel.getScan({ id: scanId });
     expect(result.scan).toBeDefined();
@@ -364,6 +385,7 @@ describe("Domain Intel tRPC procedures", () => {
       ],
       createdBy: 1,
     });
+    testScanIds.push(scanId);
 
     const result = await caller.domainIntel.getScan({ id: scanId });
     expect(result.scan.campaignRecommendations).toBeDefined();
@@ -388,6 +410,7 @@ describe("Domain Intel tRPC procedures", () => {
       executiveSummary: "Executive overview of findings.",
       createdBy: 1,
     });
+    testScanIds.push(scanId);
 
     const result = await caller.domainIntel.getScan({ id: scanId });
     expect(result.scan.threatModelSummary).toBe(summary);

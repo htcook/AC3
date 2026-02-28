@@ -1721,4 +1721,156 @@ export const scoringRouter = router({
       const { getBiaAssetPriority } = require("../lib/auto-industry-carver");
       return getBiaAssetPriority(input.sector);
     }),
+
+  // ─── CARVER Risk Cards (persisted) ──────────────────────────────────
+  listRiskCards: protectedProcedure
+    .input(z.object({
+      batchId: z.string().optional(),
+      domain: z.string().optional(),
+      sector: z.string().optional(),
+      limit: z.number().optional(),
+      offset: z.number().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { getCarverRiskCards } = await import("../db");
+      return getCarverRiskCards(input || {});
+    }),
+
+  getRiskCard: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const { getCarverRiskCardById } = await import("../db");
+      return getCarverRiskCardById(input.id);
+    }),
+
+  getRiskCardStats: protectedProcedure
+    .query(async () => {
+      const { getCarverRiskCardStats } = await import("../db");
+      return getCarverRiskCardStats();
+    }),
+
+  getRiskCardsByBatch: protectedProcedure
+    .input(z.object({ batchId: z.string() }))
+    .query(async ({ input }) => {
+      const { getCarverRiskCardsByBatch } = await import("../db");
+      return getCarverRiskCardsByBatch(input.batchId);
+    }),
+
+  deleteRiskCard: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { deleteCarverRiskCard } = await import("../db");
+      await deleteCarverRiskCard(input.id);
+      return { success: true };
+    }),
+
+  deleteRiskCardBatch: protectedProcedure
+    .input(z.object({ batchId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { deleteCarverRiskCardsByBatch } = await import("../db");
+      await deleteCarverRiskCardsByBatch(input.batchId);
+      return { success: true };
+    }),
+
+  /** Batch scan: accepts array of domains with metadata, runs CARVER scoring, persists results */
+  batchScanDomains: protectedProcedure
+    .input(z.object({
+      domains: z.array(z.object({
+        domain: z.string(),
+        sector: z.string().optional(),
+        subSector: z.string().optional(),
+        naicsCode: z.string().optional(),
+        regulatory: z.string().optional(),
+        country: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const { buildExplainableRiskCard } = await import("../lib/auto-industry-carver");
+      const { createCarverRiskCardsBatch } = await import("../db");
+
+      const SECTOR_MAP: Record<string, string> = {
+        "Financial": "banking_financial_services",
+        "Healthcare": "healthcare_providers",
+        "Life Sciences": "pharmaceuticals_biotech",
+        "LifeSciences": "pharmaceuticals_biotech",
+        "Public Sector": "federal_government",
+        "PublicSector": "federal_government",
+        "Defense": "defense_aerospace",
+        "Energy": "electric_gas_utilities",
+        "Utilities": "electric_gas_utilities",
+        "Telecom": "saas_tech",
+        "Tech": "saas_tech",
+        "Retail": "saas_tech",
+        "Logistics": "saas_tech",
+        "Transportation": "saas_tech",
+        "Maritime": "saas_tech",
+        "Education": "federal_government",
+        "Research": "federal_government",
+        "Industrial": "electric_gas_utilities",
+        "Manufacturing": "electric_gas_utilities",
+        "Media": "saas_tech",
+        "Entertainment": "saas_tech",
+        "Agriculture": "saas_tech",
+        "Construction": "saas_tech",
+        "Automotive": "electric_gas_utilities",
+      };
+
+      const batchId = `batch-${Date.now()}`;
+      const results: any[] = [];
+      const errors: Array<{ domain: string; error: string }> = [];
+
+      for (const d of input.domains) {
+        try {
+          const overrideSector = d.sector ? (SECTOR_MAP[d.sector] as any) : undefined;
+          const keywords = [d.sector, d.subSector].filter(Boolean) as string[];
+          const regulatoryTags = d.regulatory ? d.regulatory.split(";").filter(Boolean) : [];
+
+          const riskCard = buildExplainableRiskCard({
+            assetId: d.domain,
+            assetLabel: `${d.domain} (${d.subSector || d.sector || "Unknown"})`,
+            domain: d.domain,
+            keywords,
+            assetSignals: regulatoryTags,
+            overrideSector,
+          });
+
+          results.push({
+            domain: d.domain,
+            scanTitle: `${d.domain} — ${d.subSector || d.sector || "Unknown"}`,
+            inferredSector: riskCard.sector,
+            sectorConfidence: riskCard.confidence >= 0.78 ? "high" : riskCard.confidence >= 0.55 ? "medium" : riskCard.confidence >= 0.35 ? "low" : "insufficient",
+            naicsCode: d.naicsCode || riskCard.naics || null,
+            naicsLabel: d.subSector || null,
+            industry: d.sector || null,
+            regulatoryTags: regulatoryTags.length > 0 ? regulatoryTags : riskCard.regulatoryProfile,
+            country: d.country || "US",
+            carverScores: { criticality: riskCard.scores?.carverShock || 0 },
+            shockScores: null,
+            hybridScore: riskCard.scores?.hybrid || 0,
+            priorityTier: riskCard.scores?.priorityTier || "P3",
+            confidenceBand: riskCard.confidence >= 0.78 ? "high" : riskCard.confidence >= 0.55 ? "medium" : "low",
+            topDrivers: riskCard.topDrivers || [],
+            recommendedActions: riskCard.recommendedActions || [],
+            calderaOps: riskCard.calderaPriority || null,
+            threatLikelihood: riskCard.threatLikelihood || null,
+            fullRiskCard: riskCard,
+            source: "csv_batch" as const,
+            batchId,
+          });
+        } catch (err: any) {
+          errors.push({ domain: d.domain, error: err.message });
+        }
+      }
+
+      if (results.length > 0) {
+        await createCarverRiskCardsBatch(results as any);
+      }
+
+      return {
+        batchId,
+        totalProcessed: results.length,
+        totalErrors: errors.length,
+        errors,
+      };
+    }),
 });

@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// ScrollArea replaced with native overflow-y-auto div for reliable chat scrolling
 import { cn } from "@/lib/utils";
 import {
   MessageCircle,
@@ -72,10 +72,12 @@ export function GlobalAiChat() {
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
-      const el = scrollRef.current.querySelector("[data-radix-scroll-area-viewport]");
-      if (el) el.scrollTop = el.scrollHeight;
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
+      });
     }
-  }, [messages]);
+  }, [messages, sendMutation.isPending]);
 
   // Focus input when opened
   useEffect(() => {
@@ -154,7 +156,7 @@ export function GlobalAiChat() {
             "fixed z-[9999] bg-background border border-border rounded-lg shadow-2xl flex flex-col overflow-hidden transition-all duration-200",
             isExpanded
               ? "bottom-4 right-4 left-4 top-4 md:left-auto md:top-4 md:w-[600px]"
-              : "bottom-6 right-6 w-[400px] h-[560px]"
+              : "bottom-6 right-6 w-[400px] h-[70vh] max-h-[700px] min-h-[400px]"
           )}
         >
           {/* Header */}
@@ -239,7 +241,7 @@ export function GlobalAiChat() {
           </div>
 
           {/* Messages */}
-          <ScrollArea ref={scrollRef} className="flex-1 px-4 py-3">
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
                 <div className="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center mb-3">
@@ -319,7 +321,7 @@ export function GlobalAiChat() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Input Area */}
           <div className="border-t border-border p-3 bg-muted/10">

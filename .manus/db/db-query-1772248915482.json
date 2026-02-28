@@ -1,0 +1,52 @@
+{
+  "query": "SELECT inferred_sector, COUNT(*) as cnt, ROUND(AVG(hybrid_score), 2) as avg_score, GROUP_CONCAT(DISTINCT priority_tier) as tiers FROM carver_risk_cards GROUP BY inferred_sector ORDER BY cnt DESC",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT inferred_sector, COUNT(*) as cnt, ROUND(AVG(hybrid_score), 2) as avg_score, GROUP_CONCAT(DISTINCT priority_tier) as tiers FROM carver_risk_cards GROUP BY inferred_sector ORDER BY cnt DESC",
+  "rows": [
+    {
+      "inferred_sector": "saas_tech",
+      "cnt": "100",
+      "avg_score": "7.14",
+      "tiers": "P2"
+    },
+    {
+      "inferred_sector": "banking_financial_services",
+      "cnt": "56",
+      "avg_score": "9.04",
+      "tiers": "P1"
+    },
+    {
+      "inferred_sector": "federal_government",
+      "cnt": "55",
+      "avg_score": "8.75",
+      "tiers": "P2"
+    },
+    {
+      "inferred_sector": "electric_gas_utilities",
+      "cnt": "38",
+      "avg_score": "8.39",
+      "tiers": "P2"
+    },
+    {
+      "inferred_sector": "healthcare_providers",
+      "cnt": "24",
+      "avg_score": "8.65",
+      "tiers": "P2"
+    },
+    {
+      "inferred_sector": "pharmaceuticals_biotech",
+      "cnt": "19",
+      "avg_score": "7.38",
+      "tiers": "P2"
+    },
+    {
+      "inferred_sector": "defense_aerospace",
+      "cnt": "17",
+      "avg_score": "9.66",
+      "tiers": "P1"
+    }
+  ],
+  "messages": [],
+  "stdout": "inferred_sector\tcnt\tavg_score\ttiers\nsaas_tech\t100\t7.14\tP2\nbanking_financial_services\t56\t9.04\tP1\nfederal_government\t55\t8.75\tP2\nelectric_gas_utilities\t38\t8.39\tP2\nhealthcare_providers\t24\t8.65\tP2\npharmaceuticals_biotech\t19\t7.38\tP2\ndefense_aerospace\t17\t9.66\tP1\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

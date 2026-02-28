@@ -2490,10 +2490,73 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  // ─── Auto-generate CARVER Risk Card for this domain ────────────────────
+  let carverRiskCard: any = null;
+  try {
+    const { buildExplainableRiskCard } = await import('./lib/auto-industry-carver');
+    const { createCarverRiskCard } = await import('./db');
+
+    // Build asset signals from passive recon
+    const assetSignals: string[] = [];
+    if (passiveRecon) {
+      const obs = passiveRecon.allObservations || [];
+      if (obs.some(o => o.assetType === 'mx')) assetSignals.push('MX Record');
+      if (obs.some(o => o.name?.includes('sso') || o.name?.includes('auth') || o.name?.includes('login'))) assetSignals.push('SSO');
+      if (obs.some(o => o.name?.includes('vpn'))) assetSignals.push('VPN Gateway');
+      if (obs.some(o => o.name?.includes('api'))) assetSignals.push('API Gateway');
+      if (obs.some(o => o.name?.includes('ehr') || o.name?.includes('epic') || o.name?.includes('cerner'))) assetSignals.push('EHR System');
+      if (obs.some(o => o.name?.includes('scada') || o.name?.includes('ics') || o.name?.includes('ot'))) assetSignals.push('SCADA/ICS');
+    }
+
+    // Build keywords from findings
+    const keywords: string[] = [];
+    for (const a of analyses.slice(0, 20)) {
+      if (a.technology) keywords.push(...a.technology.split(',').map((t: string) => t.trim()));
+    }
+
+    const riskCard = buildExplainableRiskCard({
+      assetId: org.primaryDomain,
+      assetLabel: `${org.primaryDomain} (${org.name || 'Domain Intel'})`,
+      domain: org.primaryDomain,
+      keywords: [...new Set(keywords)].slice(0, 20),
+      assetSignals: [...new Set(assetSignals)],
+    });
+
+    carverRiskCard = riskCard;
+
+    await createCarverRiskCard({
+      domain: org.primaryDomain,
+      scanTitle: `${org.primaryDomain} — Domain Intel Pipeline`,
+      inferredSector: riskCard.sector,
+      sectorConfidence: riskCard.confidence >= 0.78 ? 'high' : riskCard.confidence >= 0.55 ? 'medium' : riskCard.confidence >= 0.35 ? 'low' : 'insufficient',
+      naicsCode: riskCard.naics || null,
+      naicsLabel: null,
+      industry: null,
+      regulatoryTags: riskCard.regulatoryProfile || [],
+      country: 'US',
+      carverScores: { criticality: riskCard.scores?.carverShock || 0 },
+      shockScores: null,
+      hybridScore: riskCard.scores?.hybrid || 0,
+      priorityTier: riskCard.scores?.priorityTier || 'P3',
+      confidenceBand: riskCard.confidence >= 0.78 ? 'high' : riskCard.confidence >= 0.55 ? 'medium' : 'low',
+      topDrivers: riskCard.topDrivers || [],
+      recommendedActions: riskCard.recommendedActions || [],
+      calderaOps: riskCard.calderaPriority || null,
+      threatLikelihood: riskCard.threatLikelihood || null,
+      fullRiskCard: riskCard,
+      source: 'domain_intel_pipeline' as any,
+      batchId: null,
+    } as any);
+    console.log(`[DomainIntel] CARVER risk card generated for ${org.primaryDomain}: ${riskCard.scores?.priorityTier} (hybrid=${riskCard.scores?.hybrid})`);
+  } catch (carverErr: any) {
+    console.error(`[DomainIntel] CARVER risk card generation failed (non-fatal): ${carverErr.message}`);
+  }
+
   return {
     orgProfile: org,
     assets: analyses,
     campaignRecommendations: campaigns,
+    carverRiskCard,
     overallRiskScore: overallRisk,
     overallRiskBand: overallBand,
     executiveSummary: summaries.executiveSummary,

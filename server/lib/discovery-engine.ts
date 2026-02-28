@@ -1023,6 +1023,85 @@ export async function runDiscoveryPipeline(
     result.llmAnalysis = await analyzeScanWithLLM(result);
   }
 
+  // ─── Phase 6: Auto-generate CARVER Risk Cards ──────────────────
+  try {
+    onProgress?.("carver_scoring", "Generating CARVER risk cards for discovered assets");
+    const { buildExplainableRiskCard } = await import("./auto-industry-carver");
+    const { createCarverRiskCardsBatch } = await import("../db");
+
+    const riskCardRecords: any[] = [];
+    const batchId = `discovery-${discoveryId}`;
+
+    // Generate risk card for each target domain
+    for (const domain of domains) {
+      try {
+        // Collect asset signals from discovered subdomains and services
+        const domainSubs = allSubdomains.filter(s => s.subdomain.endsWith(domain));
+        const assetSignals: string[] = [];
+        for (const sub of domainSubs) {
+          if (sub.subdomain.includes("mail") || sub.subdomain.includes("mx")) assetSignals.push("MX Record");
+          if (sub.subdomain.includes("sso") || sub.subdomain.includes("auth") || sub.subdomain.includes("login")) assetSignals.push("SSO");
+          if (sub.subdomain.includes("vpn")) assetSignals.push("VPN Gateway");
+          if (sub.subdomain.includes("api")) assetSignals.push("API Gateway");
+          if (sub.subdomain.includes("db") || sub.subdomain.includes("sql")) assetSignals.push("Database");
+          if (sub.subdomain.includes("git") || sub.subdomain.includes("ci") || sub.subdomain.includes("jenkins")) assetSignals.push("CI/CD");
+        }
+
+        // Collect service keywords from hosts
+        const domainHosts = allHosts.filter(h => h.hostnames?.some(hn => hn.endsWith(domain)));
+        const keywords: string[] = [];
+        for (const host of domainHosts) {
+          for (const port of (host.ports || [])) {
+            if (port.service) keywords.push(port.service);
+            if (port.product) keywords.push(port.product);
+          }
+        }
+
+        const riskCard = buildExplainableRiskCard({
+          assetId: domain,
+          assetLabel: `${domain} (Discovery Scan)`,
+          domain,
+          keywords: [...new Set(keywords)],
+          assetSignals: [...new Set(assetSignals)],
+        });
+
+        riskCardRecords.push({
+          domain,
+          scanTitle: `${domain} — Discovery Scan`,
+          inferredSector: riskCard.sector,
+          sectorConfidence: riskCard.confidence >= 0.78 ? "high" : riskCard.confidence >= 0.55 ? "medium" : riskCard.confidence >= 0.35 ? "low" : "insufficient",
+          naicsCode: riskCard.naics || null,
+          naicsLabel: null,
+          industry: null,
+          regulatoryTags: riskCard.regulatoryProfile || [],
+          country: "US",
+          carverScores: { criticality: riskCard.scores?.carverShock || 0 },
+          shockScores: null,
+          hybridScore: riskCard.scores?.hybrid || 0,
+          priorityTier: riskCard.scores?.priorityTier || "P3",
+          confidenceBand: riskCard.confidence >= 0.78 ? "high" : riskCard.confidence >= 0.55 ? "medium" : "low",
+          topDrivers: riskCard.topDrivers || [],
+          recommendedActions: riskCard.recommendedActions || [],
+          calderaOps: riskCard.calderaPriority || null,
+          threatLikelihood: riskCard.threatLikelihood || null,
+          fullRiskCard: riskCard,
+          source: "discovery_engine" as const,
+          batchId,
+        });
+      } catch (_) {
+        // Skip individual domain failures
+      }
+    }
+
+    if (riskCardRecords.length > 0) {
+      await createCarverRiskCardsBatch(riskCardRecords as any);
+      onProgress?.("carver_scoring", `Generated ${riskCardRecords.length} CARVER risk cards`);
+    }
+  } catch (carverErr) {
+    // Non-fatal: don't block discovery pipeline if CARVER scoring fails
+    onProgress?.("carver_scoring", `CARVER scoring skipped: ${(carverErr as Error).message}`);
+  }
+
   onProgress?.("completed", `Discovery scan complete: ${summary.totalHosts} hosts, ${summary.totalSubdomains} subdomains, risk=${summary.riskScore}`);
   return result;
 }

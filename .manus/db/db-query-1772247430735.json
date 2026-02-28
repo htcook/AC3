@@ -1,0 +1,143 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets, overallRiskScore FROM domain_intel_scans ORDER BY id DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets, overallRiskScore FROM domain_intel_scans ORDER BY id DESC;",
+  "rows": [
+    {
+      "id": "1380208",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "totalAssets": "16",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1380176",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete",
+      "totalAssets": "11",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1380175",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "87",
+      "overallRiskScore": "10"
+    },
+    {
+      "id": "1380047",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete",
+      "totalAssets": "9",
+      "overallRiskScore": "66"
+    },
+    {
+      "id": "1380046",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "86",
+      "overallRiskScore": "9"
+    },
+    {
+      "id": "1380022",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "109",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380013",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "totalAssets": "13",
+      "overallRiskScore": "48"
+    },
+    {
+      "id": "1290209",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "109",
+      "overallRiskScore": "18"
+    },
+    {
+      "id": "1260003",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "109",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1230175",
+      "primaryDomain": "vianova.ai",
+      "status": "completed",
+      "totalAssets": "106",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1230174",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "totalAssets": "9",
+      "overallRiskScore": "49"
+    },
+    {
+      "id": "1200163",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "totalAssets": "11",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1200086",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "106",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1200001",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "23",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1170157",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "16",
+      "overallRiskScore": "57"
+    },
+    {
+      "id": "1170156",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "20",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1170002",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "totalAssets": "27",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1050036",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "totalAssets": "27",
+      "overallRiskScore": "55"
+    },
+    {
+      "id": "990006",
+      "primaryDomain": "zoom.us",
+      "status": "scan_complete",
+      "totalAssets": "28",
+      "overallRiskScore": "45"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\toverallRiskScore\n1380208\taceofcloud.com\tscan_complete\t16\t51\n1380176\tdashboard-dev.vianovahealth.com\tscan_complete\t11\t53\n1380175\tapi.dev.vianova.ai\tscan_complete\t87\t10\n1380047\tdashboard-dev.vianovahealth.com\tscan_complete\t9\t66\n1380046\tapi.dev.vianova.ai\tscan_complete\t86\t9\n1380022\tvianova.ai\tscan_complete\t109\t20\n1380013\taceofcloud.com\tscan_complete\t13\t48\n1290209\tvianova.ai\tscan_complete\t109\t18\n1260003\tvianova.ai\tscan_complete\t109\t20\n1230175\tvianova.ai\tcompleted\t106\t20\n1230174\taceofcloud.com\tcompleted\t9\t49\n1200163\taceofcloud.com\tscan_complete\t11\t47\n1200086\tvianova.ai\tscan_complete\t106\t56\n1200001\tvianova.ai\tscan_complete\t23\t56\n1170157\tvianova.ai\tscan_complete\t16\t57\n1170156\tvianova.ai\tscan_complete\t20\t56\n1170002\tvianova.ai\tscan_complete\t27\t56\n1050036\taceofcloud.com\tscan_complete\t27\t55\n990006\tzoom.us\tscan_complete\t28\t45\n",
+  "stderr": "",
+  "execution_time_ms": 51
+}

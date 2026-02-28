@@ -180,6 +180,7 @@ const SSILHub = lazy(() => import("./pages/SSILHub"));
 const InfrastructureHub = lazy(() => import("./pages/InfrastructureHub"));
 const TeamHub = lazy(() => import("./pages/TeamHub"));
 const DetectionHub = lazy(() => import("./pages/DetectionHub"));
+const BatchDomainScanner = lazy(() => import("./pages/BatchDomainScanner"));
 
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
@@ -492,6 +493,9 @@ function Router() {
         </Route>
         <Route path="/scoring">
           <ProtectedRoute component={RiskCenterHub} />
+        </Route>
+        <Route path="/batch-scanner">
+          <ProtectedRoute component={BatchDomainScanner} />
         </Route>
         <Route path="/bia-report">
           <ProtectedRoute component={BiaReport} />

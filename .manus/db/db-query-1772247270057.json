@@ -1,0 +1,85 @@
+{
+  "query": "SELECT id, primaryDomain, status FROM domain_intel_scans WHERE primaryDomain NOT REGEXP '[0-9]{10,}' ORDER BY id DESC LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status FROM domain_intel_scans WHERE primaryDomain NOT REGEXP '[0-9]{10,}' ORDER BY id DESC LIMIT 15;",
+  "rows": [
+    {
+      "id": "1380208",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1380176",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1380175",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1380047",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1380046",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1380022",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1380013",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1290209",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1260003",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1230175",
+      "primaryDomain": "vianova.ai",
+      "status": "completed"
+    },
+    {
+      "id": "1230174",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed"
+    },
+    {
+      "id": "1200163",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1200086",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1200001",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete"
+    },
+    {
+      "id": "1170157",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\n1380208\taceofcloud.com\tscan_complete\n1380176\tdashboard-dev.vianovahealth.com\tscan_complete\n1380175\tapi.dev.vianova.ai\tscan_complete\n1380047\tdashboard-dev.vianovahealth.com\tscan_complete\n1380046\tapi.dev.vianova.ai\tscan_complete\n1380022\tvianova.ai\tscan_complete\n1380013\taceofcloud.com\tscan_complete\n1290209\tvianova.ai\tscan_complete\n1260003\tvianova.ai\tscan_complete\n1230175\tvianova.ai\tcompleted\n1230174\taceofcloud.com\tcompleted\n1200163\taceofcloud.com\tscan_complete\n1200086\tvianova.ai\tscan_complete\n1200001\tvianova.ai\tscan_complete\n1170157\tvianova.ai\tscan_complete\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

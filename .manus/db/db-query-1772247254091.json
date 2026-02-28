@@ -1,0 +1,58 @@
+{
+  "query": "SELECT DISTINCT SUBSTRING_INDEX(primaryDomain, '-', 1) as prefix, COUNT(*) as cnt FROM domain_intel_scans WHERE primaryDomain REGEXP '^[a-z_]+-[0-9]{13}' GROUP BY prefix ORDER BY cnt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT DISTINCT SUBSTRING_INDEX(primaryDomain, '-', 1) as prefix, COUNT(*) as cnt FROM domain_intel_scans WHERE primaryDomain REGEXP '^[a-z_]+-[0-9]{13}' GROUP BY prefix ORDER BY cnt DESC;",
+  "rows": [
+    {
+      "prefix": "enterprise",
+      "cnt": "2"
+    },
+    {
+      "prefix": "msp",
+      "cnt": "2"
+    },
+    {
+      "prefix": "iaas",
+      "cnt": "2"
+    },
+    {
+      "prefix": "other",
+      "cnt": "2"
+    },
+    {
+      "prefix": "scores",
+      "cnt": "2"
+    },
+    {
+      "prefix": "update",
+      "cnt": "2"
+    },
+    {
+      "prefix": "paas",
+      "cnt": "2"
+    },
+    {
+      "prefix": "findings",
+      "cnt": "2"
+    },
+    {
+      "prefix": "saas",
+      "cnt": "2"
+    },
+    {
+      "prefix": "test",
+      "cnt": "2"
+    },
+    {
+      "prefix": "campaigns",
+      "cnt": "2"
+    },
+    {
+      "prefix": "mixed_hosting",
+      "cnt": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "prefix\tcnt\nenterprise\t2\nmsp\t2\niaas\t2\nother\t2\nscores\t2\nupdate\t2\npaas\t2\nfindings\t2\nsaas\t2\ntest\t2\ncampaigns\t2\nmixed_hosting\t2\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

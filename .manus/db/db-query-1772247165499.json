@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as test_scans FROM domain_intel_scans WHERE primaryDomain LIKE 'enterprise-177%' OR primaryDomain LIKE 'msp-177%' OR primaryDomain LIKE 'saas-177%' OR primaryDomain LIKE 'paas-177%' OR primaryDomain LIKE 'iaas-177%' OR primaryDomain LIKE 'mixed_hosting-177%' OR primaryDomain LIKE 'other-177%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as test_scans FROM domain_intel_scans WHERE primaryDomain LIKE 'enterprise-177%' OR primaryDomain LIKE 'msp-177%' OR primaryDomain LIKE 'saas-177%' OR primaryDomain LIKE 'paas-177%' OR primaryDomain LIKE 'iaas-177%' OR primaryDomain LIKE 'mixed_hosting-177%' OR primaryDomain LIKE 'other-177%';",
+  "rows": [
+    {
+      "test_scans": "14"
+    }
+  ],
+  "messages": [],
+  "stdout": "test_scans\n14\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

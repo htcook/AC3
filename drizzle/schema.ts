@@ -5442,3 +5442,51 @@ export const oemDefaultCredentials = mysqlTable("oem_default_credentials", {
 });
 export type OemDefaultCredentialRow = typeof oemDefaultCredentials.$inferSelect;
 export type InsertOemDefaultCredential = typeof oemDefaultCredentials.$inferInsert;
+
+
+/**
+ * CARVER Risk Cards — persisted results from auto-industry CARVER scoring.
+ * Each row represents a risk card generated for a domain, linked optionally
+ * to a domain_intel_scan for cross-referencing with passive recon results.
+ */
+export const carverRiskCards = mysqlTable("carver_risk_cards", {
+  id: int("id").autoincrement().primaryKey(),
+  // Domain identity
+  domain: varchar("domain", { length: 512 }).notNull(),
+  scanTitle: varchar("scan_title", { length: 512 }),
+  domainIntelScanId: int("domain_intel_scan_id"), // FK to domain_intel_scans (optional)
+  // Sector classification
+  inferredSector: varchar("inferred_sector", { length: 128 }),
+  sectorConfidence: varchar("sector_confidence", { length: 32 }), // high, medium, low, insufficient
+  naicsCode: varchar("naics_code", { length: 16 }),
+  naicsLabel: varchar("naics_label", { length: 256 }),
+  industry: varchar("industry", { length: 256 }),
+  // Regulatory context
+  regulatoryTags: json("regulatory_tags"), // string[]
+  country: varchar("country", { length: 8 }),
+  // CARVER+SHOCK scores
+  carverScores: json("carver_scores"), // { criticality, accessibility, recuperability, vulnerability, effect, recognizability }
+  shockScores: json("shock_scores"), // { scope, handling, operationalImpact, cascadingEffects, knowledge }
+  // Hybrid scoring
+  hybridScore: json("hybrid_score"), // number (0-10)
+  priorityTier: varchar("priority_tier", { length: 8 }), // P0, P1, P2, P3
+  confidenceBand: varchar("confidence_band", { length: 32 }),
+  // Risk card detail
+  topDrivers: json("top_drivers"), // RiskCardDriver[]
+  recommendedActions: json("recommended_actions"), // string[]
+  calderaOps: json("caldera_ops"), // CalderaOpRecommendation
+  threatLikelihood: json("threat_likelihood"), // ThreatActorLikelihood
+  // FedRAMP / FIPS context
+  fedRampProfile: varchar("fedramp_profile", { length: 32 }),
+  fips199Category: json("fips_199_category"), // Fips199ThreeStateCategory
+  // Full risk card JSON (for export/LLM training)
+  fullRiskCard: json("full_risk_card"),
+  // Metadata
+  source: varchar("source", { length: 64 }).default("manual"), // manual, csv_batch, discovery_engine, api
+  batchId: varchar("batch_id", { length: 128 }), // groups cards from same batch run
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type CarverRiskCard = typeof carverRiskCards.$inferSelect;
+export type InsertCarverRiskCard = typeof carverRiskCards.$inferInsert;

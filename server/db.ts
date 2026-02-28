@@ -1609,3 +1609,65 @@ export async function getKevStats(): Promise<{
     recentlyAdded: Number(recent?.count || 0),
   };
 }
+
+
+// ─── CARVER Risk Cards ────────────────────────────────────────────────────
+import { carverRiskCards, InsertCarverRiskCard, CarverRiskCard } from "../drizzle/schema";
+
+export async function createCarverRiskCard(card: InsertCarverRiskCard): Promise<number> {
+  const db = await getDbRequired();
+  const [result] = await db.insert(carverRiskCards).values(card);
+  return result.insertId;
+}
+
+export async function createCarverRiskCardsBatch(cards: InsertCarverRiskCard[]): Promise<number> {
+  if (cards.length === 0) return 0;
+  const db = await getDbRequired();
+  const [result] = await db.insert(carverRiskCards).values(cards);
+  return result.affectedRows;
+}
+
+export async function getCarverRiskCards(opts?: { batchId?: string; domain?: string; sector?: string; limit?: number; offset?: number }): Promise<CarverRiskCard[]> {
+  const db = await getDb();
+  if (!db) return [];
+  let query = db.select().from(carverRiskCards);
+  const conditions: any[] = [];
+  if (opts?.batchId) conditions.push(eq(carverRiskCards.batchId, opts.batchId));
+  if (opts?.domain) conditions.push(eq(carverRiskCards.domain, opts.domain));
+  if (opts?.sector) conditions.push(eq(carverRiskCards.inferredSector, opts.sector));
+  if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+  return query.orderBy(desc(carverRiskCards.createdAt)).limit(opts?.limit || 500).offset(opts?.offset || 0);
+}
+
+export async function getCarverRiskCardById(id: number): Promise<CarverRiskCard | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [card] = await db.select().from(carverRiskCards).where(eq(carverRiskCards.id, id));
+  return card;
+}
+
+export async function getCarverRiskCardsByBatch(batchId: string): Promise<CarverRiskCard[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(carverRiskCards).where(eq(carverRiskCards.batchId, batchId)).orderBy(desc(carverRiskCards.createdAt));
+}
+
+export async function getCarverRiskCardStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, bySector: [], byTier: [], batches: [] };
+  const [total] = await db.select({ count: sql<number>`COUNT(*)` }).from(carverRiskCards);
+  const bySector = await db.select({ sector: carverRiskCards.inferredSector, count: sql<number>`COUNT(*)` }).from(carverRiskCards).groupBy(carverRiskCards.inferredSector);
+  const byTier = await db.select({ tier: carverRiskCards.priorityTier, count: sql<number>`COUNT(*)` }).from(carverRiskCards).groupBy(carverRiskCards.priorityTier);
+  const batches = await db.select({ batchId: carverRiskCards.batchId, count: sql<number>`COUNT(*)`, source: carverRiskCards.source }).from(carverRiskCards).groupBy(carverRiskCards.batchId, carverRiskCards.source);
+  return { total: Number(total?.count || 0), bySector, byTier, batches };
+}
+
+export async function deleteCarverRiskCard(id: number) {
+  const db = await getDbRequired();
+  await db.delete(carverRiskCards).where(eq(carverRiskCards.id, id));
+}
+
+export async function deleteCarverRiskCardsByBatch(batchId: string) {
+  const db = await getDbRequired();
+  await db.delete(carverRiskCards).where(eq(carverRiskCards.batchId, batchId));
+}

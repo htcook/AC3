@@ -1,0 +1,46 @@
+{
+  "query": "SELECT COUNT(*) as remaining_total FROM domain_intel_scans; SELECT id, primaryDomain, status FROM domain_intel_scans ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as remaining_total FROM domain_intel_scans; SELECT id, primaryDomain, status FROM domain_intel_scans ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "remaining_total": "39"
+    },
+    {
+      "remaining_total": "id\tprimaryDomain\tstatus"
+    },
+    {
+      "remaining_total": "1380242\tthreat-model-1772241051210.com\tcompleted"
+    },
+    {
+      "remaining_total": "1380241\tcampaigns-1772241051166.com\tcompleted"
+    },
+    {
+      "remaining_total": "1380240\ttrpc-get-1772241051107.com\tcompleted"
+    },
+    {
+      "remaining_total": "1380239\tfindings-1772241050881.com\tscan_complete"
+    },
+    {
+      "remaining_total": "1380238\tscores-1772241050830.com\tscan_complete"
+    },
+    {
+      "remaining_total": "1380237\tmulti-asset-1772241050768.com\tscan_complete"
+    },
+    {
+      "remaining_total": "1380236\tasset-test-1772241050731.com\tscan_complete"
+    },
+    {
+      "remaining_total": "1380228\tupdate-1772241050576.com\tcompleted"
+    },
+    {
+      "remaining_total": "1380227\tget-scan-1772241050538.com\tscan_complete"
+    },
+    {
+      "remaining_total": "1380226\ttest-1772241050211.com\tscan_complete"
+    }
+  ],
+  "messages": [],
+  "stdout": "remaining_total\n39\nid\tprimaryDomain\tstatus\n1380242\tthreat-model-1772241051210.com\tcompleted\n1380241\tcampaigns-1772241051166.com\tcompleted\n1380240\ttrpc-get-1772241051107.com\tcompleted\n1380239\tfindings-1772241050881.com\tscan_complete\n1380238\tscores-1772241050830.com\tscan_complete\n1380237\tmulti-asset-1772241050768.com\tscan_complete\n1380236\tasset-test-1772241050731.com\tscan_complete\n1380228\tupdate-1772241050576.com\tcompleted\n1380227\tget-scan-1772241050538.com\tscan_complete\n1380226\ttest-1772241050211.com\tscan_complete\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, MIN(createdAt) as earliest, MAX(createdAt) as latest FROM domain_intel_scans;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as total, MIN(createdAt) as earliest, MAX(createdAt) as latest FROM domain_intel_scans;",
+  "rows": [
+    {
+      "total": "53",
+      "earliest": "2026-02-22 20:38:10",
+      "latest": "2026-02-28 01:10:51"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tearliest\tlatest\n53\t2026-02-22 20:38:10\t2026-02-28 01:10:51\n",
+  "stderr": "",
+  "execution_time_ms": 109
+}

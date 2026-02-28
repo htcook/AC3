@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as cnt FROM domain_intel_scans WHERE primaryDomain LIKE '%1772%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as cnt FROM domain_intel_scans WHERE primaryDomain LIKE '%1772%';",
+  "rows": [
+    {
+      "cnt": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "cnt\n0\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

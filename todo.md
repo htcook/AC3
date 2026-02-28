@@ -5638,3 +5638,41 @@
 - [x] Build explainable risk cards for each domain
 - [x] Compile LLM training dataset from scan results
 - [x] Store scan results in scoring training data format
+
+## Test Scan Cleanup
+- [x] Identify test scan data in database tables (scan_results, domain_intel, etc.)
+- [x] Delete test scan records that populate user-facing scan lists
+- [x] Ensure training/test scripts don't write to production scan tables
+
+## Persist CARVER Risk Cards to Database
+- [x] Add carver_risk_cards table schema (assetId, domain, sector, naics, scores, drivers, actions, caldera priority, confidence, timestamps)
+- [x] Push migration with pnpm db:push
+- [x] Add db.ts helper functions for CRUD operations on risk cards
+- [x] Add tRPC endpoints for saving, querying, and deleting risk cards
+- [x] Enable historical comparison and trend analysis queries
+
+## Batch Domain Scanning UI
+- [x] Add CSV upload component to CARVER Module tab
+- [x] Implement batch processing with progress tracking
+- [x] Auto-persist each scanned domain's risk card to database
+- [x] Add export functionality (CSV/JSON) for batch scan results
+- [x] Show scan history from persisted risk cards
+
+## Connect CARVER Scoring to Discovery Engine
+- [x] Hook into Discovery Engine scan completion to auto-generate risk cards
+- [x] Auto-classify discovered assets by sector using NAICS inference
+- [x] Persist auto-generated risk cards to carver_risk_cards table
+- [x] Feed results into LLM training pipeline
+- [ ] Show CARVER risk scores on Discovery Engine results page
+
+## Training Domain Scans (309 domains from CSV)
+- [x] Add carver_risk_cards table to schema and push migration
+- [x] Run CARVER scoring on all 309 CSV domains with sector/NAICS metadata
+- [x] Persist each domain as a named scan record in domain_intel_scans
+- [x] Persist risk cards in carver_risk_cards table linked to scans
+- [x] Build batch domain scanning UI with CSV upload, progress, and export
+- [x] Connect CARVER scoring to Discovery Engine for auto risk card generation
+- [x] Clean up test scans from user-facing lists
+
+## Bug Fixes
+- [x] Fix AI chat window not scrolling/growing dynamically - user cannot continue chat
