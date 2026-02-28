@@ -1531,4 +1531,194 @@ export const scoringRouter = router({
   getAllFips199Defaults: protectedProcedure.query(() => {
     return FIPS_199_INDUSTRY_DEFAULTS;
   }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AUTO-INDUSTRY CARVER MODULE (v1 + v2)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Infer NAICS code from domain, keywords, and asset signals */
+  inferNaics: protectedProcedure
+    .input(z.object({
+      domain: z.string().optional(),
+      hostname: z.string().optional(),
+      keywords: z.array(z.string()).optional(),
+      assetSignals: z.array(z.string()).optional(),
+      pageContent: z.string().optional(),
+    }))
+    .query(({ input }) => {
+      const { inferNaics } = require("../lib/auto-industry-carver");
+      return inferNaics(input);
+    }),
+
+  /** Infer sector from domain, keywords, and asset signals */
+  inferSector: protectedProcedure
+    .input(z.object({
+      domain: z.string().optional(),
+      hostname: z.string().optional(),
+      keywords: z.array(z.string()).optional(),
+      assetSignals: z.array(z.string()).optional(),
+      pageContent: z.string().optional(),
+    }))
+    .query(({ input }) => {
+      const { inferSector } = require("../lib/auto-industry-carver");
+      return inferSector(input);
+    }),
+
+  /** Get all sector profiles with CARVER presets, regulatory, threat likelihood, BIA, NAICS */
+  getAllSectorProfiles: protectedProcedure.query(() => {
+    const { getAllSectorProfiles } = require("../lib/auto-industry-carver");
+    return getAllSectorProfiles();
+  }),
+
+  /** Get adjusted CARVER+SHOCK preset for a sector with regulatory overlays */
+  getAdjustedCarverPreset: protectedProcedure
+    .input(z.object({
+      sector: z.string(),
+      regulatory: z.array(z.string()).optional(),
+      fedRampLevel: z.enum(["moderate", "high"]).optional(),
+    }))
+    .query(({ input }) => {
+      const { getAdjustedCarverPreset } = require("../lib/auto-industry-carver");
+      return getAdjustedCarverPreset(input.sector, input.regulatory || [], input.fedRampLevel);
+    }),
+
+  /** Compute hybrid fusion score from CARVER preset + CVSS */
+  computeHybridFusion: protectedProcedure
+    .input(z.object({
+      sector: z.string(),
+      regulatory: z.array(z.string()).optional(),
+      fedRampLevel: z.enum(["moderate", "high"]).optional(),
+      cvssBase: z.number().optional(),
+      cvssExploitability: z.number().optional(),
+      epssScore: z.number().optional(),
+      isKev: z.boolean().optional(),
+    }))
+    .query(({ input }) => {
+      const { getAdjustedCarverPreset, computeHybridFusionScore, computeSectorMultiplier: _csm } = require("../lib/auto-industry-carver");
+      const preset = getAdjustedCarverPreset(input.sector, input.regulatory || [], input.fedRampLevel);
+      // Use inline sector multiplier lookup
+      const multipliers: Record<string, number> = {
+        defense_aerospace: 1.3, electric_gas_utilities: 1.25, federal_government: 1.2,
+        banking_financial_services: 1.15, healthcare_providers: 1.1, pharmaceuticals_biotech: 1.1, saas_tech: 1.0,
+      };
+      return computeHybridFusionScore({
+        carverPreset: preset,
+        sectorMultiplier: multipliers[input.sector] || 1.0,
+        cvssBase: input.cvssBase,
+        cvssExploitability: input.cvssExploitability,
+        epssScore: input.epssScore,
+        isKev: input.isKev,
+      });
+    }),
+
+  /** Build a full explainable risk card for an asset */
+  buildRiskCard: protectedProcedure
+    .input(z.object({
+      assetId: z.string(),
+      assetLabel: z.string(),
+      domain: z.string().optional(),
+      hostname: z.string().optional(),
+      keywords: z.array(z.string()).optional(),
+      assetSignals: z.array(z.string()).optional(),
+      pageContent: z.string().optional(),
+      cvssBase: z.number().optional(),
+      cvssExploitability: z.number().optional(),
+      epssScore: z.number().optional(),
+      isKev: z.boolean().optional(),
+      fedRampLevel: z.enum(["moderate", "high"]).optional(),
+      overrideSector: z.string().optional(),
+    }))
+    .mutation(({ input }) => {
+      const { buildExplainableRiskCard } = require("../lib/auto-industry-carver");
+      return buildExplainableRiskCard(input);
+    }),
+
+  /** Batch build risk cards for multiple assets */
+  batchBuildRiskCards: protectedProcedure
+    .input(z.object({
+      assets: z.array(z.object({
+        assetId: z.string(),
+        assetLabel: z.string(),
+        domain: z.string().optional(),
+        hostname: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+        assetSignals: z.array(z.string()).optional(),
+        cvssBase: z.number().optional(),
+        cvssExploitability: z.number().optional(),
+        epssScore: z.number().optional(),
+        isKev: z.boolean().optional(),
+        fedRampLevel: z.enum(["moderate", "high"]).optional(),
+        overrideSector: z.string().optional(),
+      })),
+    }))
+    .mutation(({ input }) => {
+      const { batchBuildRiskCards } = require("../lib/auto-industry-carver");
+      return batchBuildRiskCards(input.assets);
+    }),
+
+  /** Get threat actor likelihood for a sector */
+  getSectorThreatLikelihood: protectedProcedure
+    .input(z.object({ sector: z.string() }))
+    .query(({ input }) => {
+      const { getSectorThreatLikelihood } = require("../lib/auto-industry-carver");
+      return getSectorThreatLikelihood(input.sector);
+    }),
+
+  /** Get Caldera operation priority recommendation */
+  getCalderaOpPriority: protectedProcedure
+    .input(z.object({
+      priorityTier: z.enum(["P0", "P1", "P2", "P3"]),
+      regulatory: z.array(z.string()).optional(),
+      sector: z.string(),
+      assetSignals: z.array(z.string()).optional(),
+    }))
+    .query(({ input }) => {
+      const { getCalderaOperationPriority } = require("../lib/auto-industry-carver");
+      return getCalderaOperationPriority({
+        priorityTier: input.priorityTier,
+        regulatory: input.regulatory || [],
+        sector: input.sector,
+        assetSignals: input.assetSignals,
+      });
+    }),
+
+  /** Get all sector profiles with presets, regulatory, threats */
+  getSectorProfiles: protectedProcedure.query(() => {
+    const { getAllSectorProfiles } = require("../lib/auto-industry-carver");
+    return getAllSectorProfiles();
+  }),
+
+  /** Get CARVER+SHOCK presets for all sectors */
+  getCarverPresets: protectedProcedure.query(() => {
+    const { CARVER_SHOCK_PRESETS } = require("../lib/auto-industry-carver");
+    return CARVER_SHOCK_PRESETS;
+  }),
+
+  /** Get threat actor likelihood for all sectors */
+  getThreatLikelihood: protectedProcedure.query(() => {
+    const { THREAT_ACTOR_LIKELIHOOD } = require("../lib/auto-industry-carver");
+    return THREAT_ACTOR_LIKELIHOOD;
+  }),
+
+  /** Infer sector from domain */
+  inferSectorFromDomain: protectedProcedure
+    .input(z.object({ domain: z.string(), keywords: z.array(z.string()).optional() }))
+    .query(({ input }) => {
+      const { inferSector } = require("../lib/auto-industry-carver");
+      return inferSector({ domain: input.domain, keywords: input.keywords || [] });
+    }),
+
+  /** Get FedRAMP profiles (Moderate vs High) */
+  getFedRampProfiles: protectedProcedure.query(() => {
+    const { FEDRAMP_PROFILES } = require("../lib/auto-industry-carver");
+    return FEDRAMP_PROFILES;
+  }),
+
+  /** Get BIA asset priority list for a sector */
+  getBiaAssetPriority: protectedProcedure
+    .input(z.object({ sector: z.string() }))
+    .query(({ input }) => {
+      const { getBiaAssetPriority } = require("../lib/auto-industry-carver");
+      return getBiaAssetPriority(input.sector);
+    }),
 });

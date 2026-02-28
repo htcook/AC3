@@ -5614,3 +5614,27 @@
 - [x] Build Industry Baselines tab with tier breakdown, BIA inference, FIPS 199, and SHOCK guidance
 - [ ] Add industry risk modifier comparison view
 - [x] Write tests for FIPS 199 integration in industry baseline scoring
+
+## Auto-Industry CARVER Module Integration (v1 + v2)
+- [x] Integrate industry detection rules (6 sectors: banking, defense, energy, healthcare, government, saas)
+- [x] Integrate CARVER+SHOCK presets per sector with regulatory overlay adjustments
+- [x] Integrate hybrid fusion formula: (CARVER * sector_mult) + (CVSS_base * 0.6) + (CVSS_exploit * 0.4)
+- [x] Integrate auto-BIA asset priority lists per sector (crown jewels ordering)
+- [x] Integrate NAICS auto-mapping with multi-stage inference (TLD/keyword/asset_signal/registry)
+- [x] Integrate NAICS scoring model with confidence bands (high≥0.78, medium≥0.55, low≥0.35)
+- [x] Integrate threat actor likelihood weights per sector (ransomware, APT, insider, etc.)
+- [x] Integrate FedRAMP Moderate vs High profiles with overlay adjustments and tier thresholds
+- [x] Integrate explainable risk card schema and builder (P0/P1/P2/P3 tiers with drivers)
+- [x] Integrate Caldera operation prioritization tiers and ability set library
+- [x] Build tRPC endpoints for NAICS inference, risk card generation, and Caldera op recommendations
+- [x] Build UI for explainable risk cards in Scoring Hub
+- [x] Write comprehensive tests for all CARVER module integrations
+- [x] Run passive domain intelligence scans on provided domains for LLM training data
+- [x] Generate scoring logic tuning dataset from scan results
+
+## Passive Domain Intelligence Scans
+- [x] Run passive scans on 120+ curated domains across 15 industry sectors
+- [x] Generate NAICS inference + sector classification for each domain
+- [x] Build explainable risk cards for each domain
+- [x] Compile LLM training dataset from scan results
+- [x] Store scan results in scoring training data format

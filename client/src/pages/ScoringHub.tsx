@@ -859,6 +859,9 @@ export default function ScoringHub() {
           <TabsTrigger value="fips199">
             <Lock className="w-4 h-4 mr-1" /> FIPS 199
           </TabsTrigger>
+          <TabsTrigger value="carver-module">
+            <Crosshair className="w-4 h-4 mr-1" /> CARVER Module
+          </TabsTrigger>
         </TabsList>
 
         {/* Profiles Tab */}
@@ -2219,8 +2222,427 @@ export default function ScoringHub() {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* CARVER Module Tab */}
+        <TabsContent value="carver-module" className="space-y-4">
+          <CarverModuleTab />
+        </TabsContent>
       </Tabs>
     </div>
     </AppShell>
+  );
+}
+
+/* ─── CARVER Module Tab Component ─────────────────────────────────── */
+function CarverModuleTab() {
+  const [selectedSector, setSelectedSector] = useState<string>("banking_financial_services");
+  const [testDomain, setTestDomain] = useState("");
+  const [showTrainingData, setShowTrainingData] = useState(false);
+
+  const sectorProfiles = trpc.scoring.getSectorProfiles.useQuery();
+  const carverPresets = trpc.scoring.getCarverPresets.useQuery();
+  const threatLikelihood = trpc.scoring.getThreatLikelihood.useQuery();
+  const buildRiskCardMutation = trpc.scoring.buildRiskCard.useMutation();
+  const inferResult = trpc.scoring.inferSectorFromDomain.useQuery(
+    { domain: testDomain, keywords: [] },
+    { enabled: testDomain.length > 3 }
+  );
+  const [riskCardData, setRiskCardData] = useState<any>(null);
+
+  const handleScanDomain = () => {
+    if (testDomain.length > 3) {
+      buildRiskCardMutation.mutate(
+        { assetId: testDomain, assetLabel: testDomain, domain: testDomain, keywords: [] },
+        { onSuccess: (data) => setRiskCardData(data) }
+      );
+    }
+  };
+
+  const sectorList = [
+    { key: "banking_financial_services", label: "Banking & Financial Services" },
+    { key: "healthcare_providers", label: "Healthcare & Life Sciences" },
+    { key: "defense_aerospace", label: "Defense & Aerospace" },
+    { key: "federal_government", label: "Government (Federal/State/Local)" },
+    { key: "electric_gas_utilities", label: "Energy & Utilities" },
+    { key: "saas_tech", label: "Technology / SaaS" },
+  ];
+
+  const currentPreset = carverPresets.data?.[selectedSector];
+  const currentThreats = threatLikelihood.data?.[selectedSector];
+  const currentProfile = sectorProfiles.data?.find((p: any) => p.sector === selectedSector);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="bg-zinc-900/60 border-zinc-800">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Crosshair className="w-5 h-5 text-red-400" />
+                Auto-Industry CARVER Module
+              </CardTitle>
+              <CardDescription className="text-zinc-400 mt-1">
+                Industry-aware CARVER+SHOCK presets with NAICS inference, regulatory overlays,
+                threat actor likelihood, and Caldera operation prioritization.
+                Trained on 124 domains across 18 sectors.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="border-red-500/30 text-red-400">
+              v2.0 — NAICS + FedRAMP + Explainable
+            </Badge>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Domain Inference Tester */}
+      <Card className="bg-zinc-900/60 border-zinc-800">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Globe className="w-4 h-4 text-blue-400" />
+            Domain Intelligence Scanner
+          </CardTitle>
+          <CardDescription className="text-xs text-zinc-500">
+            Enter a domain to run NAICS inference, sector classification, and generate an explainable risk card
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-4">
+            <Input
+              placeholder="e.g., jpmorganchase.com"
+              value={testDomain}
+              onChange={(e) => setTestDomain(e.target.value)}
+              className="bg-zinc-800/50 border-zinc-700 text-sm"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleScanDomain}
+              disabled={testDomain.length <= 3 || buildRiskCardMutation.isPending}
+              className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+            >
+              {buildRiskCardMutation.isPending ? <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> : <Target className="w-3 h-3 mr-1" />}
+              Scan
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setTestDomain(""); setRiskCardData(null); }}
+              className="border-zinc-700"
+            >
+              <RotateCcw className="w-3 h-3 mr-1" /> Clear
+            </Button>
+          </div>
+
+          {inferResult.data && testDomain.length > 3 && (
+            <div className="space-y-3">
+              {/* Sector Inference */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Inferred Sector</p>
+                  <p className="text-sm font-semibold text-blue-400 mt-1">
+                    {inferResult.data.sector.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                  </p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    Confidence: {(inferResult.data.confidence * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Regulatory Profile</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {inferResult.data.regulatoryProfile?.map((r: string) => (
+                      <Badge key={r} variant="outline" className="text-[10px] border-purple-500/30 text-purple-400">{r}</Badge>
+                    )) || <span className="text-xs text-zinc-500">None detected</span>}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider">NAICS Code</p>
+                  <p className="text-sm font-semibold text-amber-400 mt-1">
+                    {inferResult.data.naics?.primaryNaics || 'N/A'}
+                  </p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    {inferResult.data.naics?.primaryLabel || 'Unknown'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {riskCardData && testDomain.length > 3 && (
+            <div className="mt-4 space-y-3">
+              {/* Risk Card Scores */}
+              <div className="grid grid-cols-4 gap-2">
+                <div className="p-2 rounded bg-red-500/10 border border-red-500/20 text-center">
+                  <p className="text-[10px] text-zinc-500">Hybrid Score</p>
+                  <p className="text-xl font-bold font-mono text-red-400">{riskCardData.scores.hybrid.toFixed(1)}</p>
+                </div>
+                <div className="p-2 rounded bg-orange-500/10 border border-orange-500/20 text-center">
+                  <p className="text-[10px] text-zinc-500">CARVER+SHOCK</p>
+                  <p className="text-xl font-bold font-mono text-orange-400">{riskCardData.scores.carverShock.toFixed(1)}</p>
+                </div>
+                <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-center">
+                  <p className="text-[10px] text-zinc-500">CVSS Base</p>
+                  <p className="text-xl font-bold font-mono text-yellow-400">{riskCardData.scores.cvss?.base?.toFixed(1) || '0.0'}</p>
+                </div>
+                <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/20 text-center">
+                  <p className="text-[10px] text-zinc-500">Priority Tier</p>
+                  <p className={`text-xl font-bold font-mono ${
+                    riskCardData.scores.priorityTier === 'P0' ? 'text-red-400' :
+                    riskCardData.scores.priorityTier === 'P1' ? 'text-orange-400' :
+                    riskCardData.scores.priorityTier === 'P2' ? 'text-yellow-400' : 'text-emerald-400'
+                  }`}>{riskCardData.scores.priorityTier}</p>
+                </div>
+              </div>
+
+              {/* Top Drivers */}
+              <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                <h4 className="text-xs font-semibold text-zinc-400 mb-2 flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" /> Top Risk Drivers
+                </h4>
+                <div className="space-y-1">
+                  {riskCardData.topDrivers?.map((d: any, i: number) => (
+                    <div key={i} className="text-xs">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={`text-[9px] ${
+                          d.impact === 'increase' ? 'border-red-500/30 text-red-400' : 'border-emerald-500/30 text-emerald-400'
+                        }`}>{d.impact === 'increase' ? '↑' : '↓'}</Badge>
+                        <span className="text-zinc-300 font-medium">{d.driver}</span>
+                      </div>
+                      {d.evidence?.map((e: string, j: number) => (
+                        <p key={j} className="text-zinc-500 ml-8 text-[10px]">{e}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommended Actions */}
+              <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                <h4 className="text-xs font-semibold text-zinc-400 mb-2 flex items-center gap-1">
+                  <Shield className="w-3 h-3" /> Recommended Actions
+                </h4>
+                <div className="space-y-1">
+                  {riskCardData.recommendedActions?.slice(0, 5).map((a: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-xs">
+                      <span className="text-emerald-400 mt-0.5">→</span>
+                      <span className="text-zinc-300">{a}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Caldera Priority */}
+              {riskCardData.calderaPriority && (
+                <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                  <h4 className="text-xs font-semibold text-zinc-400 mb-2 flex items-center gap-1">
+                    <Target className="w-3 h-3 text-red-400" /> Caldera Operation Priority
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <p className="text-zinc-500">Op Tier</p>
+                      <p className="font-semibold text-red-400">{riskCardData.calderaPriority.operationTier}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500">Profile</p>
+                      <p className="font-semibold text-zinc-300">{riskCardData.calderaPriority.operationProfile}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500">Adversaries</p>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {riskCardData.calderaPriority.recommendedAdversaries?.slice(0, 3).map((a: string) => (
+                          <Badge key={a} variant="outline" className="text-[9px] border-red-500/30 text-red-300">{a}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {riskCardData.calderaPriority.objectives?.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-zinc-500 text-[10px] mb-1">Objectives</p>
+                      <div className="flex flex-wrap gap-1">
+                        {riskCardData.calderaPriority.objectives.map((o: string) => (
+                          <Badge key={o} variant="outline" className="text-[9px] border-zinc-600 text-zinc-400">{o}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Sector CARVER Presets */}
+      <Card className="bg-zinc-900/60 border-zinc-800">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Layers className="w-4 h-4 text-orange-400" />
+              Sector CARVER+SHOCK Presets
+            </CardTitle>
+            <Select value={selectedSector} onValueChange={setSelectedSector}>
+              <SelectTrigger className="w-64 bg-zinc-800/50 border-zinc-700 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sectorList.map(s => (
+                  <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {currentPreset && (() => {
+            const carverDims = ['criticality', 'accessibility', 'recuperability', 'vulnerability', 'effect', 'recognizability'];
+            const shockDim = 'shock';
+            const sectorReg = currentProfile?.regulatory || [];
+            return (
+              <div className="space-y-4">
+                {/* CARVER Scores Grid */}
+                <div>
+                  <h4 className="text-xs font-semibold text-zinc-400 mb-2">CARVER Dimensions</h4>
+                  <div className="grid grid-cols-6 gap-2">
+                    {carverDims.map(dim => (
+                      <div key={dim} className="p-2 rounded bg-zinc-800/50 border border-zinc-700/50 text-center">
+                        <p className="text-[10px] text-zinc-500 uppercase">{dim.slice(0, 5)}</p>
+                        <p className="text-lg font-bold font-mono text-orange-400">{(currentPreset as any)[dim] ?? '-'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SHOCK Score */}
+                <div>
+                  <h4 className="text-xs font-semibold text-zinc-400 mb-2">SHOCK Score</h4>
+                  <div className="grid grid-cols-1 gap-2 max-w-[120px]">
+                    <div className="p-2 rounded bg-zinc-800/50 border border-zinc-700/50 text-center">
+                      <p className="text-[10px] text-zinc-500 uppercase">SHOCK</p>
+                      <p className="text-lg font-bold font-mono text-amber-400">{(currentPreset as any)[shockDim] ?? '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Regulatory Overlays */}
+                {sectorReg.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-zinc-400 mb-2">Regulatory Overlays</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {sectorReg.map((r: string) => (
+                        <Badge key={r} variant="outline" className="border-purple-500/30 text-purple-400">{r}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sector Multiplier */}
+                <div className="p-3 rounded-lg bg-gradient-to-r from-red-500/10 to-transparent border border-red-500/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-zinc-300">Sector Criticality Multiplier</h4>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">
+                        Applied to hybrid fusion formula: CARVER composite × sector_multiplier + CVSS×0.6 + Exploitability×0.4
+                      </p>
+                    </div>
+                    <div className="text-2xl font-bold font-mono text-red-400">
+                      {selectedSector === 'defense_aerospace' ? '1.3' :
+                       selectedSector === 'electric_gas_utilities' ? '1.25' :
+                       selectedSector === 'federal_government' ? '1.2' :
+                       selectedSector === 'banking_financial_services' ? '1.15' :
+                       selectedSector === 'healthcare_providers' ? '1.1' : '1.0'}x
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
+      {/* Threat Actor Likelihood */}
+      <Card className="bg-zinc-900/60 border-zinc-800">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-yellow-400" />
+            Threat Actor Likelihood by Sector
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {currentThreats && (
+            <div className="space-y-2">
+              {Object.entries(currentThreats).sort(([,a]: any, [,b]: any) => b - a).map(([actor, weight]: [string, any]) => (
+                <div key={actor} className="flex items-center gap-3">
+                  <span className="text-xs text-zinc-400 w-40 truncate">
+                    {actor.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                  </span>
+                  <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        weight > 0.7 ? 'bg-red-500' : weight > 0.4 ? 'bg-orange-500' : weight > 0.2 ? 'bg-yellow-500' : 'bg-zinc-600'
+                      }`}
+                      style={{ width: `${weight * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-mono text-zinc-500 w-12 text-right">{(weight * 100).toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Training Data Summary */}
+      <Card className="bg-zinc-900/60 border-zinc-800">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Brain className="w-4 h-4 text-emerald-400" />
+              LLM Training Dataset
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTrainingData(!showTrainingData)}
+              className="border-zinc-700 text-xs"
+            >
+              {showTrainingData ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+              {showTrainingData ? 'Hide' : 'Show'} Details
+            </Button>
+          </div>
+          <CardDescription className="text-xs text-zinc-500">
+            124 domains × 18 sectors processed for scoring baseline calibration
+          </CardDescription>
+        </CardHeader>
+        {showTrainingData && (
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                <h4 className="text-xs font-semibold text-zinc-400 mb-2">Training Modules</h4>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-zinc-400">Sector Classification</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">NAICS Inference</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Scoring Calibration</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Sector Baselines</span><Badge variant="outline" className="text-[9px]">18 sectors</Badge></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Threat Likelihood</span><Badge variant="outline" className="text-[9px]">18 sectors</Badge></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Caldera Operations</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Prompt-Response Pairs</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                <h4 className="text-xs font-semibold text-zinc-400 mb-2">Scoring Baselines</h4>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-zinc-400">Defense/Aerospace</span><span className="font-mono text-red-400">9.66 avg</span></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Banking/Financial</span><span className="font-mono text-orange-400">9.04 avg</span></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Government</span><span className="font-mono text-yellow-400">8.75 avg</span></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Chemical/Industrial</span><span className="font-mono text-yellow-400">8.39 avg</span></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Healthcare</span><span className="font-mono text-emerald-400">7.27 avg</span></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Energy/Utilities</span><span className="font-mono text-emerald-400">7.14 avg</span></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Technology/SaaS</span><span className="font-mono text-blue-400">7.14 avg</span></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    </div>
   );
 }
