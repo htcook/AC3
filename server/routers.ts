@@ -4296,6 +4296,14 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               dnsStatus: a.asset.dnsStatus || null,
               headers: a.asset.headers || null,
               technologies: a.asset.technologies || null,
+              detectedTechnologies: a.asset.technologyVersions
+                ? Object.entries(a.asset.technologyVersions).map(([name, version]) => ({
+                    name,
+                    version: version || '',
+                    category: 'detected',
+                    confidence: version ? 0.9 : 0.7,
+                  }))
+                : (a.asset.technologies || []).map((t: string) => ({ name: t, version: '', category: 'inferred', confidence: 0.5 })),
               assetClasses: a.asset.assetClasses,
               tags: a.asset.tags,
               carverScores: a.carverScores,
@@ -4487,7 +4495,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               // Open ports & services — extracted from all IP observations
               discoveredPorts: (() => {
                 if (!result.passiveRecon?.allObservations) return [];
-                const portMap = new Map<string, { ip: string; port: number; transport: string; product: string; version: string; hostname: string; source: string; vulns: string[]; cpes: string[] }>();
+                const portMap = new Map<string, { ip: string; port: number; transport: string; product: string; version: string; hostname: string; source: string; vulns: string[]; cpes: string[]; banner: string; os: string }>();
                 for (const obs of result.passiveRecon.allObservations) {
                   if (obs.assetType !== 'ip' || !obs.ip) continue;
                   const evidence = obs.evidence as any;
@@ -4506,6 +4514,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                         source: obs.source,
                         vulns: (evidence.vulns || []).slice(0, 10),
                         cpes: (evidence.cpes || []).slice(0, 5),
+                        banner: (evidence.banner || evidence.bannerSnippet || '').slice(0, 200),
+                        os: evidence.os || '',
                       });
                     }
                   } else if (evidence?.ports && Array.isArray(evidence.ports)) {
@@ -4523,6 +4533,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                           source: obs.source,
                           vulns: (evidence.vulns || []).slice(0, 10),
                           cpes: (evidence.cpes || []).slice(0, 5),
+                          banner: (evidence.banner || evidence.bannerSnippet || '').slice(0, 200),
+                          os: evidence.os || '',
                         });
                       }
                     }
@@ -4904,6 +4916,14 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               dnsStatus: a.asset.dnsStatus || null,
               headers: a.asset.headers || null,
               technologies: a.asset.technologies || null,
+              detectedTechnologies: a.asset.technologyVersions
+                ? Object.entries(a.asset.technologyVersions).map(([name, version]) => ({
+                    name,
+                    version: version || '',
+                    category: 'detected',
+                    confidence: version ? 0.9 : 0.7,
+                  }))
+                : (a.asset.technologies || []).map((t: string) => ({ name: t, version: '', category: 'inferred', confidence: 0.5 })),
               assetClasses: a.asset.assetClasses,
               tags: a.asset.tags,
               carverScores: a.carverScores,
@@ -5944,6 +5964,14 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               dnsStatus: a.asset.dnsStatus || null,
               headers: a.asset.headers || null,
               technologies: a.asset.technologies || null,
+              detectedTechnologies: a.asset.technologyVersions
+                ? Object.entries(a.asset.technologyVersions).map(([name, version]) => ({
+                    name,
+                    version: version || '',
+                    category: 'detected',
+                    confidence: version ? 0.9 : 0.7,
+                  }))
+                : (a.asset.technologies || []).map((t: string) => ({ name: t, version: '', category: 'inferred', confidence: 0.5 })),
               assetClasses: a.asset.assetClasses,
               tags: a.asset.tags,
               carverScores: a.carverScores,

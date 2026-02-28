@@ -5684,9 +5684,23 @@
 - [ ] Update routes and clean up orphaned nav items
 - [ ] Verify all Intelligence tabs work correctly in the unified view
 - [ ] Rename all CARVER assessment references to Hybrid Scoring assessments across UI
-- [ ] Scrub all user-facing CARVER references from UI (trade secret protection until patent)
-- [ ] Replace CARVER with Hybrid Scoring in all page titles, tab names, labels, tooltips, descriptions
-- [ ] Keep backend code names unchanged (internal only) but sanitize any API response labels
+- [x] Scrub all user-facing CARVER references from UI (trade secret protection until patent)
+- [x] Replace CARVER with Hybrid Scoring in all page titles, tab names, labels, tooltips, descriptions
+- [x] Keep backend code names unchanged (internal only) but sanitize any API response labels
 - [x] Move AI chat floating button from bottom-right to top-right to avoid hiding navigation buttons
 - [x] Ensure close/minimize button on AI chat is always visible and never disappears
 - [x] Suppress DMARC/SPF/DKIM findings for non-mail assets (EC2, cloud compute, IP-based hosts without MX records)
+- [x] Use Shodan API CPE/version data to fingerprint exact software versions for KEV confirmation
+- [x] Fix KEV matching to require BOTH vendor AND product match (not vendor OR product)
+- [x] Fix version confirmation logic to prevent cross-product false matches
+- [x] Downgrade vendor-only KEV matches from confirmed/probable to potential
+- [x] Remove overly broad fuzzy vendor-substring matching in KEV service
+- [x] Display all Shodan fingerprinting data (CPE, versions, banners, OS) in scan results page
+- [ ] Include full Shodan evidence in scan reports (CPE strings, version confirmations, banner snippets)
+- [ ] Audit all connector data collected vs displayed — ensure nothing is hidden from users
+- [x] Show all Shodan data per asset: open ports, banners, CPE strings, product versions, CVEs, OS, SSL certs
+- [ ] Show all Censys data per asset: services, certificates, protocols
+- [x] Show all InternetDB data per asset: ports, CVEs, CPEs, hostnames, tags
+- [ ] Show SecurityTrails, crt.sh, DNS, and other connector data per asset
+- [ ] Add "Attacker's View" or "External Exposure" section to each asset showing raw connector evidence
+- [ ] Include full connector evidence in downloadable reports

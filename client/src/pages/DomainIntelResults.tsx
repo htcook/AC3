@@ -2055,7 +2055,7 @@ export default function DomainIntelResults() {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {filtered.length === 0 ? (
-                            <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No subdomains found matching your filters</td></tr>
+                            <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">No subdomains found matching your filters</td></tr>
                           ) : filtered.map((s: any, i: number) => (
                             <tr key={i} className={`hover:bg-muted/20 ${s.riskBand === 'critical' ? 'bg-red-500/5' : s.riskBand === 'high' ? 'bg-orange-500/5' : ''}`}>
                               <td className="px-3 py-2">
@@ -2417,7 +2417,7 @@ export default function DomainIntelResults() {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {sorted.length === 0 ? (
-                            <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No assets matching your filters</td></tr>
+                            <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">No assets matching your filters</td></tr>
                           ) : sorted.map((item, i) => (
                             <tr key={i} className={`hover:bg-muted/20 ${item.riskBand === 'critical' ? 'bg-red-500/5' : item.riskBand === 'high' ? 'bg-orange-500/5' : ''}`}>
                               <td className="px-3 py-2">
@@ -2596,7 +2596,7 @@ export default function DomainIntelResults() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Stats */}
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                       <div className="p-3 rounded-lg bg-muted/30 border border-border">
                         <p className="text-2xl font-bold text-sky-400">{ports.length}</p>
                         <p className="text-xs text-muted-foreground">Open Ports</p>
@@ -2616,6 +2616,14 @@ export default function DomainIntelResults() {
                       <div className="p-3 rounded-lg bg-muted/30 border border-border">
                         <p className="text-2xl font-bold text-red-400">{allVulns.size}</p>
                         <p className="text-xs text-muted-foreground">Associated CVEs</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-purple-400">{ports.filter((p: any) => p.cpes?.length > 0).length}</p>
+                        <p className="text-xs text-muted-foreground">With CPE IDs</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-2xl font-bold text-cyan-400">{ports.filter((p: any) => p.os).length}</p>
+                        <p className="text-xs text-muted-foreground">OS Detected</p>
                       </div>
                     </div>
 
@@ -2671,8 +2679,8 @@ export default function DomainIntelResults() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const csv = ['IP,Port,Transport,Service,Version,Hostname,Source,CVEs'];
-                          ports.forEach(p => csv.push(`${p.ip},${p.port},${p.transport},${p.product},${p.version},${p.hostname},${p.source},"${(p.vulns || []).join('; ')}"`));
+                          const csv = ['IP,Port,Transport,Service,Version,Hostname,Source,CVEs,CPEs,Banner,OS'];
+                          ports.forEach(p => csv.push(`${p.ip},${p.port},${p.transport},${p.product},${p.version},${p.hostname},${p.source},"${(p.vulns || []).join('; ')}","${(p.cpes || []).join('; ')}","${(p.banner || '').replace(/"/g, '""')}",${p.os || ''}`));
                           const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement('a');
@@ -2697,12 +2705,15 @@ export default function DomainIntelResults() {
                             <th className="text-left px-3 py-2 font-medium">Version</th>
                             <th className="text-left px-3 py-2 font-medium">Hostname</th>
                             <th className="text-left px-3 py-2 font-medium">CVEs</th>
+                            <th className="text-left px-3 py-2 font-medium">CPE</th>
+                            <th className="text-left px-3 py-2 font-medium">Banner</th>
+                            <th className="text-left px-3 py-2 font-medium">OS</th>
                             <th className="text-left px-3 py-2 font-medium">Source</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {filtered.length === 0 ? (
-                            <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                            <tr><td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
                               {ports.length === 0 ? 'No port data available. Port scanning requires internet scan databases API key or InternetDB data.' : 'No ports matching your filters'}
                             </td></tr>
                           ) : filtered.map((p: any, i: number) => (
@@ -2730,6 +2741,27 @@ export default function DomainIntelResults() {
                                     <Badge variant="destructive" className="text-[10px]">+{p.vulns.length - 3}</Badge>
                                   )}
                                 </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1">
+                                  {(p.cpes || []).slice(0, 2).map((c: string, j: number) => (
+                                    <Badge key={j} variant="outline" className="text-[9px] font-mono text-purple-400 border-purple-500/30">{c}</Badge>
+                                  ))}
+                                  {(p.cpes || []).length > 2 && (
+                                    <span className="text-[9px] text-muted-foreground">+{p.cpes.length - 2}</span>
+                                  )}
+                                  {(!p.cpes || p.cpes.length === 0) && <span className="text-muted-foreground text-[10px]">—</span>}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                {p.banner ? (
+                                  <span className="font-mono text-[9px] text-amber-400/80 truncate block max-w-[150px]" title={p.banner}>{p.banner.slice(0, 60)}{p.banner.length > 60 ? '…' : ''}</span>
+                                ) : <span className="text-muted-foreground text-[10px]">—</span>}
+                              </td>
+                              <td className="px-3 py-2">
+                                {p.os ? (
+                                  <Badge variant="outline" className="text-[9px] text-cyan-400 border-cyan-500/30">{p.os}</Badge>
+                                ) : <span className="text-muted-foreground text-[10px]">—</span>}
                               </td>
                               <td className="px-3 py-2">
                                 <Badge variant="outline" className="text-[10px]">{p.source}</Badge>

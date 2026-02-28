@@ -1818,10 +1818,17 @@ export async function runDomainIntelPipeline(
           if (assetKevMatches.length > 0) {
             // Only boost for version-confirmed KEV matches
             const versions = a.asset.technologyVersions || {};
+            // FIX: Require the KEV product name to match the detected technology name,
+            // not just the matchedOn field (which could be a generic vendor name like "Microsoft").
+            // This prevents "Microsoft IIS v10.0" from confirming a SharePoint KEV entry.
             const confirmedKevMatches = assetKevMatches.filter(m => {
-              return Object.entries(versions).some(
-                ([tech]) => tech.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(tech.toLowerCase())
-              );
+              const kevProductLower = (m.product || '').toLowerCase();
+              return Object.entries(versions).some(([tech]) => {
+                const techLower = tech.toLowerCase();
+                // Check if the detected technology name matches the KEV product name
+                // (not just the matchedOn field which could be a broad pattern like "iis")
+                return techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
+              });
             });
             if (confirmedKevMatches.length > 0) {
               // Cap per-asset KEV boost at 15 — only for version-confirmed matches
@@ -1834,9 +1841,16 @@ export async function runDomainIntelPipeline(
             // Use uniqueAssetKevMatches to skip CVEs already present on this asset
             uniqueAssetKevMatches.forEach(m => {
               // Check if we have a detected version for this technology
+              // FIX: Match against the KEV PRODUCT name, not the matchedOn pattern.
+              // Previously, matchedOn="Microsoft" would match "Microsoft IIS" version,
+              // falsely confirming a SharePoint or Windows CLFS KEV entry.
               const versions = a.asset.technologyVersions || {};
+              const kevProductLower = (m.product || '').toLowerCase();
               const detectedVersion = Object.entries(versions).find(
-                ([tech]) => tech.toLowerCase().includes(m.matchedOn.toLowerCase()) || m.matchedOn.toLowerCase().includes(tech.toLowerCase())
+                ([tech]) => {
+                  const techLower = tech.toLowerCase();
+                  return techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
+                }
               )?.[1] || undefined;
               // KEV entries are product-family matches unless we have a version
               // KEV is always at least "probable" because it's a confirmed CVE on a confirmed product family

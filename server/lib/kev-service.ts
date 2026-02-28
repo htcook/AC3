@@ -46,6 +46,8 @@ export interface KevMatch {
   matchedOn: string;
   severityBoost: number; // 0-30 additional risk points
   suggestedTechniques: string[]; // MITRE ATT&CK technique IDs
+  /** Quality of the match: exact_product > product_family > vendor_only */
+  matchQuality?: "exact_product" | "product_family" | "vendor_only" | "fuzzy";
 }
 
 export interface KevStats {
@@ -300,7 +302,7 @@ export function matchTechnologiesAgainstKev(
   technologies.forEach(tech => {
     const techLower = tech.toLowerCase().trim();
 
-    // Check direct technology mapping
+    // Check direct technology mapping — REQUIRE product match (vendor-only is too broad)
     for (const [pattern, mapping] of Object.entries(TECH_TO_KEV_PATTERNS)) {
       if (techLower.includes(pattern) || pattern.includes(techLower)) {
         catalog.vulnerabilities.forEach(kev => {
@@ -312,7 +314,10 @@ export function matchTechnologiesAgainstKev(
           const vendorMatch = mapping.vendors.some(v => kevVendor.includes(v));
           const productMatch = mapping.products.some(p => kevProduct.includes(p));
 
-          if (vendorMatch || productMatch) {
+          // FIX: Require BOTH vendor AND product match to prevent cross-product contamination.
+          // Previously vendorMatch || productMatch caused "IIS" to match ALL Microsoft KEV entries
+          // (SharePoint, Windows CLFS, Office, etc.) because IIS maps to vendors:["microsoft"].
+          if (vendorMatch && productMatch) {
             seen.add(kev.cveID);
             matches.push({
               cveID: kev.cveID,
@@ -324,25 +329,29 @@ export function matchTechnologiesAgainstKev(
               dueDate: kev.dueDate,
               requiredAction: kev.requiredAction,
               knownRansomware: kev.knownRansomwareCampaignUse === "Known",
-              matchType: vendorMatch && productMatch ? "product" : vendorMatch ? "vendor" : "product",
+              matchType: "product",
               matchedOn: tech,
               severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 12 : 8,
               suggestedTechniques: mapKevToTechniques(kev),
+              matchQuality: "exact_product",
             });
           }
         });
       }
     }
 
-    // Also try fuzzy matching directly against vendor/product
+    // Fuzzy matching: only match when the technology name closely matches the KEV PRODUCT
+    // (not just the vendor). This prevents "nginx" from matching all F5 entries, etc.
     catalog.vulnerabilities.forEach(kev => {
       if (seen.has(kev.cveID)) return;
-      const kevVendor = (kev.vendorProject || "").toLowerCase();
       const kevProduct = (kev.product || "").toLowerCase();
 
+      // Only match if the tech name is a close match to the KEV product name
+      // (not the vendor — vendor-only matching is too broad for passive scans)
       if (
-        (techLower.length >= 4 && (kevVendor.includes(techLower) || kevProduct.includes(techLower))) ||
-        (techLower.length >= 4 && (techLower.includes(kevVendor) || techLower.includes(kevProduct)))
+        techLower.length >= 4 &&
+        (kevProduct.includes(techLower) || techLower.includes(kevProduct)) &&
+        kevProduct.length >= 3 // Avoid matching empty or very short product names
       ) {
         seen.add(kev.cveID);
         matches.push({
@@ -359,6 +368,7 @@ export function matchTechnologiesAgainstKev(
           matchedOn: tech,
           severityBoost: kev.knownRansomwareCampaignUse === "Known" ? 10 : 6,
           suggestedTechniques: mapKevToTechniques(kev),
+          matchQuality: "fuzzy",
         });
       }
     });
