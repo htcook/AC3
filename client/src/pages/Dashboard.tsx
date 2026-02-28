@@ -12,9 +12,12 @@ import {
   Briefcase, ShieldCheck
 } from "lucide-react";
 import ZeroDayFeed from "@/components/ZeroDayFeed";
+import DashboardConfigPanel from "@/components/DashboardConfigPanel";
 import { useState, useEffect, useMemo } from "react";
 import AppShell from "@/components/AppShell";
 import { useDashboardEvents } from "@/hooks/useWebSocket";
+import { DashboardWidgetProvider, useDashboardWidgets } from "@/contexts/DashboardWidgetConfig";
+import { Settings2 } from "lucide-react";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const DEFAULT_SERVER = {
@@ -45,7 +48,16 @@ const SECTORS = [
 ];
 
 export default function Dashboard() {
+  return (
+    <DashboardWidgetProvider>
+      <DashboardInner />
+    </DashboardWidgetProvider>
+  );
+}
+
+function DashboardInner() {
   const [, navigate] = useLocation();
+  const { isVisible, getOrderedWidgetIds, openConfig } = useDashboardWidgets();
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const [gophishStatus, setGophishStatus] = useState<'online' | 'offline' | 'checking'>('checking');
 
@@ -375,6 +387,10 @@ export default function Dashboard() {
               <div className={`w-2.5 h-2.5 rounded-full ml-2 ${wsConnected ? 'bg-cyan-500 animate-pulse' : 'bg-gray-500'}`} />
               <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">LIVE</span>
             </div>
+            <Button variant="outline" size="sm" className="font-display tracking-wider text-xs" onClick={openConfig}>
+              <Settings2 className="w-3.5 h-3.5 mr-1" />
+              CUSTOMIZE
+            </Button>
             <Button variant="outline" size="sm" className="font-display tracking-wider text-xs" onClick={refreshAll}>
               <RefreshCw className="w-3.5 h-3.5 mr-1" />
               REFRESH
@@ -384,8 +400,11 @@ export default function Dashboard() {
         <div className="w-full h-1 bg-gradient-to-r from-primary via-cyan-500 to-emerald-500" />
       </header>
 
+      <DashboardConfigPanel />
+
       <div className="p-4 sm:p-6 space-y-6">
 
+        {isVisible('start-engagement') && (<>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* DOMAIN SCAN — Quick scan bar (multi-target, inline execution)    */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -707,7 +726,10 @@ export default function Dashboard() {
             </div>
           </div>
         </section>
+        </>)}
 
+        {isVisible('mission-workflows') && (
+        <>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* MISSION WORKFLOWS — Guided scenario quick-start                 */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -749,7 +771,10 @@ export default function Dashboard() {
             ))}
           </div>
         </section>
+        </>)}
 
+        {isVisible('recent-scans') && (
+        <>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* RECENT SCANS — Quick access to previous results                */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -802,7 +827,10 @@ export default function Dashboard() {
             </div>
           </section>
         )}
+        </>)}
 
+        {isVisible('quick-access') && (
+        <>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* QUICK ACCESS — Most important features                         */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -817,7 +845,10 @@ export default function Dashboard() {
             <QuickAccessCard icon={<BarChart3 />} label="REPORTS" desc="Generate reports" href="/reports/engagement" color="text-purple-400 border-purple-500/30" />
           </div>
         </section>
+        </>)}
 
+        {isVisible('live-stats') && (
+        <>
         <div className="w-full h-0.5 bg-primary/30" />
 
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -835,7 +866,10 @@ export default function Dashboard() {
             <MiniStat value={`${submitRate}%`} label="SUBMIT RATE" color="text-red-400" href="/phishing-ops" />
           </div>
         </section>
+        </>)}
 
+        {isVisible('server-status') && (
+        <>
         <div className="w-full h-0.5 bg-border" />
 
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -887,7 +921,10 @@ export default function Dashboard() {
             </a>
           </div>
         </CollapsibleSection>
+        </>)}
 
+        {isVisible('phishing-metrics') && (
+        <>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* PHISHING METRICS — Collapsible                                  */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -946,7 +983,10 @@ export default function Dashboard() {
             </div>
           )}
         </CollapsibleSection>
+        </>)}
 
+        {isVisible('threat-awareness') && (
+        <>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* THREAT AWARENESS — Collapsible                                 */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -998,7 +1038,10 @@ export default function Dashboard() {
             </Link>
           </div>
         </CollapsibleSection>
+        </>)}
 
+        {isVisible('vuln-feed') && (
+        <>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* 0-DAY VULNERABILITY FEED — Live threat intelligence             */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -1011,7 +1054,10 @@ export default function Dashboard() {
         >
           <ZeroDayFeed />
         </CollapsibleSection>
+        </>)}
 
+        {isVisible('more-tools') && (
+        <>
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* MORE TOOLS — Grid of remaining features                        */}
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -1029,6 +1075,7 @@ export default function Dashboard() {
             <ToolCard icon={<Radio />} label="ICS/OT Security" desc="SCADA/IoT assessment" href="/ics-ot-security" />
           </div>
         </section>
+        </>)}
 
       </div>
     </AppShell>

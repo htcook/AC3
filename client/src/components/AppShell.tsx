@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
+import { useIsEmbedded } from "@/contexts/EmbedContext";
 import {
   Activity,
   Target,
@@ -779,6 +780,7 @@ export default function AppShell({
   headerActions,
   contentClassName = "p-4 sm:p-6 lg:p-8",
 }: AppShellProps) {
+  const isEmbedded = useIsEmbedded();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [location, setLocation] = useLocation();
@@ -923,6 +925,11 @@ export default function AppShell({
     saveState(SIDEBAR_STATE_KEY, newGroupState);
     saveState(SIDEBAR_SUB_STATE_KEY, newSubState);
   }, [allExpanded, currentPath]);
+
+  // When embedded inside HubTabs, skip the shell wrapper entirely
+  if (isEmbedded) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">

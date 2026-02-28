@@ -159,6 +159,29 @@ const DiscoveryChain = lazy(() => import("./pages/DiscoveryChain"));
 const ErrorDashboard = lazy(() => import("./pages/ErrorDashboard"));
 const OemCredentials = lazy(() => import("./pages/OemCredentials"));
 
+// Hub pages (consolidated tab navigation)
+const DiscoveryToolkitHub = lazy(() => import("./pages/DiscoveryToolkitHub"));
+const VulnScanningHub = lazy(() => import("./pages/VulnScanningHub"));
+const ScanManagementHub = lazy(() => import("./pages/ScanManagementHub"));
+const ADSecurityHub = lazy(() => import("./pages/ADSecurityHub"));
+const RiskCenterHub = lazy(() => import("./pages/RiskCenterHub"));
+const AutomationHub = lazy(() => import("./pages/AutomationHub"));
+const DefenseTestingHub = lazy(() => import("./pages/DefenseTestingHub"));
+const C2Hub = lazy(() => import("./pages/C2Hub"));
+const PhishingAssetsHub = lazy(() => import("./pages/PhishingAssetsHub"));
+const CredentialCenterHub = lazy(() => import("./pages/CredentialCenterHub"));
+const DataExportHub = lazy(() => import("./pages/DataExportHub"));
+const KsiHub = lazy(() => import("./pages/KsiHub"));
+const ComplianceHub = lazy(() => import("./pages/ComplianceHub"));
+const ReportsHub = lazy(() => import("./pages/ReportsHub"));
+const GuidesHub = lazy(() => import("./pages/GuidesHub"));
+const IntegrationsHub = lazy(() => import("./pages/IntegrationsHub"));
+const SSILHub = lazy(() => import("./pages/SSILHub"));
+const InfrastructureHub = lazy(() => import("./pages/InfrastructureHub"));
+const TeamHub = lazy(() => import("./pages/TeamHub"));
+const DetectionHub = lazy(() => import("./pages/DetectionHub"));
+
+
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
   return (
@@ -234,7 +257,7 @@ function Router() {
           {(params) => <ProtectedRoute component={() => <AdversaryDetail />} />}
         </Route>
         <Route path="/team">
-          <ProtectedRoute component={Team} />
+          <ProtectedRoute component={TeamHub} />
         </Route>
         <Route path="/activity">
           <ProtectedRoute component={Activity} />
@@ -258,7 +281,7 @@ function Router() {
           {(params) => <ProtectedRoute component={() => <OperationDetail />} />}
         </Route>
         <Route path="/reports/generate">
-          <ProtectedRoute component={ReportGenerator} />
+          <ProtectedRoute component={ReportsHub} />
         </Route>
         <Route path="/phishing-ops">
           <ProtectedRoute component={PhishingOperations} />
@@ -267,7 +290,7 @@ function Router() {
           <Redirect to="/phishing-ops" />
         </Route>
         <Route path="/guide/gophish">
-          <ProtectedRoute component={GoPhishGuide} />
+          <ProtectedRoute component={GuidesHub} />
         </Route>
         <Route path="/guide/caldera">
           <ProtectedRoute component={CalderaGuide} />
@@ -279,7 +302,7 @@ function Router() {
           <Redirect to="/threat-catalog" />
         </Route>
         <Route path="/compliance">
-          <ProtectedRoute component={ComplianceFrameworks} />
+          <ProtectedRoute component={ComplianceHub} />
         </Route>
         <Route path="/infrastructure">
           <Redirect to="/infra-reference" />
@@ -321,7 +344,7 @@ function Router() {
           <ProtectedRoute component={VendorIntegrations} />
         </Route>
         <Route path="/scan-scheduler">
-          <ProtectedRoute component={ScanScheduler} />
+          <ProtectedRoute component={ScanManagementHub} />
         </Route>
         <Route path="/template-generator">
           <ProtectedRoute component={TemplateGenerator} />
@@ -351,7 +374,7 @@ function Router() {
           <ProtectedRoute component={RuleValidator} />
         </Route>
         <Route path="/detection-coverage">
-          <ProtectedRoute component={DetectionCoverage} />
+          <ProtectedRoute component={DetectionHub} />
         </Route>
         <Route path="/kev-catalog">
           <ProtectedRoute component={KevDashboard} />
@@ -417,7 +440,7 @@ function Router() {
           <ProtectedRoute component={EngagementTimeline} />
         </Route>
         <Route path="/stix-export">
-          <ProtectedRoute component={StixExport} />
+          <ProtectedRoute component={DataExportHub} />
         </Route>
         <Route path="/campaign-archetypes">
           <ProtectedRoute component={CampaignArchetypes} />
@@ -426,7 +449,7 @@ function Router() {
           <ProtectedRoute component={PostEngagementReport} />
         </Route>
         <Route path="/landing-page-builder">
-          <ProtectedRoute component={LandingPageBuilder} />
+          <ProtectedRoute component={PhishingAssetsHub} />
         </Route>
         <Route path="/engagements/:id/results">
           {() => <ProtectedRoute component={EngagementResults} />}
@@ -459,7 +482,7 @@ function Router() {
           <ProtectedRoute component={ValidationScheduler} />
         </Route>
         <Route path="/siem-connectors">
-          <ProtectedRoute component={SiemConnectors} />
+          <ProtectedRoute component={IntegrationsHub} />
         </Route>
         <Route path="/webhooks">
           <ProtectedRoute component={Webhooks} />
@@ -468,7 +491,7 @@ function Router() {
           <ProtectedRoute component={BugBountyHub} />
         </Route>
         <Route path="/scoring">
-          <ProtectedRoute component={ScoringHub} />
+          <ProtectedRoute component={RiskCenterHub} />
         </Route>
         <Route path="/bia-report">
           <ProtectedRoute component={BiaReport} />
@@ -481,10 +504,10 @@ function Router() {
           <ProtectedRoute component={IcsOtSecurity} />
         </Route>
         <Route path="/ad-attack-sim">
-          <ProtectedRoute component={ADAttackSim} />
+          <ProtectedRoute component={ADSecurityHub} />
         </Route>
         <Route path="/edr-validation">
-          <ProtectedRoute component={EDRValidation} />
+          <ProtectedRoute component={DefenseTestingHub} />
         </Route>
         <Route path="/compliance-mapper">
           <ProtectedRoute component={ComplianceMapper} />
@@ -493,7 +516,7 @@ function Router() {
           <ProtectedRoute component={APISecurityTesting} />
         </Route>
         <Route path="/cloud-credentials">
-          <ProtectedRoute component={CloudCredentials} />
+          <ProtectedRoute component={CredentialCenterHub} />
         </Route>
         <Route path="/ad-domain-connector">
           <ProtectedRoute component={ADDomainConnector} />
@@ -577,7 +600,7 @@ function Router() {
           <ProtectedRoute component={SliverC2} />
         </Route>
         <Route path="/nuclei-scanner">
-          <ProtectedRoute component={NucleiScanner} />
+          <ProtectedRoute component={VulnScanningHub} />
         </Route>
         <Route path="/attack-coverage">
           <ProtectedRoute component={AttackCoverage} />
@@ -589,7 +612,7 @@ function Router() {
           <ProtectedRoute component={RoeBuilder} />
         </Route>
         <Route path="/ksi-dashboard">
-          <ProtectedRoute component={KsiDashboard} />
+          <ProtectedRoute component={KsiHub} />
         </Route>
         <Route path="/ksi-evidence-chain">
           <ProtectedRoute component={KsiEvidenceChain} />
@@ -616,7 +639,7 @@ function Router() {
           <ProtectedRoute component={ScheduledCollection} />
         </Route>
         <Route path="/engagement-automation">
-          <ProtectedRoute component={EngagementAutomation} />
+          <ProtectedRoute component={AutomationHub} />
         </Route>
         <Route path="/threat-enrichment">
           <ProtectedRoute component={ThreatEnrichment} />
@@ -625,7 +648,7 @@ function Router() {
           <ProtectedRoute component={InfraWiki} />
         </Route>
         <Route path="/live-infra">
-          <ProtectedRoute component={LiveInfra} />
+          <ProtectedRoute component={InfrastructureHub} />
         </Route>
         <Route path="/agent-manager">
           <ProtectedRoute component={AgentManagerPage} />
@@ -634,7 +657,7 @@ function Router() {
           <ProtectedRoute component={FIPSCompliance} />
         </Route>
         <Route path="/ssil">
-          <ProtectedRoute component={SSILDashboard} />
+          <ProtectedRoute component={SSILHub} />
         </Route>
         <Route path="/ssil/policies">
           <ProtectedRoute component={SSILPolicies} />
@@ -655,7 +678,7 @@ function Router() {
           <ProtectedRoute component={SSILRiskCardDetail} />
         </Route>
         <Route path="/tools/subfinder">
-          <ProtectedRoute component={SubfinderPage} />
+          <ProtectedRoute component={DiscoveryToolkitHub} />
         </Route>
         <Route path="/tools/httpx">
           <ProtectedRoute component={HttpxPage} />
@@ -673,7 +696,7 @@ function Router() {
           <ProtectedRoute component={GraphComparePage} />
         </Route>
         <Route path="/c2-command-center">
-          <ProtectedRoute component={C2CommandCenter} />
+          <ProtectedRoute component={C2Hub} />
         </Route>
         <Route path="/threat-actor-crawler">
           <ProtectedRoute component={ThreatActorCrawler} />

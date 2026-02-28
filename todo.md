@@ -5542,3 +5542,66 @@
 - [x] Reduced sub-sections from 22 to 14 for cleaner navigation
 - [x] Delivered consolidation analysis report
 - [x] 17 vitest tests for sidebar structure — all passing
+
+## Tab Navigation for Hub Pages
+- [x] Created reusable HubTabs component with EmbedContext for AppShell-stripping
+- [x] Modified AppShell to detect embedded mode and render children-only
+- [x] Discovery Toolkit (/tools/subfinder) — tabs for Subfinder, HTTPX, Naabu
+- [x] Vuln Scanning (/nuclei-scanner) — tabs for Nuclei Scanner, Vuln Scanner
+- [x] Scan Management (/scan-scheduler) — tabs for Scan Scheduler, Scan Compare, Scan History
+- [x] AD Security (/ad-attack-sim) — tabs for AD Attack Sim, AD Connector, Path Graph, Forest Mapper, BloodHound, Path Discovery
+- [x] Risk Center (/scoring) — tabs for Risk Scoring, Risk Trending, Corroboration, NVD CVE, Unified Pipeline
+- [x] Automation Hub (/engagement-automation) — tabs for Engagement Automation, Campaign Exec, Auto Pipeline
+- [x] Defense Testing (/edr-validation) — tabs for EDR, Agentless BAS, NGFW, Email Security, AI Security, Rule Validator, Active Verification, Remediation
+- [x] C2 Hub (/c2-command-center) — tabs for C2 Command Center, C2 Servers, Sliver C2
+- [x] Phishing Assets (/landing-page-builder) — tabs for Page Builder, Template Generator
+- [x] Credential Center (/cloud-credentials) — tabs for Cloud Credentials, Credential Alerts, Auto-Rotation
+- [x] Data Export (/stix-export) — tabs for STIX/TAXII Export, OSCAL Export
+- [x] KSI Dashboard (/ksi-dashboard) — tabs for Indicators, Evidence Chain, Auto-Collection, Threat Map, Validation, Attack Vectors, Compensating Controls, Scheduled Collection
+- [x] Compliance Center (/compliance) — tabs for Compliance, Compliance Mapper, FIPS, Config Baseline
+- [x] Reports (/reports/generate) — tabs for Report Generator, Engagement Report, BIA Report, Report Templates
+- [x] Guides (/guide/gophish) — tabs for Phishing Ops Guide, Emulation Guide, Template Library, Archetypes, Abilities
+- [x] Integrations (/siem-connectors) — tabs for SIEM Connectors, SIEM Feedback, SOAR Connectors, Webhooks, CI/CD Pipeline
+- [x] SSIL (/ssil) — tabs for SSIL Dashboard, Scan Policies, LLM Guardrails, Observations, Alert Rules, Correlation
+- [x] Infrastructure (/live-infra) — tabs for Live Infrastructure, Evidence Locker, Infra Reference, Infra Wiki
+- [x] Team (/team) — tabs for Team, Tenants, Activity
+- [x] All 20 hub pages generated and wired into App.tsx routes
+
+## Customizable Dashboard Widgets
+- [x] Created DashboardWidgetConfig context with 10 configurable widgets
+- [x] Created DashboardConfigPanel modal with pin/unpin, show/hide, reorder controls
+- [x] Added isVisible() checks to all 10 dashboard sections
+- [x] Added "Customize" button to dashboard header
+- [x] Persist widget layout in localStorage across sessions
+- [x] Added reset to default layout option
+- [x] Start Engagement pinned by default, all visible by default
+
+## Test Database Isolation
+- [x] Created server/test-setup.ts with global afterAll cleanup hooks
+- [x] Added setupFiles to vitest.config.ts
+- [x] Cleanup sweeps for __test_ prefix and legacy patterns (test-, get-test-, trpc-, etc.)
+- [x] trackCreated() helper for explicit ID-based cleanup
+- [x] Non-fatal cleanup — unit tests that don't use DB skip silently
+- [x] 21 vitest tests for widgets, hub tabs, and test isolation — all passing
+- [ ] Verify tests no longer write to production database
+
+## Platform Re-Review
+- [ ] Read attached competitive analysis PDF and extract evaluation criteria
+- [ ] Re-perform platform review against current state using same criteria
+- [ ] Deliver updated review report
+
+## Hybrid Scoring Enhancement with Baseline Data
+- [ ] Extract and review AceC3_Industry_Asset_Baseline_Package.zip
+- [ ] Extract and review AceC3_Hybrid_CARVER_SHOCK_Package.zip
+- [ ] Analyze current hybrid scoring engine and identify gaps
+- [ ] Integrate baseline IT asset ratings into scoring
+- [ ] Integrate organizational asset ratings into scoring
+- [ ] Enhance CARVER/SHOCK scoring accuracy with baseline data
+- [ ] Add OSINT and discovery data gathering recommendations
+- [ ] Add BIA data integration for accurate scoring
+- [ ] Write vitest tests for enhanced scoring
+
+## Threat Intelligence Hub Sorting
+- [ ] Ensure CISA KEV vulnerabilities are sorted by most recent date first
+- [ ] Ensure all other reported items (IOCs, threat actors, etc.) are sorted by most recent
+- [ ] Verify sorting across all tabs/feeds in the Threat Intel Hub page

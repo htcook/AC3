@@ -15,6 +15,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    setupFiles: ["server/test-setup.ts"],
     testTimeout: 30000,
     coverage: {
       provider: "v8",
