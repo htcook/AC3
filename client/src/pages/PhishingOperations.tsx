@@ -24,6 +24,7 @@ import {
 import { GoPhishManagerContent } from "./GoPhish";
 import TyposquatManagerComponent from "@/components/TyposquatManager";
 import ROEWarningBanner from "@/components/ROEWarningBanner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // ─── Priority badge colors ───
@@ -1591,6 +1592,9 @@ export default function PhishingOperations() {
           <TabsTrigger value="typosquat" className="flex items-center gap-1.5">
             <Globe className="w-3.5 h-3.5" /> Typosquat Domains
           </TabsTrigger>
+          <TabsTrigger value="crawl-phish" className="flex items-center gap-1.5">
+            <Brain className="w-3.5 h-3.5" /> Crawl-to-Phish
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="intel-feed">
@@ -1611,8 +1615,370 @@ export default function PhishingOperations() {
         <TabsContent value="typosquat">
           <TyposquatManagerComponent />
         </TabsContent>
+        <TabsContent value="crawl-phish">
+          <CrawlToPhishGallery />
+        </TabsContent>
       </Tabs>
     </div>
     </AppShell>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Crawl-to-Phish Gallery — browse, preview, and deploy templates generated
+   from web crawl data (login portal clones + supply chain emails)
+   ═══════════════════════════════════════════════════════════════════════════ */
+function CrawlToPhishGallery() {
+  const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [previewType, setPreviewType] = useState<"email" | "landing">("email");
+  const [deployEngagementId, setDeployEngagementId] = useState<number | null>(null);
+  const [filterType, setFilterType] = useState<string>("all");
+
+  // Get completed scans that have web crawl data
+  const scansQuery = trpc.domainIntel.listScans.useQuery();
+  const completedScans = useMemo(() => {
+    return (scansQuery.data || []).filter((s: any) =>
+      s.status === "scan_complete" || s.status === "completed" || s.status === "refreshing"
+    );
+  }, [scansQuery.data]);
+
+  // Generate templates from selected scan
+  const generateMutation = trpc.crawlPhish.generateFromScan.useMutation({
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success(data.message);
+      } else {
+        toast.error(data.message);
+      }
+    },
+    onError: (err) => toast.error(`Generation failed: ${sanitizeErrorForToast(err)}`),
+  });
+
+  // Deploy to GoPhish
+  const deployMutation = trpc.crawlPhish.deployToGophish.useMutation({
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success(data.message);
+      } else {
+        toast.error(data.message);
+      }
+    },
+    onError: (err) => toast.error(`Deploy failed: ${sanitizeErrorForToast(err)}`),
+  });
+
+  // Detect vendors for selected scan
+  const vendorsQuery = trpc.crawlPhish.detectVendors.useQuery(
+    { scanId: selectedScanId! },
+    { enabled: !!selectedScanId }
+  );
+
+  // Get engagements for deploy dropdown
+  const engagementsQuery = trpc.engagements.list.useQuery();
+  const activeEngagements = useMemo(() => {
+    return (engagementsQuery.data || []).filter((e: any) =>
+      e.status === "active" || e.status === "planning"
+    );
+  }, [engagementsQuery.data]);
+
+  const templates = generateMutation.data?.templates || [];
+  const vendors = vendorsQuery.data?.vendors || [];
+  const branding = generateMutation.data?.branding || vendorsQuery.data?.branding;
+
+  const filteredTemplates = useMemo(() => {
+    if (filterType === "all") return templates;
+    if (filterType === "login-clone") return templates.filter((t: any) => t.type === "login_clone");
+    if (filterType === "supply-chain") return templates.filter((t: any) => t.type === "supply_chain");
+    if (filterType === "vendor") return templates.filter((t: any) => t.type === "vendor_matched");
+    return templates;
+  }, [templates, filterType]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            Crawl-to-Phish Template Gallery
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Generate GoPhish-ready phishing templates from web crawl data. Login portal clones, supply chain emails, and vendor-matched campaigns — all RoE-gated.
+          </p>
+        </div>
+      </div>
+
+      {/* Scan Selector */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Search className="h-4 w-4" /> Select a Completed Scan
+          </CardTitle>
+          <CardDescription>Choose a domain scan with web crawl data to generate phishing templates from.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Select
+              value={selectedScanId?.toString() || ""}
+              onValueChange={(v) => setSelectedScanId(Number(v))}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Select a scan..." />
+              </SelectTrigger>
+              <SelectContent>
+                {completedScans.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id.toString()}>
+                    {s.domain} — {s.status} ({new Date(s.createdAt).toLocaleDateString()})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={() => selectedScanId && generateMutation.mutate({ scanId: selectedScanId })}
+              disabled={!selectedScanId || generateMutation.isPending}
+            >
+              {generateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Zap className="h-4 w-4 mr-2" />}
+              Generate Templates
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Vendor Detection Summary */}
+      {vendors.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Layers className="h-4 w-4 text-purple-400" /> Detected Vendors & Supply Chain
+            </CardTitle>
+            <CardDescription>Third-party services detected from crawled pages — potential supply chain phishing vectors.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {vendors.map((v: any, i: number) => (
+                <Badge key={i} variant="outline" className="text-xs px-2 py-1">
+                  <span className="font-medium">{v.vendor}</span>
+                  <span className="text-muted-foreground ml-1">({v.category})</span>
+                  <span className={`ml-1 ${v.confidence >= 80 ? 'text-emerald-400' : v.confidence >= 50 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
+                    {v.confidence}%
+                  </span>
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Branding Summary */}
+      {branding && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Eye className="h-4 w-4 text-blue-400" /> Extracted Branding
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              {branding.orgName && <div><span className="text-muted-foreground">Organization:</span> <span className="font-medium">{branding.orgName}</span></div>}
+              {branding.primaryColor && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Primary Color:</span>
+                  <div className="w-4 h-4 rounded border" style={{ backgroundColor: branding.primaryColor }} />
+                  <code className="text-xs">{branding.primaryColor}</code>
+                </div>
+              )}
+              {branding.logoUrl && <div><span className="text-muted-foreground">Logo:</span> <a href={branding.logoUrl} target="_blank" rel="noopener" className="text-primary underline text-xs">View</a></div>}
+              {branding.fontFamily && <div><span className="text-muted-foreground">Font:</span> {branding.fontFamily}</div>}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Template Filter */}
+      {templates.length > 0 && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">Filter:</span>
+          {[
+            { value: "all", label: "All Templates", count: templates.length },
+            { value: "login-clone", label: "Login Clones", count: templates.filter((t: any) => t.type === "login_clone").length },
+            { value: "supply-chain", label: "Supply Chain", count: templates.filter((t: any) => t.type === "supply_chain").length },
+            { value: "vendor", label: "Vendor Matched", count: templates.filter((t: any) => t.type === "vendor_matched").length },
+          ].filter(f => f.count > 0).map(f => (
+            <Button
+              key={f.value}
+              variant={filterType === f.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterType(f.value)}
+            >
+              {f.label} ({f.count})
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Template Gallery Grid */}
+      {filteredTemplates.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTemplates.map((t: any, i: number) => (
+            <Card key={i} className="overflow-hidden hover:border-primary/40 transition-colors">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-sm truncate">{t.name}</CardTitle>
+                    <CardDescription className="text-xs mt-1 line-clamp-2">{t.subject || t.description}</CardDescription>
+                  </div>
+                  <Badge variant="outline" className={`text-xs flex-shrink-0 ml-2 ${
+                    t.type === "login_clone" ? "text-red-400 border-red-500/40" :
+                    t.type === "supply_chain" ? "text-purple-400 border-purple-500/40" :
+                    "text-blue-400 border-blue-500/40"
+                  }`}>
+                    {t.type === "login_clone" ? "Login Clone" : t.type === "supply_chain" ? "Supply Chain" : "Vendor"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Template metadata */}
+                <div className="flex flex-wrap gap-1">
+                  {t.vendor && <Badge variant="secondary" className="text-xs">{t.vendor}</Badge>}
+                  {t.hasPasswordField && <Badge className="bg-red-500/20 text-red-400 text-xs">Credential Capture</Badge>}
+                  {t.hasGoPhishTracking && <Badge className="bg-emerald-500/20 text-emerald-400 text-xs">GoPhish Ready</Badge>}
+                </div>
+
+                {/* Preview buttons */}
+                <div className="flex items-center gap-2">
+                  {t.emailHtml && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => { setPreviewTemplate(t); setPreviewType("email"); }}
+                    >
+                      <Mail className="h-3 w-3 mr-1" /> Email
+                    </Button>
+                  )}
+                  {t.landingPageHtml && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => { setPreviewTemplate(t); setPreviewType("landing"); }}
+                    >
+                      <Globe className="h-3 w-3 mr-1" /> Landing Page
+                    </Button>
+                  )}
+                </div>
+
+                {/* Deploy button */}
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={deployEngagementId?.toString() || ""}
+                    onValueChange={(v) => setDeployEngagementId(Number(v))}
+                  >
+                    <SelectTrigger className="flex-1 h-8 text-xs">
+                      <SelectValue placeholder="Select engagement..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeEngagements.map((e: any) => (
+                        <SelectItem key={e.id} value={e.id.toString()}>
+                          {e.name || e.domain}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    disabled={!deployEngagementId || deployMutation.isPending}
+                    onClick={() => {
+                      if (!deployEngagementId) return;
+                      deployMutation.mutate({
+                        engagementId: deployEngagementId,
+                        template: {
+                          name: t.name,
+                          subject: t.subject || `${t.name} — Phishing Template`,
+                          emailHtml: t.emailHtml || "",
+                          landingPageHtml: t.landingPageHtml || "",
+                        },
+                      });
+                    }}
+                  >
+                    {deployMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Rocket className="h-3 w-3 mr-1" />}
+                    Deploy
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : generateMutation.data && !generateMutation.isPending ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground">No templates generated. The scan may not have crawl data with login forms or vendor dependencies.</p>
+          </CardContent>
+        </Card>
+      ) : !selectedScanId ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Brain className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground">Select a completed scan and click "Generate Templates" to create phishing assets from web crawl data.</p>
+            <p className="text-xs text-muted-foreground/60 mt-2">Templates are generated from login forms, vendor dependencies, and branding extracted during auto-crawl.</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Template Preview Modal */}
+      {previewTemplate && (
+        <Dialog open={!!previewTemplate} onOpenChange={() => setPreviewTemplate(null)}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {previewType === "email" ? <Mail className="h-5 w-5" /> : <Globe className="h-5 w-5" />}
+                {previewTemplate.name} — {previewType === "email" ? "Email Template" : "Landing Page"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center gap-2 mb-3">
+              <Button
+                variant={previewType === "email" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPreviewType("email")}
+                disabled={!previewTemplate.emailHtml}
+              >
+                <Mail className="h-3 w-3 mr-1" /> Email
+              </Button>
+              <Button
+                variant={previewType === "landing" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPreviewType("landing")}
+                disabled={!previewTemplate.landingPageHtml}
+              >
+                <Globe className="h-3 w-3 mr-1" /> Landing Page
+              </Button>
+              <div className="flex-1" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const html = previewType === "email" ? previewTemplate.emailHtml : previewTemplate.landingPageHtml;
+                  navigator.clipboard.writeText(html || "");
+                  toast.success("HTML copied to clipboard");
+                }}
+              >
+                <Copy className="h-3 w-3 mr-1" /> Copy HTML
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto border rounded bg-white">
+              <iframe
+                srcDoc={previewType === "email" ? previewTemplate.emailHtml : previewTemplate.landingPageHtml}
+                className="w-full h-full min-h-[500px]"
+                sandbox="allow-same-origin"
+                title="Template Preview"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
   );
 }

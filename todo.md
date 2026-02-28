@@ -5586,9 +5586,10 @@
 - [ ] Verify tests no longer write to production database
 
 ## Platform Re-Review
-- [ ] Read attached competitive analysis PDF and extract evaluation criteria
-- [ ] Re-perform platform review against current state using same criteria
-- [ ] Deliver updated review report
+- [x] Read attached competitive analysis PDF and extract evaluation criteria
+- [x] Re-perform competitive analysis with updated platform metrics and market intel
+- [x] Re-perform platform review against current state using same criteria
+- [x] Deliver updated review report (Ace-C3-Platform-Review-Updated-Feb28-2026.md)
 
 ## Hybrid Scoring Enhancement with Baseline Data
 - [ ] Extract and review AceC3_Industry_Asset_Baseline_Package.zip
@@ -5753,3 +5754,27 @@
 - [x] Add Refresh Scan button to completed scan results page UI
 - [x] Show refresh status/progress indicator
 - [x] Write tests for refresh scan endpoint
+
+## Web Crawl Results Tab
+- [x] Add "Web Crawl" tab to DomainIntelResults Tabs component
+- [x] Display security headers from crawl data
+- [x] Display detected technologies/frameworks
+- [x] Display discovered forms (login forms, search, etc.)
+- [x] Display cookies and tracking info
+- [x] Display external scripts and resources
+- [x] Display exposed paths and endpoints
+
+## Phishing Template Gallery UI
+- [x] Create PhishingTemplateGallery page/component in GoPhish section
+- [x] Add server endpoint to list generated templates from crawl data
+- [x] Template preview with HTML rendering
+- [x] Deploy-to-GoPhish action button
+- [x] Filter by template type (login clone, supply chain, vendor-matched)
+- [x] Register route in App.tsx and sidebar nav (added as tab in PhishingOperations)
+
+## Entity Profile Display on Scan Results
+- [x] Add entity profile card to scan results header area
+- [x] Show resolved org name, industry, sector
+- [x] Show company valuation and revenue data
+- [x] Show BIA impact tiers (financial, operational, reputational)
+- [x] Show confidence score and signal sources
