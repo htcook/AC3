@@ -338,14 +338,14 @@ export default function DarkwebIntel() {
                     const evtColor = EVENT_TYPE_COLORS[evt.eventType] || "text-gray-400 bg-gray-500/10";
                     const actorColor = ACTOR_TYPE_COLORS[evt.actorType || ""] || "text-muted-foreground";
                     return (
-                      <div key={evt.id} className="bg-card border border-border p-3 hover:bg-accent/5 transition-colors">
+                      <div key={evt.id} className="bg-card border border-border p-3 hover:bg-accent/5 transition-colors cursor-pointer hover:border-amber-500/40" onClick={() => { if (evt.id) { setSelectedAlertId(evt.id); setAlertModalOpen(true); } }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' && evt.id) { setSelectedAlertId(evt.id); setAlertModalOpen(true); } }}>
                         <div className="flex items-start justify-between mb-1.5">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-[10px] px-2 py-0.5 ${evtColor} tracking-wider`}>
                               {safeUpper(evt.eventType?.replace(/_/g, " "))}
                             </span>
                             {evt.actorName && (
-                              <Link href={`/threat-catalog/${evt.actorId}`} className={`text-[10px] ${actorColor} hover:underline`}>
+                              <Link href={`/threat-catalog/${evt.actorId}`} className={`text-[10px] ${actorColor} hover:underline`} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                                 {evt.actorName}
                               </Link>
                             )}
@@ -361,6 +361,7 @@ export default function DarkwebIntel() {
                           {evt.mitreTechniques?.length > 0 && <span className="text-primary">{evt.mitreTechniques.length} TTPs</span>}
                           {evt.iocs?.length > 0 && <span className="text-red-400">{evt.iocs.length} IOCs</span>}
                           {evt.source && <span className="ml-auto">{evt.source}</span>}
+                          <ChevronRight className="w-3 h-3 ml-auto text-amber-500/60" />
                         </div>
                       </div>
                     );
@@ -378,23 +379,46 @@ export default function DarkwebIntel() {
                 </h2>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                   {recentVictimEvents.data.slice(0, 25).map((evt: any, i: number) => (
-                    <div key={i} className="bg-card border border-border p-3 hover:bg-accent/5 transition-colors">
+                    <div
+                      key={evt.id || i}
+                      className="bg-card border border-border p-3 hover:bg-accent/5 transition-colors cursor-pointer hover:border-amber-500/40"
+                      onClick={() => { if (evt.id) { setSelectedAlertId(evt.id); setAlertModalOpen(true); } }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === "Enter" && evt.id) { setSelectedAlertId(evt.id); setAlertModalOpen(true); } }}
+                    >
                       <div className="flex items-start justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] px-2 py-0.5 text-amber-400 bg-amber-500/10 tracking-wider">RANSOMWARE</span>
-                          {evt.groupName && <span className="text-[10px] text-red-400 font-display">{evt.groupName}</span>}
+                          {evt.actorName && <span className="text-[10px] text-red-400 font-display">{evt.actorName}</span>}
                         </div>
-                        <span className="text-[10px] text-muted-foreground">{evt.publishedDate ? new Date(evt.publishedDate).toLocaleDateString() : "—"}</span>
+                        <div className="flex items-center gap-2">
+                          {evt.severity && (
+                            <span className={`text-[9px] px-1.5 py-0.5 tracking-wider border ${SEVERITY_COLORS[evt.severity] || "text-gray-400 bg-gray-500/10 border-gray-500/30"}`}>
+                              {(evt.severity || "").toUpperCase()}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">{evt.eventDate ? new Date(evt.eventDate).toLocaleDateString() : "—"}</span>
+                        </div>
                       </div>
                       <h4 className="text-xs font-display tracking-wider mb-0.5">{evt.victimName || evt.title || "Unknown Victim"}</h4>
+                      {evt.description && (
+                        <p className="text-[10px] text-muted-foreground mb-1 line-clamp-2">{evt.description}</p>
+                      )}
                       <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                        {evt.country && <span className="flex items-center gap-1"><Globe2 className="w-3 h-3" />{evt.country}</span>}
-                        {evt.sector && <span>{evt.sector}</span>}
-                        {evt.website && (
-                          <a href={evt.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                            <ExternalLink className="w-3 h-3" /> Site
-                          </a>
+                        {evt.victimCountry && <span className="flex items-center gap-1"><Globe2 className="w-3 h-3" />{evt.victimCountry}</span>}
+                        {evt.victimSector && <span>{evt.victimSector}</span>}
+                        {evt.source && <span className="text-primary/60">{evt.source}</span>}
+                        {evt.sourceUrl && (
+                          <span
+                            className="text-primary/40 flex items-center gap-1 cursor-default"
+                            title={evt.sourceUrl}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="w-3 h-3" /> Source
+                          </span>
                         )}
+                        <ChevronRight className="w-3 h-3 ml-auto text-amber-500/60" />
                       </div>
                     </div>
                   ))}

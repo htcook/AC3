@@ -1,0 +1,16 @@
+{
+  "query": "SELECT actorId, name, tools, malware FROM threat_actors WHERE actorId = 'nightspire' OR name LIKE '%nightspire%' OR name LIKE '%Nightspire%' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT actorId, name, tools, malware FROM threat_actors WHERE actorId = 'nightspire' OR name LIKE '%nightspire%' OR name LIKE '%Nightspire%' LIMIT 1;",
+  "rows": [
+    {
+      "actorId": "nightspire",
+      "name": "Nightspire",
+      "tools": "\"[{\\\"CredentialTheft\\\":[],\\\"DefenseEvasion\\\":[],\\\"DiscoveryEnum\\\":[\\\"Everything.exe\\\"],\\\"Exfiltration\\\":[\\\"MEGA\\\",\\\"WinSCP\\\"],\\\"LOLBAS\\\":[],\\\"Networking\\\":[],\\\"Offsec\\\":[],\\\"RMM-Tools\\\":[]}]\"",
+      "malware": "\"[]\""
+    }
+  ],
+  "messages": [],
+  "stdout": "actorId\tname\ttools\tmalware\nnightspire\tNightspire\t\"[{\\\"CredentialTheft\\\":[],\\\"DefenseEvasion\\\":[],\\\"DiscoveryEnum\\\":[\\\"Everything.exe\\\"],\\\"Exfiltration\\\":[\\\"MEGA\\\",\\\"WinSCP\\\"],\\\"LOLBAS\\\":[],\\\"Networking\\\":[],\\\"Offsec\\\":[],\\\"RMM-Tools\\\":[]}]\"\t\"[]\"\n",
+  "stderr": "",
+  "execution_time_ms": 373
+}

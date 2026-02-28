@@ -129,12 +129,59 @@ export default function ThreatActorCatalogDetail() {
   const iocs = rawIocs || [];
   const typeConf = TYPE_CONFIG[actor.type || "unknown"] || TYPE_CONFIG.unknown;
   const TypeIcon = typeConf.icon;
-  const aliases: string[] = Array.isArray(actor.aliases) ? actor.aliases : [];
-  const sectors: string[] = Array.isArray(actor.targetSectors) ? actor.targetSectors : [];
-  const regions: string[] = Array.isArray(actor.targetRegions) ? actor.targetRegions : [];
+  // ─── Safe array flattening helpers ──────────────────────────────────
+  // Some actors have tools stored as [{CredentialTheft: [...], Exfiltration: [...]}]
+  // instead of flat ["tool1", "tool2"]. Flatten any nested objects into string arrays.
+  function flattenToStrings(raw: unknown): string[] {
+    if (!raw) return [];
+    if (!Array.isArray(raw)) {
+      if (typeof raw === 'object') {
+        // Object like {CredentialTheft: [...], Exfiltration: [...]}
+        const result: string[] = [];
+        for (const [category, values] of Object.entries(raw as Record<string, unknown>)) {
+          if (Array.isArray(values)) {
+            values.forEach((v: unknown) => {
+              if (typeof v === 'string' && v.trim()) result.push(v);
+            });
+          }
+          // Also include the category name if it has tools
+          if (Array.isArray(values) && values.length > 0) {
+            // Category has tools, they're already added
+          }
+        }
+        return result.length > 0 ? result : Object.keys(raw as Record<string, unknown>);
+      }
+      return [];
+    }
+    // It's an array — but elements might be objects or strings
+    const result: string[] = [];
+    for (const item of raw) {
+      if (typeof item === 'string') {
+        if (item.trim()) result.push(item);
+      } else if (typeof item === 'object' && item !== null) {
+        // Nested object inside array — flatten its values
+        for (const [category, values] of Object.entries(item as Record<string, unknown>)) {
+          if (Array.isArray(values)) {
+            values.forEach((v: unknown) => {
+              if (typeof v === 'string' && v.trim()) result.push(v);
+            });
+          }
+        }
+        // If no string values found, use the category keys
+        if (result.length === 0) {
+          Object.keys(item as Record<string, unknown>).forEach(k => result.push(k));
+        }
+      }
+    }
+    return result;
+  }
+
+  const aliases: string[] = Array.isArray(actor.aliases) ? actor.aliases.filter((a: unknown) => typeof a === 'string') : [];
+  const sectors: string[] = Array.isArray(actor.targetSectors) ? actor.targetSectors.filter((s: unknown) => typeof s === 'string') : [];
+  const regions: string[] = Array.isArray(actor.targetRegions) ? actor.targetRegions.filter((r: unknown) => typeof r === 'string') : [];
   const techniques: any[] = Array.isArray(actor.techniques) ? actor.techniques : [];
-  const tools: string[] = Array.isArray(actor.tools) ? actor.tools : [];
-  const malware: string[] = Array.isArray(actor.malware) ? actor.malware : [];
+  const tools: string[] = flattenToStrings(actor.tools);
+  const malware: string[] = flattenToStrings(actor.malware);
   const timeline: any[] = Array.isArray(actor.activityTimeline) ? actor.activityTimeline : [];
   const threatLevelClass = THREAT_LEVEL_COLORS[actor.threatLevel || "medium"] || THREAT_LEVEL_COLORS.medium;
 
@@ -194,7 +241,7 @@ export default function ThreatActorCatalogDetail() {
               </div>
             )}
             {actor.description && (
-              <p className="text-sm text-muted-foreground max-w-3xl leading-relaxed">{actor.description}</p>
+              <p className="text-sm text-muted-foreground max-w-3xl leading-relaxed">{typeof actor.description === 'string' ? actor.description : JSON.stringify(actor.description)}</p>
             )}
           </div>
 
@@ -436,10 +483,10 @@ export default function ThreatActorCatalogDetail() {
                   <div className="col-span-3">DESCRIPTION</div>
                 </div>
                 {techniques.map((t: any, i: number) => {
-                  const techId = typeof t === "string" ? t : t.id;
-                  const techName = typeof t === "string" ? t : t.name || t.id;
-                  const tactic = typeof t === "string" ? "—" : t.tactic || "—";
-                  const desc = typeof t === "string" ? "" : t.description || "";
+                  const techId = typeof t === "string" ? t : String(t?.id ?? "—");
+                  const techName = typeof t === "string" ? t : String(t?.name || t?.id || "—");
+                  const tactic = typeof t === "string" ? "—" : String(t?.tactic || "—");
+                  const desc = typeof t === "string" ? "" : String(t?.description || "");
                   return (
                     <div key={i} className="grid grid-cols-12 gap-4 px-4 py-2.5 text-xs hover:bg-accent/5 transition-colors">
                       <div className="col-span-2 font-mono text-primary">{techId}</div>

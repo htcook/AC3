@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, tgeVictimName, tgeSource, tgeSourceUrl FROM threat_group_events WHERE tgeVictimName LIKE '%Schmuck%' LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, tgeVictimName, tgeSource, tgeSourceUrl FROM threat_group_events WHERE tgeVictimName LIKE '%Schmuck%' LIMIT 3;",
+  "rows": [
+    {
+      "id": "510044",
+      "tgeVictimName": "Schmuck Welt",
+      "tgeSource": "ransomware.live",
+      "tgeSourceUrl": "http://ijzn3sicrcy7guixkzjkib4ukbiilwc3xhnmby4mcbccnsd7j2rekvqd.onion/site/view?uuid=c88da50f-7c8e-39ca-93dc-0ba0b19bf65b"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttgeVictimName\ttgeSource\ttgeSourceUrl\n510044\tSchmuck Welt\transomware.live\thttp://ijzn3sicrcy7guixkzjkib4ukbiilwc3xhnmby4mcbccnsd7j2rekvqd.onion/site/view?uuid=c88da50f-7c8e-39ca-93dc-0ba0b19bf65b\n",
+  "stderr": "",
+  "execution_time_ms": 371
+}

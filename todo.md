@@ -5872,3 +5872,30 @@
 - [x] Added pagination support (page_token for multi-page results)
 - [x] Added certificate name extraction from svc.cert.parsed
 - [x] All 5 Censys API tests passing (auth, search, host lookup, connector integration)
+
+## Recent Scans Showing 0 (Published Site Bug)
+- [x] Diagnosed: published site backend returning 503 (server down), frontend loads but can't fetch data
+- [x] Dev server verified working: 163 scans returned, 138 completed, scan cards render with risk scores
+- [x] Root cause: published site needs republish to restart backend with latest code
+- [ ] User needs to click Publish in Management UI to deploy latest checkpoint
+
+## Code Audit & Cleanup
+- [x] Audited for temporary .mjs scripts — found 21 temp scripts and 38 analysis .md files
+- [x] Checked temp scripts for important logic — bulk retry logic committed as bulkRetryStuckScans endpoint
+- [x] Cleaned up all temp files from project root (22 scripts + 38 docs removed)
+- [x] Verified server starts cleanly without errors
+- [x] Build succeeds (production bundle compiles cleanly)
+- [x] All 25 tests passing (20 domainIntel + 5 Censys)
+- [x] Added bulkRetryStuckScans tRPC endpoint for UI-triggered bulk retries
+- [ ] Save clean checkpoint ready for deployment
+
+## Ransomware Victim Notification Click-Throughs
+- [x] Audit current ransomware victim notification UI and data structure
+- [x] Add click-through detail view for each ransomware victim notification
+- [x] Show full victim details (company, sector, attacker group, date, description)
+- [x] Test click-through functionality
+- [x] Fix Threat Event Feed cards to open AlertDetailModal on click
+- [x] Fix .onion source URLs in Ransomware Victim Events to not navigate away
+- [x] Fix ThreatActorCatalogDetail rendering error with nested object tools/malware
+- [x] Add stopPropagation on actor name links in Threat Event Feed to preserve navigation
+- [x] Add ChevronRight indicator on all clickable event cards

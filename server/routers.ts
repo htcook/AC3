@@ -5091,6 +5091,158 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         return { scanId: input.scanId, message: 'Scan retry started' };
       }),
 
+    // Bulk retry all failed or stuck scans
+    bulkRetryStuckScans: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const allScans = await db.getDomainIntelScans();
+        const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
+        const now = Date.now();
+
+        const retryable = allScans.filter((s: any) => {
+          if (s.status === 'failed') return true;
+          const inProgressStatuses = ['pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending'];
+          if (inProgressStatuses.includes(s.status) && s.updatedAt) {
+            return (now - new Date(s.updatedAt).getTime()) > STUCK_THRESHOLD_MS;
+          }
+          return false;
+        });
+
+        if (retryable.length === 0) {
+          return { retriedCount: 0, message: 'No failed or stuck scans found' };
+        }
+
+        // Trigger retry for each scan with staggered starts
+        let queued = 0;
+        for (const scan of retryable) {
+          const scanId = scan.id;
+          const delay = queued * 3000; // 3s stagger
+          setTimeout(async () => {
+            try {
+              await db.deleteDiscoveredAssetsByScan(scanId).catch(() => {});
+              await db.updateDomainIntelScan(scanId, {
+                status: 'discovering',
+                totalAssets: 0,
+                totalFindings: 0,
+                confirmedFindings: 0,
+                probableFindings: 0,
+                potentialFindings: 0,
+                discoveryCoverageScore: 0,
+                discoveryCoverageBand: null,
+                overallRiskScore: null,
+                overallRiskBand: null,
+                executiveSummary: null,
+                threatModelSummary: null,
+                campaignRecommendations: null,
+                pipelineOutput: null,
+              });
+
+              const orgProfile = scan.orgProfile as any;
+              const { runDomainIntelPipeline } = await import('./domainIntel');
+              const result = await runDomainIntelPipeline(
+                {
+                  customerName: orgProfile?.customerName || scan.primaryDomain,
+                  primaryDomain: scan.primaryDomain,
+                  additionalDomains: (scan.additionalDomains as string[]) || [],
+                  sector: scan.sector || 'Technology',
+                  clientType: scan.clientType,
+                  criticalFunctions: (scan.criticalFunctions as string[]) || [],
+                  complianceFlags: (scan.complianceFlags as string[]) || [],
+                  notes: scan.notes || undefined,
+                },
+                async (stage) => {
+                  await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
+                },
+                { scanMode: 'standard', skipEngagement: true }
+              );
+
+              // Batch insert assets
+              const assetRecords = result.assets.map((a: any) => ({
+                scanId,
+                assetId: a.asset.assetId,
+                hostname: a.asset.hostname,
+                url: a.asset.url || null,
+                assetType: a.asset.assetType,
+                dnsRecords: a.asset.dnsRecords || null,
+                dnsStatus: a.asset.dnsStatus || null,
+                headers: a.asset.headers || null,
+                technologies: a.asset.technologies || null,
+                detectedTechnologies: a.asset.technologyVersions
+                  ? Object.entries(a.asset.technologyVersions).map(([name, version]) => ({ name, version: version || '', category: 'detected', confidence: version ? 0.9 : 0.7 }))
+                  : (a.asset.technologies || []).map((t: string) => ({ name: t, version: '', category: 'inferred', confidence: 0.5 })),
+                assetClasses: a.asset.assetClasses,
+                tags: a.asset.tags,
+                carverScores: a.carverScores,
+                shockScores: a.shockScores,
+                missionImpactScore: Math.round(a.missionImpactScore * 10),
+                suggestedTier: a.suggestedTier,
+                hybridRiskScore: a.hybridRiskScore,
+                riskBand: a.riskBand,
+                cvssEstimate: Math.round(a.cvssEstimate * 10),
+                contextIndicators: a.contextIndicators,
+                postureFindings: a.postureFindings,
+                testVectors: a.testVectors,
+                recommendedCalderaAbilities: a.testVectors.filter((v: any) => v.suggestedEmulation?.calderaAbilityHint).map((v: any) => v.suggestedEmulation),
+                recommendedGophishTemplates: null,
+                recommendedAttackChain: null,
+                confidence: a.confidence,
+                confidenceExplanation: a.contextIndicators,
+                impactScore: a.impactScore || 0,
+                likelihoodScore: a.likelihoodScore || 0,
+                assetCriticalityScore: a.assetCriticalityScore || 0,
+                assetCriticalityBand: a.assetCriticalityBand || 'low',
+                vulnRiskScore: a.vulnRiskScore || 0,
+                vulnRiskBand: a.vulnRiskBand || 'low',
+                missionFunction: a.missionFunction || 'public_facing_services',
+                essentialService: a.essentialService || 'general_server',
+                businessImpactLevel: a.businessImpactLevel || 'moderate',
+                deviceType: a.deviceType || 'unknown',
+                platformType: a.platformType || 'unknown',
+                missionJustification: a.missionJustification || '',
+              }));
+
+              if (assetRecords.length > 0) {
+                const BATCH_SIZE = 5;
+                for (let i = 0; i < assetRecords.length; i += BATCH_SIZE) {
+                  const batch = assetRecords.slice(i, i + BATCH_SIZE);
+                  try { await db.bulkCreateDiscoveredAssets(batch); } catch {
+                    for (const record of batch) {
+                      try { await db.createDiscoveredAsset(record); } catch {}
+                    }
+                  }
+                }
+              }
+
+              await db.updateDomainIntelScan(scanId, {
+                status: 'scan_complete',
+                totalAssets: result.totalAssets,
+                totalFindings: result.totalFindings,
+                confirmedFindings: result.confirmedFindingsCount || 0,
+                probableFindings: result.probableFindingsCount || 0,
+                potentialFindings: result.potentialFindingsCount || 0,
+                discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
+                discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+                overallRiskScore: result.overallRiskScore,
+                overallRiskBand: result.overallRiskBand,
+                executiveSummary: result.executiveSummary,
+                threatModelSummary: result.threatModelSummary,
+                campaignRecommendations: [],
+                pipelineOutput: { retriedAt: new Date().toISOString(), bulkRetry: true },
+              });
+              console.log(`[DomainIntel] Bulk retry completed for scan ${scanId}: ${scan.primaryDomain}`);
+            } catch (err: any) {
+              console.error(`[DomainIntel] Bulk retry failed for scan ${scanId}: ${err.message}`);
+              await db.updateDomainIntelScan(scanId, {
+                status: 'failed',
+                pipelineOutput: { error: err.message, failedAt: new Date().toISOString(), bulkRetryFailed: true },
+              }).catch(() => {});
+            }
+          }, delay);
+          queued++;
+        }
+
+        return { retriedCount: queued, message: `${queued} scans queued for retry` };
+      }),
+
     // Refresh a completed scan — re-runs the full pipeline while preserving original data as a snapshot
     refreshScan: protectedProcedure
       .input(z.object({ scanId: z.number() }))

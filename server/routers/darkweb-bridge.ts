@@ -279,6 +279,7 @@ export const darkwebBridgeRouter = router({
         .limit(input?.limit || 50);
 
       const data = events.map((e) => ({
+        id: e.id,
         actorName: e.actorName || e.actorId,
         eventType: e.eventType,
         title: e.title,
