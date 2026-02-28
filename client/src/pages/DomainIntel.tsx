@@ -16,7 +16,7 @@ import {
   Loader2, CheckCircle2, AlertTriangle, Zap, Building2, Server, Cloud,
   Network, FileText, Brain, Crosshair, ChevronDown, ChevronUp,
   Eye, Fingerprint, Bug, Database, Radio, Radar, Scan, Info, Lock,
-  RotateCcw, Trash2
+  RotateCcw, Trash2, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -375,6 +375,23 @@ export default function DomainIntel() {
     },
   });
 
+  // Refresh completed scan mutation
+  const refreshScan = trpc.domainIntel.refreshScan.useMutation({
+    onSuccess: (data) => {
+      toast.success('Scan refresh started — re-running pipeline with latest features...');
+      setScanId(data.scanId);
+      setIsRunning(true);
+      setIsComplete(false);
+      setIsScanComplete(false);
+      setPipelineStage(0);
+      setPipelineError(null);
+      scansQuery.refetch();
+    },
+    onError: (err) => {
+      toast.error(`Refresh failed: ${sanitizeErrorForToast(err)}`);
+    },
+  });
+
   // Delete scan mutation
   const deleteScan = trpc.domainIntel.deleteScan.useMutation({
     onSuccess: () => {
@@ -627,7 +644,24 @@ export default function DomainIntel() {
                         <span className="text-[10px] text-muted-foreground">
                           {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
                         </span>
-                        <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Refresh scan for ${scan.primaryDomain}? This will re-run the full pipeline with the latest platform features.`)) {
+                                refreshScan.mutate({ scanId: scan.id });
+                              }
+                            }}
+                            disabled={refreshScan.isPending}
+                          >
+                            {refreshScan.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                            Refresh
+                          </Button>
+                          <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

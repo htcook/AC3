@@ -239,6 +239,40 @@ export default function DomainIntelResults() {
     },
   });
 
+  // Refresh scan mutation
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshScanMutation = trpc.domainIntel.refreshScan.useMutation({
+    onSuccess: () => {
+      toast.success('Scan refresh started — re-running full pipeline with latest features...');
+      setRefreshing(true);
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to start refresh: ${sanitizeErrorForToast(err)}`);
+    },
+  });
+
+  // Poll for refresh completion
+  const refreshPoll = trpc.domainIntel.getScanStatus.useQuery(
+    { scanId },
+    {
+      enabled: refreshing,
+      refetchInterval: 3000,
+    }
+  );
+
+  useEffect(() => {
+    if (!refreshPoll.data || !refreshing) return;
+    if (refreshPoll.data.status === 'completed' || refreshPoll.data.status === 'scan_complete') {
+      setRefreshing(false);
+      toast.success('Scan refresh complete — results updated with latest features.');
+      refetch();
+    } else if (refreshPoll.data.status === 'failed') {
+      setRefreshing(false);
+      toast.error('Scan refresh failed. Original results have been preserved.');
+      refetch();
+    }
+  }, [refreshPoll.data, refreshing]);
+
   const createAdversaryMutation = trpc.domainIntel.createExploitAdversary.useMutation({
     onSuccess: (result: any) => {
       if (result.success) {
@@ -636,6 +670,27 @@ export default function DomainIntelResults() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Refresh Scan Button — only for completed scans */}
+          {(scan.status === 'completed' || scan.status === 'scan_complete') && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+              onClick={() => {
+                if (confirm('Refresh this scan? This will re-run the full pipeline (discovery, analysis, scoring, entity resolution, BIA) with the latest platform features. Original results will be preserved as a snapshot for comparison.')) {
+                  refreshScanMutation.mutate({ scanId });
+                }
+              }}
+              disabled={refreshScanMutation.isPending || refreshing}
+            >
+              {refreshScanMutation.isPending || refreshing ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {refreshing ? 'Refreshing...' : 'Refresh Scan'}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -669,6 +724,86 @@ export default function DomainIntelResults() {
           </div>
         </div>
       </div>
+
+      {/* Refresh In Progress Banner */}
+      {refreshing && (
+        <Card className="border-cyan-500/30 bg-cyan-500/5">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="p-3 rounded-lg bg-cyan-500/10">
+              <RefreshCw className="h-6 w-6 text-cyan-400 animate-spin" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-sm text-cyan-400">Scan Refresh In Progress</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Re-running the full pipeline with latest features (entity resolution, BIA enrichment, crawl-to-phish analysis). 
+                Stage: <span className="font-mono text-cyan-400">{refreshPoll.data?.status || 'initializing'}</span>
+              </p>
+              <Progress value={(() => {
+                const stages: Record<string, number> = { discovering: 15, passive_recon: 25, analyzing: 45, scoring: 65, recommending: 80 };
+                return stages[refreshPoll.data?.status || ''] || 10;
+              })()} className="mt-2 h-1.5" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Previous Snapshot Comparison Banner */}
+      {pipeline?.previousSnapshot && pipeline?.refreshedAt && !refreshing && (
+        <Card className="border-indigo-500/30 bg-indigo-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <RefreshCw className="h-4 w-4 text-indigo-400" />
+              <span className="text-sm font-semibold text-indigo-400">Refreshed Scan Results</span>
+              <Badge variant="outline" className="text-[10px] border-indigo-500/30 text-indigo-400">
+                Refreshed {new Date(pipeline.refreshedAt).toLocaleString()}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              {(() => {
+                const prev = pipeline.previousSnapshot;
+                const deltaAssets = (scan.totalAssets || 0) - (prev.totalAssets || 0);
+                const deltaFindings = (scan.totalFindings || 0) - (prev.totalFindings || 0);
+                const deltaRisk = (scan.overallRiskScore || 0) - (prev.overallRiskScore || 0);
+                const deltaCoverage = (scan.discoveryCoverageScore || 0) - (prev.discoveryCoverageScore || 0);
+                const fmt = (n: number) => n > 0 ? `+${n}` : String(n);
+                const color = (n: number, invert = false) => {
+                  if (n === 0) return 'text-muted-foreground';
+                  return (invert ? n < 0 : n > 0) ? 'text-emerald-400' : 'text-red-400';
+                };
+                return (
+                  <>
+                    <div className="rounded-lg border border-border/50 p-2.5 text-center">
+                      <p className="text-muted-foreground mb-1">Assets</p>
+                      <p className="font-bold text-base">{scan.totalAssets || 0}</p>
+                      {deltaAssets !== 0 && <p className={`text-[10px] ${color(deltaAssets)}`}>{fmt(deltaAssets)} from previous</p>}
+                    </div>
+                    <div className="rounded-lg border border-border/50 p-2.5 text-center">
+                      <p className="text-muted-foreground mb-1">Findings</p>
+                      <p className="font-bold text-base">{scan.totalFindings || 0}</p>
+                      {deltaFindings !== 0 && <p className={`text-[10px] ${color(deltaFindings)}`}>{fmt(deltaFindings)} from previous</p>}
+                    </div>
+                    <div className="rounded-lg border border-border/50 p-2.5 text-center">
+                      <p className="text-muted-foreground mb-1">Risk Score</p>
+                      <p className="font-bold text-base">{scan.overallRiskScore || 0}</p>
+                      {deltaRisk !== 0 && <p className={`text-[10px] ${color(deltaRisk, true)}`}>{fmt(deltaRisk)} from previous</p>}
+                    </div>
+                    <div className="rounded-lg border border-border/50 p-2.5 text-center">
+                      <p className="text-muted-foreground mb-1">Coverage</p>
+                      <p className="font-bold text-base">{scan.discoveryCoverageScore || 0}%</p>
+                      {deltaCoverage !== 0 && <p className={`text-[10px] ${color(deltaCoverage)}`}>{fmt(deltaCoverage)}% from previous</p>}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Previous scan: {prev?.snapshotAt ? new Date(pipeline.previousSnapshot.snapshotAt).toLocaleString() : 'N/A'} — 
+              {pipeline.previousSnapshot.totalAssets || 0} assets, {pipeline.previousSnapshot.totalFindings || 0} findings, 
+              risk score {pipeline.previousSnapshot.overallRiskScore || 0}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Validate Top 10 Quick Action */}
       {scan.status !== 'pending' && scan.status !== 'discovering' && (

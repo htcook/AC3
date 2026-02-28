@@ -5091,6 +5091,380 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         return { scanId: input.scanId, message: 'Scan retry started' };
       }),
 
+    // Refresh a completed scan — re-runs the full pipeline while preserving original data as a snapshot
+    refreshScan: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+
+        // Allow refresh only for completed or scan_complete scans
+        if (scan.status !== 'completed' && scan.status !== 'scan_complete') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Scan must be completed to refresh. Current status: ${scan.status}`,
+          });
+        }
+
+        // Snapshot the current results before re-running
+        const previousSnapshot = {
+          snapshotAt: new Date().toISOString(),
+          status: scan.status,
+          totalAssets: scan.totalAssets,
+          totalFindings: scan.totalFindings,
+          confirmedFindings: scan.confirmedFindings,
+          probableFindings: scan.probableFindings,
+          potentialFindings: scan.potentialFindings,
+          overallRiskScore: scan.overallRiskScore,
+          overallRiskBand: scan.overallRiskBand,
+          discoveryCoverageScore: scan.discoveryCoverageScore,
+          discoveryCoverageBand: scan.discoveryCoverageBand,
+          executiveSummary: scan.executiveSummary,
+          threatModelSummary: scan.threatModelSummary,
+          campaignRecommendations: scan.campaignRecommendations,
+          entityProfile: (scan.pipelineOutput as any)?.entityProfile || null,
+          financialImpact: (scan.pipelineOutput as any)?.financialImpact || null,
+          autoCrawlSummary: (scan.pipelineOutput as any)?.autoCrawlSummary || null,
+        };
+
+        // Determine if this was a full engagement or scan-only
+        const wasFullEngagement = scan.status === 'completed';
+
+        // Clean up old assets (they will be re-discovered)
+        try {
+          await db.deleteDiscoveredAssetsByScan(input.scanId);
+        } catch { /* ignore if no assets exist */ }
+
+        // Clean up old web crawl results for this scan
+        try {
+          const { eq: eqOp } = await import('drizzle-orm');
+          const { webCrawlResults: wcr } = await import('../drizzle/schema');
+          const dbInst = await (await import('./db')).getDb();
+          if (dbInst) await dbInst.delete(wcr).where(eqOp(wcr.scanId, input.scanId));
+        } catch { /* ignore */ }
+
+        // Set status to refreshing (uses 'discovering' status so frontend polling works)
+        await db.updateDomainIntelScan(input.scanId, {
+          status: 'discovering',
+          totalAssets: 0,
+          totalFindings: 0,
+          confirmedFindings: 0,
+          probableFindings: 0,
+          potentialFindings: 0,
+          discoveryCoverageScore: 0,
+          discoveryCoverageBand: null,
+          overallRiskScore: null,
+          overallRiskBand: null,
+          executiveSummary: null,
+          threatModelSummary: null,
+          campaignRecommendations: null,
+          pipelineOutput: { refreshing: true, previousSnapshot, refreshStartedAt: new Date().toISOString() },
+        });
+
+        const scanId = input.scanId;
+        const orgProfile = scan.orgProfile as any;
+        setImmediate(async () => {
+          try {
+            console.log(`[DomainIntel] Refresh pipeline started for scan ${scanId}: ${scan.primaryDomain}`);
+            const { runDomainIntelPipeline } = await import('./domainIntel');
+
+            const result = await runDomainIntelPipeline(
+              {
+                customerName: orgProfile?.customerName || scan.primaryDomain,
+                primaryDomain: scan.primaryDomain,
+                additionalDomains: (scan.additionalDomains as string[]) || [],
+                sector: scan.sector || 'Technology',
+                clientType: scan.clientType,
+                criticalFunctions: (scan.criticalFunctions as string[]) || [],
+                complianceFlags: (scan.complianceFlags as string[]) || [],
+                notes: scan.notes || undefined,
+              },
+              async (stage) => {
+                await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
+                console.log(`[DomainIntel] Refresh scan ${scanId} stage: ${stage}`);
+              },
+              { scanMode: 'standard', skipEngagement: !wasFullEngagement }
+            );
+
+            // Batch insert new assets
+            const assetRecords = result.assets.map(a => ({
+              scanId,
+              assetId: a.asset.assetId,
+              hostname: a.asset.hostname,
+              url: a.asset.url || null,
+              assetType: a.asset.assetType,
+              dnsRecords: a.asset.dnsRecords || null,
+              dnsStatus: a.asset.dnsStatus || null,
+              headers: a.asset.headers || null,
+              technologies: a.asset.technologies || null,
+              detectedTechnologies: a.asset.technologyVersions
+                ? Object.entries(a.asset.technologyVersions).map(([name, version]) => ({
+                    name,
+                    version: version || '',
+                    category: 'detected',
+                    confidence: version ? 0.9 : 0.7,
+                  }))
+                : (a.asset.technologies || []).map((t: string) => ({ name: t, version: '', category: 'inferred', confidence: 0.5 })),
+              assetClasses: a.asset.assetClasses,
+              tags: a.asset.tags,
+              carverScores: a.carverScores,
+              shockScores: a.shockScores,
+              missionImpactScore: Math.round(a.missionImpactScore * 10),
+              suggestedTier: a.suggestedTier,
+              hybridRiskScore: a.hybridRiskScore,
+              riskBand: a.riskBand,
+              cvssEstimate: Math.round(a.cvssEstimate * 10),
+              contextIndicators: a.contextIndicators,
+              postureFindings: a.postureFindings,
+              testVectors: a.testVectors,
+              recommendedCalderaAbilities: a.testVectors.filter((v: any) => v.suggestedEmulation?.calderaAbilityHint).map((v: any) => v.suggestedEmulation),
+              recommendedGophishTemplates: null,
+              recommendedAttackChain: null,
+              confidence: a.confidence,
+              confidenceExplanation: a.contextIndicators,
+              impactScore: a.impactScore || 0,
+              likelihoodScore: a.likelihoodScore || 0,
+              assetCriticalityScore: a.assetCriticalityScore || 0,
+              assetCriticalityBand: a.assetCriticalityBand || 'low',
+              vulnRiskScore: a.vulnRiskScore || 0,
+              vulnRiskBand: a.vulnRiskBand || 'low',
+              missionFunction: a.missionFunction || 'public_facing_services',
+              essentialService: a.essentialService || 'general_server',
+              businessImpactLevel: a.businessImpactLevel || 'moderate',
+              deviceType: a.deviceType || 'unknown',
+              platformType: a.platformType || 'unknown',
+              missionJustification: a.missionJustification || '',
+            }));
+
+            if (assetRecords.length > 0) {
+              const BATCH_SIZE = 5;
+              for (let i = 0; i < assetRecords.length; i += BATCH_SIZE) {
+                const batch = assetRecords.slice(i, i + BATCH_SIZE);
+                try {
+                  await db.bulkCreateDiscoveredAssets(batch);
+                } catch (batchErr: any) {
+                  console.warn(`[DomainIntel] Refresh batch insert failed, falling back: ${batchErr.message}`);
+                  for (const record of batch) {
+                    try { await db.createDiscoveredAsset(record); } catch (e: any) {
+                      console.error(`[DomainIntel] Refresh: failed to insert asset ${record.hostname}: ${e.message}`);
+                    }
+                  }
+                }
+              }
+            }
+
+            // Build trimmed output with previous snapshot preserved
+            const trimmedOutput: any = {
+              orgProfile: result.orgProfile,
+              overallRiskScore: result.overallRiskScore,
+              overallRiskBand: result.overallRiskBand,
+              totalAssets: result.totalAssets,
+              totalFindings: result.totalFindings,
+              confirmedFindings: result.confirmedFindingsCount || 0,
+              probableFindings: result.probableFindingsCount || 0,
+              potentialFindings: result.potentialFindingsCount || 0,
+              discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
+              discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+              discoveryCoverage: result.discoveryCoverage ? {
+                coverageScore: result.discoveryCoverage.coverageScore,
+                coverageBand: result.discoveryCoverage.coverageBand,
+                priorities: result.discoveryCoverage.priorities,
+                assessment: result.discoveryCoverage.assessment,
+                structuralGaps: result.discoveryCoverage.structuralGaps,
+                actionableGaps: result.discoveryCoverage.actionableGaps,
+              } : undefined,
+              emailSecurityReport: (result as any).emailSecurityReport || (result as any).emailSecurity || undefined,
+              executiveSummary: result.executiveSummary,
+              threatModelSummary: result.threatModelSummary,
+              kevEnrichment: result.kevEnrichment ? {
+                riskBoost: result.kevEnrichment.riskBoost,
+                ransomwareExposure: result.kevEnrichment.ransomwareExposure,
+                criticalKevCount: result.kevEnrichment.criticalKevCount,
+                summary: result.kevEnrichment.summary,
+                chainSteps: result.kevEnrichment.chainSteps,
+                matchCount: result.kevEnrichment.matches.length,
+                matches: result.kevEnrichment.matches.slice(0, 50),
+              } : undefined,
+              breachData: result.breachData,
+              exploitMatches: result.exploitMatches ? {
+                totalMetasploit: result.exploitMatches.totalMetasploit,
+                totalExploitDb: result.exploitMatches.totalExploitDb,
+                totalCalderaAbilities: result.exploitMatches.totalCalderaAbilities,
+                remoteAccessCount: result.exploitMatches.remoteAccessCount,
+                matchCount: result.exploitMatches.matches.length,
+                matches: result.exploitMatches.matches.slice(0, 30),
+              } : undefined,
+              passiveRecon: result.passiveRecon ? {
+                summary: result.passiveRecon.summary,
+                riskSignals: result.passiveRecon.riskSignals?.slice(0, 30),
+                connectorResults: result.passiveRecon.connectorResults?.map((cr: any) => ({
+                  connector: cr.connector,
+                  observationCount: cr.observations.length,
+                  durationMs: cr.durationMs,
+                  errors: cr.errors,
+                })),
+              } : undefined,
+              assetSummaries: result.assets.map(a => ({
+                assetId: a.asset.assetId,
+                hostname: a.asset.hostname,
+                assetType: a.asset.assetType,
+                hybridRiskScore: a.hybridRiskScore,
+                riskBand: a.riskBand,
+                findingCount: a.postureFindings.length,
+                vulnRiskScore: a.vulnRiskScore,
+              })),
+              crossModuleEnrichment: result.crossModuleEnrichment ? {
+                bugBounty: result.crossModuleEnrichment.bugBounty,
+                threatIntel: result.crossModuleEnrichment.threatIntel,
+                opsec: result.crossModuleEnrichment.opsec,
+                discoveryDeepDive: result.crossModuleEnrichment.discoveryDeepDive,
+                summary: result.crossModuleEnrichment.summary,
+              } : undefined,
+              postEnrichmentAnalysis: result.postEnrichmentAnalysis ? {
+                executiveAnalysis: (result.postEnrichmentAnalysis as any).executiveAnalysis || result.postEnrichmentAnalysis.overallAssessment,
+                attackPaths: result.postEnrichmentAnalysis.attackPaths?.slice(0, 20),
+                blindSpots: result.postEnrichmentAnalysis.blindSpots?.slice(0, 20),
+                prioritizedRecommendations: result.postEnrichmentAnalysis.prioritizedRecommendations?.slice(0, 30),
+                crossFindingCorrelations: result.postEnrichmentAnalysis.crossFindingCorrelations?.slice(0, 20),
+                threatActorMapping: result.postEnrichmentAnalysis.threatActorMapping?.slice(0, 15),
+                overallAssessment: result.postEnrichmentAnalysis.overallAssessment,
+                confidenceStatement: result.postEnrichmentAnalysis.confidenceStatement,
+                enrichmentSources: (result.postEnrichmentAnalysis as any).enrichmentSources,
+              } : undefined,
+              // Preserve the previous snapshot for comparison
+              previousSnapshot,
+              refreshedAt: new Date().toISOString(),
+            };
+
+            if (wasFullEngagement) {
+              // Full engagement: run threat actor matching + campaign design
+              let threatActorMatches = null;
+              try {
+                const { matchThreatActors } = await import('./lib/threat-actor-matcher');
+                const allTech: string[] = [];
+                for (const a of result.assets) {
+                  if (a.asset?.technologies) allTech.push(...a.asset.technologies);
+                }
+                threatActorMatches = await matchThreatActors({
+                  sector: orgProfile?.sector || scan.sector,
+                  clientType: orgProfile?.clientType || scan.clientType,
+                  discoveredTechnologies: allTech,
+                  discoveredAssets: result.assets.map(a => ({
+                    hostname: a.asset?.hostname,
+                    assetType: a.asset?.assetType,
+                    technologies: a.asset?.technologies,
+                  })),
+                  riskScore: result.overallRiskScore,
+                  criticalFunctions: orgProfile?.criticalFunctions || (scan.criticalFunctions as string[]) || [],
+                });
+              } catch (matchErr: any) {
+                console.error('[DomainIntel] Refresh: Threat actor matching failed:', matchErr.message);
+              }
+
+              // Generate summaries
+              const { generateCampaignRecommendations, generateSummaries } = await import('./domainIntel');
+              const analyses = result.assets.map(a => ({
+                asset: a.asset,
+                carverScores: a.carverScores,
+                shockScores: a.shockScores,
+                missionImpactScore: a.missionImpactScore,
+                suggestedTier: a.suggestedTier,
+                hybridRiskScore: a.hybridRiskScore,
+                riskBand: a.riskBand,
+                cvssEstimate: a.cvssEstimate,
+                contextIndicators: a.contextIndicators,
+                postureFindings: a.postureFindings,
+                testVectors: a.testVectors,
+                confidence: a.confidence,
+                assetCriticalityScore: a.assetCriticalityScore || 0,
+                assetCriticalityBand: a.assetCriticalityBand || 'low',
+                vulnRiskScore: a.vulnRiskScore || 0,
+                vulnRiskBand: a.vulnRiskBand || 'low',
+                impactScore: a.impactScore || 0,
+                likelihoodScore: a.likelihoodScore || 0,
+                missionFunction: a.missionFunction || 'public_facing_services',
+                essentialService: a.essentialService || 'general_server',
+                businessImpactLevel: a.businessImpactLevel || 'moderate',
+                deviceType: a.deviceType || 'unknown',
+                platformType: a.platformType || 'unknown',
+                missionJustification: a.missionJustification || '',
+              }));
+              const kevEnrichment = result.kevEnrichment;
+              const campaigns = await generateCampaignRecommendations(analyses, orgProfile, kevEnrichment);
+              const summaries = await generateSummaries(analyses, campaigns, orgProfile);
+
+              trimmedOutput.threatActorMatches = threatActorMatches;
+
+              await db.updateDomainIntelScan(scanId, {
+                status: 'completed',
+                totalAssets: result.totalAssets,
+                totalFindings: result.totalFindings,
+                confirmedFindings: result.confirmedFindingsCount || 0,
+                probableFindings: result.probableFindingsCount || 0,
+                potentialFindings: result.potentialFindingsCount || 0,
+                discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
+                discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+                overallRiskScore: result.overallRiskScore,
+                overallRiskBand: result.overallRiskBand,
+                executiveSummary: summaries.executiveSummary,
+                threatModelSummary: summaries.threatModelSummary,
+                campaignRecommendations: campaigns,
+                pipelineOutput: trimmedOutput,
+              });
+              console.log(`[DomainIntel] Refresh (full engagement) completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            } else {
+              // Scan-only mode
+              await db.updateDomainIntelScan(scanId, {
+                status: 'scan_complete',
+                totalAssets: result.totalAssets,
+                totalFindings: result.totalFindings,
+                confirmedFindings: result.confirmedFindingsCount || 0,
+                probableFindings: result.probableFindingsCount || 0,
+                potentialFindings: result.potentialFindingsCount || 0,
+                discoveryCoverageScore: result.discoveryCoverage?.coverageScore || 0,
+                discoveryCoverageBand: result.discoveryCoverage?.coverageBand || null,
+                overallRiskScore: result.overallRiskScore,
+                overallRiskBand: result.overallRiskBand,
+                executiveSummary: result.executiveSummary,
+                threatModelSummary: result.threatModelSummary,
+                campaignRecommendations: [],
+                pipelineOutput: trimmedOutput,
+              });
+              console.log(`[DomainIntel] Refresh (scan-only) completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            }
+
+            // Emit events
+            try {
+              const { emitReconComplete, emitSystemNotification } = await import('./lib/ws-event-hub');
+              emitReconComplete({ scanId, domain: scan.primaryDomain, findings: result.totalFindings || 0, engagementId: scan.engagementId || undefined });
+              emitSystemNotification({ title: 'Scan Refresh Complete', message: `Refreshed scan of ${scan.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' });
+            } catch {}
+
+            // Auto-crawl + entity resolution (fire-and-forget, same as new scans)
+            setImmediate(async () => {
+              try {
+                const { triggerAutoCrawl } = await import('./lib/auto-crawl');
+                await triggerAutoCrawl(scanId, scan.primaryDomain);
+              } catch (crawlErr: any) {
+                console.error(`[AutoCrawl] Failed for refreshed scan ${scanId}:`, crawlErr.message);
+              }
+            });
+          } catch (err: any) {
+            console.error(`[DomainIntel] Refresh pipeline failed for scan ${scanId}:`, err.message, err.stack?.substring(0, 500));
+            // Restore to previous completed status so user can retry
+            await db.updateDomainIntelScan(scanId, {
+              status: wasFullEngagement ? 'completed' : 'scan_complete',
+              pipelineOutput: {
+                ...(previousSnapshot || {}),
+                refreshError: { message: err.message, failedAt: new Date().toISOString() },
+              },
+            }).catch(() => {});
+          }
+        });
+
+        return { scanId: input.scanId, message: 'Scan refresh started — the pipeline will re-run in background' };
+      }),
+
     // Delete a scan and its assets
     deleteScan: protectedProcedure
       .input(z.object({ scanId: z.number() }))

@@ -5746,3 +5746,10 @@
 - [x] Enrich entity profile with company valuation, revenue/sales income (public filings, Crunchbase-style data)
 - [x] Use financial data to enhance BIA financial loss impact ratings
 - [x] Use identified entity to drive BIA analysis (NIST IR 8286D)
+
+## Refresh Scan for Completed Scans
+- [x] Create server-side refreshScan endpoint that re-runs pipeline on completed scans
+- [x] Preserve original scan data while running refresh (versioning/comparison)
+- [x] Add Refresh Scan button to completed scan results page UI
+- [x] Show refresh status/progress indicator
+- [x] Write tests for refresh scan endpoint
