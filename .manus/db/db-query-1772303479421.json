@@ -1,0 +1,227 @@
+{
+  "query": "SELECT id, primaryDomain, status, totalAssets, totalFindings FROM domain_intel_scans WHERE id IN (1380245,1380246,1380247,1380248,1380250,1380251,1380252,1380253,1380301,1380302,1380334,1380335,1380339,1380343,1380344,1380345,1380346,1380347,1380348,1380349,1380350,1380351,1380352,1380357,1380358,1380360,1380361,1380366,1380367,1380373,1380379) ORDER BY status, primaryDomain",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, totalAssets, totalFindings FROM domain_intel_scans WHERE id IN (1380245,1380246,1380247,1380248,1380250,1380251,1380252,1380253,1380301,1380302,1380334,1380335,1380339,1380343,1380344,1380345,1380346,1380347,1380348,1380349,1380350,1380351,1380352,1380357,1380358,1380360,1380361,1380366,1380367,1380373,1380379) ORDER BY status, primaryDomain",
+  "rows": [
+    {
+      "id": "1380335",
+      "primaryDomain": "3m.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380339",
+      "primaryDomain": "amazon.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380246",
+      "primaryDomain": "bankofamerica.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380334",
+      "primaryDomain": "basf.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380301",
+      "primaryDomain": "ca.gov",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380251",
+      "primaryDomain": "capitalone.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380248",
+      "primaryDomain": "citigroup.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380347",
+      "primaryDomain": "delta.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380345",
+      "primaryDomain": "dhl.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380343",
+      "primaryDomain": "fedex.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380245",
+      "primaryDomain": "jpmorganchase.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380346",
+      "primaryDomain": "maersk.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380250",
+      "primaryDomain": "morganstanley.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380358",
+      "primaryDomain": "oracle.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380253",
+      "primaryDomain": "schwab.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380360",
+      "primaryDomain": "snowflake.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380349",
+      "primaryDomain": "southwest.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380348",
+      "primaryDomain": "united.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380344",
+      "primaryDomain": "ups.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380252",
+      "primaryDomain": "usbank.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380302",
+      "primaryDomain": "virginia.gov",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380247",
+      "primaryDomain": "wellsfargo.com",
+      "status": "discovering",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380379",
+      "primaryDomain": "ford.com",
+      "status": "analyzing",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380357",
+      "primaryDomain": "salesforce.com",
+      "status": "analyzing",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380367",
+      "primaryDomain": "ge.com",
+      "status": "scoring",
+      "totalAssets": "0",
+      "totalFindings": "0"
+    },
+    {
+      "id": "1380373",
+      "primaryDomain": "bechtel.com",
+      "status": "scan_complete",
+      "totalAssets": "26",
+      "totalFindings": "241"
+    },
+    {
+      "id": "1380351",
+      "primaryDomain": "hilton.com",
+      "status": "scan_complete",
+      "totalAssets": "34",
+      "totalFindings": "239"
+    },
+    {
+      "id": "1380352",
+      "primaryDomain": "hyatt.com",
+      "status": "scan_complete",
+      "totalAssets": "101",
+      "totalFindings": "138"
+    },
+    {
+      "id": "1380350",
+      "primaryDomain": "marriott.com",
+      "status": "scan_complete",
+      "totalAssets": "30",
+      "totalFindings": "390"
+    },
+    {
+      "id": "1380361",
+      "primaryDomain": "paloaltonetworks.com",
+      "status": "scan_complete",
+      "totalAssets": "30",
+      "totalFindings": "500"
+    },
+    {
+      "id": "1380366",
+      "primaryDomain": "siemens.com",
+      "status": "scan_complete",
+      "totalAssets": "53",
+      "totalFindings": "224"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\ttotalAssets\ttotalFindings\n1380335\t3m.com\tdiscovering\t0\t0\n1380339\tamazon.com\tdiscovering\t0\t0\n1380246\tbankofamerica.com\tdiscovering\t0\t0\n1380334\tbasf.com\tdiscovering\t0\t0\n1380301\tca.gov\tdiscovering\t0\t0\n1380251\tcapitalone.com\tdiscovering\t0\t0\n1380248\tcitigroup.com\tdiscovering\t0\t0\n1380347\tdelta.com\tdiscovering\t0\t0\n1380345\tdhl.com\tdiscovering\t0\t0\n1380343\tfedex.com\tdiscovering\t0\t0\n1380245\tjpmorganchase.com\tdiscovering\t0\t0\n1380346\tmaersk.com\tdiscovering\t0\t0\n1380250\tmorganstanley.com\tdiscovering\t0\t0\n1380358\toracle.com\tdiscovering\t0\t0\n1380253\tschwab.com\tdiscovering\t0\t0\n1380360\tsnowflake.com\tdiscovering\t0\t0\n1380349\tsouthwest.com\tdiscovering\t0\t0\n1380348\tunited.com\tdiscovering\t0\t0\n1380344\tups.com\tdiscovering\t0\t0\n1380252\tusbank.com\tdiscovering\t0\t0\n1380302\tvirginia.gov\tdiscovering\t0\t0\n1380247\twellsfargo.com\tdiscovering\t0\t0\n1380379\tford.com\tanalyzing\t0\t0\n1380357\tsalesforce.com\tanalyzing\t0\t0\n1380367\tge.com\tscoring\t0\t0\n1380373\tbechtel.com\tscan_complete\t26\t241\n1380351\thilton.com\tscan_complete\t34\t239\n1380352\thyatt.com\tscan_complete\t101\t138\n1380350\tmarriott.com\tscan_complete\t30\t390\n1380361\tpaloaltonetworks.com\tscan_complete\t30\t500\n1380366\tsiemens.com\tscan_complete\t53\t224\n",
+  "stderr": "",
+  "execution_time_ms": 618
+}

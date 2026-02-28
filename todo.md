@@ -5839,3 +5839,10 @@
 - [x] Added count badges showing total completed scans and stuck scans
 - [x] ScanHistory page already had proper pagination (25/page) — no changes needed
 - [x] All 46 tests passing (20 domainIntel + 26 pipeline tests)
+
+## API Credential Verification & Bulk Scan Retry
+- [x] Verify Censys API credentials (API ID + Secret) — INVALID: label stored instead of actual API ID, user will update later
+- [x] Verify HackerOne API credentials — INVALID: 401 Unauthorized, user will update later
+- [x] Retry databank.com scan (included in bulk retry batch)
+- [x] Bulk-retry all 31 stuck scans from last night (6 completed so far, 25 still processing in background)
+- [x] Monitor retry progress — 6 completed (274 assets, 1732 findings), 25 in-progress (discovering/analyzing/scoring)
