@@ -564,7 +564,7 @@ export const ssilRouter = router({
     }),
 
   /** List all risk cards with pagination */
-  listRiskCards: protectedProcedure
+  listRiskCardsPaginated: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(100).default(25),
       offset: z.number().default(0),

@@ -5602,6 +5602,15 @@
 - [ ] Write vitest tests for enhanced scoring
 
 ## Threat Intelligence Hub Sorting
-- [ ] Ensure CISA KEV vulnerabilities are sorted by most recent date first
-- [ ] Ensure all other reported items (IOCs, threat actors, etc.) are sorted by most recent
-- [ ] Verify sorting across all tabs/feeds in the Threat Intel Hub page
+- [x] Ensure CISA KEV vulnerabilities are sorted by most recent date first
+- [x] Ensure all other reported items (IOCs, threat actors, etc.) are sorted by most recent
+- [x] Verify sorting across all tabs/feeds in the Threat Intel Hub page
+
+## FIPS 199 + Industry Baseline Scoring Enhancement
+- [x] Add FIPS 199 security categorization (C/I/A) to industry baseline scoring module
+- [x] Add industry-specific FIPS 199 defaults per asset tier
+- [x] Integrate FIPS 199 into enhanced hybrid formula alongside BIA
+- [x] Add FIPS 199 UI controls in new Industry Baselines tab in ScoringHub
+- [x] Build Industry Baselines tab with tier breakdown, BIA inference, FIPS 199, and SHOCK guidance
+- [ ] Add industry risk modifier comparison view
+- [x] Write tests for FIPS 199 integration in industry baseline scoring

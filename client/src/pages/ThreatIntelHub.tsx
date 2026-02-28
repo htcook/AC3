@@ -112,7 +112,11 @@ export default function ThreatIntelHub() {
               <AlertTriangle className="w-4 h-4 animate-pulse" /> ACTIVE ESCALATION ALERTS ({escalations.data.length})
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {escalations.data.slice(0, 6).map((alert: any, i: number) => (
+              {[...escalations.data].sort((a: any, b: any) => {
+                const da = a.eventDate || a.timestamp ? new Date(a.eventDate || a.timestamp).getTime() : 0;
+                const db2 = b.eventDate || b.timestamp ? new Date(b.eventDate || b.timestamp).getTime() : 0;
+                return db2 - da;
+              }).slice(0, 6).map((alert: any, i: number) => (
                 <div key={i} className="border border-red-500/20 bg-card p-3">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-display text-red-400 tracking-wider">{alert.title || alert.type || "ALERT"}</span>
@@ -164,7 +168,13 @@ export default function ThreatIntelHub() {
                         <span className="col-span-2 text-center">TREND</span>
                         <span className="col-span-1 text-center">SCORE</span>
                       </div>
-                      {victimStats.data.slice(0, 20).map((g: any, i: number) => (
+                      {[...victimStats.data].sort((a: any, b: any) => {
+                        // Sort by recent activity: 7d victims first, then 30d, then score
+                        const a7 = a.victims7d || 0;
+                        const b7 = b.victims7d || 0;
+                        if (b7 !== a7) return b7 - a7;
+                        return (b.activityScore || 0) - (a.activityScore || 0);
+                      }).slice(0, 20).map((g: any, i: number) => (
                         <div key={i} className="grid grid-cols-12 gap-2 items-center px-2 py-1.5 hover:bg-muted/30 transition-colors text-xs">
                           <Link href={`/threat-catalog/${encodeURIComponent(g.groupName)}`} className="col-span-3 text-red-400 font-display tracking-wider hover:underline cursor-pointer truncate">
                             {safeUpper(g.groupName)}
@@ -232,7 +242,11 @@ export default function ThreatIntelHub() {
                       <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}</div>
                     ) : cisaKEV?.data && cisaKEV.data.length > 0 ? (
                       <div className="space-y-1 max-h-[300px] overflow-y-auto">
-                        {cisaKEV.data.map((kev: any, i: number) => (
+                        {[...cisaKEV.data].sort((a: any, b: any) => {
+                        const da = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
+                        const db2 = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
+                        return db2 - da;
+                      }).map((kev: any, i: number) => (
                           <div key={i} className="border border-border p-2 hover:bg-muted/30 transition-colors">
                             <div className="flex items-center justify-between mb-0.5">
                               <span className="font-mono text-xs text-red-400">{kev.cveId || kev.cveID || "—"}</span>
@@ -262,7 +276,11 @@ export default function ThreatIntelHub() {
                       <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}</div>
                     ) : threatFox?.data && threatFox.data.length > 0 ? (
                       <div className="space-y-1 max-h-[250px] overflow-y-auto">
-                        {threatFox.data.slice(0, 15).map((ioc: any, i: number) => (
+                        {[...threatFox.data].sort((a: any, b: any) => {
+                        const da = a.firstSeen ? new Date(a.firstSeen).getTime() : 0;
+                        const db2 = b.firstSeen ? new Date(b.firstSeen).getTime() : 0;
+                        return db2 - da;
+                      }).slice(0, 15).map((ioc: any, i: number) => (
                           <div key={i} className="border border-border p-2 hover:bg-muted/30 transition-colors">
                             <div className="flex items-center justify-between">
                               <span className="font-mono text-[11px] text-purple-400 truncate max-w-[60%]">{ioc.ioc || ioc.indicator || "—"}</span>
@@ -306,7 +324,11 @@ export default function ThreatIntelHub() {
                     <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
                   ) : accessBrokers && accessBrokers.length > 0 ? (
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {accessBrokers.slice(0, 12).map((iab: any) => (
+                      {[...accessBrokers].sort((a: any, b: any) => {
+                        const da = a.postedAt ? new Date(a.postedAt).getTime() : a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                        const db2 = b.postedAt ? new Date(b.postedAt).getTime() : b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                        return db2 - da;
+                      }).slice(0, 12).map((iab: any) => (
                         <div key={iab.id} className="border border-orange-500/20 bg-orange-500/5 p-3">
                           <div className="flex items-start justify-between">
                             <div>
@@ -374,7 +396,11 @@ export default function ThreatIntelHub() {
                 <div className="px-4 pb-4">
                   {recentEvents && recentEvents.length > 0 ? (
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {recentEvents.slice(0, 20).map((event: any, i: number) => (
+                      {[...recentEvents].sort((a: any, b: any) => {
+                        const da = a.eventDate || a.timestamp ? new Date(a.eventDate || a.timestamp).getTime() : 0;
+                        const db2 = b.eventDate || b.timestamp ? new Date(b.eventDate || b.timestamp).getTime() : 0;
+                        return db2 - da;
+                      }).slice(0, 20).map((event: any, i: number) => (
                         <div key={i} className="border border-border p-2 hover:bg-muted/30 transition-colors">
                           <div className="flex items-center justify-between mb-0.5">
                             <span className="text-xs font-display tracking-wider">{event.title || event.type || "Event"}</span>

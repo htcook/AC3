@@ -412,7 +412,7 @@ export const darkwebIntelRouter = router({
       const conditions: any[] = [];
       if (input?.type) conditions.push(eq(iocFeeds.iocType, input.type));
       const where = conditions.length > 0 ? and(...conditions) : undefined;
-      const entries = await db.select().from(iocFeeds).where(where).orderBy(desc(iocFeeds.id)).limit(input?.limit || 100);
+      const entries = await db.select().from(iocFeeds).where(where).orderBy(desc(iocFeeds.fetchedAt), desc(iocFeeds.id)).limit(input?.limit || 100);
       const data = entries.map((e) => ({
         iocType: e.iocType || "cve",
         type: e.iocType || "cve",
@@ -466,7 +466,7 @@ export const darkwebIntelRouter = router({
       if (!db) return { data: [], source: "local_database", fetchedAt: new Date().toISOString() };
       const entries = await db.select().from(iocFeeds)
         .where(eq(iocFeeds.feedSource, "cisa_kev"))
-        .orderBy(desc(iocFeeds.id))
+        .orderBy(desc(iocFeeds.fetchedAt), desc(iocFeeds.id))
         .limit(input?.limit || 50);
       const data = entries.map((e) => ({
         cveId: e.cveId,
@@ -692,8 +692,8 @@ export const darkwebIntelRouter = router({
         ? [eq(accessBrokerListings.status, status as any)]
         : [];
       const rows = conditions.length > 0
-        ? await db.select().from(accessBrokerListings).where(and(...conditions)).limit(limit)
-        : await db.select().from(accessBrokerListings).limit(limit);
+        ? await db.select().from(accessBrokerListings).where(and(...conditions)).orderBy(desc(accessBrokerListings.postedAt), desc(accessBrokerListings.createdAt)).limit(limit)
+        : await db.select().from(accessBrokerListings).orderBy(desc(accessBrokerListings.postedAt), desc(accessBrokerListings.createdAt)).limit(limit);
       return rows;
     }),
 

@@ -54,6 +54,31 @@ import {
   type CriticalityTier,
   type Fips199Category,
 } from "../lib/scoring-engine";
+import {
+  getIndustryVerticals,
+  getIndustryTierBreakdown,
+  computeIndustryEnhancedScore,
+  batchIndustryScore,
+  computeIndustryModifier,
+  detectAllSignals,
+  inferBiaFromSignals,
+  determineShockLevel,
+  computeFips199HighWatermark,
+  computeFips199Adjustments,
+  getFips199IndustryDefault,
+  INDUSTRY_ASSET_BASELINES,
+  INDUSTRY_RISK_MODIFIERS,
+  TIER_WEIGHTS,
+  HYBRID_FORMULA,
+  SHOCK_MULTIPLIER_GUIDANCE,
+  AUTO_BIA_RULES,
+  FIPS_199_LEVEL_MAP,
+  FIPS_199_INDUSTRY_DEFAULTS,
+  type IndustryVertical,
+  type AssetTier,
+  type Fips199Category,
+  type Fips199Level,
+} from "../lib/industry-baseline-scoring";
 
 async function getDbSafe() {
   const db = await getDb();
@@ -1335,5 +1360,175 @@ export const scoringRouter = router({
       .where(eq(domainIntelScans.status, "completed"))
       .orderBy(desc(domainIntelScans.createdAt))
       .limit(50);
+  }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // INDUSTRY BASELINE SCORING ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Get all supported industry verticals */
+  getIndustryVerticals: protectedProcedure.query(() => {
+    return getIndustryVerticals();
+  }),
+
+  /** Get tier breakdown for a specific industry */
+  getIndustryTierBreakdown: protectedProcedure
+    .input(z.object({
+      industry: z.enum([
+        "Corporate_Enterprise",
+        "Industrial_OT_Manufacturing",
+        "Government_Federal_State",
+        "Healthcare",
+        "Financial_Services",
+        "Energy_Utilities",
+      ]),
+    }))
+    .query(({ input }) => {
+      return {
+        tiers: getIndustryTierBreakdown(input.industry),
+        modifiers: computeIndustryModifier(input.industry),
+        formula: HYBRID_FORMULA,
+        shockGuidance: SHOCK_MULTIPLIER_GUIDANCE,
+        autoBiaRules: AUTO_BIA_RULES,
+      };
+    }),
+
+  /** Compute industry-enhanced score for a single asset */
+  computeIndustryScore: protectedProcedure
+    .input(z.object({
+      carverTotal: z.number().min(0).max(70),
+      cvssScore: z.number().min(0).max(10),
+      shockComposite: z.number().min(0).max(10),
+      industry: z.enum([
+        "Corporate_Enterprise",
+        "Industrial_OT_Manufacturing",
+        "Government_Federal_State",
+        "Healthcare",
+        "Financial_Services",
+        "Energy_Utilities",
+      ]),
+      assetInfo: z.object({
+        hostname: z.string().optional(),
+        assetType: z.string().optional(),
+        services: z.array(z.string()).optional(),
+        technologies: z.array(z.string()).optional(),
+        ports: z.array(z.number()).optional(),
+        description: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      }),
+      biaMultiplierOverride: z.number().min(1.0).max(2.0).optional(),
+      tierOverride: z.enum(["Tier_1_Strategic", "Tier_2_Operational", "Tier_3_Tactical"]).optional(),
+    }))
+    .mutation(({ input }) => {
+      return computeIndustryEnhancedScore(input);
+    }),
+
+  /** Batch score assets with industry context */
+  batchIndustryScore: protectedProcedure
+    .input(z.object({
+      industry: z.enum([
+        "Corporate_Enterprise",
+        "Industrial_OT_Manufacturing",
+        "Government_Federal_State",
+        "Healthcare",
+        "Financial_Services",
+        "Energy_Utilities",
+      ]),
+      assets: z.array(z.object({
+        assetId: z.string(),
+        carverTotal: z.number().min(0).max(70),
+        cvssScore: z.number().min(0).max(10),
+        shockComposite: z.number().min(0).max(10),
+        assetInfo: z.object({
+          hostname: z.string().optional(),
+          assetType: z.string().optional(),
+          services: z.array(z.string()).optional(),
+          technologies: z.array(z.string()).optional(),
+          ports: z.array(z.number()).optional(),
+          description: z.string().optional(),
+          tags: z.array(z.string()).optional(),
+        }),
+        biaMultiplierOverride: z.number().optional(),
+        tierOverride: z.enum(["Tier_1_Strategic", "Tier_2_Operational", "Tier_3_Tactical"]).optional(),
+      })),
+    }))
+    .mutation(({ input }) => {
+      return batchIndustryScore(input.assets, input.industry);
+    }),
+
+  /** Detect asset signals and infer BIA */
+  detectAssetSignals: protectedProcedure
+    .input(z.object({
+      hostname: z.string().optional(),
+      services: z.array(z.string()).optional(),
+      technologies: z.array(z.string()).optional(),
+      ports: z.array(z.number()).optional(),
+      description: z.string().optional(),
+    }))
+    .query(({ input }) => {
+      const signals = detectAllSignals(input);
+      const primaryBia = inferBiaFromSignals(input);
+      return { signals, primaryBia };
+    }),
+
+  /** Get industry risk modifiers for comparison */
+  getIndustryModifiers: protectedProcedure.query(() => {
+    return INDUSTRY_RISK_MODIFIERS;
+  }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FIPS 199 SECURITY CATEGORIZATION ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Get FIPS 199 industry defaults for a specific industry + tier */
+  getFips199Defaults: protectedProcedure
+    .input(z.object({
+      industry: z.enum([
+        "Corporate_Enterprise",
+        "Industrial_OT_Manufacturing",
+        "Government_Federal_State",
+        "Healthcare",
+        "Financial_Services",
+        "Energy_Utilities",
+      ]),
+      tier: z.enum(["Tier_1_Strategic", "Tier_2_Operational", "Tier_3_Tactical"]),
+    }))
+    .query(({ input }) => {
+      const defaults = getFips199IndustryDefault(input.industry, input.tier);
+      const adjustments = computeFips199Adjustments(defaults);
+      return {
+        category: defaults,
+        adjustments,
+        levelMap: FIPS_199_LEVEL_MAP,
+      };
+    }),
+
+  /** Compute FIPS 199 adjustments from custom categorization */
+  computeFips199: protectedProcedure
+    .input(z.object({
+      access: z.object({
+        confidentiality: z.enum(["low", "moderate", "high"]),
+        integrity: z.enum(["low", "moderate", "high"]),
+        availability: z.enum(["low", "moderate", "high"]),
+      }),
+      storage: z.object({
+        confidentiality: z.enum(["low", "moderate", "high"]),
+        integrity: z.enum(["low", "moderate", "high"]),
+        availability: z.enum(["low", "moderate", "high"]),
+      }),
+      transit: z.object({
+        confidentiality: z.enum(["low", "moderate", "high"]),
+        integrity: z.enum(["low", "moderate", "high"]),
+        availability: z.enum(["low", "moderate", "high"]),
+      }),
+    }))
+    .mutation(({ input }) => {
+      const adjustments = computeFips199Adjustments(input);
+      return { adjustments };
+    }),
+
+  /** Get all FIPS 199 industry defaults for comparison view */
+  getAllFips199Defaults: protectedProcedure.query(() => {
+    return FIPS_199_INDUSTRY_DEFAULTS;
   }),
 });

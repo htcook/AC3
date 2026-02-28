@@ -363,6 +363,19 @@ function MissionDistribution({
 export default function ScoringHub() {
   const [activeTab, setActiveTab] = useState("profiles");
   const [selectedProfileId, setSelectedProfileId] = useState<number | undefined>();
+
+  // Industry Baselines + FIPS 199 state
+  type Fips199Level = "low" | "moderate" | "high";
+  type IndustryVertical = "Corporate_Enterprise" | "Industrial_OT_Manufacturing" | "Government_Federal_State" | "Healthcare" | "Financial_Services" | "Energy_Utilities";
+  type AssetTierType = "Tier_1_Strategic" | "Tier_2_Operational" | "Tier_3_Tactical";
+  const [selectedIndustry, setSelectedIndustry] = useState<IndustryVertical>("Corporate_Enterprise");
+  const [selectedTier, setSelectedTier] = useState<AssetTierType>("Tier_1_Strategic");
+  const [fips199Custom, setFips199Custom] = useState<{
+    access:  { confidentiality: Fips199Level; integrity: Fips199Level; availability: Fips199Level };
+    storage: { confidentiality: Fips199Level; integrity: Fips199Level; availability: Fips199Level };
+    transit: { confidentiality: Fips199Level; integrity: Fips199Level; availability: Fips199Level };
+  } | null>(null);
+  const [fips199UseDefaults, setFips199UseDefaults] = useState(true);
   const [selectedScanId, setSelectedScanId] = useState<number | undefined>();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
@@ -401,6 +414,21 @@ export default function ScoringHub() {
     missionFunction: "public_facing_services",
     essentialService: "general_server",
     businessImpactLevel: "moderate",
+  });
+
+  // Industry Baselines queries
+  const industryVerticalsQ = trpc.scoring.getIndustryVerticals.useQuery();
+  const industryTierQ = trpc.scoring.getIndustryTierBreakdown.useQuery(
+    { industry: selectedIndustry },
+    { enabled: !!selectedIndustry }
+  );
+  const fips199DefaultsQ = trpc.scoring.getFips199Defaults.useQuery(
+    { industry: selectedIndustry, tier: selectedTier },
+    { enabled: !!selectedIndustry && !!selectedTier }
+  );
+  const computeFips199M = trpc.scoring.computeFips199.useMutation({
+    onSuccess: () => toast.success("FIPS 199 adjustments computed"),
+    onError: (e) => toast.error(e.message),
   });
 
   // Queries
@@ -824,6 +852,12 @@ export default function ScoringHub() {
           </TabsTrigger>
           <TabsTrigger value="audit">
             <Eye className="w-4 h-4 mr-1" /> Audit Log
+          </TabsTrigger>
+          <TabsTrigger value="industry">
+            <Building2 className="w-4 h-4 mr-1" /> Industry Baselines
+          </TabsTrigger>
+          <TabsTrigger value="fips199">
+            <Lock className="w-4 h-4 mr-1" /> FIPS 199
           </TabsTrigger>
         </TabsList>
 
@@ -1750,6 +1784,438 @@ export default function ScoringHub() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* INDUSTRY BASELINES TAB                                        */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <TabsContent value="industry" className="space-y-4">
+          <Card className="bg-zinc-900/60 border-zinc-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-400">
+                <Building2 className="w-5 h-5" /> Industry Asset Tier Baselines
+              </CardTitle>
+              <CardDescription>
+                View asset classification tiers and risk modifiers for each industry vertical.
+                These baselines drive the hybrid scoring formula’s tier weighting and industry multipliers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Industry Selector */}
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <Label className="text-zinc-400 text-xs mb-1">Industry Vertical</Label>
+                  <Select value={selectedIndustry} onValueChange={(v) => setSelectedIndustry(v as IndustryVertical)}>
+                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Corporate_Enterprise">Corporate / Enterprise</SelectItem>
+                      <SelectItem value="Industrial_OT_Manufacturing">Industrial OT / Manufacturing</SelectItem>
+                      <SelectItem value="Government_Federal_State">Government (Federal / State)</SelectItem>
+                      <SelectItem value="Healthcare">Healthcare</SelectItem>
+                      <SelectItem value="Financial_Services">Financial Services</SelectItem>
+                      <SelectItem value="Energy_Utilities">Energy / Utilities</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label className="text-zinc-400 text-xs mb-1">Asset Tier</Label>
+                  <Select value={selectedTier} onValueChange={(v) => setSelectedTier(v as AssetTierType)}>
+                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Tier_1_Strategic">Tier 1 — Strategic (1.5x)</SelectItem>
+                      <SelectItem value="Tier_2_Operational">Tier 2 — Operational (1.2x)</SelectItem>
+                      <SelectItem value="Tier_3_Tactical">Tier 3 — Tactical (1.0x)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Tier Breakdown */}
+              {industryTierQ.data && (
+                <div className="space-y-3">
+                  {Object.entries(industryTierQ.data.tiers).map(([tierKey, tierData]: [string, any]) => (
+                    <div key={tierKey} className={`p-3 rounded-lg border ${
+                      tierKey === "Tier_1_Strategic" ? "bg-red-500/5 border-red-500/20" :
+                      tierKey === "Tier_2_Operational" ? "bg-amber-500/5 border-amber-500/20" :
+                      "bg-zinc-800/50 border-zinc-700/50"
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`font-semibold text-sm ${
+                          tierKey === "Tier_1_Strategic" ? "text-red-400" :
+                          tierKey === "Tier_2_Operational" ? "text-amber-400" :
+                          "text-zinc-400"
+                        }`}>
+                          {tierKey.replace(/_/g, " ")}
+                        </span>
+                        <Badge variant="outline" className="text-[10px]">
+                          Weight: {tierKey === "Tier_1_Strategic" ? "1.5x" : tierKey === "Tier_2_Operational" ? "1.2x" : "1.0x"}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(tierData as string[]).map((asset: string) => (
+                          <Badge key={asset} variant="outline" className="text-[10px] bg-zinc-800/60 border-zinc-700">
+                            {asset}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Industry Risk Modifiers */}
+              <div className="mt-4 p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
+                <h4 className="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-amber-400" /> Industry Risk Modifiers
+                </h4>
+                <p className="text-xs text-zinc-500 mb-2">
+                  These multipliers amplify risk scores based on industry-specific regulatory, safety, and systemic factors.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {industryTierQ.data?.modifiers && Object.entries(industryTierQ.data.modifiers).map(([key, val]) => (
+                    <div key={key} className="flex items-center justify-between p-2 bg-zinc-900/60 rounded border border-zinc-700/30">
+                      <span className="text-xs text-zinc-400">{key.replace(/_/g, " ").replace(" multiplier", "")}</span>
+                      <span className="text-xs font-mono text-amber-400">{String(val)}x</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Auto-BIA Inference Rules */}
+              <div className="mt-4 p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
+                <h4 className="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-cyan-400" /> Auto-BIA Inference Rules
+                </h4>
+                <p className="text-xs text-zinc-500 mb-2">
+                  Signals detected from scan data automatically infer Business Impact Analysis multipliers.
+                </p>
+                <div className="space-y-1">
+                  {[
+                    { signal: "MX Record", asset: "Email Infrastructure", bia: 1.4 },
+                    { signal: "SSO Endpoint", asset: "Identity Provider / SSO", bia: 1.5 },
+                    { signal: "Payment Page", asset: "Customer-Facing Applications", bia: 1.45 },
+                    { signal: "Admin Panel", asset: "Cloud Control Plane", bia: 1.5 },
+                    { signal: "Database Port Exposure", asset: "Core Business Databases", bia: 1.5 },
+                    { signal: "Git Repository", asset: "CI/CD Pipeline", bia: 1.35 },
+                  ].map((rule) => (
+                    <div key={rule.signal} className="flex items-center justify-between p-2 bg-zinc-900/40 rounded border border-zinc-700/20">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[9px] bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
+                          {rule.signal}
+                        </Badge>
+                        <span className="text-xs text-zinc-400">→ {rule.asset}</span>
+                      </div>
+                      <span className="text-xs font-mono text-cyan-400">{rule.bia}x BIA</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hybrid Formula Reference */}
+              <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-amber-500/5 to-cyan-500/5 border border-zinc-700/50">
+                <h4 className="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                  <Gauge className="w-4 h-4 text-amber-400" /> Enhanced Hybrid Formula
+                </h4>
+                <div className="font-mono text-xs text-zinc-300 bg-zinc-900/60 p-3 rounded border border-zinc-700/30">
+                  <div>Score = ((CARVER/70 × <span className="text-amber-400">0.5</span>) + (CVSS/10 × <span className="text-cyan-400">0.3</span>) + (BIA × <span className="text-green-400">0.2</span>))</div>
+                  <div className="ml-8">× TierWeight × ShockMultiplier × IndustryModifier × <span className="text-purple-400">FIPS199Multiplier</span></div>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  <div className="text-center p-2 bg-zinc-900/40 rounded">
+                    <div className="text-[10px] text-zinc-500">CARVER</div>
+                    <div className="text-sm font-mono text-amber-400">50%</div>
+                  </div>
+                  <div className="text-center p-2 bg-zinc-900/40 rounded">
+                    <div className="text-[10px] text-zinc-500">CVSS</div>
+                    <div className="text-sm font-mono text-cyan-400">30%</div>
+                  </div>
+                  <div className="text-center p-2 bg-zinc-900/40 rounded">
+                    <div className="text-[10px] text-zinc-500">BIA</div>
+                    <div className="text-sm font-mono text-green-400">20%</div>
+                  </div>
+                  <div className="text-center p-2 bg-zinc-900/40 rounded">
+                    <div className="text-[10px] text-zinc-500">FIPS 199</div>
+                    <div className="text-sm font-mono text-purple-400">× Mult</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* FIPS 199 SECURITY CATEGORIZATION TAB                           */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <TabsContent value="fips199" className="space-y-4">
+          <Card className="bg-zinc-900/60 border-zinc-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-purple-400">
+                <Lock className="w-5 h-5" /> FIPS 199 Security Categorization
+              </CardTitle>
+              <CardDescription>
+                Categorize information types across three lifecycle states: <strong>Access</strong> (data in use),
+                <strong> Storage</strong> (data at rest), and <strong>Transit</strong> (data in motion).
+                Each state receives independent Confidentiality / Integrity / Availability ratings per NIST SP 800-60.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Mode Toggle */}
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  variant={fips199UseDefaults ? "default" : "outline"}
+                  onClick={() => { setFips199UseDefaults(true); setFips199Custom(null); }}
+                  className="text-xs"
+                >
+                  Industry Defaults
+                </Button>
+                <Button
+                  size="sm"
+                  variant={!fips199UseDefaults ? "default" : "outline"}
+                  onClick={() => {
+                    setFips199UseDefaults(false);
+                    if (!fips199Custom && fips199DefaultsQ.data) {
+                      setFips199Custom(fips199DefaultsQ.data.category as any);
+                    } else if (!fips199Custom) {
+                      setFips199Custom({
+                        access:  { confidentiality: "moderate", integrity: "moderate", availability: "moderate" },
+                        storage: { confidentiality: "moderate", integrity: "moderate", availability: "moderate" },
+                        transit: { confidentiality: "moderate", integrity: "moderate", availability: "moderate" },
+                      });
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  Custom Categorization
+                </Button>
+              </div>
+
+              {/* Industry/Tier selectors (same as Industry tab) */}
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <Label className="text-zinc-400 text-xs mb-1">Industry Vertical</Label>
+                  <Select value={selectedIndustry} onValueChange={(v) => setSelectedIndustry(v as IndustryVertical)}>
+                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Corporate_Enterprise">Corporate / Enterprise</SelectItem>
+                      <SelectItem value="Industrial_OT_Manufacturing">Industrial OT / Manufacturing</SelectItem>
+                      <SelectItem value="Government_Federal_State">Government (Federal / State)</SelectItem>
+                      <SelectItem value="Healthcare">Healthcare</SelectItem>
+                      <SelectItem value="Financial_Services">Financial Services</SelectItem>
+                      <SelectItem value="Energy_Utilities">Energy / Utilities</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label className="text-zinc-400 text-xs mb-1">Asset Tier</Label>
+                  <Select value={selectedTier} onValueChange={(v) => setSelectedTier(v as AssetTierType)}>
+                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Tier_1_Strategic">Tier 1 — Strategic</SelectItem>
+                      <SelectItem value="Tier_2_Operational">Tier 2 — Operational</SelectItem>
+                      <SelectItem value="Tier_3_Tactical">Tier 3 — Tactical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Three-State FIPS 199 Matrix */}
+              {(() => {
+                const currentCat = fips199UseDefaults
+                  ? fips199DefaultsQ.data?.category
+                  : fips199Custom;
+                if (!currentCat) return <div className="text-zinc-500 text-sm">Loading categorization...</div>;
+
+                const states = [
+                  { key: "access" as const, label: "Access (Data in Use)", icon: <Monitor className="w-4 h-4" />, desc: "Actively processed or accessed by users/systems" },
+                  { key: "storage" as const, label: "Storage (Data at Rest)", icon: <HardDrive className="w-4 h-4" />, desc: "Stored in databases, file systems, backups, archives" },
+                  { key: "transit" as const, label: "Transit (Data in Motion)", icon: <Wifi className="w-4 h-4" />, desc: "Network transfers, API calls, replication, sync" },
+                ];
+                const dimensions = ["confidentiality", "integrity", "availability"] as const;
+                const levelColors: Record<string, string> = {
+                  low: "bg-green-500/20 text-green-400 border-green-500/30",
+                  moderate: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+                  high: "bg-red-500/20 text-red-400 border-red-500/30",
+                };
+
+                return (
+                  <div className="space-y-3">
+                    {states.map((state) => {
+                      const stateData = (currentCat as any)[state.key];
+                      return (
+                        <div key={state.key} className="p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-purple-400">{state.icon}</span>
+                            <span className="text-sm font-semibold text-zinc-200">{state.label}</span>
+                          </div>
+                          <p className="text-[10px] text-zinc-500 mb-2">{state.desc}</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {dimensions.map((dim) => (
+                              <div key={dim} className="space-y-1">
+                                <Label className="text-[10px] text-zinc-500 capitalize">{dim}</Label>
+                                {fips199UseDefaults ? (
+                                  <Badge className={`w-full justify-center text-[10px] ${levelColors[stateData[dim]]}`}>
+                                    {stateData[dim].toUpperCase()}
+                                  </Badge>
+                                ) : (
+                                  <Select
+                                    value={stateData[dim]}
+                                    onValueChange={(v) => {
+                                      setFips199Custom((prev) => {
+                                        if (!prev) return prev;
+                                        return {
+                                          ...prev,
+                                          [state.key]: { ...prev[state.key], [dim]: v },
+                                        };
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-7 text-[10px] bg-zinc-900 border-zinc-700">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="low">LOW</SelectItem>
+                                      <SelectItem value="moderate">MODERATE</SelectItem>
+                                      <SelectItem value="high">HIGH</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* Compute Custom FIPS 199 Button */}
+              {!fips199UseDefaults && fips199Custom && (
+                <Button
+                  size="sm"
+                  onClick={() => computeFips199M.mutate(fips199Custom)}
+                  disabled={computeFips199M.isPending}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1 ${computeFips199M.isPending ? "animate-spin" : ""}`} />
+                  Compute Adjustments
+                </Button>
+              )}
+
+              {/* FIPS 199 Results */}
+              {(() => {
+                const adj = fips199UseDefaults
+                  ? fips199DefaultsQ.data?.adjustments
+                  : computeFips199M.data?.adjustments;
+                if (!adj) return null;
+
+                const levelColors: Record<string, string> = {
+                  low: "text-green-400",
+                  moderate: "text-yellow-400",
+                  high: "text-red-400",
+                };
+
+                return (
+                  <div className="space-y-3 mt-4">
+                    {/* High Watermark Summary */}
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-purple-500/5 to-cyan-500/5 border border-purple-500/20">
+                      <h4 className="text-sm font-semibold text-zinc-300 mb-2">High Watermark (Aggregate)</h4>
+                      <p className="text-[10px] text-zinc-500 mb-2">
+                        Per FIPS PUB 199: The overall security category is the highest impact level across all information states.
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="text-center p-2 bg-zinc-900/60 rounded">
+                          <div className="text-[10px] text-zinc-500">Confidentiality</div>
+                          <div className={`text-sm font-semibold ${levelColors[adj.highWatermark.confidentiality]}`}>
+                            {adj.highWatermark.confidentiality.toUpperCase()}
+                          </div>
+                        </div>
+                        <div className="text-center p-2 bg-zinc-900/60 rounded">
+                          <div className="text-[10px] text-zinc-500">Integrity</div>
+                          <div className={`text-sm font-semibold ${levelColors[adj.highWatermark.integrity]}`}>
+                            {adj.highWatermark.integrity.toUpperCase()}
+                          </div>
+                        </div>
+                        <div className="text-center p-2 bg-zinc-900/60 rounded">
+                          <div className="text-[10px] text-zinc-500">Availability</div>
+                          <div className={`text-sm font-semibold ${levelColors[adj.highWatermark.availability]}`}>
+                            {adj.highWatermark.availability.toUpperCase()}
+                          </div>
+                        </div>
+                        <div className="text-center p-2 bg-zinc-900/60 rounded border border-purple-500/30">
+                          <div className="text-[10px] text-zinc-500">Overall</div>
+                          <div className={`text-sm font-bold ${levelColors[adj.highWatermark.overallLevel]}`}>
+                            {adj.highWatermark.overallLevel.toUpperCase()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Per-State Impact */}
+                    <div className="p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
+                      <h4 className="text-sm font-semibold text-zinc-300 mb-2">Per-State Impact Levels</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["access", "storage", "transit"] as const).map((state) => (
+                          <div key={state} className="text-center p-2 bg-zinc-900/40 rounded">
+                            <div className="text-[10px] text-zinc-500 capitalize">{state}</div>
+                            <div className={`text-sm font-semibold ${levelColors[adj.stateImpacts[state]]}`}>
+                              {adj.stateImpacts[state].toUpperCase()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Score Adjustments */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
+                        <h4 className="text-xs font-semibold text-zinc-400 mb-2">CARVER Floor Adjustments</h4>
+                        {Object.entries(adj.carverFloors).map(([key, val]) => (
+                          <div key={key} className="flex justify-between text-xs py-0.5">
+                            <span className="text-zinc-500 capitalize">{key}</span>
+                            <span className="font-mono text-amber-400">≥ {String(val)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
+                        <h4 className="text-xs font-semibold text-zinc-400 mb-2">SHOCK Floor Adjustments</h4>
+                        {Object.entries(adj.shockFloors).map(([key, val]) => (
+                          <div key={key} className="flex justify-between text-xs py-0.5">
+                            <span className="text-zinc-500 capitalize">{key.replace(/([A-Z])/g, " $1").trim()}</span>
+                            <span className="font-mono text-cyan-400">≥ {String(val)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Mission Multiplier */}
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-transparent border border-purple-500/20">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-semibold text-zinc-300">FIPS 199 Mission Multiplier</h4>
+                          <p className="text-[10px] text-zinc-500 mt-0.5">
+                            Applied as a scaling factor in the hybrid formula. Low=0.9x, Moderate=1.3x, High=1.8x
+                          </p>
+                        </div>
+                        <div className="text-2xl font-bold font-mono text-purple-400">
+                          {adj.missionMultiplier}x
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
