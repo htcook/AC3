@@ -1,0 +1,40 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE '%scan%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE '%scan%';",
+  "rows": [
+    {
+      "TABLE_NAME": "vuln_scan_imports"
+    },
+    {
+      "TABLE_NAME": "vuln_scan_findings"
+    },
+    {
+      "TABLE_NAME": "web_app_scans"
+    },
+    {
+      "TABLE_NAME": "nuclei_scans"
+    },
+    {
+      "TABLE_NAME": "config_scan_results"
+    },
+    {
+      "TABLE_NAME": "scan_observations"
+    },
+    {
+      "TABLE_NAME": "scan_signals"
+    },
+    {
+      "TABLE_NAME": "scan_risk_cards"
+    },
+    {
+      "TABLE_NAME": "scan_policies"
+    },
+    {
+      "TABLE_NAME": "domain_intel_scans"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nvuln_scan_imports\nvuln_scan_findings\nweb_app_scans\nnuclei_scans\nconfig_scan_results\nscan_observations\nscan_signals\nscan_risk_cards\nscan_policies\ndomain_intel_scans\n",
+  "stderr": "",
+  "execution_time_ms": 183
+}

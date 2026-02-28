@@ -484,10 +484,26 @@ export const darkwebIntelRouter = router({
 
   /** Recent victim events from threat_group_events. */
   recentVictimEvents: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
+    .input(z.object({
+      limit: z.number().min(1).max(200).optional(),
+      search: z.string().optional(),
+      country: z.string().optional(),
+      sector: z.string().optional(),
+      actorName: z.string().optional(),
+    }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { data: [], source: "local_database", fetchedAt: new Date().toISOString() };
+      if (!db) return { data: [], source: "local_database", fetchedAt: new Date().toISOString(), filters: { countries: [], sectors: [], actors: [] } };
+      // Build WHERE conditions
+      const conditions: any[] = [];
+      if (input?.country) conditions.push(eq(threatGroupEvents.victimCountry, input.country));
+      if (input?.sector) conditions.push(eq(threatGroupEvents.victimSector, input.sector));
+      if (input?.actorName) conditions.push(eq(threatActors.name, input.actorName));
+      if (input?.search) {
+        const term = `%${input.search}%`;
+        conditions.push(sql`(${threatGroupEvents.victimName} LIKE ${term} OR ${threatGroupEvents.description} LIKE ${term} OR ${threatGroupEvents.title} LIKE ${term})`);
+      }
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
       const events = await db
         .select({
           id: threatGroupEvents.id,
@@ -506,8 +522,20 @@ export const darkwebIntelRouter = router({
         })
         .from(threatGroupEvents)
         .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
+        .where(whereClause)
         .orderBy(desc(threatGroupEvents.eventDate))
-        .limit(input?.limit || 50);
+        .limit(input?.limit || 100);
+      // Get IOC counts per actor for enrichment badges
+      const actorIds = [...new Set(events.map(e => e.actorId))];
+      const iocCountMap: Record<string, number> = {};
+      if (actorIds.length > 0) {
+        const iocCounts = await db
+          .select({ actorId: threatActorIocs.actorId, count: sql<number>`COUNT(*)` })
+          .from(threatActorIocs)
+          .where(sql`${threatActorIocs.actorId} IN (${sql.join(actorIds.map(id => sql`${id}`), sql`, `)})`)
+          .groupBy(threatActorIocs.actorId);
+        for (const row of iocCounts) iocCountMap[row.actorId] = row.count;
+      }
       const data = events.map((e) => ({
         id: e.id,
         actorName: e.actorName || e.actorId,
@@ -521,8 +549,24 @@ export const darkwebIntelRouter = router({
         eventDate: e.eventDate,
         source: e.source,
         sourceUrl: e.sourceUrl,
+        iocCount: iocCountMap[e.actorId] || 0,
       }));
-      return { data, source: "local_database", fetchedAt: new Date().toISOString() };
+      // Get filter options
+      const [countries, sectors, actors] = await Promise.all([
+        db.selectDistinct({ value: threatGroupEvents.victimCountry }).from(threatGroupEvents).where(sql`${threatGroupEvents.victimCountry} IS NOT NULL AND ${threatGroupEvents.victimCountry} != ''`).orderBy(threatGroupEvents.victimCountry),
+        db.selectDistinct({ value: threatGroupEvents.victimSector }).from(threatGroupEvents).where(sql`${threatGroupEvents.victimSector} IS NOT NULL AND ${threatGroupEvents.victimSector} != ''`).orderBy(threatGroupEvents.victimSector),
+        db.selectDistinct({ value: threatActors.name }).from(threatGroupEvents).leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId)).where(sql`${threatActors.name} IS NOT NULL`).orderBy(threatActors.name),
+      ]);
+      return {
+        data,
+        source: "local_database",
+        fetchedAt: new Date().toISOString(),
+        filters: {
+          countries: countries.map(c => c.value).filter(Boolean) as string[],
+          sectors: sectors.map(s => s.value).filter(Boolean) as string[],
+          actors: actors.map(a => a.value).filter(Boolean) as string[],
+        },
+      };
     }),
 
   /** OTX-style pulses synthesized from threat_group_events + threat_actors. */
@@ -804,6 +848,28 @@ export const darkwebIntelRouter = router({
           .where(sql`JSON_CONTAINS(${accessBrokerListings.linkedActorIds}, JSON_QUOTE(${actor.actorId}))`)
           .limit(5);
       }
+      // Also fetch IOCs from ioc_feeds table for enrichment
+      let feedIocs: any[] = [];
+      if (actor && actor.name) {
+        try {
+          feedIocs = await db.select({
+            id: iocFeeds.id,
+            iocType: iocFeeds.iocType,
+            iocValue: iocFeeds.iocValue,
+            feedSource: iocFeeds.feedSource,
+            feedType: iocFeeds.feedType,
+            severity: iocFeeds.severity,
+            title: iocFeeds.title,
+            vendorProduct: iocFeeds.vendorProduct,
+            tags: iocFeeds.tags,
+            dateAdded: iocFeeds.dateAdded,
+          }).from(iocFeeds)
+            .where(sql`CAST(${iocFeeds.tags} AS CHAR) LIKE ${'%' + actor.name + '%'} OR ${iocFeeds.vendorProduct} LIKE ${'%' + actor.name + '%'} OR ${iocFeeds.title} LIKE ${'%' + actor.name + '%'}`)
+            .limit(50);
+        } catch {
+          feedIocs = [];
+        }
+      }
       return {
         event: { ...event, mitreTechniques: safeParseJson(event.mitreTechniques), iocs: safeParseJson(event.iocs) },
         actor: actor ? {
@@ -820,6 +886,13 @@ export const darkwebIntelRouter = router({
         actorIocs: actorIocs.map(ioc => ({
           type: ioc.type, value: ioc.value, description: ioc.description,
           firstSeen: ioc.firstSeen, lastSeen: ioc.lastSeen, confidence: ioc.confidence, source: ioc.source,
+        })),
+        feedIocs: feedIocs.map(ioc => ({
+          id: ioc.id, iocType: ioc.iocType, iocValue: ioc.iocValue,
+          threatType: ioc.feedType, malwareFamily: ioc.vendorProduct,
+          confidence: ioc.severity === 'critical' ? 95 : ioc.severity === 'high' ? 80 : 60,
+          source: ioc.feedSource,
+          firstSeen: ioc.dateAdded, lastSeen: null,
         })),
         ransomwareProfile: ransomwareProfile ? {
           groupName: ransomwareProfile.groupName, activityScore: ransomwareProfile.activityScore,

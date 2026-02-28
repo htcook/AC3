@@ -115,6 +115,69 @@ function maxSeverity(items: string[]): string {
 
 // ─── Default Alert Rules (Presets) ──────────────────────────────────────────
 
+// ─── Global Notification Rate Limiter ──────────────────────────────────────
+// Prevents email floods: max 5 notifications per hour, with digest batching
+const GLOBAL_NOTIFICATION_LIMIT = 5;
+const GLOBAL_NOTIFICATION_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const notificationTimestamps: number[] = [];
+
+function canSendNotification(): boolean {
+  const now = Date.now();
+  // Remove timestamps outside the window
+  while (notificationTimestamps.length > 0 && notificationTimestamps[0] < now - GLOBAL_NOTIFICATION_WINDOW_MS) {
+    notificationTimestamps.shift();
+  }
+  return notificationTimestamps.length < GLOBAL_NOTIFICATION_LIMIT;
+}
+
+function recordNotificationSent(): void {
+  notificationTimestamps.push(Date.now());
+}
+
+// Pending digest for batched alerts that exceed the rate limit
+let pendingDigestAlerts: Array<{ severity: string; title: string; message: string }> = [];
+let digestTimer: ReturnType<typeof setTimeout> | null = null;
+const DIGEST_DELAY_MS = 5 * 60 * 1000; // 5 minutes — batch alerts into a single digest
+
+async function flushDigest(): Promise<void> {
+  if (pendingDigestAlerts.length === 0) return;
+  const alerts = [...pendingDigestAlerts];
+  pendingDigestAlerts = [];
+  digestTimer = null;
+
+  if (!canSendNotification()) {
+    console.log(`[AlertEngine] Digest suppressed — global rate limit reached (${alerts.length} alerts dropped)`);
+    return;
+  }
+
+  const criticalCount = alerts.filter(a => a.severity === 'critical').length;
+  const highCount = alerts.filter(a => a.severity === 'high').length;
+  const otherCount = alerts.length - criticalCount - highCount;
+
+  const title = `[DIGEST] ${alerts.length} Alert${alerts.length > 1 ? 's' : ''} — ${criticalCount} Critical, ${highCount} High`;
+  const content = [
+    `Alert digest (${alerts.length} alerts batched):`,
+    '',
+    ...alerts.slice(0, 10).map((a, i) => `${i + 1}. [${a.severity.toUpperCase()}] ${a.title}`),
+    ...(alerts.length > 10 ? [`... and ${alerts.length - 10} more`] : []),
+  ].join('\n');
+
+  try {
+    await notifyOwner({ title, content });
+    recordNotificationSent();
+    console.log(`[AlertEngine] Digest sent: ${alerts.length} alerts`);
+  } catch {
+    console.error('[AlertEngine] Failed to send digest notification');
+  }
+}
+
+function queueForDigest(severity: string, title: string, message: string): void {
+  pendingDigestAlerts.push({ severity, title, message });
+  if (!digestTimer) {
+    digestTimer = setTimeout(() => flushDigest(), DIGEST_DELAY_MS);
+  }
+}
+
 export const DEFAULT_ALERT_RULES: Omit<AlertRule, "triggerCount" | "lastTriggeredAt">[] = [
   {
     ruleId: "default-critical-cve",
@@ -124,7 +187,7 @@ export const DEFAULT_ALERT_RULES: Omit<AlertRule, "triggerCount" | "lastTriggere
     triggerType: "critical_cve",
     conditions: { cvssThreshold: 9.0 },
     notifyOwner: true,
-    cooldownMinutes: 30,
+    cooldownMinutes: 240, // 4 hours (was 30 min)
   },
   {
     ruleId: "default-new-open-port",
@@ -133,8 +196,8 @@ export const DEFAULT_ALERT_RULES: Omit<AlertRule, "triggerCount" | "lastTriggere
     isEnabled: true,
     triggerType: "new_open_port",
     conditions: {},
-    notifyOwner: true,
-    cooldownMinutes: 60,
+    notifyOwner: false, // Disabled email — too noisy, still logs to alert history
+    cooldownMinutes: 360, // 6 hours (was 60 min)
   },
   {
     ruleId: "default-high-severity-signal",
@@ -142,9 +205,9 @@ export const DEFAULT_ALERT_RULES: Omit<AlertRule, "triggerCount" | "lastTriggere
     description: "Triggers when a signal with severity high or critical is derived",
     isEnabled: true,
     triggerType: "high_severity_signal",
-    conditions: { severityThreshold: "high" },
+    conditions: { severityThreshold: "critical" }, // Raised from "high" to "critical" only
     notifyOwner: true,
-    cooldownMinutes: 15,
+    cooldownMinutes: 360, // 6 hours (was 15 min)
   },
   {
     ruleId: "default-risk-score",
@@ -153,8 +216,8 @@ export const DEFAULT_ALERT_RULES: Omit<AlertRule, "triggerCount" | "lastTriggere
     isEnabled: false,
     triggerType: "risk_score_threshold",
     conditions: { riskScoreThreshold: 80 },
-    notifyOwner: true,
-    cooldownMinutes: 120,
+    notifyOwner: false,
+    cooldownMinutes: 720, // 12 hours
   },
   {
     ruleId: "default-observation-burst",
@@ -163,18 +226,18 @@ export const DEFAULT_ALERT_RULES: Omit<AlertRule, "triggerCount" | "lastTriggere
     isEnabled: false,
     triggerType: "observation_count",
     conditions: { observationCountThreshold: 50, timeWindowMinutes: 5 },
-    notifyOwner: true,
-    cooldownMinutes: 30,
+    notifyOwner: false,
+    cooldownMinutes: 360,
   },
   {
     ruleId: "default-new-vuln",
     name: "New Vulnerability Finding",
-    description: "Triggers on any new vulnerability finding with severity >= medium",
+    description: "Triggers on any new vulnerability finding with severity >= high",
     isEnabled: true,
     triggerType: "new_vulnerability",
-    conditions: { severityThreshold: "medium" },
-    notifyOwner: true,
-    cooldownMinutes: 15,
+    conditions: { severityThreshold: "high" }, // Raised from "medium" to "high"
+    notifyOwner: false, // Disabled email — too noisy during scans, still logs to alert history
+    cooldownMinutes: 360, // 6 hours (was 15 min)
   },
   {
     ruleId: "default-tls-expiry",
@@ -184,17 +247,17 @@ export const DEFAULT_ALERT_RULES: Omit<AlertRule, "triggerCount" | "lastTriggere
     triggerType: "tls_expiry",
     conditions: { timeWindowMinutes: 43200 }, // 30 days in minutes
     notifyOwner: true,
-    cooldownMinutes: 1440, // once per day
+    cooldownMinutes: 1440, // once per day (unchanged)
   },
   {
     ruleId: "default-misconfiguration",
     name: "Misconfiguration Detected",
-    description: "Triggers on any new misconfiguration observation with severity >= medium",
+    description: "Triggers on any new misconfiguration observation with severity >= high",
     isEnabled: true,
     triggerType: "misconfiguration",
-    conditions: { severityThreshold: "medium" },
-    notifyOwner: true,
-    cooldownMinutes: 30,
+    conditions: { severityThreshold: "high" }, // Raised from "medium" to "high"
+    notifyOwner: false, // Disabled email — too noisy, still logs to alert history
+    cooldownMinutes: 360, // 6 hours (was 30 min)
   },
 ];
 
@@ -302,17 +365,26 @@ export class AlertRulesEngine {
         triggeredAt: now,
       };
 
-      // Send notification if configured
+      // Send notification if configured — with global rate limiting and digest batching
       if (rule.notifyOwner) {
-        try {
-          const sent = await notifyOwner({
-            title: `[${result.severity.toUpperCase()}] ${result.title}`,
-            content: result.message,
-          });
-          alertEvent.notificationSent = sent;
-          alertEvent.notificationResult = sent ? "delivered" : "failed";
-        } catch (err) {
-          alertEvent.notificationResult = `error: ${err instanceof Error ? err.message : "unknown"}`;
+        if (canSendNotification()) {
+          try {
+            const sent = await notifyOwner({
+              title: `[${result.severity.toUpperCase()}] ${result.title}`,
+              content: result.message,
+            });
+            if (sent) recordNotificationSent();
+            alertEvent.notificationSent = sent;
+            alertEvent.notificationResult = sent ? "delivered" : "failed";
+          } catch (err) {
+            alertEvent.notificationResult = `error: ${err instanceof Error ? err.message : "unknown"}`;
+          }
+        } else {
+          // Rate limited — queue for digest instead of sending individually
+          queueForDigest(result.severity, result.title, result.message);
+          alertEvent.notificationSent = false;
+          alertEvent.notificationResult = "rate_limited_queued_for_digest";
+          console.log(`[AlertEngine] Rate limited: ${result.title} — queued for digest`);
         }
       }
 

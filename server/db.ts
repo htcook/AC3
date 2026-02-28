@@ -689,9 +689,29 @@ export async function createDomainIntelScan(scan: InsertDomainIntelScan) {
 export async function getDomainIntelScans() {
   const db = await getDb();
   if (!db) return [];
-  // Filter out platform-initiated auto-test scans (pattern: {clientType}-{timestamp}.com)
-  // but keep all real domain scans including those from testing runs
-  return db.select().from(domainIntelScans)
+  // Select only summary columns needed for the list view.
+  // Excludes large JSON blobs (pipelineOutput, campaignRecommendations, orgProfile)
+  // and large text fields (executiveSummary, threatModelSummary) to prevent 503 timeouts.
+  return db.select({
+    id: domainIntelScans.id,
+    engagementId: domainIntelScans.engagementId,
+    primaryDomain: domainIntelScans.primaryDomain,
+    clientType: domainIntelScans.clientType,
+    sector: domainIntelScans.sector,
+    status: domainIntelScans.status,
+    totalAssets: domainIntelScans.totalAssets,
+    totalFindings: domainIntelScans.totalFindings,
+    confirmedFindings: domainIntelScans.confirmedFindings,
+    probableFindings: domainIntelScans.probableFindings,
+    potentialFindings: domainIntelScans.potentialFindings,
+    discoveryCoverageScore: domainIntelScans.discoveryCoverageScore,
+    discoveryCoverageBand: domainIntelScans.discoveryCoverageBand,
+    overallRiskScore: domainIntelScans.overallRiskScore,
+    overallRiskBand: domainIntelScans.overallRiskBand,
+    createdBy: domainIntelScans.createdBy,
+    createdAt: domainIntelScans.createdAt,
+    updatedAt: domainIntelScans.updatedAt,
+  }).from(domainIntelScans)
     .where(
       not(
         sql`${domainIntelScans.primaryDomain} REGEXP '^(msp|enterprise|saas|paas|iaas|mixed_hosting|other)-[0-9]+\\.com$'`

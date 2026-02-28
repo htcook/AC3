@@ -76,6 +76,8 @@ export default function AlertDetailModal({ open, onOpenChange, eventId }: AlertD
   const actor = data?.actor;
   const relatedEvents = data?.relatedEvents || [];
   const actorIocs = data?.actorIocs || [];
+  const feedIocs = (data as any)?.feedIocs || [];
+  const totalIocCount = actorIocs.length + feedIocs.length;
   const ransomwareProfile = data?.ransomwareProfile;
   const brokerListings = data?.brokerListings || [];
 
@@ -142,9 +144,9 @@ export default function AlertDetailModal({ open, onOpenChange, eventId }: AlertD
                     THREAT ACTOR
                   </TabsTrigger>
                 )}
-                {actorIocs.length > 0 && (
+                {totalIocCount > 0 && (
                   <TabsTrigger value="iocs" className="font-display tracking-wider text-[11px] rounded-none border-b-2 border-transparent data-[state=active]:border-amber-400 py-2.5">
-                    IOCs ({actorIocs.length})
+                    IOCs ({totalIocCount})
                   </TabsTrigger>
                 )}
                 {relatedEvents.length > 0 && (
@@ -507,30 +509,60 @@ export default function AlertDetailModal({ open, onOpenChange, eventId }: AlertD
               )}
 
               {/* ── IOCs TAB ── */}
-              {actorIocs.length > 0 && (
-                <TabsContent value="iocs" className="px-6 py-4 space-y-3 mt-0">
-                  <h4 className="text-[10px] font-display tracking-widest text-muted-foreground flex items-center gap-2">
-                    <Bug className="w-3.5 h-3.5 text-amber-400" /> INDICATORS OF COMPROMISE
-                  </h4>
-                  <div className="space-y-1.5">
-                    {actorIocs.map((ioc: any, i: number) => (
-                      <div key={i} className="flex items-start gap-3 bg-card border border-border px-3 py-2">
-                        <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 font-display tracking-wider shrink-0 mt-0.5">
-                          {safeUpper(ioc.type || "IOC")}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-mono text-xs text-foreground break-all">{ioc.value}</div>
-                          {ioc.description && <div className="text-[10px] text-muted-foreground mt-0.5">{ioc.description}</div>}
-                          <div className="flex items-center gap-3 mt-1 text-[9px] text-muted-foreground">
-                            {ioc.firstSeen && <span>First: {formatDate(ioc.firstSeen)}</span>}
-                            {ioc.lastSeen && <span>Last: {formatDate(ioc.lastSeen)}</span>}
-                            {ioc.confidence != null && <span>Conf: {ioc.confidence}%</span>}
-                            {ioc.source && <span>Src: {ioc.source}</span>}
+              {totalIocCount > 0 && (
+                <TabsContent value="iocs" className="px-6 py-4 space-y-4 mt-0">
+                  {actorIocs.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-display tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Bug className="w-3.5 h-3.5 text-amber-400" /> ACTOR IOCs ({actorIocs.length})
+                      </h4>
+                      <div className="space-y-1.5">
+                        {actorIocs.map((ioc: any, i: number) => (
+                          <div key={`actor-${i}`} className="flex items-start gap-3 bg-card border border-border px-3 py-2">
+                            <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 font-display tracking-wider shrink-0 mt-0.5">
+                              {safeUpper(ioc.type || "IOC")}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-mono text-xs text-foreground break-all">{ioc.value}</div>
+                              {ioc.description && <div className="text-[10px] text-muted-foreground mt-0.5">{ioc.description}</div>}
+                              <div className="flex items-center gap-3 mt-1 text-[9px] text-muted-foreground">
+                                {ioc.firstSeen && <span>First: {formatDate(ioc.firstSeen)}</span>}
+                                {ioc.lastSeen && <span>Last: {formatDate(ioc.lastSeen)}</span>}
+                                {ioc.confidence != null && <span>Conf: {ioc.confidence}%</span>}
+                                {ioc.source && <span>Src: {ioc.source}</span>}
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
+                  {feedIocs.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-display tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Network className="w-3.5 h-3.5 text-purple-400" /> CORRELATED FEED IOCs ({feedIocs.length})
+                      </h4>
+                      <div className="space-y-1.5">
+                        {feedIocs.map((ioc: any, i: number) => (
+                          <div key={`feed-${i}`} className="flex items-start gap-3 bg-card border border-purple-500/20 px-3 py-2">
+                            <span className="text-[9px] px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 font-display tracking-wider shrink-0 mt-0.5">
+                              {safeUpper(ioc.iocType || "IOC")}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-mono text-xs text-foreground break-all">{ioc.iocValue}</div>
+                              <div className="flex items-center gap-3 mt-1 text-[9px] text-muted-foreground">
+                                {ioc.threatType && <span className="text-red-400">{ioc.threatType}</span>}
+                                {ioc.malwareFamily && <span className="text-amber-400">{ioc.malwareFamily}</span>}
+                                {ioc.confidence != null && <span>Conf: {ioc.confidence}%</span>}
+                                {ioc.source && <span>Src: {ioc.source}</span>}
+                                {ioc.firstSeen && <span>First: {formatDate(ioc.firstSeen)}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
               )}
 

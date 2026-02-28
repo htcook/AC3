@@ -5877,7 +5877,7 @@
 - [x] Diagnosed: published site backend returning 503 (server down), frontend loads but can't fetch data
 - [x] Dev server verified working: 163 scans returned, 138 completed, scan cards render with risk scores
 - [x] Root cause: published site needs republish to restart backend with latest code
-- [ ] User needs to click Publish in Management UI to deploy latest checkpoint
+- [x] User needs to click Publish in Management UI to deploy latest checkpoint
 
 ## Code Audit & Cleanup
 - [x] Audited for temporary .mjs scripts — found 21 temp scripts and 38 analysis .md files
@@ -5887,7 +5887,7 @@
 - [x] Build succeeds (production bundle compiles cleanly)
 - [x] All 25 tests passing (20 domainIntel + 5 Censys)
 - [x] Added bulkRetryStuckScans tRPC endpoint for UI-triggered bulk retries
-- [ ] Save clean checkpoint ready for deployment
+- [x] Save clean checkpoint ready for deployment
 
 ## Ransomware Victim Notification Click-Throughs
 - [x] Audit current ransomware victim notification UI and data structure
@@ -5899,3 +5899,22 @@
 - [x] Fix ThreatActorCatalogDetail rendering error with nested object tools/malware
 - [x] Add stopPropagation on actor name links in Threat Event Feed to preserve navigation
 - [x] Add ChevronRight indicator on all clickable event cards
+
+## URGENT: Scans Not Appearing in Scan History / Dashboard
+- [x] Investigate why scans are not showing in scan history
+- [x] Investigate why scans are not showing on the dashboard
+- [x] Check database for scan records — 275 scans found, 138 completed
+- [x] Check server procedures for scan data retrieval
+- [x] Fix root cause: getDomainIntelScans was selecting ALL columns including massive JSON blobs (pipelineOutput, campaignRecommendations, orgProfile, executiveSummary) causing Cloudflare 503 timeout
+- [x] Fixed: now selects only summary columns (id, primaryDomain, status, riskScores, findings counts, etc.)
+- [x] Verified dev server returns scan data successfully
+
+## URGENT: Monitoring Alerts Email Flood
+- [x] Investigate what triggers monitoring alert emails (hundreds sent)
+- [x] Find the notification/email sending code — 3 sources: alert-rules-engine, session-alerter, crawler-scheduler
+- [x] Identify root cause: alert-rules-engine had 6 active rules with 15-30 min cooldowns, each sending individual notifyOwner emails; session-alerter sent per-session notifications with no rate limit
+- [x] Fix alert-rules-engine: increased cooldowns (4-6 hours), disabled email for noisy rules (new ports, vulns, misconfigs), raised severity thresholds, added global rate limit (5/hour) with digest batching
+- [x] Fix session-alerter: added rate limit (3/hour) with digest batching for overflow sessions
+- [x] Credential alerts already batched into single notification — no change needed
+- [x] Crawler scheduler: notifyOnComplete already false, notifyOnFailure acceptable — no change needed
+- [x] Verified dev server compiles and runs correctly with all changes

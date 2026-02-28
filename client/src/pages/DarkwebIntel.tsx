@@ -61,6 +61,14 @@ export default function DarkwebIntel() {
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
 
+  // Victim event filter state
+  const [victimSearch, setVictimSearch] = useState("");
+  const [victimCountry, setVictimCountry] = useState("");
+  const [victimSector, setVictimSector] = useState("");
+  const [victimActor, setVictimActor] = useState("");
+  const [showVictimFilters, setShowVictimFilters] = useState(false);
+  const victimFilterActive = !!(victimSearch || victimCountry || victimSector || victimActor);
+
   const toggleSection = (key: string) =>
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -83,7 +91,14 @@ export default function DarkwebIntel() {
   const { data: otxPulses, isLoading: otxLoading } = trpc.darkwebIntel.otxPulses.useQuery({});
   const { data: malwareBazaar, isLoading: malwareLoading } = trpc.darkwebIntel.malwareBazaar.useQuery({});
   const { data: adaptiveKeywords } = trpc.darkwebIntel.adaptiveKeywords.useQuery();
-  const { data: recentVictimEvents } = trpc.darkwebIntel.recentVictimEvents.useQuery({});
+  const victimFilterInput = useMemo(() => ({
+    limit: 100,
+    ...(victimSearch ? { search: victimSearch } : {}),
+    ...(victimCountry ? { country: victimCountry } : {}),
+    ...(victimSector ? { sector: victimSector } : {}),
+    ...(victimActor ? { actorName: victimActor } : {}),
+  }), [victimSearch, victimCountry, victimSector, victimActor]);
+  const { data: recentVictimEvents } = trpc.darkwebIntel.recentVictimEvents.useQuery(victimFilterInput);
 
   // ─── Access Broker & Info Ops queries ──────────────────────────────────
   const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
@@ -371,14 +386,92 @@ export default function DarkwebIntel() {
             </div>
 
             {/* ─── Ransomware Victim Events (from bridge) ────────────────── */}
-            {recentVictimEvents && recentVictimEvents.data.length > 0 && (
-              <div className="space-y-3">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <h2 className="text-sm font-display tracking-wider flex items-center gap-2">
                   <Skull className="w-4 h-4 text-cyan-400" /> RANSOMWARE VICTIM EVENTS
                   <span className="text-[10px] text-muted-foreground">LOCAL DB</span>
+                  <span className="text-[10px] text-cyan-400">({recentVictimEvents?.data?.length ?? 0})</span>
                 </h2>
+                <div className="flex items-center gap-2">
+                  {victimFilterActive && (
+                    <button
+                      onClick={() => { setVictimSearch(""); setVictimCountry(""); setVictimSector(""); setVictimActor(""); }}
+                      className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"
+                    >
+                      ✕ Clear
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowVictimFilters(!showVictimFilters)}
+                    className={`text-[10px] px-2 py-1 tracking-wider border transition-colors flex items-center gap-1 ${
+                      showVictimFilters || victimFilterActive
+                        ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-400"
+                        : "bg-card border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Search className="w-3 h-3" /> FILTER
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Panel */}
+              {showVictimFilters && (
+                <div className="bg-card border border-cyan-500/20 p-3 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Search victims, descriptions..."
+                    value={victimSearch}
+                    onChange={(e) => setVictimSearch(e.target.value)}
+                    className="w-full bg-background border border-border px-3 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:border-cyan-500/50"
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[9px] text-muted-foreground tracking-wider mb-1 block">COUNTRY</label>
+                      <select
+                        value={victimCountry}
+                        onChange={(e) => setVictimCountry(e.target.value)}
+                        className="w-full bg-background border border-border px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500/50"
+                      >
+                        <option value="">All Countries</option>
+                        {(recentVictimEvents as any)?.filters?.countries?.map((c: string) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-muted-foreground tracking-wider mb-1 block">SECTOR</label>
+                      <select
+                        value={victimSector}
+                        onChange={(e) => setVictimSector(e.target.value)}
+                        className="w-full bg-background border border-border px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500/50"
+                      >
+                        <option value="">All Sectors</option>
+                        {(recentVictimEvents as any)?.filters?.sectors?.map((s: string) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-muted-foreground tracking-wider mb-1 block">THREAT ACTOR</label>
+                      <select
+                        value={victimActor}
+                        onChange={(e) => setVictimActor(e.target.value)}
+                        className="w-full bg-background border border-border px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500/50"
+                      >
+                        <option value="">All Actors</option>
+                        {(recentVictimEvents as any)?.filters?.actors?.map((a: string) => (
+                          <option key={a} value={a}>{a}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {recentVictimEvents && recentVictimEvents.data.length > 0 ? (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                  {recentVictimEvents.data.slice(0, 25).map((evt: any, i: number) => (
+                  {recentVictimEvents.data.map((evt: any, i: number) => (
                     <div
                       key={evt.id || i}
                       className="bg-card border border-border p-3 hover:bg-accent/5 transition-colors cursor-pointer hover:border-amber-500/40"
@@ -393,6 +486,11 @@ export default function DarkwebIntel() {
                           {evt.actorName && <span className="text-[10px] text-red-400 font-display">{evt.actorName}</span>}
                         </div>
                         <div className="flex items-center gap-2">
+                          {evt.iocCount > 0 && (
+                            <span className="text-[9px] px-1.5 py-0.5 text-purple-400 bg-purple-500/10 border border-purple-500/30 tracking-wider">
+                              {evt.iocCount} IOCs
+                            </span>
+                          )}
                           {evt.severity && (
                             <span className={`text-[9px] px-1.5 py-0.5 tracking-wider border ${SEVERITY_COLORS[evt.severity] || "text-gray-400 bg-gray-500/10 border-gray-500/30"}`}>
                               {(evt.severity || "").toUpperCase()}
@@ -423,8 +521,15 @@ export default function DarkwebIntel() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="bg-card border border-border p-6 text-center">
+                  <Skull className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">
+                    {victimFilterActive ? "No victim events match your filters." : "No ransomware victim events available."}
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* ─── malware indicator feeds IOCs (from bridge) ──────────────────────────── */}
             <div className="space-y-3">

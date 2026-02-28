@@ -55,6 +55,12 @@ class SessionAlerter {
     enabled: false,
     notifyOwnerEnabled: true,
   };
+  // Rate limiting: max 3 individual notifications per hour, then batch into digest
+  private notifTimestamps: number[] = [];
+  private pendingDigest: SessionAlert[] = [];
+  private digestTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly MAX_NOTIFS_PER_HOUR = 3;
+  private static readonly DIGEST_DELAY_MS = 10 * 60 * 1000; // 10 minutes
   private serverProvider: (() => Promise<ServerConfig[]>) | null = null;
   private onAlertCallbacks: ((alert: SessionAlert) => void)[] = [];
 
@@ -262,7 +268,53 @@ class SessionAlerter {
     }
   }
 
+  private canSendNotif(): boolean {
+    const now = Date.now();
+    this.notifTimestamps = this.notifTimestamps.filter(t => t > now - 60 * 60 * 1000);
+    return this.notifTimestamps.length < SessionAlerter.MAX_NOTIFS_PER_HOUR;
+  }
+
+  private async flushSessionDigest() {
+    if (this.pendingDigest.length === 0) return;
+    const batch = [...this.pendingDigest];
+    this.pendingDigest = [];
+    this.digestTimer = null;
+
+    if (!this.canSendNotif()) {
+      console.log(`[SessionAlerter] Digest suppressed — rate limit (${batch.length} sessions dropped)`);
+      return;
+    }
+
+    const title = `[DIGEST] ${batch.length} New Session${batch.length > 1 ? 's' : ''} Detected`;
+    const content = [
+      `${batch.length} new session(s) detected:`,
+      '',
+      ...batch.slice(0, 10).map((a, i) =>
+        `${i + 1}. ${a.sessionType} on ${a.serverName} \u2192 ${a.targetHost || 'unknown'} (${a.platform}/${a.arch})`
+      ),
+      ...(batch.length > 10 ? [`... and ${batch.length - 10} more`] : []),
+    ].join('\n');
+
+    try {
+      await notifyOwner({ title, content });
+      this.notifTimestamps.push(Date.now());
+      console.log(`[SessionAlerter] Digest sent: ${batch.length} sessions`);
+    } catch {
+      console.error('[SessionAlerter] Failed to send session digest');
+    }
+  }
+
   private async sendNotification(alert: SessionAlert) {
+    // Rate limit: batch into digest if over limit
+    if (!this.canSendNotif()) {
+      this.pendingDigest.push(alert);
+      if (!this.digestTimer) {
+        this.digestTimer = setTimeout(() => this.flushSessionDigest(), SessionAlerter.DIGEST_DELAY_MS);
+      }
+      console.log(`[SessionAlerter] Rate limited: session ${alert.sessionId} queued for digest`);
+      return;
+    }
+
     const typeEmoji = alert.sessionType === "meterpreter" ? "⚡" : "🐚";
     const title = `${typeEmoji} New ${alert.sessionType} session on ${alert.serverName}`;
     const content = [
@@ -277,6 +329,7 @@ class SessionAlerter {
     ].join("\n");
 
     await notifyOwner({ title, content });
+    this.notifTimestamps.push(Date.now());
   }
 }
 
