@@ -16,10 +16,23 @@ import type { InsertIocFeed } from "../../drizzle/schema";
 
 let syncRunning = false;
 
+async function fetchWithRetry(url: string, opts: RequestInit = {}, retries = 2, delay = 3000): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, { ...opts, signal: opts.signal || AbortSignal.timeout(30000) });
+    } catch (err: any) {
+      if (attempt === retries) throw err;
+      console.warn(`[IOC Sync] Fetch attempt ${attempt + 1} failed for ${url.substring(0, 60)}..., retrying in ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error("fetchWithRetry exhausted");
+}
+
 /** Fetch CISA KEV vulnerabilities */
 async function fetchCisaKev(): Promise<{ source: string; fetched: number; error?: string }> {
   try {
-    const response = await fetch("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json");
+    const response = await fetchWithRetry("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json");
     if (!response.ok) return { source: "cisa_kev", fetched: 0, error: `HTTP ${response.status}` };
     const data = (await response.json()) as any;
     const vulnerabilities = data.vulnerabilities || [];
@@ -55,7 +68,7 @@ async function fetchAbuseCh(): Promise<{ source: string; fetched: number; error?
     const apiKey = process.env.ABUSECH_API_KEY || "";
     const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
     if (apiKey) headers["Auth-Key"] = apiKey;
-    const response = await fetch("https://urlhaus-api.abuse.ch/v1/urls/recent/limit/100/", {
+    const response = await fetchWithRetry("https://urlhaus-api.abuse.ch/v1/urls/recent/limit/100/", {
       method: "GET",
       headers,
     });
@@ -93,7 +106,7 @@ async function fetchThreatFox(): Promise<{ source: string; fetched: number; erro
     const apiKey = process.env.ABUSECH_API_KEY || "";
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (apiKey) headers["Auth-Key"] = apiKey;
-    const response = await fetch("https://threatfox-api.abuse.ch/api/v1/", {
+    const response = await fetchWithRetry("https://threatfox-api.abuse.ch/api/v1/", {
       method: "POST",
       headers,
       body: JSON.stringify({ query: "get_iocs", days: 7 }),

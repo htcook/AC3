@@ -5792,3 +5792,8 @@
 - [x] Wire vendor connectors into scan pipeline for alert correlation
 - [ ] Add vendor alert correlation tab to DomainIntelResults
 - [x] Write tests for new connectors
+
+## Bug Fix: Background Sync Failed Error
+- [x] Investigate Caldera sync, IOC sync, and Vuln feed sync failures
+- [x] Fix root cause of sync failures (timeout too short for external APIs)
+- [x] Add better error handling and retry logic (fetchWithRetry with 2 retries, 3s delay, 30-45s timeouts)

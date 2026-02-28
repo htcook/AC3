@@ -11,6 +11,19 @@
 
 const CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
 
+async function fetchWithRetry(url: string, opts: RequestInit = {}, retries = 2, delay = 3000): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, opts);
+    } catch (err: any) {
+      if (attempt === retries) throw err;
+      console.warn(`[KEV Service] Fetch attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error("fetchWithRetry exhausted");
+}
+
 export interface KevEntry {
   cveID: string;
   vendorProject: string;
@@ -73,7 +86,9 @@ export async function fetchKevCatalog(): Promise<KevCatalog> {
   }
 
   try {
-    const response = await fetch(CISA_KEV_URL);
+    const response = await fetchWithRetry(CISA_KEV_URL, {
+      signal: AbortSignal.timeout(30000),
+    });
     if (!response.ok) {
       throw new Error(`CISA KEV fetch failed: HTTP ${response.status}`);
     }

@@ -22,6 +22,19 @@ import {
   type KevCatalog,
 } from "./kev-service";
 
+async function fetchWithRetry(url: string, opts: RequestInit = {}, retries = 2, delay = 3000): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, opts);
+    } catch (err: any) {
+      if (attempt === retries) throw err;
+      console.warn(`[VulnFeeds] Fetch attempt ${attempt + 1} failed for ${url.substring(0, 60)}..., retrying in ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error("fetchWithRetry exhausted");
+}
+
 // ─── Common Types ───────────────────────────────────────────────────────────
 
 export interface VulnEntry {
@@ -123,9 +136,9 @@ async function fetchProjectZero(): Promise<ProjectZeroEntry[]> {
   }
 
   try {
-    const res = await fetch(PROJECT_ZERO_CSV_URL, {
+    const res = await fetchWithRetry(PROJECT_ZERO_CSV_URL, {
       headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(45000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
@@ -191,9 +204,9 @@ async function fetchNvdRecent(days: number = 30): Promise<NvdCveItem[]> {
     const fmt = (d: Date) => d.toISOString().replace(/\.\d+Z$/, ".000");
 
     const url = `${NVD_API_BASE}?pubStartDate=${fmt(startDate)}&pubEndDate=${fmt(endDate)}&resultsPerPage=200`;
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
       headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(45000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json() as any;
@@ -305,9 +318,9 @@ async function fetchCirclRecent(): Promise<CirclCve[]> {
   }
 
   try {
-    const res = await fetch(`${CIRCL_API_BASE}/last/50`, {
+    const res = await fetchWithRetry(`${CIRCL_API_BASE}/last/50`, {
       headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json() as CirclCve[];

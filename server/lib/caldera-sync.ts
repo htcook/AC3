@@ -41,20 +41,29 @@ interface CalderaAbility {
   executors?: any[];
 }
 
-async function fetchCalderaAPI(endpoint: string): Promise<any> {
+async function fetchCalderaAPI(endpoint: string, retries = 2): Promise<any> {
   if (!CALDERA_BASE_URL || !CALDERA_API_KEY) {
     throw new Error("Caldera credentials not configured");
   }
-  const response = await fetch(`${CALDERA_BASE_URL}${endpoint}`, {
-    headers: {
-      "KEY": CALDERA_API_KEY,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Caldera API error: ${response.status} ${response.statusText}`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(`${CALDERA_BASE_URL}${endpoint}`, {
+        headers: {
+          "KEY": CALDERA_API_KEY,
+          "Content-Type": "application/json",
+        },
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!response.ok) {
+        throw new Error(`Caldera API error: ${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    } catch (err: any) {
+      if (attempt === retries) throw err;
+      console.warn(`[Caldera Sync] Fetch attempt ${attempt + 1} failed for ${endpoint}, retrying in 3s...`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
-  return response.json();
 }
 
 function toActorId(name: string): string {
