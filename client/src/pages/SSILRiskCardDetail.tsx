@@ -169,14 +169,14 @@ export default function SSILRiskCardDetail() {
               Hybrid Risk Score Breakdown
             </CardTitle>
             <CardDescription>
-              Final score = (CVSS × 0.40 + CARVER × 0.40 + BIA × 0.20) × Confidence
+              Final score = (CVSS × 0.40 + Hybrid × 0.40 + BIA × 0.20) × Confidence
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-around py-4">
               <ScoreGauge score={card.componentCvss} label="CVSS (40%)" color="text-red-400" />
               <div className="text-2xl text-muted-foreground">×</div>
-              <ScoreGauge score={card.componentCarver} label="CARVER+SHOCK (40%)" color="text-orange-400" />
+              <ScoreGauge score={card.componentCarver} label="Hybrid Score (40%)" color="text-orange-400" />
               <div className="text-2xl text-muted-foreground">×</div>
               <ScoreGauge score={card.componentBia} label="BIA (20%)" color="text-yellow-400" />
               <div className="text-2xl text-muted-foreground">×</div>

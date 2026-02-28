@@ -522,6 +522,7 @@ For EACH asset, provide:
    - ONLY confirmed findings with version-matched CVEs will drive the final risk rating. Potential findings are recorded as weaknesses but DO NOT affect the risk score.
    - Generic or theoretical risks (e.g., "web server might have XSS") are POTENTIAL — severity 3-5 max.
    - Do NOT inflate findings. If you cannot confirm a specific vulnerability, mark it as potential.
+   - Do NOT generate email security findings (missing DMARC, SPF, DKIM) for non-mail assets such as cloud compute instances (EC2, GCP VMs), CDN endpoints, load balancers, IP addresses, or any hostname that is clearly not a mail server. Email security findings are handled separately by the dedicated email security analyzer on the primary domain only.
 
 7. Test Vectors: Suggested attack vectors (array of objects with id, vectorType, hypothesis, suggestedEmulation {technique, tactic}, expectedTelemetry[], riskSignal {severity, likelihood})
 
@@ -2185,6 +2186,37 @@ export async function runDomainIntelPipeline(
     }
   } catch (err: any) {
     console.error(`[DomainIntel] Email security analysis failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 3.10: Strip email security findings from non-mail assets.
+  // Cloud compute hostnames (EC2, GCP, Azure), CDN edges, IP-based hosts,
+  // and load balancers should never be flagged for missing DMARC/SPF/DKIM.
+  try {
+    const { isNonMailAsset } = await import('./lib/email-security-analyzer');
+    for (const a of analyses) {
+      const hostname = a.asset.hostname || '';
+      if (isNonMailAsset(hostname)) {
+        const before = a.postureFindings.length;
+        a.postureFindings = a.postureFindings.filter((f: any) => {
+          const cat = (f.category || '').toLowerCase();
+          const title = (f.title || '').toLowerCase();
+          // Remove findings about email authentication on non-mail assets
+          if (cat.includes('email security')) return false;
+          if (title.includes('no dmarc') || title.includes('no spf') || title.includes('no dkim')) return false;
+          if (title.includes('missing dmarc') || title.includes('missing spf') || title.includes('missing dkim')) return false;
+          if (title.includes('dmarc missing') || title.includes('spf missing') || title.includes('dkim missing')) return false;
+          if (title.includes('dmarc policy') && title.includes('none')) return false;
+          if (title.includes('email spoofing') || title.includes('email impersonation')) return false;
+          return true;
+        });
+        const removed = before - a.postureFindings.length;
+        if (removed > 0) {
+          console.log(`[DomainIntel] Suppressed ${removed} email security finding(s) from non-mail asset ${hostname}`);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[DomainIntel] Non-mail asset filter failed (non-fatal): ${err.message}`);
   }
 
   // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan + PORT + EMAIL) are in place

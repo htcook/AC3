@@ -1,5 +1,5 @@
 /**
- * Batch Domain Scanner — CSV upload, CARVER scoring, risk card browser, and export.
+ * Batch Domain Scanner — CSV upload, hybrid scoring, risk card browser, and export.
  * Allows bulk domain scanning with progress tracking and persisted results.
  */
 import { useState, useRef, useMemo, useCallback } from "react";
@@ -174,7 +174,7 @@ export default function BatchDomainScanner() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `carver-risk-cards-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `hybrid-risk-cards-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }, [filteredCards]);
@@ -203,7 +203,7 @@ export default function BatchDomainScanner() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Batch Domain Scanner</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Upload CSV domains for bulk CARVER scoring, risk card generation, and LLM training data
+            Upload CSV domains for bulk hybrid scoring, risk card generation, and LLM training data
           </p>
         </div>
         <div className="flex gap-2">
@@ -354,7 +354,7 @@ export default function BatchDomainScanner() {
                     ) : (
                       <>
                         <Shield className="w-4 h-4 mr-2" />
-                        Run CARVER Scoring on {parsedDomains.length} Domains
+                        Run Hybrid Scoring on {parsedDomains.length} Domains
                       </>
                     )}
                   </Button>

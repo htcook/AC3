@@ -327,7 +327,7 @@ function CrawlResultDetail({ result }: { result: any }) {
         {result.exposedPaths?.length > 0 && <TabsTrigger value="paths">Exposed Paths</TabsTrigger>}
         {result.cookies?.length > 0 && <TabsTrigger value="cookies">Cookies</TabsTrigger>}
         {result.tlsInfo && <TabsTrigger value="tls">TLS</TabsTrigger>}
-        <TabsTrigger value="carver">CARVER+Shock</TabsTrigger>
+        <TabsTrigger value="carver">Hybrid Scoring</TabsTrigger>
       </TabsList>
 
       {/* Overview Tab */}
@@ -587,7 +587,7 @@ function CrawlResultDetail({ result }: { result: any }) {
         )}
       </TabsContent>
 
-      {/* CARVER+Shock Scoring Tab */}
+      {/* Hybrid Scoring Tab */}
       <TabsContent value="carver" className="mt-3">
         <CarverScorePanel result={result} />
       </TabsContent>
@@ -595,10 +595,10 @@ function CrawlResultDetail({ result }: { result: any }) {
   );
 }
 
-// ─── CARVER Score Panel ─────────────────────────────────────────────────────
+// ─── Hybrid Score Panel ─────────────────────────────────────────────────────
 
 function CarverScorePanel({ result }: { result: any }) {
-  // Compute CARVER scoring client-side from the crawl data
+  // Compute hybrid scoring client-side from the crawl data
   const carverData = useMemo(() => {
     if (!result) return null;
 
@@ -690,7 +690,7 @@ function CarverScorePanel({ result }: { result: any }) {
         </Card>
         <Card className="bg-muted/10 border-border/20 col-span-2">
           <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground mb-3">CARVER+Shock Dimension Adjustments</div>
+            <div className="text-xs text-muted-foreground mb-3">Hybrid Scoring Dimension Adjustments</div>
             <div className="space-y-2">
               {[
                 { label: "Vulnerability", value: carverData.vulnerability, desc: "Missing headers, exposed paths, insecure cookies" },
@@ -723,7 +723,7 @@ function CarverScorePanel({ result }: { result: any }) {
               <ShieldAlert className="w-4 h-4 text-amber-400" />
               Security Posture Findings ({carverData.postureFindings.length})
             </CardTitle>
-            <CardDescription className="text-xs">Web-layer vulnerabilities that adjust CARVER+Shock target prioritization scores</CardDescription>
+            <CardDescription className="text-xs">Web-layer vulnerabilities that adjust hybrid target prioritization scores</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {carverData.postureFindings.map((f, i) => (
@@ -742,7 +742,7 @@ function CarverScorePanel({ result }: { result: any }) {
 
       <Alert className="border-cyan-500/20 bg-cyan-500/5">
         <AlertDescription className="text-xs text-cyan-300">
-          These scores represent web-layer adjustments to the CARVER+Shock scoring model. When auto-crawl runs after a domain intel scan, these adjustments are automatically aggregated and applied to the overall target prioritization scores.
+          These scores represent web-layer adjustments to the hybrid scoring model. When auto-crawl runs after a domain intel scan, these adjustments are automatically aggregated and applied to the overall target prioritization scores.
         </AlertDescription>
       </Alert>
     </div>

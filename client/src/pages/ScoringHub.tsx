@@ -537,7 +537,7 @@ export default function ScoringHub() {
             <Crosshair className="w-6 h-6 text-cyan-400" />
             Adaptive Risk Scoring Engine
           </h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Central dashboard for all risk scoring methodologies used across the platform. View and configure how assets, vulnerabilities, and findings are scored — including CVSS, CARVER, SHOCK, and hybrid risk calculations. Compare scoring models side-by-side, adjust weighting factors, and see how score changes propagate across your assessments. Use this to ensure consistent, defensible risk prioritization across all engagements.</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Central dashboard for all risk scoring methodologies used across the platform. View and configure how assets, vulnerabilities, and findings are scored — including CVSS, multi-dimensional risk factors, and hybrid risk calculations. Compare scoring models side-by-side, adjust weighting factors, and see how score changes propagate across your assessments. Use this to ensure consistent, defensible risk prioritization across all engagements.</p>
           <p className="text-sm text-zinc-400 mt-1">
             Mission-aware hybrid scoring with dynamic re-assessment during discovery
           </p>
@@ -598,10 +598,10 @@ export default function ScoringHub() {
                   />
                 </div>
 
-                {/* CARVER Weights */}
+                {/* Hybrid Factor Weights */}
                 <div>
                   <h4 className="text-sm font-semibold text-cyan-400 flex items-center gap-1 mb-2">
-                    <Target className="w-4 h-4" /> CARVER Factor Weights
+                    <Target className="w-4 h-4" /> Hybrid Factor Weights
                   </h4>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                     <WeightSlider label="Criticality" value={profileForm.wCriticality} onChange={(v) => setProfileForm((p) => ({ ...p, wCriticality: v }))} description="Mission-critical importance to org operations" color="cyan" />
@@ -633,7 +633,7 @@ export default function ScoringHub() {
                     <Activity className="w-4 h-4" /> Composite Blend
                   </h4>
                   <div className="grid grid-cols-3 gap-3">
-                    <MetaSlider label="CARVER" value={profileForm.carverWeight} onChange={(v) => setProfileForm((p) => ({ ...p, carverWeight: v }))} color="#06b6d4" />
+                    <MetaSlider label="HYBRID" value={profileForm.carverWeight} onChange={(v) => setProfileForm((p) => ({ ...p, carverWeight: v }))} color="#06b6d4" />
                     <MetaSlider label="Shock" value={profileForm.shockWeight} onChange={(v) => setProfileForm((p) => ({ ...p, shockWeight: v }))} color="#f59e0b" />
                     <MetaSlider label="CVSS" value={profileForm.cvssWeight} onChange={(v) => setProfileForm((p) => ({ ...p, cvssWeight: v }))} color="#8b5cf6" />
                   </div>
@@ -692,9 +692,9 @@ export default function ScoringHub() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* CARVER Inputs */}
+              {/* Hybrid Factor Inputs */}
               <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">CARVER Factors</h4>
+                <h4 className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Hybrid Risk Factors</h4>
                 {(["criticality", "accessibility", "recuperability", "vulnerability", "effect", "recognizability"] as const).map((key) => (
                   <div key={key} className="flex items-center gap-2">
                     <Label className="text-xs text-zinc-400 w-24 capitalize">{key}</Label>
@@ -800,7 +800,7 @@ export default function ScoringHub() {
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="bg-zinc-800/50 rounded p-2">
-                        <div className="text-zinc-500">CARVER</div>
+                        <div className="text-zinc-500">HYBRID</div>
                         <div className="text-cyan-400 font-mono">{simResult.carverComposite}</div>
                       </div>
                       <div className="bg-zinc-800/50 rounded p-2">
@@ -845,7 +845,7 @@ export default function ScoringHub() {
             <Zap className="w-4 h-4 mr-1" /> CVSS v4.0
           </TabsTrigger>
           <TabsTrigger value="carver-ref">
-            <Target className="w-4 h-4 mr-1" /> CARVER Matrix
+            <Target className="w-4 h-4 mr-1" /> Scoring Matrix
           </TabsTrigger>
           <TabsTrigger value="timeline">
             <TrendingUp className="w-4 h-4 mr-1" /> Scoring Timeline
@@ -860,7 +860,7 @@ export default function ScoringHub() {
             <Lock className="w-4 h-4 mr-1" /> FIPS 199
           </TabsTrigger>
           <TabsTrigger value="carver-module">
-            <Crosshair className="w-4 h-4 mr-1" /> CARVER Module
+            <Crosshair className="w-4 h-4 mr-1" /> Hybrid Scoring Module
           </TabsTrigger>
         </TabsList>
 
@@ -895,7 +895,7 @@ export default function ScoringHub() {
                     <p className="text-[10px] text-zinc-500 leading-relaxed">{preset.description}</p>
                     <div className="flex gap-1 mt-2">
                       <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-400">
-                        CARVER {(preset.profile.carverWeight * 100).toFixed(0)}%
+                        Hybrid {(preset.profile.carverWeight * 100).toFixed(0)}%
                       </Badge>
                       <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400">
                         Shock {(preset.profile.shockWeight * 100).toFixed(0)}%
@@ -933,7 +933,7 @@ export default function ScoringHub() {
                         <p className="text-[10px] text-zinc-500 mt-0.5">{p.description || "No description"}</p>
                         <div className="flex gap-1 mt-1">
                           <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-400">
-                            CARVER {((p.carverWeight ?? 0.4) * 100).toFixed(0)}%
+                            Hybrid {((p.carverWeight ?? 0.4) * 100).toFixed(0)}%
                           </Badge>
                           <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400">
                             Shock {((p.shockWeight ?? 0.3) * 100).toFixed(0)}%
@@ -1130,7 +1130,7 @@ export default function ScoringHub() {
                   Essential Services
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Service-level baselines that provide granular CARVER/Shock adjustments.
+                  Service-level baselines that provide granular hybrid risk factor adjustments.
                   Each service type has specific factor adjustments based on its role.
                 </CardDescription>
               </CardHeader>
@@ -1253,7 +1253,7 @@ export default function ScoringHub() {
                     CVSS v4.0 Vector Builder
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Build or parse CVSS v4.0 vectors. The engine automatically translates CVSS metrics into CARVER factor adjustments.
+                    Build or parse CVSS v4.0 vectors. The engine automatically translates CVSS metrics into hybrid risk factor adjustments.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1409,16 +1409,16 @@ export default function ScoringHub() {
                 </CardContent>
               </Card>
 
-              {/* CARVER Feed-Through Preview */}
+              {/* Hybrid Feed-Through Preview */}
               {cvssVectorInput.startsWith("CVSS:4.0/") && cvssParseQ.data?.feedThrough && (
                 <Card className="bg-zinc-900/50 border-cyan-500/30">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <ArrowRight className="w-4 h-4 text-cyan-400" />
-                      CVSS → CARVER Feed-Through
+                      CVSS → Hybrid Factor Feed-Through
                     </CardTitle>
                     <CardDescription className="text-[10px]">
-                      Automatic CARVER factor adjustments derived from the CVSS v4.0 vector.
+                      Automatic hybrid factor adjustments derived from the CVSS v4.0 vector.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1449,18 +1449,18 @@ export default function ScoringHub() {
           </div>
         </TabsContent>
 
-        {/* ─── CARVER Matrix Reference Tab ─────────────────────────────── */}
+        {/* ─── Scoring Matrix Reference Tab ─────────────────────────────── */}
         <TabsContent value="carver-ref" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* CARVER Factors */}
+            {/* Hybrid Risk Factors */}
             <Card className="bg-zinc-900/50 border-zinc-800">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Crosshair className="w-4 h-4 text-cyan-400" />
-                  CARVER Factors — FM 34-36 Digital Translation
+                  Hybrid Risk Factors — Multi-Dimensional Scoring Framework
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Each factor from the US Army FM 34-36 targeting methodology translated to digital asset context.
+                  Each factor from the multi-dimensional targeting methodology translated to digital asset context.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1470,10 +1470,10 @@ export default function ScoringHub() {
                       <div className="flex items-center justify-between mb-2">
                         <h5 className="text-xs font-semibold text-cyan-400">{factor.name}</h5>
                         <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-300">
-                          FM 34-36
+                          Hybrid
                         </Badge>
                       </div>
-                      <p className="text-[10px] text-zinc-400 mb-2 italic">"{factor.fm34_36}"</p>
+                      <p className="text-[10px] text-zinc-400 mb-2 italic">"{factor.description || factor.fm34_36}"</p>
                       <p className="text-[10px] text-zinc-300 mb-2">{factor.digital}</p>
                       <div className="space-y-1">
                         {factor.scale?.map((s: any, i: number) => (
@@ -1510,7 +1510,7 @@ export default function ScoringHub() {
                     Shock Factors — FDA Primer Digital Translation
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Shock factors adapted from the FDA CARVER+Shock primer for cyber impact assessment.
+                    Shock factors adapted for cyber impact assessment and operational disruption analysis.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1552,7 +1552,7 @@ export default function ScoringHub() {
                     Criticality Tiers (RTO-Aligned)
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Five-tier system aligned to Recovery Time Objectives. Each tier sets minimum CARVER+Shock factor floors.
+                    Five-tier system aligned to Recovery Time Objectives. Each tier sets minimum hybrid risk factor floors.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1926,12 +1926,12 @@ export default function ScoringHub() {
                   <Gauge className="w-4 h-4 text-amber-400" /> Enhanced Hybrid Formula
                 </h4>
                 <div className="font-mono text-xs text-zinc-300 bg-zinc-900/60 p-3 rounded border border-zinc-700/30">
-                  <div>Score = ((CARVER/70 × <span className="text-amber-400">0.5</span>) + (CVSS/10 × <span className="text-cyan-400">0.3</span>) + (BIA × <span className="text-green-400">0.2</span>))</div>
+                  <div>Score = ((HybridFactors/70 × <span className="text-amber-400">0.5</span>) + (CVSS/10 × <span className="text-cyan-400">0.3</span>) + (BIA × <span className="text-green-400">0.2</span>))</div>
                   <div className="ml-8">× TierWeight × ShockMultiplier × IndustryModifier × <span className="text-purple-400">FIPS199Multiplier</span></div>
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-2">
                   <div className="text-center p-2 bg-zinc-900/40 rounded">
-                    <div className="text-[10px] text-zinc-500">CARVER</div>
+                    <div className="text-[10px] text-zinc-500">HYBRID</div>
                     <div className="text-sm font-mono text-amber-400">50%</div>
                   </div>
                   <div className="text-center p-2 bg-zinc-900/40 rounded">
@@ -2183,7 +2183,7 @@ export default function ScoringHub() {
                     {/* Score Adjustments */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="p-3 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
-                        <h4 className="text-xs font-semibold text-zinc-400 mb-2">CARVER Floor Adjustments</h4>
+                        <h4 className="text-xs font-semibold text-zinc-400 mb-2">Hybrid Factor Floor Adjustments</h4>
                         {Object.entries(adj.carverFloors).map(([key, val]) => (
                           <div key={key} className="flex justify-between text-xs py-0.5">
                             <span className="text-zinc-500 capitalize">{key}</span>
@@ -2222,7 +2222,7 @@ export default function ScoringHub() {
             </CardContent>
           </Card>
         </TabsContent>
-        {/* CARVER Module Tab */}
+        {/* Hybrid Scoring Module Tab */}
         <TabsContent value="carver-module" className="space-y-4">
           <CarverModuleTab />
         </TabsContent>
@@ -2232,7 +2232,7 @@ export default function ScoringHub() {
   );
 }
 
-/* ─── CARVER Module Tab Component ─────────────────────────────────── */
+/* ─── Hybrid Scoring Module Tab Component ─────────────────────────────────── */
 function CarverModuleTab() {
   const [selectedSector, setSelectedSector] = useState<string>("banking_financial_services");
   const [testDomain, setTestDomain] = useState("");
@@ -2279,10 +2279,10 @@ function CarverModuleTab() {
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Crosshair className="w-5 h-5 text-red-400" />
-                Auto-Industry CARVER Module
+                Auto-Industry Hybrid Scoring Module
               </CardTitle>
               <CardDescription className="text-zinc-400 mt-1">
-                Industry-aware CARVER+SHOCK presets with NAICS inference, regulatory overlays,
+                Industry-aware hybrid scoring presets with NAICS inference, regulatory overlays,
                 threat actor likelihood, and Caldera operation prioritization.
                 Trained on 124 domains across 18 sectors.
               </CardDescription>
@@ -2376,7 +2376,7 @@ function CarverModuleTab() {
                   <p className="text-xl font-bold font-mono text-red-400">{riskCardData.scores.hybrid.toFixed(1)}</p>
                 </div>
                 <div className="p-2 rounded bg-orange-500/10 border border-orange-500/20 text-center">
-                  <p className="text-[10px] text-zinc-500">CARVER+SHOCK</p>
+                  <p className="text-[10px] text-zinc-500">HYBRID SCORE</p>
                   <p className="text-xl font-bold font-mono text-orange-400">{riskCardData.scores.carverShock.toFixed(1)}</p>
                 </div>
                 <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-center">
@@ -2471,13 +2471,13 @@ function CarverModuleTab() {
         </CardContent>
       </Card>
 
-      {/* Sector CARVER Presets */}
+      {/* Sector Hybrid Presets */}
       <Card className="bg-zinc-900/60 border-zinc-800">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
               <Layers className="w-4 h-4 text-orange-400" />
-              Sector CARVER+SHOCK Presets
+              Sector Hybrid Scoring Presets
             </CardTitle>
             <Select value={selectedSector} onValueChange={setSelectedSector}>
               <SelectTrigger className="w-64 bg-zinc-800/50 border-zinc-700 text-xs">
@@ -2498,9 +2498,9 @@ function CarverModuleTab() {
             const sectorReg = currentProfile?.regulatory || [];
             return (
               <div className="space-y-4">
-                {/* CARVER Scores Grid */}
+                {/* Hybrid Scores Grid */}
                 <div>
-                  <h4 className="text-xs font-semibold text-zinc-400 mb-2">CARVER Dimensions</h4>
+                  <h4 className="text-xs font-semibold text-zinc-400 mb-2">Hybrid Scoring Dimensions</h4>
                   <div className="grid grid-cols-6 gap-2">
                     {carverDims.map(dim => (
                       <div key={dim} className="p-2 rounded bg-zinc-800/50 border border-zinc-700/50 text-center">
@@ -2540,7 +2540,7 @@ function CarverModuleTab() {
                     <div>
                       <h4 className="text-sm font-semibold text-zinc-300">Sector Criticality Multiplier</h4>
                       <p className="text-[10px] text-zinc-500 mt-0.5">
-                        Applied to hybrid fusion formula: CARVER composite × sector_multiplier + CVSS×0.6 + Exploitability×0.4
+                        Applied to hybrid fusion formula: composite score × sector_multiplier + CVSS×0.6 + Exploitability×0.4
                       </p>
                     </div>
                     <div className="text-2xl font-bold font-mono text-red-400">

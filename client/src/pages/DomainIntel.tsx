@@ -883,7 +883,7 @@ export default function DomainIntel() {
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Just enter a domain — the system scrapes the website for company and product info, then enriches it with Shodan, SecurityTrails, Censys, breach databases, and LLM analysis to build a complete organizational profile for BIA and hybrid CARVER+Shock/CVSS scoring.
+                    Just enter a domain — the system scrapes the website for company and product info, then enriches it with Shodan, SecurityTrails, Censys, breach databases, and LLM analysis to build a complete organizational profile for BIA and hybrid risk scoring.
                   </p>
                 </div>
 

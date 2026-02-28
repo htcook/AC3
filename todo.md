@@ -5676,3 +5676,17 @@
 
 ## Bug Fixes
 - [x] Fix AI chat window not scrolling/growing dynamically - user cannot continue chat
+
+## Intelligence Consolidation into Command Center
+- [ ] Map all Intelligence pages and their current nav locations
+- [ ] Make Threat Intel Hub the main Intelligence page with tabs for all sub-pages
+- [ ] Move Intelligence section into Command Center in sidebar navigation
+- [ ] Update routes and clean up orphaned nav items
+- [ ] Verify all Intelligence tabs work correctly in the unified view
+- [ ] Rename all CARVER assessment references to Hybrid Scoring assessments across UI
+- [ ] Scrub all user-facing CARVER references from UI (trade secret protection until patent)
+- [ ] Replace CARVER with Hybrid Scoring in all page titles, tab names, labels, tooltips, descriptions
+- [ ] Keep backend code names unchanged (internal only) but sanitize any API response labels
+- [x] Move AI chat floating button from bottom-right to top-right to avoid hiding navigation buttons
+- [x] Ensure close/minimize button on AI chat is always visible and never disappears
+- [x] Suppress DMARC/SPF/DKIM findings for non-mail assets (EC2, cloud compute, IP-based hosts without MX records)

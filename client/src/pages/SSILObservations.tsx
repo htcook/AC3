@@ -609,7 +609,7 @@ export default function SSILObservations() {
                       Risk Cards ({riskCards?.length || 0})
                     </CardTitle>
                     <CardDescription>
-                      Composite risk scores using hybrid CVSS × CARVER+SHOCK × BIA formula. Click to drill down.
+                      Composite risk scores using hybrid CVSS × multi-dimensional × BIA formula. Click to drill down.
                     </CardDescription>
                   </div>
                 </div>
@@ -647,7 +647,7 @@ export default function SSILObservations() {
                             </div>
                             <div className="p-2 bg-muted/20 rounded text-center">
                               <div className="font-bold">{card.componentCarver?.toFixed(1)}</div>
-                              <div className="text-muted-foreground">CARVER</div>
+                              <div className="text-muted-foreground">Hybrid</div>
                             </div>
                             <div className="p-2 bg-muted/20 rounded text-center">
                               <div className="font-bold">{card.componentBia?.toFixed(1)}</div>

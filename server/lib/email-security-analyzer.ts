@@ -644,11 +644,51 @@ export interface EmailPostureFinding {
   remediation: string;
 }
 
+/**
+ * Detect hostnames that are clearly not mail-related infrastructure.
+ * Cloud compute hostnames, IP-based hosts, CDN edges, and similar assets
+ * should never be flagged for missing DMARC/SPF/DKIM.
+ */
+export function isNonMailAsset(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  // Cloud compute patterns (AWS EC2, GCP, Azure, DigitalOcean, etc.)
+  if (/^ec2-[\d-]+\..*\.amazonaws\.com$/.test(h)) return true;
+  if (/\.compute\.amazonaws\.com$/.test(h)) return true;
+  if (/\.compute\.internal$/.test(h)) return true;
+  if (/\.compute\.googleapis\.com$/.test(h)) return true;
+  if (/\.cloudapp\.azure\.com$/.test(h)) return true;
+  if (/\.azurewebsites\.net$/.test(h)) return true;
+  if (/\.herokuapp\.com$/.test(h)) return true;
+  if (/\.digitaloceanspaces\.com$/.test(h)) return true;
+  // CDN / edge / static hosting
+  if (/\.cloudfront\.net$/.test(h)) return true;
+  if (/\.cdn\.cloudflare\.net$/.test(h)) return true;
+  if (/\.akamaiedge\.net$/.test(h)) return true;
+  if (/\.fastly\.net$/.test(h)) return true;
+  if (/\.edgekey\.net$/.test(h)) return true;
+  // IP-address-based hostnames
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
+  // Reverse-DNS PTR patterns (e.g., 1-2-3-4.static.example.com)
+  if (/^\d{1,3}[.-]\d{1,3}[.-]\d{1,3}[.-]\d{1,3}[.-]/.test(h)) return true;
+  // Load balancers / ELBs
+  if (/\.elb\.amazonaws\.com$/.test(h)) return true;
+  if (/\.elasticbeanstalk\.com$/.test(h)) return true;
+  // S3 buckets
+  if (/\.s3[.-].*\.amazonaws\.com$/.test(h)) return true;
+  if (/\.s3\.amazonaws\.com$/.test(h)) return true;
+  return false;
+}
+
 export function generateEmailPostureFindings(
   domain: string,
   report: EmailSecurityReport
 ): EmailPostureFinding[] {
   const findings: EmailPostureFinding[] = [];
+
+  // Skip entirely for non-mail assets (cloud compute, CDN, IP-based hosts)
+  if (isNonMailAsset(domain)) {
+    return findings;
+  }
 
   // Determine if the domain actually operates mail infrastructure.
   // If there are no MX records the domain is not a mail server, so

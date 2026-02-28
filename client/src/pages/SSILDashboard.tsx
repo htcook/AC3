@@ -227,7 +227,7 @@ export default function SSILDashboard() {
                       Transforms raw scanner output into the unified <code className="text-xs bg-muted px-1 rounded">scan_observation</code> schema.
                       Per-scanner adapters handle Nmap, Nuclei, ZGrab2, Web Crawler, Domain Intel,
                       and Vuln Scanner. Observations feed into signal derivation and hybrid risk
-                      card generation (CVSS × CARVER+SHOCK × BIA × confidence).
+                      card generation (CVSS × Hybrid × BIA × confidence).
                     </p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       <Badge variant="secondary" className="text-xs">6 Adapters</Badge>

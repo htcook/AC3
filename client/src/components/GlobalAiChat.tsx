@@ -1,6 +1,9 @@
 /**
  * Global AI Chat Widget — floating button + chat panel available on every page.
  * Provides contextual assistance with platform errors, OEM credentials, and engagement data.
+ *
+ * Button positioned top-right to avoid overlapping sidebar navigation.
+ * Close / minimize buttons are always rendered (never conditionally hidden).
  */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -126,12 +129,12 @@ export function GlobalAiChat() {
 
   return (
     <>
-      {/* Floating Chat Button */}
+      {/* ── Floating Chat Button — top-right, clear of sidebar ── */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
           className={cn(
-            "fixed bottom-6 right-6 z-[9999] w-14 h-14 rounded-full",
+            "fixed top-4 right-4 z-[9999] w-11 h-11 rounded-full",
             "bg-primary text-primary-foreground shadow-lg",
             "flex items-center justify-center",
             "hover:scale-105 active:scale-95 transition-all duration-200",
@@ -140,7 +143,7 @@ export function GlobalAiChat() {
           )}
           title="AI Assistant"
         >
-          <MessageCircle className="w-6 h-6" />
+          <MessageCircle className="w-5 h-5" />
           {hasUnread && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full flex items-center justify-center">
               <span className="text-[10px] text-white font-bold">!</span>
@@ -149,68 +152,70 @@ export function GlobalAiChat() {
         </button>
       )}
 
-      {/* Chat Panel */}
+      {/* ── Chat Panel ── */}
       {isOpen && (
         <div
           className={cn(
             "fixed z-[9999] bg-background border border-border rounded-lg shadow-2xl flex flex-col overflow-hidden transition-all duration-200",
             isExpanded
-              ? "bottom-4 right-4 left-4 top-4 md:left-auto md:top-4 md:w-[600px]"
-              : "bottom-6 right-6 w-[400px] h-[70vh] max-h-[700px] min-h-[400px]"
+              ? "top-4 right-4 bottom-4 left-4 md:left-auto md:w-[600px]"
+              : "top-4 right-4 w-[400px] h-[70vh] max-h-[700px] min-h-[400px]"
           )}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+          {/* ── Header — close & minimize are ALWAYS rendered ── */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 flex-shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <MessageCircle className="w-4 h-4 text-primary" />
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-foreground truncate">
                   AI Assistant
                 </h3>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground truncate">
                   Caldera C2 Platform Support
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1">
+
+            {/* Action buttons — always visible, never conditionally hidden */}
+            <div className="flex items-center gap-1 flex-shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                 onClick={clearChat}
                 title="Clear chat"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-8 w-8"
                 onClick={() => setIsExpanded(!isExpanded)}
                 title={isExpanded ? "Minimize" : "Expand"}
               >
                 {isExpanded ? (
-                  <Minimize2 className="w-3.5 h-3.5" />
+                  <Minimize2 className="w-4 h-4" />
                 ) : (
-                  <Maximize2 className="w-3.5 h-3.5" />
+                  <Maximize2 className="w-4 h-4" />
                 )}
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
-                onClick={() => setIsOpen(false)}
-                title="Close"
+                className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => { setIsOpen(false); setIsExpanded(false); }}
+                title="Close chat"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </Button>
             </div>
           </div>
 
           {/* Context Toggles */}
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/10">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/10 flex-shrink-0">
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
               Context:
             </span>
@@ -324,7 +329,7 @@ export function GlobalAiChat() {
           </div>
 
           {/* Input Area */}
-          <div className="border-t border-border p-3 bg-muted/10">
+          <div className="border-t border-border p-3 bg-muted/10 flex-shrink-0">
             <div className="flex gap-2">
               <Textarea
                 ref={inputRef}
