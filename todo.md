@@ -6117,3 +6117,73 @@
 - [x] Frontend: Tool breakdown cards showing per-tool stats
 - [x] Frontend: Finding validation (mark as validated/false positive)
 - [x] Backend: getAttackStats endpoint with per-tool aggregation
+
+## Engagement Workflow Engine (Gap Investment #1 - CRITICAL)
+- [x] Backend: Engagement state machine with kill chain phases (pre_engagement → recon → scanning → gaining_access → maintaining_access → escalation → lateral_movement → collection → exfiltration → reporting → cleanup)
+- [x] Backend: Phase transition logic with automatic finding handoff between phases (LLM-driven + deterministic fallback)
+- [x] Backend: Unified engagement timeline that aggregates events from all modules (createTimelineEvent)
+- [x] Backend: Engagement status tracking via EngagementState with phaseProgress, findingsCounts, overallProgress
+- [x] Database: engagement_workflow_states table with phase tracking
+- [x] Database: engagement_timeline_events table for unified event log
+- [ ] Frontend: Engagement Workflow page with visual kill chain progress (backend-first, minimal UI)
+- [ ] Frontend: Phase cards showing current status, findings count, and next actions (backend-first)
+- [ ] Frontend: Unified timeline view with filterable events across all phases (backend-first)
+- [ ] Frontend: Auto-handoff indicators showing how findings flow between phases (backend-first)
+- [x] Router: CRUD endpoints for workflow states and timeline events (engagementWorkflow router)
+- [x] Integration: evaluateEngagementState, generatePhaseHandoff, initializeEngagementWorkflow
+- [x] Tests: 10 passing vitest tests for engagement workflow engine
+
+## Lateral Movement & Pivoting Module (Gap Investment #2 - CRITICAL)
+- [x] Backend: Pivot host manager with PivotPlan generation (LLM + deterministic)
+- [x] Backend: SOCKS proxy orchestrator (TunnelConfig with SOCKS4/5, SSH dynamic forwarding)
+- [x] Backend: SSH tunnel manager integration (local/remote/dynamic forwarding in technique catalog)
+- [x] Backend: Port forwarding configuration builder (in TunnelConfig)
+- [x] Backend: Remote execution orchestrator (PSExec, WMI, WinRM, SSH, DCOM techniques)
+- [x] Backend: Network topology reasoning via LLM (subnet, firewall, segmentation awareness)
+- [x] Backend: Lateral movement technique catalog (PtH, PtT, overpass-the-hash, WinRM, SSH, DCOM, RDP, etc.)
+- [x] Database: lateral_movement_paths table, pivot_hosts table
+- [ ] Frontend: Lateral Movement page with network graph visualization (backend-first)
+- [ ] Frontend: Pivot host cards with connection status (backend-first)
+- [ ] Frontend: Tunnel/proxy configuration panel (backend-first)
+- [ ] Frontend: Remote execution console (backend-first)
+- [x] Router: lateralMovement router with generatePlan, quickPlan, planPivot, techniques endpoints
+- [x] Tests: 8 passing vitest tests for lateral movement engine
+
+## Exploitation Bridge (Gap Investment #3 - HIGH)
+- [x] Backend: Vuln-to-exploit matcher with 20+ CVE→MSF module mappings (EternalBlue, Log4Shell, ProxyShell, Zerologon, etc.)
+- [x] Backend: Guided exploitation workflow engine (LLM-driven + deterministic with preflight checks, execution steps, evidence capture)
+- [x] Backend: Automatic evidence capture plan (consoleOutput, systemInfo, networkInfo, timestampAll)
+- [x] Backend: Shell/session tracking via payload config (meterpreter, reverse_shell, bind_shell)
+- [x] Backend: Exploitation attempt logging with OPSEC assessment (risk score, detection signatures, mitigations)
+- [x] Database: exploitation_attempts table, obtained_shells table
+- [ ] Frontend: Exploitation Bridge page (backend-first, minimal UI)
+- [x] Router: exploitationBridge router with generatePlan, quickPlan, lookupCve, knownCves endpoints
+- [x] Tests: 12 passing vitest tests for exploitation bridge
+
+## Privilege Escalation Toolkit (Gap Investment #4 - HIGH)
+- [x] Backend: Windows privesc enumeration engine (SeImpersonatePrivilege, JuicyPotato, PrintSpoofer, unquoted service paths, DLL hijacking, AlwaysInstallElevated, etc.)
+- [x] Backend: Linux privesc enumeration engine (SUID/SGID, sudo misconfig, cron jobs, writable /etc/passwd, kernel exploits, capabilities, etc.)
+- [x] Backend: Kerberos attack workflow (Kerberoasting, AS-REP roasting, Golden Ticket, Silver Ticket, DCSync, Constrained/Unconstrained Delegation)
+- [x] Backend: Token manipulation technique catalog (SeImpersonate, token duplication, incognito)
+- [x] Backend: Cloud privesc path analyzer (AWS IAM policy manipulation, Azure RBAC abuse, GCP IAM, metadata service)
+- [x] Backend: LOLBin detection via enumeration output pattern matching
+- [x] Database: privesc_findings table
+- [ ] Frontend: Privilege Escalation page (backend-first, minimal UI)
+- [x] Router: privesc router with analyze, quickAnalyze, techniques, enumerationTools, kerberosAttacks, cloudPrivesc, knowledgeBase endpoints
+- [x] Tests: 18 passing vitest tests for privilege escalation engine
+
+## OPSEC Dashboard (Gap Investment #5 - HIGH)
+- [x] Backend: OPSEC scoring engine (20+ action risk profiles with base scores, detection technologies, and mitigations)
+- [x] Backend: Cumulative noise tracker (aggregate detection risk with burn threshold detection)
+- [x] Backend: Infrastructure burn detection (account lockout, C2 blocked, implant killed, honeypot triggered, AV quarantine)
+- [x] Backend: Blue team detection simulation (EDR, SIEM, NDR, AV, UEBA detection technology knowledge base)
+- [x] Backend: OPSEC rule library (action→detection signature mapping with safer alternatives)
+- [x] Database: opsec_events table, opsec_action_scores table
+- [ ] Frontend: OPSEC Dashboard (backend-first, minimal UI)
+- [x] Router: opsecRisk router with scoreAction, quickScore, checkBurn, engagementStatus, detectionTechnologies, burnIndicators, riskProfiles endpoints
+- [x] Tests: 16 passing vitest tests for OPSEC risk engine
+
+## Rename: Caldera Dashboard → Ace C3
+- [x] Update VITE_APP_TITLE to "Ace C3" (already set)
+- [x] Update all UI references from "Caldera Dashboard" to "Ace C3" (no "Caldera Dashboard" branding found — all Caldera refs are to the C2 platform)
+- [x] Update page titles, sidebar branding, and Home page hero text (already "Ace C3 — Cyber Campaign Command")

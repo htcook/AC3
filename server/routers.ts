@@ -105,6 +105,11 @@ import { discoveryChainRouter } from "./routers/discovery-chain";
 import { crawlPhishRouter } from "./routers/crawl-phish";
 import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
 import { containerRegistryRouter } from "./routers/container-registry";
+import { exploitationBridgeRouter } from "./routers/exploitation-bridge";
+import { privescRouter } from "./routers/privesc";
+import { opsecRiskRouter } from "./routers/opsec-risk";
+import { lateralMovementRouter } from "./routers/lateral-movement";
+import { engagementWorkflowRouter } from "./routers/engagement-workflow";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -294,6 +299,11 @@ export const appRouter = router({
   oemCreds: oemCredsRouter,
   aiChat: aiChatRouter,
   containerRegistry: containerRegistryRouter,
+  exploitationBridge: exploitationBridgeRouter,
+  privesc: privescRouter,
+  opsecRisk: opsecRiskRouter,
+  lateralMovement: lateralMovementRouter,
+  engagementWorkflow: engagementWorkflowRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

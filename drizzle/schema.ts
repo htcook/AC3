@@ -5689,3 +5689,264 @@ export const pentestReports = mysqlTable("pentest_reports", {
 export type PentestReport = typeof pentestReports.$inferSelect;
 export type InsertPentestReport = typeof pentestReports.$inferInsert;
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAP INVESTMENT #1: Engagement Workflow Engine
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const engagementWorkflowStates = mysqlTable("engagement_workflow_states", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  currentPhase: mysqlEnum("current_phase", [
+    "pre_engagement", "reconnaissance", "threat_modeling", "vulnerability_analysis",
+    "exploitation", "post_exploitation", "lateral_movement", "collection_exfiltration",
+    "reporting", "completed"
+  ]).notNull().default("pre_engagement"),
+  phaseProgress: json("phase_progress"),
+  phaseStartedAt: json("phase_started_at"),
+  phaseCompletedAt: json("phase_completed_at"),
+  autoHandoffEnabled: boolean("auto_handoff_enabled").default(true),
+  handoffRules: json("handoff_rules"),
+  objectivesCompleted: json("objectives_completed"),
+  objectivesTotal: json("objectives_total"),
+  overallProgress: int("overall_progress").default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type EngagementWorkflowState = typeof engagementWorkflowStates.$inferSelect;
+export type InsertEngagementWorkflowState = typeof engagementWorkflowStates.$inferInsert;
+
+export const engagementTimelineEvents = mysqlTable("engagement_timeline_events", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  phase: varchar("phase", { length: 64 }).notNull(),
+  eventType: mysqlEnum("event_type", [
+    "phase_started", "phase_completed", "finding_discovered", "exploit_attempted",
+    "exploit_succeeded", "shell_obtained", "credential_found", "pivot_established",
+    "data_collected", "data_exfiltrated", "opsec_alert", "note_added",
+    "handoff_triggered", "objective_completed", "tool_executed", "scan_completed"
+  ]).notNull(),
+  severity: mysqlEnum("severity", ["info", "low", "medium", "high", "critical"]).default("info"),
+  title: varchar("title", { length: 512 }).notNull(),
+  description: text("description"),
+  metadata: json("metadata"),
+  sourceModule: varchar("source_module", { length: 128 }),
+  sourceId: varchar("source_id", { length: 128 }),
+  targetHost: varchar("target_host", { length: 256 }),
+  targetPort: int("target_port"),
+  attackTechnique: varchar("attack_technique", { length: 64 }),
+  operatorId: int("operator_id"),
+  timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type EngagementTimelineEvent = typeof engagementTimelineEvents.$inferSelect;
+export type InsertEngagementTimelineEvent = typeof engagementTimelineEvents.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAP INVESTMENT #2: Lateral Movement & Pivoting
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const pivotHosts = mysqlTable("pivot_hosts", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  hostname: varchar("hostname", { length: 256 }),
+  ipAddress: varchar("ip_address", { length: 64 }).notNull(),
+  os: varchar("os", { length: 128 }),
+  accessLevel: mysqlEnum("access_level", ["user", "admin", "system", "root"]).default("user"),
+  accessMethod: varchar("access_method", { length: 128 }),
+  credentials: json("credentials"),
+  isActive: boolean("is_active").default(true),
+  agentId: varchar("agent_id", { length: 128 }),
+  c2Framework: varchar("c2_framework", { length: 64 }),
+  networkInterfaces: json("network_interfaces"),
+  discoveredServices: json("discovered_services"),
+  notes: text("notes"),
+  obtainedAt: bigint("obtained_at", { mode: "number" }).notNull(),
+  lastSeenAt: bigint("last_seen_at", { mode: "number" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type PivotHost = typeof pivotHosts.$inferSelect;
+export type InsertPivotHost = typeof pivotHosts.$inferInsert;
+
+export const lateralMovementPaths = mysqlTable("lateral_movement_paths", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  sourceHostId: int("source_host_id").notNull(),
+  targetIp: varchar("target_ip", { length: 64 }).notNull(),
+  targetHostname: varchar("target_hostname", { length: 256 }),
+  targetPort: int("target_port"),
+  technique: varchar("technique", { length: 128 }).notNull(),
+  attackId: varchar("attack_id", { length: 32 }),
+  status: mysqlEnum("lm_status", ["planned", "attempted", "succeeded", "failed", "blocked"]).default("planned"),
+  credentialUsed: json("credential_used"),
+  tunnelConfig: json("tunnel_config"),
+  resultOutput: text("result_output"),
+  evidence: json("evidence"),
+  opsecRisk: int("opsec_risk"),
+  attemptedAt: bigint("attempted_at", { mode: "number" }),
+  completedAt: bigint("lm_completed_at", { mode: "number" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type LateralMovementPath = typeof lateralMovementPaths.$inferSelect;
+export type InsertLateralMovementPath = typeof lateralMovementPaths.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAP INVESTMENT #3: Exploitation Bridge
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const exploitationAttempts = mysqlTable("exploitation_attempts", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id"),
+  targetHost: varchar("target_host", { length: 256 }).notNull(),
+  targetPort: int("target_port"),
+  targetService: varchar("target_service", { length: 128 }),
+  vulnerabilityId: varchar("vulnerability_id", { length: 128 }),
+  vulnerabilityCve: varchar("vulnerability_cve", { length: 32 }),
+  exploitSource: mysqlEnum("exploit_source", ["metasploit", "nuclei", "manual", "custom", "hydra", "netexec", "caldera"]).notNull(),
+  exploitModule: varchar("exploit_module", { length: 512 }),
+  exploitConfig: json("exploit_config"),
+  status: mysqlEnum("ea_status", ["queued", "running", "succeeded", "failed", "error", "blocked"]).default("queued"),
+  resultType: mysqlEnum("result_type", ["shell", "credential", "info_leak", "dos", "rce", "file_access", "none"]),
+  resultOutput: mediumtext("result_output"),
+  shellObtained: boolean("shell_obtained").default(false),
+  shellType: varchar("ea_shell_type", { length: 64 }),
+  accessLevel: mysqlEnum("ea_access_level", ["none", "user", "admin", "system", "root"]),
+  evidence: json("ea_evidence"),
+  attackTechnique: varchar("ea_attack_technique", { length: 32 }),
+  matchConfidence: int("match_confidence"),
+  opsecRisk: int("ea_opsec_risk"),
+  durationMs: int("duration_ms"),
+  operatorId: int("ea_operator_id"),
+  attemptedAt: bigint("ea_attempted_at", { mode: "number" }).notNull(),
+  completedAt: bigint("ea_completed_at", { mode: "number" }),
+  createdAt: timestamp("ea_created_at").defaultNow().notNull(),
+});
+export type ExploitationAttempt = typeof exploitationAttempts.$inferSelect;
+export type InsertExploitationAttempt = typeof exploitationAttempts.$inferInsert;
+
+export const obtainedShells = mysqlTable("obtained_shells", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("os_engagement_id"),
+  exploitAttemptId: int("exploit_attempt_id"),
+  pivotHostId: int("os_pivot_host_id"),
+  targetHost: varchar("os_target_host", { length: 256 }).notNull(),
+  targetPort: int("os_target_port"),
+  shellType: mysqlEnum("os_shell_type", ["reverse_tcp", "bind_tcp", "web_shell", "ssh", "rdp", "winrm", "agent", "other"]).notNull(),
+  accessLevel: mysqlEnum("os_access_level", ["user", "admin", "system", "root"]).default("user"),
+  username: varchar("os_username", { length: 128 }),
+  c2Framework: varchar("os_c2_framework", { length: 64 }),
+  sessionId: varchar("os_session_id", { length: 128 }),
+  callbackIp: varchar("callback_ip", { length: 64 }),
+  callbackPort: int("callback_port"),
+  isAlive: boolean("is_alive").default(true),
+  promotedToPivot: boolean("promoted_to_pivot").default(false),
+  notes: text("os_notes"),
+  obtainedAt: bigint("os_obtained_at", { mode: "number" }).notNull(),
+  lastCheckedAt: bigint("os_last_checked_at", { mode: "number" }),
+  createdAt: timestamp("os_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("os_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ObtainedShell = typeof obtainedShells.$inferSelect;
+export type InsertObtainedShell = typeof obtainedShells.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAP INVESTMENT #4: Privilege Escalation Toolkit
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const privescFindings = mysqlTable("privesc_findings", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("pe_engagement_id"),
+  pivotHostId: int("pe_pivot_host_id"),
+  targetHost: varchar("pe_target_host", { length: 256 }).notNull(),
+  os: mysqlEnum("pe_os", ["windows", "linux", "macos", "cloud_aws", "cloud_azure", "cloud_gcp"]).notNull(),
+  checkName: varchar("check_name", { length: 256 }).notNull(),
+  checkCategory: mysqlEnum("check_category", [
+    "kernel_exploit", "suid_sgid", "cron_jobs", "writable_paths", "sudo_misconfig",
+    "service_misconfig", "registry_keys", "scheduled_tasks", "dll_hijack", "token_abuse",
+    "uac_bypass", "kerberos", "ad_delegation", "gpo_abuse", "certificate_abuse",
+    "iam_misconfig", "role_assumption", "storage_access", "metadata_service"
+  ]).notNull(),
+  severity: mysqlEnum("pe_severity", ["info", "low", "medium", "high", "critical"]).notNull(),
+  description: text("pe_description").notNull(),
+  exploitPath: text("exploit_path"),
+  attackTechnique: varchar("pe_attack_technique", { length: 32 }),
+  toolUsed: varchar("pe_tool_used", { length: 128 }),
+  rawOutput: mediumtext("pe_raw_output"),
+  isExploitable: boolean("is_exploitable").default(false),
+  wasExploited: boolean("was_exploited").default(false),
+  resultingAccess: varchar("resulting_access", { length: 64 }),
+  evidence: json("pe_evidence"),
+  discoveredAt: bigint("pe_discovered_at", { mode: "number" }).notNull(),
+  createdAt: timestamp("pe_created_at").defaultNow().notNull(),
+});
+export type PrivescFinding = typeof privescFindings.$inferSelect;
+export type InsertPrivescFinding = typeof privescFindings.$inferInsert;
+
+export const lolbinCatalog = mysqlTable("lolbin_catalog", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("lolbin_name", { length: 128 }).notNull(),
+  binaryPath: varchar("binary_path", { length: 512 }).notNull(),
+  os: mysqlEnum("lolbin_os", ["windows", "linux", "macos"]).notNull(),
+  category: mysqlEnum("lolbin_category", [
+    "execute", "download", "upload", "copy", "compile", "encode_decode",
+    "reconnaissance", "credential_access", "persistence", "lateral_movement",
+    "defense_evasion", "exfiltration"
+  ]).notNull(),
+  description: text("lolbin_description").notNull(),
+  usageExample: text("usage_example").notNull(),
+  attackTechniques: json("attack_techniques"),
+  detectionGuidance: text("detection_guidance"),
+  lolbinReferences: json("lolbin_references"),
+  isBuiltIn: boolean("is_built_in").default(true),
+  createdAt: timestamp("lolbin_created_at").defaultNow().notNull(),
+});
+export type LolbinEntry = typeof lolbinCatalog.$inferSelect;
+export type InsertLolbinEntry = typeof lolbinCatalog.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAP INVESTMENT #5: OPSEC Dashboard
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const opsecEvents = mysqlTable("opsec_events", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("opsec_engagement_id").notNull(),
+  actionType: varchar("opsec_action_type", { length: 128 }).notNull(),
+  actionDescription: text("opsec_action_description").notNull(),
+  riskScore: int("risk_score").notNull(),
+  detectionProbability: int("detection_probability"),
+  triggersSiemRules: json("triggers_siem_rules"),
+  triggersEdrAlerts: json("triggers_edr_alerts"),
+  networkNoise: mysqlEnum("network_noise", ["silent", "low", "moderate", "loud", "very_loud"]).default("moderate"),
+  sourceHost: varchar("opsec_source_host", { length: 256 }),
+  targetHost: varchar("opsec_target_host", { length: 256 }),
+  protocol: varchar("opsec_protocol", { length: 32 }),
+  attackTechnique: varchar("opsec_attack_technique", { length: 32 }),
+  saferAlternative: text("safer_alternative"),
+  wasDetected: boolean("was_detected"),
+  detectionDetails: text("detection_details"),
+  operatorId: int("opsec_operator_id"),
+  timestamp: bigint("opsec_timestamp", { mode: "number" }).notNull(),
+  createdAt: timestamp("opsec_created_at").defaultNow().notNull(),
+});
+export type OpsecEvent = typeof opsecEvents.$inferSelect;
+export type InsertOpsecEvent = typeof opsecEvents.$inferInsert;
+
+export const opsecScores = mysqlTable("opsec_scores", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("opsec_score_engagement_id").notNull(),
+  cumulativeRisk: int("cumulative_risk").notNull(),
+  currentNoiseLevel: mysqlEnum("current_noise_level", ["stealth", "low", "moderate", "elevated", "critical"]).default("stealth"),
+  eventsCount: int("opsec_events_count").default(0),
+  highRiskEventsCount: int("high_risk_events_count").default(0),
+  estimatedDetectionChance: int("estimated_detection_chance").default(0),
+  infrastructureHealth: json("infrastructure_health"),
+  burnedAssets: json("burned_assets"),
+  recommendations: json("opsec_recommendations"),
+  lastUpdatedAt: bigint("opsec_last_updated_at", { mode: "number" }).notNull(),
+  createdAt: timestamp("opsec_score_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("opsec_score_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type OpsecScore = typeof opsecScores.$inferSelect;
+export type InsertOpsecScore = typeof opsecScores.$inferInsert;
