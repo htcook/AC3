@@ -941,4 +941,143 @@ export const webAppScanningRouter = router({
     clearToolDetectionCache();
     return detectAllTools();
   }),
+
+  // ── Attack History & Persistence ─────────────────────────────────────────
+
+  /** Get credential attack history with filters */
+  getAttackHistory: protectedProcedure
+    .input(z.object({
+      tool: z.string().optional(),
+      protocol: z.string().optional(),
+      status: z.string().optional(),
+      limit: z.number().min(1).max(200).default(50),
+      offset: z.number().min(0).default(0),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const { getCredentialAttackHistory, getCredentialAttackHistoryCount } = await import("../db");
+      const [runs, total] = await Promise.all([
+        getCredentialAttackHistory(ctx.user.id, input),
+        getCredentialAttackHistoryCount(ctx.user.id, input),
+      ]);
+      return { runs, total };
+    }),
+
+  /** Get a single attack run with its findings */
+  getAttackRunDetail: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const { getCredentialAttackRunById, getCredentialFindingsByRun } = await import("../db");
+      const run = await getCredentialAttackRunById(input.id);
+      if (!run || run.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Attack run not found" });
+      }
+      const findings = await getCredentialFindingsByRun(input.id);
+      return { run, findings };
+    }),
+
+  /** Get all credential findings with filters */
+  getCredentialFindings: protectedProcedure
+    .input(z.object({
+      tool: z.string().optional(),
+      protocol: z.string().optional(),
+      validationStatus: z.string().optional(),
+      limit: z.number().min(1).max(200).default(100),
+      offset: z.number().min(0).default(0),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const { getCredentialFindingsHistory } = await import("../db");
+      return getCredentialFindingsHistory(ctx.user.id, input);
+    }),
+
+  /** Update finding validation status */
+  updateFindingValidation: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      validationStatus: z.enum(["unvalidated", "validated", "false_positive"]),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { updateCredentialFindingValidation } = await import("../db");
+      await updateCredentialFindingValidation(input.id, input.validationStatus, ctx.user.id, input.notes);
+      return { success: true };
+    }),
+
+  /** Get attack stats summary (grouped by tool) */
+  getAttackStats: protectedProcedure.query(async ({ ctx }) => {
+    const { getCredentialAttackStats } = await import("../db");
+    return getCredentialAttackStats(ctx.user.id);
+  }),
+
+  /** Save an attack result (called automatically after attacks complete) */
+  saveAttackResult: protectedProcedure
+    .input(z.object({
+      targetHost: z.string(),
+      targetPort: z.number(),
+      protocol: z.string(),
+      attackMode: z.string(),
+      tool: z.string().default("builtin"),
+      toolVersion: z.string().optional(),
+      totalAttempts: z.number().default(0),
+      successfulAttempts: z.number().default(0),
+      failedAttempts: z.number().default(0),
+      lockoutsDetected: z.number().default(0),
+      rateLimitHits: z.number().default(0),
+      durationMs: z.number().optional(),
+      status: z.string().default("completed"),
+      stoppedReason: z.string().optional(),
+      rawOutput: z.string().optional(),
+      toolMetadata: z.any().optional(),
+      targetDomain: z.string().optional(),
+      findings: z.array(z.object({
+        username: z.string(),
+        password: z.string(),
+        accessLevel: z.string().optional(),
+        responseSnippet: z.string().optional(),
+        additionalInfo: z.string().optional(),
+      })).default([]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { saveCredentialAttackWithTool, saveCredentialFindingWithTool } = await import("../db");
+      
+      // Save the attack run
+      const runId = await saveCredentialAttackWithTool({
+        userId: ctx.user.id,
+        targetHost: input.targetHost,
+        targetPort: input.targetPort,
+        protocol: input.protocol,
+        attackMode: input.attackMode as any,
+        tool: input.tool,
+        toolVersion: input.toolVersion,
+        totalAttempts: input.totalAttempts,
+        successfulAttempts: input.successfulAttempts,
+        failedAttempts: input.failedAttempts,
+        lockoutsDetected: input.lockoutsDetected,
+        rateLimitHits: input.rateLimitHits,
+        durationMs: input.durationMs,
+        status: input.status as any,
+        stoppedReason: input.stoppedReason,
+        rawOutput: input.rawOutput?.substring(0, 50000), // Truncate to 50KB
+        toolMetadata: input.toolMetadata,
+        targetDomain: input.targetDomain,
+      });
+      
+      // Save individual findings
+      for (const finding of input.findings) {
+        await saveCredentialFindingWithTool({
+          attackRunId: runId,
+          userId: ctx.user.id,
+          targetHost: input.targetHost,
+          targetPort: input.targetPort,
+          protocol: input.protocol,
+          username: finding.username,
+          password: finding.password,
+          tool: input.tool,
+          accessLevel: (finding.accessLevel as any) ?? "unknown",
+          responseSnippet: finding.responseSnippet,
+          additionalInfo: finding.additionalInfo,
+        });
+      }
+      
+      return { runId, findingsCount: input.findings.length };
+    }),
 });

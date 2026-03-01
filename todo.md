@@ -6098,3 +6098,22 @@
 - [x] Frontend: NetExec-specific config (AD domain, NTLM hash, module, post-auth actions)
 - [x] Frontend: Hydra HTTP form config (form params, failure string)
 - [x] 32 passing vitest tests covering knowledge base, selection logic, output parsing, detection
+
+## Install External Credential Tools & Result Persistence
+- [x] Install THC Hydra binary on platform
+- [x] Install Medusa binary on platform
+- [x] Install NetExec (CrackMapExec successor) on platform
+- [x] Verify all three tools are auto-detected by the external-credential-tools module
+- [x] Create database schema for credential_attack_results table (extended existing tables with tool columns)
+- [x] Create database schema for credential_attack_findings table (extended existing table with tool/validation columns)
+- [x] Add db helper functions for saving and querying attack results
+- [x] Add tRPC endpoints for persisting and retrieving attack history
+- [x] Auto-save results after every external tool attack execution (saveAttackResult endpoint)
+- [x] Auto-save results after every built-in engine attack execution (saveAttackResult endpoint)
+- [x] Frontend: Attack History panel showing all past attacks with filters (tool, protocol, status)
+- [x] Frontend: Finding details with tool used, timestamp, target info, validation buttons
+- [x] Write vitest tests for persistence layer (27 tests passing)
+- [x] Frontend: Stats summary cards (total attacks, credentials found, validated)
+- [x] Frontend: Tool breakdown cards showing per-tool stats
+- [x] Frontend: Finding validation (mark as validated/false positive)
+- [x] Backend: getAttackStats endpoint with per-tool aggregation

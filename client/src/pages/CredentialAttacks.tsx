@@ -283,6 +283,9 @@ export default function CredentialAttacks() {
             <TabsTrigger value="results" className="font-mono text-xs">
               RESULTS {attackResult && <Badge variant="outline" className="ml-1 text-[10px]">{attackResult.successfulLogins?.length || 0}</Badge>}
             </TabsTrigger>
+            <TabsTrigger value="history" className="font-mono text-xs">
+              <Clock className="w-3 h-3 mr-1" /> ATTACK HISTORY
+            </TabsTrigger>
           </TabsList>
 
           {/* ── TARGET CONFIG TAB ── */}
@@ -861,6 +864,11 @@ export default function CredentialAttacks() {
               </Card>
             )}
           </TabsContent>
+
+          {/* ── ATTACK HISTORY TAB ── */}
+          <TabsContent value="history" className="space-y-4 mt-4">
+            <AttackHistoryPanel />
+          </TabsContent>
         </Tabs>
 
         {/* ── Launch Button ── */}
@@ -1394,6 +1402,312 @@ function ExternalToolsPanel({ protocol, host, port, attackMode, onAttackResult }
                 )}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Attack History Panel Component ──────────────────────────────────────────
+
+function AttackHistoryPanel() {
+  const [toolFilter, setToolFilter] = useState("all");
+  const [protocolFilter, setProtocolFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+
+  const historyQuery = trpc.webAppScanning.getAttackHistory.useQuery({
+    tool: toolFilter !== "all" ? toolFilter : undefined,
+    protocol: protocolFilter !== "all" ? protocolFilter : undefined,
+    status: statusFilter !== "all" ? statusFilter : undefined,
+    limit: 50,
+    offset: 0,
+  });
+
+  const statsQuery = trpc.webAppScanning.getAttackStats.useQuery();
+
+  const detailQuery = trpc.webAppScanning.getAttackRunDetail.useQuery(
+    { id: selectedRunId! },
+    { enabled: !!selectedRunId }
+  );
+
+  const validateMutation = trpc.webAppScanning.updateFindingValidation.useMutation({
+    onSuccess: () => {
+      toast.success("Finding validation updated");
+      detailQuery.refetch();
+    },
+  });
+
+  const toolColors: Record<string, string> = {
+    builtin: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+    hydra: "text-green-400 bg-green-400/10 border-green-400/30",
+    medusa: "text-amber-400 bg-amber-400/10 border-amber-400/30",
+    netexec: "text-purple-400 bg-purple-400/10 border-purple-400/30",
+  };
+
+  const statusColors: Record<string, string> = {
+    running: "text-yellow-400 bg-yellow-400/10",
+    completed: "text-green-400 bg-green-400/10",
+    stopped: "text-orange-400 bg-orange-400/10",
+    error: "text-red-400 bg-red-400/10",
+  };
+
+  // Stats summary cards
+  const stats = statsQuery.data;
+  const totalRuns = stats?.runs.reduce((s, r) => s + Number(r.totalRuns), 0) ?? 0;
+  const totalFindings = stats?.findings.reduce((s, f) => s + Number(f.totalFindings), 0) ?? 0;
+  const totalValidated = stats?.findings.reduce((s, f) => s + Number(f.validated ?? 0), 0) ?? 0;
+
+  if (selectedRunId && detailQuery.data) {
+    const { run, findings } = detailQuery.data;
+    return (
+      <div className="space-y-4">
+        <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => setSelectedRunId(null)}>
+          ← BACK TO HISTORY
+        </Button>
+
+        <Card className="bg-[#0D1117] border-gray-700/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-mono text-white">
+                  {run.protocol?.toUpperCase()}://{run.targetHost}:{run.targetPort}
+                </CardTitle>
+                <CardDescription className="font-mono text-xs mt-1">
+                  {run.attackMode?.replace("_", " ").toUpperCase()} via {(run.tool ?? "builtin").toUpperCase()}
+                  {run.toolVersion && ` v${run.toolVersion}`}
+                </CardDescription>
+              </div>
+              <Badge className={`font-mono text-[10px] ${statusColors[run.status] ?? ""}`}>
+                {run.status?.toUpperCase()}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: "ATTEMPTS", value: run.totalAttempts ?? 0, icon: Target },
+                { label: "SUCCESSFUL", value: run.successfulAttempts ?? 0, icon: CheckCircle2 },
+                { label: "LOCKOUTS", value: run.lockoutsDetected ?? 0, icon: Lock },
+                { label: "DURATION", value: run.durationMs ? `${(run.durationMs / 1000).toFixed(1)}s` : "—", icon: Clock },
+              ].map(({ label, value, icon: Icon }) => (
+                <div key={label} className="bg-[#161B22] rounded p-3 border border-gray-700/30">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Icon className="w-3 h-3 text-gray-500" />
+                    <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                  </div>
+                  <span className="text-lg font-mono text-white">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            {findings.length > 0 && (
+              <div>
+                <h4 className="text-xs font-mono text-gray-400 mb-2 flex items-center gap-1.5">
+                  <Key className="w-3 h-3" /> DISCOVERED CREDENTIALS ({findings.length})
+                </h4>
+                <div className="space-y-2">
+                  {findings.map((f: any) => (
+                    <div key={f.id} className="bg-[#161B22] rounded p-3 border border-gray-700/30 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm text-green-400">{f.username}</span>
+                          <span className="text-gray-500">:</span>
+                          <span className="font-mono text-sm text-amber-400">{f.password}</span>
+                          {f.accessLevel && f.accessLevel !== "unknown" && (
+                            <Badge variant="outline" className="text-[10px] font-mono">{f.accessLevel}</Badge>
+                          )}
+                        </div>
+                        <div className="text-[10px] font-mono text-gray-500 mt-1">
+                          {f.targetHost}:{f.targetPort} • {f.protocol} • via {(f.tool ?? "builtin").toUpperCase()}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant={f.validationStatus === "validated" ? "default" : "outline"}
+                          className="h-6 text-[10px] font-mono"
+                          onClick={() => validateMutation.mutate({
+                            id: f.id,
+                            validationStatus: f.validationStatus === "validated" ? "unvalidated" : "validated",
+                          })}
+                        >
+                          <CheckCircle2 className="w-3 h-3 mr-1" /> VALID
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={f.validationStatus === "false_positive" ? "destructive" : "outline"}
+                          className="h-6 text-[10px] font-mono"
+                          onClick={() => validateMutation.mutate({
+                            id: f.id,
+                            validationStatus: f.validationStatus === "false_positive" ? "unvalidated" : "false_positive",
+                          })}
+                        >
+                          <XCircle className="w-3 h-3 mr-1" /> FP
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {run.rawOutput && (
+              <div>
+                <h4 className="text-xs font-mono text-gray-400 mb-2 flex items-center gap-1.5">
+                  <Terminal className="w-3 h-3" /> RAW OUTPUT
+                </h4>
+                <pre className="bg-black rounded p-3 text-[11px] font-mono text-green-400 max-h-60 overflow-auto border border-gray-700/30 whitespace-pre-wrap">
+                  {run.rawOutput}
+                </pre>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Summary */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="bg-[#0D1117] border-gray-700/50">
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-mono text-white">{totalRuns}</div>
+            <div className="text-[10px] font-mono text-gray-500 mt-1">TOTAL ATTACKS</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#0D1117] border-gray-700/50">
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-mono text-green-400">{totalFindings}</div>
+            <div className="text-[10px] font-mono text-gray-500 mt-1">CREDENTIALS FOUND</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#0D1117] border-gray-700/50">
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-mono text-amber-400">{totalValidated}</div>
+            <div className="text-[10px] font-mono text-gray-500 mt-1">VALIDATED</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tool breakdown */}
+      {stats && stats.runs.length > 0 && (
+        <div className="grid grid-cols-4 gap-2">
+          {stats.runs.map((r: any) => (
+            <div key={r.tool ?? "unknown"} className={`rounded p-2 border text-center ${toolColors[r.tool ?? "builtin"] ?? "text-gray-400 bg-gray-400/10 border-gray-400/30"}`}>
+              <div className="text-xs font-mono font-bold">{(r.tool ?? "builtin").toUpperCase()}</div>
+              <div className="text-lg font-mono">{Number(r.totalRuns)}</div>
+              <div className="text-[10px] font-mono opacity-70">{Number(r.totalSuccessful ?? 0)} hits</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex gap-2">
+        <Select value={toolFilter} onValueChange={setToolFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs font-mono bg-[#0D1117] border-gray-700/50">
+            <SelectValue placeholder="Tool" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">ALL TOOLS</SelectItem>
+            <SelectItem value="builtin">BUILT-IN</SelectItem>
+            <SelectItem value="hydra">HYDRA</SelectItem>
+            <SelectItem value="medusa">MEDUSA</SelectItem>
+            <SelectItem value="netexec">NETEXEC</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={protocolFilter} onValueChange={setProtocolFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs font-mono bg-[#0D1117] border-gray-700/50">
+            <SelectValue placeholder="Protocol" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">ALL PROTOCOLS</SelectItem>
+            <SelectItem value="ssh">SSH</SelectItem>
+            <SelectItem value="ftp">FTP</SelectItem>
+            <SelectItem value="http">HTTP</SelectItem>
+            <SelectItem value="smb">SMB</SelectItem>
+            <SelectItem value="rdp">RDP</SelectItem>
+            <SelectItem value="mysql">MySQL</SelectItem>
+            <SelectItem value="mssql">MSSQL</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs font-mono bg-[#0D1117] border-gray-700/50">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">ALL STATUS</SelectItem>
+            <SelectItem value="completed">COMPLETED</SelectItem>
+            <SelectItem value="running">RUNNING</SelectItem>
+            <SelectItem value="stopped">STOPPED</SelectItem>
+            <SelectItem value="error">ERROR</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" className="h-8 text-xs font-mono" onClick={() => historyQuery.refetch()}>
+          <RefreshCw className="w-3 h-3 mr-1" /> REFRESH
+        </Button>
+      </div>
+
+      {/* Attack History Table */}
+      {historyQuery.isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+        </div>
+      ) : historyQuery.data && historyQuery.data.runs.length > 0 ? (
+        <div className="space-y-2">
+          {historyQuery.data.runs.map((run: any) => (
+            <Card
+              key={run.id}
+              className="bg-[#0D1117] border-gray-700/50 hover:border-gray-600/50 cursor-pointer transition-colors"
+              onClick={() => setSelectedRunId(run.id)}
+            >
+              <CardContent className="p-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Badge className={`font-mono text-[10px] ${toolColors[run.tool ?? "builtin"] ?? ""}`}>
+                    {(run.tool ?? "builtin").toUpperCase()}
+                  </Badge>
+                  <div>
+                    <div className="font-mono text-sm text-white">
+                      {run.protocol?.toUpperCase()}://{run.targetHost}:{run.targetPort}
+                    </div>
+                    <div className="text-[10px] font-mono text-gray-500">
+                      {run.attackMode?.replace("_", " ").toUpperCase()} • {run.totalAttempts ?? 0} attempts • {run.successfulAttempts ?? 0} hits
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge className={`font-mono text-[10px] ${statusColors[run.status] ?? ""}`}>
+                    {run.status?.toUpperCase()}
+                  </Badge>
+                  {run.durationMs && (
+                    <span className="text-[10px] font-mono text-gray-500">{(run.durationMs / 1000).toFixed(1)}s</span>
+                  )}
+                  <span className="text-[10px] font-mono text-gray-600">
+                    {run.createdAt ? new Date(run.createdAt).toLocaleString() : "—"}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {historyQuery.data.total > 50 && (
+            <div className="text-center text-xs font-mono text-gray-500 py-2">
+              Showing 50 of {historyQuery.data.total} results
+            </div>
+          )}
+        </div>
+      ) : (
+        <Card className="bg-[#0D1117] border-gray-700/50">
+          <CardContent className="py-12 text-center">
+            <Database className="w-8 h-8 text-gray-600 mx-auto mb-3" />
+            <p className="text-sm font-mono text-gray-500">No attack history yet</p>
+            <p className="text-xs text-gray-600 mt-1">
+              Attack results will be automatically saved here after each credential attack
+            </p>
           </CardContent>
         </Card>
       )}

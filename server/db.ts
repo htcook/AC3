@@ -1840,3 +1840,158 @@ export async function deletePentestReport(id: number) {
   const db = await getDbRequired();
   await db.delete(pentestReports).where(eq(pentestReports.id, id));
 }
+
+
+// ── Enhanced Credential Attack Persistence (External Tools) ─────────────────
+
+/** Save a credential attack run with external tool info */
+export async function saveCredentialAttackWithTool(run: InsertCredentialAttackRun & {
+  tool?: string;
+  toolVersion?: string;
+  rawOutput?: string;
+  toolMetadata?: any;
+  targetDomain?: string;
+  failedAttempts?: number;
+  stoppedReason?: string;
+}) {
+  const db = await getDbRequired();
+  const result = await db.insert(credentialAttackRuns).values(run);
+  return result[0].insertId;
+}
+
+/** Save credential finding with tool attribution */
+export async function saveCredentialFindingWithTool(finding: InsertCredentialFinding & {
+  tool?: string;
+  responseSnippet?: string;
+  additionalInfo?: string;
+  validationStatus?: string;
+}) {
+  const db = await getDbRequired();
+  const result = await db.insert(credentialFindings).values(finding);
+  return result[0].insertId;
+}
+
+/** Get attack history with tool info, filterable by tool type */
+export async function getCredentialAttackHistory(userId: number, opts?: {
+  tool?: string;
+  protocol?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDbRequired();
+  const conditions = [eq(credentialAttackRuns.userId, userId)];
+  
+  if (opts?.tool) {
+    conditions.push(eq(credentialAttackRuns.tool, opts.tool));
+  }
+  if (opts?.protocol) {
+    conditions.push(eq(credentialAttackRuns.protocol, opts.protocol));
+  }
+  if (opts?.status) {
+    conditions.push(eq(credentialAttackRuns.status, opts.status as any));
+  }
+  
+  return db.select().from(credentialAttackRuns)
+    .where(and(...conditions))
+    .orderBy(desc(credentialAttackRuns.createdAt))
+    .limit(opts?.limit ?? 50)
+    .offset(opts?.offset ?? 0);
+}
+
+/** Get attack history count for pagination */
+export async function getCredentialAttackHistoryCount(userId: number, opts?: {
+  tool?: string;
+  protocol?: string;
+  status?: string;
+}) {
+  const db = await getDbRequired();
+  const { sql: sqlTag } = await import('drizzle-orm');
+  const conditions = [eq(credentialAttackRuns.userId, userId)];
+  
+  if (opts?.tool) {
+    conditions.push(eq(credentialAttackRuns.tool, opts.tool));
+  }
+  if (opts?.protocol) {
+    conditions.push(eq(credentialAttackRuns.protocol, opts.protocol));
+  }
+  if (opts?.status) {
+    conditions.push(eq(credentialAttackRuns.status, opts.status as any));
+  }
+  
+  const result = await db.select({ count: sqlTag`COUNT(*)`.as('count') })
+    .from(credentialAttackRuns)
+    .where(and(...conditions));
+  return Number(result[0]?.count ?? 0);
+}
+
+/** Get all findings across all attacks, filterable */
+export async function getCredentialFindingsHistory(userId: number, opts?: {
+  tool?: string;
+  protocol?: string;
+  validationStatus?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDbRequired();
+  const conditions = [eq(credentialFindings.userId, userId)];
+  
+  if (opts?.tool) {
+    conditions.push(eq(credentialFindings.tool, opts.tool));
+  }
+  if (opts?.protocol) {
+    conditions.push(eq(credentialFindings.protocol, opts.protocol));
+  }
+  if (opts?.validationStatus) {
+    conditions.push(eq(credentialFindings.validationStatus, opts.validationStatus));
+  }
+  
+  return db.select().from(credentialFindings)
+    .where(and(...conditions))
+    .orderBy(desc(credentialFindings.discoveredAt))
+    .limit(opts?.limit ?? 100)
+    .offset(opts?.offset ?? 0);
+}
+
+/** Update finding validation status */
+export async function updateCredentialFindingValidation(
+  id: number,
+  validationStatus: string,
+  validatedBy?: number,
+  notes?: string
+) {
+  const db = await getDbRequired();
+  await db.update(credentialFindings).set({
+    validationStatus,
+    notes: notes ?? undefined,
+  }).where(eq(credentialFindings.id, id));
+}
+
+/** Get attack stats summary for dashboard */
+export async function getCredentialAttackStats(userId: number) {
+  const db = await getDbRequired();
+  const { sql: sqlTag } = await import('drizzle-orm');
+  
+  const runs = await db.select({
+    tool: credentialAttackRuns.tool,
+    totalRuns: sqlTag`COUNT(*)`.as('total_runs'),
+    totalAttempts: sqlTag`SUM(${credentialAttackRuns.totalAttempts})`.as('total_attempts'),
+    totalSuccessful: sqlTag`SUM(${credentialAttackRuns.successfulAttempts})`.as('total_successful'),
+    avgDuration: sqlTag`AVG(${credentialAttackRuns.durationMs})`.as('avg_duration'),
+  })
+    .from(credentialAttackRuns)
+    .where(eq(credentialAttackRuns.userId, userId))
+    .groupBy(credentialAttackRuns.tool);
+  
+  const findings = await db.select({
+    tool: credentialFindings.tool,
+    totalFindings: sqlTag`COUNT(*)`.as('total_findings'),
+    validated: sqlTag`SUM(CASE WHEN ${credentialFindings.validationStatus} = 'validated' THEN 1 ELSE 0 END)`.as('validated'),
+    falsePositives: sqlTag`SUM(CASE WHEN ${credentialFindings.validationStatus} = 'false_positive' THEN 1 ELSE 0 END)`.as('false_positives'),
+  })
+    .from(credentialFindings)
+    .where(eq(credentialFindings.userId, userId))
+    .groupBy(credentialFindings.tool);
+  
+  return { runs, findings };
+}

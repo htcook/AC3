@@ -5575,6 +5575,14 @@ export const credentialAttackRuns = mysqlTable("credential_attack_runs", {
   config: json("config"),
   errorMessage: text("error_message"),
   domainIntelScanId: int("domain_intel_scan_id"),
+  // External tool tracking columns
+  tool: varchar("tool", { length: 32 }).default("builtin"), // "builtin" | "hydra" | "medusa" | "netexec"
+  toolVersion: varchar("tool_version", { length: 64 }),
+  rawOutput: mediumtext("raw_output"),
+  toolMetadata: json("tool_metadata"), // tool-specific extras (NetExec admin access, shares, etc.)
+  targetDomain: varchar("target_domain", { length: 255 }),
+  failedAttempts: int("failed_attempts").default(0),
+  stoppedReason: varchar("stopped_reason", { length: 255 }),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -5601,6 +5609,11 @@ export const credentialFindings = mysqlTable("credential_findings", {
   verified: boolean("verified").default(false),
   domainIntelScanId: int("domain_intel_scan_id"),
   notes: text("notes"),
+  // External tool tracking columns
+  tool: varchar("tool", { length: 32 }).default("builtin"), // "builtin" | "hydra" | "medusa" | "netexec"
+  responseSnippet: text("response_snippet"),
+  additionalInfo: text("additional_info"),
+  validationStatus: varchar("validation_status", { length: 32 }).default("unvalidated"), // unvalidated, validated, false_positive
   discoveredAt: timestamp("discovered_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -5675,3 +5688,4 @@ export const pentestReports = mysqlTable("pentest_reports", {
 });
 export type PentestReport = typeof pentestReports.$inferSelect;
 export type InsertPentestReport = typeof pentestReports.$inferInsert;
+
