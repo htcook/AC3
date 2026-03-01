@@ -190,6 +190,9 @@ const LateralMovement = lazy(() => import("./pages/LateralMovement"));
 const ExploitationBridge = lazy(() => import("./pages/ExploitationBridge"));
 const PrivilegeEscalation = lazy(() => import("./pages/PrivilegeEscalation"));
 const CampaignAdvisor = lazy(() => import("./pages/CampaignAdvisor"));
+const ExportCenter = lazy(() => import("./pages/ExportCenter"));
+const RoleHome = lazy(() => import("./pages/home/RoleHome"));
+const ToolComparison = lazy(() => import("./pages/ToolComparison"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -242,7 +245,9 @@ function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
-        <Route path="/">{() => <PageErrorBoundary pageName="Home"><Home /></PageErrorBoundary>}</Route>
+        <Route path="/">{() => <PageErrorBoundary pageName="Home"><RoleHome /></PageErrorBoundary>}</Route>
+        <Route path="/overview">{() => <PageErrorBoundary pageName="Overview"><Home /></PageErrorBoundary>}</Route>
+        <Route path="/tool-comparison">{() => <PageErrorBoundary pageName="ToolComparison"><ToolComparison /></PageErrorBoundary>}</Route>
         <Route path="/login">{() => <PageErrorBoundary pageName="Login"><Login /></PageErrorBoundary>}</Route>
         <Route path="/dashboard">
           <ProtectedRoute component={Dashboard} />
@@ -751,6 +756,9 @@ function Router() {
         </Route>
         <Route path="/campaign-advisor">
           <ProtectedRoute component={CampaignAdvisor} />
+        </Route>
+        <Route path="/export-center">
+          <ProtectedRoute component={ExportCenter} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

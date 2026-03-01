@@ -85,8 +85,11 @@ import {
   Wifi,
   GitMerge,
   Satellite,
+  Download,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { canAccessGroup, canAccessSubSection, getRoleDisplayName, getRoleBadgeClass, getHomeDashboardPath, ALL_ROLES, type UserRole } from "@/lib/role-access";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -129,6 +132,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/kill-chain", icon: GitMerge, label: "KILL CHAIN VISUALIZER" },
           { href: "/opsec-dashboard", icon: ShieldAlert, label: "OPSEC DASHBOARD" },
           { href: "/engagement-automation", icon: Zap, label: "AUTOMATION HUB" },
+          { href: "/roe-builder", icon: ClipboardCheck, label: "ROE BUILDER" },
+          { href: "/campaign-archetypes", icon: Layers, label: "CAMPAIGN ARCHETYPES" },
         ],
       },
       {
@@ -139,6 +144,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ai-attack-planner", icon: Brain, label: "AI ATTACK PLANNER" },
           { href: "/preflight-checks", icon: Gauge, label: "PRE-FLIGHT CHECKS" },
           { href: "/attack-coverage", icon: Map, label: "ATT&CK COVERAGE" },
+          { href: "/risk-trending", icon: BarChart3, label: "RISK TRENDING" },
+          { href: "/corroboration-engine", icon: Microscope, label: "CORROBORATION" },
         ],
       },
     ],
@@ -158,6 +165,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
           { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
           { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
+          { href: "/osint-monitor", icon: Eye, label: "OSINT MONITOR" },
+          { href: "/email-security", icon: Shield, label: "EMAIL SECURITY" },
         ],
       },
       {
@@ -165,8 +174,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Scanning & Enumeration",
         items: [
           { href: "/tools/subfinder", icon: Globe, label: "DISCOVERY TOOLKIT" },
+          { href: "/tools/httpx", icon: Globe2, label: "HTTPX PROBER" },
+          { href: "/tools/naabu", icon: Radar, label: "PORT SCANNER" },
           { href: "/nuclei-scanner", icon: ScanLine, label: "VULN SCANNING" },
+          { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
           { href: "/scan-scheduler", icon: Clock, label: "SCAN MANAGEMENT" },
+          { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
         ],
       },
       {
@@ -174,8 +187,14 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Attack Paths",
         items: [
           { href: "/attack-paths", icon: GitBranch, label: "ATTACK PATHS" },
+          { href: "/attack-path-discovery", icon: Search, label: "PATH DISCOVERY" },
+          { href: "/attack-vector-engine", icon: Crosshair, label: "VECTOR ENGINE" },
           { href: "/cloud-attack-paths", icon: Cloud, label: "CLOUD PATHS" },
           { href: "/ad-attack-sim", icon: Server, label: "AD SECURITY" },
+          { href: "/ad-attack-path-graph", icon: Network, label: "AD ATTACK GRAPH" },
+          { href: "/ad-domain-connector", icon: Database, label: "AD CONNECTOR" },
+          { href: "/bloodhound-import", icon: FileStack, label: "BLOODHOUND IMPORT" },
+          { href: "/forest-mapper", icon: TreePine, label: "FOREST MAPPER" },
         ],
       },
     ],
@@ -195,6 +214,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ability-graph", icon: GitBranch, label: "ABILITY GRAPH" },
           { href: "/atomic-red-team", icon: Atom, label: "ATT&CK TESTS" },
           { href: "/evasion-engine", icon: ShieldOff, label: "EVASION ENGINE" },
+          { href: "/agentless-bas", icon: Radar, label: "AGENTLESS BAS" },
+          { href: "/agent-manager", icon: Settings, label: "AGENT MANAGER" },
         ],
       },
       {
@@ -205,6 +226,9 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/edr-validation", icon: ShieldCheck, label: "DEFENSE TESTING" },
           { href: "/detection-coverage", icon: Target, label: "COVERAGE MATRIX" },
           { href: "/continuous-validation", icon: Calendar, label: "VALIDATION OPS" },
+          { href: "/ngfw-validation", icon: Shield, label: "NGFW VALIDATION" },
+          { href: "/ai-security-validation", icon: Brain, label: "AI SECURITY" },
+          { href: "/remediation-verification", icon: RefreshCw, label: "REMEDIATION" },
         ],
       },
     ],
@@ -221,6 +245,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
           { href: "/phishing-ops", icon: Zap, label: "PHISHING OPS" },
           { href: "/landing-page-builder", icon: Palette, label: "PHISHING ASSETS" },
+          { href: "/email-security", icon: Shield, label: "EMAIL SECURITY" },
         ],
       },
       {
@@ -228,6 +253,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Exploit Tooling",
         items: [
           { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
+          { href: "/exploit-arsenal", icon: Swords, label: "EXPLOIT ARSENAL" },
           { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
           { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
           { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
@@ -237,6 +263,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/privilege-escalation", icon: ArrowUpDown, label: "PRIVESC ENGINE" },
           { href: "/lateral-movement", icon: Network, label: "LATERAL MOVEMENT" },
           { href: "/campaign-advisor", icon: BrainCircuit, label: "CAMPAIGN ADVISOR" },
+          { href: "/tool-comparison", icon: BarChart3, label: "TOOL COMPARISON" },
         ],
       },
       {
@@ -249,6 +276,9 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
           { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
           { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
+          { href: "/sliver-c2", icon: Cpu, label: "SLIVER C2" },
+          { href: "/credential-alerts", icon: Bell, label: "CREDENTIAL ALERTS" },
+          { href: "/credential-auto-rotation", icon: RefreshCw, label: "CRED ROTATION" },
         ],
       },
     ],
@@ -269,6 +299,9 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
           { href: "/threat-actor-crawler", icon: Satellite, label: "ACTOR INTEL" },
           { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
+          { href: "/ransomware-groups", icon: AlertTriangle, label: "RANSOMWARE GROUPS" },
+          { href: "/nvd-cve-matcher", icon: Bug, label: "NVD CVE MATCHER" },
+          { href: "/kev-catalog", icon: AlertTriangle, label: "KEV CATALOG" },
         ],
       },
       {
@@ -277,6 +310,8 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
           { href: "/cloud-credentials", icon: Key, label: "CREDENTIAL CENTER" },
           { href: "/stix-export", icon: FileJson, label: "DATA EXPORT" },
+          { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
+          { href: "/export-center", icon: Download, label: "PENTEST EXPORT" },
         ],
       },
     ],
@@ -292,7 +327,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Indicators & Compliance",
         items: [
           { href: "/ksi-dashboard", icon: BadgeCheck, label: "KSI DASHBOARD" },
+          { href: "/ksi-auto-collector", icon: RefreshCw, label: "AUTO COLLECTOR" },
+          { href: "/ksi-evidence-chain", icon: GitBranch, label: "EVIDENCE CHAIN" },
+          { href: "/ksi-threat-map", icon: Map, label: "THREAT MAP" },
           { href: "/compliance", icon: FileText, label: "COMPLIANCE CENTER" },
+          { href: "/compliance-mapper", icon: Layers, label: "COMPLIANCE MAPPER" },
+          { href: "/compensating-controls", icon: Shield, label: "COMPENSATING CTRL" },
         ],
       },
     ],
@@ -312,6 +352,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/guide/gophish", icon: BookOpen, label: "GUIDES" },
           { href: "/ttp-knowledge", icon: Brain, label: "KNOWLEDGE BASE" },
           { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING" },
+          { href: "/report-templates", icon: FileStack, label: "REPORT TEMPLATES" },
+          { href: "/evidence", icon: Archive, label: "EVIDENCE VAULT" },
         ],
       },
     ],
@@ -333,6 +375,15 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/live-infra", icon: Server, label: "INFRASTRUCTURE" },
           { href: "/error-dashboard", icon: Bug, label: "ERROR DASHBOARD" },
           { href: "/oem-credentials", icon: Key, label: "DEFAULT CREDENTIALS" },
+          { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
+          { href: "/vendor-integrations", icon: Layers, label: "VENDOR INTEGRATIONS" },
+          { href: "/soar-connectors", icon: Workflow, label: "SOAR CONNECTORS" },
+          { href: "/siem-feedback", icon: Radio, label: "SIEM FEEDBACK" },
+          { href: "/tenants", icon: Users, label: "TENANTS" },
+          { href: "/cicd-pipeline", icon: GitBranch, label: "CI/CD PIPELINE" },
+          { href: "/ics-ot-security", icon: Cpu, label: "ICS/OT SECURITY" },
+          { href: "/unified-pipeline", icon: Workflow, label: "UNIFIED PIPELINE" },
+          { href: "/infra-wiki", icon: BookOpen, label: "INFRA WIKI" },
         ],
       },
     ],
@@ -793,10 +844,39 @@ export default function AppShell({
   contentClassName = "p-4 sm:p-6 lg:p-8",
 }: AppShellProps) {
   const isEmbedded = useIsEmbedded();
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const currentPath = activePath || location;
+
+  // Role-based view override (stored in localStorage for demo/admin switching)
+  const [roleOverride, setRoleOverride] = useState<UserRole | null>(() => {
+    try {
+      const stored = localStorage.getItem('ace-c3-role-override');
+      return stored ? (stored as UserRole) : null;
+    } catch { return null; }
+  });
+  const effectiveRole: UserRole = roleOverride || (user?.role as UserRole) || 'operator';
+  const isAdmin = (user?.role as UserRole) === 'admin' || (user?.role as UserRole) === 'team_lead';
+
+  const handleRoleSwitch = useCallback((role: UserRole) => {
+    setRoleOverride(role);
+    localStorage.setItem('ace-c3-role-override', role);
+  }, []);
+
+  const clearRoleOverride = useCallback(() => {
+    setRoleOverride(null);
+    localStorage.removeItem('ace-c3-role-override');
+  }, []);
+
+  // Filter nav groups based on effective role
+  const filteredNavGroups = useMemo(() => {
+    return NAV_GROUPS.filter(group => canAccessGroup(effectiveRole, group.id)).map(group => ({
+      ...group,
+      subSections: group.subSections.filter(sub => canAccessSubSection(effectiveRole, sub.id)),
+    })).filter(group => group.subSections.length > 0);
+  }, [effectiveRole]);
 
   // Favorites
   const [favorites, setFavorites] = useState<string[]>(() => loadState(FAVORITES_KEY, []));
@@ -1020,7 +1100,7 @@ export default function AppShell({
               </button>
             </div>
 
-            {NAV_GROUPS.map((group) => (
+            {filteredNavGroups.map((group) => (
               <NavGroupSection
                 key={group.id}
                 group={group}
@@ -1038,13 +1118,40 @@ export default function AppShell({
 
           {/* User Info */}
           <div className="p-3 sm:p-4 border-t border-border sticky bottom-0 bg-card">
+            {/* Role Switcher (admin/team_lead only) */}
+            {isAdmin && (
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[9px] font-display tracking-widest text-muted-foreground/60 uppercase">View As</span>
+                  {roleOverride && (
+                    <button
+                      onClick={clearRoleOverride}
+                      className="text-[9px] text-primary/70 hover:text-primary font-display tracking-wider"
+                    >RESET</button>
+                  )}
+                </div>
+                <select
+                  value={effectiveRole}
+                  onChange={(e) => handleRoleSwitch(e.target.value as UserRole)}
+                  className="w-full bg-secondary/50 border border-border/50 rounded px-2 py-1.5 text-[11px] font-display tracking-wider text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  {ALL_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary/20 flex items-center justify-center shrink-0">
-                <span className="font-display text-primary text-sm sm:text-base">A</span>
+                <span className="font-display text-primary text-sm sm:text-base">
+                  {(user?.name || 'A').charAt(0).toUpperCase()}
+                </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Admin</p>
-                <p className="text-xs text-muted-foreground uppercase">ADMIN</p>
+                <p className="text-sm font-medium truncate">{user?.name || 'Operator'}</p>
+                <div className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-display tracking-wider border rounded ${getRoleBadgeClass(effectiveRole)}`}>
+                  {getRoleDisplayName(effectiveRole).toUpperCase()}
+                </div>
               </div>
             </div>
             <Link href="/" onClick={closeSidebar}>

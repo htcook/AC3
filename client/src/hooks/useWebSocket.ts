@@ -41,6 +41,32 @@ export type WsEventType =
   | "msf:server_provisioned"
   | "msf:server_ready"
   | "msf:server_destroyed"
+  // OPSEC events
+  | "opsec:action_scored"
+  | "opsec:burn_detected"
+  | "opsec:threshold_warning"
+  | "opsec:risk_update"
+  // Credential attack events
+  | "credential:attack_started"
+  | "credential:attack_complete"
+  | "credential:found"
+  | "credential:validated"
+  // Lateral movement events
+  | "lateral:pivot_planned"
+  | "lateral:tunnel_opened"
+  | "lateral:movement_executed"
+  // Privilege escalation events
+  | "privesc:analysis_complete"
+  | "privesc:escalation_found"
+  | "privesc:kerberos_attack"
+  // Engagement workflow events
+  | "engagement:phase_changed"
+  | "engagement:handoff"
+  | "engagement:timeline_event"
+  | "engagement:progress_update"
+  // Campaign advisor events
+  | "advisor:recommendation"
+  // System events
   | "system:notification"
   | "system:alert";
 
@@ -80,6 +106,14 @@ const TOAST_EVENT_TYPES: WsEventType[] = [
   "msf:server_ready",
   "msf:server_destroyed",
   "system:alert",
+  "opsec:burn_detected",
+  "opsec:threshold_warning",
+  "credential:found",
+  "credential:attack_complete",
+  "lateral:movement_executed",
+  "privesc:escalation_found",
+  "engagement:phase_changed",
+  "advisor:recommendation",
 ];
 
 function getToastInfo(event: WsEvent): { title: string; description: string; variant?: "default" | "destructive" } | null {
@@ -104,6 +138,24 @@ function getToastInfo(event: WsEvent): { title: string; description: string; var
       return { title: "Exploit Server Destroyed", description: `${event.data.name || "Server"} has been terminated`, variant: "destructive" };
     case "system:alert":
       return { title: event.data.title || "Alert", description: event.data.message || "", variant: event.data.severity === "critical" || event.data.severity === "error" ? "destructive" : "default" };
+    case "opsec:burn_detected":
+      return { title: "BURN DETECTED", description: `${event.data.indicator}: ${event.data.description}`, variant: "destructive" };
+    case "opsec:threshold_warning":
+      return { title: "OPSEC Threshold Warning", description: `Cumulative risk: ${event.data.cumulativeScore} — ${event.data.recommendation}`, variant: "destructive" };
+    case "credential:found":
+      return { title: "Credential Found", description: `${event.data.username}@${event.data.target} via ${event.data.tool}` };
+    case "credential:attack_complete":
+      return { title: "Credential Attack Complete", description: `${event.data.tool}: ${event.data.credentialsFound} found on ${event.data.target}` };
+    case "lateral:movement_executed":
+      return event.data.success
+        ? { title: "Lateral Movement Success", description: `${event.data.sourceHost} → ${event.data.targetHost} via ${event.data.technique}` }
+        : { title: "Lateral Movement Failed", description: `${event.data.technique} to ${event.data.targetHost}`, variant: "destructive" };
+    case "privesc:escalation_found":
+      return { title: "Privesc Path Found", description: `${event.data.technique} (${event.data.os}) — ${event.data.confidence}% confidence` };
+    case "engagement:phase_changed":
+      return { title: "Phase Changed", description: `${event.data.previousPhase} → ${event.data.newPhase}` };
+    case "advisor:recommendation":
+      return { title: "Campaign Advisor", description: event.data.recommendation?.slice(0, 80) || "New recommendation available" };
     default:
       return null;
   }
@@ -333,4 +385,105 @@ export function useMsfServerEvents() {
     []
   );
   return useWebSocket({ filterTypes, maxEvents: 30 });
+}
+
+// ─── OPSEC Dashboard hooks ──────────────────────────────────────────
+/** Hook for the OPSEC Dashboard — real-time risk scoring events */
+export function useOpsecEvents(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => ["opsec:action_scored", "opsec:burn_detected", "opsec:threshold_warning", "opsec:risk_update"],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 100, showToasts: true });
+}
+
+// ─── Credential Attack hooks ────────────────────────────────────────
+/** Hook for Credential Attacks page — credential attack events */
+export function useCredentialEvents(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => ["credential:attack_started", "credential:attack_complete", "credential:found", "credential:validated"],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 100 });
+}
+
+// ─── Lateral Movement hooks ─────────────────────────────────────────
+/** Hook for Lateral Movement page — pivot and tunnel events */
+export function useLateralMovementEvents(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => ["lateral:pivot_planned", "lateral:tunnel_opened", "lateral:movement_executed"],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 50 });
+}
+
+// ─── Privilege Escalation hooks ─────────────────────────────────────
+/** Hook for Privilege Escalation page — privesc analysis events */
+export function usePrivescEvents(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => ["privesc:analysis_complete", "privesc:escalation_found", "privesc:kerberos_attack"],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 50 });
+}
+
+// ─── Engagement Workflow hooks ──────────────────────────────────────
+/** Hook for Kill Chain Visualizer — engagement workflow events */
+export function useEngagementWorkflowEvents(engagementId: number) {
+  const channels = useMemo(
+    () => ["global", `engagement:${engagementId}`],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => ["engagement:phase_changed", "engagement:handoff", "engagement:timeline_event", "engagement:progress_update"],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 100 });
+}
+
+// ─── Campaign Advisor hooks ─────────────────────────────────────────
+/** Hook for Campaign Advisor — recommendation events */
+export function useAdvisorEvents() {
+  const filterTypes = useMemo<WsEventType[]>(
+    () => ["advisor:recommendation"],
+    []
+  );
+  return useWebSocket({ filterTypes, maxEvents: 20 });
+}
+
+// ─── Combined Operator Feed ─────────────────────────────────────────
+/** Hook for Operator Home — all operational events in a unified feed */
+export function useOperatorFeed(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => [
+      "opsec:action_scored", "opsec:burn_detected", "opsec:threshold_warning",
+      "credential:attack_complete", "credential:found",
+      "lateral:movement_executed", "privesc:escalation_found",
+      "exploit:result", "agent:deployed",
+      "engagement:phase_changed", "engagement:handoff",
+      "advisor:recommendation", "system:alert",
+    ],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 100 });
 }

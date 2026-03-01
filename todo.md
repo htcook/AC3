@@ -6209,3 +6209,47 @@
 - [x] Backend: LLM prompt with full situational awareness for next-action recommendations (CAMPAIGN_ADVISOR_SYSTEM_PROMPT)
 - [x] Frontend: Campaign Advisor chat page accessible from sidebar with message history, quick actions
 - [x] Tests: 25 passing vitest tests for Campaign Advisor and Auto-Persistence (432 total tests passing)
+
+## CSV/PDF Export for Pentest Report Artifacts (COMPLETED)
+- [x] Backend: CSV export endpoint for credential attack findings (report-export.ts)
+- [x] Backend: CSV export endpoint for kill chain timeline events
+- [x] Backend: Report generation endpoint with professional formatting
+- [x] Frontend: Export Center page with download buttons for all report types
+- [x] Router: reportExport router wired into appRouter
+
+## Tool Comparison Dashboard Card (COMPLETED)
+- [x] Frontend: ToolComparison page with side-by-side protocol coverage matrix
+- [x] Frontend: Speed comparison and capability comparison across all 4 tools
+- [x] Frontend: Success rate benchmarks and speed comparison cards
+- [x] Frontend: Add Tool Comparison page to sidebar navigation
+- [x] Tests: 39 vitest tests for role access, WebSocket events, and auto-persistence (471 total passing)
+
+## Real-time WebSocket Event Streaming
+- [x] Backend: WebSocket server already set up (ws-event-hub.ts with EventHub class)
+- [x] Backend: 19 new event emitters for OPSEC, credentials, lateral movement, privesc, engagement, advisor
+- [x] Backend: Wire auto-persistence to broadcast events via WebSocket (19 new event types + emitters)
+- [x] Frontend: WebSocket client hooks for live event consumption (useOpsecEvents, useCredentialEvents, etc.)
+- [x] Frontend: Live OPSEC score updates on OPSEC Dashboard
+- [x] Frontend: Live timeline event feed on Kill Chain Visualizer
+- [x] Tests: 39 vitest tests for WebSocket events, role access, and auto-persistence (471 total passing)
+
+## Navigation Audit
+- [x] Audit all sidebar nav items against App.tsx routes (zero broken links)
+- [x] Fix any dead links or missing page implementations (45+ pages added to sidebar)
+- [x] Ensure all global items (notifications, settings, user menu) work
+
+## Role-Based Dashboard System
+- [x] Extend user role enum to 6 roles (operator, team_lead, analyst, executive, client, admin)
+- [x] Push schema migration for new roles
+- [x] Build role-based sidebar filtering in AppShell (show/hide nav sections per role)
+- [x] Build Operator home dashboard (active engagements, OPSEC gauge, campaign advisor widget, recent findings)
+- [x] Build Executive home dashboard (risk posture score, compliance status, trend analysis, engagement summary)
+- [x] Build Analyst home dashboard (threat landscape, vulnerability heatmap, attack surface map, intel reports)
+- [x] Build Team Lead home dashboard (engagement pipeline, team workload, quality metrics, aggregate findings)
+- [x] Build Client Portal home dashboard (assessment status, findings summary, remediation tracker, reports)
+- [x] Build Admin home dashboard (system health, user management, integrations, audit log)
+- [x] Build role-aware home page router (RoleHome.tsx) that renders correct dashboard per role
+- [x] Build role switcher component for admin/demo purposes
+- [x] Build Tool Comparison dashboard page with protocol coverage matrix
+- [x] Build Export Center page with CSV/PDF download for all report types
+- [x] Add ExportCenter and ToolComparison to sidebar navigation

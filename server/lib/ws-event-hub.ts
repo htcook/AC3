@@ -51,6 +51,31 @@ export type WsEventType =
   | "msf:server_provisioned"
   | "msf:server_ready"
   | "msf:server_destroyed"
+  // OPSEC events
+  | "opsec:action_scored"
+  | "opsec:burn_detected"
+  | "opsec:threshold_warning"
+  | "opsec:risk_update"
+  // Credential attack events
+  | "credential:attack_started"
+  | "credential:attack_complete"
+  | "credential:found"
+  | "credential:validated"
+  // Lateral movement events
+  | "lateral:pivot_planned"
+  | "lateral:tunnel_opened"
+  | "lateral:movement_executed"
+  // Privilege escalation events
+  | "privesc:analysis_complete"
+  | "privesc:escalation_found"
+  | "privesc:kerberos_attack"
+  // Engagement workflow events
+  | "engagement:phase_changed"
+  | "engagement:handoff"
+  | "engagement:timeline_event"
+  | "engagement:progress_update"
+  // Campaign advisor events
+  | "advisor:recommendation"
   // System events
   | "system:notification"
   | "system:alert";
@@ -564,4 +589,301 @@ export function emitSystemAlert(data: {
     timestamp: Date.now(),
     data,
   });
+}
+
+
+// ─── OPSEC Event Emitters ───────────────────────────────────────────
+/** Emit when an action's OPSEC risk is scored */
+export function emitOpsecActionScored(data: {
+  action: string;
+  riskScore: number;
+  detectionTechnologies: string[];
+  mitigations: string[];
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "opsec:action_scored",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+/** Emit when a burn indicator is detected */
+export function emitOpsecBurnDetected(data: {
+  indicator: string;
+  severity: "warning" | "critical";
+  description: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "opsec:burn_detected",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+/** Emit when cumulative OPSEC risk crosses a threshold */
+export function emitOpsecThresholdWarning(data: {
+  cumulativeScore: number;
+  threshold: number;
+  recommendation: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "opsec:threshold_warning",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+// ─── Credential Attack Event Emitters ───────────────────────────────
+/** Emit when a credential attack starts */
+export function emitCredentialAttackStarted(data: {
+  tool: string;
+  protocol: string;
+  target: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "credential:attack_started",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+/** Emit when a credential attack completes */
+export function emitCredentialAttackComplete(data: {
+  tool: string;
+  protocol: string;
+  target: string;
+  credentialsFound: number;
+  duration: number;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "credential:attack_complete",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+/** Emit when a credential is found */
+export function emitCredentialFound(data: {
+  tool: string;
+  username: string;
+  target: string;
+  protocol: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "credential:found",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+// ─── Lateral Movement Event Emitters ────────────────────────────────
+/** Emit when a lateral movement pivot is planned */
+export function emitLateralPivotPlanned(data: {
+  sourceHost: string;
+  targetHost: string;
+  technique: string;
+  confidence: number;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "lateral:pivot_planned",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+/** Emit when a lateral movement is executed */
+export function emitLateralMovementExecuted(data: {
+  sourceHost: string;
+  targetHost: string;
+  technique: string;
+  success: boolean;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "lateral:movement_executed",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+// ─── Privilege Escalation Event Emitters ────────────────────────────
+/** Emit when privesc analysis completes */
+export function emitPrivescAnalysisComplete(data: {
+  os: string;
+  pathsFound: number;
+  highestConfidence: number;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "privesc:analysis_complete",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+/** Emit when a privesc path is found */
+export function emitPrivescEscalationFound(data: {
+  technique: string;
+  os: string;
+  confidence: number;
+  currentPrivilege: string;
+  targetPrivilege: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "privesc:escalation_found",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
+}
+
+// ─── Engagement Workflow Event Emitters ──────────────────────────────
+/** Emit when an engagement phase changes */
+export function emitEngagementPhaseChanged(data: {
+  engagementId: number;
+  previousPhase: string;
+  newPhase: string;
+  progress: number;
+}): void {
+  eventHub.broadcastEngagement(data.engagementId, {
+    type: "engagement:phase_changed",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  });
+}
+
+/** Emit when findings are handed off between phases */
+export function emitEngagementHandoff(data: {
+  engagementId: number;
+  fromPhase: string;
+  toPhase: string;
+  findingsCount: number;
+}): void {
+  eventHub.broadcastEngagement(data.engagementId, {
+    type: "engagement:handoff",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  });
+}
+
+/** Emit a timeline event for the engagement */
+export function emitEngagementTimelineEvent(data: {
+  engagementId: number;
+  eventType: string;
+  title: string;
+  description: string;
+  phase: string;
+  severity?: string;
+}): void {
+  eventHub.broadcastEngagement(data.engagementId, {
+    type: "engagement:timeline_event",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  });
+}
+
+/** Emit engagement progress update */
+export function emitEngagementProgressUpdate(data: {
+  engagementId: number;
+  overallProgress: number;
+  currentPhase: string;
+  findingsTotal: number;
+}): void {
+  eventHub.broadcastEngagement(data.engagementId, {
+    type: "engagement:progress_update",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  });
+}
+
+// ─── Campaign Advisor Event Emitters ────────────────────────────────
+/** Emit when the Campaign Advisor produces a recommendation */
+export function emitAdvisorRecommendation(data: {
+  recommendation: string;
+  confidence: number;
+  nextAction: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "advisor:recommendation",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  } else {
+    eventHub.broadcastGlobal(event);
+  }
 }

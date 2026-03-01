@@ -12,6 +12,15 @@ import {
   opsecEvents,
 } from "../../drizzle/schema";
 import { deterministicScoreActionRisk, ACTION_RISK_PROFILES } from "./opsec-risk-engine";
+import {
+  emitOpsecActionScored,
+  emitOpsecThresholdWarning,
+  emitEngagementTimelineEvent,
+  emitCredentialAttackComplete,
+  emitCredentialFound,
+  emitLateralMovementExecuted,
+  emitPrivescAnalysisComplete,
+} from "./ws-event-hub";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -135,6 +144,72 @@ export async function recordAction(event: ActionEvent): Promise<{
     });
   } catch (err) {
     console.error("[AutoPersistence] OPSEC score write failed:", err);
+  }
+
+  // 3. Emit WebSocket events for real-time streaming
+  try {
+    // Emit timeline event
+    if (event.engagementId) {
+      emitEngagementTimelineEvent({
+        engagementId: parseInt(event.engagementId) || 0,
+        eventType: event.success ? "action_completed" : "action_failed",
+        title: event.actionName,
+        description: event.description,
+        phase,
+      });
+    }
+
+    // Emit OPSEC score
+    emitOpsecActionScored({
+      action: opsecActionType,
+      riskScore: opsecScoreValue,
+      detectionTechnologies: opsecResult.detectionTechnologies || [],
+      mitigations: opsecResult.mitigations || [],
+      engagementId: event.engagementId ? parseInt(event.engagementId) : undefined,
+    });
+
+    // Emit OPSEC threshold warning if risk is high
+    if (opsecScoreValue >= 70) {
+      emitOpsecThresholdWarning({
+        cumulativeScore: opsecScoreValue,
+        threshold: 70,
+        recommendation: `High-risk action detected: ${event.actionName}. Consider using stealthier alternatives.`,
+        engagementId: event.engagementId ? parseInt(event.engagementId) : undefined,
+      });
+    }
+
+    // Emit category-specific events
+    if (event.category === "credential_attack" && event.success) {
+      emitCredentialAttackComplete({
+        tool: event.source,
+        protocol: event.resultData?.protocol || "unknown",
+        target: event.target || "unknown",
+        credentialsFound: event.resultData?.credentialsFound || 0,
+        duration: event.resultData?.duration || 0,
+        engagementId: event.engagementId ? parseInt(event.engagementId) : undefined,
+      });
+    }
+
+    if (event.category === "lateral_movement") {
+      emitLateralMovementExecuted({
+        sourceHost: event.source,
+        targetHost: event.target || "unknown",
+        technique: event.resultData?.technique || event.actionName,
+        success: event.success,
+        engagementId: event.engagementId ? parseInt(event.engagementId) : undefined,
+      });
+    }
+
+    if (event.category === "privilege_escalation" && event.success) {
+      emitPrivescAnalysisComplete({
+        os: event.resultData?.os || "unknown",
+        pathsFound: event.resultData?.pathsFound || 1,
+        highestConfidence: event.resultData?.confidence || 50,
+        engagementId: event.engagementId ? parseInt(event.engagementId) : undefined,
+      });
+    }
+  } catch (wsErr) {
+    console.error("[AutoPersistence] WebSocket emit failed:", wsErr);
   }
 
   return { timelineEventId, opsecScore: opsecScoreValue };
