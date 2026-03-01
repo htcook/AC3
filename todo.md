@@ -5954,3 +5954,7 @@
 - [x] Add KEV match quality indicators to frontend - display "confirmed" vs "potential" badges on KEV matches to distinguish version-verified from fuzzy matches
 ## Mail-Related Finding Filtering Fix
 - [x] Prevent non-mail assets from receiving DMARC/SPF/mail-related findings — only mail servers should get mail security findings
+## Scoped Scan Mode (RoE-Restricted)
+- [ ] Add scoped scan option to backend pipeline — skip asset discovery/inference when enabled, only scan exact user-provided assets
+- [ ] Add scoped scan toggle/option to frontend scan UI so users can restrict scans to their RoE scope
+- [ ] Write tests for scoped scan mode
