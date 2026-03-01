@@ -792,4 +792,153 @@ export const webAppScanningRouter = router({
       await db.deletePentestReport(input.id);
       return { success: true };
     }),
+
+  // ─── External Credential Attack Tools (Hydra / Medusa / NetExec) ──────
+
+  /** Detect which external credential tools are installed */
+  detectExternalTools: protectedProcedure.query(async () => {
+    const { detectAllTools } = await import("../lib/external-credential-tools");
+    return detectAllTools();
+  }),
+
+  /** Get detailed capability info for all credential attack tools */
+  getToolCapabilities: protectedProcedure.query(async () => {
+    const { getToolCapabilities } = await import("../lib/external-credential-tools");
+    return getToolCapabilities();
+  }),
+
+  /** Get the full tool knowledge base (for UI display and transparency) */
+  getToolKnowledgeBase: protectedProcedure.query(async () => {
+    const { getToolKnowledgeBase } = await import("../lib/external-credential-tools");
+    const kb = getToolKnowledgeBase();
+    // Serialize for transport (strip regex patterns)
+    return {
+      hydra: {
+        fullName: kb.hydra.fullName,
+        license: kb.hydra.license,
+        description: kb.hydra.description,
+        strengths: kb.hydra.strengths,
+        weaknesses: kb.hydra.weaknesses,
+        bestFor: kb.hydra.bestFor,
+        avoidFor: kb.hydra.avoidFor,
+        commandExamples: kb.hydra.commandExamples,
+        protocols: kb.hydra.protocols.native,
+      },
+      medusa: {
+        fullName: kb.medusa.fullName,
+        license: kb.medusa.license,
+        description: kb.medusa.description,
+        strengths: kb.medusa.strengths,
+        weaknesses: kb.medusa.weaknesses,
+        bestFor: kb.medusa.bestFor,
+        avoidFor: kb.medusa.avoidFor,
+        commandExamples: kb.medusa.commandExamples,
+        protocols: kb.medusa.protocols.native,
+      },
+      netexec: {
+        fullName: kb.netexec.fullName,
+        license: kb.netexec.license,
+        description: kb.netexec.description,
+        strengths: kb.netexec.strengths,
+        weaknesses: kb.netexec.weaknesses,
+        bestFor: kb.netexec.bestFor,
+        avoidFor: kb.netexec.avoidFor,
+        commandExamples: kb.netexec.commandExamples,
+        protocols: kb.netexec.protocols.native,
+        adAttackTypes: kb.netexec.adAttackTypes,
+      },
+    };
+  }),
+
+  /** LLM-powered tool recommendation for a given attack scenario */
+  recommendAttackTool: protectedProcedure
+    .input(z.object({
+      targetHost: z.string(),
+      targetPort: z.number(),
+      protocol: z.string(),
+      attackMode: z.string(),
+      isActiveDirectory: z.boolean().optional(),
+      hasNtlmHash: z.boolean().optional(),
+      isMultiHost: z.boolean().optional(),
+      hasWaf: z.boolean().optional(),
+      targetOs: z.enum(["windows", "linux", "unknown"]).optional(),
+      needsPostExploit: z.boolean().optional(),
+      connectionStability: z.enum(["stable", "flaky", "unknown"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { recommendTool } = await import("../lib/external-credential-tools");
+      return recommendTool(input);
+    }),
+
+  /** Quick (non-LLM) tool recommendation based on protocol */
+  quickToolRecommendation: protectedProcedure
+    .input(z.object({
+      protocol: z.string(),
+      isActiveDirectory: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { quickToolRecommendation } = await import("../lib/external-credential-tools");
+      return { recommended: quickToolRecommendation(input.protocol, input.isActiveDirectory) };
+    }),
+
+  /** Execute a credential attack using an external tool */
+  executeExternalAttack: protectedProcedure
+    .input(z.object({
+      tool: z.enum(["hydra", "medusa", "netexec"]),
+      host: z.string(),
+      port: z.number(),
+      protocol: z.string(),
+      loginUrl: z.string().optional(),
+      httpMethod: z.enum(["GET", "POST"]).optional(),
+      formParams: z.string().optional(),
+      successString: z.string().optional(),
+      failureString: z.string().optional(),
+      domain: z.string().optional(),
+      ntlmHash: z.string().optional(),
+      usernames: z.array(z.string()),
+      passwords: z.array(z.string()),
+      threads: z.number().optional(),
+      timeout: z.number().optional(),
+      globalTimeout: z.number().optional(),
+      stopOnFirst: z.boolean().optional(),
+      delayMs: z.number().optional(),
+      extraFlags: z.array(z.string()).optional(),
+      netexecModule: z.enum(["smb", "winrm", "ldap", "mssql", "rdp", "ssh", "ftp", "wmi"]).optional(),
+      netexecPostAuth: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { executeExternalAttack } = await import("../lib/external-credential-tools");
+      return executeExternalAttack({
+        tool: input.tool,
+        target: {
+          host: input.host,
+          port: input.port,
+          protocol: input.protocol,
+          loginUrl: input.loginUrl,
+          httpMethod: input.httpMethod,
+          formParams: input.formParams,
+          successString: input.successString,
+          failureString: input.failureString,
+          domain: input.domain,
+          ntlmHash: input.ntlmHash,
+        },
+        usernames: input.usernames,
+        passwords: input.passwords,
+        threads: input.threads || 8,
+        timeout: input.timeout || 10,
+        globalTimeout: input.globalTimeout || 600,
+        stopOnFirst: input.stopOnFirst ?? false,
+        delayMs: input.delayMs,
+        extraFlags: input.extraFlags,
+        netexecModule: input.netexecModule,
+        netexecPostAuth: input.netexecPostAuth,
+      });
+    }),
+
+  /** Clear the tool detection cache (after installing new tools) */
+  refreshToolDetection: protectedProcedure.mutation(async () => {
+    const { clearToolDetectionCache, detectAllTools } = await import("../lib/external-credential-tools");
+    clearToolDetectionCache();
+    return detectAllTools();
+  }),
 });

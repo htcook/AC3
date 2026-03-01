@@ -6081,3 +6081,20 @@
 - [x] Add MITRE ATT&CK coverage summary across all data sources
 - [x] Add executive summary auto-generation via LLM
 - [x] Register route in App.tsx and add to AppShell sidebar
+
+## External Credential Attack Tool Integration (Hydra/Medusa/NetExec)
+- [x] Build Hydra connector module (subprocess invocation, output parsing, protocol mapping)
+- [x] Build Medusa connector module (subprocess invocation, output parsing, protocol mapping)
+- [x] Build NetExec/CrackMapExec connector module (subprocess invocation, AD/SMB attacks, output parsing)
+- [x] Create unified external tool orchestrator with tool detection, fallback, and result normalization
+- [x] Add API endpoints for external tool attacks
+- [x] Update Credential Attacks UI with external tool selection and configuration
+- [x] Write comprehensive tests for all three tool connectors
+- [x] Verify all existing tests still pass
+- [x] LLM-powered tool selection engine with TOOL_KNOWLEDGE_BASE and decision framework
+- [x] Deterministic fallback recommendation (no LLM required)
+- [x] Frontend: Tool cards with install status, capabilities, knowledge base viewer
+- [x] Frontend: LLM RECOMMEND button with confidence score and attack plan display
+- [x] Frontend: NetExec-specific config (AD domain, NTLM hash, module, post-auth actions)
+- [x] Frontend: Hydra HTTP form config (form params, failure string)
+- [x] 32 passing vitest tests covering knowledge base, selection logic, output parsing, detection
