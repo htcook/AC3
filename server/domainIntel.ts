@@ -524,7 +524,7 @@ For EACH asset, provide:
    - ONLY confirmed findings with version-matched CVEs will drive the final risk rating. Potential findings are recorded as weaknesses but DO NOT affect the risk score.
    - Generic or theoretical risks (e.g., "web server might have XSS") are POTENTIAL — severity 3-5 max.
    - Do NOT inflate findings. If you cannot confirm a specific vulnerability, mark it as potential.
-   - Do NOT generate email security findings (missing DMARC, SPF, DKIM) for non-mail assets such as cloud compute instances (EC2, GCP VMs), CDN endpoints, load balancers, IP addresses, or any hostname that is clearly not a mail server. Email security findings are handled separately by the dedicated email security analyzer on the primary domain only.
+   - NEVER generate email security findings (missing DMARC, SPF, DKIM, email spoofing, email authentication) for ANY asset that is not a mail server (assetType 'mail_gateway'). This includes web servers, API endpoints, SSO portals, VPNs, admin panels, CDNs, load balancers, databases, CI/CD pipelines, monitoring tools, and all other non-mail assets. Email security analysis is handled separately by the dedicated email security analyzer and will only be assigned to mail-related assets. If an asset's assetType is not 'mail_gateway', do NOT create any findings with 'DMARC', 'SPF', 'DKIM', 'email security', 'email spoofing', or 'mail' in the title or category.
 
 7. Test Vectors: Suggested attack vectors (array of objects with id, vectorType, hypothesis, suggestedEmulation {technique, tactic}, expectedTelemetry[], riskSignal {severity, likelihood})
 
@@ -2197,14 +2197,29 @@ export async function runDomainIntelPipeline(
     // Generate posture findings from email security weaknesses
     const emailFindings = generateEmailPostureFindings(org.primaryDomain, emailSecurityReport);
     if (emailFindings.length > 0) {
-      // Add email security findings to the primary domain asset (or first asset)
-      const primaryAsset = analyses.find(a =>
-        a.asset.hostname === org.primaryDomain ||
-        a.asset.assetId.includes(org.primaryDomain)
-      ) || analyses[0];
-      if (primaryAsset) {
+      // Only assign email security findings to mail-related assets.
+      // Non-mail assets (web servers, APIs, CDNs, VPNs, admin panels, etc.)
+      // should NEVER receive DMARC/SPF/DKIM findings.
+      const { isMailAsset } = await import('./lib/email-security-analyzer');
+      const mailAsset = analyses.find(a => isMailAsset({
+        hostname: a.asset.hostname,
+        assetType: a.asset.assetType,
+        essentialService: a.essentialService,
+        missionFunction: a.missionFunction,
+        tags: a.asset.tags,
+      }));
+
+      // Fallback: only use the root domain asset (hostname === primaryDomain) if it exists,
+      // but NEVER fall back to an arbitrary non-mail asset like www, api, sso, etc.
+      const rootDomainAsset = !mailAsset ? analyses.find(a =>
+        a.asset.hostname === org.primaryDomain &&
+        (a.asset.assetType === 'other' || a.asset.assetClasses?.includes('dns_root'))
+      ) : null;
+
+      const targetAsset = mailAsset || rootDomainAsset;
+      if (targetAsset) {
         for (const ef of emailFindings) {
-          primaryAsset.postureFindings.push({
+          targetAsset.postureFindings.push({
             id: ef.id,
             assetRef: ef.assetRef,
             assetHostname: org.primaryDomain,
@@ -2218,21 +2233,38 @@ export async function runDomainIntelPipeline(
             remediation: ef.remediation,
           } as any);
         }
-        console.log(`[DomainIntel] Added ${emailFindings.length} email security findings to ${primaryAsset.asset.hostname}`);
+        console.log(`[DomainIntel] Added ${emailFindings.length} email security findings to mail asset ${targetAsset.asset.hostname}`);
+      } else {
+        console.log(`[DomainIntel] Suppressed ${emailFindings.length} email security findings — no mail-related asset found to assign them to`);
       }
     }
   } catch (err: any) {
     console.error(`[DomainIntel] Email security analysis failed (non-fatal): ${err.message}`);
   }
 
-  // Stage 3.10: Strip email security findings from non-mail assets.
-  // Cloud compute hostnames (EC2, GCP, Azure), CDN edges, IP-based hosts,
-  // and load balancers should never be flagged for missing DMARC/SPF/DKIM.
+  // Stage 3.10: Strip email security findings from ALL non-mail assets.
+  // Only assets positively identified as mail infrastructure should retain
+  // DMARC/SPF/DKIM/email security findings. Web servers, APIs, SSO portals,
+  // CDN edges, VPNs, admin panels, cloud compute, and all other non-mail
+  // assets should NEVER be flagged for missing email authentication.
   try {
-    const { isNonMailAsset } = await import('./lib/email-security-analyzer');
+    const { isMailAsset } = await import('./lib/email-security-analyzer');
     for (const a of analyses) {
       const hostname = a.asset.hostname || '';
-      if (isNonMailAsset(hostname)) {
+      // Check if this asset is a mail asset — if NOT, strip all email findings
+      const assetIsMailRelated = isMailAsset({
+        hostname: a.asset.hostname,
+        assetType: a.asset.assetType,
+        essentialService: a.essentialService,
+        missionFunction: a.missionFunction,
+        tags: a.asset.tags,
+      });
+
+      // Also allow root domain assets (dns_root) to keep email findings
+      // since they represent the domain-level DNS configuration
+      const isRootDomain = a.asset.assetClasses?.includes('dns_root') || a.asset.assetType === 'other' && a.asset.hostname === org.primaryDomain;
+
+      if (!assetIsMailRelated && !isRootDomain) {
         const before = a.postureFindings.length;
         a.postureFindings = a.postureFindings.filter((f: any) => {
           const cat = (f.category || '').toLowerCase();
@@ -2242,8 +2274,10 @@ export async function runDomainIntelPipeline(
           if (title.includes('no dmarc') || title.includes('no spf') || title.includes('no dkim')) return false;
           if (title.includes('missing dmarc') || title.includes('missing spf') || title.includes('missing dkim')) return false;
           if (title.includes('dmarc missing') || title.includes('spf missing') || title.includes('dkim missing')) return false;
-          if (title.includes('dmarc policy') && title.includes('none')) return false;
+          if (title.includes('dmarc policy') || title.includes('dmarc record')) return false;
           if (title.includes('email spoofing') || title.includes('email impersonation')) return false;
+          if (title.includes('spf record') || title.includes('dkim selector') || title.includes('dkim key')) return false;
+          if (title.includes('mail') && (title.includes('security') || title.includes('authentication') || title.includes('record'))) return false;
           return true;
         });
         const removed = before - a.postureFindings.length;

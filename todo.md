@@ -5952,3 +5952,5 @@
 - [x] Add org discovery results card to Scan Overview UI showing discovered related domains with ownership confidence and mission classification
 ## KEV Match Quality Indicators
 - [x] Add KEV match quality indicators to frontend - display "confirmed" vs "potential" badges on KEV matches to distinguish version-verified from fuzzy matches
+## Mail-Related Finding Filtering Fix
+- [x] Prevent non-mail assets from receiving DMARC/SPF/mail-related findings — only mail servers should get mail security findings

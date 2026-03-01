@@ -649,6 +649,33 @@ export interface EmailPostureFinding {
  * Cloud compute hostnames, IP-based hosts, CDN edges, and similar assets
  * should never be flagged for missing DMARC/SPF/DKIM.
  */
+/**
+ * Determine if an asset is a mail-related asset that should receive email security findings.
+ * Only mail gateways, MX hosts, and SMTP-related assets should get DMARC/SPF/DKIM findings.
+ */
+export function isMailAsset(asset: { hostname?: string; assetType?: string; essentialService?: string; missionFunction?: string; tags?: string[] }): boolean {
+  const h = (asset.hostname || '').toLowerCase();
+  const type = (asset.assetType || '').toLowerCase();
+  const service = (asset.essentialService || '').toLowerCase();
+  const mission = (asset.missionFunction || '').toLowerCase();
+  const tags = (asset.tags || []).map(t => t.toLowerCase());
+
+  // Positive mail indicators
+  if (type === 'mail_gateway' || type === 'mail_server' || type === 'email_server') return true;
+  if (service === 'email_gateway' || service === 'mail_gateway' || service === 'smtp_server') return true;
+  if (mission === 'communication_infrastructure') {
+    // Only if hostname also suggests mail
+    if (/^(mail|mx|smtp|imap|pop3|exchange|owa|postfix|sendmail|mta|relay)\./i.test(h)) return true;
+  }
+  if (tags.includes('email') || tags.includes('mail') || tags.includes('email_infrastructure')) return true;
+
+  // Hostname patterns that indicate mail servers
+  if (/^(mail|mx|smtp|imap|pop3|pop|exchange|owa|postfix|sendmail|mta|relay|webmail|roundcube|horde|zimbra|dovecot|exim)[.-]/i.test(h)) return true;
+  if (/\.(mail|mx|smtp)\./i.test(h)) return true;
+
+  return false;
+}
+
 export function isNonMailAsset(hostname: string): boolean {
   const h = hostname.toLowerCase();
   // Cloud compute patterns (AWS EC2, GCP, Azure, DigitalOcean, etc.)
