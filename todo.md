@@ -6327,3 +6327,82 @@
 - [x] Frontend: Active Sessions section in Account Settings page
 - [x] Frontend: Session cards with device info, location, and revoke button
 - [x] Vitest tests for session management and device fingerprinting
+
+## Gap Remediation — P0: Tenant Isolation
+- [x] Tenant isolation middleware — inject tenantId into every DB query context
+- [x] Add tenantId foreign key to engagement-related tables
+- [x] Tenant-scoped query helpers in db.ts
+- [x] Tenant isolation test suite verifying cross-tenant data leakage prevention
+- [x] Frontend tenant context provider
+
+## Gap Remediation — P1: Evidence Integrity
+- [x] Wire FIPS SHA-256 hashing into evidence capture pipeline
+- [x] Add sha256Hash column to evidenceItems table
+- [x] verifyIntegrity procedure that re-hashes stored artifacts
+- [x] HMAC-signed evidence manifests for export packages
+
+## Gap Remediation — P1: AI Decision Audit Trail
+- [x] Create ai_decision_log table (modelVersion, inputHash, response, configDelta, humanOverride)
+- [x] LLM invocation logging middleware
+- [x] AI Decisions audit page for admins
+
+## Gap Remediation — P1: Prompt Injection Hardening
+- [x] Prompt injection test suite with OWASP LLM Top 10 patterns
+- [x] Input sanitization for scan results and OSINT data flowing to LLM
+- [x] Output validation detecting unexpected tool calls or scope violations
+- [x] Canary system for LLM behavior deviation detection
+
+## Gap Remediation — P1: OSCAL Export Depth
+- [x] Expand OSCAL export to produce SSP, SAP, SAR, and POA&M artifacts
+- [x] JSON Schema validation against NIST official OSCAL schemas
+- [x] OSCAL evidence linker mapping KSI results to assessment entries
+- [x] Regenerate-on-demand endpoint
+
+## Gap Remediation — P1: Mobile App Testing
+- [x] Mobile security router and DAST library (MobSF integration)
+- [x] Mobile-specific evidence capture (screenshot, logcat, network trace)
+- [x] Frontend mobile security testing page
+
+## Gap Remediation — P2: Report Narrative Generator
+- [x] LLM-powered assessment narrative generator
+- [x] ROE compliance verification in reports
+- [x] Attack path narrative construction with evidence links
+- [x] NIST SP 800-115 report template compliance
+
+## Gap Remediation — P2: KSI Continuous Monitoring
+- [x] Cron-based continuous KSI validation runs
+- [x] Drift detection comparing current vs baseline KSI scores
+- [x] Automated alerting when KSI coverage drops below thresholds
+- [x] Continuous monitoring dashboard with trend visualization
+
+## Gap Remediation — P2: Data Retention Policies
+- [x] Data lifecycle module with configurable retention periods
+- [x] Automated purge jobs for expired data
+- [x] Data retention policy admin page
+- [x] LLM data handling policy documentation
+
+## Gap Remediation — P2: Corroboration Engine Depth
+- [x] Three-tier confirmation model (tool, cross-tool, exploitation)
+- [x] Link corroboration results to evidence items and KEV entries
+- [x] Confidence scoring based on corroboration depth
+
+## Gap Remediation — P3: Scan Replay
+- [x] Scan configuration snapshotting at execution time
+- [x] Replay scan action with identical configuration
+- [x] Diff view comparing original vs replay results
+
+## Gap Remediation — P3: SOAR Connector Expansion
+- [x] Bidirectional XSOAR/Splunk SOAR integration
+- [x] Automated incident ticket creation from confirmed findings
+- [x] Response action feedback loop
+
+## LLM Pentest/Red Team Training Knowledge Bases
+- [x] Offensive security technique taxonomy module (recon, enumeration, exploitation, privesc, reporting phases)
+- [x] Tool knowledge library (Nmap, Netcat, Burp, Metasploit, BloodHound, Impacket payloads & techniques)
+- [x] Exploit development knowledge base (buffer overflow, stack/heap, ROP, shellcoding, SEH, DEP/ASLR bypass)
+- [x] Web security knowledge base (SQLi, XSS, SSRF, deserialization, upload bypass, logic flaws)
+- [x] License-aware dataset ingestion pipeline (OWASP CC-BY-SA, MITRE ATT&CK, GTFOBins)
+- [x] RAG-ready knowledge store with JSONL schema and chunking
+- [x] Role-specific training context injection (operator gets exploit dev, analyst gets threat intel, etc.)
+- [x] Integrate knowledge bases into LLM system prompts for all 6 roles
+- [x] Vitest tests for knowledge base modules

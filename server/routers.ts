@@ -115,6 +115,7 @@ import { reportExportRouter } from "./routers/report-export";
 import { accountRouter } from "./routers/account-management";
 import { samlRouter } from "./routers/saml-auth";
 import { sessionRouter } from "./routers/session-management";
+import { tenantManagementRouter } from "./routers/tenant-management";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -2290,6 +2291,7 @@ export const appRouter = router({
   account: accountRouter,
   saml: samlRouter,
   sessions: sessionRouter,
+  tenantManagement: tenantManagementRouter,
 
   // Campaign management
   campaign: router({

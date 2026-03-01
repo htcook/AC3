@@ -119,6 +119,7 @@ export type InsertSshKey = typeof sshKeys.$inferInsert;
  */
 export const activityLogs = mysqlTable("activity_logs", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("alog_tenant_id"),
   userId: int("userId"),
   serverId: int("serverId"),
   action: varchar("action", { length: 255 }).notNull(),
@@ -152,6 +153,7 @@ export type InsertCalderaStats = typeof calderaStats.$inferInsert;
  */
 export const campaigns = mysqlTable("campaigns", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("cmp_tenant_id"),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   targetEnvironment: varchar("targetEnvironment", { length: 255 }),
@@ -211,6 +213,7 @@ export type InsertCampaignAbility = typeof campaignAbilities.$inferInsert;
  */
 export const engagements = mysqlTable("engagements", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("eng_tenant_id"),
   name: varchar("name", { length: 255 }).notNull(),
   customerName: varchar("customerName", { length: 255 }).notNull(),
   description: text("description"),
@@ -570,6 +573,7 @@ export type InsertDomainIntelScan = typeof domainIntelScans.$inferInsert;
  */
 export const discoveredAssets = mysqlTable("discovered_assets", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("da_tenant_id"),
   scanId: int("scanId").notNull(),
   // Asset identification
   assetId: varchar("assetId", { length: 128 }),
@@ -651,6 +655,7 @@ export type InsertDiscoveredAsset = typeof discoveredAssets.$inferInsert;
  */
 export const threatActors = mysqlTable("threat_actors", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("ta_tenant_id"),
   actorId: varchar("actorId", { length: 128 }).notNull().unique(), // e.g. "apt29", "fin7", "lockbit"
   name: varchar("name", { length: 255 }).notNull(),
   aliases: json("aliases"), // string[]
@@ -1094,6 +1099,7 @@ export type InsertArchetypeActorMapping = typeof archetypeActorMappings.$inferIn
  */
 export const phishingDrafts = mysqlTable("phishing_drafts", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("pd_tenant_id"),
   // Link to source intelligence
   scanId: int("scanId"),
   engagementId: int("engagementId"),
@@ -1528,6 +1534,7 @@ export type PlaybookExecution = typeof playbookExecutions.$inferSelect;
 // ─── Evidence Collection & Chain of Custody ───
 export const evidenceItems = mysqlTable("evidence_items", {
   id: int("id").primaryKey().autoincrement(),
+  tenantId: int("evi_tenant_id"),
   evidenceId: varchar("evidenceId", { length: 64 }).notNull().unique(),
   engagementId: varchar("engagementId", { length: 128 }),
   operationId: varchar("operationId", { length: 128 }),
@@ -1569,6 +1576,7 @@ export const evidenceChainOfCustody = mysqlTable("evidence_chain_of_custody", {
 // ─── Attack Path Visualization ───
 export const attackPaths = mysqlTable("attack_paths", {
   id: int("id").primaryKey().autoincrement(),
+  tenantId: int("atp_tenant_id"),
   pathId: varchar("pathId", { length: 64 }).notNull().unique(),
   engagementId: varchar("engagementId", { length: 128 }),
   name: varchar("name", { length: 255 }).notNull(),
@@ -1644,6 +1652,7 @@ export const webhookDeliveries = mysqlTable("webhook_deliveries", {
 // ─── Threat-Informed Defense Scoring ───
 export const defenseScores = mysqlTable("defense_scores", {
   id: int("id").primaryKey().autoincrement(),
+  tenantId: int("dfs_tenant_id"),
   scoreId: varchar("score_id", { length: 64 }).notNull().unique(),
   organizationName: varchar("organization_name", { length: 255 }).notNull(),
   threatActorId: int("threat_actor_id"),
@@ -2024,6 +2033,7 @@ export type InsertGeneratedPayload = typeof generatedPayloads.$inferInsert;
  */
 export const evasionSessions = mysqlTable("evasion_sessions", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("evs_tenant_id"),
   /** Link to a campaign or scan */
   campaignId: varchar("campaign_id", { length: 255 }),
   /** Session type */
@@ -2287,6 +2297,7 @@ export type InsertInfluenceOperation = typeof influenceOperations.$inferInsert;
 // ─── Credential Exposures ────────────────────────────────────────────────
 export const credentialExposures = mysqlTable("credential_exposures", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("ce_tenant_id"),
   source: varchar("ce_source", { length: 128 }).notNull(),
   breachName: varchar("ce_breach_name", { length: 512 }).notNull(),
   breachDate: timestamp("ce_breach_date"),
@@ -4002,6 +4013,7 @@ export type InsertAttackChainRecord = typeof attackChainRecords.$inferInsert;
 
 export const webAppScans = mysqlTable("web_app_scans", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("was_tenant_id"),
   targetUrl: varchar("target_url", { length: 2048 }).notNull(),
   scanName: varchar("scan_name", { length: 255 }),
   scanType: varchar("scan_type", { length: 50 }).notNull().default("full"),
@@ -4143,6 +4155,7 @@ export type InsertAtomicTestExecution = typeof atomicTestExecutions.$inferInsert
  */
 export const roeDocuments = mysqlTable("roe_documents", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("roe_tenant_id"),
   engagementId: int("engagement_id"),
   title: varchar("title", { length: 512 }).notNull(),
   version: varchar("version", { length: 32 }).default("1.0").notNull(),
@@ -5102,6 +5115,7 @@ export type InsertFIPSComplianceRecord = typeof fipsComplianceRecords.$inferInse
  */
 export const scanObservations = mysqlTable("scan_observations", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("sobs_tenant_id"),
   observationId: varchar("observationId", { length: 128 }).notNull().unique(),
   // Asset fields
   assetId: varchar("assetId", { length: 128 }).notNull(),
@@ -5202,6 +5216,7 @@ export type InsertScanRiskCard = typeof scanRiskCards.$inferInsert;
  */
 export const scanPolicies = mysqlTable("scan_policies", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("sp_tenant_id"),
   profileId: varchar("profileId", { length: 64 }).notNull().unique(),
   name: varchar("policyName", { length: 128 }).notNull(),
   description: text("policyDescription"),
@@ -5435,6 +5450,7 @@ export type InsertChainStageResultRow = typeof chainStageResults.$inferInsert;
 // ─── Platform Error Logging ─────────────────────────────────────────────────
 export const platformErrors = mysqlTable("platform_errors", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("perr_tenant_id"),
   source: varchar("source", { length: 32 }).notNull(),
   severity: varchar("severity", { length: 16 }).notNull().default("error"),
   message: text("message").notNull(),
@@ -5685,6 +5701,7 @@ export type InsertZapProxySession = typeof zapProxySessions.$inferInsert;
 // ── Unified Pentest Reports ────────────────────────────────────────────────────
 export const pentestReports = mysqlTable("pentest_reports", {
   id: int("id").primaryKey().autoincrement(),
+  tenantId: int("ptr_tenant_id"),
   userId: int("user_id").notNull(),
   reportTitle: varchar("report_title", { length: 512 }).notNull(),
   reportType: mysqlEnum("report_type", ["executive", "technical", "compliance", "full"]).default("full").notNull(),
@@ -5830,6 +5847,7 @@ export type InsertLateralMovementPath = typeof lateralMovementPaths.$inferInsert
 
 export const exploitationAttempts = mysqlTable("exploitation_attempts", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("expa_tenant_id"),
   engagementId: int("engagement_id"),
   targetHost: varchar("target_host", { length: 256 }).notNull(),
   targetPort: int("target_port"),
@@ -5943,6 +5961,7 @@ export type InsertLolbinEntry = typeof lolbinCatalog.$inferInsert;
 
 export const opsecEvents = mysqlTable("opsec_events", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("opse_tenant_id"),
   engagementId: int("opsec_engagement_id").notNull(),
   actionType: varchar("opsec_action_type", { length: 128 }).notNull(),
   actionDescription: text("opsec_action_description").notNull(),
@@ -5989,6 +6008,7 @@ export type InsertOpsecScore = typeof opsecScores.$inferInsert;
  */
 export const chatSessions = mysqlTable("chat_sessions", {
   id: int("id").autoincrement().primaryKey(),
+  tenantId: int("cs_tenant_id"),
   userId: int("chat_session_user_id").notNull(),
   title: varchar("chat_session_title", { length: 255 }).default("New Chat"),
   role: varchar("chat_session_role", { length: 64 }).notNull().default("operator"),

@@ -68,6 +68,7 @@ export function GlobalAiChat() {
   const [input, setInput] = useState("");
   const [includeErrors, setIncludeErrors] = useState(false);
   const [includeCreds, setIncludeCreds] = useState(false);
+  const [includeKnowledgeBase, setIncludeKnowledgeBase] = useState(true);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [personaOverride, setPersonaOverride] = useState<string | undefined>(undefined);
   const [showPersonaPicker, setShowPersonaPicker] = useState(false);
@@ -220,10 +221,11 @@ export function GlobalAiChat() {
       includeErrors,
       includeCreds,
       includeRoleContext: true,
+      includeKnowledgeBase,
       enableToolCalling: true,
       personaOverride,
     });
-  }, [input, messages, location, includeErrors, includeCreds, sendMutation, activeSessionId, personaOverride]);
+  }, [input, messages, location, includeErrors, includeCreds, includeKnowledgeBase, sendMutation, activeSessionId, personaOverride]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -451,6 +453,15 @@ export function GlobalAiChat() {
                   <Key className="w-2.5 h-2.5" /> Creds
                 </button>
               )}
+              <button
+                onClick={() => setIncludeKnowledgeBase(!includeKnowledgeBase)}
+                className={cn(
+                  "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors",
+                  includeKnowledgeBase ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+                )}
+              >
+                <Zap className="w-2.5 h-2.5" /> Pentest KB
+              </button>
               {chatConfig?.contextToggles?.map((toggle) => {
                 const IconComp = ICON_MAP[toggle.icon] || Zap;
                 return (

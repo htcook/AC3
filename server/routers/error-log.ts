@@ -12,6 +12,8 @@ import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredential
 import { invokeLLM } from "../_core/llm";
 import { getRoleChatConfig } from "../lib/role-chat-prompts";
 import { getRoleContext } from "../lib/role-chat-context";
+import { buildKnowledgeContextForLLM, searchTechniques, searchTools } from "../lib/pentest-knowledge-base";
+import { KnowledgeIndex, getRagSources, buildAttributionNotice, autoTagDocument } from "../lib/knowledge-store";
 import { getRoleActions, actionsToLLMTools } from "../lib/role-quick-actions";
 import { executeQuickAction } from "../lib/quick-action-executor";
 import { chatSessions, chatMessages } from "../../drizzle/schema";
@@ -353,6 +355,7 @@ export const aiChatRouter = router({
       includeErrors: z.boolean().default(false),
       includeCreds: z.boolean().default(false),
       includeRoleContext: z.boolean().default(true),
+      includeKnowledgeBase: z.boolean().default(true),
       enableToolCalling: z.boolean().default(true),
       personaOverride: z.string().optional(),
     }))
@@ -381,6 +384,45 @@ export const aiChatRouter = router({
           const roleContext = await getRoleContext(userRole);
           if (roleContext) systemParts.push(roleContext);
         } catch { /* ignore */ }
+      }
+
+      // ── Inject pentest knowledge base context ──
+      if (input.includeKnowledgeBase) {
+        try {
+          const knowledgeContext = buildKnowledgeContextForLLM(userRole as any, 3000);
+          if (knowledgeContext) {
+            systemParts.push(`\n--- PENTEST KNOWLEDGE BASE ---`);
+            systemParts.push(knowledgeContext);
+          }
+
+          // Dynamic technique lookup based on user message keywords
+          const techKeywords = input.message.match(/\b(nmap|burp|metasploit|sqlmap|bloodhound|mimikatz|kerberos|privesc|lateral|persistence|exfiltration|buffer overflow|rop|seh|shellcode|xss|sqli|ssrf|ssti|xxe|lfi|rfi|deserialization|command injection|path traversal|upload bypass|password spray|hash crack|responder|ntlm|smb|ldap|snmp|dns|ad enum|active directory|cobalt strike|sliver|havoc|c2|beacon|implant)\b/gi);
+          if (techKeywords && techKeywords.length > 0) {
+            const uniqueKw = [...new Set(techKeywords.map(k => k.toLowerCase()))];
+            const matchedTechniques: string[] = [];
+            const matchedTools: string[] = [];
+            for (const kw of uniqueKw.slice(0, 5)) {
+              const techs = searchTechniques(kw);
+              for (const t of techs.slice(0, 2)) {
+                matchedTechniques.push(`  - ${t.name} [${t.mitreTechniqueId}]: ${t.description.substring(0, 150)}`);
+                if (t.commonPayloads.length > 0) matchedTechniques.push(`    Payloads: ${t.commonPayloads.slice(0, 3).join(' | ')}`);
+                if (t.defenseBypass.length > 0) matchedTechniques.push(`    Evasion: ${t.defenseBypass.slice(0, 2).join(' | ')}`);
+              }
+              const tools = searchTools(kw);
+              for (const tl of tools.slice(0, 1)) {
+                matchedTools.push(`  - ${tl.displayName}: ${tl.quickReference.slice(0, 3).join(' | ')}`);
+              }
+            }
+            if (matchedTechniques.length > 0) {
+              systemParts.push(`\n--- RELEVANT TECHNIQUES (matched from query) ---`);
+              systemParts.push(matchedTechniques.join('\n'));
+            }
+            if (matchedTools.length > 0) {
+              systemParts.push(`\n--- RELEVANT TOOL REFERENCES ---`);
+              systemParts.push(matchedTools.join('\n'));
+            }
+          }
+        } catch { /* ignore knowledge base errors */ }
       }
 
       if (input.includeErrors && roleConfig.canViewErrors) {

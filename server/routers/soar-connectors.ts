@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import {
+  PLATFORM_REGISTRY, PLAYBOOK_TEMPLATES,
+  getPlatformConfig, getPlaybooksForPlatform, getPlaybooksByCategory,
+  formatPayloadForPlatform, parseInboundWebhook, checkConnectorHealth,
+  evaluateForwardingRule, processForwardingRules,
+  type SoarPlatform, type FindingPayload, type ForwardingRule,
+} from "../lib/soar-expansion";
 
 export const soarConnectorRouter = router({
   listConnectors: protectedProcedure.query(async () => {
@@ -14,7 +21,7 @@ export const soarConnectorRouter = router({
   createConnector: protectedProcedure
     .input(z.object({
       name: z.string(),
-      platform: z.enum(["splunk_soar", "cortex_xsoar", "swimlane", "tines", "custom"]),
+      platform: z.enum(["splunk_soar", "cortex_xsoar", "swimlane", "tines", "shuffle", "thehive", "servicenow_secops", "qradar_soar", "custom"]),
       webhookUrl: z.string(),
       apiKeyEncrypted: z.string().optional(),
       inboundEnabled: z.boolean().optional(),
@@ -137,4 +144,169 @@ export const soarConnectorRouter = router({
       eventCount: eventCount[0].value,
     };
   }),
+
+  // ─── Expansion: Platform Registry ─────────────────────────────────────
+  listPlatforms: protectedProcedure.query(() => {
+    return PLATFORM_REGISTRY.map(p => ({
+      id: p.id,
+      displayName: p.displayName,
+      vendor: p.vendor,
+      authType: p.authType,
+      supportsInbound: p.supportsInbound,
+      supportsOutbound: p.supportsOutbound,
+      supportsBidirectional: p.supportsBidirectional,
+      documentationUrl: p.documentationUrl,
+      requiredFields: p.requiredFields,
+      optionalFields: p.optionalFields,
+    }));
+  }),
+
+  getPlatformConfig: protectedProcedure
+    .input(z.object({ platform: z.string() }))
+    .query(({ input }) => {
+      const config = getPlatformConfig(input.platform as SoarPlatform);
+      if (!config) throw new TRPCError({ code: "NOT_FOUND", message: `Platform ${input.platform} not found` });
+      return config;
+    }),
+
+  // ─── Expansion: Playbook Templates ────────────────────────────────────
+  listPlaybooks: protectedProcedure
+    .input(z.object({
+      platform: z.string().optional(),
+      category: z.string().optional(),
+    }).optional())
+    .query(({ input }) => {
+      if (input?.platform) return getPlaybooksForPlatform(input.platform as SoarPlatform);
+      if (input?.category) return getPlaybooksByCategory(input.category as any);
+      return PLAYBOOK_TEMPLATES;
+    }),
+
+  getPlaybook: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      const pb = PLAYBOOK_TEMPLATES.find(p => p.id === input.id);
+      if (!pb) throw new TRPCError({ code: "NOT_FOUND", message: "Playbook not found" });
+      return pb;
+    }),
+
+  // ─── Expansion: Connector Health ──────────────────────────────────────
+  checkHealth: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { soarConnectors } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(soarConnectors).where(eq(soarConnectors.id, input.id));
+      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Connector not found" });
+      const health = await checkConnectorHealth(rows[0].webhookUrl, rows[0].platform as SoarPlatform);
+      return {
+        connectorId: input.id,
+        platform: rows[0].platform,
+        ...health,
+        checkedAt: new Date().toISOString(),
+      };
+    }),
+
+  // ─── Expansion: Finding Forwarding ────────────────────────────────────
+  forwardFinding: protectedProcedure
+    .input(z.object({
+      connectorId: z.number(),
+      finding: z.object({
+        findingId: z.string(),
+        title: z.string(),
+        severity: z.enum(["critical", "high", "medium", "low", "info"]),
+        description: z.string(),
+        target: z.string(),
+        cveId: z.string().optional(),
+        cvssScore: z.number().optional(),
+        evidence: z.string().optional(),
+        engagementId: z.string().optional(),
+        engagementName: z.string().optional(),
+        mitreTechniqueId: z.string().optional(),
+        remediationGuidance: z.string().optional(),
+        validatedAt: z.string().optional(),
+      }),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { soarConnectors, soarEvents } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(soarConnectors).where(eq(soarConnectors.id, input.connectorId));
+      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Connector not found" });
+
+      const platform = rows[0].platform as SoarPlatform;
+      const payload = formatPayloadForPlatform(platform, input.finding);
+
+      // Send to SOAR platform
+      try {
+        const response = await fetch(rows[0].webhookUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(rows[0].apiKeyEncrypted ? { "Authorization": `Bearer ${rows[0].apiKeyEncrypted}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        // Log the event
+        await db.insert(soarEvents).values({
+          connectorId: input.connectorId,
+          eventType: "finding_forwarded",
+          payload: JSON.stringify({ finding: input.finding, formattedPayload: payload }),
+          direction: "outbound",
+          status: response.ok ? "delivered" : "failed",
+        });
+
+        return {
+          success: response.ok,
+          statusCode: response.status,
+          platform,
+          formattedPayload: payload,
+        };
+      } catch (err: any) {
+        await db.insert(soarEvents).values({
+          connectorId: input.connectorId,
+          eventType: "finding_forwarded",
+          payload: JSON.stringify({ finding: input.finding, error: err.message }),
+          direction: "outbound",
+          status: "failed",
+        });
+        return { success: false, error: err.message, platform };
+      }
+    }),
+
+  // ─── Expansion: Payload Preview ───────────────────────────────────────
+  previewPayload: protectedProcedure
+    .input(z.object({
+      platform: z.string(),
+      finding: z.object({
+        findingId: z.string(),
+        title: z.string(),
+        severity: z.enum(["critical", "high", "medium", "low", "info"]),
+        description: z.string(),
+        target: z.string(),
+        cveId: z.string().optional(),
+        cvssScore: z.number().optional(),
+        engagementId: z.string().optional(),
+        mitreTechniqueId: z.string().optional(),
+        remediationGuidance: z.string().optional(),
+      }),
+    }))
+    .query(({ input }) => {
+      return formatPayloadForPlatform(input.platform as SoarPlatform, input.finding as FindingPayload);
+    }),
+
+  // ─── Expansion: Inbound Webhook Parsing ───────────────────────────────
+  parseInbound: protectedProcedure
+    .input(z.object({
+      platform: z.string(),
+      body: z.record(z.any()),
+    }))
+    .mutation(({ input }) => {
+      return parseInboundWebhook(input.platform as SoarPlatform, input.body);
+    }),
 });

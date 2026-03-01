@@ -10,6 +10,13 @@ import {
 } from "../../drizzle/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import crypto from "crypto";
+import {
+  generateComponentDefinition,
+  generateAssessmentPlan,
+  generateCustomCatalog,
+  generateTailoredProfile,
+  ACE_C3_CAPABILITIES,
+} from "../lib/oscal-depth-expansion";
 
 async function getDbSafe() {
   const db = await _getDb();
@@ -300,7 +307,7 @@ export const oscalExportRouter = router({
   /** Generate an OSCAL export */
   generate: protectedProcedure
     .input(z.object({
-      documentType: z.enum(["ssp", "sar", "poam", "component_definition", "assessment_plan"]),
+      documentType: z.enum(["ssp", "sar", "poam", "component_definition", "assessment_plan", "catalog", "profile"]),
       title: z.string(),
       description: z.string().optional(),
       engagementId: z.string().optional(),
@@ -349,6 +356,37 @@ export const oscalExportRouter = router({
           case "poam":
             oscalDocument = generatePOAM(input.title, scopedDefs, validationRuns);
             break;
+          case "component_definition":
+            oscalDocument = generateComponentDefinition(input.title, ACE_C3_CAPABILITIES);
+            break;
+          case "assessment_plan":
+            oscalDocument = generateAssessmentPlan(
+              input.title,
+              "ace-c3-system",
+              scopedDefs.map(d => ({
+                controlId: d.ksiId,
+                assessmentMethod: "test" as const,
+                objectives: [d.title || "Validate control implementation"],
+              })),
+              [{ name: "ACE C3 Automated Assessor", role: "assessor" }]
+            );
+            break;
+          case "catalog":
+            oscalDocument = generateCustomCatalog(input.title, scopedDefs.map(d => ({
+              ksiId: d.ksiId,
+              title: d.title || d.ksiId,
+              description: d.description || "",
+              themeCode: d.themeCode || "GEN",
+              category: d.category || "General",
+            })));
+            break;
+          case "profile":
+            oscalDocument = generateTailoredProfile(
+              input.title,
+              "moderate",
+              scopedDefs.map(d => d.ksiId)
+            );
+            break;
           default:
             oscalDocument = generateSSP(input.title, scopedDefs, evidence, controlMappings, validationRuns);
         }
@@ -393,7 +431,7 @@ export const oscalExportRouter = router({
   /** List all OSCAL exports */
   listExports: protectedProcedure
     .input(z.object({
-      documentType: z.enum(["ssp", "sar", "poam", "component_definition", "assessment_plan"]).optional(),
+      documentType: z.enum(["ssp", "sar", "poam", "component_definition", "assessment_plan", "catalog", "profile"]).optional(),
       status: z.enum(["pending", "generating", "complete", "failed"]).optional(),
       limit: z.number().min(1).max(100).default(20),
     }).optional())
@@ -447,6 +485,8 @@ export const oscalExportRouter = router({
       { id: "poam", name: "Plan of Action & Milestones (POA&M)", description: "Remediation plan for failing or unimplemented KSIs" },
       { id: "component_definition", name: "Component Definition", description: "ACE C3 component capabilities mapped to KSI requirements" },
       { id: "assessment_plan", name: "Assessment Plan", description: "Planned assessment activities and validation schedules" },
+      { id: "catalog", name: "Custom Control Catalog", description: "KSI-based control catalog in OSCAL format" },
+      { id: "profile", name: "Tailored Profile", description: "FedRAMP-tailored control profile for specific baselines" },
     ];
   }),
 });
