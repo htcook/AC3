@@ -198,6 +198,9 @@ const TeamManagementPage = lazy(() => import("./pages/TeamManagement"));
 const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
 const SamlConfig = lazy(() => import("./pages/SamlConfig"));
 const SessionManagement = lazy(() => import("./pages/SessionManagement"));
+const TenantOnboarding = lazy(() => import("./pages/TenantOnboarding"));
+const ComplianceDashboard = lazy(() => import("./pages/ComplianceDashboard"));
+const ScanWebhooks = lazy(() => import("./pages/ScanWebhooks"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -289,6 +292,15 @@ function Router() {
         </Route>
         <Route path="/sessions">
           <ProtectedRoute component={SessionManagement} />
+        </Route>
+        <Route path="/onboarding">
+          <ProtectedRoute component={TenantOnboarding} />
+        </Route>
+        <Route path="/compliance-dashboard">
+          <ProtectedRoute component={ComplianceDashboard} />
+        </Route>
+        <Route path="/scan-webhooks">
+          <ProtectedRoute component={ScanWebhooks} />
         </Route>
         <Route path="/activity">
           <ProtectedRoute component={Activity} />

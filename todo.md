@@ -6406,3 +6406,46 @@
 - [x] Role-specific training context injection (operator gets exploit dev, analyst gets threat intel, etc.)
 - [x] Integrate knowledge bases into LLM system prompts for all 6 roles
 - [x] Vitest tests for knowledge base modules
+
+## Tenant Onboarding Wizard
+- [x] Backend: onboarding state machine (steps: org-info, security-config, idp-config, team-invites, review-launch)
+- [x] Backend: createTenantWithOnboarding procedure (atomic tenant + admin user + default settings)
+- [x] Backend: validateIdpConfig procedure for SAML/OAuth testing during onboarding
+- [x] Backend: bulkInvite procedure for batch team invitations
+- [x] Frontend: 5-step wizard component with progress indicator
+- [x] Frontend: Step 1 - Organization info (name, slug, industry, size)
+- [x] Frontend: Step 2 - Security configuration (MFA, session timeout, IP allowlist, password policy)
+- [x] Frontend: Step 3 - IdP configuration (Okta, Azure AD, PingFederate quick-connect)
+- [x] Frontend: Step 4 - Team invitations (bulk email entry, role assignment)
+- [x] Frontend: Step 5 - Review and launch (summary, confirm, activate)
+- [x] Wire wizard route in App.tsx and sidebar link
+
+## Unified Compliance Posture Dashboard
+- [x] Backend: aggregateCompliancePosture procedure (37 controls across 7 domains)
+- [x] Backend: complianceTrend procedure (historical scores over time)
+- [x] Backend: complianceAlerts procedure (active violations and warnings)
+- [x] Backend: frameworkReport procedure (FedRAMP, NIST 800-53, CMMC, HIPAA, PCI DSS)
+- [x] Frontend: Executive compliance dashboard page with posture donut chart
+- [x] Frontend: FIPS 140-3 status card (crypto modules, TLS config, key management)
+- [x] Frontend: OSCAL coverage card (document types generated, control families mapped)
+- [x] Frontend: KSI monitoring card (current score, drift, last scan)
+- [x] Frontend: Data retention card (active policies, upcoming purges, legal holds)
+- [x] Frontend: Tenant isolation card (tables covered, cross-tenant detection events)
+- [x] Frontend: AI Security card (guardrails, prompt injection shield, audit trail)
+- [x] Frontend: Compliance trend chart (30/60/90 day view)
+- [x] Wire dashboard route and sidebar link
+
+## Webhook-Triggered Scan Automation
+- [x] Backend: webhook endpoint CRUD with HMAC-SHA256 secret generation (whsec_ prefix)
+- [x] Backend: inbound webhook handler with HMAC signature verification and IP allowlist
+- [x] Backend: scan trigger engine (9 profiles: ZAP quick/full/API, Nmap discovery/full/vuln, Nuclei default/CVE/exposed)
+- [x] Backend: webhook execution logging with status tracking (queued/running/completed/failed)
+- [x] Backend: integration snippet generator for 6 SOAR platforms (curl, Python, Splunk SOAR, Cortex XSOAR, Tines, Shuffle)
+- [x] Frontend: Webhook management page with endpoint cards, execution log, integration code viewer
+- [x] Frontend: Create endpoint dialog with scan profile selection and IP allowlist
+- [x] Wire routes and sidebar links
+
+## Tests
+- [x] Vitest tests for tenant onboarding wizard (10 tests)
+- [x] Vitest tests for compliance posture dashboard (8 tests)
+- [x] Vitest tests for webhook scan automation (14 tests)
