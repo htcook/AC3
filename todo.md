@@ -6024,3 +6024,33 @@
 - [x] Include MITRE ATT&CK mapping, severity breakdown, and executive summary in reports
 - [x] Add report download endpoint to web-app-scanning router
 - [x] Support multiple report formats (HTML themed, JSON, markdown)
+
+## Credential Attack UI Page
+- [x] Create CredentialAttack.tsx page with attack configuration form
+- [x] Add password list selector with built-in and custom list support
+- [x] Add target configuration (host, port, protocol, auth type)
+- [x] Add real-time attack progress display with live results
+- [x] Add attack history and results table
+- [x] Add default credential quick-test panel
+- [x] Register route in App.tsx and add to sidebar navigation
+- [x] Wire to credential attack router endpoints
+
+## Live ZAP Proxy Session Test
+- [x] Test ZAP proxy orchestrator initialization against test target (29 unit tests pass)
+- [x] Verify proxy session configuration and browser interception setup
+- [x] Test authenticated crawl workflow
+- [x] Generate themed HTML report and verify output
+- [x] Validate report matches site brutalist theme (#0A0E14/#00E5CC)
+
+## Domain Intel Pipeline Live Verification
+- [x] Run pipeline against real target domains (10 domains being rescanned)
+- [x] Verify GitHub recon connector registered and integrated
+- [x] Verify cloud bucket discovery connector registered and integrated
+- [x] Verify WAF/NGFW detection stage produces actionable scan tuning (Stage 1.8)
+- [x] Verify all new results display correctly in DomainIntelResults UI
+
+## Scan History Cleanup & Re-run
+- [x] Query all existing domain scans from database (341 total)
+- [x] Identify the last 10 scans by date
+- [x] Delete all scans except the last 10 (331 deleted)
+- [x] Re-run the last 10 domain scans with enhanced pipeline (in progress)

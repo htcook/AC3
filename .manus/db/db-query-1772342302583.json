@@ -1,0 +1,130 @@
+{
+  "query": "SELECT id, primaryDomain, status, createdAt, totalAssets, overallRiskScore FROM domain_intel_scans ORDER BY createdAt DESC LIMIT 15",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, createdAt, totalAssets, overallRiskScore FROM domain_intel_scans ORDER BY createdAt DESC LIMIT 15",
+  "rows": [
+    {
+      "id": "1410608",
+      "primaryDomain": "other-1772341827442.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410607",
+      "primaryDomain": "mixed_hosting-1772341827426.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410606",
+      "primaryDomain": "iaas-1772341827410.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410603",
+      "primaryDomain": "enterprise-1772341827363.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410605",
+      "primaryDomain": "paas-1772341827395.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410602",
+      "primaryDomain": "msp-1772341827346.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410604",
+      "primaryDomain": "saas-1772341827379.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410569",
+      "primaryDomain": "msp-1772338543506.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410575",
+      "primaryDomain": "other-1772338543588.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410574",
+      "primaryDomain": "mixed_hosting-1772338543573.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410572",
+      "primaryDomain": "paas-1772338543546.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410571",
+      "primaryDomain": "saas-1772338543532.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410573",
+      "primaryDomain": "iaas-1772338543559.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410570",
+      "primaryDomain": "enterprise-1772338543519.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410537",
+      "primaryDomain": "enterprise-1772338344168.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "overallRiskScore": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\tcreatedAt\ttotalAssets\toverallRiskScore\n1410608\tother-1772341827442.com\tpending\t2026-03-01 05:10:27\t0\tNULL\n1410607\tmixed_hosting-1772341827426.com\tpending\t2026-03-01 05:10:27\t0\tNULL\n1410606\tiaas-1772341827410.com\tpending\t2026-03-01 05:10:27\t0\tNULL\n1410603\tenterprise-1772341827363.com\tpending\t2026-03-01 05:10:27\t0\tNULL\n1410605\tpaas-1772341827395.com\tpending\t2026-03-01 05:10:27\t0\tNULL\n1410602\tmsp-1772341827346.com\tpending\t2026-03-01 05:10:27\t0\tNULL\n1410604\tsaas-1772341827379.com\tpending\t2026-03-01 05:10:27\t0\tNULL\n1410569\tmsp-1772338543506.com\tpending\t2026-03-01 04:15:43\t0\tNULL\n1410575\tother-1772338543588.com\tpending\t2026-03-01 04:15:43\t0\tNULL\n1410574\tmixed_hosting-1772338543573.com\tpending\t2026-03-01 04:15:43\t0\tNULL\n1410572\tpaas-1772338543546.com\tpending\t2026-03-01 04:15:43\t0\tNULL\n1410571\tsaas-1772338543532.com\tpending\t2026-03-01 04:15:43\t0\tNULL\n1410573\tiaas-1772338543559.com\tpending\t2026-03-01 04:15:43\t0\tNULL\n1410570\tenterprise-1772338543519.com\tpending\t2026-03-01 04:15:43\t0\tNULL\n1410537\tenterprise-1772338344168.com\tpending\t2026-03-01 04:12:24\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

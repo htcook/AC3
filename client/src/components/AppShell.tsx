@@ -229,6 +229,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
           { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
           { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
+          { href: "/credential-attacks", icon: Lock, label: "CREDENTIAL ATTACKS" },
         ],
       },
       {

@@ -1,0 +1,3079 @@
+{
+  "query": "SELECT id, primaryDomain, status, createdAt, totalAssets, totalFindings, overallRiskScore FROM domain_intel_scans ORDER BY createdAt DESC",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, createdAt, totalAssets, totalFindings, overallRiskScore FROM domain_intel_scans ORDER BY createdAt DESC",
+  "rows": [
+    {
+      "id": "1410608",
+      "primaryDomain": "other-1772341827442.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410607",
+      "primaryDomain": "mixed_hosting-1772341827426.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410606",
+      "primaryDomain": "iaas-1772341827410.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410605",
+      "primaryDomain": "paas-1772341827395.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410604",
+      "primaryDomain": "saas-1772341827379.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410603",
+      "primaryDomain": "enterprise-1772341827363.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410602",
+      "primaryDomain": "msp-1772341827346.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 05:10:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410575",
+      "primaryDomain": "other-1772338543588.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410574",
+      "primaryDomain": "mixed_hosting-1772338543573.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410573",
+      "primaryDomain": "iaas-1772338543559.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410572",
+      "primaryDomain": "paas-1772338543546.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410571",
+      "primaryDomain": "saas-1772338543532.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410570",
+      "primaryDomain": "enterprise-1772338543519.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410569",
+      "primaryDomain": "msp-1772338543506.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:15:43",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410542",
+      "primaryDomain": "other-1772338344245.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410541",
+      "primaryDomain": "mixed_hosting-1772338344229.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410540",
+      "primaryDomain": "iaas-1772338344213.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410539",
+      "primaryDomain": "paas-1772338344198.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410538",
+      "primaryDomain": "saas-1772338344183.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410537",
+      "primaryDomain": "enterprise-1772338344168.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410536",
+      "primaryDomain": "msp-1772338344153.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:12:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410509",
+      "primaryDomain": "other-1772338122027.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:08:42",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410508",
+      "primaryDomain": "mixed_hosting-1772338122014.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:08:42",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410507",
+      "primaryDomain": "iaas-1772338122002.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:08:42",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410506",
+      "primaryDomain": "paas-1772338121988.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:08:41",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410505",
+      "primaryDomain": "saas-1772338121975.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:08:41",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410504",
+      "primaryDomain": "enterprise-1772338121963.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:08:41",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410503",
+      "primaryDomain": "msp-1772338121951.com",
+      "status": "pending",
+      "createdAt": "2026-03-01 04:08:41",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410499",
+      "primaryDomain": "23.20.98.48",
+      "status": "scan_complete",
+      "createdAt": "2026-03-01 00:53:04",
+      "totalAssets": "2",
+      "totalFindings": "17",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1410498",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete",
+      "createdAt": "2026-03-01 00:53:04",
+      "totalAssets": "9",
+      "totalFindings": "11",
+      "overallRiskScore": "67"
+    },
+    {
+      "id": "1410497",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-03-01 00:53:04",
+      "totalAssets": "87",
+      "totalFindings": "7",
+      "overallRiskScore": "9"
+    },
+    {
+      "id": "1410473",
+      "primaryDomain": "other-1772315965566.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:59:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410472",
+      "primaryDomain": "mixed_hosting-1772315965548.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:59:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410471",
+      "primaryDomain": "iaas-1772315965532.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:59:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410470",
+      "primaryDomain": "paas-1772315965518.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:59:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410469",
+      "primaryDomain": "saas-1772315965506.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:59:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410468",
+      "primaryDomain": "enterprise-1772315965493.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:59:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410467",
+      "primaryDomain": "msp-1772315965480.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:59:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410440",
+      "primaryDomain": "other-1772315894206.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:58:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410439",
+      "primaryDomain": "mixed_hosting-1772315894196.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:58:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410438",
+      "primaryDomain": "iaas-1772315894185.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:58:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410437",
+      "primaryDomain": "paas-1772315894173.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:58:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410436",
+      "primaryDomain": "saas-1772315894162.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:58:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410435",
+      "primaryDomain": "enterprise-1772315894150.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:58:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410434",
+      "primaryDomain": "msp-1772315894138.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:58:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410407",
+      "primaryDomain": "other-1772315735274.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:55:35",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410406",
+      "primaryDomain": "mixed_hosting-1772315735258.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:55:35",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410405",
+      "primaryDomain": "iaas-1772315735242.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:55:35",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410404",
+      "primaryDomain": "paas-1772315735226.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:55:35",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410403",
+      "primaryDomain": "saas-1772315735210.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:55:35",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410402",
+      "primaryDomain": "enterprise-1772315735194.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:55:35",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410401",
+      "primaryDomain": "msp-1772315735177.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:55:35",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410374",
+      "primaryDomain": "other-1772315577696.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:52:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410373",
+      "primaryDomain": "mixed_hosting-1772315577680.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:52:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410372",
+      "primaryDomain": "iaas-1772315577664.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:52:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410371",
+      "primaryDomain": "paas-1772315577649.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:52:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410370",
+      "primaryDomain": "saas-1772315577637.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:52:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410369",
+      "primaryDomain": "enterprise-1772315577626.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:52:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410368",
+      "primaryDomain": "msp-1772315577613.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:52:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410341",
+      "primaryDomain": "other-1772315417888.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:50:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410340",
+      "primaryDomain": "mixed_hosting-1772315417873.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:50:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410339",
+      "primaryDomain": "iaas-1772315417859.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:50:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410338",
+      "primaryDomain": "paas-1772315417844.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:50:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410337",
+      "primaryDomain": "saas-1772315417829.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:50:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410336",
+      "primaryDomain": "enterprise-1772315417814.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:50:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410335",
+      "primaryDomain": "msp-1772315417800.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:50:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410308",
+      "primaryDomain": "other-1772314269005.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:31:09",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410307",
+      "primaryDomain": "mixed_hosting-1772314268992.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:31:08",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410306",
+      "primaryDomain": "iaas-1772314268915.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:31:08",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410305",
+      "primaryDomain": "paas-1772314268897.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:31:08",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410304",
+      "primaryDomain": "saas-1772314268881.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:31:08",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410303",
+      "primaryDomain": "enterprise-1772314268868.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:31:08",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410302",
+      "primaryDomain": "msp-1772314268833.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:31:08",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410275",
+      "primaryDomain": "other-1772313377106.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:16:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410274",
+      "primaryDomain": "mixed_hosting-1772313376996.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:16:17",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410273",
+      "primaryDomain": "iaas-1772313376897.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:16:16",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410272",
+      "primaryDomain": "paas-1772313376796.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:16:16",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410271",
+      "primaryDomain": "saas-1772313376697.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:16:16",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410270",
+      "primaryDomain": "enterprise-1772313376597.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:16:16",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410269",
+      "primaryDomain": "msp-1772313376497.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:16:16",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410242",
+      "primaryDomain": "other-1772313241752.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:14:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410241",
+      "primaryDomain": "mixed_hosting-1772313241646.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:14:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410240",
+      "primaryDomain": "iaas-1772313241542.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:14:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410239",
+      "primaryDomain": "paas-1772313241437.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:14:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410238",
+      "primaryDomain": "saas-1772313241329.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:14:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410237",
+      "primaryDomain": "enterprise-1772313241220.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:14:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410236",
+      "primaryDomain": "msp-1772313241116.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:14:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410209",
+      "primaryDomain": "other-1772313086965.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:11:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410208",
+      "primaryDomain": "mixed_hosting-1772313086863.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:11:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410207",
+      "primaryDomain": "iaas-1772313086762.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:11:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410206",
+      "primaryDomain": "paas-1772313086660.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:11:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410205",
+      "primaryDomain": "saas-1772313086558.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:11:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410204",
+      "primaryDomain": "enterprise-1772313086456.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:11:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410203",
+      "primaryDomain": "msp-1772313086354.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 21:11:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410176",
+      "primaryDomain": "other-1772308992446.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 20:03:12",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410175",
+      "primaryDomain": "mixed_hosting-1772308992342.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 20:03:12",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410174",
+      "primaryDomain": "iaas-1772308992237.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 20:03:12",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410173",
+      "primaryDomain": "paas-1772308992133.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 20:03:12",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410172",
+      "primaryDomain": "saas-1772308992015.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 20:03:12",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410171",
+      "primaryDomain": "enterprise-1772308991907.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 20:03:11",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410170",
+      "primaryDomain": "msp-1772308991803.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 20:03:11",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410143",
+      "primaryDomain": "other-1772305545165.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 19:05:45",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410142",
+      "primaryDomain": "mixed_hosting-1772305545060.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 19:05:45",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410141",
+      "primaryDomain": "iaas-1772305544954.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 19:05:45",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410140",
+      "primaryDomain": "paas-1772305544848.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 19:05:44",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410139",
+      "primaryDomain": "saas-1772305544741.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 19:05:44",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410138",
+      "primaryDomain": "enterprise-1772305544633.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 19:05:44",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410137",
+      "primaryDomain": "msp-1772305544529.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 19:05:44",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410110",
+      "primaryDomain": "other-1772301109506.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:51:49",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410109",
+      "primaryDomain": "mixed_hosting-1772301109405.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:51:49",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410108",
+      "primaryDomain": "iaas-1772301109305.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:51:49",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410107",
+      "primaryDomain": "paas-1772301109205.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:51:49",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410106",
+      "primaryDomain": "saas-1772301109104.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:51:49",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410105",
+      "primaryDomain": "enterprise-1772301109003.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:51:49",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410104",
+      "primaryDomain": "msp-1772301108903.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:51:48",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410077",
+      "primaryDomain": "other-1772300977289.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:49:37",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410076",
+      "primaryDomain": "mixed_hosting-1772300977183.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:49:37",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410075",
+      "primaryDomain": "iaas-1772300977075.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:49:37",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410074",
+      "primaryDomain": "paas-1772300976970.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:49:37",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410073",
+      "primaryDomain": "saas-1772300976864.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:49:36",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410072",
+      "primaryDomain": "enterprise-1772300976757.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:49:36",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410071",
+      "primaryDomain": "msp-1772300976652.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:49:36",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410044",
+      "primaryDomain": "other-1772300354853.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:39:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410043",
+      "primaryDomain": "mixed_hosting-1772300354748.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:39:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410042",
+      "primaryDomain": "iaas-1772300354643.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:39:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410041",
+      "primaryDomain": "paas-1772300354537.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:39:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410040",
+      "primaryDomain": "saas-1772300354432.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:39:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410039",
+      "primaryDomain": "enterprise-1772300354328.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:39:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410038",
+      "primaryDomain": "msp-1772300354225.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:39:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410011",
+      "primaryDomain": "other-1772300280346.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:38:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410010",
+      "primaryDomain": "mixed_hosting-1772300280243.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:38:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410009",
+      "primaryDomain": "iaas-1772300280139.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:38:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410008",
+      "primaryDomain": "paas-1772300280037.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:38:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410007",
+      "primaryDomain": "saas-1772300279933.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:38:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410006",
+      "primaryDomain": "enterprise-1772300279831.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:37:59",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410005",
+      "primaryDomain": "msp-1772300279729.com",
+      "status": "pending",
+      "createdAt": "2026-02-28 17:37:59",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1410001",
+      "primaryDomain": "databank.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 17:22:26",
+      "totalAssets": "252",
+      "totalFindings": "1429",
+      "overallRiskScore": "38"
+    },
+    {
+      "id": "1380480",
+      "primaryDomain": "other-1772260080720.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:28:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380479",
+      "primaryDomain": "mixed_hosting-1772260080615.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:28:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380478",
+      "primaryDomain": "iaas-1772260080507.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:28:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380477",
+      "primaryDomain": "paas-1772260080403.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:28:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380476",
+      "primaryDomain": "saas-1772260080299.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:28:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380475",
+      "primaryDomain": "enterprise-1772260080193.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:28:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380474",
+      "primaryDomain": "msp-1772260080089.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:28:00",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380463",
+      "primaryDomain": "other-1772260047296.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:27:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380462",
+      "primaryDomain": "mixed_hosting-1772260047190.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:27:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380461",
+      "primaryDomain": "iaas-1772260047086.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:27:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380460",
+      "primaryDomain": "paas-1772260046981.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:27:27",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380459",
+      "primaryDomain": "saas-1772260046878.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:27:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380458",
+      "primaryDomain": "enterprise-1772260046774.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:27:26",
+      "totalAssets": "1",
+      "totalFindings": "27",
+      "overallRiskScore": "75"
+    },
+    {
+      "id": "1380457",
+      "primaryDomain": "msp-1772260046668.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:27:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380446",
+      "primaryDomain": "other-1772259168296.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:12:48",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380445",
+      "primaryDomain": "mixed_hosting-1772259168195.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:12:48",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380444",
+      "primaryDomain": "iaas-1772259168092.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:12:48",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380443",
+      "primaryDomain": "paas-1772259167991.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:12:48",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380442",
+      "primaryDomain": "saas-1772259167889.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:12:47",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380441",
+      "primaryDomain": "enterprise-1772259167784.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:12:47",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380440",
+      "primaryDomain": "msp-1772259167680.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 06:12:47",
+      "totalAssets": "2",
+      "totalFindings": "33",
+      "overallRiskScore": "66"
+    },
+    {
+      "id": "1380429",
+      "primaryDomain": "other-1772257404993.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:43:25",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380428",
+      "primaryDomain": "mixed_hosting-1772257404894.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:43:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380427",
+      "primaryDomain": "iaas-1772257404794.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:43:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380426",
+      "primaryDomain": "paas-1772257404694.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:43:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380425",
+      "primaryDomain": "saas-1772257404594.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:43:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380424",
+      "primaryDomain": "enterprise-1772257404493.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:43:24",
+      "totalAssets": "1",
+      "totalFindings": "58",
+      "overallRiskScore": "69"
+    },
+    {
+      "id": "1380423",
+      "primaryDomain": "msp-1772257404394.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:43:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380409",
+      "primaryDomain": "paas-1772257335012.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:42:15",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380412",
+      "primaryDomain": "other-1772257335313.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:42:15",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380411",
+      "primaryDomain": "mixed_hosting-1772257335213.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:42:15",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380410",
+      "primaryDomain": "iaas-1772257335112.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:42:15",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380407",
+      "primaryDomain": "enterprise-1772257334809.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:42:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380408",
+      "primaryDomain": "saas-1772257334911.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:42:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380406",
+      "primaryDomain": "msp-1772257334708.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:42:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380395",
+      "primaryDomain": "other-1772257231768.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:40:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380394",
+      "primaryDomain": "mixed_hosting-1772257231669.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:40:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380393",
+      "primaryDomain": "iaas-1772257231568.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:40:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380392",
+      "primaryDomain": "paas-1772257231468.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:40:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380391",
+      "primaryDomain": "saas-1772257231368.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:40:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380390",
+      "primaryDomain": "enterprise-1772257231268.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:40:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380389",
+      "primaryDomain": "msp-1772257231164.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:40:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380385",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 05:06:51",
+      "totalAssets": "13",
+      "totalFindings": "46",
+      "overallRiskScore": "34"
+    },
+    {
+      "id": "1380384",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:06:51",
+      "totalAssets": "92",
+      "totalFindings": "524",
+      "overallRiskScore": "25"
+    },
+    {
+      "id": "1380383",
+      "primaryDomain": "cargill.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 05:06:10",
+      "totalAssets": "760",
+      "totalFindings": "609",
+      "overallRiskScore": "12"
+    },
+    {
+      "id": "1380382",
+      "primaryDomain": "toyota.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:30:07",
+      "totalAssets": "39",
+      "totalFindings": "2867",
+      "overallRiskScore": "42"
+    },
+    {
+      "id": "1380381",
+      "primaryDomain": "tesla.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:30:05",
+      "totalAssets": "27",
+      "totalFindings": "682",
+      "overallRiskScore": "59"
+    },
+    {
+      "id": "1380380",
+      "primaryDomain": "gm.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:30:03",
+      "totalAssets": "23",
+      "totalFindings": "1422",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380379",
+      "primaryDomain": "ford.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:30:01",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380378",
+      "primaryDomain": "monsanto.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:59",
+      "totalAssets": "29",
+      "totalFindings": "3693",
+      "overallRiskScore": "43"
+    },
+    {
+      "id": "1380377",
+      "primaryDomain": "tysonfoods.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:57",
+      "totalAssets": "9",
+      "totalFindings": "160",
+      "overallRiskScore": "52"
+    },
+    {
+      "id": "1380376",
+      "primaryDomain": "cargill.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:55",
+      "totalAssets": "50",
+      "totalFindings": "4949",
+      "overallRiskScore": "30"
+    },
+    {
+      "id": "1380375",
+      "primaryDomain": "jacobs.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:53",
+      "totalAssets": "32",
+      "totalFindings": "2763",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1380374",
+      "primaryDomain": "kiewit.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:51",
+      "totalAssets": "335",
+      "totalFindings": "4599",
+      "overallRiskScore": "34"
+    },
+    {
+      "id": "1380373",
+      "primaryDomain": "bechtel.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:48",
+      "totalAssets": "26",
+      "totalFindings": "241",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380372",
+      "primaryDomain": "nytimes.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:46",
+      "totalAssets": "655",
+      "totalFindings": "17494",
+      "overallRiskScore": "45"
+    },
+    {
+      "id": "1380371",
+      "primaryDomain": "cnn.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:44",
+      "totalAssets": "32",
+      "totalFindings": "1457",
+      "overallRiskScore": "42"
+    },
+    {
+      "id": "1380370",
+      "primaryDomain": "fox.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:42",
+      "totalAssets": "583",
+      "totalFindings": "891",
+      "overallRiskScore": "16"
+    },
+    {
+      "id": "1380369",
+      "primaryDomain": "disney.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:40",
+      "totalAssets": "415",
+      "totalFindings": "4706",
+      "overallRiskScore": "29"
+    },
+    {
+      "id": "1380368",
+      "primaryDomain": "netflix.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:38",
+      "totalAssets": "109",
+      "totalFindings": "1263",
+      "overallRiskScore": "15"
+    },
+    {
+      "id": "1380367",
+      "primaryDomain": "ge.com",
+      "status": "passive_recon",
+      "createdAt": "2026-02-28 04:29:36",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380366",
+      "primaryDomain": "siemens.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:34",
+      "totalAssets": "53",
+      "totalFindings": "224",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380365",
+      "primaryDomain": "john-deere.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:32",
+      "totalAssets": "31",
+      "totalFindings": "1495",
+      "overallRiskScore": "50"
+    },
+    {
+      "id": "1380364",
+      "primaryDomain": "caterpillar.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:30",
+      "totalAssets": "20",
+      "totalFindings": "562",
+      "overallRiskScore": "43"
+    },
+    {
+      "id": "1380363",
+      "primaryDomain": "fortinet.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:28",
+      "totalAssets": "34",
+      "totalFindings": "1272",
+      "overallRiskScore": "44"
+    },
+    {
+      "id": "1380362",
+      "primaryDomain": "crowdstrike.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:26",
+      "totalAssets": "75",
+      "totalFindings": "645",
+      "overallRiskScore": "32"
+    },
+    {
+      "id": "1380361",
+      "primaryDomain": "paloaltonetworks.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:24",
+      "totalAssets": "30",
+      "totalFindings": "500",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380360",
+      "primaryDomain": "snowflake.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:22",
+      "totalAssets": "611",
+      "totalFindings": "1011",
+      "overallRiskScore": "16"
+    },
+    {
+      "id": "1380359",
+      "primaryDomain": "servicenow.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:20",
+      "totalAssets": "84",
+      "totalFindings": "479",
+      "overallRiskScore": "33"
+    },
+    {
+      "id": "1380358",
+      "primaryDomain": "oracle.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:18",
+      "totalAssets": "37",
+      "totalFindings": "203",
+      "overallRiskScore": "42"
+    },
+    {
+      "id": "1380357",
+      "primaryDomain": "salesforce.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:16",
+      "totalAssets": "20",
+      "totalFindings": "1244",
+      "overallRiskScore": "52"
+    },
+    {
+      "id": "1380356",
+      "primaryDomain": "amazonaws.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:14",
+      "totalAssets": "105",
+      "totalFindings": "40",
+      "overallRiskScore": "12"
+    },
+    {
+      "id": "1380355",
+      "primaryDomain": "google.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:12",
+      "totalAssets": "115",
+      "totalFindings": "742",
+      "overallRiskScore": "31"
+    },
+    {
+      "id": "1380354",
+      "primaryDomain": "microsoft.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:10",
+      "totalAssets": "241",
+      "totalFindings": "18899",
+      "overallRiskScore": "23"
+    },
+    {
+      "id": "1380353",
+      "primaryDomain": "airbnb.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:29:08",
+      "totalAssets": "311",
+      "totalFindings": "2323",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380352",
+      "primaryDomain": "hyatt.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:06",
+      "totalAssets": "101",
+      "totalFindings": "138",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380351",
+      "primaryDomain": "hilton.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:04",
+      "totalAssets": "34",
+      "totalFindings": "239",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380350",
+      "primaryDomain": "marriott.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:02",
+      "totalAssets": "30",
+      "totalFindings": "390",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380349",
+      "primaryDomain": "southwest.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:29:00",
+      "totalAssets": "979",
+      "totalFindings": "2244",
+      "overallRiskScore": "11"
+    },
+    {
+      "id": "1380348",
+      "primaryDomain": "united.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:28:57",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380347",
+      "primaryDomain": "delta.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:28:55",
+      "totalAssets": "629",
+      "totalFindings": "2760",
+      "overallRiskScore": "13"
+    },
+    {
+      "id": "1380346",
+      "primaryDomain": "maersk.com",
+      "status": "passive_recon",
+      "createdAt": "2026-02-28 04:28:53",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380345",
+      "primaryDomain": "dhl.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:28:51",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380344",
+      "primaryDomain": "ups.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:28:49",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380343",
+      "primaryDomain": "fedex.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:28:47",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380342",
+      "primaryDomain": "louisvuitton.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:45",
+      "totalAssets": "159",
+      "totalFindings": "546",
+      "overallRiskScore": "23"
+    },
+    {
+      "id": "1380341",
+      "primaryDomain": "homedepot.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:43",
+      "totalAssets": "132",
+      "totalFindings": "1986",
+      "overallRiskScore": "19"
+    },
+    {
+      "id": "1380340",
+      "primaryDomain": "bestbuy.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:41",
+      "totalAssets": "23",
+      "totalFindings": "853",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380339",
+      "primaryDomain": "amazon.com",
+      "status": "passive_recon",
+      "createdAt": "2026-02-28 04:28:39",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380338",
+      "primaryDomain": "target.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:37",
+      "totalAssets": "56",
+      "totalFindings": "260",
+      "overallRiskScore": "23"
+    },
+    {
+      "id": "1380337",
+      "primaryDomain": "walmart.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:35",
+      "totalAssets": "26",
+      "totalFindings": "655",
+      "overallRiskScore": "41"
+    },
+    {
+      "id": "1380336",
+      "primaryDomain": "honeywell.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:33",
+      "totalAssets": "53",
+      "totalFindings": "1403",
+      "overallRiskScore": "19"
+    },
+    {
+      "id": "1380335",
+      "primaryDomain": "3m.com",
+      "status": "passive_recon",
+      "createdAt": "2026-02-28 04:28:31",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380334",
+      "primaryDomain": "basf.com",
+      "status": "passive_recon",
+      "createdAt": "2026-02-28 04:28:29",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380333",
+      "primaryDomain": "dupont.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:27",
+      "totalAssets": "126",
+      "totalFindings": "889",
+      "overallRiskScore": "14"
+    },
+    {
+      "id": "1380332",
+      "primaryDomain": "dow.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:25",
+      "totalAssets": "34",
+      "totalFindings": "2720",
+      "overallRiskScore": "46"
+    },
+    {
+      "id": "1380331",
+      "primaryDomain": "k12.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:23",
+      "totalAssets": "1107",
+      "totalFindings": "817",
+      "overallRiskScore": "10"
+    },
+    {
+      "id": "1380330",
+      "primaryDomain": "yale.edu",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:21",
+      "totalAssets": "57",
+      "totalFindings": "2430",
+      "overallRiskScore": "24"
+    },
+    {
+      "id": "1380329",
+      "primaryDomain": "ucla.edu",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:19",
+      "totalAssets": "225",
+      "totalFindings": "5947",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380328",
+      "primaryDomain": "stanford.edu",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:17",
+      "totalAssets": "178",
+      "totalFindings": "4213",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380327",
+      "primaryDomain": "mit.edu",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:15",
+      "totalAssets": "168",
+      "totalFindings": "2107",
+      "overallRiskScore": "18"
+    },
+    {
+      "id": "1380326",
+      "primaryDomain": "harvard.edu",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:12",
+      "totalAssets": "326",
+      "totalFindings": "4545",
+      "overallRiskScore": "15"
+    },
+    {
+      "id": "1380325",
+      "primaryDomain": "plaid.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:10",
+      "totalAssets": "21",
+      "totalFindings": "206",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1380324",
+      "primaryDomain": "adyen.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:08",
+      "totalAssets": "15",
+      "totalFindings": "444",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380323",
+      "primaryDomain": "paypal.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:06",
+      "totalAssets": "67",
+      "totalFindings": "216",
+      "overallRiskScore": "21"
+    },
+    {
+      "id": "1380322",
+      "primaryDomain": "squareup.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:04",
+      "totalAssets": "25",
+      "totalFindings": "212",
+      "overallRiskScore": "52"
+    },
+    {
+      "id": "1380321",
+      "primaryDomain": "stripe.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:02",
+      "totalAssets": "22",
+      "totalFindings": "581",
+      "overallRiskScore": "49"
+    },
+    {
+      "id": "1380320",
+      "primaryDomain": "vodafone.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:28:00",
+      "totalAssets": "76",
+      "totalFindings": "1136",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380319",
+      "primaryDomain": "charter.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:58",
+      "totalAssets": "31",
+      "totalFindings": "493",
+      "overallRiskScore": "37"
+    },
+    {
+      "id": "1380318",
+      "primaryDomain": "comcast.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:56",
+      "totalAssets": "242",
+      "totalFindings": "2263",
+      "overallRiskScore": "23"
+    },
+    {
+      "id": "1380317",
+      "primaryDomain": "tmobile.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:54",
+      "totalAssets": "19",
+      "totalFindings": "63",
+      "overallRiskScore": "42"
+    },
+    {
+      "id": "1380316",
+      "primaryDomain": "verizon.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:52",
+      "totalAssets": "40",
+      "totalFindings": "777",
+      "overallRiskScore": "41"
+    },
+    {
+      "id": "1380315",
+      "primaryDomain": "att.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:50",
+      "totalAssets": "294",
+      "totalFindings": "5886",
+      "overallRiskScore": "24"
+    },
+    {
+      "id": "1380314",
+      "primaryDomain": "williams.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:48",
+      "totalAssets": "30",
+      "totalFindings": "1289",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380313",
+      "primaryDomain": "kindermorgan.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:46",
+      "totalAssets": "36",
+      "totalFindings": "2655",
+      "overallRiskScore": "37"
+    },
+    {
+      "id": "1380312",
+      "primaryDomain": "exxonmobil.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:44",
+      "totalAssets": "11",
+      "totalFindings": "2867",
+      "overallRiskScore": "50"
+    },
+    {
+      "id": "1380311",
+      "primaryDomain": "shell.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:42",
+      "totalAssets": "52",
+      "totalFindings": "1576",
+      "overallRiskScore": "19"
+    },
+    {
+      "id": "1380310",
+      "primaryDomain": "nexteraenergy.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:40",
+      "totalAssets": "16",
+      "totalFindings": "805",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380309",
+      "primaryDomain": "coned.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:38",
+      "totalAssets": "47",
+      "totalFindings": "1529",
+      "overallRiskScore": "21"
+    },
+    {
+      "id": "1380308",
+      "primaryDomain": "pgande.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:36",
+      "totalAssets": "3",
+      "totalFindings": "0",
+      "overallRiskScore": "0"
+    },
+    {
+      "id": "1380307",
+      "primaryDomain": "southerncompany.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:34",
+      "totalAssets": "85",
+      "totalFindings": "18553",
+      "overallRiskScore": "39"
+    },
+    {
+      "id": "1380306",
+      "primaryDomain": "duke-energy.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:32",
+      "totalAssets": "141",
+      "totalFindings": "5343",
+      "overallRiskScore": "32"
+    },
+    {
+      "id": "1380305",
+      "primaryDomain": "exeloncorp.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:30",
+      "totalAssets": "24",
+      "totalFindings": "4088",
+      "overallRiskScore": "52"
+    },
+    {
+      "id": "1380304",
+      "primaryDomain": "chicago.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:28",
+      "totalAssets": "12",
+      "totalFindings": "1387",
+      "overallRiskScore": "52"
+    },
+    {
+      "id": "1380303",
+      "primaryDomain": "nyc.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:26",
+      "totalAssets": "130",
+      "totalFindings": "1836",
+      "overallRiskScore": "13"
+    },
+    {
+      "id": "1380302",
+      "primaryDomain": "virginia.gov",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:27:24",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380301",
+      "primaryDomain": "ca.gov",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:27:22",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380300",
+      "primaryDomain": "texas.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:20",
+      "totalAssets": "174",
+      "totalFindings": "8505",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380299",
+      "primaryDomain": "state.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:18",
+      "totalAssets": "54",
+      "totalFindings": "5616",
+      "overallRiskScore": "18"
+    },
+    {
+      "id": "1380298",
+      "primaryDomain": "fbi.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:16",
+      "totalAssets": "235",
+      "totalFindings": "6842",
+      "overallRiskScore": "23"
+    },
+    {
+      "id": "1380297",
+      "primaryDomain": "dhs.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:14",
+      "totalAssets": "83",
+      "totalFindings": "4943",
+      "overallRiskScore": "16"
+    },
+    {
+      "id": "1380296",
+      "primaryDomain": "defense.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:12",
+      "totalAssets": "6",
+      "totalFindings": "1517",
+      "overallRiskScore": "44"
+    },
+    {
+      "id": "1380295",
+      "primaryDomain": "treasury.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:10",
+      "totalAssets": "84",
+      "totalFindings": "1367",
+      "overallRiskScore": "17"
+    },
+    {
+      "id": "1380294",
+      "primaryDomain": "whitehouse.gov",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:08",
+      "totalAssets": "12",
+      "totalFindings": "419",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380293",
+      "primaryDomain": "saic.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:06",
+      "totalAssets": "74",
+      "totalFindings": "2752",
+      "overallRiskScore": "15"
+    },
+    {
+      "id": "1380292",
+      "primaryDomain": "leidos.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:04",
+      "totalAssets": "45",
+      "totalFindings": "3201",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380291",
+      "primaryDomain": "l3harris.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:02",
+      "totalAssets": "22",
+      "totalFindings": "5115",
+      "overallRiskScore": "50"
+    },
+    {
+      "id": "1380290",
+      "primaryDomain": "bae-systems.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:27:00",
+      "totalAssets": "6",
+      "totalFindings": "25",
+      "overallRiskScore": "29"
+    },
+    {
+      "id": "1380289",
+      "primaryDomain": "generaldynamics.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:58",
+      "totalAssets": "12",
+      "totalFindings": "1320",
+      "overallRiskScore": "50"
+    },
+    {
+      "id": "1380288",
+      "primaryDomain": "boeing.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:56",
+      "totalAssets": "103",
+      "totalFindings": "2490",
+      "overallRiskScore": "17"
+    },
+    {
+      "id": "1380287",
+      "primaryDomain": "raytheon.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:54",
+      "totalAssets": "25",
+      "totalFindings": "404",
+      "overallRiskScore": "38"
+    },
+    {
+      "id": "1380286",
+      "primaryDomain": "northropgrumman.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:52",
+      "totalAssets": "26",
+      "totalFindings": "609",
+      "overallRiskScore": "41"
+    },
+    {
+      "id": "1380285",
+      "primaryDomain": "lockheedmartin.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:50",
+      "totalAssets": "11",
+      "totalFindings": "675",
+      "overallRiskScore": "44"
+    },
+    {
+      "id": "1380284",
+      "primaryDomain": "abbott.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:48",
+      "totalAssets": "52",
+      "totalFindings": "1499",
+      "overallRiskScore": "19"
+    },
+    {
+      "id": "1380283",
+      "primaryDomain": "medtronic.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:46",
+      "totalAssets": "110",
+      "totalFindings": "2569",
+      "overallRiskScore": "18"
+    },
+    {
+      "id": "1380282",
+      "primaryDomain": "merck.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:44",
+      "totalAssets": "12",
+      "totalFindings": "843",
+      "overallRiskScore": "49"
+    },
+    {
+      "id": "1380281",
+      "primaryDomain": "johnsonandjohnson.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:41",
+      "totalAssets": "7",
+      "totalFindings": "27",
+      "overallRiskScore": "36"
+    },
+    {
+      "id": "1380280",
+      "primaryDomain": "moderna.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:39",
+      "totalAssets": "9",
+      "totalFindings": "426",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1380279",
+      "primaryDomain": "pfizer.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:37",
+      "totalAssets": "20",
+      "totalFindings": "579",
+      "overallRiskScore": "48"
+    },
+    {
+      "id": "1380278",
+      "primaryDomain": "cvshealth.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:35",
+      "totalAssets": "54",
+      "totalFindings": "2753",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380277",
+      "primaryDomain": "unitedhealthgroup.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:33",
+      "totalAssets": "12",
+      "totalFindings": "830",
+      "overallRiskScore": "50"
+    },
+    {
+      "id": "1380276",
+      "primaryDomain": "kaiserpermanente.org",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:31",
+      "totalAssets": "36",
+      "totalFindings": "266",
+      "overallRiskScore": "43"
+    },
+    {
+      "id": "1380275",
+      "primaryDomain": "clevelandclinic.org",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:29",
+      "totalAssets": "32",
+      "totalFindings": "1363",
+      "overallRiskScore": "52"
+    },
+    {
+      "id": "1380274",
+      "primaryDomain": "mayo.edu",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:27",
+      "totalAssets": "49",
+      "totalFindings": "5239",
+      "overallRiskScore": "25"
+    },
+    {
+      "id": "1380273",
+      "primaryDomain": "hcahealthcare.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:25",
+      "totalAssets": "35",
+      "totalFindings": "1720",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1380272",
+      "primaryDomain": "cmegroup.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:23",
+      "totalAssets": "32",
+      "totalFindings": "891",
+      "overallRiskScore": "48"
+    },
+    {
+      "id": "1380271",
+      "primaryDomain": "nasdaq.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:21",
+      "totalAssets": "18",
+      "totalFindings": "502",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1380270",
+      "primaryDomain": "mastercard.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:19",
+      "totalAssets": "32",
+      "totalFindings": "1103",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1380269",
+      "primaryDomain": "visa.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:17",
+      "totalAssets": "24",
+      "totalFindings": "2167",
+      "overallRiskScore": "44"
+    },
+    {
+      "id": "1380268",
+      "primaryDomain": "americanexpress.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:15",
+      "totalAssets": "59",
+      "totalFindings": "546",
+      "overallRiskScore": "13"
+    },
+    {
+      "id": "1380267",
+      "primaryDomain": "schwab.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:13",
+      "totalAssets": "18",
+      "totalFindings": "1567",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380266",
+      "primaryDomain": "usbank.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:11",
+      "totalAssets": "52",
+      "totalFindings": "1341",
+      "overallRiskScore": "26"
+    },
+    {
+      "id": "1380265",
+      "primaryDomain": "capitalone.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:09",
+      "totalAssets": "22",
+      "totalFindings": "517",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1380264",
+      "primaryDomain": "morganstanley.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:07",
+      "totalAssets": "28",
+      "totalFindings": "987",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1380263",
+      "primaryDomain": "goldmansachs.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:05",
+      "totalAssets": "9",
+      "totalFindings": "66",
+      "overallRiskScore": "52"
+    },
+    {
+      "id": "1380262",
+      "primaryDomain": "citigroup.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:03",
+      "totalAssets": "14",
+      "totalFindings": "262",
+      "overallRiskScore": "45"
+    },
+    {
+      "id": "1380261",
+      "primaryDomain": "wellsfargo.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:26:01",
+      "totalAssets": "26",
+      "totalFindings": "1601",
+      "overallRiskScore": "46"
+    },
+    {
+      "id": "1380260",
+      "primaryDomain": "bankofamerica.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:59",
+      "totalAssets": "23",
+      "totalFindings": "1301",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1380259",
+      "primaryDomain": "jpmorganchase.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:57",
+      "totalAssets": "25",
+      "totalFindings": "1596",
+      "overallRiskScore": "40"
+    },
+    {
+      "id": "1380258",
+      "primaryDomain": "cmegroup.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:44",
+      "totalAssets": "32",
+      "totalFindings": "925",
+      "overallRiskScore": "46"
+    },
+    {
+      "id": "1380257",
+      "primaryDomain": "nasdaq.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:41",
+      "totalAssets": "18",
+      "totalFindings": "146",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1380256",
+      "primaryDomain": "mastercard.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:38",
+      "totalAssets": "30",
+      "totalFindings": "931",
+      "overallRiskScore": "46"
+    },
+    {
+      "id": "1380255",
+      "primaryDomain": "visa.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:35",
+      "totalAssets": "21",
+      "totalFindings": "140",
+      "overallRiskScore": "46"
+    },
+    {
+      "id": "1380254",
+      "primaryDomain": "americanexpress.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:32",
+      "totalAssets": "58",
+      "totalFindings": "241",
+      "overallRiskScore": "24"
+    },
+    {
+      "id": "1380253",
+      "primaryDomain": "schwab.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:29",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380252",
+      "primaryDomain": "usbank.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:26",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380251",
+      "primaryDomain": "capitalone.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:23",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380250",
+      "primaryDomain": "morganstanley.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:20",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380249",
+      "primaryDomain": "goldmansachs.com",
+      "status": "completed",
+      "createdAt": "2026-02-28 04:25:17",
+      "totalAssets": "35",
+      "totalFindings": "123",
+      "overallRiskScore": "34"
+    },
+    {
+      "id": "1380248",
+      "primaryDomain": "citigroup.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:14",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380247",
+      "primaryDomain": "wellsfargo.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:11",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380246",
+      "primaryDomain": "bankofamerica.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:08",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380245",
+      "primaryDomain": "jpmorganchase.com",
+      "status": "discovering",
+      "createdAt": "2026-02-28 04:25:05",
+      "totalAssets": "0",
+      "totalFindings": "0",
+      "overallRiskScore": "NULL"
+    },
+    {
+      "id": "1380244",
+      "primaryDomain": "jpmorganchase.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 04:12:11",
+      "totalAssets": "510",
+      "totalFindings": "1754",
+      "overallRiskScore": "11"
+    },
+    {
+      "id": "1380243",
+      "primaryDomain": "23.20.98.48",
+      "status": "scan_complete",
+      "createdAt": "2026-02-28 03:45:49",
+      "totalAssets": "2",
+      "totalFindings": "18",
+      "overallRiskScore": "58"
+    },
+    {
+      "id": "1380208",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 22:14:54",
+      "totalAssets": "16",
+      "totalFindings": "1147",
+      "overallRiskScore": "51"
+    },
+    {
+      "id": "1380176",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 19:26:05",
+      "totalAssets": "11",
+      "totalFindings": "26",
+      "overallRiskScore": "53"
+    },
+    {
+      "id": "1380175",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 19:26:05",
+      "totalAssets": "87",
+      "totalFindings": "159",
+      "overallRiskScore": "10"
+    },
+    {
+      "id": "1380047",
+      "primaryDomain": "dashboard-dev.vianovahealth.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 17:40:37",
+      "totalAssets": "9",
+      "totalFindings": "13",
+      "overallRiskScore": "66"
+    },
+    {
+      "id": "1380046",
+      "primaryDomain": "api.dev.vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 17:40:37",
+      "totalAssets": "88",
+      "totalFindings": "42",
+      "overallRiskScore": "11"
+    },
+    {
+      "id": "1380022",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 15:47:07",
+      "totalAssets": "109",
+      "totalFindings": "1343",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1380013",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 15:31:27",
+      "totalAssets": "13",
+      "totalFindings": "505",
+      "overallRiskScore": "48"
+    },
+    {
+      "id": "1290209",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-27 00:55:50",
+      "totalAssets": "109",
+      "totalFindings": "650",
+      "overallRiskScore": "18"
+    },
+    {
+      "id": "1260003",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-26 05:32:57",
+      "totalAssets": "109",
+      "totalFindings": "584",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1230175",
+      "primaryDomain": "vianova.ai",
+      "status": "completed",
+      "createdAt": "2026-02-26 00:24:43",
+      "totalAssets": "106",
+      "totalFindings": "1644",
+      "overallRiskScore": "20"
+    },
+    {
+      "id": "1230174",
+      "primaryDomain": "aceofcloud.com",
+      "status": "completed",
+      "createdAt": "2026-02-26 00:21:35",
+      "totalAssets": "9",
+      "totalFindings": "45",
+      "overallRiskScore": "49"
+    },
+    {
+      "id": "1200163",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-25 20:10:46",
+      "totalAssets": "11",
+      "totalFindings": "937",
+      "overallRiskScore": "47"
+    },
+    {
+      "id": "1200086",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-25 18:17:24",
+      "totalAssets": "106",
+      "totalFindings": "442",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1200001",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-25 15:58:06",
+      "totalAssets": "23",
+      "totalFindings": "496",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1170157",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-25 06:33:07",
+      "totalAssets": "16",
+      "totalFindings": "311",
+      "overallRiskScore": "57"
+    },
+    {
+      "id": "1170156",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-25 05:48:04",
+      "totalAssets": "20",
+      "totalFindings": "1725",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1170002",
+      "primaryDomain": "vianova.ai",
+      "status": "scan_complete",
+      "createdAt": "2026-02-24 22:37:40",
+      "totalAssets": "27",
+      "totalFindings": "1864",
+      "overallRiskScore": "56"
+    },
+    {
+      "id": "1050036",
+      "primaryDomain": "aceofcloud.com",
+      "status": "scan_complete",
+      "createdAt": "2026-02-23 19:40:39",
+      "totalAssets": "27",
+      "totalFindings": "1888",
+      "overallRiskScore": "55"
+    },
+    {
+      "id": "990006",
+      "primaryDomain": "zoom.us",
+      "status": "scan_complete",
+      "createdAt": "2026-02-22 20:38:10",
+      "totalAssets": "28",
+      "totalFindings": "155",
+      "overallRiskScore": "45"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\tcreatedAt\ttotalAssets\ttotalFindings\toverallRiskScore\n1410608\tother-1772341827442.com\tpending\t2026-03-01 05:10:27\t0\t0\tNULL\n1410607\tmixed_hosting-1772341827426.com\tpending\t2026-03-01 05:10:27\t0\t0\tNULL\n1410606\tiaas-1772341827410.com\tpending\t2026-03-01 05:10:27\t0\t0\tNULL\n1410605\tpaas-1772341827395.com\tpending\t2026-03-01 05:10:27\t0\t0\tNULL\n1410604\tsaas-1772341827379.com\tpending\t2026-03-01 05:10:27\t0\t0\tNULL\n1410603\tenterprise-1772341827363.com\tpending\t2026-03-01 05:10:27\t0\t0\tNULL\n1410602\tmsp-1772341827346.com\tpending\t2026-03-01 05:10:27\t0\t0\tNULL\n1410575\tother-1772338543588.com\tpending\t2026-03-01 04:15:43\t0\t0\tNULL\n1410574\tmixed_hosting-1772338543573.com\tpending\t2026-03-01 04:15:43\t0\t0\tNULL\n1410573\tiaas-1772338543559.com\tpending\t2026-03-01 04:15:43\t0\t0\tNULL\n1410572\tpaas-1772338543546.com\tpending\t2026-03-01 04:15:43\t0\t0\tNULL\n1410571\tsaas-1772338543532.com\tpending\t2026-03-01 04:15:43\t0\t0\tNULL\n1410570\tenterprise-1772338543519.com\tpending\t2026-03-01 04:15:43\t0\t0\tNULL\n1410569\tmsp-1772338543506.com\tpending\t2026-03-01 04:15:43\t0\t0\tNULL\n1410542\tother-1772338344245.com\tpending\t2026-03-01 04:12:24\t0\t0\tNULL\n1410541\tmixed_hosting-1772338344229.com\tpending\t2026-03-01 04:12:24\t0\t0\tNULL\n1410540\tiaas-1772338344213.com\tpending\t2026-03-01 04:12:24\t0\t0\tNULL\n1410539\tpaas-1772338344198.com\tpending\t2026-03-01 04:12:24\t0\t0\tNULL\n1410538\tsaas-1772338344183.com\tpending\t2026-03-01 04:12:24\t0\t0\tNULL\n1410537\tenterprise-1772338344168.com\tpending\t2026-03-01 04:12:24\t0\t0\tNULL\n1410536\tmsp-1772338344153.com\tpending\t2026-03-01 04:12:24\t0\t0\tNULL\n1410509\tother-1772338122027.com\tpending\t2026-03-01 04:08:42\t0\t0\tNULL\n1410508\tmixed_hosting-1772338122014.com\tpending\t2026-03-01 04:08:42\t0\t0\tNULL\n1410507\tiaas-1772338122002.com\tpending\t2026-03-01 04:08:42\t0\t0\tNULL\n1410506\tpaas-1772338121988.com\tpending\t2026-03-01 04:08:41\t0\t0\tNULL\n1410505\tsaas-1772338121975.com\tpending\t2026-03-01 04:08:41\t0\t0\tNULL\n1410504\tenterprise-1772338121963.com\tpending\t2026-03-01 04:08:41\t0\t0\tNULL\n1410503\tmsp-1772338121951.com\tpending\t2026-03-01 04:08:41\t0\t0\tNULL\n1410499\t23.20.98.48\tscan_complete\t2026-03-01 00:53:04\t2\t17\t53\n1410498\tdashboard-dev.vianovahealth.com\tscan_complete\t2026-03-01 00:53:04\t9\t11\t67\n1410497\tapi.dev.vianova.ai\tscan_complete\t2026-03-01 00:53:04\t87\t7\t9\n1410473\tother-1772315965566.com\tpending\t2026-02-28 21:59:25\t0\t0\tNULL\n1410472\tmixed_hosting-1772315965548.com\tpending\t2026-02-28 21:59:25\t0\t0\tNULL\n1410471\tiaas-1772315965532.com\tpending\t2026-02-28 21:59:25\t0\t0\tNULL\n1410470\tpaas-1772315965518.com\tpending\t2026-02-28 21:59:25\t0\t0\tNULL\n1410469\tsaas-1772315965506.com\tpending\t2026-02-28 21:59:25\t0\t0\tNULL\n1410468\tenterprise-1772315965493.com\tpending\t2026-02-28 21:59:25\t0\t0\tNULL\n1410467\tmsp-1772315965480.com\tpending\t2026-02-28 21:59:25\t0\t0\tNULL\n1410440\tother-1772315894206.com\tpending\t2026-02-28 21:58:14\t0\t0\tNULL\n1410439\tmixed_hosting-1772315894196.com\tpending\t2026-02-28 21:58:14\t0\t0\tNULL\n1410438\tiaas-1772315894185.com\tpending\t2026-02-28 21:58:14\t0\t0\tNULL\n1410437\tpaas-1772315894173.com\tpending\t2026-02-28 21:58:14\t0\t0\tNULL\n1410436\tsaas-1772315894162.com\tpending\t2026-02-28 21:58:14\t0\t0\tNULL\n1410435\tenterprise-1772315894150.com\tpending\t2026-02-28 21:58:14\t0\t0\tNULL\n1410434\tmsp-1772315894138.com\tpending\t2026-02-28 21:58:14\t0\t0\tNULL\n1410407\tother-1772315735274.com\tpending\t2026-02-28 21:55:35\t0\t0\tNULL\n1410406\tmixed_hosting-1772315735258.com\tpending\t2026-02-28 21:55:35\t0\t0\tNULL\n1410405\tiaas-1772315735242.com\tpending\t2026-02-28 21:55:35\t0\t0\tNULL\n1410404\tpaas-1772315735226.com\tpending\t2026-02-28 21:55:35\t0\t0\tNULL\n1410403\tsaas-1772315735210.com\tpending\t2026-02-28 21:55:35\t0\t0\tNULL\n1410402\tenterprise-1772315735194.com\tpending\t2026-02-28 21:55:35\t0\t0\tNULL\n1410401\tmsp-1772315735177.com\tpending\t2026-02-28 21:55:35\t0\t0\tNULL\n1410374\tother-1772315577696.com\tpending\t2026-02-28 21:52:57\t0\t0\tNULL\n1410373\tmixed_hosting-1772315577680.com\tpending\t2026-02-28 21:52:57\t0\t0\tNULL\n1410372\tiaas-1772315577664.com\tpending\t2026-02-28 21:52:57\t0\t0\tNULL\n1410371\tpaas-1772315577649.com\tpending\t2026-02-28 21:52:57\t0\t0\tNULL\n1410370\tsaas-1772315577637.com\tpending\t2026-02-28 21:52:57\t0\t0\tNULL\n1410369\tenterprise-1772315577626.com\tpending\t2026-02-28 21:52:57\t0\t0\tNULL\n1410368\tmsp-1772315577613.com\tpending\t2026-02-28 21:52:57\t0\t0\tNULL\n1410341\tother-1772315417888.com\tpending\t2026-02-28 21:50:17\t0\t0\tNULL\n1410340\tmixed_hosting-1772315417873.com\tpending\t2026-02-28 21:50:17\t0\t0\tNULL\n1410339\tiaas-1772315417859.com\tpending\t2026-02-28 21:50:17\t0\t0\tNULL\n1410338\tpaas-1772315417844.com\tpending\t2026-02-28 21:50:17\t0\t0\tNULL\n1410337\tsaas-1772315417829.com\tpending\t2026-02-28 21:50:17\t0\t0\tNULL\n1410336\tenterprise-1772315417814.com\tpending\t2026-02-28 21:50:17\t0\t0\tNULL\n1410335\tmsp-1772315417800.com\tpending\t2026-02-28 21:50:17\t0\t0\tNULL\n1410308\tother-1772314269005.com\tpending\t2026-02-28 21:31:09\t0\t0\tNULL\n1410307\tmixed_hosting-1772314268992.com\tpending\t2026-02-28 21:31:08\t0\t0\tNULL\n1410306\tiaas-1772314268915.com\tpending\t2026-02-28 21:31:08\t0\t0\tNULL\n1410305\tpaas-1772314268897.com\tpending\t2026-02-28 21:31:08\t0\t0\tNULL\n1410304\tsaas-1772314268881.com\tpending\t2026-02-28 21:31:08\t0\t0\tNULL\n1410303\tenterprise-1772314268868.com\tpending\t2026-02-28 21:31:08\t0\t0\tNULL\n1410302\tmsp-1772314268833.com\tpending\t2026-02-28 21:31:08\t0\t0\tNULL\n1410275\tother-1772313377106.com\tpending\t2026-02-28 21:16:17\t0\t0\tNULL\n1410274\tmixed_hosting-1772313376996.com\tpending\t2026-02-28 21:16:17\t0\t0\tNULL\n1410273\tiaas-1772313376897.com\tpending\t2026-02-28 21:16:16\t0\t0\tNULL\n1410272\tpaas-1772313376796.com\tpending\t2026-02-28 21:16:16\t0\t0\tNULL\n1410271\tsaas-1772313376697.com\tpending\t2026-02-28 21:16:16\t0\t0\tNULL\n1410270\tenterprise-1772313376597.com\tpending\t2026-02-28 21:16:16\t0\t0\tNULL\n1410269\tmsp-1772313376497.com\tpending\t2026-02-28 21:16:16\t0\t0\tNULL\n1410242\tother-1772313241752.com\tpending\t2026-02-28 21:14:01\t0\t0\tNULL\n1410241\tmixed_hosting-1772313241646.com\tpending\t2026-02-28 21:14:01\t0\t0\tNULL\n1410240\tiaas-1772313241542.com\tpending\t2026-02-28 21:14:01\t0\t0\tNULL\n1410239\tpaas-1772313241437.com\tpending\t2026-02-28 21:14:01\t0\t0\tNULL\n1410238\tsaas-1772313241329.com\tpending\t2026-02-28 21:14:01\t0\t0\tNULL\n1410237\tenterprise-1772313241220.com\tpending\t2026-02-28 21:14:01\t0\t0\tNULL\n1410236\tmsp-1772313241116.com\tpending\t2026-02-28 21:14:01\t0\t0\tNULL\n1410209\tother-1772313086965.com\tpending\t2026-02-28 21:11:27\t0\t0\tNULL\n1410208\tmixed_hosting-1772313086863.com\tpending\t2026-02-28 21:11:26\t0\t0\tNULL\n1410207\tiaas-1772313086762.com\tpending\t2026-02-28 21:11:26\t0\t0\tNULL\n1410206\tpaas-1772313086660.com\tpending\t2026-02-28 21:11:26\t0\t0\tNULL\n1410205\tsaas-1772313086558.com\tpending\t2026-02-28 21:11:26\t0\t0\tNULL\n1410204\tenterprise-1772313086456.com\tpending\t2026-02-28 21:11:26\t0\t0\tNULL\n1410203\tmsp-1772313086354.com\tpending\t2026-02-28 21:11:26\t0\t0\tNULL\n1410176\tother-1772308992446.com\tpending\t2026-02-28 20:03:12\t0\t0\tNULL\n1410175\tmixed_hosting-1772308992342.com\tpending\t2026-02-28 20:03:12\t0\t0\tNULL\n1410174\tiaas-1772308992237.com\tpending\t2026-02-28 20:03:12\t0\t0\tNULL\n1410173\tpaas-1772308992133.com\tpending\t2026-02-28 20:03:12\t0\t0\tNULL\n1410172\tsaas-1772308992015.com\tpending\t2026-02-28 20:03:12\t0\t0\tNULL\n1410171\tenterprise-1772308991907.com\tpending\t2026-02-28 20:03:11\t0\t0\tNULL\n1410170\tmsp-1772308991803.com\tpending\t2026-02-28 20:03:11\t0\t0\tNULL\n1410143\tother-1772305545165.com\tpending\t2026-02-28 19:05:45\t0\t0\tNULL\n1410142\tmixed_hosting-1772305545060.com\tpending\t2026-02-28 19:05:45\t0\t0\tNULL\n1410141\tiaas-1772305544954.com\tpending\t2026-02-28 19:05:45\t0\t0\tNULL\n1410140\tpaas-1772305544848.com\tpending\t2026-02-28 19:05:44\t0\t0\tNULL\n1410139\tsaas-1772305544741.com\tpending\t2026-02-28 19:05:44\t0\t0\tNULL\n1410138\tenterprise-1772305544633.com\tpending\t2026-02-28 19:05:44\t0\t0\tNULL\n1410137\tmsp-1772305544529.com\tpending\t2026-02-28 19:05:44\t0\t0\tNULL\n1410110\tother-1772301109506.com\tpending\t2026-02-28 17:51:49\t0\t0\tNULL\n1410109\tmixed_hosting-1772301109405.com\tpending\t2026-02-28 17:51:49\t0\t0\tNULL\n1410108\tiaas-1772301109305.com\tpending\t2026-02-28 17:51:49\t0\t0\tNULL\n1410107\tpaas-1772301109205.com\tpending\t2026-02-28 17:51:49\t0\t0\tNULL\n1410106\tsaas-1772301109104.com\tpending\t2026-02-28 17:51:49\t0\t0\tNULL\n1410105\tenterprise-1772301109003.com\tpending\t2026-02-28 17:51:49\t0\t0\tNULL\n1410104\tmsp-1772301108903.com\tpending\t2026-02-28 17:51:48\t0\t0\tNULL\n1410077\tother-1772300977289.com\tpending\t2026-02-28 17:49:37\t0\t0\tNULL\n1410076\tmixed_hosting-1772300977183.com\tpending\t2026-02-28 17:49:37\t0\t0\tNULL\n1410075\tiaas-1772300977075.com\tpending\t2026-02-28 17:49:37\t0\t0\tNULL\n1410074\tpaas-1772300976970.com\tpending\t2026-02-28 17:49:37\t0\t0\tNULL\n1410073\tsaas-1772300976864.com\tpending\t2026-02-28 17:49:36\t0\t0\tNULL\n1410072\tenterprise-1772300976757.com\tpending\t2026-02-28 17:49:36\t0\t0\tNULL\n1410071\tmsp-1772300976652.com\tpending\t2026-02-28 17:49:36\t0\t0\tNULL\n1410044\tother-1772300354853.com\tpending\t2026-02-28 17:39:14\t0\t0\tNULL\n1410043\tmixed_hosting-1772300354748.com\tpending\t2026-02-28 17:39:14\t0\t0\tNULL\n1410042\tiaas-1772300354643.com\tpending\t2026-02-28 17:39:14\t0\t0\tNULL\n1410041\tpaas-1772300354537.com\tpending\t2026-02-28 17:39:14\t0\t0\tNULL\n1410040\tsaas-1772300354432.com\tpending\t2026-02-28 17:39:14\t0\t0\tNULL\n1410039\tenterprise-1772300354328.com\tpending\t2026-02-28 17:39:14\t0\t0\tNULL\n1410038\tmsp-1772300354225.com\tpending\t2026-02-28 17:39:14\t0\t0\tNULL\n1410011\tother-1772300280346.com\tpending\t2026-02-28 17:38:00\t0\t0\tNULL\n1410010\tmixed_hosting-1772300280243.com\tpending\t2026-02-28 17:38:00\t0\t0\tNULL\n1410009\tiaas-1772300280139.com\tpending\t2026-02-28 17:38:00\t0\t0\tNULL\n1410008\tpaas-1772300280037.com\tpending\t2026-02-28 17:38:00\t0\t0\tNULL\n1410007\tsaas-1772300279933.com\tpending\t2026-02-28 17:38:00\t0\t0\tNULL\n1410006\tenterprise-1772300279831.com\tpending\t2026-02-28 17:37:59\t0\t0\tNULL\n1410005\tmsp-1772300279729.com\tpending\t2026-02-28 17:37:59\t0\t0\tNULL\n1410001\tdatabank.com\tscan_complete\t2026-02-28 17:22:26\t252\t1429\t38\n1380480\tother-1772260080720.com\tscan_complete\t2026-02-28 06:28:00\t0\t0\t0\n1380479\tmixed_hosting-1772260080615.com\tscan_complete\t2026-02-28 06:28:00\t0\t0\t0\n1380478\tiaas-1772260080507.com\tscan_complete\t2026-02-28 06:28:00\t0\t0\t0\n1380477\tpaas-1772260080403.com\tscan_complete\t2026-02-28 06:28:00\t0\t0\t0\n1380476\tsaas-1772260080299.com\tscan_complete\t2026-02-28 06:28:00\t0\t0\t0\n1380475\tenterprise-1772260080193.com\tscan_complete\t2026-02-28 06:28:00\t0\t0\t0\n1380474\tmsp-1772260080089.com\tscan_complete\t2026-02-28 06:28:00\t0\t0\t0\n1380463\tother-1772260047296.com\tscan_complete\t2026-02-28 06:27:27\t0\t0\t0\n1380462\tmixed_hosting-1772260047190.com\tscan_complete\t2026-02-28 06:27:27\t0\t0\t0\n1380461\tiaas-1772260047086.com\tscan_complete\t2026-02-28 06:27:27\t0\t0\t0\n1380460\tpaas-1772260046981.com\tscan_complete\t2026-02-28 06:27:27\t0\t0\t0\n1380459\tsaas-1772260046878.com\tscan_complete\t2026-02-28 06:27:26\t0\t0\t0\n1380458\tenterprise-1772260046774.com\tscan_complete\t2026-02-28 06:27:26\t1\t27\t75\n1380457\tmsp-1772260046668.com\tscan_complete\t2026-02-28 06:27:26\t0\t0\t0\n1380446\tother-1772259168296.com\tscan_complete\t2026-02-28 06:12:48\t0\t0\t0\n1380445\tmixed_hosting-1772259168195.com\tscan_complete\t2026-02-28 06:12:48\t0\t0\t0\n1380444\tiaas-1772259168092.com\tscan_complete\t2026-02-28 06:12:48\t0\t0\t0\n1380443\tpaas-1772259167991.com\tscan_complete\t2026-02-28 06:12:48\t0\t0\t0\n1380442\tsaas-1772259167889.com\tscan_complete\t2026-02-28 06:12:47\t0\t0\t0\n1380441\tenterprise-1772259167784.com\tscan_complete\t2026-02-28 06:12:47\t0\t0\t0\n1380440\tmsp-1772259167680.com\tscan_complete\t2026-02-28 06:12:47\t2\t33\t66\n1380429\tother-1772257404993.com\tscan_complete\t2026-02-28 05:43:25\t0\t0\t0\n1380428\tmixed_hosting-1772257404894.com\tscan_complete\t2026-02-28 05:43:24\t0\t0\t0\n1380427\tiaas-1772257404794.com\tscan_complete\t2026-02-28 05:43:24\t0\t0\t0\n1380426\tpaas-1772257404694.com\tscan_complete\t2026-02-28 05:43:24\t0\t0\t0\n1380425\tsaas-1772257404594.com\tscan_complete\t2026-02-28 05:43:24\t0\t0\t0\n1380424\tenterprise-1772257404493.com\tscan_complete\t2026-02-28 05:43:24\t1\t58\t69\n1380423\tmsp-1772257404394.com\tscan_complete\t2026-02-28 05:43:24\t0\t0\t0\n1380409\tpaas-1772257335012.com\tscan_complete\t2026-02-28 05:42:15\t0\t0\t0\n1380412\tother-1772257335313.com\tscan_complete\t2026-02-28 05:42:15\t0\t0\t0\n1380411\tmixed_hosting-1772257335213.com\tscan_complete\t2026-02-28 05:42:15\t0\t0\t0\n1380410\tiaas-1772257335112.com\tscan_complete\t2026-02-28 05:42:15\t0\t0\t0\n1380407\tenterprise-1772257334809.com\tscan_complete\t2026-02-28 05:42:14\t0\t0\t0\n1380408\tsaas-1772257334911.com\tscan_complete\t2026-02-28 05:42:14\t0\t0\t0\n1380406\tmsp-1772257334708.com\tscan_complete\t2026-02-28 05:42:14\t0\t0\t0\n1380395\tother-1772257231768.com\tscan_complete\t2026-02-28 05:40:31\t0\t0\t0\n1380394\tmixed_hosting-1772257231669.com\tscan_complete\t2026-02-28 05:40:31\t0\t0\t0\n1380393\tiaas-1772257231568.com\tscan_complete\t2026-02-28 05:40:31\t0\t0\t0\n1380392\tpaas-1772257231468.com\tscan_complete\t2026-02-28 05:40:31\t0\t0\t0\n1380391\tsaas-1772257231368.com\tscan_complete\t2026-02-28 05:40:31\t0\t0\t0\n1380390\tenterprise-1772257231268.com\tscan_complete\t2026-02-28 05:40:31\t0\t0\t0\n1380389\tmsp-1772257231164.com\tscan_complete\t2026-02-28 05:40:31\t0\t0\t0\n1380385\taceofcloud.com\tcompleted\t2026-02-28 05:06:51\t13\t46\t34\n1380384\tvianova.ai\tscan_complete\t2026-02-28 05:06:51\t92\t524\t25\n1380383\tcargill.com\tscan_complete\t2026-02-28 05:06:10\t760\t609\t12\n1380382\ttoyota.com\tcompleted\t2026-02-28 04:30:07\t39\t2867\t42\n1380381\ttesla.com\tcompleted\t2026-02-28 04:30:05\t27\t682\t59\n1380380\tgm.com\tcompleted\t2026-02-28 04:30:03\t23\t1422\t47\n1380379\tford.com\tdiscovering\t2026-02-28 04:30:01\t0\t0\tNULL\n1380378\tmonsanto.com\tcompleted\t2026-02-28 04:29:59\t29\t3693\t43\n1380377\ttysonfoods.com\tcompleted\t2026-02-28 04:29:57\t9\t160\t52\n1380376\tcargill.com\tcompleted\t2026-02-28 04:29:55\t50\t4949\t30\n1380375\tjacobs.com\tcompleted\t2026-02-28 04:29:53\t32\t2763\t51\n1380374\tkiewit.com\tcompleted\t2026-02-28 04:29:51\t335\t4599\t34\n1380373\tbechtel.com\tscan_complete\t2026-02-28 04:29:48\t26\t241\tNULL\n1380372\tnytimes.com\tscan_complete\t2026-02-28 04:29:46\t655\t17494\t45\n1380371\tcnn.com\tcompleted\t2026-02-28 04:29:44\t32\t1457\t42\n1380370\tfox.com\tscan_complete\t2026-02-28 04:29:42\t583\t891\t16\n1380369\tdisney.com\tcompleted\t2026-02-28 04:29:40\t415\t4706\t29\n1380368\tnetflix.com\tcompleted\t2026-02-28 04:29:38\t109\t1263\t15\n1380367\tge.com\tpassive_recon\t2026-02-28 04:29:36\t0\t0\tNULL\n1380366\tsiemens.com\tscan_complete\t2026-02-28 04:29:34\t53\t224\tNULL\n1380365\tjohn-deere.com\tcompleted\t2026-02-28 04:29:32\t31\t1495\t50\n1380364\tcaterpillar.com\tcompleted\t2026-02-28 04:29:30\t20\t562\t43\n1380363\tfortinet.com\tcompleted\t2026-02-28 04:29:28\t34\t1272\t44\n1380362\tcrowdstrike.com\tcompleted\t2026-02-28 04:29:26\t75\t645\t32\n1380361\tpaloaltonetworks.com\tscan_complete\t2026-02-28 04:29:24\t30\t500\tNULL\n1380360\tsnowflake.com\tscan_complete\t2026-02-28 04:29:22\t611\t1011\t16\n1380359\tservicenow.com\tcompleted\t2026-02-28 04:29:20\t84\t479\t33\n1380358\toracle.com\tscan_complete\t2026-02-28 04:29:18\t37\t203\t42\n1380357\tsalesforce.com\tscan_complete\t2026-02-28 04:29:16\t20\t1244\t52\n1380356\tamazonaws.com\tcompleted\t2026-02-28 04:29:14\t105\t40\t12\n1380355\tgoogle.com\tcompleted\t2026-02-28 04:29:12\t115\t742\t31\n1380354\tmicrosoft.com\tcompleted\t2026-02-28 04:29:10\t241\t18899\t23\n1380353\tairbnb.com\tcompleted\t2026-02-28 04:29:08\t311\t2323\t20\n1380352\thyatt.com\tscan_complete\t2026-02-28 04:29:06\t101\t138\tNULL\n1380351\thilton.com\tscan_complete\t2026-02-28 04:29:04\t34\t239\tNULL\n1380350\tmarriott.com\tscan_complete\t2026-02-28 04:29:02\t30\t390\tNULL\n1380349\tsouthwest.com\tscan_complete\t2026-02-28 04:29:00\t979\t2244\t11\n1380348\tunited.com\tdiscovering\t2026-02-28 04:28:57\t0\t0\tNULL\n1380347\tdelta.com\tscan_complete\t2026-02-28 04:28:55\t629\t2760\t13\n1380346\tmaersk.com\tpassive_recon\t2026-02-28 04:28:53\t0\t0\tNULL\n1380345\tdhl.com\tdiscovering\t2026-02-28 04:28:51\t0\t0\tNULL\n1380344\tups.com\tdiscovering\t2026-02-28 04:28:49\t0\t0\tNULL\n1380343\tfedex.com\tdiscovering\t2026-02-28 04:28:47\t0\t0\tNULL\n1380342\tlouisvuitton.com\tcompleted\t2026-02-28 04:28:45\t159\t546\t23\n1380341\thomedepot.com\tcompleted\t2026-02-28 04:28:43\t132\t1986\t19\n1380340\tbestbuy.com\tcompleted\t2026-02-28 04:28:41\t23\t853\t47\n1380339\tamazon.com\tpassive_recon\t2026-02-28 04:28:39\t0\t0\tNULL\n1380338\ttarget.com\tcompleted\t2026-02-28 04:28:37\t56\t260\t23\n1380337\twalmart.com\tcompleted\t2026-02-28 04:28:35\t26\t655\t41\n1380336\thoneywell.com\tcompleted\t2026-02-28 04:28:33\t53\t1403\t19\n1380335\t3m.com\tpassive_recon\t2026-02-28 04:28:31\t0\t0\tNULL\n1380334\tbasf.com\tpassive_recon\t2026-02-28 04:28:29\t0\t0\tNULL\n1380333\tdupont.com\tcompleted\t2026-02-28 04:28:27\t126\t889\t14\n1380332\tdow.com\tcompleted\t2026-02-28 04:28:25\t34\t2720\t46\n1380331\tk12.com\tcompleted\t2026-02-28 04:28:23\t1107\t817\t10\n1380330\tyale.edu\tcompleted\t2026-02-28 04:28:21\t57\t2430\t24\n1380329\tucla.edu\tcompleted\t2026-02-28 04:28:19\t225\t5947\t20\n1380328\tstanford.edu\tcompleted\t2026-02-28 04:28:17\t178\t4213\t20\n1380327\tmit.edu\tcompleted\t2026-02-28 04:28:15\t168\t2107\t18\n1380326\tharvard.edu\tcompleted\t2026-02-28 04:28:12\t326\t4545\t15\n1380325\tplaid.com\tcompleted\t2026-02-28 04:28:10\t21\t206\t51\n1380324\tadyen.com\tcompleted\t2026-02-28 04:28:08\t15\t444\t47\n1380323\tpaypal.com\tcompleted\t2026-02-28 04:28:06\t67\t216\t21\n1380322\tsquareup.com\tcompleted\t2026-02-28 04:28:04\t25\t212\t52\n1380321\tstripe.com\tcompleted\t2026-02-28 04:28:02\t22\t581\t49\n1380320\tvodafone.com\tcompleted\t2026-02-28 04:28:00\t76\t1136\t20\n1380319\tcharter.com\tcompleted\t2026-02-28 04:27:58\t31\t493\t37\n1380318\tcomcast.com\tcompleted\t2026-02-28 04:27:56\t242\t2263\t23\n1380317\ttmobile.com\tcompleted\t2026-02-28 04:27:54\t19\t63\t42\n1380316\tverizon.com\tcompleted\t2026-02-28 04:27:52\t40\t777\t41\n1380315\tatt.com\tcompleted\t2026-02-28 04:27:50\t294\t5886\t24\n1380314\twilliams.com\tcompleted\t2026-02-28 04:27:48\t30\t1289\t47\n1380313\tkindermorgan.com\tcompleted\t2026-02-28 04:27:46\t36\t2655\t37\n1380312\texxonmobil.com\tcompleted\t2026-02-28 04:27:44\t11\t2867\t50\n1380311\tshell.com\tcompleted\t2026-02-28 04:27:42\t52\t1576\t19\n1380310\tnexteraenergy.com\tcompleted\t2026-02-28 04:27:40\t16\t805\t47\n1380309\tconed.com\tcompleted\t2026-02-28 04:27:38\t47\t1529\t21\n1380308\tpgande.com\tcompleted\t2026-02-28 04:27:36\t3\t0\t0\n1380307\tsoutherncompany.com\tcompleted\t2026-02-28 04:27:34\t85\t18553\t39\n1380306\tduke-energy.com\tcompleted\t2026-02-28 04:27:32\t141\t5343\t32\n1380305\texeloncorp.com\tcompleted\t2026-02-28 04:27:30\t24\t4088\t52\n1380304\tchicago.gov\tcompleted\t2026-02-28 04:27:28\t12\t1387\t52\n1380303\tnyc.gov\tcompleted\t2026-02-28 04:27:26\t130\t1836\t13\n1380302\tvirginia.gov\tdiscovering\t2026-02-28 04:27:24\t0\t0\tNULL\n1380301\tca.gov\tdiscovering\t2026-02-28 04:27:22\t0\t0\tNULL\n1380300\ttexas.gov\tcompleted\t2026-02-28 04:27:20\t174\t8505\t20\n1380299\tstate.gov\tcompleted\t2026-02-28 04:27:18\t54\t5616\t18\n1380298\tfbi.gov\tcompleted\t2026-02-28 04:27:16\t235\t6842\t23\n1380297\tdhs.gov\tcompleted\t2026-02-28 04:27:14\t83\t4943\t16\n1380296\tdefense.gov\tcompleted\t2026-02-28 04:27:12\t6\t1517\t44\n1380295\ttreasury.gov\tcompleted\t2026-02-28 04:27:10\t84\t1367\t17\n1380294\twhitehouse.gov\tcompleted\t2026-02-28 04:27:08\t12\t419\t47\n1380293\tsaic.com\tcompleted\t2026-02-28 04:27:06\t74\t2752\t15\n1380292\tleidos.com\tcompleted\t2026-02-28 04:27:04\t45\t3201\t47\n1380291\tl3harris.com\tcompleted\t2026-02-28 04:27:02\t22\t5115\t50\n1380290\tbae-systems.com\tcompleted\t2026-02-28 04:27:00\t6\t25\t29\n1380289\tgeneraldynamics.com\tcompleted\t2026-02-28 04:26:58\t12\t1320\t50\n1380288\tboeing.com\tcompleted\t2026-02-28 04:26:56\t103\t2490\t17\n1380287\traytheon.com\tcompleted\t2026-02-28 04:26:54\t25\t404\t38\n1380286\tnorthropgrumman.com\tcompleted\t2026-02-28 04:26:52\t26\t609\t41\n1380285\tlockheedmartin.com\tcompleted\t2026-02-28 04:26:50\t11\t675\t44\n1380284\tabbott.com\tcompleted\t2026-02-28 04:26:48\t52\t1499\t19\n1380283\tmedtronic.com\tcompleted\t2026-02-28 04:26:46\t110\t2569\t18\n1380282\tmerck.com\tcompleted\t2026-02-28 04:26:44\t12\t843\t49\n1380281\tjohnsonandjohnson.com\tcompleted\t2026-02-28 04:26:41\t7\t27\t36\n1380280\tmoderna.com\tcompleted\t2026-02-28 04:26:39\t9\t426\t51\n1380279\tpfizer.com\tcompleted\t2026-02-28 04:26:37\t20\t579\t48\n1380278\tcvshealth.com\tcompleted\t2026-02-28 04:26:35\t54\t2753\t20\n1380277\tunitedhealthgroup.com\tcompleted\t2026-02-28 04:26:33\t12\t830\t50\n1380276\tkaiserpermanente.org\tcompleted\t2026-02-28 04:26:31\t36\t266\t43\n1380275\tclevelandclinic.org\tcompleted\t2026-02-28 04:26:29\t32\t1363\t52\n1380274\tmayo.edu\tcompleted\t2026-02-28 04:26:27\t49\t5239\t25\n1380273\thcahealthcare.com\tcompleted\t2026-02-28 04:26:25\t35\t1720\t53\n1380272\tcmegroup.com\tcompleted\t2026-02-28 04:26:23\t32\t891\t48\n1380271\tnasdaq.com\tcompleted\t2026-02-28 04:26:21\t18\t502\t53\n1380270\tmastercard.com\tcompleted\t2026-02-28 04:26:19\t32\t1103\t51\n1380269\tvisa.com\tcompleted\t2026-02-28 04:26:17\t24\t2167\t44\n1380268\tamericanexpress.com\tcompleted\t2026-02-28 04:26:15\t59\t546\t13\n1380267\tschwab.com\tcompleted\t2026-02-28 04:26:13\t18\t1567\t47\n1380266\tusbank.com\tcompleted\t2026-02-28 04:26:11\t52\t1341\t26\n1380265\tcapitalone.com\tcompleted\t2026-02-28 04:26:09\t22\t517\t53\n1380264\tmorganstanley.com\tcompleted\t2026-02-28 04:26:07\t28\t987\t47\n1380263\tgoldmansachs.com\tcompleted\t2026-02-28 04:26:05\t9\t66\t52\n1380262\tcitigroup.com\tcompleted\t2026-02-28 04:26:03\t14\t262\t45\n1380261\twellsfargo.com\tcompleted\t2026-02-28 04:26:01\t26\t1601\t46\n1380260\tbankofamerica.com\tcompleted\t2026-02-28 04:25:59\t23\t1301\t53\n1380259\tjpmorganchase.com\tcompleted\t2026-02-28 04:25:57\t25\t1596\t40\n1380258\tcmegroup.com\tcompleted\t2026-02-28 04:25:44\t32\t925\t46\n1380257\tnasdaq.com\tcompleted\t2026-02-28 04:25:41\t18\t146\t53\n1380256\tmastercard.com\tcompleted\t2026-02-28 04:25:38\t30\t931\t46\n1380255\tvisa.com\tcompleted\t2026-02-28 04:25:35\t21\t140\t46\n1380254\tamericanexpress.com\tcompleted\t2026-02-28 04:25:32\t58\t241\t24\n1380253\tschwab.com\tdiscovering\t2026-02-28 04:25:29\t0\t0\tNULL\n1380252\tusbank.com\tdiscovering\t2026-02-28 04:25:26\t0\t0\tNULL\n1380251\tcapitalone.com\tdiscovering\t2026-02-28 04:25:23\t0\t0\tNULL\n1380250\tmorganstanley.com\tdiscovering\t2026-02-28 04:25:20\t0\t0\tNULL\n1380249\tgoldmansachs.com\tcompleted\t2026-02-28 04:25:17\t35\t123\t34\n1380248\tcitigroup.com\tdiscovering\t2026-02-28 04:25:14\t0\t0\tNULL\n1380247\twellsfargo.com\tdiscovering\t2026-02-28 04:25:11\t0\t0\tNULL\n1380246\tbankofamerica.com\tdiscovering\t2026-02-28 04:25:08\t0\t0\tNULL\n1380245\tjpmorganchase.com\tdiscovering\t2026-02-28 04:25:05\t0\t0\tNULL\n1380244\tjpmorganchase.com\tscan_complete\t2026-02-28 04:12:11\t510\t1754\t11\n1380243\t23.20.98.48\tscan_complete\t2026-02-28 03:45:49\t2\t18\t58\n1380208\taceofcloud.com\tscan_complete\t2026-02-27 22:14:54\t16\t1147\t51\n1380176\tdashboard-dev.vianovahealth.com\tscan_complete\t2026-02-27 19:26:05\t11\t26\t53\n1380175\tapi.dev.vianova.ai\tscan_complete\t2026-02-27 19:26:05\t87\t159\t10\n1380047\tdashboard-dev.vianovahealth.com\tscan_complete\t2026-02-27 17:40:37\t9\t13\t66\n1380046\tapi.dev.vianova.ai\tscan_complete\t2026-02-27 17:40:37\t88\t42\t11\n1380022\tvianova.ai\tscan_complete\t2026-02-27 15:47:07\t109\t1343\t20\n1380013\taceofcloud.com\tscan_complete\t2026-02-27 15:31:27\t13\t505\t48\n1290209\tvianova.ai\tscan_complete\t2026-02-27 00:55:50\t109\t650\t18\n1260003\tvianova.ai\tscan_complete\t2026-02-26 05:32:57\t109\t584\t20\n1230175\tvianova.ai\tcompleted\t2026-02-26 00:24:43\t106\t1644\t20\n1230174\taceofcloud.com\tcompleted\t2026-02-26 00:21:35\t9\t45\t49\n1200163\taceofcloud.com\tscan_complete\t2026-02-25 20:10:46\t11\t937\t47\n1200086\tvianova.ai\tscan_complete\t2026-02-25 18:17:24\t106\t442\t56\n1200001\tvianova.ai\tscan_complete\t2026-02-25 15:58:06\t23\t496\t56\n1170157\tvianova.ai\tscan_complete\t2026-02-25 06:33:07\t16\t311\t57\n1170156\tvianova.ai\tscan_complete\t2026-02-25 05:48:04\t20\t1725\t56\n1170002\tvianova.ai\tscan_complete\t2026-02-24 22:37:40\t27\t1864\t56\n1050036\taceofcloud.com\tscan_complete\t2026-02-23 19:40:39\t27\t1888\t55\n990006\tzoom.us\tscan_complete\t2026-02-22 20:38:10\t28\t155\t45\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}
