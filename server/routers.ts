@@ -110,6 +110,7 @@ import { privescRouter } from "./routers/privesc";
 import { opsecRiskRouter } from "./routers/opsec-risk";
 import { lateralMovementRouter } from "./routers/lateral-movement";
 import { engagementWorkflowRouter } from "./routers/engagement-workflow";
+import { campaignAdvisorRouter } from "./routers/campaign-advisor";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -304,6 +305,7 @@ export const appRouter = router({
   opsecRisk: opsecRiskRouter,
   lateralMovement: lateralMovementRouter,
   engagementWorkflow: engagementWorkflowRouter,
+  campaignAdvisor: campaignAdvisorRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

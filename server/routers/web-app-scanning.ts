@@ -107,7 +107,7 @@ export const webAppScanningRouter = router({
         });
       }
 
-      return startScan({
+      const scanResult = await startScan({
         targetUrl: input.targetUrl,
         scanType: input.scanType,
         scanMode: input.scanMode,
@@ -125,6 +125,20 @@ export const webAppScanningRouter = router({
         discoveredTechnologies: input.discoveredTechnologies || input.techStackHints,
         playbookPhase: input.playbookPhase,
       });
+      // Auto-persist to timeline + OPSEC
+      try {
+        const { recordScan } = await import("../lib/auto-persistence");
+        await recordScan({
+          engagementId: input.engagementId ? String(input.engagementId) : undefined,
+          actionName: `ZAP ${input.scanType} scan`,
+          description: `${input.scanType} web app scan on ${input.targetUrl} (${input.scanMode} mode)`,
+          source: "zap-scanner",
+          target: input.targetUrl,
+          success: true,
+          resultData: { scanType: input.scanType, scanMode: input.scanMode },
+        });
+      } catch (e) { /* non-blocking */ }
+      return scanResult;
     }),
 
   /** Poll scan progress */
@@ -908,7 +922,7 @@ export const webAppScanningRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { executeExternalAttack } = await import("../lib/external-credential-tools");
-      return executeExternalAttack({
+      const result = await executeExternalAttack({
         tool: input.tool,
         target: {
           host: input.host,
@@ -933,6 +947,19 @@ export const webAppScanningRouter = router({
         netexecModule: input.netexecModule,
         netexecPostAuth: input.netexecPostAuth,
       });
+      // Auto-persist to timeline + OPSEC
+      try {
+        const { recordCredentialAttack } = await import("../lib/auto-persistence");
+        await recordCredentialAttack({
+          actionName: `${input.tool} credential attack`,
+          description: `${input.tool} attack on ${input.host}:${input.port} (${input.protocol}) — ${result.successes?.length || 0} credentials found`,
+          source: input.tool,
+          target: `${input.host}:${input.port}`,
+          success: (result.successes?.length || 0) > 0,
+          resultData: { protocol: input.protocol, credentialsFound: result.successes?.length || 0 },
+        });
+      } catch (e) { /* non-blocking */ }
+      return result;
     }),
 
   /** Clear the tool detection cache (after installing new tools) */

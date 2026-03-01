@@ -22,13 +22,24 @@ export const privescRouter = router({
       cloudProvider: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      return analyzePrivescVectors(
+      const result = await analyzePrivescVectors(
         input.enumerationOutput,
         input.currentAccess,
         input.targetOs,
         input.isAdEnvironment,
         input.cloudProvider
       );
+      try {
+        const { recordPrivesc } = await import("../lib/auto-persistence");
+        await recordPrivesc({
+          actionName: `Privesc analysis (${input.targetOs})`,
+          description: `LLM privilege escalation analysis on ${input.targetOs} from ${input.currentAccess} access`,
+          source: "privesc-engine",
+          success: true,
+          resultData: { os: input.targetOs, currentAccess: input.currentAccess, isAD: input.isAdEnvironment },
+        });
+      } catch (e) { /* non-blocking */ }
+      return result;
     }),
 
   /** Quick deterministic analysis (no LLM) */

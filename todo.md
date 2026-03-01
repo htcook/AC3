@@ -6179,7 +6179,7 @@
 - [x] Backend: Blue team detection simulation (EDR, SIEM, NDR, AV, UEBA detection technology knowledge base)
 - [x] Backend: OPSEC rule library (action→detection signature mapping with safer alternatives)
 - [x] Database: opsec_events table, opsec_action_scores table
-- [ ] Frontend: OPSEC Dashboard (backend-first, minimal UI)
+- [x] Frontend: OPSEC Dashboard with risk gauge, action breakdown, detection tech matrix, burn indicators
 - [x] Router: opsecRisk router with scoreAction, quickScore, checkBurn, engagementStatus, detectionTechnologies, burnIndicators, riskProfiles endpoints
 - [x] Tests: 16 passing vitest tests for OPSEC risk engine
 
@@ -6187,3 +6187,25 @@
 - [x] Update VITE_APP_TITLE to "Ace C3" (already set)
 - [x] Update all UI references from "Caldera Dashboard" to "Ace C3" (no "Caldera Dashboard" branding found — all Caldera refs are to the C2 platform)
 - [x] Update page titles, sidebar branding, and Home page hero text (already "Ace C3 — Cyber Campaign Command")
+
+## Frontend UI Pages for Five Engines
+- [x] OPSEC Dashboard page with real-time risk gauge, action risk breakdown, detection tech matrix, burn indicators
+- [x] Engagement Workflow Kill Chain Visualizer with phase progress, timeline, auto-handoff indicators
+- [x] Lateral Movement page with technique catalog, pivot planner, network topology view
+- [x] Exploitation Bridge page with CVE-to-exploit matcher, guided workflow, evidence capture
+- [x] Privilege Escalation page with OS tabs, enumeration tools, Kerberos panel, cloud privesc
+- [x] Register all new pages in App.tsx and sidebar navigation
+- [x] Campaign Advisor chat page with LLM-powered recommendations
+
+## Auto-Persistence Wiring
+- [x] Create middleware/helper that emits timeline events on every module action (auto-persistence.ts)
+- [x] Create middleware/helper that calculates OPSEC scores on every action (deterministicScoreActionRisk)
+- [x] Wire into existing scan, exploit, credential, lateral movement, and privesc routers
+- [x] Ensure all events flow into engagement_timeline_events and opsec_events tables
+
+## Campaign Advisor LLM Chat
+- [x] Backend: Campaign Advisor engine that queries all five engines simultaneously (campaign-advisor.ts)
+- [x] Backend: Context aggregation from engagement state, OPSEC exposure, attack paths (gatherEngagementContext)
+- [x] Backend: LLM prompt with full situational awareness for next-action recommendations (CAMPAIGN_ADVISOR_SYSTEM_PROMPT)
+- [x] Frontend: Campaign Advisor chat page accessible from sidebar with message history, quick actions
+- [x] Tests: 25 passing vitest tests for Campaign Advisor and Auto-Persistence (432 total tests passing)

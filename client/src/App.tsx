@@ -184,7 +184,12 @@ const InfrastructureHub = lazy(() => import("./pages/InfrastructureHub"));
 const TeamHub = lazy(() => import("./pages/TeamHub"));
 const DetectionHub = lazy(() => import("./pages/DetectionHub"));
 const BatchDomainScanner = lazy(() => import("./pages/BatchDomainScanner"));
-
+const OpsecDashboard = lazy(() => import("./pages/OpsecDashboard"));
+const KillChainVisualizer = lazy(() => import("./pages/KillChainVisualizer"));
+const LateralMovement = lazy(() => import("./pages/LateralMovement"));
+const ExploitationBridge = lazy(() => import("./pages/ExploitationBridge"));
+const PrivilegeEscalation = lazy(() => import("./pages/PrivilegeEscalation"));
+const CampaignAdvisor = lazy(() => import("./pages/CampaignAdvisor"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -728,6 +733,24 @@ function Router() {
         </Route>
         <Route path="/oem-credentials">
           <ProtectedRoute component={OemCredentials} />
+        </Route>
+        <Route path="/opsec-dashboard">
+          <ProtectedRoute component={OpsecDashboard} />
+        </Route>
+        <Route path="/kill-chain">
+          <ProtectedRoute component={KillChainVisualizer} />
+        </Route>
+        <Route path="/lateral-movement">
+          <ProtectedRoute component={LateralMovement} />
+        </Route>
+        <Route path="/exploitation-bridge">
+          <ProtectedRoute component={ExploitationBridge} />
+        </Route>
+        <Route path="/privilege-escalation">
+          <ProtectedRoute component={PrivilegeEscalation} />
+        </Route>
+        <Route path="/campaign-advisor">
+          <ProtectedRoute component={CampaignAdvisor} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

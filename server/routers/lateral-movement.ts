@@ -43,7 +43,19 @@ export const lateralMovementRouter = router({
       }).optional(),
     }))
     .mutation(async ({ input }) => {
-      return planLateralMovement(input.currentHost, input.targetHost, input.networkTopology, input.constraints);
+      const result = await planLateralMovement(input.currentHost, input.targetHost, input.networkTopology, input.constraints);
+      try {
+        const { recordLateralMovement } = await import("../lib/auto-persistence");
+        await recordLateralMovement({
+          actionName: `Lateral movement plan: ${input.currentHost.ip} → ${input.targetHost.ip}`,
+          description: `LLM lateral movement plan from ${input.currentHost.ip} to ${input.targetHost.ip} (${input.targetHost.os || "unknown"} OS)`,
+          source: "lateral-movement-engine",
+          target: input.targetHost.ip,
+          success: true,
+          resultData: { sourceIp: input.currentHost.ip, targetIp: input.targetHost.ip },
+        });
+      } catch (e) { /* non-blocking */ }
+      return result;
     }),
 
   /** Quick deterministic plan (no LLM) */
@@ -89,7 +101,19 @@ export const lateralMovementRouter = router({
       }).optional(),
     }))
     .mutation(async ({ input }) => {
-      return planPivotPath(input.sourceHost, input.targetHost, input.intermediateHosts, input.constraints);
+      const result = await planPivotPath(input.sourceHost, input.targetHost, input.intermediateHosts, input.constraints);
+      try {
+        const { recordLateralMovement } = await import("../lib/auto-persistence");
+        await recordLateralMovement({
+          actionName: `Pivot path: ${input.sourceHost} → ${input.targetHost}`,
+          description: `Multi-hop pivot plan from ${input.sourceHost} to ${input.targetHost} via ${input.intermediateHosts?.length || 0} hops`,
+          source: "lateral-movement-engine",
+          target: input.targetHost,
+          success: true,
+          resultData: { hops: input.intermediateHosts?.length || 0 },
+        });
+      } catch (e) { /* non-blocking */ }
+      return result;
     }),
 
   /** Get all lateral movement techniques with optional filters */
