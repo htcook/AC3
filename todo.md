@@ -6253,3 +6253,23 @@
 - [x] Build Tool Comparison dashboard page with protocol coverage matrix
 - [x] Build Export Center page with CSV/PDF download for all report types
 - [x] Add ExportCenter and ToolComparison to sidebar navigation
+
+## Dashboard Backend Endpoints (Live Data)
+- [ ] Audit schema tables for aggregation queries
+- [ ] Build db helpers: getEngagementStats, getOpsecStats, getFindingsStats, getTeamWorkload
+- [ ] Build db helpers: getComplianceMetrics, getThreatIntelStats, getRecentActivity
+- [ ] Create dashboard tRPC router with role-specific endpoints
+- [ ] Operator dashboard: live engagement count, OPSEC score, recent findings, active tools
+- [ ] Executive dashboard: risk posture, compliance %, trend data, engagement summary
+- [ ] Analyst dashboard: threat landscape stats, vuln heatmap data, intel report counts
+- [ ] Team Lead dashboard: pipeline stats, team member activity, workload distribution
+- [ ] Client dashboard: assessment status, findings by severity, remediation progress
+- [ ] Admin dashboard: system health, user counts, integration status, audit log
+- [ ] Wire all six frontend dashboards to consume tRPC data
+- [ ] Write vitest tests for aggregation helpers
+
+## Role-Specialized LLM Chat Bots
+- [x] Role-specialized LLM chat system prompts for all 6 roles (operator, executive, analyst, team_lead, client, admin)
+- [x] Backend chat procedure with role-aware context injection and dashboard data enrichment
+- [x] Frontend chat UI integration that passes user role and displays role-aware interactions
+- [x] Vitest tests for role-specialized chat endpoints

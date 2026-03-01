@@ -1,14 +1,15 @@
 /**
- * Global AI Chat Widget — floating button + chat panel available on every page.
- * Provides contextual assistance with platform errors, OEM credentials, and engagement data.
+ * Global AI Chat Widget — role-specialized floating chat panel.
+ *
+ * Fetches role-specific configuration from the backend (assistant name,
+ * suggestions, context toggles) so each user role gets a tailored AI persona.
  *
  * Button positioned top-right to avoid overlapping sidebar navigation.
  * Close / minimize buttons are always rendered (never conditionally hidden).
  */
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-// ScrollArea replaced with native overflow-y-auto div for reliable chat scrolling
 import { cn } from "@/lib/utils";
 import {
   MessageCircle,
@@ -20,6 +21,16 @@ import {
   Minimize2,
   Maximize2,
   Trash2,
+  Shield,
+  Target,
+  Eye,
+  Globe,
+  Users,
+  BarChart3,
+  FileText,
+  Cpu,
+  Zap,
+  Bot,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Streamdown } from "streamdown";
@@ -31,6 +42,30 @@ interface ChatMessage {
   timestamp: number;
 }
 
+/** Map icon name strings from backend to Lucide components */
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Shield, Target, Eye, Globe, Users, BarChart3, FileText, Cpu, AlertTriangle, Key,
+};
+
+/** Role-specific accent colors for the chat header */
+const ROLE_ACCENTS: Record<string, string> = {
+  operator: "from-red-500/20 to-orange-500/10 border-red-500/30",
+  executive: "from-blue-500/20 to-indigo-500/10 border-blue-500/30",
+  analyst: "from-emerald-500/20 to-teal-500/10 border-emerald-500/30",
+  team_lead: "from-amber-500/20 to-yellow-500/10 border-amber-500/30",
+  client: "from-violet-500/20 to-purple-500/10 border-violet-500/30",
+  admin: "from-cyan-500/20 to-sky-500/10 border-cyan-500/30",
+};
+
+const ROLE_ICON_COLORS: Record<string, string> = {
+  operator: "text-red-400 bg-red-500/10",
+  executive: "text-blue-400 bg-blue-500/10",
+  analyst: "text-emerald-400 bg-emerald-500/10",
+  team_lead: "text-amber-400 bg-amber-500/10",
+  client: "text-violet-400 bg-violet-500/10",
+  admin: "text-cyan-400 bg-cyan-500/10",
+};
+
 export function GlobalAiChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -38,9 +73,21 @@ export function GlobalAiChat() {
   const [input, setInput] = useState("");
   const [includeErrors, setIncludeErrors] = useState(false);
   const [includeCreds, setIncludeCreds] = useState(false);
+  const [extraToggles, setExtraToggles] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [location] = useLocation();
+
+  // Fetch role-specific chat configuration from backend
+  const { data: chatConfig } = trpc.aiChat.getConfig.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
+
+  const role = chatConfig?.role || "operator";
+  const accent = ROLE_ACCENTS[role] || ROLE_ACCENTS.operator;
+  const iconColor = ROLE_ICON_COLORS[role] || ROLE_ICON_COLORS.operator;
 
   const sendMutation = trpc.aiChat.send.useMutation({
     onSuccess: (data) => {
@@ -54,7 +101,7 @@ export function GlobalAiChat() {
           ...prev,
           {
             role: "assistant",
-            content: `⚠️ ${data.error}`,
+            content: `\u26a0\ufe0f ${data.error}`,
             timestamp: Date.now(),
           },
         ]);
@@ -65,7 +112,7 @@ export function GlobalAiChat() {
         ...prev,
         {
           role: "assistant",
-          content: `⚠️ Connection error: ${err.message}. Please try again.`,
+          content: `\u26a0\ufe0f Connection error: ${err.message}. Please try again.`,
           timestamp: Date.now(),
         },
       ]);
@@ -75,7 +122,6 @@ export function GlobalAiChat() {
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
-      // Use requestAnimationFrame to ensure DOM has updated
       requestAnimationFrame(() => {
         scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
       });
@@ -110,6 +156,7 @@ export function GlobalAiChat() {
       currentPage: location,
       includeErrors,
       includeCreds,
+      includeRoleContext: true,
     });
   }, [input, messages, location, includeErrors, includeCreds, sendMutation]);
 
@@ -125,7 +172,18 @@ export function GlobalAiChat() {
   };
 
   // Unread indicator
-  const hasUnread = messages.length > 0 && messages[messages.length - 1].role === "assistant" && !isOpen;
+  const hasUnread =
+    messages.length > 0 &&
+    messages[messages.length - 1].role === "assistant" &&
+    !isOpen;
+
+  const suggestions = useMemo(
+    () => chatConfig?.suggestions || [
+      "How can you help me?",
+      "What's the current status?",
+    ],
+    [chatConfig?.suggestions]
+  );
 
   return (
     <>
@@ -141,9 +199,9 @@ export function GlobalAiChat() {
             "border-2 border-primary/20",
             hasUnread && "animate-pulse ring-2 ring-primary/50"
           )}
-          title="AI Assistant"
+          title={chatConfig?.assistantName || "AI Assistant"}
         >
-          <MessageCircle className="w-5 h-5" />
+          <Bot className="w-5 h-5" />
           {hasUnread && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full flex items-center justify-center">
               <span className="text-[10px] text-white font-bold">!</span>
@@ -162,23 +220,33 @@ export function GlobalAiChat() {
               : "top-4 right-4 w-[400px] h-[70vh] max-h-[700px] min-h-[400px]"
           )}
         >
-          {/* ── Header — close & minimize are ALWAYS rendered ── */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 flex-shrink-0">
+          {/* ── Header — role-specific styling ── */}
+          <div
+            className={cn(
+              "flex items-center justify-between px-4 py-3 border-b flex-shrink-0 bg-gradient-to-r",
+              accent
+            )}
+          >
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <MessageCircle className="w-4 h-4 text-primary" />
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                  iconColor
+                )}
+              >
+                <Bot className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-foreground truncate">
-                  AI Assistant
+                  {chatConfig?.assistantName || "AI Assistant"}
                 </h3>
                 <p className="text-[10px] text-muted-foreground truncate">
-                  Caldera C2 Platform Support
+                  {chatConfig?.assistantSubtitle || "Platform Support"}
                 </p>
               </div>
             </div>
 
-            {/* Action buttons — always visible, never conditionally hidden */}
+            {/* Action buttons — always visible */}
             <div className="flex items-center gap-1 flex-shrink-0">
               <Button
                 variant="ghost"
@@ -206,7 +274,10 @@ export function GlobalAiChat() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => { setIsOpen(false); setIsExpanded(false); }}
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsExpanded(false);
+                }}
                 title="Close chat"
               >
                 <X className="w-4 h-4" />
@@ -214,64 +285,104 @@ export function GlobalAiChat() {
             </div>
           </div>
 
-          {/* Context Toggles */}
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/10 flex-shrink-0">
+          {/* Context Toggles — role-aware */}
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/10 flex-shrink-0 flex-wrap">
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
               Context:
             </span>
-            <button
-              onClick={() => setIncludeErrors(!includeErrors)}
-              className={cn(
-                "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
-                includeErrors
-                  ? "bg-destructive/10 text-destructive border border-destructive/20"
-                  : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
-              )}
-            >
-              <AlertTriangle className="w-3 h-3" />
-              Errors
-            </button>
-            <button
-              onClick={() => setIncludeCreds(!includeCreds)}
-              className={cn(
-                "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
-                includeCreds
-                  ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                  : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
-              )}
-            >
-              <Key className="w-3 h-3" />
-              Default Creds
-            </button>
+            {chatConfig?.canViewErrors && (
+              <button
+                onClick={() => setIncludeErrors(!includeErrors)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                  includeErrors
+                    ? "bg-destructive/10 text-destructive border border-destructive/20"
+                    : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+                )}
+              >
+                <AlertTriangle className="w-3 h-3" />
+                Errors
+              </button>
+            )}
+            {chatConfig?.canViewCreds && (
+              <button
+                onClick={() => setIncludeCreds(!includeCreds)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                  includeCreds
+                    ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                    : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+                )}
+              >
+                <Key className="w-3 h-3" />
+                Default Creds
+              </button>
+            )}
+            {/* Role-specific extra context toggles */}
+            {chatConfig?.contextToggles?.map((toggle) => {
+              const IconComp = ICON_MAP[toggle.icon] || Zap;
+              const isActive = extraToggles[toggle.key] || false;
+              return (
+                <button
+                  key={toggle.key}
+                  onClick={() =>
+                    setExtraToggles((prev) => ({
+                      ...prev,
+                      [toggle.key]: !prev[toggle.key],
+                    }))
+                  }
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary border border-primary/20"
+                      : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+                  )}
+                >
+                  <IconComp className="w-3 h-3" />
+                  {toggle.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto px-4 py-3"
+          >
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <div className="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center mb-3">
-                  <MessageCircle className="w-6 h-6 text-primary/40" />
+                <div
+                  className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center mb-3",
+                    iconColor
+                  )}
+                >
+                  <Bot className="w-6 h-6" />
                 </div>
                 <p className="text-sm font-medium text-foreground/70">
-                  How can I help?
+                  {chatConfig?.assistantName || "AI Assistant"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-[260px]">
-                  Ask about attack planning, tool usage, platform errors, or
-                  default credentials for discovered services.
+                <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
+                  {role === "operator" && "Ask about attack planning, tool usage, OPSEC, or platform navigation."}
+                  {role === "executive" && "Ask about risk posture, compliance status, or security strategy."}
+                  {role === "analyst" && "Ask about threat actors, IOCs, OSINT, or vulnerability analysis."}
+                  {role === "team_lead" && "Ask about engagements, team workload, or delivery planning."}
+                  {role === "client" && "Ask about your assessment results, remediation, or security posture."}
+                  {role === "admin" && "Ask about system health, configuration, or platform management."}
+                  {!["operator", "executive", "analyst", "team_lead", "client", "admin"].includes(role) &&
+                    "How can I help you today?"}
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-4 justify-center">
-                  {[
-                    "What default creds for Cisco?",
-                    "Help me plan an SSH brute-force",
-                    "Review recent platform errors",
-                    "How do I run a domain intel scan?",
-                  ].map((suggestion) => (
+                  {suggestions.map((suggestion) => (
                     <button
                       key={suggestion}
                       onClick={() => {
                         setInput(suggestion);
-                        if (suggestion.toLowerCase().includes("cred")) setIncludeCreds(true);
-                        if (suggestion.toLowerCase().includes("error")) setIncludeErrors(true);
+                        if (suggestion.toLowerCase().includes("cred"))
+                          setIncludeCreds(true);
+                        if (suggestion.toLowerCase().includes("error"))
+                          setIncludeErrors(true);
                       }}
                       className="text-[10px] px-2.5 py-1 rounded-full border border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     >
@@ -292,8 +403,13 @@ export function GlobalAiChat() {
                   )}
                 >
                   {msg.role === "assistant" && (
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
-                      <MessageCircle className="w-3 h-3 text-primary" />
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-1",
+                        iconColor
+                      )}
+                    >
+                      <Bot className="w-3 h-3" />
                     </div>
                   )}
                   <div
@@ -317,8 +433,13 @@ export function GlobalAiChat() {
 
               {sendMutation.isPending && (
                 <div className="flex gap-2 justify-start">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
-                    <MessageCircle className="w-3 h-3 text-primary" />
+                  <div
+                    className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-1",
+                      iconColor
+                    )}
+                  >
+                    <Bot className="w-3 h-3" />
                   </div>
                   <div className="bg-muted/50 border border-border rounded-lg px-3 py-2">
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -336,7 +457,10 @@ export function GlobalAiChat() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about attacks, tools, errors, or credentials..."
+                placeholder={
+                  chatConfig?.inputPlaceholder ||
+                  "Ask about attacks, tools, errors, or credentials..."
+                }
                 className="min-h-[40px] max-h-[120px] resize-none text-sm"
                 rows={1}
               />

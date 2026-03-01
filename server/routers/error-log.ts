@@ -10,6 +10,8 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { logPlatformError, getRecentErrors, resolveError, getErrorStats, purgeOldErrors, getEngagementList } from "../lib/error-logger";
 import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredentials, BUILTIN_DEFAULT_CREDS } from "../lib/oem-default-creds";
 import { invokeLLM } from "../_core/llm";
+import { getRoleChatConfig } from "../lib/role-chat-prompts";
+import { getRoleContext } from "../lib/role-chat-context";
 
 export const errorLogRouter = router({
   /** Log an error from the client side */
@@ -215,7 +217,23 @@ export const oemCredsRouter = router({
 });
 
 export const aiChatRouter = router({
-  /** Send a message to the AI assistant with platform context */
+  /** Get role-specific chat configuration for the frontend */
+  getConfig: protectedProcedure.query(({ ctx }) => {
+    const role = ctx.user?.role || 'operator';
+    const config = getRoleChatConfig(role);
+    return {
+      role,
+      assistantName: config.assistantName,
+      assistantSubtitle: config.assistantSubtitle,
+      suggestions: config.suggestions,
+      inputPlaceholder: config.inputPlaceholder,
+      canViewErrors: config.canViewErrors,
+      canViewCreds: config.canViewCreds,
+      contextToggles: config.contextToggles,
+    };
+  }),
+
+  /** Send a message to the role-specialized AI assistant with live platform context */
   send: protectedProcedure
     .input(z.object({
       message: z.string().min(1).max(10000),
@@ -227,17 +245,29 @@ export const aiChatRouter = router({
       engagementId: z.number().optional(),
       includeErrors: z.boolean().default(false),
       includeCreds: z.boolean().default(false),
+      includeRoleContext: z.boolean().default(true),
     }))
     .mutation(async ({ input, ctx }) => {
+      const userRole = ctx.user?.role || 'operator';
+      const roleConfig = getRoleChatConfig(userRole);
+
+      // Build the role-specialized system prompt
       const systemParts: string[] = [
-        `You are the Caldera C2 Platform AI Assistant — a cybersecurity expert embedded in a red team operations dashboard.`,
-        `You help operators with: penetration testing workflows, attack planning, tool usage, error diagnosis, and platform navigation.`,
-        `Current user: ${ctx.user?.name || 'Unknown'} (role: ${ctx.user?.role || 'user'})`,
+        roleConfig.systemPrompt,
+        `\nCurrent user: ${ctx.user?.name || 'Unknown'} (role: ${userRole})`,
         `Current page: ${input.currentPage || 'unknown'}`,
       ];
 
-      // Include recent errors if requested
-      if (input.includeErrors) {
+      // Inject live role-specific dashboard context
+      if (input.includeRoleContext) {
+        try {
+          const roleContext = await getRoleContext(userRole);
+          if (roleContext) systemParts.push(roleContext);
+        } catch { /* ignore context fetch failures */ }
+      }
+
+      // Include recent errors if requested and role permits
+      if (input.includeErrors && roleConfig.canViewErrors) {
         try {
           const { errors } = await getRecentErrors({ limit: 10, resolved: false });
           if (errors.length > 0) {
@@ -249,9 +279,8 @@ export const aiChatRouter = router({
         } catch { /* ignore */ }
       }
 
-      // Include relevant default credentials if requested
-      if (input.includeCreds) {
-        // Extract technology keywords from the message
+      // Include relevant default credentials if requested and role permits
+      if (input.includeCreds && roleConfig.canViewCreds) {
         const techKeywords = input.message.match(/\b(cisco|juniper|fortinet|apache|tomcat|mysql|postgres|ssh|ftp|rdp|snmp|mikrotik|ubiquiti|palo alto|sonicwall|vmware|esxi|jenkins|grafana|wordpress|nginx|redis|mongodb|elasticsearch|splunk|siemens|schneider|hikvision|dell|idrac|ilo|supermicro)\b/gi);
         if (techKeywords && techKeywords.length > 0) {
           const uniqueKeywords = [...new Set(techKeywords.map(k => k.toLowerCase()))];
@@ -277,7 +306,7 @@ export const aiChatRouter = router({
         systemParts.push(`\nActive engagement ID: ${input.engagementId}`);
       }
 
-      systemParts.push(`\nRespond concisely and technically. Use markdown formatting. If discussing exploits or credentials, always remind about ROE compliance.`);
+      systemParts.push(`\nRespond concisely. Use markdown formatting. Stay in character as ${roleConfig.assistantName}.`);
 
       const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
         { role: "system", content: systemParts.join("\n") },
@@ -294,18 +323,17 @@ export const aiChatRouter = router({
       try {
         const response = await invokeLLM({ messages });
         const content = response.choices?.[0]?.message?.content || "I apologize, I couldn't generate a response. Please try again.";
-        return { reply: content, error: null };
+        return { reply: content, error: null, role: userRole, assistantName: roleConfig.assistantName };
       } catch (err: any) {
-        console.error("[AiChat] LLM invocation failed:", err.message);
-        // Log the error
+        console.error(`[AiChat:${roleConfig.assistantName}] LLM invocation failed:`, err.message);
         await logPlatformError({
           source: "server",
           severity: "warning",
-          message: `AI Chat LLM failure: ${err.message}`,
+          message: `AI Chat LLM failure (${roleConfig.assistantName}): ${err.message}`,
           endpoint: "aiChat.send",
           userId: ctx.user?.id,
         });
-        return { reply: null, error: "AI service temporarily unavailable. Please try again in a moment." };
+        return { reply: null, error: "AI service temporarily unavailable. Please try again in a moment.", role: userRole, assistantName: roleConfig.assistantName };
       }
     }),
 });
