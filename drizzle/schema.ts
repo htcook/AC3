@@ -5552,3 +5552,126 @@ export const containerImageScans = mysqlTable("container_image_scans", {
 });
 export type ContainerImageScan = typeof containerImageScans.$inferSelect;
 export type InsertContainerImageScan = typeof containerImageScans.$inferInsert;
+
+
+// ── Credential Attack Results ──────────────────────────────────────────────────
+export const credentialAttackRuns = mysqlTable("credential_attack_runs", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  targetHost: varchar("target_host", { length: 512 }).notNull(),
+  targetPort: int("target_port").notNull(),
+  protocol: varchar("protocol", { length: 32 }).notNull(),
+  attackMode: mysqlEnum("attack_mode", [
+    "brute_force", "password_spray", "credential_stuffing", "default_credentials", "dictionary"
+  ]).notNull(),
+  status: mysqlEnum("status", ["running", "completed", "stopped", "error"]).default("running").notNull(),
+  totalAttempts: int("total_attempts").default(0),
+  successfulAttempts: int("successful_attempts").default(0),
+  lockoutsDetected: int("lockouts_detected").default(0),
+  rateLimitHits: int("rate_limit_hits").default(0),
+  passwordListUsed: varchar("password_list_used", { length: 128 }),
+  usernameListUsed: varchar("username_list_used", { length: 128 }),
+  durationMs: int("duration_ms"),
+  config: json("config"),
+  errorMessage: text("error_message"),
+  domainIntelScanId: int("domain_intel_scan_id"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type CredentialAttackRun = typeof credentialAttackRuns.$inferSelect;
+export type InsertCredentialAttackRun = typeof credentialAttackRuns.$inferInsert;
+
+export const credentialFindings = mysqlTable("credential_findings", {
+  id: int("id").primaryKey().autoincrement(),
+  attackRunId: int("attack_run_id").notNull(),
+  userId: int("user_id").notNull(),
+  targetHost: varchar("target_host", { length: 512 }).notNull(),
+  targetPort: int("target_port").notNull(),
+  protocol: varchar("protocol", { length: 32 }).notNull(),
+  username: varchar("username", { length: 256 }).notNull(),
+  password: varchar("password", { length: 256 }).notNull(),
+  isDefault: boolean("is_default").default(false),
+  vendor: varchar("vendor", { length: 128 }),
+  product: varchar("product", { length: 128 }),
+  accessLevel: mysqlEnum("access_level", ["admin", "user", "read_only", "unknown"]).default("unknown"),
+  responseCode: int("response_code"),
+  responseTimeMs: int("response_time_ms"),
+  bannerInfo: text("banner_info"),
+  verified: boolean("verified").default(false),
+  domainIntelScanId: int("domain_intel_scan_id"),
+  notes: text("notes"),
+  discoveredAt: timestamp("discovered_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type CredentialFinding = typeof credentialFindings.$inferSelect;
+export type InsertCredentialFinding = typeof credentialFindings.$inferInsert;
+
+// ── ZAP Proxy Sessions ────────────────────────────────────────────────────────
+export const zapProxySessions = mysqlTable("zap_proxy_sessions", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  sessionName: varchar("session_name", { length: 256 }).notNull(),
+  targetUrl: varchar("target_url", { length: 1024 }).notNull(),
+  status: mysqlEnum("status", ["initializing", "active", "crawling", "scanning", "paused", "completed", "error"]).default("initializing").notNull(),
+  proxyPort: int("proxy_port"),
+  authType: mysqlEnum("auth_type", ["none", "form_login", "bearer_token", "session_cookie", "basic_auth"]).default("none"),
+  authConfig: json("auth_config"),
+  wafEvasionVendor: varchar("waf_evasion_vendor", { length: 64 }),
+  urlsDiscovered: int("urls_discovered").default(0),
+  requestsIntercepted: int("requests_intercepted").default(0),
+  alertsFound: int("alerts_found").default(0),
+  alertsCritical: int("alerts_critical").default(0),
+  alertsHigh: int("alerts_high").default(0),
+  alertsMedium: int("alerts_medium").default(0),
+  alertsLow: int("alerts_low").default(0),
+  alertsInfo: int("alerts_info").default(0),
+  scanProgress: int("scan_progress").default(0),
+  domainIntelScanId: int("domain_intel_scan_id"),
+  reportHtml: mediumtext("report_html"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ZapProxySession = typeof zapProxySessions.$inferSelect;
+export type InsertZapProxySession = typeof zapProxySessions.$inferInsert;
+
+// ── Unified Pentest Reports ────────────────────────────────────────────────────
+export const pentestReports = mysqlTable("pentest_reports", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  reportTitle: varchar("report_title", { length: 512 }).notNull(),
+  reportType: mysqlEnum("report_type", ["executive", "technical", "compliance", "full"]).default("full").notNull(),
+  classification: mysqlEnum("classification", ["CONFIDENTIAL", "INTERNAL", "PUBLIC"]).default("CONFIDENTIAL").notNull(),
+  status: mysqlEnum("status", ["draft", "generating", "completed", "error"]).default("draft").notNull(),
+  // Engagement info
+  clientName: varchar("client_name", { length: 256 }),
+  engagementName: varchar("engagement_name", { length: 256 }),
+  testerName: varchar("tester_name", { length: 256 }),
+  testerOrg: varchar("tester_org", { length: 256 }),
+  scopeDescription: text("scope_description"),
+  engagementStartDate: varchar("engagement_start_date", { length: 32 }),
+  engagementEndDate: varchar("engagement_end_date", { length: 32 }),
+  // Data source IDs
+  domainIntelScanIds: json("domain_intel_scan_ids"),
+  zapSessionIds: json("zap_session_ids"),
+  credentialAttackRunIds: json("credential_attack_run_ids"),
+  // Aggregated stats
+  totalFindings: int("total_findings").default(0),
+  criticalFindings: int("critical_findings").default(0),
+  highFindings: int("high_findings").default(0),
+  mediumFindings: int("medium_findings").default(0),
+  lowFindings: int("low_findings").default(0),
+  infoFindings: int("info_findings").default(0),
+  credentialsFound: int("credentials_found").default(0),
+  mitreAttackCoverage: json("mitre_attack_coverage"),
+  executiveSummary: mediumtext("executive_summary"),
+  // Generated report
+  reportHtml: mediumtext("report_html"),
+  generatedAt: timestamp("generated_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type PentestReport = typeof pentestReports.$inferSelect;
+export type InsertPentestReport = typeof pentestReports.$inferInsert;

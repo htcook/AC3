@@ -117,6 +117,8 @@ const ActiveVerification = lazy(() => import("./pages/ActiveVerification"));
 const IcsOtSecurity = lazy(() => import("./pages/IcsOtSecurity"));
 const WebAppScanner = lazy(() => import("./pages/WebAppScanner"));
 const CredentialAttacks = lazy(() => import("./pages/CredentialAttacks"));
+const ZapProxySessions = lazy(() => import("./pages/ZapProxySessions"));
+const PentestReport = lazy(() => import("./pages/PentestReport"));
 const AtomicRedTeam = lazy(() => import("./pages/AtomicRedTeam"));
 const SliverC2 = lazy(() => import("./pages/SliverC2"));
 const NucleiScanner = lazy(() => import("./pages/NucleiScanner"));
@@ -600,6 +602,12 @@ function Router() {
         </Route>
         <Route path="/credential-attacks">
           <ProtectedRoute component={CredentialAttacks} />
+        </Route>
+        <Route path="/zap-proxy">
+          <ProtectedRoute component={ZapProxySessions} />
+        </Route>
+        <Route path="/pentest-report">
+          <ProtectedRoute component={PentestReport} />
         </Route>
         <Route path="/atomic-red-team">
           <ProtectedRoute component={AtomicRedTeam} />

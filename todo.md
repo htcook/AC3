@@ -6054,3 +6054,30 @@
 - [x] Identify the last 10 scans by date
 - [x] Delete all scans except the last 10 (331 deleted)
 - [x] Re-run the last 10 domain scans with enhanced pipeline (in progress)
+
+## ZAP Proxy Session UI Page
+- [x] Create ZapProxySessions.tsx page with proxy session management
+- [x] Add proxy session initialization form (target URL, auth config, WAF evasion)
+- [x] Add active session list with status indicators
+- [x] Add intercepted traffic viewer with request/response details
+- [x] Add authenticated crawl configuration panel
+- [x] Add CA certificate download and browser setup instructions
+- [x] Register route in App.tsx and add to AppShell sidebar
+- [x] Wire to proxy orchestration router endpoints
+
+## Credential Attack Result Storage
+- [x] Add credentialFindings table to drizzle schema
+- [x] Add credentialAttackRuns table for attack history
+- [x] Create DB helpers for storing and querying credential results
+- [x] Add tRPC endpoints for credential result CRUD
+- [x] Link credential findings to domain intel scans
+- [x] Run db:push migration
+
+## Unified Pentest Report Page
+- [x] Create PentestReport.tsx page with report builder UI
+- [x] Add engagement info form (client, tester, scope, dates)
+- [x] Aggregate ZAP scan findings, credential results, and domain intel data
+- [x] Generate downloadable HTML report with site branding
+- [x] Add MITRE ATT&CK coverage summary across all data sources
+- [x] Add executive summary auto-generation via LLM
+- [x] Register route in App.tsx and add to AppShell sidebar

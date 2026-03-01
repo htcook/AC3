@@ -1699,3 +1699,144 @@ export async function deleteCarverRiskCardsByBatch(batchId: string) {
   const db = await getDbRequired();
   await db.delete(carverRiskCards).where(eq(carverRiskCards.batchId, batchId));
 }
+
+// ── Credential Attack Results ──────────────────────────────────────────────────
+import {
+  credentialAttackRuns, InsertCredentialAttackRun,
+  credentialFindings, InsertCredentialFinding,
+  zapProxySessions, InsertZapProxySession,
+  pentestReports, InsertPentestReport,
+} from "../drizzle/schema";
+
+export async function createCredentialAttackRun(run: InsertCredentialAttackRun) {
+  const db = await getDbRequired();
+  const result = await db.insert(credentialAttackRuns).values(run);
+  return result[0].insertId;
+}
+
+export async function updateCredentialAttackRun(id: number, updates: Partial<InsertCredentialAttackRun>) {
+  const db = await getDbRequired();
+  await db.update(credentialAttackRuns).set(updates).where(eq(credentialAttackRuns.id, id));
+}
+
+export async function getCredentialAttackRuns(userId: number, limit = 50) {
+  const db = await getDbRequired();
+  return db.select().from(credentialAttackRuns)
+    .where(eq(credentialAttackRuns.userId, userId))
+    .orderBy(desc(credentialAttackRuns.createdAt))
+    .limit(limit);
+}
+
+export async function getCredentialAttackRunById(id: number) {
+  const db = await getDbRequired();
+  const rows = await db.select().from(credentialAttackRuns)
+    .where(eq(credentialAttackRuns.id, id));
+  return rows[0] ?? null;
+}
+
+export async function getCredentialAttackRunsByDomainScan(scanId: number) {
+  const db = await getDbRequired();
+  return db.select().from(credentialAttackRuns)
+    .where(eq(credentialAttackRuns.domainIntelScanId, scanId))
+    .orderBy(desc(credentialAttackRuns.createdAt));
+}
+
+export async function createCredentialFinding(finding: InsertCredentialFinding) {
+  const db = await getDbRequired();
+  const result = await db.insert(credentialFindings).values(finding);
+  return result[0].insertId;
+}
+
+export async function createCredentialFindings(findings: InsertCredentialFinding[]) {
+  if (findings.length === 0) return;
+  const db = await getDbRequired();
+  await db.insert(credentialFindings).values(findings);
+}
+
+export async function getCredentialFindingsByRun(runId: number) {
+  const db = await getDbRequired();
+  return db.select().from(credentialFindings)
+    .where(eq(credentialFindings.attackRunId, runId))
+    .orderBy(desc(credentialFindings.discoveredAt));
+}
+
+export async function getCredentialFindingsByDomainScan(scanId: number) {
+  const db = await getDbRequired();
+  return db.select().from(credentialFindings)
+    .where(eq(credentialFindings.domainIntelScanId, scanId))
+    .orderBy(desc(credentialFindings.discoveredAt));
+}
+
+export async function getAllCredentialFindings(userId: number, limit = 100) {
+  const db = await getDbRequired();
+  return db.select().from(credentialFindings)
+    .where(eq(credentialFindings.userId, userId))
+    .orderBy(desc(credentialFindings.discoveredAt))
+    .limit(limit);
+}
+
+// ── ZAP Proxy Sessions ────────────────────────────────────────────────────────
+export async function createZapProxySession(session: InsertZapProxySession) {
+  const db = await getDbRequired();
+  const result = await db.insert(zapProxySessions).values(session);
+  return result[0].insertId;
+}
+
+export async function updateZapProxySession(id: number, updates: Partial<InsertZapProxySession>) {
+  const db = await getDbRequired();
+  await db.update(zapProxySessions).set(updates).where(eq(zapProxySessions.id, id));
+}
+
+export async function getZapProxySessions(userId: number, limit = 50) {
+  const db = await getDbRequired();
+  return db.select().from(zapProxySessions)
+    .where(eq(zapProxySessions.userId, userId))
+    .orderBy(desc(zapProxySessions.createdAt))
+    .limit(limit);
+}
+
+export async function getZapProxySessionById(id: number) {
+  const db = await getDbRequired();
+  const rows = await db.select().from(zapProxySessions)
+    .where(eq(zapProxySessions.id, id));
+  return rows[0] ?? null;
+}
+
+export async function getZapSessionsByDomainScan(scanId: number) {
+  const db = await getDbRequired();
+  return db.select().from(zapProxySessions)
+    .where(eq(zapProxySessions.domainIntelScanId, scanId))
+    .orderBy(desc(zapProxySessions.createdAt));
+}
+
+// ── Pentest Reports ────────────────────────────────────────────────────────────
+export async function createPentestReport(report: InsertPentestReport) {
+  const db = await getDbRequired();
+  const result = await db.insert(pentestReports).values(report);
+  return result[0].insertId;
+}
+
+export async function updatePentestReport(id: number, updates: Partial<InsertPentestReport>) {
+  const db = await getDbRequired();
+  await db.update(pentestReports).set(updates).where(eq(pentestReports.id, id));
+}
+
+export async function getPentestReports(userId: number, limit = 50) {
+  const db = await getDbRequired();
+  return db.select().from(pentestReports)
+    .where(eq(pentestReports.userId, userId))
+    .orderBy(desc(pentestReports.createdAt))
+    .limit(limit);
+}
+
+export async function getPentestReportById(id: number) {
+  const db = await getDbRequired();
+  const rows = await db.select().from(pentestReports)
+    .where(eq(pentestReports.id, id));
+  return rows[0] ?? null;
+}
+
+export async function deletePentestReport(id: number) {
+  const db = await getDbRequired();
+  await db.delete(pentestReports).where(eq(pentestReports.id, id));
+}

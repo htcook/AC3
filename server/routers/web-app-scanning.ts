@@ -652,4 +652,144 @@ export const webAppScanningRouter = router({
         stopOnFirstSuccess: input.stopOnFirstSuccess ?? false,
       });
     }),
+
+  // ─── Credential Finding Storage ───
+  saveCredentialFindings: protectedProcedure
+    .input(z.object({
+      attackRunId: z.number(),
+      targetHost: z.string(),
+      targetPort: z.number(),
+      protocol: z.string(),
+      attackMode: z.string(),
+      domainScanId: z.number().optional(),
+      findings: z.array(z.object({
+        username: z.string(),
+        password: z.string(),
+        success: z.boolean(),
+        responseCode: z.number().optional(),
+        responseTime: z.number().optional(),
+        notes: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await import('../db');
+      // Create attack run record
+      const runId = await db.createCredentialAttackRun({
+        userId: ctx.user.id,
+        targetHost: input.targetHost,
+        targetPort: input.targetPort,
+        protocol: input.protocol,
+        attackMode: input.attackMode,
+        domainScanId: input.domainScanId ?? null,
+        status: 'completed',
+        totalAttempts: input.findings.length,
+        successfulAttempts: input.findings.filter(f => f.success).length,
+        startedAt: new Date(),
+        completedAt: new Date(),
+      });
+      // Store findings
+      if (input.findings.length > 0) {
+        await db.createCredentialFindings(input.findings.map(f => ({
+          attackRunId: runId,
+          username: f.username,
+          password: f.password,
+          success: f.success,
+          responseCode: f.responseCode ?? null,
+          responseTimeMs: f.responseTime ?? null,
+          notes: f.notes ?? null,
+        })));
+      }
+      return { runId, findingsStored: input.findings.length };
+    }),
+
+  listCredentialRuns: protectedProcedure.query(async ({ ctx }) => {
+    const db = await import('../db');
+    return db.getCredentialAttackRuns(ctx.user.id);
+  }),
+
+  getCredentialRunFindings: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await import('../db');
+      return db.getCredentialFindingsByRun(input.runId);
+    }),
+
+  // ─── ZAP Proxy Session Storage ───
+  saveZapSession: protectedProcedure
+    .input(z.object({
+      targetUrl: z.string(),
+      proxyPort: z.number(),
+      sessionName: z.string().optional(),
+      authType: z.string().optional(),
+      domainScanId: z.number().optional(),
+      status: z.string().default('active'),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await import('../db');
+      return db.createZapProxySession({
+        userId: ctx.user.id,
+        targetUrl: input.targetUrl,
+        proxyPort: input.proxyPort,
+        sessionName: input.sessionName ?? `ZAP-${Date.now()}`,
+        authType: input.authType ?? null,
+        domainScanId: input.domainScanId ?? null,
+        status: input.status,
+        startedAt: new Date(),
+      });
+    }),
+
+  listZapSessions: protectedProcedure.query(async ({ ctx }) => {
+    const db = await import('../db');
+    return db.getZapProxySessions(ctx.user.id);
+  }),
+
+  // ─── Pentest Report Storage ───
+  savePentestReport: protectedProcedure
+    .input(z.object({
+      title: z.string(),
+      reportType: z.string(),
+      engagementId: z.number().optional(),
+      domainScanId: z.number().optional(),
+      htmlContent: z.string(),
+      classification: z.string().default('confidential'),
+      preparedFor: z.string().optional(),
+      preparedBy: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await import('../db');
+      return db.createPentestReport({
+        userId: ctx.user.id,
+        title: input.title,
+        reportType: input.reportType,
+        engagementId: input.engagementId ?? null,
+        domainScanId: input.domainScanId ?? null,
+        htmlContent: input.htmlContent,
+        classification: input.classification,
+        preparedFor: input.preparedFor ?? null,
+        preparedBy: input.preparedBy ?? ctx.user.name ?? 'C3 Platform',
+        createdAt: new Date(),
+      });
+    }),
+
+  listPentestReports: protectedProcedure.query(async ({ ctx }) => {
+    const db = await import('../db');
+    return db.getPentestReports(ctx.user.id);
+  }),
+
+  getPentestReport: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await import('../db');
+      const report = await db.getPentestReportById(input.id);
+      if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
+      return report;
+    }),
+
+  deletePentestReport: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await import('../db');
+      await db.deletePentestReport(input.id);
+      return { success: true };
+    }),
 });

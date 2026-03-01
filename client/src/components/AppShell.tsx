@@ -229,6 +229,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
           { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },
           { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
+          { href: "/zap-proxy", icon: Wifi, label: "ZAP PROXY" },
           { href: "/credential-attacks", icon: Lock, label: "CREDENTIAL ATTACKS" },
         ],
       },
@@ -301,6 +302,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Reports & Guides",
         items: [
           { href: "/reports/generate", icon: BarChart3, label: "REPORTS" },
+          { href: "/pentest-report", icon: FileText, label: "PENTEST REPORT" },
           { href: "/guide/gophish", icon: BookOpen, label: "GUIDES" },
           { href: "/ttp-knowledge", icon: Brain, label: "KNOWLEDGE BASE" },
           { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING" },

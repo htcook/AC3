@@ -1,0 +1,25 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND (TABLE_NAME LIKE 'credential%' OR TABLE_NAME LIKE 'zap%' OR TABLE_NAME LIKE 'pentest%') ORDER BY TABLE_NAME;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND (TABLE_NAME LIKE 'credential%' OR TABLE_NAME LIKE 'zap%' OR TABLE_NAME LIKE 'pentest%') ORDER BY TABLE_NAME;",
+  "rows": [
+    {
+      "TABLE_NAME": "credential_alert_history"
+    },
+    {
+      "TABLE_NAME": "credential_alert_rules"
+    },
+    {
+      "TABLE_NAME": "credential_exposures"
+    },
+    {
+      "TABLE_NAME": "credential_rotation_audit"
+    },
+    {
+      "TABLE_NAME": "credential_rotation_policies"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\ncredential_alert_history\ncredential_alert_rules\ncredential_exposures\ncredential_rotation_audit\ncredential_rotation_policies\n",
+  "stderr": "",
+  "execution_time_ms": 71
+}
