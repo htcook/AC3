@@ -6306,3 +6306,24 @@
 - [x] Enforce TLS 1.2+ minimum on all connections (document requirement)
 - [x] Security compliance status page showing FIPS/FedRAMP posture
 - [x] Audit log all auth events (login, logout, role change, invite, deactivate)
+
+## SAML 2.0 IdP Integration
+- [x] DB schema: saml_idp_configs table (entityId, ssoUrl, certificate, metadata, provider type)
+- [x] Backend: SP metadata generation endpoint (/api/saml/metadata)
+- [x] Backend: ACS endpoint for SAML assertion consumption (/api/saml/acs)
+- [x] Backend: IdP configuration CRUD (add/edit/delete/test IdP configs)
+- [x] Backend: SAML assertion parsing and signature validation
+- [x] Backend: Auto-provision users from SAML attributes (JIT provisioning)
+- [x] Frontend: SAML Configuration page for admins (add Okta, Azure AD, PingFederate)
+- [x] Frontend: SSO login button on login page with IdP selection
+- [x] Vitest tests for SAML assertion parsing, SP metadata, and IdP config
+
+## Session Management
+- [x] DB schema: user_sessions table (sessionId, userId, deviceFingerprint, ipAddress, geoLocation, userAgent, expiresAt)
+- [x] Backend: Session creation with device fingerprinting and geo-IP lookup
+- [x] Backend: List active sessions for current user
+- [x] Backend: Revoke individual session or all other sessions
+- [x] Backend: Session cleanup cron for expired sessions
+- [x] Frontend: Active Sessions section in Account Settings page
+- [x] Frontend: Session cards with device info, location, and revoke button
+- [x] Vitest tests for session management and device fingerprinting

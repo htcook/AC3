@@ -6,6 +6,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerSAMLRoutes } from "../routers/saml-auth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
@@ -49,6 +50,8 @@ async function startServer() {
   app.use(cookieParser());
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // SAML 2.0 protocol endpoints (metadata, ACS, SSO initiation)
+  registerSAMLRoutes(app);
 
   // === Unified Auth: Verification endpoint for nginx auth_request ===
   const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';

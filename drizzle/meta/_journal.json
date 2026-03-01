@@ -470,6 +470,13 @@
       "when": 1772393825742,
       "tag": "0066_far_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1772394811830,
+      "tag": "0067_cute_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

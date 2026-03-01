@@ -88,6 +88,7 @@ import {
   GitMerge,
   Satellite,
   Download,
+  Monitor,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -373,6 +374,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/account-settings", icon: UserCog, label: "MY ACCOUNT" },
           { href: "/team", icon: Users, label: "TEAM" },
           { href: "/invitations", icon: Mail, label: "INVITATIONS" },
+          { href: "/saml-config", icon: Fingerprint, label: "SAML SSO" },
+          { href: "/sessions", icon: Monitor, label: "SESSIONS" },
           { href: "/audit-log", icon: FileText, label: "AUDIT LOG" },
           { href: "/siem-connectors", icon: Radio, label: "INTEGRATIONS" },
           { href: "/ssil", icon: Scan, label: "SSIL" },

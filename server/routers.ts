@@ -113,6 +113,8 @@ import { engagementWorkflowRouter } from "./routers/engagement-workflow";
 import { campaignAdvisorRouter } from "./routers/campaign-advisor";
 import { reportExportRouter } from "./routers/report-export";
 import { accountRouter } from "./routers/account-management";
+import { samlRouter } from "./routers/saml-auth";
+import { sessionRouter } from "./routers/session-management";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -2286,6 +2288,8 @@ export const appRouter = router({
 
   // Account management (profiles, team, invitations, compliance)
   account: accountRouter,
+  saml: samlRouter,
+  sessions: sessionRouter,
 
   // Campaign management
   campaign: router({

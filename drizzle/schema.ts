@@ -6016,3 +6016,133 @@ export const chatMessages = mysqlTable("chat_messages", {
 });
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
+
+
+/**
+ * SAML IdP Configurations — stores enterprise SSO identity provider settings.
+ * Supports Okta, Azure AD, PingFederate, and generic SAML 2.0 providers.
+ */
+export const samlIdpConfigs = mysqlTable("saml_idp_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Human-readable name (e.g. "Okta Production", "Azure AD") */
+  name: varchar("saml_idp_name", { length: 256 }).notNull(),
+  /** Provider type for UI hints */
+  providerType: mysqlEnum("saml_idp_provider_type", ["okta", "azure_ad", "ping_federate", "google_workspace", "onelogin", "generic"]).default("generic").notNull(),
+  /** SAML EntityID of the IdP */
+  entityId: varchar("saml_idp_entity_id", { length: 512 }).notNull(),
+  /** IdP SSO URL (HTTP-Redirect or HTTP-POST binding) */
+  ssoUrl: varchar("saml_idp_sso_url", { length: 1024 }).notNull(),
+  /** IdP SLO URL (optional) */
+  sloUrl: varchar("saml_idp_slo_url", { length: 1024 }),
+  /** IdP X.509 signing certificate (PEM format) */
+  certificate: text("saml_idp_certificate").notNull(),
+  /** Full IdP metadata XML (optional, for reference) */
+  metadataXml: mediumtext("saml_idp_metadata_xml"),
+  /** SAML NameID format */
+  nameIdFormat: varchar("saml_idp_name_id_format", { length: 256 }).default("urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"),
+  /** Attribute mapping: JSON object mapping SAML attributes to user fields */
+  attributeMapping: json("saml_idp_attribute_mapping").$type<{
+    email?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    role?: string;
+    department?: string;
+    groups?: string;
+  }>(),
+  /** Default role for JIT-provisioned users */
+  defaultRole: mysqlEnum("saml_idp_default_role", ["user", "admin", "viewer", "operator", "team_lead", "analyst", "executive", "client"]).default("operator").notNull(),
+  /** Whether this IdP is active */
+  isActive: boolean("saml_idp_is_active").default(true).notNull(),
+  /** Whether to auto-provision users on first SAML login */
+  jitProvisioning: boolean("saml_idp_jit_provisioning").default(true).notNull(),
+  /** Whether to force authentication on each login */
+  forceAuthn: boolean("saml_idp_force_authn").default(false).notNull(),
+  /** Require signed assertions */
+  wantAssertionsSigned: boolean("saml_idp_want_assertions_signed").default(true).notNull(),
+  /** Require signed responses */
+  wantResponseSigned: boolean("saml_idp_want_response_signed").default(true).notNull(),
+  /** Created by user */
+  createdBy: int("saml_idp_created_by"),
+  createdAt: timestamp("saml_idp_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("saml_idp_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type SamlIdpConfig = typeof samlIdpConfigs.$inferSelect;
+export type InsertSamlIdpConfig = typeof samlIdpConfigs.$inferInsert;
+
+/**
+ * User Sessions — tracks active sessions with device fingerprinting and geo-IP.
+ * Enables session management, revocation, and security monitoring.
+ */
+export const userSessions = mysqlTable("user_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Unique session identifier (SHA-256 hash of session token) */
+  sessionHash: varchar("session_hash", { length: 64 }).notNull().unique(),
+  /** User who owns this session */
+  userId: int("session_user_id").notNull(),
+  /** Login method used to create this session */
+  loginMethod: mysqlEnum("session_login_method", ["oauth", "saml", "api_key"]).default("oauth").notNull(),
+  /** SAML IdP config ID if login was via SAML */
+  samlIdpId: int("session_saml_idp_id"),
+  /** Device fingerprint hash */
+  deviceFingerprint: varchar("session_device_fingerprint", { length: 64 }),
+  /** Client IP address */
+  ipAddress: varchar("session_ip_address", { length: 45 }),
+  /** Geo-IP city */
+  geoCity: varchar("session_geo_city", { length: 128 }),
+  /** Geo-IP region/state */
+  geoRegion: varchar("session_geo_region", { length: 128 }),
+  /** Geo-IP country */
+  geoCountry: varchar("session_geo_country", { length: 64 }),
+  /** Geo-IP latitude */
+  geoLat: double("session_geo_lat"),
+  /** Geo-IP longitude */
+  geoLon: double("session_geo_lon"),
+  /** Raw user agent string */
+  userAgent: text("session_user_agent"),
+  /** Parsed browser name */
+  browserName: varchar("session_browser_name", { length: 64 }),
+  /** Parsed browser version */
+  browserVersion: varchar("session_browser_version", { length: 32 }),
+  /** Parsed OS name */
+  osName: varchar("session_os_name", { length: 64 }),
+  /** Parsed OS version */
+  osVersion: varchar("session_os_version", { length: 32 }),
+  /** Parsed device type */
+  deviceType: varchar("session_device_type", { length: 32 }),
+  /** Whether this is the current session */
+  isCurrent: boolean("session_is_current").default(false),
+  /** Session status */
+  status: mysqlEnum("session_status", ["active", "expired", "revoked"]).default("active").notNull(),
+  /** Last activity timestamp */
+  lastActivityAt: timestamp("session_last_activity_at").defaultNow().notNull(),
+  /** Session expiry */
+  expiresAt: timestamp("session_expires_at").notNull(),
+  createdAt: timestamp("session_created_at").defaultNow().notNull(),
+});
+export type UserSession = typeof userSessions.$inferSelect;
+export type InsertUserSession = typeof userSessions.$inferInsert;
+
+/**
+ * SAML Auth Events — audit log for SAML authentication events.
+ */
+export const samlAuthEvents = mysqlTable("saml_auth_events", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Event type */
+  eventType: mysqlEnum("saml_event_type", ["login_success", "login_failure", "logout", "jit_provision", "assertion_error", "signature_invalid"]).notNull(),
+  /** Associated IdP config */
+  idpConfigId: int("saml_event_idp_config_id"),
+  /** User ID (if known) */
+  userId: int("saml_event_user_id"),
+  /** SAML NameID from the assertion */
+  nameId: varchar("saml_event_name_id", { length: 512 }),
+  /** Client IP */
+  ipAddress: varchar("saml_event_ip_address", { length: 45 }),
+  /** Error details if applicable */
+  errorDetails: text("saml_event_error_details"),
+  /** Raw assertion ID for correlation */
+  assertionId: varchar("saml_event_assertion_id", { length: 256 }),
+  createdAt: timestamp("saml_event_created_at").defaultNow().notNull(),
+});
+export type SamlAuthEvent = typeof samlAuthEvents.$inferSelect;
+export type InsertSamlAuthEvent = typeof samlAuthEvents.$inferInsert;

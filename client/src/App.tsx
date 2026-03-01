@@ -196,6 +196,8 @@ const ToolComparison = lazy(() => import("./pages/ToolComparison"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
 const TeamManagementPage = lazy(() => import("./pages/TeamManagement"));
 const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
+const SamlConfig = lazy(() => import("./pages/SamlConfig"));
+const SessionManagement = lazy(() => import("./pages/SessionManagement"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -281,6 +283,12 @@ function Router() {
         </Route>
         <Route path="/invitations">
           <ProtectedRoute component={AcceptInvite} />
+        </Route>
+        <Route path="/saml-config">
+          <ProtectedRoute component={SamlConfig} />
+        </Route>
+        <Route path="/sessions">
+          <ProtectedRoute component={SessionManagement} />
         </Route>
         <Route path="/activity">
           <ProtectedRoute component={Activity} />
