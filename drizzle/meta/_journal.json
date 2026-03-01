@@ -421,6 +421,13 @@
       "when": 1772261357611,
       "tag": "0059_salty_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1772334129909,
+      "tag": "0060_silent_maginty",
+      "breakpoints": true
     }
   ]
 }

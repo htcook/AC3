@@ -5965,3 +5965,11 @@
 - [x] Build scanner API integration backend (Nessus/Tenable.io API, Qualys API, Rapid7 InsightVM API — pull authenticated scan results)
 - [x] Build frontend UI for scan report upload and scanner API connection during engagements
 - [x] Write tests for container scanning, SCAP/STIG, scan upload, and scanner API modules
+## Registry Credential Integration
+- [x] Build registry credential storage schema (DB table for encrypted registry creds per engagement)
+- [x] Build registry API service (Docker Hub, ECR, ACR, GCR, Harbor, Artifactory — authenticate, list repos, list tags, pull manifests)
+- [x] Build container image vulnerability scanner (parse image manifests, extract OS/packages, match against CVE/NVD data)
+- [x] Build frontend UI for registry credential management (add/edit/delete registry connections, test connectivity)
+- [x] Build frontend UI for image scanning (browse repos, select images, trigger scans, view results)
+- [x] Wire registry scanning into domain intel pipeline and scan results display
+- [x] Write tests for registry credential integration

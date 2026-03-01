@@ -5490,3 +5490,65 @@ export const carverRiskCards = mysqlTable("carver_risk_cards", {
 });
 export type CarverRiskCard = typeof carverRiskCards.$inferSelect;
 export type InsertCarverRiskCard = typeof carverRiskCards.$inferInsert;
+
+// ─── Container Registry Credentials ─────────────────────────────────
+// Stores customer-provided registry credentials for private image scanning.
+
+export const containerRegistries = mysqlTable("container_registries", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  engagementId: int("engagement_id"),
+  registryType: mysqlEnum("registry_type", [
+    "docker_hub", "ecr", "acr", "gcr", "harbor", "artifactory", "nexus", "gitlab", "ghcr", "quay", "custom"
+  ]).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  registryUrl: varchar("registry_url", { length: 512 }).notNull(),
+  authConfig: text("auth_config").notNull(),
+  status: mysqlEnum("registry_status", ["active", "inactive", "error", "pending_validation"]).default("pending_validation").notNull(),
+  lastValidated: timestamp("last_validated"),
+  lastError: text("last_error"),
+  repoCount: int("repo_count").default(0),
+  imageCount: int("image_count").default(0),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ContainerRegistry = typeof containerRegistries.$inferSelect;
+export type InsertContainerRegistry = typeof containerRegistries.$inferInsert;
+
+// ─── Container Image Scan Results ───────────────────────────────────
+
+export const containerImageScans = mysqlTable("container_image_scans", {
+  id: int("id").primaryKey().autoincrement(),
+  registryId: int("registry_id").notNull(),
+  engagementId: int("engagement_id"),
+  userId: int("user_id").notNull(),
+  repository: varchar("repository", { length: 512 }).notNull(),
+  tag: varchar("tag", { length: 255 }).notNull(),
+  digest: varchar("digest", { length: 128 }),
+  imageSize: bigint("image_size", { mode: "number" }),
+  architecture: varchar("architecture", { length: 32 }),
+  os: varchar("os", { length: 32 }),
+  status: mysqlEnum("scan_status", ["queued", "pulling", "scanning", "complete", "error"]).default("queued").notNull(),
+  totalVulnerabilities: int("total_vulnerabilities").default(0),
+  criticalCount: int("critical_count").default(0),
+  highCount: int("high_count").default(0),
+  mediumCount: int("medium_count").default(0),
+  lowCount: int("low_count").default(0),
+  negligibleCount: int("negligible_count").default(0),
+  fixedAvailable: int("fixed_available").default(0),
+  vulnerabilities: json("vulnerabilities"),
+  packages: json("packages"),
+  baseImage: varchar("base_image", { length: 512 }),
+  layers: json("layers"),
+  complianceIssues: json("compliance_issues"),
+  malwareDetected: boolean("malware_detected").default(false),
+  secretsDetected: int("secrets_detected").default(0),
+  scanDurationMs: int("scan_duration_ms"),
+  scanEngine: varchar("scan_engine", { length: 64 }).default("built-in"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ContainerImageScan = typeof containerImageScans.$inferSelect;
+export type InsertContainerImageScan = typeof containerImageScans.$inferInsert;

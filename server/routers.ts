@@ -104,6 +104,7 @@ import { nmapRouter } from "./routers/nmap";
 import { discoveryChainRouter } from "./routers/discovery-chain";
 import { crawlPhishRouter } from "./routers/crawl-phish";
 import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
+import { containerRegistryRouter } from "./routers/container-registry";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -292,6 +293,7 @@ export const appRouter = router({
   errorLog: errorLogRouter,
   oemCreds: oemCredsRouter,
   aiChat: aiChatRouter,
+  containerRegistry: containerRegistryRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
