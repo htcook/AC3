@@ -6449,3 +6449,21 @@
 - [x] Vitest tests for tenant onboarding wizard (10 tests)
 - [x] Vitest tests for compliance posture dashboard (8 tests)
 - [x] Vitest tests for webhook scan automation (14 tests)
+
+## Auth Testing Pack v1.2 Integration
+- [x] P0: Inject auth methodology (6 phases) into pentest knowledge base
+- [x] P0: Inject auth attack taxonomy (5 classes, 15+ subtypes) into knowledge base
+- [x] P0: Enrich STRIKE ADVISOR prompt with auth reasoning framework
+- [x] P0: Add auth-specific MITRE ATT&CK mappings
+- [x] P1: Build auth pipeline orchestration engine with workflow controller and guardrails
+- [x] P1: Build OAuth/SAML assessment module with 11 deterministic checks
+- [x] P1: Implement FedRAMP strict/standard mode in scan policy engine
+- [x] P1: Add CARVER auth-specific scoring overlay with conditional adjustments
+- [x] P2: Add 13 FedRAMP auth controls to compliance dashboard
+- [x] P2: Standardize evidence event and finding schemas for auth testing
+- [x] P2: Add auth reasoning agent decision loop with human-in-the-loop gates
+- [x] Frontend: Auth Assessment page with guided SSO testing workflow
+- [x] Frontend: Pipeline Orchestration page with step visualization
+- [x] Vitest: Comprehensive tests for all auth pack modules
+- [x] Cross-module: Apply pipeline/guardrail patterns to other engines
+- [x] Branding: Rename FedRAMP profile/mode names to neutral (Federal Auth Strict/Standard); keep FedRAMP only as framework/control references

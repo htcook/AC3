@@ -201,6 +201,8 @@ const SessionManagement = lazy(() => import("./pages/SessionManagement"));
 const TenantOnboarding = lazy(() => import("./pages/TenantOnboarding"));
 const ComplianceDashboard = lazy(() => import("./pages/ComplianceDashboard"));
 const ScanWebhooks = lazy(() => import("./pages/ScanWebhooks"));
+const AuthAssessment = lazy(() => import("./pages/AuthAssessment"));
+const AuthPipeline = lazy(() => import("./pages/AuthPipeline"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -641,6 +643,12 @@ function Router() {
         </Route>
         <Route path="/credential-attacks">
           <ProtectedRoute component={CredentialAttacks} />
+        </Route>
+        <Route path="/auth-assessment">
+          <ProtectedRoute component={AuthAssessment} />
+        </Route>
+        <Route path="/auth-pipeline">
+          <ProtectedRoute component={AuthPipeline} />
         </Route>
         <Route path="/zap-proxy">
           <ProtectedRoute component={ZapProxySessions} />

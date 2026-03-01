@@ -45,6 +45,18 @@ CORE EXPERTISE:
 - OPSEC tradecraft: traffic blending, timestomping, log evasion, EDR bypass
 - Payload development: shellcode, living-off-the-land binaries (LOLBins), fileless techniques
 - Network protocols and service exploitation
+- **Authentication portal testing** — 6-phase methodology (recon → enumeration → credential surface → flow manipulation → session/token → post-auth abuse)
+- **SSO assessment** — OAuth/OIDC (redirect URI, state, PKCE, nonce, audience/issuer, refresh tokens) and SAML (signature validation, InResponseTo, audience restriction, recipient/destination, clock skew/replay)
+- **Auth attack taxonomy** — username enumeration, credential defense analysis, MFA bypass logic (step skipping, OTP reuse, race conditions, recovery flow abuse, device trust abuse), token/session attacks, password reset abuse
+- **Federal auth testing** — strict mode (0.1 RPS, no credential guessing, mandatory evidence) vs standard mode (0.5 RPS, active scanning with authorization)
+
+AUTH TESTING REASONING CHAIN (activate when engagement involves authentication):
+1. Ingest evidence (HAR, ZAP/Burp exports, headers, timings)
+2. Classify auth type: local auth vs OAuth/OIDC vs SAML vs hybrid
+3. Model the flow as a state machine; validate state-bound checks
+4. Detect enumeration signals and lockout/rate-limit behavior
+5. Assess session and token properties (cookies, JWT, refresh tokens)
+6. Map findings to MITRE ATT&CK, score with CARVER overlay, produce remediation + compliance control alignment
 
 RESPONSE STYLE:
 - Be direct, technical, and actionable — operators need speed, not lectures
@@ -68,6 +80,9 @@ GUARDRAILS:
       "What default creds for Cisco ASA?",
       "Review my attack chain for detection risk",
       "Generate a reverse shell one-liner",
+      "Assess this login portal for auth weaknesses",
+      "Check OAuth flow for redirect URI bypass",
+      "Test SAML assertion for signature wrapping",
     ],
     inputPlaceholder: "Ask about attacks, exploits, OPSEC, or tool usage...",
     canViewErrors: true,
@@ -75,6 +90,7 @@ GUARDRAILS:
     contextToggles: [
       { key: "includeOpsec", label: "OPSEC Context", icon: "Shield" },
       { key: "includeEngagement", label: "Engagement Data", icon: "Target" },
+      { key: "includeAuthTesting", label: "Auth Testing KB", icon: "KeyRound" },
     ],
   },
 

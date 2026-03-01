@@ -167,6 +167,83 @@ const STRICT_PASSIVE_CONTROLS: PassiveControl[] = [
   },
 ];
 
+// ─── Federal Auth Testing Controls ──────────────────────────────────────────
+
+const FEDERAL_STRICT_AUTH_CONTROLS: PassiveControl[] = [
+  {
+    id: "FA-01",
+    requirement: "Maximum 0.1 RPS against auth endpoints. No credential guessing.",
+    enforcement: {
+      perHostRps: 0.1,
+      disableCredentialStuffing: true,
+      disableLoginWorkflows: true,
+      maxAttemptsPerAccount: 1,
+    },
+  },
+  {
+    id: "FA-02",
+    requirement: "Stop immediately on lockout signal (429/403).",
+    enforcement: {
+      stopOnLockoutSignal: true,
+      lockoutSignalCodes: [429, 403],
+      lockoutBackoffMs: 60000,
+    },
+  },
+  {
+    id: "FA-03",
+    requirement: "Mandatory evidence capture for all auth interactions.",
+    enforcement: {
+      requireEvidenceCapture: true,
+      captureRequestResponse: true,
+      captureTimings: true,
+      redactCredentials: true,
+    },
+  },
+  {
+    id: "FA-04",
+    requirement: "Scope allowlist required — only test authorized auth endpoints.",
+    enforcement: {
+      requireScopeAllowlist: true,
+      requireChangeWindow: true,
+    },
+  },
+  {
+    id: "FA-05",
+    requirement: "Human-in-the-loop approval required for credential testing tools.",
+    enforcement: {
+      humanApprovalTools: ["hydra", "medusa", "netexec"],
+      humanApprovalForActiveScanning: true,
+    },
+  },
+];
+
+const FEDERAL_STANDARD_AUTH_CONTROLS: PassiveControl[] = [
+  {
+    id: "FA-S01",
+    requirement: "Maximum 0.5 RPS against auth endpoints. Credential testing with authorization.",
+    enforcement: {
+      perHostRps: 0.5,
+      maxAttemptsPerAccount: 3,
+    },
+  },
+  {
+    id: "FA-S02",
+    requirement: "Stop on lockout signal.",
+    enforcement: {
+      stopOnLockoutSignal: true,
+      lockoutSignalCodes: [429, 403],
+    },
+  },
+  {
+    id: "FA-S03",
+    requirement: "Evidence capture recommended but not mandatory.",
+    enforcement: {
+      requireEvidenceCapture: false,
+      captureRequestResponse: true,
+    },
+  },
+];
+
 const DEFAULT_PROFILES: Record<string, ScanProfile> = {
   strict_passive: {
     id: "strict_passive",
@@ -233,6 +310,54 @@ const DEFAULT_PROFILES: Record<string, ScanProfile> = {
       storeRawResponses: false,
     },
     controls: [],
+  },
+  // ── Federal Auth Testing Profiles (from Auth Pack v1.2) ─────────────────────
+
+  federal_auth_strict: {
+    id: "federal_auth_strict",
+    description:
+      "Federal strict auth testing mode. 0.1 RPS, no credential guessing, mandatory evidence capture, " +
+      "human-in-the-loop gates for all active testing. For high-assurance federal environments.",  allowedScanners: ["zap", "custom_http_headers", "custom_tls", "custom_dns"],
+    allowedModes: ["passive", "active-low"],
+    disallowed: ["brute_force", "auth_guessing", "credential_stuffing", "payload_injection"],
+    rateLimits: {
+      perHostRps: 0.1,
+      perDomainConcurrent: 1,
+      globalConcurrent: 5,
+      jitterMsRange: [200, 1000],
+    },
+    logging: {
+      logLevel: "INFO",
+      retainDays: 365,
+      includeRequestHashes: true,
+      includeResponseHashes: true,
+      storeRawResponses: false,
+    },
+    controls: FEDERAL_STRICT_AUTH_CONTROLS,
+  },
+
+  federal_auth_standard: {
+    id: "federal_auth_standard",
+    description:
+      "Federal standard auth testing mode. 0.5 RPS, controlled credential testing with authorization, " +
+      "active scanning allowed. For authorized penetration testing of federal environments.",
+    allowedScanners: ["zap", "nuclei", "nmap_orchestrated", "custom_http_headers", "custom_tls", "custom_dns"],
+    allowedModes: ["passive", "active-low", "active-standard"],
+    disallowed: ["exploitation", "payload_injection"],
+    rateLimits: {
+      perHostRps: 0.5,
+      perDomainConcurrent: 2,
+      globalConcurrent: 20,
+      jitterMsRange: [100, 500],
+    },
+    logging: {
+      logLevel: "INFO",
+      retainDays: 180,
+      includeRequestHashes: true,
+      includeResponseHashes: true,
+      storeRawResponses: false,
+    },
+    controls: FEDERAL_STANDARD_AUTH_CONTROLS,
   },
 };
 
@@ -671,7 +796,38 @@ export class ScanPolicyEngine {
         "retention is limited to metadata and hashes to reduce data sensitivity."
       );
     }
+    if (profile.id === "federal_auth_strict") {
+      return (
+        "Federal Auth Strict Mode is active. Rate limited to 0.1 RPS. No credential guessing. " +
+        "Mandatory evidence capture. Human-in-the-loop approval required for all active testing. " +
+        "Controls FA-01 through FA-05 enforced. Suitable for high-assurance federal environments."
+      );
+    }
+    if (profile.id === "federal_auth_standard") {
+      return (
+        "Federal Auth Standard Mode is active. Rate limited to 0.5 RPS. Controlled credential " +
+        "testing with authorization. Active scanning allowed with scope restrictions. " +
+        "Controls FA-S01 through FA-S03 enforced."
+      );
+    }
     return `Scan policy profile '${profile.id}' is active. ${profile.description}`;
+  }
+
+  /**
+   * Check if the current profile is a federal auth testing profile.
+   * CROSS-MODULE: Other engines can use this to adjust their behavior.
+   */
+  isFederalAuthMode(): boolean {
+    return this.activeProfileId.startsWith("federal_auth_");
+  }
+
+  /**
+   * Get the federal auth mode level (strict/standard/none).
+   */
+  getFederalAuthLevel(): "strict" | "standard" | "none" {
+    if (this.activeProfileId === "federal_auth_strict") return "strict";
+    if (this.activeProfileId === "federal_auth_standard") return "standard";
+    return "none";
   }
 
   // ── Serialisation ─────────────────────────────────────────────────────

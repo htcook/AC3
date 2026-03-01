@@ -262,6 +262,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/web-app-scanner", icon: Radar, label: "WEB APP SCANNER" },
           { href: "/zap-proxy", icon: Wifi, label: "ZAP PROXY" },
           { href: "/credential-attacks", icon: Lock, label: "CREDENTIAL ATTACKS" },
+          { href: "/auth-assessment", icon: Fingerprint, label: "AUTH ASSESSMENT" },
+          { href: "/auth-pipeline", icon: Workflow, label: "AUTH PIPELINE" },
           { href: "/exploitation-bridge", icon: Crosshair, label: "EXPLOIT BRIDGE" },
           { href: "/privilege-escalation", icon: ArrowUpDown, label: "PRIVESC ENGINE" },
           { href: "/lateral-movement", icon: Network, label: "LATERAL MOVEMENT" },
