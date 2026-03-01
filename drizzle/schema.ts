@@ -11,6 +11,16 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin", "viewer", "operator", "team_lead", "analyst", "executive", "client"]).default("operator").notNull(),
+  // Profile fields
+  avatarUrl: text("avatar_url"),
+  title: varchar("title", { length: 128 }),
+  department: varchar("department", { length: 128 }),
+  phone: varchar("phone", { length: 32 }),
+  timezone: varchar("timezone", { length: 64 }).default("America/New_York"),
+  status: mysqlEnum("status", ["active", "inactive", "suspended", "pending"]).default("active").notNull(),
+  invitedBy: int("invited_by"),
+  lastPasswordChange: timestamp("last_password_change"),
+  mfaEnabled: boolean("mfa_enabled").default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -18,6 +28,28 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * Team invitations — FIPS 140-3 compliant invite tokens for onboarding.
+ * Tokens are SHA-256 hashed before storage; only the hash is persisted.
+ */
+export const teamInvitations = mysqlTable("team_invitations", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("invite_email", { length: 320 }).notNull(),
+  role: mysqlEnum("invite_role", ["user", "admin", "viewer", "operator", "team_lead", "analyst", "executive", "client"]).default("operator").notNull(),
+  tokenHash: varchar("token_hash", { length: 128 }).notNull().unique(),
+  invitedBy: int("invited_by").notNull(),
+  invitedByName: varchar("invited_by_name", { length: 255 }),
+  status: mysqlEnum("invite_status", ["pending", "accepted", "expired", "revoked"]).default("pending").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  acceptedByUserId: int("accepted_by_user_id"),
+  message: text("invite_message"),
+  createdAt: timestamp("invite_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("invite_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type TeamInvitation = typeof teamInvitations.$inferSelect;
+export type InsertTeamInvitation = typeof teamInvitations.$inferInsert;
 
 /**
  * Caldera server configurations

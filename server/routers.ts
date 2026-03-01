@@ -112,6 +112,7 @@ import { lateralMovementRouter } from "./routers/lateral-movement";
 import { engagementWorkflowRouter } from "./routers/engagement-workflow";
 import { campaignAdvisorRouter } from "./routers/campaign-advisor";
 import { reportExportRouter } from "./routers/report-export";
+import { accountRouter } from "./routers/account-management";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -2283,27 +2284,8 @@ export const appRouter = router({
       }),
   }),
 
-  // Team management
-  team: router({
-    list: adminProcedure.query(async () => {
-      return db.getAllUsers();
-    }),
-
-    updateRole: adminProcedure
-      .input(z.object({
-        userId: z.number(),
-        role: z.enum(['user', 'admin', 'viewer']),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        await db.updateUserRole(input.userId, input.role);
-        await db.logActivity({
-          userId: ctx.user.id,
-          action: 'role_updated',
-          details: `Updated user ${input.userId} role to ${input.role}`,
-        });
-        return { success: true };
-      }),
-  }),
+  // Account management (profiles, team, invitations, compliance)
+  account: accountRouter,
 
   // Campaign management
   campaign: router({

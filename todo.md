@@ -6284,3 +6284,25 @@
 - [x] Admin persona switching — Backend endpoint to preview any role's AI persona
 - [x] Admin persona switching — Frontend persona selector dropdown for admins
 - [x] Vitest tests for chat persistence, quick actions, and persona switching
+
+## Account Management & Team Onboarding
+- [x] Audit current auth flow (Manus OAuth) and user schema
+- [x] Add team_invitations table for invite-based onboarding
+- [x] Add user profile fields (avatar, title, department, phone, timezone)
+- [x] Backend: Team management CRUD (list users, invite, update role, deactivate)
+- [x] Backend: User profile endpoints (view/update own profile)
+- [x] Backend: Invitation flow (create invite, accept invite, revoke invite)
+- [x] Frontend: Account Settings page (profile, security info, session management)
+- [x] Frontend: Team Management page (user list, invite form, role assignment)
+- [x] Frontend: Invite acceptance flow for new team members
+- [x] Wire routes in App.tsx for account/team pages
+- [x] Vitest tests for account management endpoints
+- [x] Document auth posture and federal compliance guidance (SAML/OAuth/MFA)
+
+## FIPS 140-3 Compliance
+- [x] FIPS 140-3 crypto utility module (AES-256-GCM, SHA-384/512, HMAC-SHA256, PBKDF2)
+- [x] FIPS-compliant session token generation (CSPRNG via crypto.randomBytes)
+- [x] FIPS-compliant invitation token generation (SHA-256 hashed tokens)
+- [x] Enforce TLS 1.2+ minimum on all connections (document requirement)
+- [x] Security compliance status page showing FIPS/FedRAMP posture
+- [x] Audit log all auth events (login, logout, role change, invite, deactivate)

@@ -193,6 +193,9 @@ const CampaignAdvisor = lazy(() => import("./pages/CampaignAdvisor"));
 const ExportCenter = lazy(() => import("./pages/ExportCenter"));
 const RoleHome = lazy(() => import("./pages/home/RoleHome"));
 const ToolComparison = lazy(() => import("./pages/ToolComparison"));
+const AccountSettings = lazy(() => import("./pages/AccountSettings"));
+const TeamManagementPage = lazy(() => import("./pages/TeamManagement"));
+const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -271,7 +274,13 @@ function Router() {
           {(params) => <ProtectedRoute component={() => <AdversaryDetail />} />}
         </Route>
         <Route path="/team">
-          <ProtectedRoute component={TeamHub} />
+          <ProtectedRoute component={TeamManagementPage} />
+        </Route>
+        <Route path="/account-settings">
+          <ProtectedRoute component={AccountSettings} />
+        </Route>
+        <Route path="/invitations">
+          <ProtectedRoute component={AcceptInvite} />
         </Route>
         <Route path="/activity">
           <ProtectedRoute component={Activity} />

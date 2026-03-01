@@ -24,6 +24,8 @@ import {
   Radio,
   Workflow,
   ShieldCheck,
+  UserCog,
+  Mail,
   Palette,
   Bug,
   ArrowLeftRight,
@@ -368,7 +370,9 @@ const NAV_GROUPS: NavGroup[] = [
         id: "plat-admin",
         label: "Administration",
         items: [
+          { href: "/account-settings", icon: UserCog, label: "MY ACCOUNT" },
           { href: "/team", icon: Users, label: "TEAM" },
+          { href: "/invitations", icon: Mail, label: "INVITATIONS" },
           { href: "/audit-log", icon: FileText, label: "AUDIT LOG" },
           { href: "/siem-connectors", icon: Radio, label: "INTEGRATIONS" },
           { href: "/ssil", icon: Scan, label: "SSIL" },

@@ -463,6 +463,13 @@
       "when": 1772392183622,
       "tag": "0065_sudden_hardball",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "5",
+      "when": 1772393825742,
+      "tag": "0066_far_cobalt_man",
+      "breakpoints": true
     }
   ]
 }
