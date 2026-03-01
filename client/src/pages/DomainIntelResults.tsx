@@ -17,7 +17,8 @@ import {
   TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare,
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
-  Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound
+  Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
+  Box, ClipboardCheck, PackageSearch
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -1447,6 +1448,198 @@ export default function DomainIntelResults() {
 
                   <p className="text-[10px] text-muted-foreground italic">
                     Ownership confidence is calculated from WHOIS registrant match, SSL certificate org field, shared DNS infrastructure, ASN correlation, and web content branding signals.
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Container Infrastructure Exposure */}
+          {(() => {
+            const containerData = pipeline?.containerExposure as any;
+            if (!containerData || containerData.totalHits === 0) return null;
+            const sevColors: Record<string, string> = {
+              critical: 'bg-red-500/20 text-red-400 border-red-500/40',
+              high: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
+              medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+              low: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
+            };
+            const catIcons: Record<string, string> = {
+              registry: '📦', orchestrator: '☸️', dashboard: '🖥️', runtime: '⚙️', storage: '💾',
+            };
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Box className="h-4 w-4 text-orange-400" />
+                    Container Infrastructure Exposure
+                    <Badge variant="outline" className="text-[10px] ml-auto text-red-400 border-red-500/40">
+                      {containerData.totalHits} exposed
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Exposed container registries, orchestrators, dashboards, and runtime APIs detected during external reconnaissance
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-orange-400">{containerData.totalProbes}</p>
+                      <p className="text-[10px] text-muted-foreground">Endpoints Probed</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-red-400">{containerData.totalHits}</p>
+                      <p className="text-[10px] text-muted-foreground">Services Exposed</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-red-500">{containerData.criticalFindings}</p>
+                      <p className="text-[10px] text-muted-foreground">Critical</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-orange-500">{containerData.highFindings}</p>
+                      <p className="text-[10px] text-muted-foreground">High</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {(containerData.findings || []).map((f: any, idx: number) => (
+                      <div key={idx} className="p-3 rounded-lg border border-border/40 bg-muted/10">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-base">{catIcons[f.category] || '📡'}</span>
+                            <span className="text-sm font-medium truncate">{f.service}</span>
+                            <Badge className={`text-[9px] px-1.5 py-0 ${sevColors[f.severity] || sevColors.medium}`}>
+                              {f.severity.toUpperCase()}
+                            </Badge>
+                            {f.authenticated && (
+                              <Badge className="text-[9px] px-1.5 py-0 bg-red-600/30 text-red-300 border-red-500/50">UNAUTHENTICATED</Badge>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-mono text-muted-foreground shrink-0">:{f.port}{f.path}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">{f.riskDescription}</p>
+                        {f.version && <p className="text-[10px] text-cyan-400 mt-1">Version: {f.version}</p>}
+                        {f.cveRefs && f.cveRefs.length > 0 && (
+                          <div className="flex gap-1 mt-1.5 flex-wrap">
+                            {f.cveRefs.map((cve: string, ci: number) => (
+                              <Badge key={ci} variant="outline" className="text-[9px] text-red-400 border-red-500/30">{cve}</Badge>
+                            ))}
+                          </div>
+                        )}
+                        {f.mitreTechniques && f.mitreTechniques.length > 0 && (
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {f.mitreTechniques.map((t: string, ti: number) => (
+                              <span key={ti} className="text-[9px] text-muted-foreground/60 bg-muted/30 px-1.5 py-0.5 rounded">{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Probed {containerData.subdomainsProbed?.length || 0} hostnames including registry.*, k8s.*, docker.*, and container-related subdomains in {((containerData.durationMs || 0) / 1000).toFixed(1)}s.
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* SCAP/STIG Compliance Scan */}
+          {(() => {
+            const compliance = pipeline?.complianceScan as any;
+            if (!compliance) return null;
+            const scoreColor = compliance.complianceScore >= 80 ? 'text-emerald-400' : compliance.complianceScore >= 60 ? 'text-yellow-400' : compliance.complianceScore >= 40 ? 'text-orange-400' : 'text-red-400';
+            const scoreBar = compliance.complianceScore >= 80 ? 'bg-emerald-500' : compliance.complianceScore >= 60 ? 'bg-yellow-500' : compliance.complianceScore >= 40 ? 'bg-orange-500' : 'bg-red-500';
+            const statusColors: Record<string, string> = {
+              fail: 'bg-red-500/20 text-red-400',
+              pass: 'bg-emerald-500/20 text-emerald-400',
+              manual_review: 'bg-yellow-500/20 text-yellow-400',
+              not_applicable: 'bg-zinc-500/20 text-zinc-400',
+              error: 'bg-orange-500/20 text-orange-400',
+            };
+            const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+            const failedChecks = (compliance.checks || []).filter((c: any) => c.status === 'fail').sort((a: any, b: any) => (sevOrder[a.severity] || 5) - (sevOrder[b.severity] || 5));
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ClipboardCheck className="h-4 w-4 text-cyan-400" />
+                    SCAP/STIG Compliance
+                    <Badge variant="outline" className={`text-[10px] ml-auto ${scoreColor}`}>
+                      {compliance.complianceScore}% compliant
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    External configuration compliance checks against {compliance.benchmarkProfile || 'security baselines'} for <span className="font-mono text-foreground">{compliance.target}</span>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Compliance Score Bar */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">Overall Compliance</span>
+                      <span className={`text-sm font-bold ${scoreColor}`}>{compliance.complianceScore}%</span>
+                    </div>
+                    <div className="w-full h-2.5 rounded-full bg-muted/50 overflow-hidden">
+                      <div className={`h-full rounded-full ${scoreBar} transition-all`} style={{ width: `${compliance.complianceScore}%` }} />
+                    </div>
+                  </div>
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center">
+                      <p className="text-lg font-bold text-emerald-400">{compliance.passed}</p>
+                      <p className="text-[10px] text-muted-foreground">Passed</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
+                      <p className="text-lg font-bold text-red-400">{compliance.failed}</p>
+                      <p className="text-[10px] text-muted-foreground">Failed</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-center">
+                      <p className="text-lg font-bold text-yellow-400">{compliance.manualReview}</p>
+                      <p className="text-[10px] text-muted-foreground">Manual Review</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-zinc-500/10 border border-zinc-500/20 text-center">
+                      <p className="text-lg font-bold text-zinc-400">{compliance.notApplicable}</p>
+                      <p className="text-[10px] text-muted-foreground">N/A</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-cyan-400">{compliance.totalChecks}</p>
+                      <p className="text-[10px] text-muted-foreground">Total Checks</p>
+                    </div>
+                  </div>
+                  {/* Failed Checks */}
+                  {failedChecks.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-red-400 mb-2 flex items-center gap-1.5">
+                        <XCircle className="h-3.5 w-3.5" /> Failed Checks ({failedChecks.length})
+                      </p>
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                        {failedChecks.map((check: any, idx: number) => (
+                          <div key={idx} className="p-2.5 rounded-lg border border-red-500/15 bg-red-500/5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className={`text-[9px] px-1.5 py-0 ${
+                                check.severity === 'critical' ? 'bg-red-600/30 text-red-300' :
+                                check.severity === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                                'bg-yellow-500/20 text-yellow-400'
+                              }`}>{check.severity.toUpperCase()}</Badge>
+                              <span className="text-xs font-medium truncate">{check.title}</span>
+                              <span className="text-[9px] font-mono text-muted-foreground ml-auto shrink-0">{check.checkId}</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">{check.evidence}</p>
+                            <p className="text-[10px] text-cyan-400/80 mt-1">Fix: {check.remediation}</p>
+                            {check.nistControls && check.nistControls.length > 0 && (
+                              <div className="flex gap-1 mt-1 flex-wrap">
+                                {check.nistControls.map((ctrl: string, ci: number) => (
+                                  <span key={ci} className="text-[9px] text-muted-foreground/60 bg-muted/30 px-1.5 py-0.5 rounded">{ctrl}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground italic">
+                    {compliance.scanType === 'external' ? 'External' : 'Authenticated'} compliance scan completed in {((compliance.durationMs || 0) / 1000).toFixed(1)}s using {compliance.benchmarkProfile}.
                   </p>
                 </CardContent>
               </Card>

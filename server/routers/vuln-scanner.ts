@@ -259,6 +259,199 @@ export const vulnScannerRouter = router({
       });
     }),
 
+  // ─── Scanner API Integration ──────────────────────────────────────
+
+  validateScannerConnection: protectedProcedure
+    .input(z.object({
+      type: z.enum(["nessus", "tenable_io", "qualys", "rapid7"]),
+      baseUrl: z.string(),
+      apiKey: z.string().optional(),
+      apiSecret: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+      accessKey: z.string().optional(),
+      secretKey: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { validateConnection } = await import("../lib/scanner-api-integration");
+      return validateConnection(input);
+    }),
+
+  listRemoteScans: protectedProcedure
+    .input(z.object({
+      type: z.enum(["nessus", "tenable_io", "qualys", "rapid7"]),
+      baseUrl: z.string(),
+      apiKey: z.string().optional(),
+      apiSecret: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+      accessKey: z.string().optional(),
+      secretKey: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { listRemoteScans } = await import("../lib/scanner-api-integration");
+      return listRemoteScans(input);
+    }),
+
+  pullRemoteScan: protectedProcedure
+    .input(z.object({
+      type: z.enum(["nessus", "tenable_io", "qualys", "rapid7"]),
+      baseUrl: z.string(),
+      scanId: z.string(),
+      apiKey: z.string().optional(),
+      apiSecret: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+      accessKey: z.string().optional(),
+      secretKey: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { pullScanResults } = await import("../lib/scanner-api-integration");
+      const { getDb } = await import("../db");
+      const { vulnScanImports, vulnScanFindings } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const result = await pullScanResults(input, input.scanId);
+
+      const importResult = await db.insert(vulnScanImports).values({
+        scannerType: input.type,
+        fileName: `API Pull: ${input.type} scan #${input.scanId}`,
+        totalHosts: result.totalHosts,
+        totalVulns: result.totalVulns,
+        criticalCount: result.criticalCount,
+        highCount: result.highCount,
+        mediumCount: result.mediumCount,
+        lowCount: result.lowCount,
+        importedBy: String(ctx.user.id),
+      });
+
+      const importId = importResult[0].insertId;
+
+      if (result.findings.length > 0) {
+        const findingsToInsert = result.findings.map((f) => ({
+          importId,
+          cveId: f.cveId,
+          title: f.title,
+          severity: f.severity,
+          cvssScore: f.cvssScore,
+          hostIp: f.hostIp,
+          hostName: f.hostName,
+          port: f.port,
+          protocol: f.protocol,
+          description: f.description,
+          solution: f.solution,
+          pluginId: f.pluginId,
+          exploitAvailable: f.exploitAvailable,
+        }));
+        await db.insert(vulnScanFindings).values(findingsToInsert);
+      }
+
+      // Run auto-corroboration
+      const { corroborateFindings, estimateFPReduction } = await import("../lib/corroboration-engine");
+      const { corroborationResults } = await import("../../drizzle/schema");
+      const { eq: eqOp, inArray } = await import("drizzle-orm");
+
+      const importedFindings = await db.select().from(vulnScanFindings).where(eqOp(vulnScanFindings.importId, importId));
+      const hostIps = Array.from(new Set(importedFindings.map(f => f.hostIp).filter(Boolean))) as string[];
+      let allFindings = importedFindings;
+      if (hostIps.length > 0) {
+        allFindings = await db.select().from(vulnScanFindings).where(inArray(vulnScanFindings.hostIp, hostIps));
+      }
+
+      const engineFindings = allFindings.map(f => ({
+        id: String(f.id),
+        title: f.title,
+        source: input.type,
+        severity: f.severity as "critical" | "high" | "medium" | "low" | "info",
+        cveId: f.cveId ?? undefined,
+        hostOrAsset: f.hostIp || f.hostName || "unknown",
+        port: f.port ?? undefined,
+        service: f.protocol ?? undefined,
+        rawConfidence: f.cvssScore ? Math.min(100, Math.round(f.cvssScore * 10)) : 50,
+        timestamp: f.createdAt ? new Date(f.createdAt).getTime() : Date.now(),
+      }));
+
+      const corroborationReport = corroborateFindings(engineFindings);
+
+      for (const cr of corroborationReport.results) {
+        const findingId = parseInt(cr.findingId);
+        if (isNaN(findingId)) continue;
+        await db.update(vulnScanFindings)
+          .set({
+            corroborationScore: cr.adjustedConfidence,
+            corroborationVerdict: cr.verdict,
+            corroborationSources: cr.corroboratingSourceCount,
+            suppressRecommended: cr.suppressRecommendation,
+          })
+          .where(eqOp(vulnScanFindings.id, findingId));
+        await db.insert(corroborationResults).values({
+          importId,
+          findingId,
+          originalConfidence: cr.originalConfidence,
+          adjustedConfidence: cr.adjustedConfidence,
+          corroboratingCount: cr.corroboratingSourceCount,
+          contradictingCount: cr.contradictingSourceCount,
+          corroboratingSources: cr.corroboratingSources.join(","),
+          contradictingSources: cr.contradictingSources.join(","),
+          verdict: cr.verdict,
+          reasoning: cr.reasoning,
+          suppressRecommendation: cr.suppressRecommendation,
+        });
+      }
+
+      const fpReduction = estimateFPReduction(corroborationReport);
+
+      return {
+        id: importId,
+        totalVulns: result.totalVulns,
+        totalHosts: result.totalHosts,
+        corroboration: {
+          totalAnalyzed: corroborationReport.totalFindings,
+          corroborated: corroborationReport.corroboratedFindings,
+          suppressed: corroborationReport.suppressedFindings,
+          estimatedFPReduction: fpReduction,
+        },
+      };
+    }),
+
+  // ─── SCAP Compliance Scanning ─────────────────────────────────────
+
+  runComplianceScan: protectedProcedure
+    .input(z.object({
+      target: z.string(),
+      categories: z.array(z.enum([
+        "tls_configuration", "http_security_headers", "dns_security",
+        "service_hardening", "authentication", "access_control",
+        "logging_auditing", "network_security", "cryptography", "patch_management"
+      ])).optional(),
+      benchmarks: z.array(z.enum(["cis", "disa_stig", "nist_800_53", "fedramp", "custom"])).optional(),
+      timeout: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runExternalComplianceScan } = await import("../lib/scap-compliance-scanner");
+      return runExternalComplianceScan(input.target, {
+        timeout: input.timeout,
+        categories: input.categories,
+        benchmarks: input.benchmarks,
+      });
+    }),
+
+  importComplianceReport: protectedProcedure
+    .input(z.object({
+      target: z.string(),
+      reportType: z.enum(["openscap_xccdf", "lynis"]),
+      reportContent: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { parseOpenSCAPResults, parseLynisReport } = await import("../lib/scap-compliance-scanner");
+      if (input.reportType === "openscap_xccdf") {
+        return parseOpenSCAPResults(input.reportContent, input.target);
+      } else {
+        return parseLynisReport(input.reportContent, input.target);
+      }
+    }),
+
   getGlobalCorroborationStats: protectedProcedure.query(async () => {
     const { getDb } = await import("../db");
     const { corroborationResults } = await import("../../drizzle/schema");

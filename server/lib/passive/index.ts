@@ -23,6 +23,7 @@ import { greynoiseConnector } from "./greynoise";
 import { emailSecurityConnector } from "./email-security";
 import { httpSecurityConnector } from "./http-security";
 import { cloudAssetsConnector } from "./cloud-assets";
+import { containerDiscoveryConnector } from "./container-discovery";
 import { dnsDeepConnector } from "./dns-deep";
 import { githubLeaksConnector } from "./github-leaks";
 import { virustotalConnector } from "./virustotal";
@@ -57,6 +58,7 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   emailSecurityConnector,     // Email security posture (DMARC/SPF/DKIM)
   httpSecurityConnector,      // HTTP security headers & WAF detection
   cloudAssetsConnector,       // Cloud storage enumeration (S3/Azure/GCP)
+  containerDiscoveryConnector, // Container infrastructure discovery (Docker/K8s/registries)
   dnsDeepConnector,           // Comprehensive DNS record analysis
   githubLeaksConnector,       // GitHub code leak scanner (Priority #10)
   // --- New OSINT sources (SpiderFoot-class expansion) ---

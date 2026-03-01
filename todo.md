@@ -5958,3 +5958,10 @@
 - [x] Add scoped scan option to backend pipeline — skip asset discovery/inference when enabled, only scan exact user-provided assets
 - [x] Add scoped scan toggle/option to frontend scan UI so users can restrict scans to their RoE scope
 - [x] Write tests for scoped scan mode
+## FedRAMP Gap Remediation
+- [x] Build external container discovery module (detect exposed Docker registries, K8s APIs, container dashboards, public image scanning via passive/active recon)
+- [x] Build SCAP/STIG configuration compliance scanning module (OpenSCAP via SSH, CIS benchmarks, DISA STIG checks)
+- [x] Build authenticated scan report upload backend (parse Nessus .nessus XML, Qualys CSV/XML, Rapid7 CSV, merge into engagement findings)
+- [x] Build scanner API integration backend (Nessus/Tenable.io API, Qualys API, Rapid7 InsightVM API — pull authenticated scan results)
+- [x] Build frontend UI for scan report upload and scanner API connection during engagements
+- [x] Write tests for container scanning, SCAP/STIG, scan upload, and scanner API modules

@@ -4587,6 +4587,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 discoveryStats: result.orgDiscovery.discoveryStats,
                 durationMs: result.orgDiscovery.durationMs,
               } : undefined,
+              complianceScan: result.complianceScan || undefined,
+              containerExposure: result.containerExposure || undefined,
             };
 
             // If scan-only mode, skip threat actor matching and campaign design
@@ -5080,6 +5082,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 discoveryStats: result.orgDiscovery.discoveryStats,
                 durationMs: result.orgDiscovery.durationMs,
               } : undefined,
+              complianceScan: result.complianceScan || undefined,
+              containerExposure: result.containerExposure || undefined,
               retriedAt: new Date().toISOString(),
             };
 
@@ -5517,6 +5521,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 discoveryStats: result.orgDiscovery.discoveryStats,
                 durationMs: result.orgDiscovery.durationMs,
               } : undefined,
+              complianceScan: result.complianceScan || undefined,
+              containerExposure: result.containerExposure || undefined,
               // Preserve the previous snapshot for comparison
               previousSnapshot,
               refreshedAt: new Date().toISOString(),
@@ -6613,6 +6619,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 discoveryStats: result.orgDiscovery.discoveryStats,
                 durationMs: result.orgDiscovery.durationMs,
               } : undefined,
+              complianceScan: result.complianceScan || undefined,
+              containerExposure: result.containerExposure || undefined,
             };
 
             const finalStatus = scanOnly ? 'scan_complete' : 'completed';

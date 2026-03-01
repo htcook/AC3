@@ -278,6 +278,54 @@ export interface PipelineResult {
     matchedTechnology: string;
     matchedAsset: string;
   }>;
+  /** External SCAP/STIG compliance scan results */
+  complianceScan?: {
+    target: string;
+    complianceScore: number;
+    totalChecks: number;
+    passed: number;
+    failed: number;
+    notApplicable: number;
+    manualReview: number;
+    errors: number;
+    benchmarkProfile: string;
+    scanType: string;
+    durationMs: number;
+    checks: Array<{
+      checkId: string;
+      title: string;
+      category: string;
+      severity: string;
+      status: string;
+      evidence: string;
+      remediation: string;
+      benchmarkRef: string;
+      stigId?: string;
+      nistControls: string[];
+    }>;
+  };
+  /** Container infrastructure exposure findings */
+  containerExposure?: {
+    totalProbes: number;
+    totalHits: number;
+    criticalFindings: number;
+    highFindings: number;
+    findings: Array<{
+      service: string;
+      category: string;
+      port: number;
+      path: string;
+      severity: string;
+      authenticated: boolean;
+      version?: string;
+      matchedSignatures: string[];
+      riskDescription: string;
+      cveRefs: string[];
+      mitreTechniques: string[];
+    }>;
+    subdomainsProbed: string[];
+    durationMs: number;
+  };
   /** Summary of automated credential testing against discovered services */
   credentialTestSummary?: {
     totalTargets: number;
@@ -2627,6 +2675,33 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  // Stage 3.991: External SCAP/STIG Compliance Scan
+  let complianceScan: PipelineResult['complianceScan'];
+  try {
+    const { runExternalComplianceScan } = await import('./lib/scap-compliance-scanner');
+    console.log(`[DomainIntel] Stage 3.991: Running external SCAP/STIG compliance scan against ${org.primaryDomain}`);
+    complianceScan = await runExternalComplianceScan(org.primaryDomain, { timeout: 15000 });
+    console.log(`[DomainIntel] SCAP compliance: ${complianceScan.complianceScore}% (${complianceScan.passed}/${complianceScan.totalChecks - complianceScan.notApplicable} passed, ${complianceScan.failed} failed)`);
+  } catch (scapErr: any) {
+    console.error(`[DomainIntel] Stage 3.991 SCAP compliance scan failed (non-fatal): ${scapErr.message}`);
+  }
+
+  // Stage 3.992: Container Infrastructure Exposure Scan
+  let containerExposure: PipelineResult['containerExposure'];
+  try {
+    const { analyzeContainerExposure } = await import('./lib/passive/container-discovery');
+    const additionalHosts = analyses.map(a => a.asset.hostname).filter(h => h !== org.primaryDomain);
+    console.log(`[DomainIntel] Stage 3.992: Running container exposure scan (${additionalHosts.length + 1} hosts)`);
+    containerExposure = await analyzeContainerExposure(org.primaryDomain, additionalHosts, 10000);
+    if (containerExposure.totalHits > 0) {
+      console.log(`[DomainIntel] Container exposure: ${containerExposure.totalHits} exposed services found (${containerExposure.criticalFindings} critical, ${containerExposure.highFindings} high)`);
+    } else {
+      console.log(`[DomainIntel] Container exposure: No exposed container infrastructure detected (${containerExposure.totalProbes} probes)`);
+    }
+  } catch (containerErr: any) {
+    console.error(`[DomainIntel] Stage 3.992 container exposure scan failed (non-fatal): ${containerErr.message}`);
+  }
+
   // ─── Auto-generate CARVER Risk Card for this domain ────────────────────
   let carverRiskCard: any = null;
   try {
@@ -2718,5 +2793,7 @@ export async function runDomainIntelPipeline(
     orgDiscovery: orgDiscoveryResult || undefined,
     oemCredentials,
     credentialTestSummary,
+    complianceScan,
+    containerExposure,
   };
 }
