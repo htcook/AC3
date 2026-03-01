@@ -5948,3 +5948,7 @@
 - [x] Added tiered severity boosts: version-confirmed 10-15pts, unversioned 4-8pts, fuzzy 2-6pts
 - [x] Updated calculateKevRiskBoost to weight by match quality
 - [x] Yellow assets are from medium risk band (CARVER/Shock scoring) — correct behavior, not a bug
+## Org Discovery Results Card in Scan Overview
+- [x] Add org discovery results card to Scan Overview UI showing discovered related domains with ownership confidence and mission classification
+## KEV Match Quality Indicators
+- [x] Add KEV match quality indicators to frontend - display "confirmed" vs "potential" badges on KEV matches to distinguish version-verified from fuzzy matches

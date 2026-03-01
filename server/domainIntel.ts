@@ -16,6 +16,7 @@ import { enrichAssetsWithShodanData, verifyCvesWithShodanData, createShodanPostu
 import { matchExploitsToFindings, type ExploitMatch } from "./lib/exploit-matcher";
 import { ENV } from "./_core/env";
 import { runCrossModuleEnrichment, type CrossModuleEnrichmentResult } from "./lib/cross-module-enrichment";
+import { discoverOrgDomains, type OrgDiscoveryResult } from "./lib/org-domain-discovery";
 import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -264,6 +265,7 @@ export interface PipelineResult {
   };
   crossModuleEnrichment?: CrossModuleEnrichmentResult;
   postEnrichmentAnalysis?: PostEnrichmentAnalysis;
+  orgDiscovery?: OrgDiscoveryResult;
   oemCredentials?: Array<{
     vendor: string;
     product: string;
@@ -1578,6 +1580,27 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Passive recon failed (non-fatal): ${err.message}`);
   }
 
+  // Stage 0.75: Org Domain Discovery (find related domains owned by same org)
+  let orgDiscoveryResult: OrgDiscoveryResult | undefined;
+  try {
+    const orgEmail = passiveRecon?.allObservations?.find(o => o.evidence?.registrant?.organization || o.evidence?.contactEmail)?.evidence?.contactEmail || null;
+    orgDiscoveryResult = await discoverOrgDomains(
+      org.primaryDomain,
+      org.customerName,
+      orgEmail || null,
+      {
+        minConfidenceThreshold: 40,
+        maxCandidates: 50,
+        enableWebVerification: false,
+        enableSpfPivoting: true,
+        lookupTimeoutMs: 10000,
+      }
+    );
+    console.log(`[DomainIntel] Org Discovery: ${orgDiscoveryResult.verifiedDomains.length} verified, ${orgDiscoveryResult.unverifiedDomains.length} unverified related domains found`);
+  } catch (err: any) {
+    console.error(`[DomainIntel] Org domain discovery failed (non-fatal): ${err.message}`);
+  }
+
   // Stage 1: Discover assets (with FP learning context + passive recon data)
   await onProgress?.('discovering');
   const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined, passiveContext);
@@ -2624,6 +2647,7 @@ export async function runDomainIntelPipeline(
     emailSecurity: emailSecurityReport || undefined,
     crossModuleEnrichment,
     postEnrichmentAnalysis,
+    orgDiscovery: orgDiscoveryResult || undefined,
     oemCredentials,
     credentialTestSummary,
   };

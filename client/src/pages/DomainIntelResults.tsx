@@ -1295,6 +1295,164 @@ export default function DomainIntelResults() {
             );
           })()}
 
+          {/* Org Discovery — Related Domains */}
+          {(() => {
+            const orgDisc = pipeline?.orgDiscovery as any;
+            if (!orgDisc) return null;
+            const allDomains = [...(orgDisc.verifiedDomains || []), ...(orgDisc.unverifiedDomains || [])];
+            if (allDomains.length === 0) return null;
+
+            const missionColors: Record<string, string> = {
+              product: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
+              service: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
+              infrastructure: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
+              marketing: 'bg-pink-500/20 text-pink-400 border-pink-500/40',
+              corporate: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+              unknown: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40',
+            };
+
+            const confidenceColor = (c: number) =>
+              c >= 80 ? 'text-emerald-400' : c >= 60 ? 'text-yellow-400' : c >= 40 ? 'text-orange-400' : 'text-red-400';
+            const confidenceBar = (c: number) =>
+              c >= 80 ? 'bg-emerald-500' : c >= 60 ? 'bg-yellow-500' : c >= 40 ? 'bg-orange-500' : 'bg-red-500';
+
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Network className="h-4 w-4 text-purple-400" />
+                    Org Domain Discovery
+                    <Badge variant="outline" className="text-[10px] ml-auto">{allDomains.length} domains</Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Related domains discovered via WHOIS, certificate transparency, DNS infrastructure pivoting, and SPF record analysis for <span className="font-mono text-foreground">{orgDisc.orgName || orgDisc.seedDomain}</span>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Discovery Stats Summary */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-purple-400">{orgDisc.totalCandidatesFound || 0}</p>
+                      <p className="text-[10px] text-muted-foreground">Candidates Found</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-emerald-400">{(orgDisc.verifiedDomains || []).length}</p>
+                      <p className="text-[10px] text-muted-foreground">Verified Owned</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-amber-400">{(orgDisc.unverifiedDomains || []).length}</p>
+                      <p className="text-[10px] text-muted-foreground">Unverified</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-cyan-400">{orgDisc.durationMs ? `${(orgDisc.durationMs / 1000).toFixed(1)}s` : '—'}</p>
+                      <p className="text-[10px] text-muted-foreground">Discovery Time</p>
+                    </div>
+                  </div>
+
+                  {/* Discovery Source Stats */}
+                  {orgDisc.discoveryStats && orgDisc.discoveryStats.length > 0 && (
+                    <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Discovery Sources</p>
+                      <div className="flex flex-wrap gap-2">
+                        {orgDisc.discoveryStats.map((stat: any, idx: number) => (
+                          <Badge key={idx} variant="outline" className={`text-[10px] ${
+                            stat.status === 'success' ? 'text-emerald-400 border-emerald-500/40' :
+                            stat.status === 'failed' ? 'text-red-400 border-red-500/40' :
+                            'text-zinc-400 border-zinc-500/40'
+                          }`}>
+                            {stat.source}: {stat.domainsFound} found
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Verified Domains */}
+                  {(orgDisc.verifiedDomains || []).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-emerald-400 mb-2 flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Verified Domains ({(orgDisc.verifiedDomains || []).length})
+                      </p>
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                        {(orgDisc.verifiedDomains || []).map((d: any, idx: number) => (
+                          <div key={idx} className="p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Globe className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                <span className="font-mono text-sm font-medium truncate">{d.domain}</span>
+                                <Badge className={`text-[9px] px-1.5 py-0 ${missionColors[d.missionRelevance] || missionColors.unknown}`}>
+                                  {(d.missionRelevance || 'unknown').toUpperCase()}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-16 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                                    <div className={`h-full rounded-full ${confidenceBar(d.ownershipConfidence)}`} style={{ width: `${d.ownershipConfidence}%` }} />
+                                  </div>
+                                  <span className={`text-[10px] font-mono font-bold ${confidenceColor(d.ownershipConfidence)}`}>{d.ownershipConfidence}%</span>
+                                </div>
+                              </div>
+                            </div>
+                            {d.ownershipSignals && d.ownershipSignals.length > 0 && (
+                              <div className="flex gap-1 mt-1.5 flex-wrap">
+                                {d.ownershipSignals.slice(0, 4).map((sig: any, si: number) => (
+                                  <Badge key={si} variant="outline" className="text-[9px] text-muted-foreground">
+                                    {sig.type.replace(/_/g, ' ')}: {sig.value?.substring(0, 30)}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {d.discoverySource && d.discoverySource.length > 0 && (
+                              <div className="flex gap-1 mt-1 flex-wrap">
+                                {d.discoverySource.map((src: string, si: number) => (
+                                  <span key={si} className="text-[9px] text-muted-foreground/60 bg-muted/30 px-1.5 py-0.5 rounded">{src}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unverified Domains */}
+                  {(orgDisc.unverifiedDomains || []).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-amber-400 mb-2 flex items-center gap-1.5">
+                        <ShieldQuestion className="h-3.5 w-3.5" /> Unverified Domains ({(orgDisc.unverifiedDomains || []).length})
+                      </p>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {(orgDisc.unverifiedDomains || []).map((d: any, idx: number) => (
+                          <div key={idx} className="p-2 rounded-lg border border-amber-500/15 bg-amber-500/5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Globe className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                <span className="font-mono text-xs truncate">{d.domain}</span>
+                                <Badge className={`text-[9px] px-1.5 py-0 ${missionColors[d.missionRelevance] || missionColors.unknown}`}>
+                                  {(d.missionRelevance || 'unknown').toUpperCase()}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <div className="w-12 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                                  <div className={`h-full rounded-full ${confidenceBar(d.ownershipConfidence)}`} style={{ width: `${d.ownershipConfidence}%` }} />
+                                </div>
+                                <span className={`text-[10px] font-mono ${confidenceColor(d.ownershipConfidence)}`}>{d.ownershipConfidence}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Ownership confidence is calculated from WHOIS registrant match, SSL certificate org field, shared DNS infrastructure, ASN correlation, and web content branding signals.
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Risk Heatmap */}
           <Card>
             <CardHeader>
@@ -1597,6 +1755,8 @@ export default function DomainIntelResults() {
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <Badge className="text-[9px] px-1 py-0 text-emerald-400 bg-emerald-500/20 border-emerald-500/40">CONFIRMED</Badge>
                                       {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                      {f.kevListed && f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-emerald-600/30 text-emerald-300 border-emerald-500/50">CONFIRMED</Badge>}
+                                      {f.kevListed && !f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-amber-600/30 text-amber-300 border-amber-500/50">POTENTIAL</Badge>}
                                       {(() => { const t = (f.title || '').toLowerCase(); return (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection')) ? <Badge className="text-[9px] px-1 py-0 bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">REMOTE ACCESS</Badge> : null; })()}
                                       <span className="font-medium">{f.title}</span>
                                       <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
@@ -1964,6 +2124,8 @@ export default function DomainIntelResults() {
                               </div>
                               <div className="flex gap-1 shrink-0 flex-wrap">
                                 {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                {f.kevListed && f.versionMatchConfirmed && <Badge className="text-[10px] bg-emerald-600/30 text-emerald-300 border-emerald-500/50">CONFIRMED</Badge>}
+                                {f.kevListed && !f.versionMatchConfirmed && <Badge className="text-[10px] bg-amber-600/30 text-amber-300 border-amber-500/50">POTENTIAL</Badge>}
                                 {f.exploitAvailable && !f.kevListed && <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">Exploit</Badge>}
                                 {f.corroborationTier === 'potential' ? (
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground/60 border-muted-foreground/30">NOT RATED</Badge>
@@ -4103,6 +4265,16 @@ export default function DomainIntelResults() {
                                       <Skull className="h-3 w-3 mr-0.5" /> KEV
                                     </Badge>
                                   )}
+                                  {f.kevListed && f.versionMatchConfirmed && (
+                                    <Badge className="text-[10px] bg-emerald-600/30 text-emerald-300 border-emerald-500/50">
+                                      <CheckCircle2 className="h-3 w-3 mr-0.5" /> CONFIRMED
+                                    </Badge>
+                                  )}
+                                  {f.kevListed && !f.versionMatchConfirmed && (
+                                    <Badge className="text-[10px] bg-amber-600/30 text-amber-300 border-amber-500/50">
+                                      <ShieldQuestion className="h-3 w-3 mr-0.5" /> POTENTIAL
+                                    </Badge>
+                                  )}
                                   {f.exploitAvailable && !f.kevListed && (
                                     <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">
                                       <Zap className="h-3 w-3 mr-0.5" /> Exploit
@@ -4305,6 +4477,8 @@ export default function DomainIntelResults() {
                                 </div>
                                 <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
                                   {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50"><Skull className="h-3 w-3 mr-0.5" /> KEV</Badge>}
+                                  {f.kevListed && f.versionMatchConfirmed && <Badge className="text-[10px] bg-emerald-600/30 text-emerald-300 border-emerald-500/50"><CheckCircle2 className="h-3 w-3 mr-0.5" /> CONFIRMED</Badge>}
+                                  {f.kevListed && !f.versionMatchConfirmed && <Badge className="text-[10px] bg-amber-600/30 text-amber-300 border-amber-500/50"><ShieldQuestion className="h-3 w-3 mr-0.5" /> POTENTIAL</Badge>}
                                   <Badge variant="outline" className="text-[10px] text-yellow-400/70 border-yellow-500/30">Sev: {f.severity}/10 (capped)</Badge>
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground/60">Likelihood: {f.likelihood}/10</Badge>
                                 </div>
@@ -5785,6 +5959,8 @@ function VulnIntelSection({ scanId }: { scanId: number }) {
                             }`}>{vuln.severity?.toUpperCase()}</Badge>
                             {vuln.cvssScore && <Badge variant="outline" className="text-[8px] font-mono text-cyan-400 border-cyan-500/40">CVSS {vuln.cvssScore}</Badge>}
                             {vuln.kevListed && <Badge className="bg-red-600/80 text-white text-[8px]">KEV</Badge>}
+                            {vuln.kevListed && vuln.versionMatchConfirmed && <Badge className="bg-emerald-600/80 text-white text-[8px]">CONFIRMED</Badge>}
+                            {vuln.kevListed && !vuln.versionMatchConfirmed && <Badge className="bg-amber-600/80 text-white text-[8px]">POTENTIAL</Badge>}
                             {vuln.inTheWild && <Badge className="bg-purple-600/80 text-white text-[8px]">0-DAY</Badge>}
                             {vuln.exploitAvailable && !vuln.inTheWild && <Badge className="bg-amber-600/80 text-white text-[8px]">EXPLOIT</Badge>}
                             {vuln.ransomwareLinked && <Badge className="bg-pink-600/80 text-white text-[8px]">RANSOMWARE</Badge>}
@@ -7894,6 +8070,8 @@ function TechVulnsTab({ scanId }: { scanId: number }) {
                           {cve.cvssScore && <span className="text-[10px] text-cyan-400">CVSS {cve.cvssScore}</span>}
                           {cve.exploitAvailable && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">Exploit Available</Badge>}
                           {cve.kevListed && <Badge variant="outline" className="text-red-400 border-red-500/40 text-[10px]">KEV Listed</Badge>}
+                          {cve.kevListed && cve.versionMatchConfirmed && <Badge variant="outline" className="text-emerald-400 border-emerald-500/40 text-[10px]">Confirmed Match</Badge>}
+                          {cve.kevListed && !cve.versionMatchConfirmed && <Badge variant="outline" className="text-amber-400 border-amber-500/40 text-[10px]">Potential Match</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground">{cve.description}</p>
                         {cve.remediation && (

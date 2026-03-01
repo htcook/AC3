@@ -4575,6 +4575,17 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 confidenceStatement: result.postEnrichmentAnalysis.confidenceStatement,
                 enrichmentSources: (result.postEnrichmentAnalysis as any).enrichmentSources,
               } : undefined,
+              // Org discovery results — related domains found via WHOIS/DNS/cert pivoting
+              orgDiscovery: result.orgDiscovery ? {
+                seedDomain: result.orgDiscovery.seedDomain,
+                orgName: result.orgDiscovery.orgName,
+                orgEmail: result.orgDiscovery.orgEmail,
+                totalCandidatesFound: result.orgDiscovery.totalCandidatesFound,
+                verifiedDomains: result.orgDiscovery.verifiedDomains.slice(0, 50),
+                unverifiedDomains: result.orgDiscovery.unverifiedDomains.slice(0, 30),
+                discoveryStats: result.orgDiscovery.discoveryStats,
+                durationMs: result.orgDiscovery.durationMs,
+              } : undefined,
             };
 
             // If scan-only mode, skip threat actor matching and campaign design
@@ -5057,6 +5068,17 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 confidenceStatement: result.postEnrichmentAnalysis.confidenceStatement,
                 enrichmentSources: (result.postEnrichmentAnalysis as any).enrichmentSources,
               } : undefined,
+              // Org discovery results
+              orgDiscovery: result.orgDiscovery ? {
+                seedDomain: result.orgDiscovery.seedDomain,
+                orgName: result.orgDiscovery.orgName,
+                orgEmail: result.orgDiscovery.orgEmail,
+                totalCandidatesFound: result.orgDiscovery.totalCandidatesFound,
+                verifiedDomains: result.orgDiscovery.verifiedDomains.slice(0, 50),
+                unverifiedDomains: result.orgDiscovery.unverifiedDomains.slice(0, 30),
+                discoveryStats: result.orgDiscovery.discoveryStats,
+                durationMs: result.orgDiscovery.durationMs,
+              } : undefined,
               retriedAt: new Date().toISOString(),
             };
 
@@ -5482,6 +5504,17 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 overallAssessment: result.postEnrichmentAnalysis.overallAssessment,
                 confidenceStatement: result.postEnrichmentAnalysis.confidenceStatement,
                 enrichmentSources: (result.postEnrichmentAnalysis as any).enrichmentSources,
+              } : undefined,
+              // Org discovery results
+              orgDiscovery: result.orgDiscovery ? {
+                seedDomain: result.orgDiscovery.seedDomain,
+                orgName: result.orgDiscovery.orgName,
+                orgEmail: result.orgDiscovery.orgEmail,
+                totalCandidatesFound: result.orgDiscovery.totalCandidatesFound,
+                verifiedDomains: result.orgDiscovery.verifiedDomains.slice(0, 50),
+                unverifiedDomains: result.orgDiscovery.unverifiedDomains.slice(0, 30),
+                discoveryStats: result.orgDiscovery.discoveryStats,
+                durationMs: result.orgDiscovery.durationMs,
               } : undefined,
               // Preserve the previous snapshot for comparison
               previousSnapshot,
@@ -6568,6 +6601,17 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
               enrichedOrgProfile: orgProfile,
               biaProfile,
               enrichmentSources: enrichResult.orgProfile.enrichmentSources,
+              // Org discovery results
+              orgDiscovery: result.orgDiscovery ? {
+                seedDomain: result.orgDiscovery.seedDomain,
+                orgName: result.orgDiscovery.orgName,
+                orgEmail: result.orgDiscovery.orgEmail,
+                totalCandidatesFound: result.orgDiscovery.totalCandidatesFound,
+                verifiedDomains: result.orgDiscovery.verifiedDomains.slice(0, 50),
+                unverifiedDomains: result.orgDiscovery.unverifiedDomains.slice(0, 30),
+                discoveryStats: result.orgDiscovery.discoveryStats,
+                durationMs: result.orgDiscovery.durationMs,
+              } : undefined,
             };
 
             const finalStatus = scanOnly ? 'scan_complete' : 'completed';
