@@ -203,6 +203,8 @@ const ComplianceDashboard = lazy(() => import("./pages/ComplianceDashboard"));
 const ScanWebhooks = lazy(() => import("./pages/ScanWebhooks"));
 const AuthAssessment = lazy(() => import("./pages/AuthAssessment"));
 const AuthPipeline = lazy(() => import("./pages/AuthPipeline"));
+const CloudSecurityValidation = lazy(() => import("./pages/CloudSecurityValidation"));
+const SigmaRuleGenerator = lazy(() => import("./pages/SigmaRuleGenerator"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -649,6 +651,12 @@ function Router() {
         </Route>
         <Route path="/auth-pipeline">
           <ProtectedRoute component={AuthPipeline} />
+        </Route>
+        <Route path="/cloud-security-validation">
+          <ProtectedRoute component={CloudSecurityValidation} />
+        </Route>
+        <Route path="/sigma-rules">
+          <ProtectedRoute component={SigmaRuleGenerator} />
         </Route>
         <Route path="/zap-proxy">
           <ProtectedRoute component={ZapProxySessions} />

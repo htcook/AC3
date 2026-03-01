@@ -6483,3 +6483,22 @@
 - [x] Review operator role for threat intel feed access (already has full intelligence group)
 - [x] Ensure WATCH ADVISOR persona references threat actor emulation and hunting capabilities
 - [x] Bug: Fixed scan refresh race condition (getScan refetch during refresh returned empty data before local refreshing state was set)
+
+## Cloud Security Validation Modules
+- [ ] Build cloud misconfig check engine with AWS, Azure, GCP provider modules
+- [ ] Define CIS Benchmark checks for each provider (IAM, networking, storage, compute, logging)
+- [ ] Build cloud security validation tRPC router (run assessment, get results, list checks)
+- [ ] Add cloud_security_assessments and cloud_misconfig_findings schema tables
+- [ ] Build Cloud Security Validation frontend page with provider selector, check runner, results dashboard
+- [ ] Add nav item to Attack Surface > Scanning Tools section
+- [ ] Write vitest tests for cloud security engine and router
+
+## Automated Sigma Rule Generation
+- [ ] Build Sigma rule generation engine from ATT&CK techniques and emulation results
+- [ ] Define Sigma rule templates for common ATT&CK techniques (process creation, network, file, registry)
+- [ ] Build LLM-enhanced rule refinement for context-specific detection logic
+- [ ] Build Sigma rule generation tRPC router (generate, list, export, validate)
+- [ ] Add sigma_rules and sigma_rule_sets schema tables
+- [ ] Build Sigma Rule Generator frontend page with technique selector, rule editor, export
+- [ ] Add nav item to Adversary Emulation > Defense Validation section
+- [ ] Write vitest tests for Sigma engine and router

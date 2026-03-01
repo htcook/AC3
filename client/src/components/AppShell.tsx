@@ -89,6 +89,8 @@ import {
   Satellite,
   Download,
   Monitor,
+  CloudCog,
+  FileCode2,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -193,6 +195,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/attack-path-discovery", icon: Search, label: "PATH DISCOVERY" },
           { href: "/attack-vector-engine", icon: Crosshair, label: "VECTOR ENGINE" },
           { href: "/cloud-attack-paths", icon: Cloud, label: "CLOUD PATHS" },
+          { href: "/cloud-security-validation", icon: CloudCog, label: "CLOUD VALIDATION" },
           { href: "/ad-attack-sim", icon: Server, label: "AD SECURITY" },
           { href: "/ad-attack-path-graph", icon: Network, label: "AD ATTACK GRAPH" },
           { href: "/ad-domain-connector", icon: Database, label: "AD CONNECTOR" },
@@ -232,6 +235,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ngfw-validation", icon: Shield, label: "NGFW VALIDATION" },
           { href: "/ai-security-validation", icon: Brain, label: "AI SECURITY" },
           { href: "/remediation-verification", icon: RefreshCw, label: "REMEDIATION" },
+          { href: "/sigma-rules", icon: FileCode2, label: "SIGMA RULES" },
         ],
       },
     ],

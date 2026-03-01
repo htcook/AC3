@@ -120,6 +120,8 @@ import { tenantOnboardingRouter } from "./routers/tenant-onboarding";
 import { complianceDashboardRouter } from "./routers/compliance-dashboard";
 import { scanWebhooksRouter } from "./routers/scan-webhooks";
 import { authAssessmentRouter } from "./routers/auth-assessment";
+import { cloudSecurityValidationRouter } from "./routers/cloud-security-validation";
+import { sigmaRulesRouter } from "./routers/sigma-rules";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -2300,6 +2302,8 @@ export const appRouter = router({
   complianceDashboard: complianceDashboardRouter,
   scanWebhooks: scanWebhooksRouter,
   authAssessment: authAssessmentRouter,
+  cloudSecurityValidation: cloudSecurityValidationRouter,
+  sigmaRules: sigmaRulesRouter,
 
   // Campaign management
   campaign: router({
