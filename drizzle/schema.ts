@@ -10,7 +10,7 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin", "viewer", "operator", "team_lead", "analyst", "executive", "client"]).default("operator").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "viewer", "operator", "team_lead", "analyst", "executive", "client", "soc"]).default("operator").notNull(),
   // Profile fields
   avatarUrl: text("avatar_url"),
   title: varchar("title", { length: 128 }),
@@ -36,7 +36,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const teamInvitations = mysqlTable("team_invitations", {
   id: int("id").autoincrement().primaryKey(),
   email: varchar("invite_email", { length: 320 }).notNull(),
-  role: mysqlEnum("invite_role", ["user", "admin", "viewer", "operator", "team_lead", "analyst", "executive", "client"]).default("operator").notNull(),
+  role: mysqlEnum("invite_role", ["user", "admin", "viewer", "operator", "team_lead", "analyst", "executive", "client", "soc"]).default("operator").notNull(),
   tokenHash: varchar("token_hash", { length: 128 }).notNull().unique(),
   invitedBy: int("invited_by").notNull(),
   invitedByName: varchar("invited_by_name", { length: 255 }),

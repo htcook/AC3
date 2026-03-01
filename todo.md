@@ -6467,3 +6467,19 @@
 - [x] Vitest: Comprehensive tests for all auth pack modules
 - [x] Cross-module: Apply pipeline/guardrail patterns to other engines
 - [x] Branding: Rename FedRAMP profile/mode names to neutral (Federal Auth Strict/Standard); keep FedRAMP only as framework/control references
+
+## SOC User Role Implementation
+- [ ] Add 'soc' role to database schema enum
+- [ ] Add SOC User RBAC group/subsection access in role-access.ts
+- [ ] Create SOC-specific AI persona in role-chat-prompts.ts
+- [ ] Add SOC role display name and badge styling
+- [ ] Push database migration for new role
+- [ ] Write vitest tests for SOC role access controls
+
+## Product Analysis
+- [ ] Complete full platform product analysis report
+- [x] Enrich SOC role with full threat intel, IOC feeds, threat actor, and purple team module access
+- [x] Review analyst role for threat actor emulation and detection validation access
+- [x] Review operator role for threat intel feed access (already has full intelligence group)
+- [x] Ensure WATCH ADVISOR persona references threat actor emulation and hunting capabilities
+- [x] Bug: Fixed scan refresh race condition (getScan refetch during refresh returned empty data before local refreshing state was set)

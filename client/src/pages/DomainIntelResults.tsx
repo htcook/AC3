@@ -160,7 +160,11 @@ export default function DomainIntelResults() {
     { value: "custom", label: "Custom reason (type below)" },
   ];
 
-  const { data, isLoading, error, refetch } = trpc.domainIntel.getScan.useQuery({ id: scanId }, { enabled: !!scanId });
+  const { data, isLoading, error, refetch } = trpc.domainIntel.getScan.useQuery({ id: scanId }, {
+    enabled: !!scanId,
+    // Auto-refetch during refresh so the page picks up new results when pipeline completes
+    refetchInterval: refreshing ? 5000 : false,
+  });
 
   // Fetch validation data for this scan
   const validationSummary = trpc.validation.getScanValidationSummary.useQuery({ scanId }, { enabled: !!scanId });
@@ -333,6 +337,21 @@ export default function DomainIntelResults() {
   const { scan, assets } = data;
   const pipeline = scan.pipelineOutput as any;
   const campaigns = (scan.campaignRecommendations || []) as any[];
+
+  // Detect refresh-in-progress from scan status (handles race condition where
+  // getScan refetches before the mutation onSuccess sets refreshing=true)
+  const serverRefreshing = pipeline?.refreshing === true && (
+    scan.status === 'discovering' || scan.status === 'passive_recon' ||
+    scan.status === 'analyzing' || scan.status === 'scoring' || scan.status === 'recommending'
+  );
+  const isRefreshInProgress = refreshing || serverRefreshing;
+
+  // Sync local refreshing state with server state
+  useEffect(() => {
+    if (serverRefreshing && !refreshing) {
+      setRefreshing(true);
+    }
+  }, [serverRefreshing]);
   const threatActorMatches = pipeline?.threatActorMatches as any;
   const llmThreatAnalysis = pipeline?.llmThreatActorAnalysis as any;
   const breachData = pipeline?.breachData as any;
@@ -728,7 +747,7 @@ export default function DomainIntelResults() {
       </div>
 
       {/* Refresh In Progress Banner */}
-      {refreshing && (
+      {isRefreshInProgress && (
         <Card className="border-cyan-500/30 bg-cyan-500/5">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-cyan-500/10">
@@ -750,7 +769,7 @@ export default function DomainIntelResults() {
       )}
 
       {/* Previous Snapshot Comparison Banner */}
-      {pipeline?.previousSnapshot && pipeline?.refreshedAt && !refreshing && (
+      {pipeline?.previousSnapshot && pipeline?.refreshedAt && !isRefreshInProgress && (
         <Card className="border-indigo-500/30 bg-indigo-500/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-3 mb-3">

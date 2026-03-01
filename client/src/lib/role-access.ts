@@ -13,18 +13,19 @@
  *   viewer     — Legacy viewer (same as client)
  */
 
-export type UserRole = 'operator' | 'team_lead' | 'analyst' | 'executive' | 'client' | 'admin' | 'user' | 'viewer';
+export type UserRole = 'operator' | 'team_lead' | 'analyst' | 'executive' | 'client' | 'admin' | 'user' | 'viewer' | 'soc';
 
 // Which top-level nav groups each role can see
 const ROLE_GROUP_ACCESS: Record<UserRole, string[]> = {
   operator: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'reports'],
   team_lead: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'ksi', 'reports', 'platform'],
-  analyst: ['command', 'surface', 'intelligence', 'ksi', 'reports'],
+  analyst: ['command', 'surface', 'emulation', 'intelligence', 'ksi', 'reports'],
   executive: ['command', 'ksi', 'reports'],
   client: ['reports'],
   admin: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'ksi', 'reports', 'platform'],
   user: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'reports'],
   viewer: ['reports'],
+  soc: ['command', 'surface', 'emulation', 'intelligence', 'ksi', 'reports'],
 };
 
 // Sub-section restrictions per role (if a group is allowed, these sub-sections are further filtered)
@@ -32,8 +33,16 @@ const ROLE_GROUP_ACCESS: Record<UserRole, string[]> = {
 const ROLE_SUBSECTION_RESTRICTIONS: Partial<Record<UserRole, string[]>> = {
   executive: ['cmd-scoring', 'ksi-core', 'rpt-all'],
   client: ['rpt-all'],
-  analyst: ['cmd-scoring', 'surf-discovery', 'surf-tools', 'surf-paths', 'intel-threats', 'intel-credentials', 'ksi-core', 'rpt-all'],
+  analyst: ['cmd-scoring', 'surf-discovery', 'surf-tools', 'surf-paths', 'emu-agents', 'emu-validation', 'intel-threats', 'intel-credentials', 'ksi-core', 'rpt-all'],
   viewer: ['rpt-all'],
+  soc: [
+    'cmd-ops', 'cmd-scoring',
+    'surf-discovery', 'surf-tools', 'surf-paths',
+    'emu-agents', 'emu-validation',
+    'intel-threats', 'intel-credentials',
+    'ksi-core',
+    'rpt-all',
+  ],
 };
 
 // Specific routes that are always accessible regardless of role (e.g., home, profile)
@@ -94,6 +103,8 @@ export function getHomeDashboardPath(role: UserRole): string {
     case 'client':
     case 'viewer':
       return '/home/client';
+    case 'soc':
+      return '/home/soc';
     case 'admin':
       return '/home/admin';
     default:
@@ -114,6 +125,7 @@ export function getRoleDisplayName(role: UserRole): string {
     admin: 'Administrator',
     user: 'Operator',
     viewer: 'Viewer',
+    soc: 'SOC Analyst',
   };
   return names[role] ?? 'Operator';
 }
@@ -131,6 +143,7 @@ export function getRoleBadgeClass(role: UserRole): string {
     admin: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
     user: 'bg-red-500/20 text-red-400 border-red-500/30',
     viewer: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    soc: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   };
   return colors[role] ?? colors.operator;
 }
@@ -141,8 +154,9 @@ export function getRoleBadgeClass(role: UserRole): string {
 export const ALL_ROLES: { value: UserRole; label: string; description: string }[] = [
   { value: 'operator', label: 'Operator', description: 'Red team operator — full attack toolkit' },
   { value: 'team_lead', label: 'Team Lead', description: 'Engagement manager — pipeline + team oversight' },
-  { value: 'analyst', label: 'Analyst', description: 'Threat/vuln analyst — intel + analysis focus' },
+  { value: 'analyst', label: 'Analyst', description: 'Threat/vuln analyst — intel, emulation & analysis focus' },
   { value: 'executive', label: 'Executive', description: 'CISO view — business risk KPIs' },
   { value: 'client', label: 'Client', description: 'External client — read-only assessment portal' },
   { value: 'admin', label: 'Administrator', description: 'Platform admin — full system access' },
+  { value: 'soc', label: 'SOC Analyst', description: 'Security Operations Center — detection, monitoring & defense validation' },
 ];
