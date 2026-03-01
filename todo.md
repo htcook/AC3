@@ -6273,3 +6273,14 @@
 - [x] Backend chat procedure with role-aware context injection and dashboard data enrichment
 - [x] Frontend chat UI integration that passes user role and displays role-aware interactions
 - [x] Vitest tests for role-specialized chat endpoints
+
+## Chat Enhancements
+- [x] Chat history persistence — DB schema for chat_sessions and chat_messages tables
+- [x] Chat history persistence — Backend CRUD endpoints (create session, list sessions, load messages, save message)
+- [x] Chat history persistence — Frontend integration (session list sidebar, auto-save, resume sessions)
+- [x] Role-specific quick actions — Define action catalog per role (operator: launch scan, admin: restart service, etc.)
+- [x] Role-specific quick actions — Backend tool-calling execution engine with LLM function calling
+- [x] Role-specific quick actions — Frontend action cards with confirmation dialogs
+- [x] Admin persona switching — Backend endpoint to preview any role's AI persona
+- [x] Admin persona switching — Frontend persona selector dropdown for admins
+- [x] Vitest tests for chat persistence, quick actions, and persona switching

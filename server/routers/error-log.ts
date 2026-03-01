@@ -12,6 +12,11 @@ import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredential
 import { invokeLLM } from "../_core/llm";
 import { getRoleChatConfig } from "../lib/role-chat-prompts";
 import { getRoleContext } from "../lib/role-chat-context";
+import { getRoleActions, actionsToLLMTools } from "../lib/role-quick-actions";
+import { executeQuickAction } from "../lib/quick-action-executor";
+import { chatSessions, chatMessages } from "../../drizzle/schema";
+import { getDb } from "../db";
+import { eq, desc, and, count as drizzleCount } from "drizzle-orm";
 
 export const errorLogRouter = router({
   /** Log an error from the client side */
@@ -217,26 +222,128 @@ export const oemCredsRouter = router({
 });
 
 export const aiChatRouter = router({
-  /** Get role-specific chat configuration for the frontend */
-  getConfig: protectedProcedure.query(({ ctx }) => {
-    const role = ctx.user?.role || 'operator';
-    const config = getRoleChatConfig(role);
-    return {
-      role,
-      assistantName: config.assistantName,
-      assistantSubtitle: config.assistantSubtitle,
-      suggestions: config.suggestions,
-      inputPlaceholder: config.inputPlaceholder,
-      canViewErrors: config.canViewErrors,
-      canViewCreds: config.canViewCreds,
-      contextToggles: config.contextToggles,
-    };
-  }),
+  // ─── Chat Configuration ─────────────────────────────────────────────
 
-  /** Send a message to the role-specialized AI assistant with live platform context */
+  /** Get role-specific chat configuration for the frontend */
+  getConfig: protectedProcedure
+    .input(z.object({ personaOverride: z.string().optional() }).optional())
+    .query(({ ctx, input }) => {
+      const isAdmin = ctx.user?.role === 'admin';
+      const effectiveRole = (isAdmin && input?.personaOverride) ? input.personaOverride : (ctx.user?.role || 'operator');
+      const config = getRoleChatConfig(effectiveRole);
+      const actions = getRoleActions(effectiveRole);
+      return {
+        role: effectiveRole,
+        isPersonaOverride: isAdmin && !!input?.personaOverride && input.personaOverride !== ctx.user?.role,
+        assistantName: config.assistantName,
+        assistantSubtitle: config.assistantSubtitle,
+        suggestions: config.suggestions,
+        inputPlaceholder: config.inputPlaceholder,
+        canViewErrors: config.canViewErrors,
+        canViewCreds: config.canViewCreds,
+        contextToggles: config.contextToggles,
+        quickActions: actions.map(a => ({ name: a.name, displayName: a.displayName, description: a.description, icon: a.icon, confirmRequired: a.confirmRequired })),
+        canSwitchPersona: isAdmin,
+        availablePersonas: isAdmin ? ['operator', 'executive', 'analyst', 'team_lead', 'client', 'admin'] : [],
+      };
+    }),
+
+  // ─── Chat Session Persistence ───────────────────────────────────────
+
+  /** List chat sessions for the current user */
+  listSessions: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20), includeArchived: z.boolean().default(false) }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = (await getDb())!;
+      const userId = ctx.user!.id;
+      const limit = input?.limit || 20;
+      const conditions = input?.includeArchived
+        ? eq(chatSessions.userId, userId)
+        : and(eq(chatSessions.userId, userId), eq(chatSessions.archived, false));
+      const sessions = await db.select().from(chatSessions)
+        .where(conditions!)
+        .orderBy(desc(chatSessions.lastMessageAt))
+        .limit(limit);
+      return sessions;
+    }),
+
+  /** Create a new chat session */
+  createSession: protectedProcedure
+    .input(z.object({ title: z.string().max(255).optional(), role: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = (await getDb())!;
+      const userId = ctx.user!.id;
+      const role = input.role || ctx.user?.role || 'operator';
+      const [result] = await db.insert(chatSessions).values({
+        userId,
+        title: input.title || 'New Chat',
+        role,
+        messageCount: 0,
+      });
+      const sessionId = result.insertId;
+      const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, Number(sessionId)));
+      return session;
+    }),
+
+  /** Load messages for a chat session */
+  loadMessages: protectedProcedure
+    .input(z.object({ sessionId: z.number(), limit: z.number().min(1).max(200).default(100) }))
+    .query(async ({ ctx, input }) => {
+      const db = (await getDb())!;
+      // Verify ownership
+      const [session] = await db.select().from(chatSessions)
+        .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.userId, ctx.user!.id)));
+      if (!session) throw new Error('Session not found');
+      const msgs = await db.select().from(chatMessages)
+        .where(eq(chatMessages.sessionId, input.sessionId))
+        .orderBy(chatMessages.createdAt)
+        .limit(input.limit);
+      return { session, messages: msgs };
+    }),
+
+  /** Archive a chat session */
+  archiveSession: protectedProcedure
+    .input(z.object({ sessionId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = (await getDb())!;
+      await db.update(chatSessions)
+        .set({ archived: true })
+        .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.userId, ctx.user!.id)));
+      return { success: true };
+    }),
+
+  /** Delete a chat session and its messages */
+  deleteSession: protectedProcedure
+    .input(z.object({ sessionId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = (await getDb())!;
+      // Verify ownership
+      const [session] = await db.select().from(chatSessions)
+        .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.userId, ctx.user!.id)));
+      if (!session) throw new Error('Session not found');
+      await db.delete(chatMessages).where(eq(chatMessages.sessionId, input.sessionId));
+      await db.delete(chatSessions).where(eq(chatSessions.id, input.sessionId));
+      return { success: true };
+    }),
+
+  /** Rename a chat session */
+  renameSession: protectedProcedure
+    .input(z.object({ sessionId: z.number(), title: z.string().min(1).max(255) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = (await getDb())!;
+      await db.update(chatSessions)
+        .set({ title: input.title })
+        .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.userId, ctx.user!.id)));
+      return { success: true };
+    }),
+
+  // ─── Enhanced Send with Tool-Calling & Persistence ──────────────────
+
+  /** Send a message to the role-specialized AI assistant with tool-calling and persistence */
   send: protectedProcedure
     .input(z.object({
       message: z.string().min(1).max(10000),
+      sessionId: z.number().optional(),
       conversationHistory: z.array(z.object({
         role: z.enum(["user", "assistant"]),
         content: z.string(),
@@ -246,27 +353,36 @@ export const aiChatRouter = router({
       includeErrors: z.boolean().default(false),
       includeCreds: z.boolean().default(false),
       includeRoleContext: z.boolean().default(true),
+      enableToolCalling: z.boolean().default(true),
+      personaOverride: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userRole = ctx.user?.role || 'operator';
+      const isAdmin = ctx.user?.role === 'admin';
+      const userRole = (isAdmin && input.personaOverride) ? input.personaOverride : (ctx.user?.role || 'operator');
       const roleConfig = getRoleChatConfig(userRole);
+      const db = (await getDb())!;
 
-      // Build the role-specialized system prompt
+      // ── Persist user message if session provided ──
+      let sessionId = input.sessionId;
+      if (sessionId) {
+        await db.insert(chatMessages).values({ sessionId, role: 'user', content: input.message });
+        await db.update(chatSessions).set({ messageCount: (await db.select({ cnt: drizzleCount() }).from(chatMessages).where(eq(chatMessages.sessionId, sessionId)))[0]?.cnt || 0, lastMessageAt: new Date() }).where(eq(chatSessions.id, sessionId));
+      }
+
+      // ── Build the role-specialized system prompt ──
       const systemParts: string[] = [
         roleConfig.systemPrompt,
         `\nCurrent user: ${ctx.user?.name || 'Unknown'} (role: ${userRole})`,
         `Current page: ${input.currentPage || 'unknown'}`,
       ];
 
-      // Inject live role-specific dashboard context
       if (input.includeRoleContext) {
         try {
           const roleContext = await getRoleContext(userRole);
           if (roleContext) systemParts.push(roleContext);
-        } catch { /* ignore context fetch failures */ }
+        } catch { /* ignore */ }
       }
 
-      // Include recent errors if requested and role permits
       if (input.includeErrors && roleConfig.canViewErrors) {
         try {
           const { errors } = await getRecentErrors({ limit: 10, resolved: false });
@@ -279,7 +395,6 @@ export const aiChatRouter = router({
         } catch { /* ignore */ }
       }
 
-      // Include relevant default credentials if requested and role permits
       if (input.includeCreds && roleConfig.canViewCreds) {
         const techKeywords = input.message.match(/\b(cisco|juniper|fortinet|apache|tomcat|mysql|postgres|ssh|ftp|rdp|snmp|mikrotik|ubiquiti|palo alto|sonicwall|vmware|esxi|jenkins|grafana|wordpress|nginx|redis|mongodb|elasticsearch|splunk|siemens|schneider|hikvision|dell|idrac|ilo|supermicro)\b/gi);
         if (techKeywords && techKeywords.length > 0) {
@@ -301,29 +416,108 @@ export const aiChatRouter = router({
         }
       }
 
-      // Include engagement context if provided
       if (input.engagementId) {
         systemParts.push(`\nActive engagement ID: ${input.engagementId}`);
       }
 
       systemParts.push(`\nRespond concisely. Use markdown formatting. Stay in character as ${roleConfig.assistantName}.`);
+      systemParts.push(`When you use a tool/function, briefly explain what you're doing and present the results clearly.`);
 
-      const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+      const messages: Array<{ role: "system" | "user" | "assistant" | "tool"; content: string; tool_call_id?: string }> = [
         { role: "system", content: systemParts.join("\n") },
       ];
 
-      // Add conversation history
       for (const msg of input.conversationHistory) {
         messages.push({ role: msg.role, content: msg.content });
       }
-
-      // Add current message
       messages.push({ role: "user", content: input.message });
 
+      // ── Prepare tool-calling ──
+      const roleActions = getRoleActions(userRole);
+      const tools = input.enableToolCalling && roleActions.length > 0 ? actionsToLLMTools(roleActions) : undefined;
+
       try {
-        const response = await invokeLLM({ messages });
-        const content = response.choices?.[0]?.message?.content || "I apologize, I couldn't generate a response. Please try again.";
-        return { reply: content, error: null, role: userRole, assistantName: roleConfig.assistantName };
+        // First LLM call — may return a tool call or a direct response
+        const response = await invokeLLM({ messages, tools, tool_choice: tools ? 'auto' : undefined } as any);
+        const choice = response.choices?.[0];
+        const toolCalls = choice?.message?.tool_calls;
+        let executedActions: Array<{ name: string; displayName: string; result: any; confirmRequired: boolean }> = [];
+
+        // ── Handle tool calls ──
+        if (toolCalls && toolCalls.length > 0) {
+          // Execute each tool call
+          for (const tc of toolCalls) {
+            const fnName = tc.function?.name;
+            let fnArgs: Record<string, any> = {};
+            try { fnArgs = JSON.parse(tc.function?.arguments || '{}'); } catch { /* ignore */ }
+
+            const actionDef = roleActions.find(a => a.name === fnName);
+            const result = await executeQuickAction(fnName, fnArgs);
+            executedActions.push({
+              name: fnName,
+              displayName: actionDef?.displayName || fnName,
+              result,
+              confirmRequired: actionDef?.confirmRequired || false,
+            });
+
+            // Persist tool message if session exists
+            if (sessionId) {
+              await db.insert(chatMessages).values({
+                sessionId,
+                role: 'tool',
+                content: result.message,
+                toolName: fnName,
+                toolResult: result,
+              });
+            }
+
+            // Feed tool result back to LLM
+            messages.push({ role: "assistant" as any, content: "", ...({ tool_calls: [tc] } as any) });
+            messages.push({ role: "tool", content: JSON.stringify(result), tool_call_id: tc.id });
+          }
+
+          // Second LLM call — with tool results
+          const followUp = await invokeLLM({ messages } as any);
+          const content = followUp.choices?.[0]?.message?.content || "Action completed. See the results above.";
+
+          // Persist assistant response
+          if (sessionId) {
+            await db.insert(chatMessages).values({ sessionId, role: 'assistant', content });
+            await db.update(chatSessions).set({ messageCount: (await db.select({ cnt: drizzleCount() }).from(chatMessages).where(eq(chatMessages.sessionId, sessionId)))[0]?.cnt || 0, lastMessageAt: new Date() }).where(eq(chatSessions.id, sessionId));
+          }
+
+          // Auto-generate title from first user message
+          if (sessionId && input.conversationHistory.length === 0) {
+            const shortTitle = input.message.slice(0, 60) + (input.message.length > 60 ? '...' : '');
+            await db.update(chatSessions).set({ title: shortTitle }).where(eq(chatSessions.id, sessionId));
+          }
+
+          return {
+            reply: content,
+            error: null,
+            role: userRole,
+            assistantName: roleConfig.assistantName,
+            executedActions,
+            sessionId,
+          };
+        }
+
+        // ── Direct response (no tool calls) ──
+        const content = choice?.message?.content || "I apologize, I couldn't generate a response. Please try again.";
+
+        // Persist assistant response
+        if (sessionId) {
+          await db.insert(chatMessages).values({ sessionId, role: 'assistant', content });
+          await db.update(chatSessions).set({ messageCount: (await db.select({ cnt: drizzleCount() }).from(chatMessages).where(eq(chatMessages.sessionId, sessionId)))[0]?.cnt || 0, lastMessageAt: new Date() }).where(eq(chatSessions.id, sessionId));
+        }
+
+        // Auto-generate title from first user message
+        if (sessionId && input.conversationHistory.length === 0) {
+          const shortTitle = input.message.slice(0, 60) + (input.message.length > 60 ? '...' : '');
+          await db.update(chatSessions).set({ title: shortTitle }).where(eq(chatSessions.id, sessionId));
+        }
+
+        return { reply: content, error: null, role: userRole, assistantName: roleConfig.assistantName, executedActions: [], sessionId };
       } catch (err: any) {
         console.error(`[AiChat:${roleConfig.assistantName}] LLM invocation failed:`, err.message);
         await logPlatformError({
@@ -333,7 +527,7 @@ export const aiChatRouter = router({
           endpoint: "aiChat.send",
           userId: ctx.user?.id,
         });
-        return { reply: null, error: "AI service temporarily unavailable. Please try again in a moment.", role: userRole, assistantName: roleConfig.assistantName };
+        return { reply: null, error: "AI service temporarily unavailable. Please try again in a moment.", role: userRole, assistantName: roleConfig.assistantName, executedActions: [], sessionId };
       }
     }),
 });

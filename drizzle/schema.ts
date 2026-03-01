@@ -5950,3 +5950,37 @@ export const opsecScores = mysqlTable("opsec_scores", {
 });
 export type OpsecScore = typeof opsecScores.$inferSelect;
 export type InsertOpsecScore = typeof opsecScores.$inferInsert;
+
+/**
+ * Chat sessions — persists AI chat conversations per user.
+ * Each session tracks the role persona used and can be resumed.
+ */
+export const chatSessions = mysqlTable("chat_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("chat_session_user_id").notNull(),
+  title: varchar("chat_session_title", { length: 255 }).default("New Chat"),
+  role: varchar("chat_session_role", { length: 64 }).notNull().default("operator"),
+  messageCount: int("chat_session_message_count").default(0),
+  lastMessageAt: timestamp("chat_session_last_message_at").defaultNow(),
+  archived: boolean("chat_session_archived").default(false),
+  createdAt: timestamp("chat_session_created_at").defaultNow().notNull(),
+  updatedAt: timestamp("chat_session_updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type InsertChatSession = typeof chatSessions.$inferInsert;
+
+/**
+ * Chat messages — individual messages within a chat session.
+ */
+export const chatMessages = mysqlTable("chat_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: int("chat_msg_session_id").notNull(),
+  role: mysqlEnum("chat_msg_role", ["user", "assistant", "system", "tool"]).notNull(),
+  content: text("chat_msg_content").notNull(),
+  /** For tool-call messages: the action name and result */
+  toolName: varchar("chat_msg_tool_name", { length: 128 }),
+  toolResult: json("chat_msg_tool_result"),
+  createdAt: timestamp("chat_msg_created_at").defaultNow().notNull(),
+});
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;
