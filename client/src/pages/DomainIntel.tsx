@@ -312,6 +312,18 @@ export default function DomainIntel() {
   const [showCorroboration, setShowCorroboration] = useState(false);
   const [scanMode, setScanMode] = useState<"passive_only" | "passive_plus_dns" | "full">("full");
   const [scanOnly, setScanOnly] = useState(true); // Default to scan-only so user reviews before engagement
+  const [scopedScan, setScopedScan] = useState(false); // RoE-restricted scan
+  const [scopedAssets, setScopedAssets] = useState<string[]>([]); // Exact assets to scan
+  const [newScopedAsset, setNewScopedAsset] = useState("");
+
+  const addScopedAsset = () => {
+    const cleaned = newScopedAsset.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (cleaned && !scopedAssets.includes(cleaned)) {
+      setScopedAssets(prev => [...prev, cleaned]);
+    }
+    setNewScopedAsset("");
+  };
+  const removeScopedAsset = (a: string) => setScopedAssets(prev => prev.filter(x => x !== a));
 
   // Pipeline state
   const [isRunning, setIsRunning] = useState(false);
@@ -499,6 +511,7 @@ export default function DomainIntel() {
       notes: notes || undefined,
       scanMode: backendScanMode,
       scanOnly,
+      scopedAssets: scopedScan && scopedAssets.length > 0 ? scopedAssets : undefined,
     });
   };
 
@@ -1128,6 +1141,83 @@ export default function DomainIntel() {
                   </div>
                 </div>
 
+                {/* Scoped Scan (RoE Restricted) */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Crosshair className="h-4 w-4 text-red-400" />
+                    Scoped Scan (RoE Restricted)
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div
+                      onClick={() => setScopedScan(false)}
+                      className={`cursor-pointer rounded-lg border p-3 transition-all ${
+                        !scopedScan
+                          ? "border-cyan-500 bg-cyan-500/10"
+                          : "border-border hover:border-cyan-500/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Globe className={`h-4 w-4 ${!scopedScan ? 'text-cyan-400' : 'text-muted-foreground'}`} />
+                        <span className={`text-sm font-medium ${!scopedScan ? 'text-cyan-400' : ''}`}>Full Discovery</span>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-cyan-500/40 text-cyan-400">Default</Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Discover all assets across the domain — subdomains, services, infrastructure. Best for broad reconnaissance.</p>
+                    </div>
+                    <div
+                      onClick={() => setScopedScan(true)}
+                      className={`cursor-pointer rounded-lg border p-3 transition-all ${
+                        scopedScan
+                          ? "border-red-500 bg-red-500/10"
+                          : "border-border hover:border-red-500/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Crosshair className={`h-4 w-4 ${scopedScan ? 'text-red-400' : 'text-muted-foreground'}`} />
+                        <span className={`text-sm font-medium ${scopedScan ? 'text-red-400' : ''}`}>Scoped to RoE</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Only scan the exact assets you specify below. No additional discovery or inference. Use when your engagement scope is strictly defined.</p>
+                    </div>
+                  </div>
+                  {scopedScan && (
+                    <div className="space-y-2 mt-3 p-3 rounded-lg border border-red-500/20 bg-red-500/5">
+                      <Label className="text-sm flex items-center gap-2">
+                        <Lock className="h-3.5 w-3.5 text-red-400" />
+                        In-Scope Assets
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground">Enter the exact hostnames, subdomains, or IPs from your Rules of Engagement. Only these assets will be scanned — nothing else will be discovered or analyzed.</p>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="e.g. portal.customer.com or 10.0.1.50"
+                          value={newScopedAsset}
+                          onChange={e => setNewScopedAsset(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && addScopedAsset()}
+                          className="font-mono text-sm"
+                        />
+                        <Button variant="outline" onClick={addScopedAsset} disabled={!newScopedAsset.trim()} className="border-red-500/30 hover:bg-red-500/10">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {scopedAssets.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {scopedAssets.map(a => (
+                            <Badge key={a} variant="outline" className="gap-1 font-mono text-red-300 border-red-500/40">
+                              <Crosshair className="h-3 w-3" />
+                              {a}
+                              <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => removeScopedAsset(a)} />
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {scopedScan && scopedAssets.length === 0 && (
+                        <p className="text-[10px] text-amber-400 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Add at least one in-scope asset to use scoped scan mode
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Advanced Options Toggle */}
                 <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
                   <CollapsibleTrigger asChild>
@@ -1255,20 +1345,29 @@ export default function DomainIntel() {
                 {/* Launch Button — shown only in advanced mode */}
                 <Button
                   onClick={handleStartScan}
-                  disabled={!canLaunch || startScan.isPending}
-                  className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-base"
+                  disabled={!canLaunch || startScan.isPending || (scopedScan && scopedAssets.length === 0)}
+                  className={`w-full h-12 text-base ${scopedScan ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'}`}
                 >
                   {startScan.isPending ? (
                     <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  ) : scopedScan ? (
+                    <Crosshair className="h-5 w-5 mr-2" />
                   ) : (
                     <Zap className="h-5 w-5 mr-2" />
                   )}
-                  {scanOnly ? 'Launch Domain Reconnaissance Scan' : 'Launch Full Engagement Scan'}
+                  {scopedScan
+                    ? `Launch Scoped Scan (${scopedAssets.length} asset${scopedAssets.length !== 1 ? 's' : ''})`
+                    : scanOnly ? 'Launch Domain Reconnaissance Scan' : 'Launch Full Engagement Scan'}
                 </Button>
 
                 {!canLaunch && (
                   <p className="text-xs text-muted-foreground text-center">
                     Fill in the target domain, organization name, and sector to launch a customized scan.
+                  </p>
+                )}
+                {scopedScan && scopedAssets.length === 0 && canLaunch && (
+                  <p className="text-xs text-amber-400 text-center">
+                    Add at least one in-scope asset above to launch a scoped scan.
                   </p>
                 )}
 

@@ -4235,6 +4235,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
         engagementId: z.number().optional(),
         scanMode: z.enum(['strict_passive', 'standard', 'active']).optional(),
         scanOnly: z.boolean().optional(),
+        scopedAssets: z.array(z.string()).optional(), // RoE-restricted: only scan these exact hostnames/IPs
       }))
       .mutation(async ({ input, ctx }) => {
         // Create scan record immediately
@@ -4285,7 +4286,7 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
                 console.log(`[DomainIntel] Scan ${scanId} stage: ${stage}`);
               },
-              { scanMode: pipelineInput.scanMode || 'standard', skipEngagement: !!pipelineInput.scanOnly }
+              { scanMode: pipelineInput.scanMode || 'standard', skipEngagement: !!pipelineInput.scanOnly, scopedAssets: pipelineInput.scopedAssets }
             );
 
             // Store discovered assets — batch inserts to avoid oversized queries

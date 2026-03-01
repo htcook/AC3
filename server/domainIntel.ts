@@ -1497,9 +1497,10 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 export async function runDomainIntelPipeline(
   org: OrgProfile,
   onProgress?: (stage: 'passive_recon' | 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>,
-  options?: { scanMode?: ScanMode; skipEngagement?: boolean }
+  options?: { scanMode?: ScanMode; skipEngagement?: boolean; scopedAssets?: string[] }
 ): Promise<PipelineResult> {
   const scanMode: ScanMode = options?.scanMode || 'standard';
+  const isScopedScan = options?.scopedAssets && options.scopedAssets.length > 0;
   // Stage 0: Load FP learning context from analyst feedback
   let fpContext: { totalFPs: number; patterns: { title: string; type: string | null; severity: string | null; reason: string; occurrences: number }[]; categorySummary: { type: string; count: number; fpRate: string }[] } | undefined;
   let fpHashes: Set<string> | undefined;
@@ -1656,6 +1657,39 @@ export async function runDomainIntelPipeline(
       rawAssets.push(...passiveSubdomainAssets);
       console.log(`[DomainIntel] Merged ${passiveSubdomainAssets.length} passive recon subdomains into asset pipeline (${rawAssets.length} total assets now)`);
     }
+  }
+
+  // Stage 1.4: Scoped Scan Filter — restrict to user-specified assets only (RoE mode)
+  if (isScopedScan && options?.scopedAssets) {
+    const scopedSet = new Set(options.scopedAssets.map(a => a.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '')));
+    const beforeCount = rawAssets.length;
+    const filtered = rawAssets.filter(a => {
+      const hostname = (a.hostname || '').toLowerCase();
+      const url = (a.url || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      return scopedSet.has(hostname) || scopedSet.has(url);
+    });
+    // If no discovered assets match the scoped list, create stub assets from the scoped list
+    if (filtered.length === 0) {
+      for (const scopedHost of options.scopedAssets) {
+        const clean = scopedHost.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '');
+        filtered.push({
+          assetId: `scoped-${clean.replace(/[^a-z0-9]/g, '-')}-${Date.now().toString(36)}`,
+          hostname: clean,
+          url: `https://${clean}`,
+          assetType: 'web_application',
+          assetClasses: ['scoped_asset'],
+          tags: ['scoped_scan', 'roe_restricted'],
+          technologies: [],
+          technologyVersions: {},
+          description: `Asset specified in scoped scan (RoE restricted)`,
+          discoveryMethod: 'manual' as const,
+          discoveryEvidence: 'User-specified asset for scoped/RoE-restricted scan',
+        });
+      }
+    }
+    rawAssets.length = 0;
+    rawAssets.push(...filtered);
+    console.log(`[DomainIntel] Scoped Scan: Filtered ${beforeCount} discovered assets down to ${rawAssets.length} matching RoE scope (${options.scopedAssets.join(', ')})`);
   }
 
   // Stage 1.5: Active DNS & Banner Verification
