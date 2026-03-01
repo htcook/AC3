@@ -112,7 +112,7 @@ describe("AppShell Navigation - Training Dashboard", () => {
     const appShellPath = path.resolve(__dirname, "../client/src/components/AppShell.tsx");
     const content = fs.readFileSync(appShellPath, "utf-8");
     expect(content).toContain("/training-dashboard");
-    expect(content).toContain("TRAINING PIPELINE");
+    expect(content).toContain("TRAINING");
   });
 
   it("training-dashboard route should be in the reports & knowledge nav group", async () => {

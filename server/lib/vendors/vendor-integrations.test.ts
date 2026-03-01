@@ -262,14 +262,16 @@ describe("XSOAR Client", () => {
 // ─── Vendor Metadata Tests ──────────────────────────────────────────────────
 
 describe("Vendor Metadata Registry", () => {
-  it("should have metadata for all 5 vendors", async () => {
+  it("should have metadata for all 7 vendors", async () => {
     const { VENDOR_METADATA } = await import("./index");
-    expect(Object.keys(VENDOR_METADATA)).toHaveLength(5);
+    expect(Object.keys(VENDOR_METADATA)).toHaveLength(7);
     expect(VENDOR_METADATA).toHaveProperty("crowdstrike");
     expect(VENDOR_METADATA).toHaveProperty("sentinelone");
     expect(VENDOR_METADATA).toHaveProperty("defender");
     expect(VENDOR_METADATA).toHaveProperty("splunk");
     expect(VENDOR_METADATA).toHaveProperty("xsoar");
+    expect(VENDOR_METADATA).toHaveProperty("sentinel");
+    expect(VENDOR_METADATA).toHaveProperty("cortex_xdr");
   });
 
   it("should have required fields for each vendor", async () => {

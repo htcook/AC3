@@ -74,7 +74,8 @@ describe("Domain Intel Launch Button", () => {
   });
 
   it("should disable button when canLaunch is false or scan is pending", () => {
-    expect(domainIntelTsx).toMatch(/disabled=\{!canLaunch\s*\|\|\s*startScan\.isPending\}/);
+    // Pattern now includes optional scoped scan condition
+    expect(domainIntelTsx).toMatch(/disabled=\{!canLaunch\s*\|\|\s*startScan\.isPending/);
   });
 
   it("should show helper text when canLaunch is false", () => {

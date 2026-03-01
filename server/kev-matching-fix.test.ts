@@ -133,12 +133,24 @@ describe("KEV Matching - False Positive Reduction", () => {
       expect(matchedCves).toContain("CVE-2023-APACHE-001");
     });
 
-    it("should also match Tomcat and Log4j (same vendor+product family)", () => {
+    it("should NOT match Tomcat and Log4j (separate product families)", () => {
       const matches = matchTechnologiesAgainstKev(["Apache"], catalog);
       const matchedCves = matches.map(m => m.cveID);
       
-      // Apache maps to products: ["http server", "httpd", "tomcat", "log4j"]
+      // Apache maps to products: ["http server", "httpd"] only — Tomcat/Log4j are separate patterns
+      expect(matchedCves).not.toContain("CVE-2023-TOMCAT-001");
+      expect(matchedCves).not.toContain("CVE-2023-LOG4J-001");
+    });
+
+    it("should match Tomcat when explicitly detected", () => {
+      const matches = matchTechnologiesAgainstKev(["Tomcat"], catalog);
+      const matchedCves = matches.map(m => m.cveID);
       expect(matchedCves).toContain("CVE-2023-TOMCAT-001");
+    });
+
+    it("should match Log4j when explicitly detected", () => {
+      const matches = matchTechnologiesAgainstKev(["Log4j"], catalog);
+      const matchedCves = matches.map(m => m.cveID);
       expect(matchedCves).toContain("CVE-2023-LOG4J-001");
     });
   });

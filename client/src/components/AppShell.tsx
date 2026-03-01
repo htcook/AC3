@@ -153,6 +153,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
           { href: "/discovery-chain", icon: GitMerge, label: "DISCOVERY CHAIN" },
           { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+          { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
           { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
           { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
         ],
@@ -236,8 +237,10 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
           { href: "/c2-command-center", icon: Radio, label: "C2 HUB" },
           { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
+          { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
           { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },
           { href: "/post-exploit-playbooks", icon: ScrollText, label: "POST-EXPLOIT" },
+          { href: "/file-transfers", icon: ArrowUpDown, label: "FILE TRANSFERS" },
         ],
       },
     ],

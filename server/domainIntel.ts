@@ -18,6 +18,7 @@ import { ENV } from "./_core/env";
 import { runCrossModuleEnrichment, type CrossModuleEnrichmentResult } from "./lib/cross-module-enrichment";
 import { discoverOrgDomains, type OrgDiscoveryResult } from "./lib/org-domain-discovery";
 import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
+import { runWafNgfwAssessment, buildNmapCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -326,6 +327,8 @@ export interface PipelineResult {
     subdomainsProbed: string[];
     durationMs: number;
   };
+  /** WAF/NGFW detection and scan tuning profile */
+  wafNgfwAssessment?: WafNgfwAssessment;
   /** Summary of automated credential testing against discovered services */
   credentialTestSummary?: {
     totalTargets: number;
@@ -420,8 +423,8 @@ Organization:
 - Additional Domains: ${(org.additionalDomains || []).join(", ") || "none"}
 - Sector: ${org.sector}
 - Client Type: ${org.clientType}
-- Critical Functions: ${org.criticalFunctions.join(", ")}
-- Compliance: ${org.complianceFlags.join(", ") || "none specified"}
+- Critical Functions: ${(org.criticalFunctions || []).join(", ") || "none specified"}
+- Compliance: ${(org.complianceFlags || []).join(", ") || "none specified"}
 - Notes: ${org.notes || "none"}${fpLearningBlock}${passiveContext || ''}
 
 For each domain (${allDomains.join(", ")}), ${passiveContext ? 'use the PASSIVE RECONNAISSANCE DATA above as your primary source of truth. Prioritize confirmed subdomains, IPs, and services from passive recon. Then supplement with additional inferences' : 'infer likely subdomains, services, and assets'} based on:
@@ -531,8 +534,8 @@ Organization Profile:
 - Domain: ${org.primaryDomain}
 - Sector: ${org.sector}
 - Client Type: ${org.clientType}
-- Critical Functions: ${org.criticalFunctions.join(", ")}
-- Compliance: ${org.complianceFlags.join(", ") || "none"}
+- Critical Functions: ${(org.criticalFunctions || []).join(", ") || "none specified"}
+- Compliance: ${(org.complianceFlags || []).join(", ") || "none"}
 
 Discovered Assets (${assets.length} total):
 ${JSON.stringify(assets.map(a => ({ id: a.assetId, hostname: a.hostname, type: a.assetType, classes: a.assetClasses, tags: a.tags, desc: a.description })), null, 2)}
@@ -1298,8 +1301,8 @@ export async function generateCampaignRecommendations(
   const prompt = `You are a red team campaign designer. Based on the following asset analysis and risk scoring, design tailored offensive security campaigns.
 
 Organization: ${org.customerName} (${org.sector}, ${org.clientType})
-Critical Functions: ${org.criticalFunctions.join(", ")}
-Compliance: ${org.complianceFlags.join(", ") || "none"}
+Critical Functions: ${(org.criticalFunctions || []).join(", ") || "none specified"}
+Compliance: ${(org.complianceFlags || []).join(", ") || "none"}
 
 Top Risk Assets (sorted by hybrid risk score):
 ${JSON.stringify(topAssets.map(a => {
@@ -1547,6 +1550,10 @@ export async function runDomainIntelPipeline(
   onProgress?: (stage: 'passive_recon' | 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>,
   options?: { scanMode?: ScanMode; skipEngagement?: boolean; scopedAssets?: string[] }
 ): Promise<PipelineResult> {
+  // Defensive defaults for optional arrays to prevent undefined access
+  org.criticalFunctions = org.criticalFunctions || [];
+  org.complianceFlags = org.complianceFlags || [];
+  org.additionalDomains = org.additionalDomains || [];
   const scanMode: ScanMode = options?.scanMode || 'standard';
   const isScopedScan = options?.scopedAssets && options.scopedAssets.length > 0;
   // Stage 0: Load FP learning context from analyst feedback
@@ -1784,6 +1791,51 @@ export async function runDomainIntelPipeline(
     } catch (err: any) {
       console.error(`[DomainIntel] Shodan enrichment failed (non-fatal): ${err.message}`);
     }
+  }
+
+  // Stage 1.8: WAF/NGFW Detection & Scan Tuning Profile
+  let wafNgfwAssessment: WafNgfwAssessment | undefined;
+  try {
+    console.log(`[DomainIntel] Stage 1.8: Running WAF/NGFW detection for ${org.primaryDomain}`);
+    const shodanBanners: string[] = [];
+    const certOrgs: string[] = [];
+    const dnsChain: string[] = [];
+    
+    // Extract Shodan banners and cert orgs from passive recon
+    if (passiveRecon) {
+      for (const obs of passiveRecon.allObservations) {
+        if (obs.source === 'shodan' && obs.evidence?.banner) {
+          shodanBanners.push(String(obs.evidence.banner));
+        }
+        if (obs.source === 'shodan' && obs.evidence?.ssl?.cert?.subject?.O) {
+          certOrgs.push(String(obs.evidence.ssl.cert.subject.O));
+        }
+        if (obs.source === 'dns' && obs.evidence?.cname) {
+          if (Array.isArray(obs.evidence.cname)) dnsChain.push(...obs.evidence.cname.map(String));
+          else dnsChain.push(String(obs.evidence.cname));
+        }
+      }
+    }
+    
+    wafNgfwAssessment = await runWafNgfwAssessment(org.primaryDomain, {
+      timeout: 8000,
+      shodanBanners,
+      certOrgs,
+      dnsChain,
+    });
+    
+    const wafNames = wafNgfwAssessment.wafDetections.map(w => `${w.productName} (${w.confidence})`).join(', ');
+    const ngfwNames = wafNgfwAssessment.ngfwDetections.map(n => `${n.productName} (${n.confidence})`).join(', ');
+    console.log(`[DomainIntel] Stage 1.8 complete — WAF: ${wafNames || 'none detected'}, NGFW: ${ngfwNames || 'none detected'}`);
+    console.log(`[DomainIntel]   Scan tuning: ${wafNgfwAssessment.scanTuningProfile.aggressiveness} mode, defensive posture: ${wafNgfwAssessment.defensivePostureScore}/100`);
+    
+    // Log generated Nmap command for operator reference
+    const nmapCmd = buildNmapCommand(wafNgfwAssessment.scanTuningProfile, [org.primaryDomain]);
+    console.log(`[DomainIntel]   Suggested Nmap: ${nmapCmd.substring(0, 200)}...`);
+    const nucleiCmd = buildNucleiCommand(wafNgfwAssessment.scanTuningProfile, [`https://${org.primaryDomain}`]);
+    console.log(`[DomainIntel]   Suggested Nuclei: ${nucleiCmd.substring(0, 200)}...`);
+  } catch (err: any) {
+    console.error(`[DomainIntel] Stage 1.8 WAF/NGFW detection failed (non-fatal): ${err.message}`);
   }
 
   // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk) — with FP calibration
@@ -2692,7 +2744,7 @@ export async function runDomainIntelPipeline(
     const { analyzeContainerExposure } = await import('./lib/passive/container-discovery');
     const additionalHosts = analyses.map(a => a.asset.hostname).filter(h => h !== org.primaryDomain);
     console.log(`[DomainIntel] Stage 3.992: Running container exposure scan (${additionalHosts.length + 1} hosts)`);
-    containerExposure = await analyzeContainerExposure(org.primaryDomain, additionalHosts, 10000);
+    containerExposure = await analyzeContainerExposure(org.primaryDomain, additionalHosts, 3000, 45000);
     if (containerExposure.totalHits > 0) {
       console.log(`[DomainIntel] Container exposure: ${containerExposure.totalHits} exposed services found (${containerExposure.criticalFindings} critical, ${containerExposure.highFindings} high)`);
     } else {
@@ -2795,5 +2847,6 @@ export async function runDomainIntelPipeline(
     credentialTestSummary,
     complianceScan,
     containerExposure,
+    wafNgfwAssessment,
   };
 }

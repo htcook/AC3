@@ -378,11 +378,278 @@ export const webAppScanningRouter = router({
         },
       ];
 
+      const { generateReportFromZapApi } = await import("../lib/zap-report-generator");
+      // Use the new themed report generator
+      const themedHtml = await generateReportFromZapApi(input.scanId, "full");
+      return themedHtml;
+      /* Legacy report generation kept as fallback:
       return generateReport({
         title: `Web Application Scan Report — ${scan.scanName || scan.targetUrl}`,
         subtitle: `OWASP ZAP ${scan.scanMode === "passive" ? "Passive Recon" : "Active DAST"} Scan`,
         generatedAt: new Date(),
         sections,
+      });
+      */
+    }),
+
+  // ─── ZAP Proxy Orchestration ────────────────────────────────────────────
+
+  /** Initialize a ZAP proxy session for interactive web app testing */
+  initProxySession: protectedProcedure
+    .input(z.object({
+      targetUrl: z.string().url(),
+      contextName: z.string().optional(),
+      proxyPort: z.number().optional(),
+      httpsInterception: z.boolean().optional(),
+      wafVendor: z.string().optional(),
+      authType: z.enum(["form_based", "json_api", "http_basic", "bearer_token", "manual_browse"]).optional(),
+      loginUrl: z.string().optional(),
+      usernameField: z.string().optional(),
+      passwordField: z.string().optional(),
+      credentials: z.array(z.object({
+        username: z.string(),
+        password: z.string(),
+        role: z.string().optional(),
+      })).optional(),
+      loggedInIndicator: z.string().optional(),
+      loggedOutIndicator: z.string().optional(),
+      bearerToken: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { initializeProxySession } = await import("../lib/zap-proxy-orchestrator");
+      return initializeProxySession({
+        targetUrl: input.targetUrl,
+        contextName: input.contextName,
+        proxyConfig: input.proxyPort ? { listenPort: input.proxyPort, listenAddress: "0.0.0.0", httpsInterception: input.httpsInterception ?? true } : undefined,
+        wafVendor: input.wafVendor,
+        authConfig: input.authType ? {
+          type: input.authType,
+          loginUrl: input.loginUrl || input.targetUrl,
+          usernameField: input.usernameField,
+          passwordField: input.passwordField,
+          credentials: input.credentials || [],
+          loggedInIndicator: input.loggedInIndicator,
+          loggedOutIndicator: input.loggedOutIndicator,
+          bearerToken: input.bearerToken,
+        } : undefined,
+      });
+    }),
+
+  /** Start authenticated spider crawl through ZAP proxy */
+  startAuthCrawl: protectedProcedure
+    .input(z.object({
+      sessionId: z.string(),
+      useAjaxSpider: z.boolean().optional(),
+      maxDepth: z.number().optional(),
+      subtreeOnly: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { startAuthenticatedCrawl } = await import("../lib/zap-proxy-orchestrator");
+      return startAuthenticatedCrawl(input.sessionId, {
+        useAjaxSpider: input.useAjaxSpider,
+        maxDepth: input.maxDepth,
+        subtreeOnly: input.subtreeOnly,
+      });
+    }),
+
+  /** Get proxy session status */
+  getProxySessionStatus: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .query(async ({ input }) => {
+      const { getProxySessionStatus } = await import("../lib/zap-proxy-orchestrator");
+      return getProxySessionStatus(input.sessionId);
+    }),
+
+  /** Stop a proxy session */
+  stopProxySession: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { stopProxySession } = await import("../lib/zap-proxy-orchestrator");
+      return stopProxySession(input.sessionId);
+    }),
+
+  /** List active proxy sessions */
+  listProxySessions: protectedProcedure.query(async () => {
+    const { listActiveSessions } = await import("../lib/zap-proxy-orchestrator");
+    return listActiveSessions();
+  }),
+
+  /** Detect login form configuration using LLM */
+  detectLoginForm: protectedProcedure
+    .input(z.object({ loginPageUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const { detectLoginConfiguration } = await import("../lib/zap-proxy-orchestrator");
+      return detectLoginConfiguration(input.loginPageUrl);
+    }),
+
+  /** Apply WAF evasion settings based on detection results */
+  applyWafEvasion: protectedProcedure
+    .input(z.object({
+      wafDetected: z.boolean(),
+      wafVendor: z.string().optional(),
+      wafConfidence: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { applyWafEvasionSettings } = await import("../lib/zap-proxy-orchestrator");
+      return applyWafEvasionSettings(input);
+    }),
+
+  /** Get WAF evasion presets for UI display */
+  getWafEvasionPresets: protectedProcedure.query(async () => {
+    const { getWafEvasionPresets } = await import("../lib/zap-proxy-orchestrator");
+    return getWafEvasionPresets();
+  }),
+
+  /** Get ZAP proxy history */
+  getProxyHistory: protectedProcedure
+    .input(z.object({
+      start: z.number().optional(),
+      count: z.number().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { getProxyHistory } = await import("../lib/zap-proxy-orchestrator");
+      return getProxyHistory(input);
+    }),
+
+  /** Get ZAP CA certificate for HTTPS interception */
+  getCaCertificate: protectedProcedure.query(async () => {
+    const { getCaCertificate } = await import("../lib/zap-proxy-orchestrator");
+    return getCaCertificate();
+  }),
+
+  /** Generate themed HTML report from scan data */
+  generateThemedReport: protectedProcedure
+    .input(z.object({
+      scanId: z.number(),
+      reportType: z.enum(["executive", "technical", "compliance", "credential", "full"]).optional(),
+      engagement: z.object({
+        clientName: z.string(),
+        engagementName: z.string(),
+        startDate: z.string(),
+        endDate: z.string(),
+        scopeDescription: z.string(),
+        testerName: z.string(),
+        testerOrg: z.string(),
+      }).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { generateReportFromZapApi } = await import("../lib/zap-report-generator");
+      return generateReportFromZapApi(input.scanId, input.reportType || "full", input.engagement);
+    }),
+
+  // ─── Credential Attack Engine ──────────────────────────────────────────
+
+  /** Get available password lists */
+  getPasswordLists: protectedProcedure.query(async () => {
+    const { getPasswordLists } = await import("../lib/credential-attack-engine");
+    return getPasswordLists();
+  }),
+
+  /** Get available username lists */
+  getUsernameLists: protectedProcedure.query(async () => {
+    const { getUsernameLists } = await import("../lib/credential-attack-engine");
+    return getUsernameLists();
+  }),
+
+  /** Get default credentials for a specific protocol/port */
+  getDefaultCredentials: protectedProcedure
+    .input(z.object({
+      protocol: z.string(),
+      port: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const { getDefaultCredentialsForTarget } = await import("../lib/credential-attack-engine");
+      return getDefaultCredentialsForTarget(input.protocol as any, input.port);
+    }),
+
+  /** Detect web login form for brute force configuration */
+  detectWebLoginForm: protectedProcedure
+    .input(z.object({ url: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const { detectWebLoginForm } = await import("../lib/credential-attack-engine");
+      return detectWebLoginForm(input.url);
+    }),
+
+  /** Generate targeted password list based on org info */
+  generateTargetedPasswords: protectedProcedure
+    .input(z.object({
+      companyName: z.string(),
+      domain: z.string(),
+      industry: z.string().optional(),
+      foundedYear: z.number().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { generateTargetedPasswordList } = await import("../lib/credential-attack-engine");
+      return generateTargetedPasswordList(input);
+    }),
+
+  /** Execute a credential attack (brute force, spray, stuffing, default creds) */
+  executeCredentialAttack: protectedProcedure
+    .input(z.object({
+      mode: z.enum(["brute_force", "password_spray", "credential_stuffing", "default_creds", "dictionary"]),
+      host: z.string(),
+      port: z.number(),
+      protocol: z.string(),
+      loginUrl: z.string().optional(),
+      loginFormAction: z.string().optional(),
+      usernameField: z.string().optional(),
+      passwordField: z.string().optional(),
+      csrfTokenName: z.string().optional(),
+      successIndicator: z.string().optional(),
+      failureIndicator: z.string().optional(),
+      contentType: z.enum(["form", "json"]).optional(),
+      usernames: z.array(z.string()).optional(),
+      passwords: z.array(z.string()).optional(),
+      credentialPairs: z.array(z.object({
+        username: z.string(),
+        password: z.string(),
+        source: z.string().optional(),
+      })).optional(),
+      passwordListName: z.string().optional(),
+      maxRequestsPerSecond: z.number().optional(),
+      delayBetweenAttemptsMs: z.number().optional(),
+      maxAttemptsPerUser: z.number().optional(),
+      lockoutDetection: z.boolean().optional(),
+      maxTotalAttempts: z.number().optional(),
+      stopOnFirstSuccess: z.boolean().optional(),
+      globalTimeoutSec: z.number().optional(),
+      sprayDelayBetweenPasswordsSec: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { executeCredentialAttack } = await import("../lib/credential-attack-engine");
+      return executeCredentialAttack({
+        mode: input.mode,
+        target: {
+          host: input.host,
+          port: input.port,
+          protocol: input.protocol as any,
+          loginUrl: input.loginUrl,
+          loginFormAction: input.loginFormAction,
+          usernameField: input.usernameField,
+          passwordField: input.passwordField,
+          csrfTokenName: input.csrfTokenName,
+          successIndicator: input.successIndicator,
+          failureIndicator: input.failureIndicator,
+          contentType: input.contentType,
+        },
+        usernames: input.usernames,
+        passwords: input.passwords,
+        credentialPairs: input.credentialPairs,
+        passwordListName: input.passwordListName,
+        maxRequestsPerSecond: input.maxRequestsPerSecond || 5,
+        delayBetweenAttemptsMs: input.delayBetweenAttemptsMs || 500,
+        jitterMs: 200,
+        maxAttemptsPerUser: input.maxAttemptsPerUser || 10,
+        lockoutDetection: input.lockoutDetection ?? true,
+        lockoutThreshold: 5,
+        lockoutCooldownSec: 60,
+        sprayDelayBetweenPasswordsSec: input.sprayDelayBetweenPasswordsSec,
+        maxTotalAttempts: input.maxTotalAttempts || 1000,
+        timeoutPerAttemptMs: 10000,
+        globalTimeoutSec: input.globalTimeoutSec || 600,
+        stopOnFirstSuccess: input.stopOnFirstSuccess ?? false,
       });
     }),
 });

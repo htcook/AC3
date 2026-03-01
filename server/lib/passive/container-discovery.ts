@@ -435,7 +435,8 @@ export const containerDiscoveryConnector: PassiveConnector = {
   freeUrl: "https://kubernetes.io/docs/reference/",
 
   async collect(domain: string, config?: ConnectorConfig): Promise<ConnectorResult> {
-    const timeout = config?.timeout ?? 8000;
+    const timeout = config?.timeout ?? 3000;
+    const globalTimeout = 60000; // 60 second max for entire container scan
     const startTime = Date.now();
     const observations: AssetObservation[] = [];
     const errors: string[] = [];
@@ -446,7 +447,7 @@ export const containerDiscoveryConnector: PassiveConnector = {
 
     // Probe each candidate with all container probes
     // Limit concurrency to avoid overwhelming targets
-    const CONCURRENCY = 5;
+    const CONCURRENCY = 10;
     const probeQueue: Array<{ host: string; probe: ContainerProbe }> = [];
     for (const host of candidates) {
       for (const probe of CONTAINER_PROBES) {
@@ -454,12 +455,18 @@ export const containerDiscoveryConnector: PassiveConnector = {
       }
     }
 
-    // Process in batches
+    // Process in batches with global timeout
+    let probesCompleted = 0;
     for (let i = 0; i < probeQueue.length; i += CONCURRENCY) {
+      if (Date.now() - startTime > globalTimeout) {
+        console.log(`[ContainerDiscovery] Global timeout reached after ${probesCompleted}/${probeQueue.length} probes`);
+        break;
+      }
       const batch = probeQueue.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(({ host, probe }) => runProbe(host, probe, timeout))
       );
+      probesCompleted += batch.length;
       for (const result of results) {
         if (result.status === "fulfilled") {
           allHits.push(...result.value);
@@ -467,7 +474,7 @@ export const containerDiscoveryConnector: PassiveConnector = {
       }
       // Respect rate limiting
       if (i + CONCURRENCY < probeQueue.length) {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 100));
       }
     }
 
@@ -559,7 +566,8 @@ export interface ContainerDiscoveryResult {
 export async function analyzeContainerExposure(
   domain: string,
   additionalHosts?: string[],
-  timeout = 8000
+  timeout = 3000,
+  globalTimeoutMs = 60000
 ): Promise<ContainerDiscoveryResult> {
   const startTime = Date.now();
   const candidates = [
@@ -570,7 +578,7 @@ export async function analyzeContainerExposure(
   const uniqueCandidates = [...new Set(candidates)];
 
   const allHits: ProbeHit[] = [];
-  const CONCURRENCY = 5;
+  const CONCURRENCY = 10;
   const probeQueue: Array<{ host: string; probe: ContainerProbe }> = [];
   for (const host of uniqueCandidates) {
     for (const probe of CONTAINER_PROBES) {
@@ -578,23 +586,32 @@ export async function analyzeContainerExposure(
     }
   }
 
+  let probesCompleted = 0;
   for (let i = 0; i < probeQueue.length; i += CONCURRENCY) {
+    // Global timeout check — stop probing if we've exceeded the time budget
+    if (Date.now() - startTime > globalTimeoutMs) {
+      console.log(`[ContainerDiscovery] Global timeout (${globalTimeoutMs}ms) reached after ${probesCompleted}/${probeQueue.length} probes`);
+      break;
+    }
+
     const batch = probeQueue.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(({ host, probe }) => runProbe(host, probe, timeout))
     );
+    probesCompleted += batch.length;
     for (const result of results) {
       if (result.status === "fulfilled") {
         allHits.push(...result.value);
       }
     }
+    // Small delay between batches to avoid overwhelming targets
     if (i + CONCURRENCY < probeQueue.length) {
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 100));
     }
   }
 
   return {
-    totalProbes: probeQueue.length,
+    totalProbes: probesCompleted,
     totalHits: allHits.length,
     criticalFindings: allHits.filter(h => h.probe.severity === "critical" && h.authenticated).length,
     highFindings: allHits.filter(h => h.probe.severity === "high").length,

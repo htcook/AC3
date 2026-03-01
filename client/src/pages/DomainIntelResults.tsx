@@ -1646,6 +1646,160 @@ export default function DomainIntelResults() {
             );
           })()}
 
+          {/* WAF/NGFW Detection */}
+          {(() => {
+            const waf = pipeline?.wafNgfwAssessment as any;
+            if (!waf) return null;
+            const wafDetected = waf.wafDetected || [];
+            const ngfwDetected = waf.ngfwDetected || [];
+            const totalDetected = wafDetected.length + ngfwDetected.length;
+            if (totalDetected === 0 && !waf.scanTuning) return null;
+            const confColors: Record<string, string> = {
+              high: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+              medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+              low: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40',
+            };
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-amber-400" />
+                    WAF / NGFW Detection
+                    <Badge variant="outline" className={`text-[10px] ml-auto ${totalDetected > 0 ? 'text-amber-400 border-amber-500/40' : 'text-emerald-400 border-emerald-500/40'}`}>
+                      {totalDetected > 0 ? `${totalDetected} detected` : 'None detected'}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Web Application Firewall and Next-Generation Firewall detection for scan tuning and evasion planning
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Detection Summary */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-amber-400">{wafDetected.length}</p>
+                      <p className="text-[10px] text-muted-foreground">WAFs Detected</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-orange-400">{ngfwDetected.length}</p>
+                      <p className="text-[10px] text-muted-foreground">NGFWs Detected</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-cyan-400">{waf.probesRun || 0}</p>
+                      <p className="text-[10px] text-muted-foreground">Probes Run</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-center">
+                      <p className="text-lg font-bold text-purple-400">{((waf.durationMs || 0) / 1000).toFixed(1)}s</p>
+                      <p className="text-[10px] text-muted-foreground">Scan Time</p>
+                    </div>
+                  </div>
+
+                  {/* WAF Detections */}
+                  {wafDetected.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-amber-400 mb-2 flex items-center gap-1.5">
+                        <Shield className="h-3.5 w-3.5" /> WAF Detections
+                      </p>
+                      <div className="space-y-2">
+                        {wafDetected.map((w: any, idx: number) => (
+                          <div key={idx} className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-sm font-medium">{w.vendor || w.name}</span>
+                              <Badge className={`text-[9px] px-1.5 py-0 ${confColors[w.confidence] || confColors.medium}`}>
+                                {(w.confidence || 'medium').toUpperCase()}
+                              </Badge>
+                            </div>
+                            {w.evidence && w.evidence.length > 0 && (
+                              <div className="flex gap-1 flex-wrap mt-1">
+                                {w.evidence.slice(0, 5).map((e: string, ei: number) => (
+                                  <span key={ei} className="text-[9px] text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded">{e}</span>
+                                ))}
+                              </div>
+                            )}
+                            {w.bypassDifficulty && (
+                              <p className="text-[10px] text-muted-foreground mt-1">Bypass difficulty: <span className="text-foreground">{w.bypassDifficulty}</span></p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* NGFW Detections */}
+                  {ngfwDetected.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-orange-400 mb-2 flex items-center gap-1.5">
+                        <Wifi className="h-3.5 w-3.5" /> NGFW Detections
+                      </p>
+                      <div className="space-y-2">
+                        {ngfwDetected.map((n: any, idx: number) => (
+                          <div key={idx} className="p-3 rounded-lg border border-orange-500/20 bg-orange-500/5">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-sm font-medium">{n.vendor || n.name}</span>
+                              <Badge className={`text-[9px] px-1.5 py-0 ${confColors[n.confidence] || confColors.medium}`}>
+                                {(n.confidence || 'medium').toUpperCase()}
+                              </Badge>
+                            </div>
+                            {n.evidence && n.evidence.length > 0 && (
+                              <div className="flex gap-1 flex-wrap mt-1">
+                                {n.evidence.slice(0, 5).map((e: string, ei: number) => (
+                                  <span key={ei} className="text-[9px] text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded">{e}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scan Tuning Recommendations */}
+                  {waf.scanTuning && (
+                    <div>
+                      <p className="text-xs font-medium text-cyan-400 mb-2 flex items-center gap-1.5">
+                        <Settings2 className="h-3.5 w-3.5" /> Scan Tuning Recommendations
+                      </p>
+                      <div className="p-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 space-y-2">
+                        {waf.scanTuning.nmapFlags && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Nmap Flags</p>
+                            <p className="text-xs font-mono text-cyan-400">{waf.scanTuning.nmapFlags}</p>
+                          </div>
+                        )}
+                        {waf.scanTuning.nucleiFlags && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Nuclei Flags</p>
+                            <p className="text-xs font-mono text-cyan-400">{waf.scanTuning.nucleiFlags}</p>
+                          </div>
+                        )}
+                        {waf.scanTuning.zapSettings && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">ZAP Settings</p>
+                            <p className="text-xs font-mono text-cyan-400">{typeof waf.scanTuning.zapSettings === 'string' ? waf.scanTuning.zapSettings : JSON.stringify(waf.scanTuning.zapSettings)}</p>
+                          </div>
+                        )}
+                        {waf.scanTuning.recommendations && waf.scanTuning.recommendations.length > 0 && (
+                          <div className="space-y-1 mt-2">
+                            {waf.scanTuning.recommendations.map((rec: string, ri: number) => (
+                              <p key={ri} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                                <Lightbulb className="h-3 w-3 text-yellow-400 shrink-0 mt-0.5" />
+                                {rec}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-muted-foreground italic">
+                    WAF/NGFW detection completed in {((waf.durationMs || 0) / 1000).toFixed(1)}s. Scan tuning recommendations are based on detected security appliances.
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Risk Heatmap */}
           <Card>
             <CardHeader>
@@ -5713,6 +5867,59 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
       attribution: 'Data from GreyNoise (greynoise.io). Verify at: https://viz.greynoise.io/ip/<IP>',
       fpRisk: "Low — classifications based on observed internet traffic behavior.",
       verifyCmd: "Visit https://viz.greynoise.io/ip/<IP>",
+    },
+    {
+      id: "github_recon",
+      name: "Enhanced GitHub Reconnaissance",
+      icon: Globe,
+      category: "Passive Data Collection",
+      status: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "no_results";
+        const c = pr.connectorResults.find((r: any) => r.connector === "github_recon");
+        return c && c.observations?.length > 0 ? "completed" : "no_results";
+      })(),
+      description: "Deep GitHub reconnaissance — discovers target organizations, enumerates public repositories, maps contributors and members, analyzes CI/CD workflows for secrets exposure, scans code with 30+ dork patterns, and detects leaked credentials using TruffleHog-style regex patterns.",
+      outputs: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "Not executed";
+        const c = pr.connectorResults.find((r: any) => r.connector === "github_recon");
+        if (!c) return "Not executed";
+        const orgs = c.observations?.filter((o: any) => o.tags?.includes('organization'))?.length || 0;
+        const repos = c.observations?.filter((o: any) => o.tags?.includes('repository'))?.length || 0;
+        const leaks = c.observations?.filter((o: any) => o.tags?.includes('code_leak'))?.length || 0;
+        const secrets = c.observations?.filter((o: any) => o.tags?.includes('secrets_detected'))?.length || 0;
+        return `${c.observations?.length || 0} observations: ${orgs} orgs, ${repos} repos, ${leaks} code leaks, ${secrets} secrets detected`;
+      })(),
+      attribution: 'Data from GitHub REST API and Code Search API. Verify at: https://github.com/<org>',
+      fpRisk: "Low for org/repo discovery. Medium for code leak dorks (may match test/example files).",
+      verifyCmd: "Visit the GitHub URLs in each finding to verify",
+    },
+    {
+      id: "cloud_bucket_recon",
+      name: "Enhanced Cloud Bucket Discovery",
+      icon: Radar,
+      category: "Passive Data Collection",
+      status: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "no_results";
+        const c = pr.connectorResults.find((r: any) => r.connector === "cloud_bucket_recon");
+        return c && c.observations?.length > 0 ? "completed" : "no_results";
+      })(),
+      description: "Comprehensive cloud storage enumeration across 5 providers (AWS S3, Azure Blob, GCP Storage, DigitalOcean Spaces, Alibaba OSS). Uses intelligent wordlist generation with industry-specific patterns, permission depth analysis, public content listing, and sensitive file detection.",
+      outputs: (() => {
+        const pr = (scan.pipelineOutput as any)?.passiveRecon;
+        if (!pr?.connectorResults) return "Not executed";
+        const c = pr.connectorResults.find((r: any) => r.connector === "cloud_bucket_recon");
+        if (!c) return "Not executed";
+        const pub = c.observations?.filter((o: any) => o.tags?.includes('public_bucket'))?.length || 0;
+        const priv = c.observations?.filter((o: any) => o.tags?.includes('private_bucket'))?.length || 0;
+        const sensitive = c.observations?.filter((o: any) => o.tags?.includes('sensitive_files_exposed'))?.length || 0;
+        return `${c.observations?.length || 0} observations: ${pub} public buckets, ${priv} private buckets${sensitive > 0 ? `, ${sensitive} with sensitive files` : ''}`;
+      })(),
+      attribution: 'Probed cloud storage endpoints directly. Verify by visiting the bucket URLs.',
+      fpRisk: "Low — bucket existence is deterministic (HTTP 200/403 vs 404).",
+      verifyCmd: "curl -I https://<bucket>.s3.amazonaws.com/",
     },
     {
       id: "dehashed_breach",

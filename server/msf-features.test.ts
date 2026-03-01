@@ -324,7 +324,7 @@ describe("Feature Integration", () => {
     const shellSource = await import("fs").then(fs =>
       fs.readFileSync("client/src/components/AppShell.tsx", "utf-8")
     );
-    expect(shellSource).toContain("C2 SERVERS");
+    expect(shellSource).toContain("C2 HUB");
     expect(shellSource).toContain("SSH KEYS");
     expect(shellSource).toContain("LIVE SESSIONS");
   });

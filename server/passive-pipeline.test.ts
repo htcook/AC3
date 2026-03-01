@@ -66,6 +66,72 @@ vi.mock("./lib/passive/urlscan", () => ({
 vi.mock("./lib/passive/securitytrails", () => ({
   securitytrailsConnector: makeMockConnector("securitytrails", []),
 }));
+vi.mock("./lib/passive/dehashed", () => ({
+  dehashedConnector: makeMockConnector("dehashed", []),
+}));
+vi.mock("./lib/passive/shodan-internetdb", () => ({
+  shodanInternetDBConnector: makeMockConnector("shodan-internetdb", []),
+}));
+vi.mock("./lib/passive/binaryedge", () => ({
+  binaryedgeConnector: makeMockConnector("binaryedge", []),
+}));
+vi.mock("./lib/passive/greynoise", () => ({
+  greynoiseConnector: makeMockConnector("greynoise", []),
+}));
+vi.mock("./lib/passive/email-security", () => ({
+  emailSecurityConnector: makeMockConnector("email-security", []),
+}));
+vi.mock("./lib/passive/http-security", () => ({
+  httpSecurityConnector: makeMockConnector("http-security", []),
+}));
+vi.mock("./lib/passive/cloud-assets", () => ({
+  cloudAssetsConnector: makeMockConnector("cloud-assets", []),
+}));
+vi.mock("./lib/passive/container-discovery", () => ({
+  containerDiscoveryConnector: makeMockConnector("container-discovery", []),
+}));
+vi.mock("./lib/passive/dns-deep", () => ({
+  dnsDeepConnector: makeMockConnector("dns-deep", []),
+}));
+vi.mock("./lib/passive/github-leaks", () => ({
+  githubLeaksConnector: makeMockConnector("github-leaks", []),
+}));
+vi.mock("./lib/passive/virustotal", () => ({
+  virustotalConnector: makeMockConnector("virustotal", []),
+}));
+vi.mock("./lib/passive/hibp", () => ({
+  hibpConnector: makeMockConnector("hibp", []),
+}));
+vi.mock("./lib/passive/whoisxml", () => ({
+  whoisxmlConnector: makeMockConnector("whoisxml", []),
+}));
+vi.mock("./lib/passive/leakix", () => ({
+  leakixConnector: makeMockConnector("leakix", []),
+}));
+vi.mock("./lib/passive/fullhunt", () => ({
+  fullhuntConnector: makeMockConnector("fullhunt", []),
+}));
+vi.mock("./lib/passive/netlas", () => ({
+  netlasConnector: makeMockConnector("netlas", []),
+}));
+vi.mock("./lib/passive/hunter", () => ({
+  hunterConnector: makeMockConnector("hunter", []),
+}));
+vi.mock("./lib/passive/social-media", () => ({
+  socialMediaConnector: makeMockConnector("social-media", []),
+}));
+vi.mock("./lib/passive/abuseipdb", () => ({
+  abuseipdbConnector: makeMockConnector("abuseipdb", []),
+}));
+vi.mock("./lib/passive/passivetotal", () => ({
+  passivetotalConnector: makeMockConnector("passivetotal", []),
+}));
+vi.mock("./lib/passive/github-recon", () => ({
+  githubReconConnector: makeMockConnector("github_recon", []),
+}));
+vi.mock("./lib/passive/cloud-bucket-recon", () => ({
+  cloudBucketReconConnector: makeMockConnector("cloud_bucket_recon", []),
+}));
 
 describe("Passive ASM Pipeline Integration", () => {
   // ─── Signal Classifier ─────────────────────────────────────────

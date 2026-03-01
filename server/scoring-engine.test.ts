@@ -820,9 +820,9 @@ describe("CARVER_DIGITAL_TRANSLATION", () => {
     }
   });
 
-  it("each factor has FM 34-36 and digital descriptions", () => {
+  it("each factor has context question and digital descriptions", () => {
     for (const [, factor] of Object.entries(CARVER_DIGITAL_TRANSLATION)) {
-      expect(factor.fm34_36).toBeTruthy();
+      expect(factor.contextQuestion).toBeTruthy();
       expect(factor.digital).toBeTruthy();
       expect(factor.name).toBeTruthy();
     }

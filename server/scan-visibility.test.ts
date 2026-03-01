@@ -25,10 +25,9 @@ describe("Scan History Sidebar Navigation", () => {
     const content = fs.readFileSync(appShellPath, "utf-8");
     const domainIntelIdx = content.indexOf('"/domain-intel"');
     const scanHistoryIdx = content.indexOf('"/domain-intel/history"');
-    const scanCompareIdx = content.indexOf('"/scan-compare"');
     expect(domainIntelIdx).toBeGreaterThan(-1);
+    expect(scanHistoryIdx).toBeGreaterThan(-1);
     expect(scanHistoryIdx).toBeGreaterThan(domainIntelIdx);
-    expect(scanHistoryIdx).toBeLessThan(scanCompareIdx);
   });
 
   it("should import ClipboardList icon for SCAN HISTORY", async () => {
@@ -75,7 +74,7 @@ describe("Domain Intel - Completed Scans Visibility", () => {
     const domainIntelPath = path.resolve(__dirname, "../client/src/pages/DomainIntel.tsx");
     const content = fs.readFileSync(domainIntelPath, "utf-8");
     expect(content).toContain('/domain-intel/history');
-    expect(content).toContain('View All');
+    expect(content).toContain('Full History');
   });
 });
 

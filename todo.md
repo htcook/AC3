@@ -5973,3 +5973,54 @@
 - [x] Build frontend UI for image scanning (browse repos, select images, trigger scans, view results)
 - [x] Wire registry scanning into domain intel pipeline and scan results display
 - [x] Write tests for registry credential integration
+
+## Enhanced GitHub Target Repo Search
+- [x] Enhance GitHub target repo search — org enumeration, member/contributor mapping
+- [x] Add forked repo analysis and dependency graph discovery
+- [x] Improve secrets/leak pattern detection (API keys, tokens, credentials, .env files)
+- [x] Add commit history analysis for sensitive data exposure
+- [x] Add GitHub Actions workflow analysis for CI/CD attack surface
+- [x] Integrate enhanced GitHub recon into pipeline and UI
+
+## Enhanced Cloud Bucket Discovery
+- [x] Add S3/GCS/Azure blob bucket enumeration with permutation wordlists
+- [x] Add bucket permission scanning (public read/write/list detection)
+- [x] Add public data exposure detection and file listing
+- [x] Add DigitalOcean Spaces and Alibaba OSS bucket discovery
+- [x] Integrate enhanced bucket discovery into pipeline and UI
+- [x] Write tests for enhanced GitHub repo and bucket discovery
+
+## WAF/NGFW Detection & Scan Tuning
+- [x] Implement WAF detection engine (fingerprinting via HTTP headers, response codes, error pages)
+- [x] Implement NGFW detection (port behavior analysis, TCP fingerprinting, rate limiting detection)
+- [x] Build scan tuning recommender — auto-adjust Nmap timing, scripts, and evasion based on detected WAF/NGFW
+- [x] Add WAF/NGFW vendor identification (Cloudflare, Akamai, AWS WAF, F5, Palo Alto, Fortinet, etc.)
+- [x] Integrate WAF/NGFW detection into active scanning pipeline (pre-scan phase)
+- [x] Add WAF/NGFW detection results to DomainIntelResults UI
+- [x] Write tests for WAF/NGFW detection module
+
+## ZAP Proxy Web App Pentesting Workflow
+- [x] Audit current ZAP integration for proxy deployment
+- [x] Build ZAP proxy orchestration engine with session management
+- [x] Implement authenticated crawling with form/bearer/session auth
+- [x] Add WAF evasion presets for proxy sessions
+- [x] Implement CA certificate management for HTTPS interception
+- [x] Add proxy history and traffic analysis endpoints
+
+## Brute Force / Password Stuffing / Default Credential Testing
+- [x] Implement password list management (built-in wordlists + targeted generation)
+- [x] Web login brute force engine (form-based, JSON API, basic auth)
+- [x] Service port brute force (SSH, FTP, RDP, SMB, MySQL, MSSQL, etc.)
+- [x] Password stuffing with breach credential pairs
+- [x] Default credential testing (95+ vendor defaults across network/web/IoT/SCADA)
+- [x] Rate limiting and lockout detection
+- [x] Integration with ZAP proxy for web login attacks
+- [x] LLM-powered login form detection and configuration
+- [x] Targeted password list generation from org intelligence
+
+## ZAP Themed Report Generation
+- [x] Implement ZAP report API integration (generate reports via ZAP API)
+- [x] Create branded HTML report template matching site brutalist theme (#0A0E14/#00E5CC)
+- [x] Include MITRE ATT&CK mapping, severity breakdown, and executive summary in reports
+- [x] Add report download endpoint to web-app-scanning router
+- [x] Support multiple report formats (HTML themed, JSON, markdown)

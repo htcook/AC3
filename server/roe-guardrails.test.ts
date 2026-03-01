@@ -139,7 +139,7 @@ describe("Sidebar includes new items", () => {
     const fs = await import("fs");
     const content = fs.readFileSync("client/src/components/AppShell.tsx", "utf-8");
     expect(content).toContain("/continuous-validation");
-    expect(content).toContain("CONTINUOUS VALIDATION");
+    expect(content).toContain("VALIDATION OPS");
   });
 
   it("has audit-log in nav", async () => {

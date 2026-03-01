@@ -26,6 +26,8 @@ import { cloudAssetsConnector } from "./cloud-assets";
 import { containerDiscoveryConnector } from "./container-discovery";
 import { dnsDeepConnector } from "./dns-deep";
 import { githubLeaksConnector } from "./github-leaks";
+import { githubReconConnector } from "./github-recon";
+import { cloudBucketReconConnector } from "./cloud-bucket-recon";
 import { virustotalConnector } from "./virustotal";
 import { hibpConnector } from "./hibp";
 import { whoisxmlConnector } from "./whoisxml";
@@ -72,6 +74,9 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   socialMediaConnector,        // Social media — GitHub org/user presence & code exposure
   abuseipdbConnector,          // AbuseIPDB — IP abuse reputation scoring
   passivetotalConnector,       // PassiveTotal — passive DNS, SSL history, host attributes
+  // --- Enhanced Recon Modules ---
+  githubReconConnector,          // Enhanced GitHub recon — org discovery, repo enum, CI/CD, secrets, dorks
+  cloudBucketReconConnector,     // Enhanced cloud bucket recon — 5 providers, permission depth, sensitive files
 ];
 
 export interface PassiveReconConfig {
