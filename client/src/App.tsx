@@ -519,7 +519,7 @@ function Router() {
           {() => <ProtectedRoute component={EngagementOps} />}
         </Route>
         <Route path="/engagement-ops">
-          {() => <Redirect to="/engagements" />}
+          {() => <ProtectedRoute component={EngagementOps} />}
         </Route>
         <Route path="/emulation-playbooks">
           <ProtectedRoute component={EmulationPlaybooks} />

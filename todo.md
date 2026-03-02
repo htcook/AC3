@@ -6746,3 +6746,7 @@
 - [x] Tool match log entries push instantly to connected clients
 - [x] Write vitest tests for WebSocket integration (69 tests passing)
 - [x] Validate end-to-end passive → active scan workflow on Vianova engagement
+
+## Bug: Engagement Ops not clickable
+- [x] Diagnose why Engagement Ops link/button cannot be clicked in the UI
+- [x] Fix the navigation/routing issue — added engagement picker page at /engagement-ops

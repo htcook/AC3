@@ -214,6 +214,10 @@ export default function EngagementOps() {
   const [showTargetInput, setShowTargetInput] = useState(false);
 
   // ── Data fetching ──
+  const engagementsListQ = trpc.engagements.list.useQuery(
+    undefined,
+    { enabled: !engagementId }
+  );
   const engagementQ = trpc.engagements.get.useQuery(
     { id: engagementId },
     { enabled: engagementId > 0 }
@@ -379,9 +383,62 @@ export default function EngagementOps() {
   const canStartActive = isReconComplete && !ops?.isRunning && roeSigned;
 
   if (!engagementId) {
+    const activeEngagements = (engagementsListQ.data || []).filter(
+      (e: any) => e.status === "active" || e.status === "in_progress" || e.status === "planning"
+    );
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>No engagement selected. Go to Engagements and click Launch.</p>
+      <div className="flex flex-col items-center justify-center h-full gap-6 px-4">
+        <div className="text-center">
+          <Crosshair className="h-12 w-12 mx-auto mb-4 text-red-400 opacity-60" />
+          <h2 className="text-lg font-bold text-foreground mb-1">Engagement Operations Console</h2>
+          <p className="text-sm text-muted-foreground">Select an engagement to begin operations</p>
+        </div>
+        {engagementsListQ.isLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading engagements...</span>
+          </div>
+        ) : activeEngagements.length === 0 ? (
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-3">No active engagements found.</p>
+            <a href="/engagements">
+              <Button variant="outline" className="font-display tracking-wider">
+                <Plus className="h-4 w-4 mr-2" /> Create Engagement
+              </Button>
+            </a>
+          </div>
+        ) : (
+          <div className="grid gap-3 w-full max-w-2xl">
+            {activeEngagements.map((eng: any) => (
+              <a key={eng.id} href={`/engagement-ops/${eng.id}`} className="block">
+                <Card className="hover:border-red-500/40 hover:bg-red-500/5 transition-all cursor-pointer group">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Crosshair className="h-4 w-4 text-red-400 flex-none" />
+                          <span className="font-bold text-foreground truncate">{eng.name}</span>
+                          <Badge variant="outline" className="text-[10px] flex-none">{eng.engagementType || 'pentest'}</Badge>
+                          <Badge variant="outline" className={`text-[10px] flex-none ${
+                            eng.roeStatus === 'signed' ? 'text-green-400 border-green-500/30' :
+                            eng.roeStatus === 'pending' ? 'text-yellow-400 border-yellow-500/30' :
+                            'text-muted-foreground'
+                          }`}>RoE: {eng.roeStatus || 'none'}</Badge>
+                        </div>
+                        <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                          {eng.customerName && <span>{eng.customerName}</span>}
+                          {eng.targetDomain && <span className="truncate max-w-[300px]">{eng.targetDomain}</span>}
+                          {eng.targetIpRange && <span>{eng.targetIpRange}</span>}
+                        </div>
+                      </div>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-red-400 transition-colors flex-none" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
