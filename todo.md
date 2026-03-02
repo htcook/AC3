@@ -6913,3 +6913,10 @@
 - [x] Verify passive scan works with Vianova targets (synchronous asset pre-population)
 - [x] Verify Discovery tab displays correctly for Vianova data
 - [x] Verify report generation works with Vianova engagement
+
+## Bug: Passive Discovery Scan Hangs (17+ minutes, no progress logs)
+- [x] Fix passive scan hanging: scan stuck in 'running' state for 17+ minutes with no progress logs (ROOT CAUSE: broadcastOpsUpdate not exported from engagement-orchestrator.ts)
+- [x] Add per-stage timeouts to runDomainIntelPipeline so individual stages can't hang indefinitely (60s LLM timeout + 3min per-domain watchdog)
+- [x] Add a Stop/Abort scan button so operators can cancel a stuck scan (already existed, now works because broadcastOpsUpdate is exported)
+- [x] Improve watchdog to be more aggressive and per-domain rather than global (3min per-domain + 8min global)
+- [x] Ensure progress logs broadcast to UI at each pipeline stage even when stages fail silently (fixed export + added currentAction updates)

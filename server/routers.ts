@@ -8687,20 +8687,39 @@ Make the phishing content highly realistic and tailored to the target domain and
 
         // Run pipeline in background — mutation returns immediately with assets already populated
         (async () => {
-          // ── Watchdog timeout: abort if pipeline takes > 5 minutes ──
-          const WATCHDOG_MS = 5 * 60 * 1000;
-          let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
-          const watchdogPromise = new Promise<never>((_, reject) => {
-            watchdogTimer = setTimeout(() => reject(new Error('Pipeline watchdog timeout (5 min) — aborting')), WATCHDOG_MS);
+          // ── Per-domain watchdog: 3 minutes per domain to prevent indefinite hangs ──
+          const PER_DOMAIN_WATCHDOG_MS = 3 * 60 * 1000;
+          // ── Global watchdog: 8 minutes total for entire pipeline ──
+          const GLOBAL_WATCHDOG_MS = 8 * 60 * 1000;
+          let globalWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+          const globalWatchdogPromise = new Promise<never>((_, reject) => {
+            globalWatchdogTimer = setTimeout(() => reject(new Error('Global pipeline watchdog timeout (8 min) — aborting all remaining domains')), GLOBAL_WATCHDOG_MS);
           });
 
           try {
 
             for (const domain of domains) {
+              // Check if scan was stopped by operator
+              if (!state!.isRunning) {
+                const stopLog = { id: `log-${Date.now()}-stopped`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: '⏹ Scan Stopped', detail: 'Passive scan stopped by operator before completing all domains.' };
+                state!.log.push(stopLog);
+                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stopLog });
+                break;
+              }
+
+              // Per-domain watchdog
+              let domainWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+              const domainWatchdogPromise = new Promise<never>((_, reject) => {
+                domainWatchdogTimer = setTimeout(() => reject(new Error(`Domain watchdog timeout (3 min) for ${domain}`)), PER_DOMAIN_WATCHDOG_MS);
+              });
+
               try {
                 const logEntry = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'scan_start' as const, title: `Domain Intel: ${domain}`, detail: 'Running strict passive OSINT scan (no direct target contact)' };
                 state!.log.push(logEntry);
                 broadcastOpsUpdate(input.engagementId, { type: 'log', entry: logEntry });
+
+                state!.currentAction = `Scanning ${domain}...`;
+                broadcastOpsUpdate(input.engagementId, { type: 'stats_update', stats: { ...state!.stats } });
 
                 const { runDomainIntelPipeline } = await import('./domainIntel');
                 console.log(`[PassiveScan] Starting runDomainIntelPipeline for ${domain}`);
@@ -8718,6 +8737,7 @@ Make the phishing content highly realistic and tailored to the target domain and
                     // Progress callback — push stage updates to live feed
                     async (stage) => {
                       console.log(`[PassiveScan] Pipeline stage: ${stage} for ${domain}`);
+                      state!.currentAction = `${domain}: ${stage}`;
                       const stageLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `Pipeline: ${domain}`, detail: `Stage: ${stage}` };
                       state!.log.push(stageLog);
                       broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stageLog });
@@ -8725,7 +8745,8 @@ Make the phishing content highly realistic and tailored to the target domain and
                     // Options: strict_passive mode, scoped to engagement targets only
                     { scanMode: 'strict_passive', skipEngagement: false, scopedAssets: allTargets }
                   ),
-                  watchdogPromise,
+                  domainWatchdogPromise,
+                  globalWatchdogPromise,
                 ]);
                 console.log(`[PassiveScan] Pipeline completed for ${domain}`);
 
@@ -8915,14 +8936,18 @@ Make the phishing content highly realistic and tailored to the target domain and
                 state!.log.push(resultLog);
                 broadcastOpsUpdate(input.engagementId, { type: 'log', entry: resultLog });
               } catch (e: any) {
+                console.error(`[PassiveScan] Domain ${domain} failed:`, e.message);
                 const errLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'error' as const, title: `Recon Failed: ${domain}`, detail: e.message };
                 state!.log.push(errLog);
                 broadcastOpsUpdate(input.engagementId, { type: 'log', entry: errLog });
+              } finally {
+                if (domainWatchdogTimer) clearTimeout(domainWatchdogTimer);
               }
             }
 
             // Handle IP-only targets — run Shodan/Censys lookups if available
             for (const ip of ips) {
+              if (!state!.isRunning) break; // Operator stopped
               try {
                 const ipLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'scan_start' as const, title: `IP Recon: ${ip}`, detail: 'Running passive OSINT lookup for IP target (Shodan, Censys)' };
                 state!.log.push(ipLog);
@@ -8943,8 +8968,16 @@ Make the phishing content highly realistic and tailored to the target domain and
             }
 
             // Mark recon complete — wait for operator to start active scan
-            state!.phase = 'recon_complete' as any;
-            state!.isRunning = false;
+            // If already stopped by operator, don't overwrite the phase
+            if (state!.isRunning) {
+              state!.phase = 'recon_complete' as any;
+              state!.isRunning = false;
+            } else {
+              // Stopped by operator mid-scan — still mark as recon_complete if we have assets
+              if (state!.assets.some((a: any) => a.status === 'discovered')) {
+                state!.phase = 'recon_complete' as any;
+              }
+            }
             state!.progress = 15;
             state!.currentAction = undefined;
             const doneLog = { id: `log-${Date.now()}-done`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '\u2705 Strict Passive Discovery Complete', detail: `${state!.assets.length} assets discovered via strict passive OSINT (zero target contact). Click "Start Active Scan" to hand off to LLM for nmap \u2192 service matching \u2192 vuln detection \u2192 exploitation.` };
@@ -8962,8 +8995,8 @@ Make the phishing content highly realistic and tailored to the target domain and
             broadcastOpsUpdate(input.engagementId, { type: 'log', entry: errLog });
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'error' });
           } finally {
-            // Clean up watchdog timer
-            if (watchdogTimer) clearTimeout(watchdogTimer);
+            // Clean up global watchdog timer
+            if (globalWatchdogTimer) clearTimeout(globalWatchdogTimer);
           }
         })();
 

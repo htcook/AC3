@@ -215,7 +215,7 @@ export function initOpsState(engagementId: number, engagementType: string): Enga
 
 // ─── Broadcast helpers ──────────────────────────────────────────────────────
 
-function broadcastOpsUpdate(engagementId: number, data: Record<string, any>) {
+export function broadcastOpsUpdate(engagementId: number, data: Record<string, any>) {
   eventHub.broadcastEngagement(engagementId, {
     type: "engagement:progress_update",
     timestamp: Date.now(),
