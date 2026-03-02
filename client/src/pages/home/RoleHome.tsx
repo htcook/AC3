@@ -1,10 +1,11 @@
 import { lazy, Suspense, useState } from "react";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Shield, Terminal, BarChart3, Users, Eye, Settings } from "lucide-react";
+import { ChevronDown, Shield, Terminal, BarChart3, Users, Eye, Settings, LayoutDashboard, ArrowRight } from "lucide-react";
 
 const OperatorHome = lazy(() => import("./OperatorHome"));
 const ExecutiveHome = lazy(() => import("./ExecutiveHome"));
@@ -45,8 +46,9 @@ function DashboardSkeleton() {
 }
 
 export default function RoleHome() {
-  const { user } = useAuth();
-  const userRole = (user?.role as string) || "operator";
+  // Use Caldera auth session (not Manus OAuth) for role detection
+  const { data: session } = trpc.calderaAuth.session.useQuery();
+  const userRole = session?.authenticated ? (session.user?.role as string || "operator") : "operator";
   const [previewRole, setPreviewRole] = useState<string | null>(null);
 
   const activeRole = previewRole || userRole;
@@ -57,16 +59,25 @@ export default function RoleHome() {
 
   return (
     <div className="space-y-4">
-      {/* Role Switcher - only visible to admins */}
-      {isAdmin && (
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            {isPreviewing && (
-              <span className="text-[9px] font-display tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">
-                PREVIEW MODE
-              </span>
-            )}
-          </div>
+      {/* Navigation bar with link to main dashboard */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard">
+            <Button variant="outline" size="sm" className="text-[10px] font-display tracking-wider h-7 gap-1.5 hover:bg-primary/10">
+              <LayoutDashboard className="w-3 h-3" />
+              MAIN DASHBOARD
+              <ArrowRight className="w-3 h-3" />
+            </Button>
+          </Link>
+          {isPreviewing && (
+            <span className="text-[9px] font-display tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">
+              PREVIEW MODE
+            </span>
+          )}
+        </div>
+
+        {/* Role Switcher - only visible to admins */}
+        {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="text-[10px] font-display tracking-wider h-7 gap-1">
@@ -90,8 +101,8 @@ export default function RoleHome() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Render the active dashboard */}
       <Suspense fallback={<DashboardSkeleton />}>

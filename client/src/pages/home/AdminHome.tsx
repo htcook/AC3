@@ -26,9 +26,18 @@ function HealthIndicator({ label, status, detail }: { label: string; status: "he
 export default function AdminHome() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display tracking-wider font-bold">ADMIN DASHBOARD</h1>
-        <p className="text-sm text-muted-foreground mt-1">System health, user management, and platform configuration</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-display tracking-wider font-bold">ADMIN DASHBOARD</h1>
+          <p className="text-sm text-muted-foreground mt-1">System health, user management, and platform configuration</p>
+        </div>
+        <Link href="/dashboard">
+          <Button variant="outline" size="sm" className="text-[10px] font-display tracking-wider gap-1.5">
+            <Activity className="w-3.5 h-3.5" />
+            OPERATIONS DASHBOARD
+            <ArrowRight className="w-3 h-3" />
+          </Button>
+        </Link>
       </div>
 
       {/* System Stats */}

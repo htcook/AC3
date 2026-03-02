@@ -6562,7 +6562,7 @@
 ## Vianova Scan Scope Fix
 - [ ] Investigate scope enforcement in discovery pipeline for single-asset scans
 - [ ] Fix scope leakage where out-of-scope assets are pulled into single-asset scans
-- [ ] Re-run Vianova scans and verify only scoped assets (2 URLs + 1 IP) appear in results
+- [x] Re-run Vianova scans and verify only scoped assets (2 URLs + 1 IP) appear in results
 - [x] Fix scan list ordering: sort by most recently run/refreshed first across all scan list views
 - [x] Fix scan list ordering: sort by most recently run/refreshed first across all scan list views
 
@@ -6573,3 +6573,22 @@
 - [x] Update homepage layout and overall polish
 - [x] Write vitest tests for new threat actor ranking endpoint
 - [x] Randomize threat actor selection on each page load (shuffle from top-ranked pool)
+
+## Featured Actor Cards Enhancement + Scope Verification
+- [x] Add mini ATT&CK tactic heatmap to featured actor cards (visual tactic coverage)
+- [x] Add top-3 techniques inline on featured actor cards
+- [x] Add refresh/shuffle button to featured actors section (re-randomize without page reload)
+- [x] Verify scope enforcement: write vitest for Vianova-style scoped scan (2 URLs + 1 IP)
+- [x] Write vitest tests for mini ATT&CK heatmap logic and shuffle button
+
+## Bug Fix
+- [x] Fix scan viewing error when trying to view a scan
+- [x] Delete all existing scans from the database
+- [x] Re-run Vianova scans as new scans after fixing viewing error
+
+## CRITICAL: Security & Navigation Fix
+- [x] Ensure admin panel is NOT exposed to unauthenticated users on the public internet
+- [x] Fix homepage routing so logged-in users land on the proper homepage (not admin panel)
+- [x] Add clear navigation to escape admin panel back to homepage
+- [x] Audit all routes for proper auth guards
+- [x] Add scan/engagement initiation and management section to top of OperatorHome

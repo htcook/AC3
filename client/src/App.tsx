@@ -258,9 +258,15 @@ function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
-        <Route path="/">{() => <PageErrorBoundary pageName="Home"><RoleHome /></PageErrorBoundary>}</Route>
-        <Route path="/overview">{() => <PageErrorBoundary pageName="Overview"><Home /></PageErrorBoundary>}</Route>
-        <Route path="/tool-comparison">{() => <PageErrorBoundary pageName="ToolComparison"><ToolComparison /></PageErrorBoundary>}</Route>
+        <Route path="/">
+          <ProtectedRoute component={RoleHome} pageName="Home" />
+        </Route>
+        <Route path="/overview">
+          <ProtectedRoute component={Home} pageName="Overview" />
+        </Route>
+        <Route path="/tool-comparison">
+          <ProtectedRoute component={ToolComparison} pageName="ToolComparison" />
+        </Route>
         <Route path="/login">{() => <PageErrorBoundary pageName="Login"><Login /></PageErrorBoundary>}</Route>
         <Route path="/dashboard">
           <ProtectedRoute component={Dashboard} />

@@ -9,7 +9,7 @@ import {
   Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert,
   Rocket, Building2, ArrowRight, Layers, BarChart3, Play, Pause,
   CheckCircle2, XCircle, Loader2, Plus, History, Radar, Flame, Radio,
-  Briefcase, ShieldCheck
+  Briefcase, ShieldCheck, Shuffle
 } from "lucide-react";
 import ZeroDayFeed from "@/components/ZeroDayFeed";
 import DashboardConfigPanel from "@/components/DashboardConfigPanel";
@@ -107,7 +107,7 @@ function DashboardInner() {
   // Real threat actor data from DB
   const { data: threatStats } = trpc.threatIntel.stats.useQuery();
   // Featured actors: randomized from top-completeness pool, refreshes on each mount
-  const { data: featuredActors } = trpc.threatIntel.featuredActors.useQuery(
+  const { data: featuredActors, refetch: refetchFeaturedActors, isFetching: isFetchingActors } = trpc.threatIntel.featuredActors.useQuery(
     { count: 6 },
     { staleTime: 0, refetchOnMount: 'always' }
   );
@@ -1038,8 +1038,22 @@ function DashboardInner() {
             </div>
           </div>
           <div>
-            <h3 className="font-display text-xs tracking-wider mb-3 text-red-400">FEATURED THREAT ACTORS</h3>
-            <p className="text-[10px] text-muted-foreground mb-3">Randomized selection from the most detailed actor profiles in our catalog — refreshes on each visit</p>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-display text-xs tracking-wider text-red-400">FEATURED THREAT ACTORS</h3>
+                <p className="text-[10px] text-muted-foreground mt-1">Randomized selection from the most detailed actor profiles — click shuffle for a new set</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchFeaturedActors()}
+                disabled={isFetchingActors}
+                className="text-xs font-display tracking-wider text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-1.5"
+              >
+                <Shuffle className={`w-3.5 h-3.5 ${isFetchingActors ? 'animate-spin' : ''}`} />
+                SHUFFLE
+              </Button>
+            </div>
             {topActors.length === 0 ? (
               <div className="text-xs text-muted-foreground py-4 text-center">Loading featured actors...</div>
             ) : (
@@ -1052,6 +1066,42 @@ function DashboardInner() {
                   const targetSectors = Array.isArray(t.targetSectors) ? t.targetSectors : [];
                   const threatColor = t.threatLevel === 'critical' ? 'border-red-500/40 bg-red-500/5' : t.threatLevel === 'high' ? 'border-orange-500/40 bg-orange-500/5' : 'border-yellow-500/40 bg-yellow-500/5';
                   const sophColor = t.sophistication === 'nation-state' ? 'text-purple-400 border-purple-500/30 bg-purple-500/10' : t.sophistication === 'advanced' ? 'text-blue-400 border-blue-500/30 bg-blue-500/10' : 'text-muted-foreground border-border bg-secondary/50';
+
+                  // ── Mini ATT&CK Tactic Heatmap ──
+                  const MITRE_TACTICS = [
+                    { id: 'TA0043', short: 'REC', name: 'Reconnaissance' },
+                    { id: 'TA0042', short: 'RES', name: 'Resource Dev' },
+                    { id: 'TA0001', short: 'INI', name: 'Initial Access' },
+                    { id: 'TA0002', short: 'EXE', name: 'Execution' },
+                    { id: 'TA0003', short: 'PER', name: 'Persistence' },
+                    { id: 'TA0004', short: 'ESC', name: 'Priv Escalation' },
+                    { id: 'TA0005', short: 'EVA', name: 'Defense Evasion' },
+                    { id: 'TA0006', short: 'CRD', name: 'Credential Access' },
+                    { id: 'TA0007', short: 'DIS', name: 'Discovery' },
+                    { id: 'TA0008', short: 'LAT', name: 'Lateral Movement' },
+                    { id: 'TA0009', short: 'COL', name: 'Collection' },
+                    { id: 'TA0011', short: 'C2', name: 'Command & Control' },
+                    { id: 'TA0010', short: 'EXF', name: 'Exfiltration' },
+                    { id: 'TA0040', short: 'IMP', name: 'Impact' },
+                  ];
+
+                  // Build tactic coverage from techniques
+                  const tacticCoverage = new Set<string>();
+                  for (const tech of techniques) {
+                    const tactic = typeof tech === 'string' ? '' : (tech.tactic || tech.killChainPhase || '');
+                    if (tactic) tacticCoverage.add(tactic.toLowerCase().replace(/[\s-_]/g, ''));
+                    // Also try to infer from technique ID ranges (rough heuristic)
+                    const techId = typeof tech === 'string' ? tech : tech.id || '';
+                    if (techId) tacticCoverage.add(techId);
+                  }
+
+                  // Get top 3 techniques by name for inline display
+                  const top3Techniques = techniques.slice(0, 3).map((tech: any) => {
+                    const name = typeof tech === 'string' ? tech : (tech.name || tech.id || 'Unknown');
+                    const id = typeof tech === 'string' ? tech : (tech.id || '');
+                    return { name, id };
+                  });
+
                   return (
                     <Link key={t.actorId || t.name} href={`/threat-catalog/${t.actorId}`}>
                       <div className={`bg-card border-2 ${threatColor} p-4 hover:bg-secondary/30 transition-all cursor-pointer group h-full`}>
@@ -1080,6 +1130,50 @@ function DashboardInner() {
                         {t.description && (
                           <p className="text-[10px] text-muted-foreground line-clamp-2 mb-2">{t.description}</p>
                         )}
+
+                        {/* ── Mini ATT&CK Tactic Heatmap ── */}
+                        {techniques.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-[9px] font-display tracking-wider text-muted-foreground mb-1">ATT&CK COVERAGE</div>
+                            <div className="flex gap-px">
+                              {MITRE_TACTICS.map(tac => {
+                                // Check if this actor covers this tactic
+                                const covered = techniques.some((tech: any) => {
+                                  const tactic = typeof tech === 'string' ? '' : (tech.tactic || tech.killChainPhase || '');
+                                  const tacticNorm = tactic.toLowerCase().replace(/[\s\-_]/g, '');
+                                  const tacNameNorm = tac.name.toLowerCase().replace(/[\s\-_]/g, '');
+                                  return tacticNorm.includes(tacNameNorm) || tacNameNorm.includes(tacticNorm);
+                                });
+                                return (
+                                  <div
+                                    key={tac.id}
+                                    className={`flex-1 h-2 ${covered ? 'bg-cyan-500/70' : 'bg-secondary/40'}`}
+                                    title={`${tac.name}${covered ? ' ✓' : ''}`}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <div className="flex justify-between mt-0.5">
+                              <span className="text-[7px] text-muted-foreground/60">RECON</span>
+                              <span className="text-[7px] text-muted-foreground/60">IMPACT</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── Top 3 Techniques ── */}
+                        {top3Techniques.length > 0 && (
+                          <div className="mb-2">
+                            <div className="flex flex-wrap gap-1">
+                              {top3Techniques.map((tech: { name: string; id: string }, idx: number) => (
+                                <span key={idx} className="text-[8px] px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 truncate max-w-[120px]" title={`${tech.id}: ${tech.name}`}>
+                                  {tech.name}
+                                </span>
+                              ))}
+                              {techniques.length > 3 && <span className="text-[8px] text-cyan-400/60">+{techniques.length - 3}</span>}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Stats row */}
                         <div className="flex flex-wrap gap-1.5 mb-2">
                           {techniques.length > 0 && <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">{techniques.length} TTPs</span>}

@@ -1,11 +1,14 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   ShieldAlert, Activity, Crosshair, Zap, ArrowRight, Clock,
-  AlertTriangle, CheckCircle2, Target, Brain, Network, Lock
+  AlertTriangle, CheckCircle2, Target, Brain, Network, Lock,
+  Scan, Globe, Play, Plus, Loader2, Radar, Eye, Briefcase,
+  ChevronRight, BarChart3, RefreshCw
 } from "lucide-react";
 
 // ─── OPSEC Risk Gauge ─────────────────────────────────────────────────────────
@@ -13,7 +16,6 @@ import {
 function OpsecGauge({ score }: { score: number }) {
   const pct = Math.min(100, Math.max(0, score));
   const color = pct > 70 ? "text-red-500" : pct > 40 ? "text-amber-500" : "text-emerald-500";
-  const bgColor = pct > 70 ? "bg-red-500" : pct > 40 ? "bg-amber-500" : "bg-emerald-500";
   const label = pct > 70 ? "HIGH RISK" : pct > 40 ? "MODERATE" : "LOW RISK";
   const circumference = 2 * Math.PI * 60;
   const dashOffset = circumference - (pct / 100) * circumference * 0.75;
@@ -81,25 +83,235 @@ function StatCard({ label, value, icon: Icon, trend, color }: {
   );
 }
 
+// ─── Status helpers ──────────────────────────────────────────────────────────
+
+const SCAN_STATUS_CONFIG: Record<string, { color: string; icon: React.ComponentType<{ className?: string }>; label: string }> = {
+  discovering: { color: "bg-blue-500/20 text-blue-400 border-blue-500/30", icon: Radar, label: "DISCOVERING" },
+  passive_recon: { color: "bg-purple-500/20 text-purple-400 border-purple-500/30", icon: Eye, label: "RECON" },
+  analyzing: { color: "bg-amber-500/20 text-amber-400 border-amber-500/30", icon: Brain, label: "ANALYZING" },
+  scoring: { color: "bg-orange-500/20 text-orange-400 border-orange-500/30", icon: BarChart3, label: "SCORING" },
+  recommending: { color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30", icon: Target, label: "RECOMMENDING" },
+  completed: { color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", icon: CheckCircle2, label: "COMPLETED" },
+  scan_complete: { color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", icon: CheckCircle2, label: "SCAN COMPLETE" },
+  engagement_running: { color: "bg-red-500/20 text-red-400 border-red-500/30", icon: Crosshair, label: "ENGAGEMENT" },
+  failed: { color: "bg-red-500/20 text-red-400 border-red-500/30", icon: AlertTriangle, label: "FAILED" },
+};
+
+const ENGAGEMENT_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  planning: { color: "bg-blue-500/20 text-blue-400", label: "PLANNING" },
+  active: { color: "bg-emerald-500/20 text-emerald-400", label: "ACTIVE" },
+  completed: { color: "bg-gray-500/20 text-gray-400", label: "COMPLETED" },
+  paused: { color: "bg-amber-500/20 text-amber-400", label: "PAUSED" },
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function OperatorHome() {
+  const [, navigate] = useLocation();
   const [opsecScore] = useState(35);
+
+  // Fetch recent scans (most recently updated first)
+  const scansQuery = trpc.domainIntel.listScans.useQuery(undefined, {
+    refetchInterval: 15000, // auto-refresh every 15s to catch status changes
+  });
+  const engagementsQuery = trpc.engagements.list.useQuery();
+
+  const recentScans = useMemo(() => {
+    const scans = scansQuery.data || [];
+    return scans.slice(0, 5); // Already sorted by updatedAt desc from backend
+  }, [scansQuery.data]);
+
+  const activeEngagements = useMemo(() => {
+    const engs = engagementsQuery.data || [];
+    return engs
+      .filter((e: any) => e.status === 'active' || e.status === 'planning')
+      .slice(0, 4);
+  }, [engagementsQuery.data]);
+
+  const totalScans = scansQuery.data?.length || 0;
+  const runningScans = (scansQuery.data || []).filter((s: any) =>
+    ['discovering', 'passive_recon', 'analyzing', 'scoring', 'recommending'].includes(s.status)
+  ).length;
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-display tracking-wider font-bold">OPERATOR DASHBOARD</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Active operations, OPSEC status, and quick-launch tools
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-display tracking-wider font-bold">OPERATOR DASHBOARD</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Active operations, scans, engagements, and quick-launch tools
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/domain-intel">
+            <Button size="sm" className="text-[10px] font-display tracking-wider h-8 gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              NEW SCAN
+            </Button>
+          </Link>
+          <Link href="/engagements/new">
+            <Button variant="outline" size="sm" className="text-[10px] font-display tracking-wider h-8 gap-1.5">
+              <Briefcase className="w-3.5 h-3.5" />
+              NEW ENGAGEMENT
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* ═══ SCAN & ENGAGEMENT COMMAND CENTER ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Recent Scans — 3 columns */}
+        <div className="lg:col-span-3">
+          <Card className="h-full">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+                  <Scan className="w-4 h-4 text-primary" />
+                  RECENT SCANS
+                  {runningScans > 0 && (
+                    <span className="text-[9px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full font-display tracking-widest animate-pulse">
+                      {runningScans} RUNNING
+                    </span>
+                  )}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground font-display tracking-wider">{totalScans} total</span>
+                  <Link href="/domain-intel">
+                    <Button variant="ghost" size="sm" className="text-[10px] font-display tracking-wider h-7">
+                      VIEW ALL <ArrowRight className="w-3 h-3 ml-1" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {scansQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : recentScans.length === 0 ? (
+                <div className="text-center py-8">
+                  <Globe className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">No scans yet</p>
+                  <Link href="/domain-intel">
+                    <Button variant="outline" size="sm" className="mt-3 text-[10px] font-display tracking-wider h-7 gap-1">
+                      <Plus className="w-3 h-3" /> START FIRST SCAN
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                recentScans.map((scan: any) => {
+                  const statusCfg = SCAN_STATUS_CONFIG[scan.status] || SCAN_STATUS_CONFIG.discovering;
+                  const StatusIcon = statusCfg.icon;
+                  const isRunning = ['discovering', 'passive_recon', 'analyzing', 'scoring', 'recommending'].includes(scan.status);
+                  const updatedAt = scan.updatedAt ? new Date(scan.updatedAt) : new Date(scan.createdAt);
+                  const timeAgo = getTimeAgo(updatedAt);
+
+                  return (
+                    <div
+                      key={scan.id}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors group"
+                      onClick={() => navigate(`/domain-intel/${scan.id}`)}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${statusCfg.color}`}>
+                        <StatusIcon className={`w-4 h-4 ${isRunning ? 'animate-pulse' : ''}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-display tracking-wider font-medium truncate">
+                            {scan.primaryDomain}
+                          </span>
+                          <Badge variant="outline" className={`text-[8px] font-display tracking-widest px-1.5 py-0 h-4 border ${statusCfg.color}`}>
+                            {statusCfg.label}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-[10px] text-muted-foreground">{(scan.orgProfile as any)?.customerName || scan.sector}</span>
+                          <span className="text-[10px] text-muted-foreground/60">·</span>
+                          <span className="text-[10px] text-muted-foreground">{timeAgo}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Active Engagements — 2 columns */}
+        <div className="lg:col-span-2">
+          <Card className="h-full">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-amber-400" />
+                  ENGAGEMENTS
+                </CardTitle>
+                <Link href="/engagements">
+                  <Button variant="ghost" size="sm" className="text-[10px] font-display tracking-wider h-7">
+                    MANAGE <ArrowRight className="w-3 h-3 ml-1" />
+                  </Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {engagementsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : activeEngagements.length === 0 ? (
+                <div className="text-center py-8">
+                  <Briefcase className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">No active engagements</p>
+                  <Link href="/engagements/new">
+                    <Button variant="outline" size="sm" className="mt-3 text-[10px] font-display tracking-wider h-7 gap-1">
+                      <Plus className="w-3 h-3" /> CREATE ENGAGEMENT
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                activeEngagements.map((eng: any) => {
+                  const statusCfg = ENGAGEMENT_STATUS_CONFIG[eng.status] || ENGAGEMENT_STATUS_CONFIG.planning;
+                  const scanCount = eng.scanCount || 0;
+                  return (
+                    <div
+                      key={eng.id}
+                      className="p-3 rounded-lg bg-secondary/20 hover:bg-secondary/40 cursor-pointer transition-colors group"
+                      onClick={() => navigate(`/engagements`)}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-display tracking-wider font-medium truncate">{eng.name}</span>
+                        <Badge variant="outline" className={`text-[8px] font-display tracking-widest px-1.5 py-0 h-4 ${statusCfg.color}`}>
+                          {statusCfg.label}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                        <span>{eng.customerName}</span>
+                        <span className="text-muted-foreground/40">·</span>
+                        <span>{scanCount} scan{scanCount !== 1 ? 's' : ''}</span>
+                        {eng.startDate && (
+                          <>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span>{new Date(eng.startDate).toLocaleDateString()}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Top Row: Stats + OPSEC Gauge */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard label="ACTIVE ENGAGEMENTS" value={3} icon={Crosshair} trend="2 this week" color="bg-red-500/80" />
+          <StatCard label="ACTIVE ENGAGEMENTS" value={activeEngagements.length} icon={Crosshair} trend={`${totalScans} scans`} color="bg-red-500/80" />
           <StatCard label="FINDINGS TODAY" value={12} icon={AlertTriangle} trend="+4 new" color="bg-amber-500/80" />
           <StatCard label="SHELLS ACTIVE" value={5} icon={Target} trend="3 meterpreter" color="bg-emerald-500/80" />
           <StatCard label="CREDS FOUND" value={28} icon={Lock} trend="8 validated" color="bg-blue-500/80" />
@@ -237,4 +449,19 @@ export default function OperatorHome() {
       </Card>
     </div>
   );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function getTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString();
 }
