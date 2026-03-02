@@ -6873,3 +6873,28 @@
 - [x] Remove generateFallbackAssets hardcoded fake subdomains
 - [x] Add provenance tagging to LLM-discovered assets (inferred vs confirmed)
 - [x] Add provenance warning to analyzeAssets LLM prompt (no inventing CVEs)
+
+## Discovery Results Summary Tab
+- [x] Add "Discovery" tab to EngagementOps tabs section
+- [x] Aggregate naabu/httpx/nmap findings across all assets
+- [x] Port frequency heat map (most common open ports across assets)
+- [x] Service distribution chart (HTTP, SSH, MySQL, etc.)
+- [x] Technology stack heat map (nginx, Apache, WordPress, etc.)
+- [x] CDN/WAF detection summary
+- [x] TLS version distribution
+- [x] Per-asset discovery summary cards (clickable to asset detail)
+- [x] Total stats: unique ports, unique services, unique technologies
+
+## Wire Tool Results into Report Generator
+- [x] Add "Tool Evidence" section to pentest report template (HTML rendering with color-coded tool badges)
+- [x] Include per-asset tool execution details (command, exit code, duration)
+- [x] Include tool findings with severity and CVE references
+- [x] Include output previews for key findings (collapsible raw output)
+- [x] Include passive recon data in report (services, tech stack, certs, risk signals)
+- [x] Include discovery scan summary (naabu/nmap/httpx aggregated results)
+- [x] Add engagementId input to generateReport procedure
+- [x] Fetch ops state and pass to LLM report prompt
+- [x] Add Discovery & Recon section to HTML report with metrics grid
+- [x] Add per-asset summary table to HTML report
+- [x] Wire ops data into reports.generate procedure for PentestReport page
+- [x] 32 vitest tests passing (7 new for aggregation and report evidence)

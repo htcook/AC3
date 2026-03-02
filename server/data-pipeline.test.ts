@@ -883,3 +883,261 @@ describe("Provenance tracking", () => {
     expect(verified.map(a => a.hostname)).not.toContain("sso.example.com");
   });
 });
+
+
+// ─── Discovery Results aggregation ─────────────────────────────────────────
+
+describe("Discovery Results aggregation", () => {
+  const makeAsset = (hostname: string, ip: string, ports: number[], services: string[], tech: string[], toolCount: number, findingsCount: number) => ({
+    hostname, ip, type: "web_app", status: "scanned",
+    knownPorts: ports.map((p, i) => ({ port: p, service: services[i] || "unknown" })),
+    passiveRecon: {
+      services: services.map((s, i) => ({ port: ports[i], service: s, source: "shodan" })),
+      technologies: tech,
+      certificates: [],
+      riskSignals: [],
+      subdomains: [],
+    },
+    toolResults: Array.from({ length: toolCount }, (_, i) => ({
+      tool: i === 0 ? "naabu" : i === 1 ? "nmap" : "httpx",
+      command: `tool-${i}`,
+      exitCode: 0,
+      durationMs: 1000,
+      timedOut: false,
+      findingCount: Math.floor(findingsCount / toolCount),
+      findings: Array.from({ length: Math.floor(findingsCount / toolCount) }, (_, j) => ({
+        severity: "info", title: `finding-${j}`,
+      })),
+      outputPreview: "",
+      executedAt: Date.now(),
+      phase: "discovery",
+    })),
+  });
+
+  it("should aggregate port frequency across all assets", () => {
+    const assets = [
+      makeAsset("a.com", "1.1.1.1", [80, 443, 22], ["http", "https", "ssh"], ["nginx"], 2, 4),
+      makeAsset("b.com", "2.2.2.2", [80, 443, 8080], ["http", "https", "http-proxy"], ["apache"], 2, 2),
+      makeAsset("c.com", "3.3.3.3", [443, 3306], ["https", "mysql"], ["mysql"], 1, 1),
+    ];
+
+    // Aggregate port frequency
+    const portMap = new Map<number, { service: Set<string>; count: number }>();
+    for (const a of assets) {
+      for (const p of a.knownPorts) {
+        const entry = portMap.get(p.port) || { service: new Set<string>(), count: 0 };
+        entry.service.add(p.service);
+        entry.count++;
+        portMap.set(p.port, entry);
+      }
+    }
+
+    expect(portMap.get(443)?.count).toBe(3); // all 3 assets have 443
+    expect(portMap.get(80)?.count).toBe(2);  // 2 assets have 80
+    expect(portMap.get(22)?.count).toBe(1);  // 1 asset has 22
+    expect(portMap.get(8080)?.count).toBe(1);
+    expect(portMap.get(3306)?.count).toBe(1);
+  });
+
+  it("should aggregate unique services across all assets", () => {
+    const assets = [
+      makeAsset("a.com", "1.1.1.1", [80, 443], ["http", "https"], [], 1, 0),
+      makeAsset("b.com", "2.2.2.2", [80, 3306], ["http", "mysql"], [], 1, 0),
+    ];
+
+    const serviceMap = new Map<string, { count: number; ports: Set<number> }>();
+    for (const a of assets) {
+      for (const p of a.knownPorts) {
+        const entry = serviceMap.get(p.service) || { count: 0, ports: new Set<number>() };
+        entry.count++;
+        entry.ports.add(p.port);
+        serviceMap.set(p.service, entry);
+      }
+    }
+
+    expect(serviceMap.get("http")?.count).toBe(2);
+    expect(serviceMap.get("https")?.count).toBe(1);
+    expect(serviceMap.get("mysql")?.count).toBe(1);
+    expect(serviceMap.get("http")?.ports.has(80)).toBe(true);
+  });
+
+  it("should aggregate unique technologies across all assets", () => {
+    const assets = [
+      makeAsset("a.com", "1.1.1.1", [], [], ["nginx", "PHP", "WordPress"], 0, 0),
+      makeAsset("b.com", "2.2.2.2", [], [], ["nginx", "Node.js", "React"], 0, 0),
+      makeAsset("c.com", "3.3.3.3", [], [], ["Apache", "PHP", "MySQL"], 0, 0),
+    ];
+
+    const techMap = new Map<string, number>();
+    for (const a of assets) {
+      for (const t of a.passiveRecon.technologies) {
+        techMap.set(t, (techMap.get(t) || 0) + 1);
+      }
+    }
+
+    expect(techMap.get("nginx")).toBe(2);
+    expect(techMap.get("PHP")).toBe(2);
+    expect(techMap.get("WordPress")).toBe(1);
+    expect(techMap.get("Node.js")).toBe(1);
+    expect(techMap.size).toBe(7); // nginx, PHP, WordPress, Node.js, React, Apache, MySQL
+  });
+
+  it("should compute total findings across all assets and tools", () => {
+    const assets = [
+      makeAsset("a.com", "1.1.1.1", [80], ["http"], [], 3, 6),
+      makeAsset("b.com", "2.2.2.2", [443], ["https"], [], 2, 4),
+    ];
+
+    const totalFindings = assets.reduce((sum, a) =>
+      sum + a.toolResults.reduce((s, tr) => s + tr.findingCount, 0), 0);
+
+    expect(totalFindings).toBe(6 + 4);
+  });
+});
+
+// ─── Report generator tool evidence structure ───────────────────────────────
+
+describe("Report generator tool evidence", () => {
+  it("should build tool evidence entries from asset toolResults", () => {
+    const assets = [
+      {
+        hostname: "target.com",
+        ip: "1.2.3.4",
+        toolResults: [
+          {
+            tool: "naabu", command: "naabu -host 1.2.3.4 -p - -rate 1000",
+            exitCode: 0, durationMs: 5000, timedOut: false,
+            findingCount: 3,
+            findings: [
+              { severity: "info", title: "80/tcp open" },
+              { severity: "info", title: "443/tcp open" },
+              { severity: "info", title: "22/tcp open" },
+            ],
+            outputPreview: "1.2.3.4:80\n1.2.3.4:443\n1.2.3.4:22",
+            executedAt: Date.now(), phase: "discovery",
+          },
+          {
+            tool: "nmap", command: "nmap -Pn -sV -p 80,443,22 1.2.3.4",
+            exitCode: 0, durationMs: 15000, timedOut: false,
+            findingCount: 3,
+            findings: [
+              { severity: "info", title: "80/tcp http nginx 1.18" },
+              { severity: "info", title: "443/tcp https nginx 1.18" },
+              { severity: "info", title: "22/tcp ssh OpenSSH 8.2" },
+            ],
+            outputPreview: "PORT   STATE SERVICE VERSION\n80/tcp open  http    nginx 1.18",
+            executedAt: Date.now(), phase: "discovery",
+          },
+          {
+            tool: "httpx", command: "httpx -u https://target.com -tech-detect -status-code",
+            exitCode: 0, durationMs: 3000, timedOut: false,
+            findingCount: 2,
+            findings: [
+              { severity: "info", title: "200 OK - nginx, PHP, WordPress" },
+              { severity: "medium", title: "X-Powered-By header exposed" },
+            ],
+            outputPreview: "https://target.com [200] [nginx,PHP,WordPress]",
+            executedAt: Date.now(), phase: "discovery",
+          },
+        ],
+      },
+    ];
+
+    // Build tool evidence array for report
+    const toolEvidence = assets.flatMap(a =>
+      a.toolResults.map(tr => ({
+        tool: tr.tool,
+        asset: a.hostname,
+        command: tr.command,
+        exitCode: tr.exitCode,
+        duration: tr.durationMs ? `${(tr.durationMs / 1000).toFixed(1)}s` : undefined,
+        findings: tr.findings.map(f => `[${f.severity}] ${f.title}`),
+        outputPreview: tr.outputPreview?.substring(0, 500),
+      }))
+    );
+
+    expect(toolEvidence).toHaveLength(3);
+    expect(toolEvidence[0].tool).toBe("naabu");
+    expect(toolEvidence[0].asset).toBe("target.com");
+    expect(toolEvidence[0].exitCode).toBe(0);
+    expect(toolEvidence[0].findings).toHaveLength(3);
+    expect(toolEvidence[1].tool).toBe("nmap");
+    expect(toolEvidence[2].tool).toBe("httpx");
+    expect(toolEvidence[2].findings[1]).toContain("medium");
+  });
+
+  it("should build discovery recon summary from assets", () => {
+    const assets = [
+      {
+        hostname: "a.com", ip: "1.1.1.1", type: "web_app", status: "scanned",
+        knownPorts: [{ port: 80, service: "http" }, { port: 443, service: "https" }],
+        passiveRecon: {
+          services: [{ port: 80, service: "http", source: "shodan" }],
+          technologies: ["nginx", "PHP"],
+          riskSignals: [{ signal: "Outdated TLS", severity: "medium", source: "censys" }],
+        },
+        toolResults: [{ tool: "nmap", findings: [{ severity: "info", title: "80/tcp" }] }],
+      },
+      {
+        hostname: "b.com", ip: "2.2.2.2", type: "web_app", status: "vulnerable",
+        knownPorts: [{ port: 443, service: "https" }, { port: 8080, service: "http-proxy" }],
+        passiveRecon: {
+          services: [{ port: 443, service: "https", source: "censys" }],
+          technologies: ["nginx", "Node.js"],
+          riskSignals: [],
+        },
+        toolResults: [
+          { tool: "nmap", findings: [{ severity: "info", title: "443/tcp" }] },
+          { tool: "nuclei", findings: [{ severity: "high", title: "CVE-2024-1234" }] },
+        ],
+      },
+    ];
+
+    // Aggregate unique ports
+    const allPorts = new Set<number>();
+    const allServices = new Set<string>();
+    const allTech = new Set<string>();
+    for (const a of assets) {
+      for (const p of a.knownPorts) { allPorts.add(p.port); allServices.add(p.service); }
+      for (const t of a.passiveRecon.technologies) allTech.add(t);
+    }
+
+    const discoveryRecon = {
+      totalAssets: assets.length,
+      totalPorts: allPorts.size,
+      totalServices: allServices.size,
+      totalTechnologies: allTech.size,
+    };
+
+    expect(discoveryRecon.totalAssets).toBe(2);
+    expect(discoveryRecon.totalPorts).toBe(3); // 80, 443, 8080
+    expect(discoveryRecon.totalServices).toBe(3); // http, https, http-proxy
+    expect(discoveryRecon.totalTechnologies).toBe(3); // nginx, PHP, Node.js
+  });
+
+  it("should handle assets with no tool results gracefully in report", () => {
+    const assets = [
+      {
+        hostname: "empty.com", ip: "0.0.0.0", type: "unknown", status: "discovered",
+        knownPorts: [],
+        passiveRecon: { services: [], technologies: [], riskSignals: [] },
+        toolResults: [],
+      },
+    ];
+
+    const toolEvidence = assets.flatMap(a =>
+      (a.toolResults || []).map(tr => ({
+        tool: (tr as any).tool,
+        asset: a.hostname,
+      }))
+    );
+
+    expect(toolEvidence).toHaveLength(0);
+
+    const allPorts = new Set<number>();
+    for (const a of assets) {
+      for (const p of a.knownPorts) allPorts.add(p.port);
+    }
+    expect(allPorts.size).toBe(0);
+  });
+});

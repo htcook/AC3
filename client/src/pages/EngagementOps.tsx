@@ -935,6 +935,13 @@ export default function EngagementOps() {
                   <Target className="h-3.5 w-3.5 mr-1" /> Assets
                   {ops?.assets?.length ? <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">{ops.assets.length}</Badge> : null}
                 </TabsTrigger>
+                <TabsTrigger value="discovery" className="text-xs">
+                  <Radar className="h-3.5 w-3.5 mr-1" /> Discovery
+                  {(() => {
+                    const toolCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.toolResults?.length || 0), 0);
+                    return toolCount > 0 ? <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-cyan-500/20 text-cyan-400">{toolCount}</Badge> : null;
+                  })()}
+                </TabsTrigger>
                 <TabsTrigger value="exploits" className="text-xs">
                   <Swords className="h-3.5 w-3.5 mr-1" /> Exploit Match
                   {(exploitsQ.data?.exploits?.length || 0) > 0 && (
@@ -1299,6 +1306,456 @@ export default function EngagementOps() {
                   )}
                 </ScrollArea>
               </div>
+            </TabsContent>
+
+            {/* ── Discovery Results Tab ── */}
+            <TabsContent value="discovery" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-3 space-y-4">
+                  <p className="text-xs text-muted-foreground">Aggregated discovery results from naabu, nmap, and httpx across all assets. Click any row to view the full asset detail.</p>
+                  {(() => {
+                    const assets = ops?.assets || [];
+                    const allToolResults = assets.flatMap((a: any) => (a.toolResults || []).map((tr: any) => ({ ...tr, assetHostname: a.hostname })));
+                    const nmapResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery');
+                    const naabuResults = allToolResults.filter((tr: any) => tr.tool === 'naabu');
+                    const httpxResults = allToolResults.filter((tr: any) => tr.tool === 'httpx');
+
+                    // Aggregate ports across all assets
+                    const portMap = new Map<number, { count: number; services: Set<string>; assets: Set<string> }>();
+                    for (const a of assets) {
+                      for (const p of (a.knownPorts || [])) {
+                        const port = typeof p === 'number' ? p : (p.port || 0);
+                        const svc = typeof p === 'object' ? (p.service || 'unknown') : 'unknown';
+                        if (!portMap.has(port)) portMap.set(port, { count: 0, services: new Set(), assets: new Set() });
+                        const entry = portMap.get(port)!;
+                        entry.count++;
+                        entry.services.add(svc);
+                        entry.assets.add(a.hostname);
+                      }
+                    }
+                    const sortedPorts = Array.from(portMap.entries()).sort((a, b) => b[1].count - a[1].count);
+
+                    // Aggregate technologies from httpx and passive recon
+                    const techMap = new Map<string, { count: number; assets: Set<string> }>();
+                    for (const a of assets) {
+                      const techs: string[] = [];
+                      // From passive recon
+                      if (a.passiveRecon?.technologies) techs.push(...a.passiveRecon.technologies);
+                      // From httpx tool results
+                      for (const tr of (a.toolResults || [])) {
+                        if (tr.tool === 'httpx' && tr.findings) {
+                          for (const f of tr.findings) {
+                            if (f.includes('Tech:') || f.includes('tech:')) {
+                              const t = f.replace(/^.*[Tt]ech:\s*/, '').trim();
+                              if (t) techs.push(t);
+                            }
+                          }
+                        }
+                      }
+                      for (const t of techs) {
+                        if (!techMap.has(t)) techMap.set(t, { count: 0, assets: new Set() });
+                        const entry = techMap.get(t)!;
+                        entry.count++;
+                        entry.assets.add(a.hostname);
+                      }
+                    }
+                    const sortedTech = Array.from(techMap.entries()).sort((a, b) => b[1].count - a[1].count);
+
+                    // Aggregate services
+                    const serviceMap = new Map<string, { count: number; ports: Set<number>; assets: Set<string> }>();
+                    for (const a of assets) {
+                      for (const p of (a.knownPorts || [])) {
+                        if (typeof p === 'object' && p.service) {
+                          if (!serviceMap.has(p.service)) serviceMap.set(p.service, { count: 0, ports: new Set(), assets: new Set() });
+                          const entry = serviceMap.get(p.service)!;
+                          entry.count++;
+                          entry.ports.add(p.port || 0);
+                          entry.assets.add(a.hostname);
+                        }
+                      }
+                      // Also from passive recon services
+                      for (const svc of (a.passiveRecon?.services || [])) {
+                        const name = svc.service || svc.name || 'unknown';
+                        if (!serviceMap.has(name)) serviceMap.set(name, { count: 0, ports: new Set(), assets: new Set() });
+                        const entry = serviceMap.get(name)!;
+                        entry.count++;
+                        if (svc.port) entry.ports.add(svc.port);
+                        entry.assets.add(a.hostname);
+                      }
+                    }
+                    const sortedServices = Array.from(serviceMap.entries()).sort((a, b) => b[1].count - a[1].count);
+
+                    // CDN/WAF detection
+                    const cdnWafMap = new Map<string, Set<string>>();
+                    for (const a of assets) {
+                      for (const tr of (a.toolResults || [])) {
+                        if (tr.tool === 'httpx' && tr.findings) {
+                          for (const f of tr.findings) {
+                            if (f.includes('CDN:') || f.includes('WAF:') || f.includes('cdn:') || f.includes('waf:')) {
+                              const val = f.replace(/^.*[CcWw][DdAa][NnFf]:\s*/, '').trim();
+                              if (val && val !== 'none' && val !== 'unknown') {
+                                if (!cdnWafMap.has(val)) cdnWafMap.set(val, new Set());
+                                cdnWafMap.get(val)!.add(a.hostname);
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    // TLS versions
+                    const tlsMap = new Map<string, Set<string>>();
+                    for (const a of assets) {
+                      if (a.passiveRecon?.certificates) {
+                        for (const cert of a.passiveRecon.certificates) {
+                          const ver = cert.version || cert.protocol || 'TLS';
+                          if (!tlsMap.has(ver)) tlsMap.set(ver, new Set());
+                          tlsMap.get(ver)!.add(a.hostname);
+                        }
+                      }
+                    }
+
+                    const totalPorts = sortedPorts.length;
+                    const totalServices = sortedServices.length;
+                    const totalTech = sortedTech.length;
+                    const totalToolRuns = allToolResults.length;
+
+                    if (totalToolRuns === 0 && assets.every((a: any) => !a.passiveRecon)) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                          <Radar className="h-12 w-12 mb-4 opacity-20" />
+                          <p className="text-sm">No discovery results yet</p>
+                          <p className="text-xs mt-1">Run a passive or active scan to populate discovery data</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {/* Summary Stats */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <Card className="bg-card/50">
+                            <CardContent className="p-3 text-center">
+                              <div className="text-2xl font-bold text-cyan-400">{totalPorts}</div>
+                              <div className="text-[10px] text-muted-foreground">Unique Ports</div>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-card/50">
+                            <CardContent className="p-3 text-center">
+                              <div className="text-2xl font-bold text-blue-400">{totalServices}</div>
+                              <div className="text-[10px] text-muted-foreground">Unique Services</div>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-card/50">
+                            <CardContent className="p-3 text-center">
+                              <div className="text-2xl font-bold text-purple-400">{totalTech}</div>
+                              <div className="text-[10px] text-muted-foreground">Technologies</div>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-card/50">
+                            <CardContent className="p-3 text-center">
+                              <div className="text-2xl font-bold text-green-400">{totalToolRuns}</div>
+                              <div className="text-[10px] text-muted-foreground">Tool Runs</div>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Tool Run Summary */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <Card className="bg-card/50 border-cyan-500/20">
+                            <CardContent className="p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Network className="h-4 w-4 text-cyan-400" />
+                                <span className="text-xs font-medium">Naabu</span>
+                                <Badge variant="secondary" className="ml-auto text-[9px] h-4">{naabuResults.length} runs</Badge>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground">Fast port discovery across all assets</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-card/50 border-blue-500/20">
+                            <CardContent className="p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Search className="h-4 w-4 text-blue-400" />
+                                <span className="text-xs font-medium">Nmap</span>
+                                <Badge variant="secondary" className="ml-auto text-[9px] h-4">{nmapResults.length} runs</Badge>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground">Service fingerprinting & OS detection</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-card/50 border-purple-500/20">
+                            <CardContent className="p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Globe className="h-4 w-4 text-purple-400" />
+                                <span className="text-xs font-medium">Httpx</span>
+                                <Badge variant="secondary" className="ml-auto text-[9px] h-4">{httpxResults.length} runs</Badge>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground">HTTP probing, tech & CDN/WAF detection</p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Port Frequency Heat Map */}
+                        {sortedPorts.length > 0 && (
+                          <Card className="bg-card/50">
+                            <CardHeader className="pb-2 pt-3 px-4">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <Network className="h-4 w-4 text-cyan-400" /> Port Frequency Map
+                              </CardTitle>
+                              <CardDescription className="text-[10px]">Most common open ports across all assets — darker = more prevalent</CardDescription>
+                            </CardHeader>
+                            <CardContent className="px-4 pb-3">
+                              <div className="flex flex-wrap gap-1.5">
+                                {sortedPorts.slice(0, 40).map(([port, data]) => {
+                                  const maxCount = sortedPorts[0]?.[1]?.count || 1;
+                                  const intensity = Math.max(0.2, data.count / maxCount);
+                                  return (
+                                    <div
+                                      key={port}
+                                      className="rounded px-2 py-1 text-[10px] font-mono cursor-default border border-cyan-500/20"
+                                      style={{ backgroundColor: `rgba(34, 211, 238, ${intensity * 0.3})`, color: intensity > 0.5 ? '#22d3ee' : '#94a3b8' }}
+                                      title={`Port ${port}: ${Array.from(data.services).join(', ')} — ${data.count} asset(s): ${Array.from(data.assets).join(', ')}`}
+                                    >
+                                      {port}
+                                      <span className="ml-1 opacity-60">({data.count})</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {sortedPorts.length > 40 && <p className="text-[10px] text-muted-foreground mt-2">+{sortedPorts.length - 40} more ports</p>}
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Service Distribution */}
+                        {sortedServices.length > 0 && (
+                          <Card className="bg-card/50">
+                            <CardHeader className="pb-2 pt-3 px-4">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <Server className="h-4 w-4 text-blue-400" /> Service Distribution
+                              </CardTitle>
+                              <CardDescription className="text-[10px]">Services detected across all assets with associated ports</CardDescription>
+                            </CardHeader>
+                            <CardContent className="px-4 pb-3">
+                              <div className="space-y-1.5">
+                                {sortedServices.slice(0, 20).map(([svc, data]) => {
+                                  const maxCount = sortedServices[0]?.[1]?.count || 1;
+                                  const pct = Math.round((data.count / maxCount) * 100);
+                                  return (
+                                    <div key={svc} className="flex items-center gap-2">
+                                      <span className="text-[10px] font-mono w-24 truncate text-blue-300" title={svc}>{svc}</span>
+                                      <div className="flex-1 h-4 bg-muted/30 rounded overflow-hidden">
+                                        <div className="h-full bg-blue-500/40 rounded" style={{ width: `${pct}%` }} />
+                                      </div>
+                                      <span className="text-[10px] text-muted-foreground w-8 text-right">{data.count}</span>
+                                      <span className="text-[9px] text-muted-foreground/60 w-20 truncate" title={Array.from(data.ports).sort((a,b) => a-b).join(', ')}>:{Array.from(data.ports).sort((a,b) => a-b).join(', ')}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Technology Stack Heat Map */}
+                        {sortedTech.length > 0 && (
+                          <Card className="bg-card/50">
+                            <CardHeader className="pb-2 pt-3 px-4">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <MonitorSmartphone className="h-4 w-4 text-purple-400" /> Technology Stack
+                              </CardTitle>
+                              <CardDescription className="text-[10px]">Technologies detected via httpx probing and passive reconnaissance</CardDescription>
+                            </CardHeader>
+                            <CardContent className="px-4 pb-3">
+                              <div className="flex flex-wrap gap-1.5">
+                                {sortedTech.slice(0, 30).map(([tech, data]) => {
+                                  const maxCount = sortedTech[0]?.[1]?.count || 1;
+                                  const intensity = Math.max(0.2, data.count / maxCount);
+                                  return (
+                                    <div
+                                      key={tech}
+                                      className="rounded-full px-2.5 py-0.5 text-[10px] border border-purple-500/20 cursor-default"
+                                      style={{ backgroundColor: `rgba(168, 85, 247, ${intensity * 0.25})`, color: intensity > 0.5 ? '#c084fc' : '#94a3b8' }}
+                                      title={`${tech}: ${data.count} asset(s) — ${Array.from(data.assets).join(', ')}`}
+                                    >
+                                      {tech}
+                                      <span className="ml-1 opacity-60">({data.count})</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {sortedTech.length > 30 && <p className="text-[10px] text-muted-foreground mt-2">+{sortedTech.length - 30} more technologies</p>}
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* CDN/WAF and TLS side by side */}
+                        <div className="grid grid-cols-2 gap-3">
+                          {cdnWafMap.size > 0 && (
+                            <Card className="bg-card/50">
+                              <CardHeader className="pb-2 pt-3 px-4">
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                  <Shield className="h-4 w-4 text-amber-400" /> CDN / WAF Detection
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="px-4 pb-3">
+                                <div className="space-y-1.5">
+                                  {Array.from(cdnWafMap.entries()).map(([name, assetSet]) => (
+                                    <div key={name} className="flex items-center justify-between">
+                                      <span className="text-[10px] font-medium text-amber-300">{name}</span>
+                                      <Badge variant="secondary" className="text-[9px] h-4">{assetSet.size} asset{assetSet.size > 1 ? 's' : ''}</Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                          {tlsMap.size > 0 && (
+                            <Card className="bg-card/50">
+                              <CardHeader className="pb-2 pt-3 px-4">
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                  <Lock className="h-4 w-4 text-green-400" /> TLS Versions
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="px-4 pb-3">
+                                <div className="space-y-1.5">
+                                  {Array.from(tlsMap.entries()).map(([ver, assetSet]) => (
+                                    <div key={ver} className="flex items-center justify-between">
+                                      <span className="text-[10px] font-medium text-green-300">{ver}</span>
+                                      <Badge variant="secondary" className="text-[9px] h-4">{assetSet.size} asset{assetSet.size > 1 ? 's' : ''}</Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                        </div>
+
+                        {/* Per-Asset Discovery Summary */}
+                        <Card className="bg-card/50">
+                          <CardHeader className="pb-2 pt-3 px-4">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <Target className="h-4 w-4 text-orange-400" /> Per-Asset Discovery Summary
+                            </CardTitle>
+                            <CardDescription className="text-[10px]">Click any row to view full asset details in the Assets tab</CardDescription>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-3">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[10px]">
+                                <thead>
+                                  <tr className="border-b border-border/30">
+                                    <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Asset</th>
+                                    <th className="text-center py-1.5 px-2 font-medium text-muted-foreground">Ports</th>
+                                    <th className="text-center py-1.5 px-2 font-medium text-muted-foreground">Services</th>
+                                    <th className="text-center py-1.5 px-2 font-medium text-muted-foreground">Tech</th>
+                                    <th className="text-center py-1.5 px-2 font-medium text-muted-foreground">Tools Run</th>
+                                    <th className="text-center py-1.5 px-2 font-medium text-muted-foreground">Findings</th>
+                                    <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {assets.map((a: any, i: number) => {
+                                    const ports = (a.knownPorts || []).length;
+                                    const svcs = new Set((a.knownPorts || []).filter((p: any) => typeof p === 'object' && p.service).map((p: any) => p.service)).size;
+                                    const tech = (a.passiveRecon?.technologies || []).length;
+                                    const tools = (a.toolResults || []).length;
+                                    const findings = (a.toolResults || []).reduce((sum: number, tr: any) => sum + (tr.findings?.length || 0), 0);
+                                    return (
+                                      <tr
+                                        key={i}
+                                        className="border-b border-border/10 hover:bg-muted/20 cursor-pointer transition-colors"
+                                        onClick={() => { setActiveTab('assets'); setSelectedAsset(a.hostname); }}
+                                      >
+                                        <td className="py-1.5 px-2 font-mono text-foreground">{a.hostname}</td>
+                                        <td className="py-1.5 px-2 text-center">
+                                          <span className={ports > 0 ? 'text-cyan-400' : 'text-muted-foreground'}>{ports}</span>
+                                        </td>
+                                        <td className="py-1.5 px-2 text-center">
+                                          <span className={svcs > 0 ? 'text-blue-400' : 'text-muted-foreground'}>{svcs}</span>
+                                        </td>
+                                        <td className="py-1.5 px-2 text-center">
+                                          <span className={tech > 0 ? 'text-purple-400' : 'text-muted-foreground'}>{tech}</span>
+                                        </td>
+                                        <td className="py-1.5 px-2 text-center">
+                                          <span className={tools > 0 ? 'text-green-400' : 'text-muted-foreground'}>{tools}</span>
+                                        </td>
+                                        <td className="py-1.5 px-2 text-center">
+                                          <span className={findings > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'}>{findings}</span>
+                                        </td>
+                                        <td className="py-1.5 px-2">
+                                          <Badge variant="secondary" className={`text-[8px] h-3.5 ${
+                                            a.status === 'compromised' ? 'bg-red-500/20 text-red-400' :
+                                            a.status === 'vulnerable' ? 'bg-amber-500/20 text-amber-400' :
+                                            a.status === 'scanned' ? 'bg-blue-500/20 text-blue-400' :
+                                            a.status === 'discovered' ? 'bg-green-500/20 text-green-400' :
+                                            'bg-muted/50 text-muted-foreground'
+                                          }`}>{a.status}</Badge>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* All Tool Execution Log */}
+                        <Card className="bg-card/50">
+                          <CardHeader className="pb-2 pt-3 px-4">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <Terminal className="h-4 w-4 text-green-400" /> Tool Execution Log
+                            </CardTitle>
+                            <CardDescription className="text-[10px]">All tool runs across all assets with commands and results</CardDescription>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-3">
+                            <div className="space-y-2 max-h-80 overflow-y-auto">
+                              {allToolResults.length === 0 ? (
+                                <p className="text-[10px] text-muted-foreground py-4 text-center">No tool executions recorded yet</p>
+                              ) : (
+                                allToolResults.slice(0, 50).map((tr: any, i: number) => (
+                                  <div key={i} className="border border-border/20 rounded p-2 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="secondary" className={`text-[8px] h-3.5 ${
+                                        tr.tool === 'nmap' || tr.tool === 'nmap-discovery' ? 'bg-blue-500/20 text-blue-400' :
+                                        tr.tool === 'naabu' ? 'bg-cyan-500/20 text-cyan-400' :
+                                        tr.tool === 'httpx' ? 'bg-purple-500/20 text-purple-400' :
+                                        tr.tool === 'nuclei' ? 'bg-red-500/20 text-red-400' :
+                                        'bg-muted/50 text-muted-foreground'
+                                      }`}>{tr.tool}</Badge>
+                                      <span className="text-[10px] font-mono text-muted-foreground">{tr.assetHostname}</span>
+                                      <span className="ml-auto text-[9px] text-muted-foreground">
+                                        {tr.exitCode === 0 ? <CheckCircle2 className="h-3 w-3 text-green-400 inline" /> : <XCircle className="h-3 w-3 text-red-400 inline" />}
+                                        {tr.duration ? ` ${tr.duration}` : ''}
+                                      </span>
+                                    </div>
+                                    {tr.command && (
+                                      <div className="bg-black/30 rounded px-2 py-1 font-mono text-[9px] text-green-300/80 overflow-x-auto whitespace-nowrap">
+                                        $ {tr.command}
+                                      </div>
+                                    )}
+                                    {tr.findings && tr.findings.length > 0 && (
+                                      <div className="space-y-0.5">
+                                        {tr.findings.slice(0, 5).map((f: string, fi: number) => (
+                                          <div key={fi} className="text-[9px] text-amber-300/80 flex items-start gap-1">
+                                            <Zap className="h-2.5 w-2.5 mt-0.5 shrink-0" />
+                                            <span className="break-all">{f}</span>
+                                          </div>
+                                        ))}
+                                        {tr.findings.length > 5 && <p className="text-[9px] text-muted-foreground">+{tr.findings.length - 5} more findings</p>}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                              {allToolResults.length > 50 && <p className="text-[10px] text-muted-foreground text-center">Showing 50 of {allToolResults.length} tool runs</p>}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </>
+                    );
+                  })()}
+                </div>
+              </ScrollArea>
             </TabsContent>
 
             {/* ── Exploit Match Tab ── */}

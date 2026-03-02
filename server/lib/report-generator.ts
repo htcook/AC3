@@ -21,6 +21,31 @@ export interface ReportInput {
   customNotes?: string;
   roeData?: any;
   auditLogEntries?: any[];
+  engagementOpsData?: {
+    assets: Array<{
+      hostname: string;
+      ip?: string;
+      type?: string;
+      status?: string;
+      knownPorts?: Array<{ port: number; service?: string; version?: string }>;
+      passiveRecon?: {
+        services?: Array<{ port?: number; service?: string; product?: string; version?: string }>;
+        technologies?: string[];
+        certificates?: Array<{ issuer?: string; subject?: string; validTo?: string; version?: string }>;
+        riskSignals?: string[];
+      };
+      toolResults?: Array<{
+        tool: string;
+        command?: string;
+        exitCode?: number;
+        duration?: string;
+        findings?: string[];
+        outputPreview?: string;
+      }>;
+    }>;
+    scanPlan?: any;
+    passiveReconResults?: any;
+  };
 }
 
 export interface ReportSection {
@@ -98,6 +123,37 @@ export interface ReportData {
   }>;
   recommendations: string[];
   conclusion: string;
+  discoveryRecon?: {
+    totalAssets: number;
+    totalPorts: number;
+    totalServices: number;
+    totalTechnologies: number;
+    totalToolRuns: number;
+    portSummary: Array<{ port: number; service: string; assetCount: number }>;
+    serviceSummary: Array<{ service: string; count: number; ports: number[] }>;
+    techSummary: Array<{ technology: string; count: number }>;
+    assetSummaries: Array<{
+      hostname: string;
+      ip: string;
+      type: string;
+      status: string;
+      portsFound: number;
+      servicesFound: number;
+      techFound: number;
+      toolsRun: number;
+      findingsCount: number;
+      riskSignals: string[];
+    }>;
+  };
+  toolEvidence?: Array<{
+    asset: string;
+    tool: string;
+    command: string;
+    exitCode: number;
+    duration: string;
+    findings: string[];
+    outputPreview: string;
+  }>;
   complianceAuthorization?: {
     roeStatus: string;
     roeSignedDate: string | null;
@@ -291,6 +347,128 @@ Return JSON with:
     conclusion = `The engagement revealed ${findings.length} significant detection gaps that should be addressed as a priority. The overall detection coverage of ${coverageSummary.fullCoverage || 0} fully covered techniques out of ${coverageSummary.totalTechniques || techniquesAttempted} total demonstrates the current security posture and provides a clear roadmap for improvement.`;
   }
 
+  // ─── Build Discovery & Recon Summary from engagement ops data ───
+  let discoveryRecon: ReportData['discoveryRecon'] = undefined;
+  let toolEvidence: ReportData['toolEvidence'] = undefined;
+
+  if (input.engagementOpsData?.assets?.length) {
+    const opsAssets = input.engagementOpsData.assets;
+
+    // Aggregate ports
+    const portMap = new Map<number, { services: Set<string>; assets: Set<string> }>();
+    for (const a of opsAssets) {
+      for (const p of (a.knownPorts || [])) {
+        const port = typeof p === 'number' ? p : (p.port || 0);
+        const svc = typeof p === 'object' ? (p.service || 'unknown') : 'unknown';
+        if (!portMap.has(port)) portMap.set(port, { services: new Set(), assets: new Set() });
+        const entry = portMap.get(port)!;
+        entry.services.add(svc);
+        entry.assets.add(a.hostname);
+      }
+    }
+    const portSummary = Array.from(portMap.entries())
+      .sort((a, b) => b[1].assets.size - a[1].assets.size)
+      .slice(0, 30)
+      .map(([port, data]) => ({ port, service: Array.from(data.services).join(', '), assetCount: data.assets.size }));
+
+    // Aggregate services
+    const svcMap = new Map<string, { count: number; ports: Set<number> }>();
+    for (const a of opsAssets) {
+      for (const p of (a.knownPorts || [])) {
+        if (typeof p === 'object' && p.service) {
+          if (!svcMap.has(p.service)) svcMap.set(p.service, { count: 0, ports: new Set() });
+          const entry = svcMap.get(p.service)!;
+          entry.count++;
+          entry.ports.add(p.port || 0);
+        }
+      }
+      for (const svc of (a.passiveRecon?.services || [])) {
+        const name = (svc as any).service || (svc as any).name || 'unknown';
+        if (!svcMap.has(name)) svcMap.set(name, { count: 0, ports: new Set() });
+        const entry = svcMap.get(name)!;
+        entry.count++;
+        if ((svc as any).port) entry.ports.add((svc as any).port);
+      }
+    }
+    const serviceSummary = Array.from(svcMap.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 20)
+      .map(([svc, data]) => ({ service: svc, count: data.count, ports: Array.from(data.ports).sort((a, b) => a - b) }));
+
+    // Aggregate technologies
+    const techMap = new Map<string, number>();
+    for (const a of opsAssets) {
+      for (const t of (a.passiveRecon?.technologies || [])) {
+        techMap.set(t, (techMap.get(t) || 0) + 1);
+      }
+      for (const tr of (a.toolResults || [])) {
+        if (tr.tool === 'httpx' && tr.findings) {
+          for (const f of tr.findings) {
+            if (f.includes('Tech:') || f.includes('tech:')) {
+              const t = f.replace(/^.*[Tt]ech:\s*/, '').trim();
+              if (t) techMap.set(t, (techMap.get(t) || 0) + 1);
+            }
+          }
+        }
+      }
+    }
+    const techSummary = Array.from(techMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([tech, count]) => ({ technology: tech, count }));
+
+    // Per-asset summaries
+    const assetSummaries = opsAssets.map(a => {
+      const ports = (a.knownPorts || []).length;
+      const svcs = new Set((a.knownPorts || []).filter((p: any) => typeof p === 'object' && p.service).map((p: any) => p.service)).size;
+      const tech = (a.passiveRecon?.technologies || []).length;
+      const tools = (a.toolResults || []).length;
+      const findingsCount = (a.toolResults || []).reduce((sum, tr) => sum + (tr.findings?.length || 0), 0);
+      return {
+        hostname: a.hostname,
+        ip: a.ip || 'unknown',
+        type: a.type || 'unknown',
+        status: a.status || 'unknown',
+        portsFound: ports,
+        servicesFound: svcs,
+        techFound: tech,
+        toolsRun: tools,
+        findingsCount,
+        riskSignals: a.passiveRecon?.riskSignals || [],
+      };
+    });
+
+    const totalToolRuns = opsAssets.reduce((sum, a) => sum + (a.toolResults?.length || 0), 0);
+
+    discoveryRecon = {
+      totalAssets: opsAssets.length,
+      totalPorts: portMap.size,
+      totalServices: svcMap.size,
+      totalTechnologies: techMap.size,
+      totalToolRuns,
+      portSummary,
+      serviceSummary,
+      techSummary,
+      assetSummaries,
+    };
+
+    // Build tool evidence
+    toolEvidence = [];
+    for (const a of opsAssets) {
+      for (const tr of (a.toolResults || [])) {
+        toolEvidence.push({
+          asset: a.hostname,
+          tool: tr.tool,
+          command: tr.command || '',
+          exitCode: tr.exitCode ?? -1,
+          duration: tr.duration || '',
+          findings: tr.findings || [],
+          outputPreview: tr.outputPreview || '',
+        });
+      }
+    }
+  }
+
   return {
     metadata: {
       title: `Post-Engagement Security Assessment Report`,
@@ -336,6 +514,8 @@ Return JSON with:
     findings,
     recommendations,
     conclusion,
+    discoveryRecon,
+    toolEvidence,
   };
 }
 
@@ -711,8 +891,85 @@ ${complianceAuthorization.auditLogEntries.length > 50 ? '<p style="font-size: 12
 <p style="margin-top: 16px;"><strong>Compliance Statement:</strong> ${complianceAuthorization.roeStatus === 'signed' ? 'All offensive actions documented in this report were conducted under a valid, signed Rules of Engagement document. The engagement team operated within the authorized scope and timeframe as defined by the ROE.' : complianceAuthorization.roeStatus === 'expired' ? 'WARNING: The Rules of Engagement for this engagement have expired. Some actions may have been conducted after ROE expiry. Review the audit trail above for details.' : 'WARNING: No signed Rules of Engagement document was found for this engagement. This may indicate a compliance gap that should be addressed.'}</p>
 ` : ''}
 
+<!-- Discovery & Reconnaissance Summary -->
+${report.discoveryRecon ? `
+<h2>${complianceAuthorization ? '9' : '8'}. Discovery &amp; Reconnaissance Summary</h2>
+<p>The following section presents aggregated findings from passive reconnaissance (OSINT, Shodan, Censys, crt.sh, SecurityTrails) and active discovery tools (naabu, nmap, httpx) executed across all in-scope assets.</p>
+
+<div class="metrics-grid">
+  <div class="metric-card"><div class="metric-value" style="color: #f97316;">${report.discoveryRecon.totalAssets}</div><div class="metric-label">Assets Discovered</div></div>
+  <div class="metric-card"><div class="metric-value" style="color: #22d3ee;">${report.discoveryRecon.totalPorts}</div><div class="metric-label">Unique Ports</div></div>
+  <div class="metric-card"><div class="metric-value" style="color: #3b82f6;">${report.discoveryRecon.totalServices}</div><div class="metric-label">Unique Services</div></div>
+  <div class="metric-card"><div class="metric-value" style="color: #a855f7;">${report.discoveryRecon.totalTechnologies}</div><div class="metric-label">Technologies</div></div>
+</div>
+
+<h3>Port Frequency</h3>
+<table>
+  <thead><tr><th>Port</th><th>Service(s)</th><th>Asset Count</th></tr></thead>
+  <tbody>
+    ${report.discoveryRecon.portSummary.map(p => `<tr><td style="font-family: monospace; font-weight: 600;">${p.port}</td><td>${p.service}</td><td>${p.assetCount}</td></tr>`).join('')}
+  </tbody>
+</table>
+
+${report.discoveryRecon.serviceSummary.length > 0 ? `
+<h3>Service Distribution</h3>
+<table>
+  <thead><tr><th>Service</th><th>Instances</th><th>Ports</th></tr></thead>
+  <tbody>
+    ${report.discoveryRecon.serviceSummary.map(s => `<tr><td>${s.service}</td><td>${s.count}</td><td style="font-family: monospace; font-size: 11px;">${s.ports.join(', ')}</td></tr>`).join('')}
+  </tbody>
+</table>
+` : ''}
+
+${report.discoveryRecon.techSummary.length > 0 ? `
+<h3>Technology Stack</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;">
+  ${report.discoveryRecon.techSummary.map(t => `<span style="background: #f3e8ff; color: #7c3aed; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">${t.technology} (${t.count})</span>`).join('')}
+</div>
+` : ''}
+
+<h3>Per-Asset Summary</h3>
+<table>
+  <thead><tr><th>Hostname</th><th>IP</th><th>Type</th><th>Status</th><th>Ports</th><th>Services</th><th>Tech</th><th>Tools</th><th>Findings</th></tr></thead>
+  <tbody>
+    ${report.discoveryRecon.assetSummaries.map(a => `<tr>
+      <td style="font-family: monospace; font-weight: 500;">${a.hostname}</td>
+      <td style="font-family: monospace; font-size: 11px;">${a.ip}</td>
+      <td>${a.type}</td>
+      <td><span class="badge" style="background: ${a.status === 'compromised' ? '#fef2f2' : a.status === 'vulnerable' ? '#fffbeb' : a.status === 'scanned' ? '#eff6ff' : '#f0fdf4'}; color: ${a.status === 'compromised' ? '#dc2626' : a.status === 'vulnerable' ? '#d97706' : a.status === 'scanned' ? '#2563eb' : '#16a34a'};">${a.status}</span></td>
+      <td style="text-align: center;">${a.portsFound}</td>
+      <td style="text-align: center;">${a.servicesFound}</td>
+      <td style="text-align: center;">${a.techFound}</td>
+      <td style="text-align: center;">${a.toolsRun}</td>
+      <td style="text-align: center; ${a.findingsCount > 0 ? 'color: #dc2626; font-weight: 600;' : ''}">${a.findingsCount}</td>
+    </tr>${a.riskSignals.length > 0 ? `<tr><td colspan="9" style="padding: 4px 12px 8px; background: #fffbeb; font-size: 11px; color: #92400e;"><strong>Risk Signals:</strong> ${a.riskSignals.join(' | ')}</td></tr>` : ''}`).join('')}
+  </tbody>
+</table>
+` : ''}
+
+<!-- Tool Evidence -->
+${report.toolEvidence && report.toolEvidence.length > 0 ? `
+<h2>${complianceAuthorization ? '10' : '9'}. Tool Execution Evidence</h2>
+<p>Complete record of all security tools executed during the engagement, including commands, exit codes, and key findings. This section provides the forensic evidence chain for all automated testing performed.</p>
+
+<p style="font-size: 12px; color: #64748b;"><strong>Total tool executions:</strong> ${report.toolEvidence.length}</p>
+
+${report.toolEvidence.map((te, idx) => `
+<div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; page-break-inside: avoid;">
+  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+    <span style="background: ${te.tool === 'nmap' || te.tool === 'nmap-discovery' ? '#eff6ff' : te.tool === 'naabu' ? '#ecfeff' : te.tool === 'httpx' ? '#faf5ff' : te.tool === 'nuclei' ? '#fef2f2' : te.tool === 'zap' ? '#fff7ed' : '#f0fdf4'}; color: ${te.tool === 'nmap' || te.tool === 'nmap-discovery' ? '#2563eb' : te.tool === 'naabu' ? '#0891b2' : te.tool === 'httpx' ? '#7c3aed' : te.tool === 'nuclei' ? '#dc2626' : te.tool === 'zap' ? '#ea580c' : '#16a34a'}; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">${te.tool}</span>
+    <span style="font-family: monospace; font-size: 12px; color: #64748b;">${te.asset}</span>
+    <span style="margin-left: auto; font-size: 11px; color: ${te.exitCode === 0 ? '#16a34a' : '#dc2626'};">${te.exitCode === 0 ? '✓ Success' : '✗ Exit ' + te.exitCode}${te.duration ? ' | ' + te.duration : ''}</span>
+  </div>
+  ${te.command ? `<div style="background: #0f172a; color: #a5f3fc; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 11px; overflow-x: auto; white-space: nowrap; margin-bottom: 8px;">$ ${te.command}</div>` : ''}
+  ${te.findings.length > 0 ? `<div style="margin-top: 8px;"><strong style="font-size: 12px; color: #334155;">Findings (${te.findings.length}):</strong><ul style="margin: 4px 0 0 16px; padding: 0;">${te.findings.slice(0, 10).map(f => `<li style="font-size: 12px; color: #b45309; margin: 2px 0;">${f}</li>`).join('')}${te.findings.length > 10 ? `<li style="font-size: 11px; color: #64748b;">+${te.findings.length - 10} more findings</li>` : ''}</ul></div>` : ''}
+  ${te.outputPreview ? `<details style="margin-top: 8px;"><summary style="font-size: 11px; color: #64748b; cursor: pointer;">Raw output preview</summary><pre style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; font-size: 10px; max-height: 200px; overflow: auto; margin-top: 4px;">${te.outputPreview}</pre></details>` : ''}
+</div>
+`).join('')}
+` : ''}
+
 <!-- Recommendations -->
-<h2>${complianceAuthorization ? '9' : '8'}. Recommendations</h2>
+<h2>${complianceAuthorization ? (report.toolEvidence?.length ? '11' : '10') : (report.toolEvidence?.length ? '10' : '9')}. Recommendations</h2>
 <ol class="rec-list">
   ${recommendations.map(r => `<li>${r}</li>`).join('')}
 </ol>

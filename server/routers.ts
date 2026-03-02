@@ -1390,6 +1390,7 @@ export const appRouter = router({
         clientName: z.string().optional(),
         engagementType: z.string().optional(),
         customNotes: z.string().optional(),
+        engagementId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         const { generateReport, renderReportHTML } = await import('./lib/report-generator');
@@ -1511,6 +1512,28 @@ export const appRouter = router({
           }));
         } catch (e) { /* ignore */ }
 
+        // Fetch engagement ops data if engagementId provided
+        let engagementOpsData: any = undefined;
+        if (input.engagementId) {
+          const { getOpsState } = await import('./lib/engagement-orchestrator');
+          const opsState = getOpsState(input.engagementId);
+          if (opsState) {
+            engagementOpsData = {
+              assets: opsState.assets.map(a => ({
+                hostname: a.hostname,
+                ip: a.ip,
+                type: a.type,
+                status: a.status,
+                knownPorts: a.knownPorts,
+                passiveRecon: a.passiveRecon,
+                toolResults: a.toolResults,
+              })),
+              scanPlan: opsState.scanPlan,
+              passiveReconResults: opsState.passiveReconResults,
+            };
+          }
+        }
+
         const report = await generateReport({
           operationId: input.operationId,
           operationData,
@@ -1519,6 +1542,7 @@ export const appRouter = router({
           clientName: input.clientName,
           engagementType: input.engagementType,
           customNotes: input.customNotes,
+          engagementOpsData,
         });
 
         const html = renderReportHTML(report);
@@ -4069,6 +4093,34 @@ Respond in JSON format as an array of 3 campaign objects.`;
           }
         } catch (e) { console.error('ROE/audit fetch for report failed:', e); }
 
+        // Fetch engagement ops data for discovery/tool evidence sections
+        let opsDataContext = 'No active scan data available for this engagement.';
+        try {
+          const { getOpsState } = await import('./lib/engagement-orchestrator');
+          const opsState = getOpsState(input.engagementId);
+          if (opsState?.assets?.length) {
+            const assets = opsState.assets;
+            const totalToolRuns = assets.reduce((s, a) => s + (a.toolResults?.length || 0), 0);
+            const totalFindings = assets.reduce((s, a) => s + (a.toolResults || []).reduce((s2, tr) => s2 + (tr.findings?.length || 0), 0), 0);
+            let ctx = `Assets Discovered: ${assets.length} | Tool Runs: ${totalToolRuns} | Total Findings: ${totalFindings}\n\n`;
+            for (const a of assets.slice(0, 20)) {
+              ctx += `### ${a.hostname} (${a.ip || 'unknown'}) - Status: ${a.status}\n`;
+              if (a.knownPorts?.length) ctx += `Ports: ${a.knownPorts.map((p: any) => typeof p === 'number' ? p : `${p.port}/${p.service || '?'}`).join(', ')}\n`;
+              if (a.passiveRecon?.technologies?.length) ctx += `Technologies: ${a.passiveRecon.technologies.join(', ')}\n`;
+              if (a.passiveRecon?.riskSignals?.length) ctx += `Risk Signals: ${a.passiveRecon.riskSignals.join(' | ')}\n`;
+              if (a.passiveRecon?.certificates?.length) ctx += `Certificates: ${a.passiveRecon.certificates.map((c: any) => `${c.issuer || 'unknown'} (valid to: ${c.validTo || '?'})`).join(', ')}\n`;
+              for (const tr of (a.toolResults || []).slice(0, 5)) {
+                ctx += `  Tool: ${tr.tool} | Exit: ${tr.exitCode} | Duration: ${tr.duration || '?'}\n`;
+                if (tr.command) ctx += `  Command: ${tr.command}\n`;
+                if (tr.findings?.length) ctx += `  Findings: ${tr.findings.slice(0, 5).join('; ')}${tr.findings.length > 5 ? ` (+${tr.findings.length - 5} more)` : ''}\n`;
+              }
+              ctx += '\n';
+            }
+            if (assets.length > 20) ctx += `... and ${assets.length - 20} more assets\n`;
+            opsDataContext = ctx;
+          }
+        } catch (e) { console.error('Failed to fetch ops data for report:', e); }
+
         // Use LLM to generate report content
         const { invokeLLM } = await import('./_core/llm');
 
@@ -4185,6 +4237,13 @@ ROE Scope: ${roeData?.roeScope ? JSON.stringify(roeData.roeScope) : 'Not defined
 Offensive Audit Log (${auditLogEntries.length} entries):
 ${auditLogEntries.slice(0, 50).map((e: any) => `- [${new Date(e.createdAt).toISOString()}] ${e.operatorName || e.operatorId} | ${e.actionType} | ${e.riskTier} tier | Target: ${e.target} | Module: ${e.moduleOrTool || 'N/A'} | Result: ${e.resultStatus} | ROE: ${e.roeStatus || 'N/A'}`).join('\n')}
 ${auditLogEntries.length > 50 ? `... and ${auditLogEntries.length - 50} more entries` : ''}
+
+## ENGAGEMENT OPS DATA (Active Scanning & Discovery)
+${opsDataContext}
+
+IMPORTANT: You MUST include a "Discovery & Reconnaissance" section that covers all asset discovery results, port/service findings from naabu/nmap/httpx, passive recon data, and technology stack analysis. Include a per-asset summary table with ports, services, technologies, and risk signals.
+
+IMPORTANT: You MUST include a "Tool Execution Evidence" section that documents all security tools executed, their commands, exit codes, and key findings. This provides the forensic evidence chain.
 
 IMPORTANT: You MUST include a "Compliance & Authorization" section in the report that:
 1. States the ROE status, signed date, expiry date, and signer information
