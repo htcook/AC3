@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Campaign Archetype Router — manages archetype templates,
  * actor-specific auto-population, and archetype-to-campaign conversion.

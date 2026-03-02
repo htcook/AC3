@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Evidence Collection & Chain of Custody Router
  * Manages forensic evidence with hash verification and audit trail.

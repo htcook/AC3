@@ -1,3 +1,4 @@
+import { notifyOwner } from "../_core/notification";
 /**
  * Session Alerter Router — tRPC endpoints for managing the session alerting system.
  * Controls the background polling, alert retrieval, and configuration.

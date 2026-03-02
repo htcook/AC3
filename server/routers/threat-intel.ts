@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Threat Intelligence Router — Master Catalog API
  * 

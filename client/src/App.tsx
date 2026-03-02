@@ -6,7 +6,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { lazy, Suspense, useEffect } from "react";
-import { GlobalAiChat } from "./components/GlobalAiChat";
+const GlobalAiChat = lazy(() => import("./components/GlobalAiChat").then(m => ({ default: m.GlobalAiChat })));
 import { useErrorCapture } from "./hooks/useErrorCapture";
 import { EngagementProvider } from "./contexts/EngagementContext";
 
@@ -846,7 +846,9 @@ function App() {
           <TooltipProvider>
             <Toaster />
             <Router />
-            <GlobalAiChat />
+            <Suspense fallback={null}>
+              <GlobalAiChat />
+            </Suspense>
           </TooltipProvider>
         </EngagementProvider>
       </ThemeProvider>

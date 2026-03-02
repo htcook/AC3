@@ -1,3 +1,4 @@
+import * as schema from "../../drizzle/schema";
 // @ts-nocheck
 /**
  * Scheduled Auto-Collection Router

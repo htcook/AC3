@@ -1,1 +1,0 @@
-ALTER TABLE `engagements` ADD `roe_document_id` int;

@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Attack Path Visualization Router
  * Manages attack path graphs showing how vulnerabilities chain across assets.

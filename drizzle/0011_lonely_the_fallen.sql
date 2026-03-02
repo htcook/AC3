@@ -1,1 +1,0 @@
-ALTER TABLE `engagement_reports` MODIFY COLUMN `reportType` enum('executive_summary','technical_detail','compliance','phishing_results','osint_assessment','full_engagement','purple_team','red_team_assessment','detection_gap_analysis') NOT NULL;

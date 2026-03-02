@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Cloud Credentials & Live IAM Enumeration Router
  * Manages encrypted cloud provider credentials and runs live IAM enumeration

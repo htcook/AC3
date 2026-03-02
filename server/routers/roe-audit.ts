@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * ROE Management & Audit Log Router
  * 

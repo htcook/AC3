@@ -1,0 +1,163 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Ace C3 Platform — Local Development Stack
+#
+# Mirrors the production DigitalOcean architecture:
+#   API Server  → DO App Platform (Web)
+#   Worker      → DO App Platform (Worker)
+#   MySQL       → DO Managed MySQL / TiDB
+#   Redis       → DO Managed Redis
+#
+# Usage:
+#   docker compose up -d              # Start all services
+#   docker compose up -d api          # Start API + deps only
+#   docker compose logs -f api worker # Tail logs
+#   docker compose down -v            # Tear down (including volumes)
+#
+# First run:
+#   docker compose up -d mysql redis  # Start infra first
+#   docker compose run api pnpm db:push  # Run migrations
+#   docker compose up -d              # Start everything
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── MySQL Database ───────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: acec3-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-acec3_dev_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-acec3}
+      MYSQL_USER: ${MYSQL_USER:-acec3}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-acec3_dev_pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-acec3_dev_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max-connections=200
+      --innodb-buffer-pool-size=256M
+
+  # ── Redis (Job Queue + Pub/Sub) ──────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: acec3-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+
+  # ── API Server ───────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      target: api
+    container_name: acec3-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER:-acec3}:${MYSQL_PASSWORD:-acec3_dev_pass}@mysql:3306/${MYSQL_DATABASE:-acec3}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production}
+      # ── External API Keys (pass from host .env) ──────────────────────
+      CALDERA_BASE_URL: ${CALDERA_BASE_URL:-}
+      CALDERA_API_KEY: ${CALDERA_API_KEY:-}
+      CALDERA_USERNAME: ${CALDERA_USERNAME:-}
+      CALDERA_PASSWORD: ${CALDERA_PASSWORD:-}
+      SHODAN_API_KEY: ${SHODAN_API_KEY:-}
+      CENSYS_API_ID: ${CENSYS_API_ID:-}
+      CENSYS_API_SECRET: ${CENSYS_API_SECRET:-}
+      SECURITYTRAILS_API_KEY: ${SECURITYTRAILS_API_KEY:-}
+      URLSCAN_API_KEY: ${URLSCAN_API_KEY:-}
+      ABUSECH_API_KEY: ${ABUSECH_API_KEY:-}
+      DEHASHED_API_KEY: ${DEHASHED_API_KEY:-}
+      DEHASHED_EMAIL: ${DEHASHED_EMAIL:-}
+      GOPHISH_API_KEY: ${GOPHISH_API_KEY:-}
+      GOPHISH_BASE_URL: ${GOPHISH_BASE_URL:-}
+      ZAP_API_KEY: ${ZAP_API_KEY:-}
+      ZAP_BASE_URL: ${ZAP_BASE_URL:-}
+      HACKERONE_API_KEY: ${HACKERONE_API_KEY:-}
+      DIGITALOCEAN_ACCESS_TOKEN: ${DIGITALOCEAN_ACCESS_TOKEN:-}
+      SCAN_SERVER_HOST: ${SCAN_SERVER_HOST:-}
+      SCAN_SERVER_USER: ${SCAN_SERVER_USER:-}
+      SCAN_SERVER_SSH_KEY: ${SCAN_SERVER_SSH_KEY:-}
+      # ── Manus Platform (only needed when running inside Manus) ───────
+      VITE_APP_ID: ${VITE_APP_ID:-}
+      OAUTH_SERVER_URL: ${OAUTH_SERVER_URL:-}
+      VITE_OAUTH_PORTAL_URL: ${VITE_OAUTH_PORTAL_URL:-}
+      OWNER_OPEN_ID: ${OWNER_OPEN_ID:-}
+      OWNER_NAME: ${OWNER_NAME:-}
+      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
+      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/trpc/auth.me"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Worker Process ───────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      target: worker
+    container_name: acec3-worker
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://${MYSQL_USER:-acec3}:${MYSQL_PASSWORD:-acec3_dev_pass}@mysql:3306/${MYSQL_DATABASE:-acec3}
+      REDIS_URL: redis://redis:6379
+      # Worker needs the same API keys as the API server
+      CALDERA_BASE_URL: ${CALDERA_BASE_URL:-}
+      CALDERA_API_KEY: ${CALDERA_API_KEY:-}
+      SHODAN_API_KEY: ${SHODAN_API_KEY:-}
+      CENSYS_API_ID: ${CENSYS_API_ID:-}
+      CENSYS_API_SECRET: ${CENSYS_API_SECRET:-}
+      SECURITYTRAILS_API_KEY: ${SECURITYTRAILS_API_KEY:-}
+      URLSCAN_API_KEY: ${URLSCAN_API_KEY:-}
+      ABUSECH_API_KEY: ${ABUSECH_API_KEY:-}
+      DEHASHED_API_KEY: ${DEHASHED_API_KEY:-}
+      DEHASHED_EMAIL: ${DEHASHED_EMAIL:-}
+      GOPHISH_API_KEY: ${GOPHISH_API_KEY:-}
+      GOPHISH_BASE_URL: ${GOPHISH_BASE_URL:-}
+      ZAP_API_KEY: ${ZAP_API_KEY:-}
+      ZAP_BASE_URL: ${ZAP_BASE_URL:-}
+      SCAN_SERVER_HOST: ${SCAN_SERVER_HOST:-}
+      SCAN_SERVER_USER: ${SCAN_SERVER_USER:-}
+      SCAN_SERVER_SSH_KEY: ${SCAN_SERVER_SSH_KEY:-}
+      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
+      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local

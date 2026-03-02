@@ -44,10 +44,10 @@ describe("Passive Scan Fix: LLM timeout", () => {
 });
 
 describe("Passive Scan Fix: Watchdog improvements", () => {
-  it("routers.ts should have per-domain watchdog", async () => {
+  it("engagement-ops-core.ts should have per-domain watchdog", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      new URL("./routers.ts", import.meta.url).pathname.replace("/routers.ts", "/../server/routers.ts"),
+      "/home/ubuntu/caldera-dashboard/server/routers/engagement-ops-core.ts",
       "utf-8"
     );
     // Should have per-domain watchdog

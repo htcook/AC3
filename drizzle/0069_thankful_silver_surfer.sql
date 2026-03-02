@@ -1,2 +1,0 @@
-ALTER TABLE `team_invitations` MODIFY COLUMN `invite_role` enum('user','admin','viewer','operator','team_lead','analyst','executive','client','soc') NOT NULL DEFAULT 'operator';--> statement-breakpoint
-ALTER TABLE `users` MODIFY COLUMN `role` enum('user','admin','viewer','operator','team_lead','analyst','executive','client','soc') NOT NULL DEFAULT 'operator';

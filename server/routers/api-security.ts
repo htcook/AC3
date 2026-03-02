@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * API Security Testing Router
  * Manages API targets, endpoint discovery, OWASP API Top 10 testing,

@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Active Directory Attack Simulation Router
  * Manages AD environments, object enumeration, attack simulations,

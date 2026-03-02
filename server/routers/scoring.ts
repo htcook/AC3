@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Hybrid Risk / CVSS v4.0 Hybrid Scoring Router (Enhanced)
  * ─────────────────────────────────────────────────────────

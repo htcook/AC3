@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * STIX/TAXII Export Router
  * 

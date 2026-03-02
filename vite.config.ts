@@ -6,7 +6,6 @@ import path from "path";
 import { defineConfig } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
-
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
 
 export default defineConfig({
@@ -28,16 +27,37 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Split heavy vendor libraries into separate chunks
-          if (id.includes('node_modules')) {
-            if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
-            if (id.includes('mermaid')) return 'vendor-mermaid';
-            if (id.includes('cytoscape')) return 'vendor-cytoscape';
-            if (id.includes('@radix-ui')) return 'vendor-radix';
-            if (id.includes('lucide-react')) return 'vendor-icons';
-            if (id.includes('codemirror') || id.includes('@codemirror') || id.includes('@lezer')) return 'vendor-editor';
-            if (id.includes('katex')) return 'vendor-katex';
-          }
+          if (!id.includes('node_modules')) return;
+
+          // ── Heavy visualization libs (lazy-loaded via page routes) ──────
+          // mermaid + its cytoscape dep (~2.1 MB combined)
+          if (id.includes('mermaid')) return 'vendor-mermaid';
+          if (id.includes('cytoscape')) return 'vendor-cytoscape';
+
+          // Shiki code highlighter + all language grammars (~3 MB)
+          if (id.includes('shiki') || id.includes('@shikijs')) return 'vendor-shiki';
+
+          // KaTeX math renderer + fonts (~1 MB)
+          if (id.includes('katex')) return 'vendor-katex';
+
+          // ── Charts (recharts + d3 ecosystem) ───────────────────────────
+          if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
+
+          // ── UI framework chunks ────────────────────────────────────────
+          if (id.includes('@radix-ui')) return 'vendor-radix';
+          if (id.includes('lucide-react')) return 'vendor-icons';
+
+          // ── Code editor (CodeMirror) ───────────────────────────────────
+          if (id.includes('codemirror') || id.includes('@codemirror') || id.includes('@lezer')) return 'vendor-editor';
+
+          // ── PDF generation (jsPDF + autoTable) ─────────────────────────
+          if (id.includes('jspdf') || id.includes('jspdf-autotable')) return 'vendor-pdf';
+
+          // ── Markdown / streaming markdown ──────────────────────────────
+          if (id.includes('streamdown') || id.includes('react-markdown') || id.includes('remark-') || id.includes('rehype-') || id.includes('marked')) return 'vendor-markdown';
+
+          // ── React core (shared across all routes) ──────────────────────
+          if (id.includes('react-dom')) return 'vendor-react';
         },
       },
     },

@@ -103,7 +103,7 @@ describe("Engagement Creation Backend", () => {
   it("should have a create procedure in the engagements router", async () => {
     const fs = await import("fs");
     const routersContent = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers.ts",
+      "/home/ubuntu/caldera-dashboard/server/routers/engagements-core.ts",
       "utf-8"
     );
     
@@ -117,7 +117,7 @@ describe("Engagement Creation Backend", () => {
   it("should have getScan procedure for fetching scan data", async () => {
     const fs = await import("fs");
     const routersContent = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers.ts",
+      "/home/ubuntu/caldera-dashboard/server/routers/domain-intel-core.ts",
       "utf-8"
     );
     

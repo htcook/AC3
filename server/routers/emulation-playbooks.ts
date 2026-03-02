@@ -1,3 +1,5 @@
+import * as db from "../db";
+import { CALDERA_BASE_URL, CALDERA_API_KEY } from "../lib/api-helpers";
 /**
  * Adversary Emulation Playbooks Router
  * Maps threat actor TTPs to Caldera abilities for one-click emulation operations.

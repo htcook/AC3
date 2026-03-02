@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Purple Team / Detection Tests Router
  * Manages red/blue team collaboration with detection coverage tracking.

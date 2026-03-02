@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Credential Auto-Rotation Router
  *

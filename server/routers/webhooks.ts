@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Webhooks & SIEM Integration Router
  * Manages outbound webhook endpoints and event delivery.

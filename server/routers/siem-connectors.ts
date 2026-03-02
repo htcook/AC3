@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * SIEM Connectors Router
  * ──────────────────────

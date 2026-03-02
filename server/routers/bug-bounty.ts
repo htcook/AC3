@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Bug Bounty Platform Integration Router
  * Integrates HackerOne and Bugcrowd live feeds, correlates findings

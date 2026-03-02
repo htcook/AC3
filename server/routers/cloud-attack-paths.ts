@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Cloud-Native Attack Paths Router
  * Manages cloud provider configurations, identity analysis,

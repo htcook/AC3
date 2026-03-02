@@ -1,3 +1,4 @@
+import * as db from "../db";
 // @ts-nocheck
 /**
  * Attack Vector Identification Engine

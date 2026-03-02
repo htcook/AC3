@@ -1,3 +1,4 @@
+import * as db from "../db";
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";

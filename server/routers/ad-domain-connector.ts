@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * AD Domain Connector Router
  * Manages LDAP/LDAPS connections and live AD enumeration

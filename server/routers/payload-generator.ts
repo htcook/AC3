@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Payload Generator Router — wraps msfvenom execution through SSH tunnel.
  * Generates custom payloads on the exploit server, downloads them, and stores in S3.

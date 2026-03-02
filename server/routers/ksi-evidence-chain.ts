@@ -1,3 +1,4 @@
+import * as db from "../db";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getDb as _getDb } from "../db";

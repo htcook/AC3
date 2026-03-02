@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * EDR Effectiveness Validation Router
  * Manages EDR products, test catalogs, test execution, and coverage matrix.

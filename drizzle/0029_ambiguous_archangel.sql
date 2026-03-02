@@ -1,1 +1,0 @@
-ALTER TABLE `compliance_frameworks` MODIFY COLUMN `framework_type` enum('soc2','iso27001','nist_csf','pci_dss','hipaa','cis','fedramp','dod_stig','cmmc','custom') NOT NULL;

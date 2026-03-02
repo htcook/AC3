@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Threat Intel Training Pipeline Router
  *

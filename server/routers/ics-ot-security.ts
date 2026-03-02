@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * ICS/OT Security Router
  *

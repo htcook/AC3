@@ -6920,3 +6920,14 @@
 - [x] Add a Stop/Abort scan button so operators can cancel a stuck scan (already existed, now works because broadcastOpsUpdate is exported)
 - [x] Improve watchdog to be more aggressive and per-domain rather than global (3min per-domain + 8min global)
 - [x] Ensure progress logs broadcast to UI at each pipeline stage even when stages fail silently (fixed export + added currentAction updates)
+
+## Cloud Migration & Project Optimization
+- [x] Split routers.ts (~9,271 lines) into domain-specific router files (19 files extracted, routers.ts reduced to 443 lines)
+- [x] Add Vite chunk splitting config to lazy-load mermaid, cytoscape, KaTeX, shiki, jsPDF, markdown (GlobalAiChat lazy-loaded)
+- [x] Create worker/ entry point with BullMQ job queue pattern (worker/index.ts + worker/queue-client.ts)
+- [x] Add Dockerfile with multi-stage build for lean production image (api + worker targets, ~150MB)
+- [x] Add docker-compose.yml for local dev parity (MySQL + Redis + API + Worker)
+- [x] Squash 73 drizzle migrations into single baseline SQL (33MB → 3.5MB, archive compressed to 2.1MB)
+
+## Bug: Active Scan Error After Router Split
+- [x] Fix active scan error: "Cannot read properties of undefined (reading 'getEngagementById')" — fixed dynamic import paths (./lib/ → ../lib/) in all 16 extracted router files

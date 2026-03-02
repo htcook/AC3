@@ -1,3 +1,5 @@
+import { notifyOwner } from "../_core/notification";
+import * as db from "../db";
 /**
  * SSIL (Service Scanner Integration Layer) Router
  *
@@ -11,7 +13,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router, adminProcedure} from "../_core/trpc";
 import { getDb, getDbRequired } from "../db";
 import {
   scanObservations,
@@ -46,12 +48,6 @@ import {
 } from "../lib/observation-normalizer";
 
 // Admin-only procedure
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== "admin") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
-  }
-  return next({ ctx });
-});
 
 export const ssilRouter = router({
   // ═══════════════════════════════════════════════════════════════════════

@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Vendor Integrations tRPC Router
  * CRUD for vendor configs, health checks, data sync, and querying cached data.

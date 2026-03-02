@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Account Management Router
  *
@@ -10,7 +11,7 @@
  */
 import { z } from "zod";
 import crypto from "node:crypto";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router, adminProcedure} from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import { users, teamInvitations, activityLogs } from "../../drizzle/schema";
@@ -44,12 +45,6 @@ function hashToken(rawToken: string): string {
 
 // ─── Admin guard ────────────────────────────────────────────────────────────
 
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== "admin" && ctx.user.role !== "team_lead") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Admin or Team Lead access required" });
-  }
-  return next({ ctx });
-});
 
 const strictAdminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin") {

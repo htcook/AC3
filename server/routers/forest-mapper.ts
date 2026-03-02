@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Multi-Domain Forest Mapping Router
  * Manages forest domains, trust relationships, and topology visualization.

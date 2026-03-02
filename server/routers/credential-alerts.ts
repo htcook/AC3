@@ -1,3 +1,4 @@
+import * as db from "../db";
 /**
  * Credential Rotation Alerts Router
  * Manages alert rules, checks credential expiry, and dispatches notifications.

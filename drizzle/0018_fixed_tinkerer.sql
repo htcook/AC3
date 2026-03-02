@@ -1,1 +1,0 @@
-ALTER TABLE `threat_actors` MODIFY COLUMN `actorType` enum('apt','cybercrime','ransomware','hacktivist','access_broker','influence_ops','unknown') NOT NULL;
