@@ -6898,3 +6898,10 @@
 - [x] Add per-asset summary table to HTML report
 - [x] Wire ops data into reports.generate procedure for PentestReport page
 - [x] 32 vitest tests passing (7 new for aggregation and report evidence)
+
+## Bug: Start Passive Discovery resets state and loses assets
+- [x] Diagnose why clicking Start Passive Discovery wipes loaded assets (root cause: asset pre-population was inside async IIFE, ran after mutation returned)
+- [x] Fix the root cause — moved target parsing, asset population, and initial broadcasts SYNCHRONOUS before async IIFE
+- [x] Verify assets persist through scan start (32 tests passing)
+- [x] Fix discovery scan not starting/executing (added BAD_REQUEST guard for empty targets)
+- [x] Added immediate "started" broadcast so UI shows progress right away

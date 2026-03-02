@@ -8617,26 +8617,46 @@ Make the phishing content highly realistic and tailored to the target domain and
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
         if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Scan already running' });
 
+        // ── Parse targets from DB SYNCHRONOUSLY before async work ──
+        const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+        const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
+        const allTargets = [...domains, ...ips];
+
+        if (allTargets.length === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets configured — add domains or IPs first' });
+        }
+
+        // ── Pre-populate assets SYNCHRONOUSLY so they're available when mutation returns ──
+        for (const d of domains) {
+          if (!state.assets.find((a: any) => a.hostname === d)) {
+            state.assets.push({ hostname: d, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' });
+          }
+        }
+        for (const ip of ips) {
+          if (!state.assets.find((a: any) => a.hostname === ip || a.ip === ip)) {
+            state.assets.push({ hostname: ip, ip, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' });
+          }
+        }
+
         state.isRunning = true;
         state.phase = 'recon';
         state.startedAt = Date.now();
 
+        // ── Initial log + broadcast SYNCHRONOUSLY so UI updates immediately ──
+        const { broadcastOpsUpdate } = await import('./lib/engagement-orchestrator');
+        const startLog = { id: `log-${Date.now()}-start`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '🚀 Passive Scan Started', detail: `Scanning ${allTargets.length} targets (${domains.length} domains, ${ips.length} IPs). Pipeline stages: passive recon → asset discovery → DNS verification → analysis → scoring.` };
+        state.log.push(startLog);
+        broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon' });
+        broadcastOpsUpdate(input.engagementId, { type: 'log', entry: startLog });
+        console.log(`[PassiveScan] Started for engagement #${input.engagementId}: ${allTargets.join(', ')}`);
+
+        state.log.push({ id: `log-${Date.now()}-mode`, timestamp: Date.now(), phase: 'recon', type: 'info', title: '\ud83d\udd12 Scan Mode: Strict Passive', detail: `Scanning ${allTargets.length} targets. Only querying third-party databases (crt.sh, Shodan, Censys, Wayback, urlscan, SecurityTrails, Dehashed, BinaryEdge). Zero direct contact with target infrastructure.` });
+        broadcastOpsUpdate(input.engagementId, { type: 'log', entry: state.log[state.log.length - 1] });
+
         await db.logActivity({ userId: ctx.user.id, action: 'passive_scan_started', details: `Started passive discovery for engagement #${input.engagementId}` });
 
-        // Run recon only (strict_passive mode — same as non-RoE scans), then pause for operator
+        // Run pipeline in background — mutation returns immediately with assets already populated
         (async () => {
-          const { broadcastOpsUpdate } = await import('./lib/engagement-orchestrator');
-          const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
-          const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
-          const allTargets = [...domains, ...ips];
-
-          // ── Immediate broadcast so UI shows progress right away ──
-          const startLog = { id: `log-${Date.now()}-start`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '🚀 Passive Scan Started', detail: `Scanning ${allTargets.length} targets (${domains.length} domains, ${ips.length} IPs). Pipeline stages: passive recon → asset discovery → DNS verification → analysis → scoring.` };
-          state!.log.push(startLog);
-          broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon' });
-          broadcastOpsUpdate(input.engagementId, { type: 'log', entry: startLog });
-          console.log(`[PassiveScan] Started for engagement #${input.engagementId}: ${allTargets.join(', ')}`);
-
           // ── Watchdog timeout: abort if pipeline takes > 5 minutes ──
           const WATCHDOG_MS = 5 * 60 * 1000;
           let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
@@ -8645,20 +8665,6 @@ Make the phishing content highly realistic and tailored to the target domain and
           });
 
           try {
-            // Pre-populate assets from engagement targets so they appear immediately
-            for (const d of domains) {
-              if (!state!.assets.find((a: any) => a.hostname === d)) {
-                state!.assets.push({ hostname: d, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' });
-              }
-            }
-            for (const ip of ips) {
-              if (!state!.assets.find((a: any) => a.hostname === ip || a.ip === ip)) {
-                state!.assets.push({ hostname: ip, ip, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' });
-              }
-            }
-
-            state!.log.push({ id: `log-${Date.now()}-mode`, timestamp: Date.now(), phase: 'recon', type: 'info', title: '\ud83d\udd12 Scan Mode: Strict Passive', detail: `Scanning ${allTargets.length} targets. Only querying third-party databases (crt.sh, Shodan, Censys, Wayback, urlscan, SecurityTrails, Dehashed, BinaryEdge). Zero direct contact with target infrastructure.` });
-            broadcastOpsUpdate(input.engagementId, { type: 'log', entry: state!.log[state!.log.length - 1] });
 
             for (const domain of domains) {
               try {
