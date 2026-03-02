@@ -845,7 +845,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     try {
       const { executeTool, getScanServerConfigForNmap } = await import("./scan-server-executor");
       const { executeNmapScan } = await import("./nmap-orchestrator");
-      const serverConfig = getScanServerConfigForNmap();
+      const serverConfig = await getScanServerConfigForNmap();
 
       for (const target of targets) {
         const asset = state.assets.find(a => (a.ip || a.hostname) === target);

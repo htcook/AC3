@@ -71,22 +71,68 @@ const DANGEROUS_CHARS = /[;&|`$(){}]/;
 
 // ─── SSH Connection Helper ──────────────────────────────────────────────────
 
-function getScanServerConfig() {
+// Cache the downloaded SSH key so we only fetch once
+let cachedSshKey: string | null = null;
+
+// Fallback RSA key URL stored in S3 (uploaded during provisioning)
+const SCAN_SERVER_KEY_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310419663028432609/hHJfIBSNDxDiefRC";
+
+async function getScanServerConfig() {
   const host = ENV.SCAN_SERVER_HOST;
   const user = ENV.SCAN_SERVER_USER || "root";
   const sshKey = ENV.SCAN_SERVER_SSH_KEY;
 
   if (!host) throw new Error("SCAN_SERVER_HOST not configured");
-  if (!sshKey) throw new Error("SCAN_SERVER_SSH_KEY not configured");
 
-  return { host, username: user, privateKey: sshKey };
+  // Return cached key if available
+  if (cachedSshKey) return { host, username: user, privateKey: cachedSshKey };
+
+  let fixedKey: string | null = null;
+
+  if (sshKey) {
+    if (sshKey.startsWith('http://') || sshKey.startsWith('https://')) {
+      // URL to the key file — download it
+      try {
+        const resp = await fetch(sshKey);
+        if (resp.ok) fixedKey = await resp.text();
+      } catch { /* fall through to fallback */ }
+    } else if (!sshKey.startsWith('-----')) {
+      // Base64 encoded
+      fixedKey = Buffer.from(sshKey, 'base64').toString('utf8');
+    } else if (sshKey.includes('\\n')) {
+      // Literal \n sequences
+      fixedKey = sshKey.split('\\n').join('\n');
+    } else {
+      fixedKey = sshKey;
+    }
+  }
+
+  // Validate the key — if it's in OpenSSH format (not RSA PEM), ssh2 may not parse it correctly
+  // In that case, fall back to downloading the RSA PEM key from S3
+  if (!fixedKey || fixedKey.includes('OPENSSH')) {
+    console.log('[ScanServer] Downloading RSA key from S3 fallback...');
+    try {
+      const resp = await fetch(SCAN_SERVER_KEY_URL);
+      if (resp.ok) {
+        fixedKey = await resp.text();
+        console.log('[ScanServer] RSA key downloaded successfully');
+      }
+    } catch (e) {
+      console.error('[ScanServer] Failed to download RSA key:', e);
+    }
+  }
+
+  if (!fixedKey) throw new Error("SCAN_SERVER_SSH_KEY not configured and fallback download failed");
+
+  cachedSshKey = fixedKey;
+  return { host, username: user, privateKey: fixedKey };
 }
 
-function executeSSH(
+async function executeSSH(
   command: string,
   timeoutMs: number
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const config = getScanServerConfig();
+  const config = await getScanServerConfig();
 
   return new Promise((resolve, reject) => {
     const conn = new SSHClient();
@@ -266,8 +312,8 @@ export async function checkScanServerStatus(): Promise<ScanServerStatus> {
 /**
  * Get the scan server config for the nmap-orchestrator (backwards compatibility).
  */
-export function getScanServerConfigForNmap() {
-  const config = getScanServerConfig();
+export async function getScanServerConfigForNmap() {
+  const config = await getScanServerConfig();
   return {
     host: config.host,
     port: 22,

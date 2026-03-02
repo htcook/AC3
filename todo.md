@@ -6789,3 +6789,7 @@
 - [x] Operator can review scan plan before execution (expandable per-asset detail cards)
 - [x] Active scan uses the LLM-generated scan plan instead of generic defaults (with fallback)
 - [x] Write vitest tests for scan plan generation (92 tests passing)
+
+## Bug: Active scan not advancing to nmap
+- [x] Diagnose why active scan is stuck — SSH key was in OpenSSH ed25519 format, ssh2 can't parse it
+- [x] Fix: added RSA key fallback from S3, auto-detects OPENSSH format and downloads RSA PEM key (96 tests passing)
