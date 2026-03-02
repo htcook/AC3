@@ -479,13 +479,14 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     { name: 'nuclei', desc: 'Template-based vulnerability scanner', use: 'web apps, known CVEs, misconfigurations' },
     { name: 'nikto', desc: 'Web server scanner for dangerous files/CGIs', use: 'web servers' },
     { name: 'gobuster', desc: 'Directory/file brute-forcer', use: 'web apps to find hidden paths' },
-    { name: 'httpx', desc: 'HTTP probe and tech fingerprinter', use: 'web asset enumeration' },
+    { name: 'httpx', desc: 'HTTP probe, tech fingerprinter, and web asset enumerator', flags: ['-json (JSON output)', '-tech-detect', '-status-code', '-title', '-cdn', '-tls-grab', '-follow-redirects', '-content-length', '-web-server', '-method GET', '-threads 50', '-ports 80,443,8080,8443', '-probe', '-silent'], use: 'mandatory HTTP probing after port discovery — detects tech stack, CDN/WAF, TLS, status codes, web server' },
     { name: 'hydra', desc: 'Credential brute-forcer', use: 'SSH, FTP, RDP, MySQL, HTTP-auth, SMB logins' },
     { name: 'enum4linux', desc: 'SMB/NetBIOS enumerator', use: 'Windows/Samba hosts' },
     { name: 'smbclient', desc: 'SMB share lister', use: 'Windows/Samba file shares' },
     { name: 'ldapsearch', desc: 'LDAP directory enumerator', use: 'Active Directory/LDAP servers' },
     { name: 'dig', desc: 'DNS query tool', use: 'DNS servers, zone transfers' },
     { name: 'onesixtyone', desc: 'SNMP scanner', use: 'network devices with SNMP' },
+    { name: 'naabu', desc: 'Fast port scanner (SYN/CONNECT)', flags: ['-p - (all ports)', '-top-ports 1000', '-rate 1000', '-c 25 (concurrency)', '-nmap-cli (pipe to nmap)', '-json (JSON output)', '-silent', '-exclude-ports N'], use: 'fast port pre-scan before deep nmap fingerprinting' },
     { name: 'subfinder', desc: 'Subdomain discovery', use: 'finding additional subdomains' },
   ];
 
@@ -497,11 +498,19 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
 
 Your scan plan MUST follow a two-phase approach:
 
-## PHASE A: Discovery Scan (MANDATORY FIRST STEP)
-The FIRST scan for every asset MUST be a comprehensive discovery nmap scan designed to:
-- Map ALL open ports (-p- for full port range, or --top-ports 10000 minimum)
-- Fingerprint all services (-sV) and detect OS (-O)
-- Use EVASION TECHNIQUES to maximize data return while avoiding IDS/IPS detection:
+## PHASE A: Discovery Scan (MANDATORY FIRST STEP — 3 tools in sequence)
+Phase A runs THREE mandatory tools in sequence for every asset:
+
+### Step 1: naabu (fast port pre-scan)
+- Run naabu FIRST to quickly discover all open ports with minimal footprint
+- Use: naabu -host {target} -p - -json -silent -rate 1000 -c 25
+- naabu is much faster than nmap for port discovery — it finds open ports in seconds
+- The discovered ports feed directly into nmap for deep fingerprinting
+
+### Step 2: nmap (deep service fingerprinting on naabu-discovered ports)
+- Run nmap ONLY on ports discovered by naabu (not full -p- scan, which is slow)
+- Use: nmap -Pn -sV -sC -O -p {naabu_ports} {evasion_flags} {target}
+- EVASION TECHNIQUES to maximize data return while avoiding IDS/IPS detection:
   * Packet fragmentation (-f or --mtu 24) to split probes across fragments
   * Timing control (-T2 for polite, -T3 for normal) — NEVER use -T4/-T5 on first scan
   * Decoy addresses (-D RND:5 to mix real scan with 5 random decoy IPs)
@@ -509,7 +518,14 @@ The FIRST scan for every asset MUST be a comprehensive discovery nmap scan desig
   * Source port spoofing (--source-port 53 or 80) to appear as DNS/HTTP traffic
   * Host randomization (--randomize-hosts) when scanning multiple targets
   * Skip ping (-Pn) if host may filter ICMP
-- The discovery scan ENRICHES the passive recon data — its results will be fed back to you for Phase B planning
+
+### Step 3: httpx (HTTP probing on all web ports)
+- Run httpx on ALL HTTP/HTTPS ports found by naabu+nmap
+- Use: echo '{target}' | httpx -json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent
+- httpx detects: technology stack, CDN/WAF presence, TLS certificate info, HTTP status codes, web server software, page titles
+- This data is CRITICAL for Phase B tool selection (e.g., if httpx detects WordPress → nuclei wordpress templates)
+
+The discovery scan ENRICHES the passive recon data — all three tools' results will be fed back to you for Phase B planning
 
 ## PHASE B: Targeted Tool Deployment
 After discovery results are merged, select specific tools per asset based on the COMBINED passive recon + discovery data:
@@ -608,8 +624,10 @@ You MUST respond with valid JSON matching this exact schema:
                   hostname: { type: 'string' },
                   ip: { type: 'string' },
                   assetType: { type: 'string' },
+                  naabuFlags: { type: 'string', description: 'naabu flags for fast port pre-scan' },
                   discoveryNmapFlags: { type: 'string' },
                   discoveryNmapRationale: { type: 'string' },
+                  httpxFlags: { type: 'string', description: 'httpx flags for HTTP probing on discovered web ports' },
                   nmapFlags: { type: 'string' },
                   nmapRationale: { type: 'string' },
                   activeTools: {
@@ -629,7 +647,7 @@ You MUST respond with valid JSON matching this exact schema:
                   riskNotes: { type: 'string' },
                   evasionTechniques: { type: 'array', items: { type: 'string' } }
                 },
-                required: ['hostname', 'ip', 'assetType', 'discoveryNmapFlags', 'discoveryNmapRationale', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
+                required: ['hostname', 'ip', 'assetType', 'naabuFlags', 'discoveryNmapFlags', 'discoveryNmapRationale', 'httpxFlags', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
                 additionalProperties: false
               }
             }
@@ -669,8 +687,10 @@ You MUST respond with valid JSON matching this exact schema:
       hostname: ap.hostname,
       ip: ap.ip,
       assetType: ap.assetType,
-      discoveryNmapFlags: ap.discoveryNmapFlags || '-Pn -sV -O -p- -f -T2 -D RND:5 --data-length 64',
-      discoveryNmapRationale: ap.discoveryNmapRationale || 'Default discovery scan with evasion',
+      naabuFlags: ap.naabuFlags || '-p - -json -silent -rate 1000 -c 25',
+      discoveryNmapFlags: ap.discoveryNmapFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
+      discoveryNmapRationale: ap.discoveryNmapRationale || 'Default discovery scan with evasion on naabu-discovered ports',
+      httpxFlags: ap.httpxFlags || '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
       nmapFlags: ap.nmapFlags,
       nmapRationale: ap.nmapRationale,
       activeTools: (ap.activeTools || []).map((t: any) => ({
@@ -961,17 +981,55 @@ function parseToolOutput(
       break;
     }
     case "httpx": {
-      // httpx JSON output: tech detection
+      // httpx JSON output: comprehensive parsing of all fields
       for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
         try {
-          const obj = JSON.parse(line.trim());
+          const obj = JSON.parse(trimmed);
           if (obj.tech && Array.isArray(obj.tech)) {
-            // Not vulns but useful context — store as info-level
             for (const tech of obj.tech) {
               findings.push({ severity: "info", title: `[httpx] Technology: ${tech}` });
             }
           }
-        } catch { /* not JSON */ }
+          if (obj.cdn_name) findings.push({ severity: "info", title: `[httpx] CDN/WAF: ${obj.cdn_name}` });
+          if (obj.webserver) findings.push({ severity: "info", title: `[httpx] Web Server: ${obj.webserver}` });
+          if (obj.status_code) findings.push({ severity: "info", title: `[httpx] ${obj.url || obj.input}: ${obj.status_code} ${obj.title || ''}`.trim() });
+          if (obj.tls) {
+            if (obj.tls.subject_cn) findings.push({ severity: "info", title: `[httpx] TLS CN: ${obj.tls.subject_cn}` });
+            if (obj.tls.subject_org) findings.push({ severity: "info", title: `[httpx] TLS Org: ${obj.tls.subject_org}` });
+            if (obj.tls.not_after) findings.push({ severity: "info", title: `[httpx] TLS Expires: ${obj.tls.not_after}` });
+          }
+          // Enrich asset passiveRecon if available
+          if (asset) {
+            if (obj.tech && Array.isArray(obj.tech) && asset.passiveRecon) {
+              asset.passiveRecon.technologies = [...new Set([...(asset.passiveRecon.technologies || []), ...obj.tech])];
+            }
+            if (obj.webserver && asset.passiveRecon) {
+              asset.passiveRecon.technologies = [...new Set([...(asset.passiveRecon.technologies || []), obj.webserver])];
+            }
+          }
+        } catch { /* not JSON line */ }
+      }
+      break;
+    }
+    case "naabu": {
+      // naabu JSON output: port discovery
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          if (obj.port && typeof obj.port === 'number') {
+            findings.push({ severity: "info", title: `[naabu] Port ${obj.port} open on ${obj.host || obj.ip || 'target'}` });
+          }
+        } catch {
+          // Handle plain "host:port" format
+          const portMatch = trimmed.match(/:(\d+)$/);
+          if (portMatch) {
+            findings.push({ severity: "info", title: `[naabu] Port ${portMatch[1]} open` });
+          }
+        }
       }
       break;
     }
@@ -1079,17 +1137,99 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         if (!asset) continue;
         asset.status = "scanning";
 
-        // Get Phase A discovery flags from scan plan, or build default evasion flags
+        // Get Phase A discovery flags from scan plan
         const assetPlan = state.scanPlan?.assetPlans.find(
           ap => ap.hostname === asset.hostname || ap.ip === target
         );
-        const discoveryFlags = assetPlan?.discoveryNmapFlags || '-Pn -sV -O -p- -f -T2 -D RND:5 --data-length 64 --randomize-hosts';
-        const discoveryRationale = assetPlan?.discoveryNmapRationale || 'Default safe discovery with evasion';
+
+        // ── Step 1: naabu (fast port pre-scan) ──────────────────────────
+        const naabuFlags = assetPlan?.naabuFlags || '-p - -json -silent -rate 1000 -c 25';
+        addLog(state, {
+          phase: 'enumeration', type: 'scan_start',
+          title: `🔍 naabu: ${target}`,
+          detail: `Phase A Step 1 — Fast port pre-scan\nFlags: ${naabuFlags}`,
+        });
+
+        let naabuPorts: number[] = [];
+        try {
+          const naabuStart = Date.now();
+          const naabuArgs = `-host ${target} ${naabuFlags}`;
+          addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `naabu ${target}`, detail: `naabu ${naabuArgs}` });
+          const naabuResult = await executeTool({ tool: 'naabu', args: naabuArgs, timeoutSeconds: 180 });
+          const naabuDuration = Date.now() - naabuStart;
+
+          // Parse naabu JSON output: each line is {"host":"x","port":N,...}
+          if (naabuResult.stdout) {
+            for (const line of naabuResult.stdout.split('\n')) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              try {
+                const obj = JSON.parse(trimmed);
+                if (obj.port && typeof obj.port === 'number') {
+                  naabuPorts.push(obj.port);
+                }
+              } catch {
+                // Also handle plain "host:port" format
+                const portMatch = trimmed.match(/:(\d+)$/);
+                if (portMatch) naabuPorts.push(parseInt(portMatch[1]));
+              }
+            }
+          }
+          naabuPorts = [...new Set(naabuPorts)].sort((a, b) => a - b);
+
+          // Store naabu result
+          asset.toolResults.push({
+            tool: 'naabu',
+            command: `naabu ${naabuArgs}`,
+            exitCode: naabuResult.exitCode ?? 0,
+            durationMs: naabuDuration,
+            timedOut: naabuResult.timedOut || false,
+            findingCount: naabuPorts.length,
+            findings: naabuPorts.map(p => ({ severity: 'info', title: `Port ${p} open` })),
+            outputPreview: (naabuResult.stdout || '').slice(0, 2048),
+            executedAt: Date.now(),
+            phase: 'discovery',
+          });
+
+          await persistScanResult({
+            engagementId: state.engagementId,
+            tool: 'naabu',
+            target,
+            command: `naabu ${naabuArgs}`,
+            stdout: naabuResult.stdout || '',
+            stderr: naabuResult.stderr || '',
+            exitCode: naabuResult.exitCode ?? 0,
+            durationMs: naabuDuration,
+            timedOut: naabuResult.timedOut || false,
+            findings: naabuPorts.map(p => ({ type: 'open_port', port: p })),
+            phase: 'discovery',
+          });
+
+          addLog(state, {
+            phase: 'enumeration', type: 'scan_result',
+            title: `naabu Complete: ${target}`,
+            detail: `${naabuPorts.length} open ports found in ${Math.round(naabuDuration / 1000)}s: ${naabuPorts.join(', ')}`,
+            data: { ports: naabuPorts },
+          });
+        } catch (e: any) {
+          addLog(state, { phase: 'enumeration', type: 'error', title: `naabu Failed: ${target}`, detail: e.message });
+        }
+
+        // ── Step 2: nmap (deep fingerprinting on naabu-discovered ports) ──
+        const discoveredPorts: Array<{ port: number; protocol: string; service: string; product?: string; version?: string }> = [];
+        const portList = naabuPorts.length > 0 ? naabuPorts.join(',') : null;
+        // Build nmap flags: use naabu ports if available, otherwise fall back to scan plan flags
+        const discoveryFlags = portList
+          ? (assetPlan?.discoveryNmapFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64').replace(/-p[- ]\S*/g, '') + ` -p ${portList}`
+          : (assetPlan?.discoveryNmapFlags || '-Pn -sV -sC -O -p- -f -T2 -D RND:5 --data-length 64 --randomize-hosts');
+        const discoveryRationale = portList
+          ? `Deep fingerprinting on ${naabuPorts.length} naabu-discovered ports`
+          : (assetPlan?.discoveryNmapRationale || 'Full port discovery (naabu unavailable)');
 
         addLog(state, {
-          phase: "enumeration", type: "info",
-          title: `🔒 Discovery: ${target}`,
-          detail: `Phase A nmap: ${discoveryFlags}\nRationale: ${discoveryRationale}\nEvasion: ${assetPlan?.evasionTechniques?.join(', ') || 'fragmentation, decoys, slow timing'}`,
+          phase: 'enumeration', type: 'scan_start',
+          title: `🔒 nmap: ${target}`,
+          detail: `Phase A Step 2 — ${discoveryRationale}\nFlags: ${discoveryFlags}\nEvasion: ${assetPlan?.evasionTechniques?.join(', ') || 'fragmentation, decoys, slow timing'}`,
         });
 
         const startTime = Date.now();
@@ -1099,9 +1239,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 600 });
 
           // Parse nmap text output into structured port data
-          const discoveredPorts: Array<{ port: number; protocol: string; service: string; product?: string; version?: string }> = [];
           if (nmapResult.stdout) {
-            // Parse TCP ports
             const tcpRegex = /(\d+)\/tcp\s+open\s+(\S+)(?:\s+(.*))?/g;
             let match;
             while ((match = tcpRegex.exec(nmapResult.stdout)) !== null) {
@@ -1115,7 +1253,6 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
                 version: parts.length > 1 ? parts[parts.length - 1] : undefined,
               });
             }
-            // Parse UDP ports
             const udpRegex = /(\d+)\/udp\s+open\s+(\S+)(?:\s+(.*))?/g;
             while ((match = udpRegex.exec(nmapResult.stdout)) !== null) {
               const productVersion = match[3]?.trim() || '';
@@ -1144,14 +1281,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             version: p.product ? `${p.product}${p.version ? ' ' + p.version : ''}`.trim() : undefined,
           }));
 
-          // Detect web services
-          const webPorts = discoveredPorts.filter(p =>
-            ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
-            [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
-          );
-          if (webPorts.length > 0) asset.type = "web_app";
-
-          // Store discovery scan as a toolResult on the asset
+          // Store nmap discovery result
           asset.toolResults.push({
             tool: 'nmap',
             command: `nmap ${nmapArgs}`,
@@ -1170,20 +1300,19 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
           state.stats.portsFound += discoveredPorts.length;
           state.stats.hostsScanned++;
-          asset.status = "enumerated";
+          asset.status = 'enumerated';
 
-          broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
+          broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: { ...state.stats } });
           addLog(state, {
-            phase: "enumeration", type: "scan_result",
-            title: `✅ Discovery Complete: ${target}`,
-            detail: `${discoveredPorts.length} open ports found in ${Math.round(durationMs / 1000)}s${asset.type === "web_app" ? " (web application detected)" : ""}\nPorts: ${discoveredPorts.map(p => `${p.port}/${p.service}`).join(', ')}`,
+            phase: 'enumeration', type: 'scan_result',
+            title: `nmap Complete: ${target}`,
+            detail: `${discoveredPorts.length} services fingerprinted in ${Math.round(durationMs / 1000)}s\nPorts: ${discoveredPorts.map(p => `${p.port}/${p.service}${p.product ? ` (${p.product})` : ''}`).join(', ')}`,
             data: { ports: asset.ports, discoveryFlags, evasion: assetPlan?.evasionTechniques },
           });
 
-          // Persist discovery nmap results to database
           await persistScanResult({
             engagementId: state.engagementId,
-            tool: "nmap",
+            tool: 'nmap',
             target,
             command: `nmap ${nmapArgs}`,
             stdout: nmapResult.stdout || '',
@@ -1191,13 +1320,163 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             exitCode: nmapResult.exitCode ?? 0,
             durationMs,
             timedOut: nmapResult.timedOut || false,
-            findings: discoveredPorts.map(p => ({ type: "open_port", port: p.port, protocol: p.protocol, service: p.service, product: p.product, version: p.version })),
-            phase: "discovery",
+            findings: discoveredPorts.map(p => ({ type: 'open_port', port: p.port, protocol: p.protocol, service: p.service, product: p.product, version: p.version })),
+            phase: 'discovery',
           });
         } catch (e: any) {
-          addLog(state, { phase: "enumeration", type: "error", title: `Discovery Failed: ${target}`, detail: e.message });
-          asset.status = "enumerated"; // Continue pipeline
+          addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Failed: ${target}`, detail: e.message });
+          asset.status = 'enumerated'; // Continue pipeline
         }
+
+        // ── Step 3: httpx (HTTP probing on web ports) ────────────────────
+        const webPorts = discoveredPorts.filter(p =>
+          ['http', 'https', 'http-proxy', 'http-alt', 'ssl'].includes(p.service) ||
+          [80, 443, 8080, 8443, 8000, 3000, 5000, 9443].includes(p.port)
+        );
+        // Also check naabu ports for common web ports if nmap didn't find them
+        const commonWebPorts = [80, 443, 8080, 8443];
+        for (const wp of commonWebPorts) {
+          if (naabuPorts.includes(wp) && !webPorts.find(p => p.port === wp)) {
+            webPorts.push({ port: wp, protocol: 'tcp', service: wp === 443 || wp === 8443 ? 'https' : 'http' });
+          }
+        }
+
+        if (webPorts.length > 0) {
+          asset.type = 'web_app';
+          const httpxFlags = assetPlan?.httpxFlags || '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent';
+          // Build target URLs for httpx
+          const httpxTargets = webPorts.map(p => {
+            const scheme = [443, 8443, 9443].includes(p.port) || p.service === 'https' || p.service === 'ssl' ? 'https' : 'http';
+            return `${scheme}://${asset.hostname || target}:${p.port}`;
+          });
+
+          addLog(state, {
+            phase: 'enumeration', type: 'scan_start',
+            title: `🌐 httpx: ${target}`,
+            detail: `Phase A Step 3 — HTTP probing ${webPorts.length} web ports\nTargets: ${httpxTargets.join(', ')}\nFlags: ${httpxFlags}`,
+          });
+
+          try {
+            const httpxStart = Date.now();
+            // Pipe targets to httpx via echo
+            const httpxInput = httpxTargets.join('\\n');
+            const httpxArgs = `${httpxFlags}`;
+            const httpxCmd = `echo -e '${httpxInput}' | httpx ${httpxArgs}`;
+            addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `httpx ${target}`, detail: httpxCmd });
+            const httpxResult = await executeTool({ tool: 'bash', args: `-c "echo -e '${httpxInput}' | httpx ${httpxArgs}"`, timeoutSeconds: 120 });
+            const httpxDuration = Date.now() - httpxStart;
+
+            // Parse httpx JSON output — each line is a JSON object with real data
+            const httpxFindings: Array<{ severity: string; title: string }> = [];
+            const techDetected: string[] = [];
+            const cdnDetected: string[] = [];
+            let webServer = '';
+            let tlsInfo = '';
+
+            if (httpxResult.stdout) {
+              for (const line of httpxResult.stdout.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                try {
+                  const obj = JSON.parse(trimmed);
+                  // Technology detection
+                  if (obj.tech && Array.isArray(obj.tech)) {
+                    for (const tech of obj.tech) {
+                      if (!techDetected.includes(tech)) techDetected.push(tech);
+                      httpxFindings.push({ severity: 'info', title: `[httpx] Technology: ${tech}` });
+                    }
+                  }
+                  // CDN/WAF detection
+                  if (obj.cdn_name) {
+                    if (!cdnDetected.includes(obj.cdn_name)) cdnDetected.push(obj.cdn_name);
+                    httpxFindings.push({ severity: 'info', title: `[httpx] CDN/WAF: ${obj.cdn_name}` });
+                  }
+                  if (obj.cdn === true) {
+                    httpxFindings.push({ severity: 'info', title: `[httpx] CDN detected` });
+                  }
+                  // Web server
+                  if (obj.webserver) {
+                    webServer = obj.webserver;
+                    httpxFindings.push({ severity: 'info', title: `[httpx] Web Server: ${obj.webserver}` });
+                  }
+                  // TLS info
+                  if (obj.tls) {
+                    const tls = obj.tls;
+                    tlsInfo = `${tls.version || ''} ${tls.cipher || ''}`.trim();
+                    if (tls.subject_cn) httpxFindings.push({ severity: 'info', title: `[httpx] TLS CN: ${tls.subject_cn}` });
+                    if (tls.subject_org) httpxFindings.push({ severity: 'info', title: `[httpx] TLS Org: ${tls.subject_org}` });
+                    if (tls.not_after) httpxFindings.push({ severity: 'info', title: `[httpx] TLS Expires: ${tls.not_after}` });
+                  }
+                  // Status code + title
+                  if (obj.status_code) {
+                    httpxFindings.push({ severity: 'info', title: `[httpx] ${obj.url || obj.input}: ${obj.status_code} ${obj.title || ''}`.trim() });
+                  }
+                  // Content length
+                  if (obj.content_length !== undefined) {
+                    httpxFindings.push({ severity: 'info', title: `[httpx] Content-Length: ${obj.content_length}` });
+                  }
+                } catch { /* not JSON line — skip */ }
+              }
+            }
+
+            // Enrich asset passiveRecon with httpx data
+            if (asset.passiveRecon) {
+              if (techDetected.length > 0) {
+                asset.passiveRecon.technologies = [...new Set([...(asset.passiveRecon.technologies || []), ...techDetected])];
+              }
+              if (cdnDetected.length > 0) {
+                asset.passiveRecon.riskSignals = [...(asset.passiveRecon.riskSignals || []), ...cdnDetected.map(c => `CDN/WAF: ${c}`)];
+              }
+              if (webServer) {
+                asset.passiveRecon.technologies = [...new Set([...(asset.passiveRecon.technologies || []), webServer])];
+              }
+            }
+
+            // Store httpx result
+            asset.toolResults.push({
+              tool: 'httpx',
+              command: httpxCmd,
+              exitCode: httpxResult.exitCode ?? 0,
+              durationMs: httpxDuration,
+              timedOut: httpxResult.timedOut || false,
+              findingCount: httpxFindings.length,
+              findings: httpxFindings,
+              outputPreview: (httpxResult.stdout || '').slice(0, 2048),
+              executedAt: Date.now(),
+              phase: 'discovery',
+            });
+
+            await persistScanResult({
+              engagementId: state.engagementId,
+              tool: 'httpx',
+              target,
+              command: httpxCmd,
+              stdout: httpxResult.stdout || '',
+              stderr: httpxResult.stderr || '',
+              exitCode: httpxResult.exitCode ?? 0,
+              durationMs: httpxDuration,
+              timedOut: httpxResult.timedOut || false,
+              findings: httpxFindings,
+              phase: 'discovery',
+            });
+
+            addLog(state, {
+              phase: 'enumeration', type: 'scan_result',
+              title: `httpx Complete: ${target}`,
+              detail: `${httpxFindings.length} findings in ${Math.round(httpxDuration / 1000)}s${techDetected.length > 0 ? `\nTech: ${techDetected.join(', ')}` : ''}${cdnDetected.length > 0 ? `\nCDN/WAF: ${cdnDetected.join(', ')}` : ''}${webServer ? `\nServer: ${webServer}` : ''}`,
+              data: { tech: techDetected, cdn: cdnDetected, webServer, tls: tlsInfo },
+            });
+          } catch (e: any) {
+            addLog(state, { phase: 'enumeration', type: 'error', title: `httpx Failed: ${target}`, detail: e.message });
+          }
+        }
+
+        // ── Discovery complete for this asset ────────────────────────────
+        addLog(state, {
+          phase: 'enumeration', type: 'scan_result',
+          title: `✅ Discovery Complete: ${target}`,
+          detail: `naabu: ${naabuPorts.length} ports | nmap: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'}`,
+        });
       }
     } catch (e: any) {
       addLog(state, { phase: "enumeration", type: "error", title: "Discovery Scan Error", detail: e.message });

@@ -34,7 +34,7 @@ import {
   Server, Database, MonitorSmartphone, AlertTriangle, CheckCircle2,
   XCircle, Clock, Loader2, ChevronRight, Eye, FileText,
   Zap, Lock, Unlock, Activity, Terminal, Network, Wifi,
-  Plus, Search, ArrowRight, Swords,
+  Plus, Search, ArrowRight, Swords, RotateCcw,
 } from "lucide-react";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
@@ -357,6 +357,14 @@ export default function EngagementOps() {
     },
   });
 
+  const resetMut = trpc.engagementOps.resetOps.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Ops state reset. ${data.assetsPreserved} assets preserved.`);
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const approveMut = trpc.engagementOps.resolveApproval.useMutation({
     onSuccess: () => opsStateQ.refetch(),
     onError: (e) => toast.error(e.message),
@@ -450,7 +458,8 @@ export default function EngagementOps() {
   const hasTargets = (ops?.assets?.length || 0) > 0 || !!(engagement?.targetDomain || engagement?.targetIpRange);
   const isReconComplete = ops?.phase === "recon_complete" || (getPhaseIndex(ops?.phase || "idle") > 0 && ops?.phase !== "recon");
   const isIdle = !ops || ops.phase === "idle";
-  const canStartPassive = hasTargets && !ops?.isRunning && (isIdle || ops?.phase === "idle");
+  const isErrorState = ops?.phase === "error";
+  const canStartPassive = hasTargets && !ops?.isRunning && (isIdle || ops?.phase === "idle" || isErrorState);
   const canStartActive = isReconComplete && !ops?.isRunning && roeSigned;
 
   if (!engagementId) {
@@ -603,6 +612,25 @@ export default function EngagementOps() {
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Completed
                   </Badge>
                 )}
+
+                {/* Error state */}
+                {isErrorState && (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                      <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Error
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => resetMut.mutate({ engagementId })}
+                      disabled={resetMut.isPending}
+                      className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+                    >
+                      {resetMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                      Reset
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -673,6 +701,48 @@ export default function EngagementOps() {
         </div>
         <Progress value={ops?.progress || 0} className="mt-2 h-1.5" />
       </div>
+
+      {/* ── Error Banner ── */}
+      {isErrorState && (
+        <div className="flex-none border-b border-red-500/30">
+          <div className="bg-red-500/10 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-red-500/20">
+                  <AlertTriangle className="h-5 w-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-red-300">Scan Error</h3>
+                  <p className="text-xs text-red-400/80 mt-0.5 max-w-[500px] truncate">
+                    {ops?.error || 'An unexpected error occurred during the scan pipeline.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => resetMut.mutate({ engagementId })}
+                  disabled={resetMut.isPending}
+                  className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+                >
+                  {resetMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                  Reset State
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => passiveScanMut.mutate({ engagementId })}
+                  disabled={passiveScanMut.isPending}
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
+                >
+                  {passiveScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
+                  Retry Passive Scan
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Recon Complete Banner — Start Active Scan Prompt ── */}
       {ops?.phase === "recon_complete" && !ops.isRunning && (

@@ -58,7 +58,7 @@ export interface ScanServerStatus {
 // ─── Allowed Tools (whitelist) ──────────────────────────────────────────────
 
 const ALLOWED_TOOLS = new Set([
-  "nmap", "nuclei", "nikto", "gobuster", "hydra", "httpx", "subfinder",
+  "nmap", "nuclei", "nikto", "gobuster", "hydra", "httpx", "naabu", "subfinder",
   "enum4linux", "smbclient", "ldapsearch", "snmpwalk", "nbtscan",
   "onesixtyone", "dig", "whois", "sqlmap", "wfuzz", "crackmapexec",
   "masscan", "curl", "wget", "cat", "head", "tail", "grep",

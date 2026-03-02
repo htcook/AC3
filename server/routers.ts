@@ -8456,6 +8456,28 @@ Make the phishing content highly realistic and tailored to the target domain and
         return { stopped };
       }),
 
+    /** Reset ops state — clears error state so operator can retry */
+    resetOps: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { getOpsState, broadcastOpsUpdate } = await import('./lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId);
+        if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
+        // Reset to idle (or recon_complete if assets exist)
+        const hasAssets = state.assets.length > 0;
+        state.phase = hasAssets ? ('recon_complete' as any) : 'idle';
+        state.isRunning = false;
+        state.isPaused = false;
+        state.error = undefined;
+        state.currentAction = undefined;
+        const resetLog = { id: `log-${Date.now()}-reset`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: '🔄 Ops State Reset', detail: `Reset by ${ctx.user.name || 'operator'}. ${hasAssets ? `${state.assets.length} assets preserved. Ready for active scan or re-run passive.` : 'Ready for passive discovery.'}` };
+        state.log.push(resetLog);
+        broadcastOpsUpdate(input.engagementId, { type: 'log', entry: resetLog });
+        broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: state.phase });
+        await db.logActivity({ userId: ctx.user.id, action: 'engagement_ops_reset', details: `Reset ops state for engagement #${input.engagementId}` });
+        return { reset: true, phase: state.phase, assetsPreserved: state.assets.length };
+      }),
+
     /** Resolve an approval gate */
     resolveApproval: protectedProcedure
       .input(z.object({
@@ -8544,12 +8566,26 @@ Make the phishing content highly realistic and tailored to the target domain and
 
         // Run recon only (strict_passive mode — same as non-RoE scans), then pause for operator
         (async () => {
-          try {
-            const { broadcastOpsUpdate } = await import('./lib/engagement-orchestrator');
-            const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
-            const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
-            const allTargets = [...domains, ...ips];
+          const { broadcastOpsUpdate } = await import('./lib/engagement-orchestrator');
+          const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+          const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
+          const allTargets = [...domains, ...ips];
 
+          // ── Immediate broadcast so UI shows progress right away ──
+          const startLog = { id: `log-${Date.now()}-start`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '🚀 Passive Scan Started', detail: `Scanning ${allTargets.length} targets (${domains.length} domains, ${ips.length} IPs). Pipeline stages: passive recon → asset discovery → DNS verification → analysis → scoring.` };
+          state!.log.push(startLog);
+          broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon' });
+          broadcastOpsUpdate(input.engagementId, { type: 'log', entry: startLog });
+          console.log(`[PassiveScan] Started for engagement #${input.engagementId}: ${allTargets.join(', ')}`);
+
+          // ── Watchdog timeout: abort if pipeline takes > 5 minutes ──
+          const WATCHDOG_MS = 5 * 60 * 1000;
+          let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+          const watchdogPromise = new Promise<never>((_, reject) => {
+            watchdogTimer = setTimeout(() => reject(new Error('Pipeline watchdog timeout (5 min) — aborting')), WATCHDOG_MS);
+          });
+
+          try {
             // Pre-populate assets from engagement targets so they appear immediately
             for (const d of domains) {
               if (!state!.assets.find((a: any) => a.hostname === d)) {
@@ -8572,25 +8608,31 @@ Make the phishing content highly realistic and tailored to the target domain and
                 broadcastOpsUpdate(input.engagementId, { type: 'log', entry: logEntry });
 
                 const { runDomainIntelPipeline } = await import('./domainIntel');
-                const result = await runDomainIntelPipeline(
-                  {
-                    customerName: engagement.customerName || 'Auto',
-                    primaryDomain: domain,
-                    additionalDomains: [],
-                    sector: 'technology',
-                    clientType: 'enterprise',
-                    criticalFunctions: [],
-                    complianceFlags: [],
-                  },
-                  // Progress callback — push stage updates to live feed
-                  async (stage) => {
-                    const stageLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `Pipeline: ${domain}`, detail: `Stage: ${stage}` };
-                    state!.log.push(stageLog);
-                    broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stageLog });
-                  },
-                  // Options: strict_passive mode, scoped to engagement targets only
-                  { scanMode: 'strict_passive', skipEngagement: false, scopedAssets: allTargets }
-                );
+                console.log(`[PassiveScan] Starting runDomainIntelPipeline for ${domain}`);
+                const result = await Promise.race([
+                  runDomainIntelPipeline(
+                    {
+                      customerName: engagement.customerName || 'Auto',
+                      primaryDomain: domain,
+                      additionalDomains: [],
+                      sector: 'technology',
+                      clientType: 'enterprise',
+                      criticalFunctions: [],
+                      complianceFlags: [],
+                    },
+                    // Progress callback — push stage updates to live feed
+                    async (stage) => {
+                      console.log(`[PassiveScan] Pipeline stage: ${stage} for ${domain}`);
+                      const stageLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `Pipeline: ${domain}`, detail: `Stage: ${stage}` };
+                      state!.log.push(stageLog);
+                      broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stageLog });
+                    },
+                    // Options: strict_passive mode, scoped to engagement targets only
+                    { scanMode: 'strict_passive', skipEngagement: false, scopedAssets: allTargets }
+                  ),
+                  watchdogPromise,
+                ]);
+                console.log(`[PassiveScan] Pipeline completed for ${domain}`);
 
                 const pipelineResult = result as any;
                 const discoveredAssets = pipelineResult.assets || [];
@@ -8815,9 +8857,18 @@ Make the phishing content highly realistic and tailored to the target domain and
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon_complete' });
             broadcastOpsUpdate(input.engagementId, { type: 'log', entry: doneLog });
           } catch (e: any) {
+            console.error(`[PassiveScan] Pipeline error for engagement #${input.engagementId}:`, e.message, e.stack?.slice(0, 500));
             state!.phase = 'error';
             state!.isRunning = false;
             state!.error = e.message;
+            // Broadcast error to UI so user sees what happened
+            const errLog = { id: `log-${Date.now()}-fatal`, timestamp: Date.now(), phase: 'recon' as const, type: 'error' as const, title: '❌ Passive Scan Failed', detail: `Error: ${e.message}. ${state!.assets.filter((a: any) => a.status === 'discovered').length} assets were discovered before the error.` };
+            state!.log.push(errLog);
+            broadcastOpsUpdate(input.engagementId, { type: 'log', entry: errLog });
+            broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'error' });
+          } finally {
+            // Clean up watchdog timer
+            if (watchdogTimer) clearTimeout(watchdogTimer);
           }
         })();
 

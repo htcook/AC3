@@ -427,7 +427,7 @@ Organization:
 - Compliance: ${(org.complianceFlags || []).join(", ") || "none specified"}
 - Notes: ${org.notes || "none"}${fpLearningBlock}${passiveContext || ''}
 
-For each domain (${allDomains.join(", ")}), ${passiveContext ? 'use the PASSIVE RECONNAISSANCE DATA above as your primary source of truth. Prioritize confirmed subdomains, IPs, and services from passive recon. Then supplement with additional inferences' : 'infer likely subdomains, services, and assets'} based on:
+For each domain (${allDomains.join(", ")}), ${passiveContext ? 'use the PASSIVE RECONNAISSANCE DATA above as your PRIMARY AND AUTHORITATIVE source. ONLY include assets that appear in the passive recon data (confirmed subdomains, IPs, services from crt.sh, Shodan, Censys, SecurityTrails, etc.). You may add a SMALL number (max 3-5) of high-confidence inferences' : 'infer likely subdomains, services, and assets'} based on:
 1. Common subdomain patterns for this sector and client type
 2. Expected technology stack based on sector
 3. Likely email infrastructure (MX, SPF, DMARC patterns)
@@ -459,7 +459,14 @@ IMPORTANT: For the "technologyVersions" field, only include version numbers you 
 - Versions implied by other technology choices (e.g., if using Ubuntu 22.04, OpenSSL is likely 3.0.x)
 - DO NOT guess random version numbers. If you cannot reasonably infer the version, omit that technology from technologyVersions.
 
-Generate 15-30 realistic assets. Be specific to the sector and client type. For ${org.clientType} clients, emphasize:
+CRITICAL DATA INTEGRITY RULES:
+- Assets from passive recon data are CONFIRMED — mark discoveryMethod as "cert_transparency" or "dns_verified"
+- Assets you infer (not in passive recon) are HYPOTHESES — mark discoveryMethod as "inferred"
+- NEVER invent fake version numbers, CVE IDs, or service details
+- If passive recon found 50 subdomains, include ALL of them — do not truncate
+- If no passive recon data is available, generate max 10 conservative guesses (root domain + common patterns only)
+
+Generate assets based on passive recon data. Be specific to the sector and client type. For ${org.clientType} clients, emphasize:
 ${org.clientType === "msp" ? "- Multi-tenant management portals, RMM tools, PSA platforms, client VPN endpoints, backup systems" : ""}
 ${org.clientType === "enterprise" ? "- Corporate SSO, Active Directory, Exchange/O365, ERP systems, internal wikis, VPN concentrators" : ""}
 ${org.clientType === "saas" ? "- API endpoints, customer dashboards, billing portals, CI/CD pipelines, staging environments" : ""}
@@ -482,12 +489,19 @@ Return ONLY the JSON array, no markdown fences.`;
     const parsed = safeParseLLMJson(content, { assets: [] });
     // Handle both { assets: [...] } and direct array format
     const rawAssets = Array.isArray(parsed) ? parsed : (parsed.assets || []);
-    // Mark all LLM-discovered assets as inferred
-    return rawAssets.map((a: any) => ({
-      ...a,
-      discoveryMethod: a.discoveryMethod || "inferred",
-      discoveryEvidence: a.discoveryEvidence || `Inferred from ${org.sector} ${org.clientType} patterns for ${org.primaryDomain}`,
-    }));
+    // Tag provenance: LLM-discovered assets default to "inferred" unless they claim a real source
+    const validRealMethods = new Set(['cert_transparency', 'dns_verified', 'header_detected']);
+    return rawAssets.map((a: any) => {
+      const claimedMethod = a.discoveryMethod || 'inferred';
+      // Only trust real discovery methods if the LLM explicitly set them AND passive recon data was provided
+      const isRealMethod = validRealMethods.has(claimedMethod) && !!passiveContext;
+      return {
+        ...a,
+        discoveryMethod: isRealMethod ? claimedMethod : 'inferred',
+        discoveryEvidence: a.discoveryEvidence || `Inferred from ${org.sector} ${org.clientType} patterns for ${org.primaryDomain}`,
+        _provenance: isRealMethod ? 'passive_recon_confirmed' : 'llm_inferred',
+      };
+    });
   } catch (err) {
     console.error("[DomainIntel] Discovery failed:", err);
     return generateFallbackAssets(org);
@@ -495,17 +509,22 @@ Return ONLY the JSON array, no markdown fences.`;
 }
 
 function generateFallbackAssets(org: OrgProfile): DiscoveredAssetRaw[] {
-  const domain = org.primaryDomain;
-  const base: DiscoveredAssetRaw[] = [
-    { assetId: "a-001", hostname: `mail.${domain}`, assetType: "mail_gateway", assetClasses: ["email_infrastructure"], tags: ["internet_exposed", "email"], description: "Mail gateway", discoveryMethod: "inferred", discoveryEvidence: "Common mail subdomain pattern" },
-    { assetId: "a-002", hostname: `sso.${domain}`, assetType: "sso", assetClasses: ["identity_provider"], tags: ["internet_exposed", "authentication", "critical_data"], description: "Single sign-on portal", discoveryMethod: "inferred", discoveryEvidence: "Common SSO subdomain pattern" },
-    { assetId: "a-003", hostname: `vpn.${domain}`, assetType: "vpn", assetClasses: ["network_access"], tags: ["internet_exposed", "authentication"], description: "VPN concentrator", discoveryMethod: "inferred", discoveryEvidence: "Common VPN subdomain pattern" },
-    { assetId: "a-004", hostname: `www.${domain}`, assetType: "customer_portal", assetClasses: ["web_application"], tags: ["internet_exposed", "public"], description: "Main website", discoveryMethod: "inferred", discoveryEvidence: "Standard www subdomain" },
-    { assetId: "a-005", hostname: `api.${domain}`, assetType: "api", assetClasses: ["api_endpoint"], tags: ["internet_exposed", "developer"], description: "API endpoint", discoveryMethod: "inferred", discoveryEvidence: "Common API subdomain pattern" },
-    { assetId: "a-006", hostname: `admin.${domain}`, assetType: "admin_panel", assetClasses: ["management_interface"], tags: ["internet_exposed", "authentication", "privileged"], description: "Admin panel", discoveryMethod: "inferred", discoveryEvidence: "Common admin subdomain pattern" },
-    { assetId: "a-007", hostname: domain, url: `https://${domain}`, assetType: "other", assetClasses: ["dns_root"], tags: ["internet_exposed"], description: "Root domain - DNS records", dnsRecords: { MX: [], TXT: [], NS: [] }, discoveryMethod: "inferred", discoveryEvidence: "Primary domain root" },
+  // NO FAKE ASSETS — only return the root domain which we know exists.
+  // All other assets must come from real passive recon connectors or DNS-verified discovery.
+  console.warn(`[DomainIntel] LLM asset discovery failed for ${org.primaryDomain}. Returning only root domain — all other assets must come from passive recon connectors.`);
+  return [
+    {
+      assetId: `root-${org.primaryDomain.replace(/\./g, '-')}`,
+      hostname: org.primaryDomain,
+      url: `https://${org.primaryDomain}`,
+      assetType: "other",
+      assetClasses: ["dns_root"],
+      tags: ["internet_exposed"],
+      description: "Root domain (LLM discovery failed — only passive recon data available)",
+      discoveryMethod: "inferred" as const,
+      discoveryEvidence: "Primary domain root — LLM discovery fallback",
+    },
   ];
-  return base;
 }
 
 // ─── Stage 2: Asset Classification & BIA Scoring (LLM) ──────────────
@@ -567,6 +586,13 @@ For EACH asset, provide:
 5. Suggested Tier: tier0_critical, tier1_high, tier2_medium, tier3_low
 
 6. Posture Findings: Security weaknesses identified (array of objects with id, category, title, severity 0-10, likelihood 0-10, confidence 0-1, recommendedControls[], cveIds[] (known CVE IDs if applicable - MUST be real CVE IDs like CVE-2024-XXXXX, do NOT invent fake CVE IDs))
+
+DATA INTEGRITY RULES:
+- For assets with discoveryMethod "inferred": set confidence to 0.3 or lower and add tag "unverified_hypothesis"
+- For assets with discoveryMethod "cert_transparency" or "dns_verified": these are REAL and can have higher confidence
+- NEVER invent CVE IDs. Only reference CVEs you are certain exist (e.g., CVE-2021-44228 for Log4Shell)
+- CVSS estimates should be conservative (lower) for inferred assets and more precise for verified assets
+- Posture findings for inferred assets should be marked with lower confidence (0.1-0.3)
    
    CRITICAL EVIDENCE RULES FOR POSTURE FINDINGS:
    - CONFIRMED findings: You have specific version info AND a matching real CVE. Severity can be 7-10. Likelihood can be 7-10.

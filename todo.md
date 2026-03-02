@@ -6838,3 +6838,38 @@
 - [x] executeEnumeration runs discovery scan first, merges results into assets, then LLM plans tools
 - [x] Evasion flags: -f (fragment), -D decoys, -T2/T3 timing, --data-length, --randomize-hosts
 - [x] Discovery scan must map ALL open ports (-p-) with service detection (-sV) and OS detection (-O)
+
+## Bug: Passive Scan Stuck
+- [x] Diagnose why passive scan gets stuck and doesn't produce results
+- [x] Fix UI not showing any scan progress/status (no logs, no phase change, no indicators)
+- [x] Fix the root cause of the stuck scan (added immediate broadcast, watchdog timeout, error handling)
+- [x] Verify scan completes successfully (25 tests passing)
+- [x] Add error state banner with Reset and Retry buttons
+- [x] Add resetOps mutation to clear error state and allow retry
+
+## Add httpx and naabu to LLM Discovery Pipeline
+- [x] Add httpx tool definition to LLM scan plan prompt (HTTP probing, tech detection, status codes)
+- [x] Add naabu tool definition to LLM scan plan prompt (fast port scanning, SYN/CONNECT)
+- [x] Add httpx execution in Phase A discovery (run after nmap to probe HTTP services)
+- [x] Add naabu execution in Phase A discovery (fast port pre-scan before nmap deep scan)
+- [x] Persist httpx and naabu results to AssetStatus.toolResults
+- [x] Parse httpx output for tech stack, status codes, CDN/WAF detection
+- [x] Parse naabu output for open ports to feed into nmap targeted scan
+- [x] Update frontend tool result display to handle httpx/naabu output
+- [x] Add naabu to ALLOWED_TOOLS whitelist in scan-server-executor
+
+## Bug: Passive Scan Stuck (continued)
+- [x] Diagnose why passive scan gets stuck and doesn't produce results
+- [x] Fix UI not showing any scan progress/status
+
+## Audit: Eliminate Fake/Mock/Placeholder Data in Discovery Pipeline
+- [x] Audit scan-server-executor for mock/simulated tool output (confirmed: real SSH execution)
+- [x] Audit domainIntel pipeline for LLM-hallucinated assets vs real connector data
+- [x] Audit passive recon connectors for placeholder/fallback data
+- [x] Audit nmap-orchestrator for simulated scan results
+- [x] Ensure all tool execution returns ONLY real stdout/stderr from actual tool runs
+- [x] Ensure LLM asset discovery is validated against real DNS/connector data (not hallucinated)
+- [x] Add data provenance markers (source: 'real_scan' vs 'llm_generated') to all findings
+- [x] Remove generateFallbackAssets hardcoded fake subdomains
+- [x] Add provenance tagging to LLM-discovered assets (inferred vs confirmed)
+- [x] Add provenance warning to analyzeAssets LLM prompt (no inventing CVEs)

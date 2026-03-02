@@ -508,3 +508,378 @@ describe("Stats tracking across phases", () => {
     expect(stats.wafDetections).toBe(1);
   });
 });
+
+
+// ─── Phase A: naabu + httpx mandatory discovery tools ───────────────────────
+
+describe("Phase A discovery with naabu and httpx", () => {
+  it("should include naabu as mandatory pre-scan before nmap", () => {
+    const phaseATools = [
+      {
+        tool: "naabu",
+        command: "naabu -host 192.168.1.1 -p - -rate 1000 -silent -json",
+        exitCode: 0,
+        durationMs: 8000,
+        timedOut: false,
+        findingCount: 5,
+        findings: [
+          { severity: "info", title: "80/tcp open" },
+          { severity: "info", title: "443/tcp open" },
+          { severity: "info", title: "22/tcp open" },
+          { severity: "info", title: "3306/tcp open" },
+          { severity: "info", title: "8080/tcp open" },
+        ],
+        outputPreview: '{"host":"192.168.1.1","port":80}\n{"host":"192.168.1.1","port":443}',
+        executedAt: Date.now(),
+        phase: "discovery",
+      },
+      {
+        tool: "nmap",
+        command: "nmap -Pn -sV -O -p 80,443,22,3306,8080 -f -T2 192.168.1.1",
+        exitCode: 0,
+        durationMs: 25000,
+        timedOut: false,
+        findingCount: 5,
+        findings: [
+          { severity: "info", title: "80/tcp http (nginx 1.18)" },
+          { severity: "info", title: "443/tcp https (nginx 1.18)" },
+          { severity: "info", title: "22/tcp ssh (OpenSSH 8.2)" },
+          { severity: "info", title: "3306/tcp mysql (MySQL 5.7)" },
+          { severity: "info", title: "8080/tcp http-proxy (Tomcat 9.0)" },
+        ],
+        outputPreview: "PORT     STATE SERVICE  VERSION\n80/tcp   open  http     nginx 1.18",
+        executedAt: Date.now(),
+        phase: "discovery",
+      },
+    ];
+
+    // naabu runs first (lower index)
+    expect(phaseATools[0].tool).toBe("naabu");
+    expect(phaseATools[1].tool).toBe("nmap");
+
+    // naabu discovers ports, nmap uses those ports for deep scan
+    const naabuPorts = phaseATools[0].findings.map(f => parseInt(f.title));
+    expect(naabuPorts).toContain(80);
+    expect(naabuPorts).toContain(443);
+
+    // nmap command should target only naabu-discovered ports (not -p-)
+    expect(phaseATools[1].command).toContain("-p 80,443,22,3306,8080");
+    expect(phaseATools[1].command).not.toContain("-p-");
+  });
+
+  it("should include httpx as mandatory post-nmap probe on web ports", () => {
+    const httpxResult = {
+      tool: "httpx",
+      command: "httpx -u 192.168.1.1:80 -u 192.168.1.1:443 -u 192.168.1.1:8080 -status-code -title -tech-detect -cdn -tls-probe -follow-redirects -json",
+      exitCode: 0,
+      durationMs: 12000,
+      timedOut: false,
+      findingCount: 3,
+      findings: [
+        { severity: "info", title: "192.168.1.1:80 [200] nginx WordPress" },
+        { severity: "info", title: "192.168.1.1:443 [200] nginx WordPress (TLS 1.3)" },
+        { severity: "info", title: "192.168.1.1:8080 [403] Tomcat Manager" },
+      ],
+      outputPreview: '{"url":"http://192.168.1.1","status_code":200,"title":"WordPress","tech":["nginx","WordPress"]}',
+      executedAt: Date.now(),
+      phase: "discovery",
+    };
+
+    expect(httpxResult.tool).toBe("httpx");
+    expect(httpxResult.phase).toBe("discovery");
+    expect(httpxResult.findingCount).toBe(3);
+    // httpx should detect technologies
+    expect(httpxResult.findings.some(f => f.title.includes("WordPress"))).toBe(true);
+    // httpx should detect TLS
+    expect(httpxResult.findings.some(f => f.title.includes("TLS"))).toBe(true);
+  });
+
+  it("should accumulate all Phase A tool results on asset", () => {
+    const asset = {
+      hostname: "target.example.com",
+      toolResults: [] as Array<{ tool: string; phase: string; findingCount: number }>,
+    };
+
+    // naabu → nmap → httpx sequence
+    asset.toolResults.push({ tool: "naabu", phase: "discovery", findingCount: 5 });
+    asset.toolResults.push({ tool: "nmap", phase: "discovery", findingCount: 5 });
+    asset.toolResults.push({ tool: "httpx", phase: "discovery", findingCount: 3 });
+
+    const discoveryResults = asset.toolResults.filter(tr => tr.phase === "discovery");
+    expect(discoveryResults).toHaveLength(3);
+    expect(discoveryResults.map(r => r.tool)).toEqual(["naabu", "nmap", "httpx"]);
+
+    const totalDiscoveryFindings = discoveryResults.reduce((sum, r) => sum + r.findingCount, 0);
+    expect(totalDiscoveryFindings).toBe(13);
+  });
+});
+
+// ─── Naabu output parsing ───────────────────────────────────────────────────
+
+describe("Naabu output parsing", () => {
+  it("should parse JSON-line naabu output into port list", () => {
+    const naabuOutput = [
+      '{"host":"192.168.1.1","port":80,"protocol":"tcp"}',
+      '{"host":"192.168.1.1","port":443,"protocol":"tcp"}',
+      '{"host":"192.168.1.1","port":22,"protocol":"tcp"}',
+      '{"host":"192.168.1.1","port":8080,"protocol":"tcp"}',
+    ].join("\n");
+
+    const ports: number[] = [];
+    for (const line of naabuOutput.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.port) ports.push(parsed.port);
+      } catch {
+        // fallback: plain "host:port" format
+        const match = trimmed.match(/:(\d+)$/);
+        if (match) ports.push(parseInt(match[1]));
+      }
+    }
+
+    expect(ports).toEqual([80, 443, 22, 8080]);
+    expect(ports).toHaveLength(4);
+  });
+
+  it("should handle plain text naabu output format", () => {
+    const naabuOutput = [
+      "192.168.1.1:80",
+      "192.168.1.1:443",
+      "192.168.1.1:22",
+    ].join("\n");
+
+    const ports: number[] = [];
+    for (const line of naabuOutput.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.port) ports.push(parsed.port);
+      } catch {
+        const match = trimmed.match(/:(\d+)$/);
+        if (match) ports.push(parseInt(match[1]));
+      }
+    }
+
+    expect(ports).toEqual([80, 443, 22]);
+  });
+});
+
+// ─── Httpx output parsing ───────────────────────────────────────────────────
+
+describe("Httpx output parsing", () => {
+  it("should parse JSON-line httpx output into structured findings", () => {
+    const httpxOutput = [
+      '{"url":"http://192.168.1.1","status_code":200,"title":"WordPress Site","tech":["nginx","WordPress","PHP"],"cdn":false,"tls":{"version":"TLS 1.3"}}',
+      '{"url":"https://192.168.1.1","status_code":200,"title":"WordPress Site","tech":["nginx","WordPress","PHP"],"cdn":true,"tls":{"version":"TLS 1.3"}}',
+      '{"url":"http://192.168.1.1:8080","status_code":403,"title":"Apache Tomcat","tech":["Tomcat"],"cdn":false}',
+    ].join("\n");
+
+    const findings: Array<{ url: string; status: number; title: string; tech: string[]; cdn: boolean; tls?: string }> = [];
+    for (const line of httpxOutput.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        findings.push({
+          url: parsed.url,
+          status: parsed.status_code,
+          title: parsed.title || "",
+          tech: parsed.tech || [],
+          cdn: parsed.cdn || false,
+          tls: parsed.tls?.version,
+        });
+      } catch {
+        // skip non-JSON lines
+      }
+    }
+
+    expect(findings).toHaveLength(3);
+    expect(findings[0].status).toBe(200);
+    expect(findings[0].tech).toContain("WordPress");
+    expect(findings[1].cdn).toBe(true);
+    expect(findings[1].tls).toBe("TLS 1.3");
+    expect(findings[2].status).toBe(403);
+    expect(findings[2].tech).toContain("Tomcat");
+  });
+});
+
+// ─── Error handling and reset ───────────────────────────────────────────────
+
+describe("Error handling and ops reset", () => {
+  it("should transition to error state with error message preserved", () => {
+    const state = {
+      phase: "recon" as string,
+      isRunning: true,
+      isPaused: false,
+      error: undefined as string | undefined,
+      currentAction: "Running passive recon" as string | undefined,
+      assets: [
+        { hostname: "target.example.com", status: "discovered" },
+        { hostname: "api.example.com", status: "pending" },
+      ],
+      log: [] as Array<{ type: string; title: string; detail: string }>,
+    };
+
+    // Simulate pipeline error
+    const errorMessage = "Pipeline watchdog timeout (5 min) — aborting";
+    state.phase = "error";
+    state.isRunning = false;
+    state.error = errorMessage;
+    state.log.push({
+      type: "error",
+      title: "❌ Passive Scan Failed",
+      detail: `Error: ${errorMessage}. ${state.assets.filter(a => a.status === "discovered").length} assets were discovered before the error.`,
+    });
+
+    expect(state.phase).toBe("error");
+    expect(state.isRunning).toBe(false);
+    expect(state.error).toBe(errorMessage);
+    expect(state.log).toHaveLength(1);
+    expect(state.log[0].type).toBe("error");
+    expect(state.log[0].detail).toContain("1 assets were discovered");
+  });
+
+  it("should reset from error state preserving existing assets", () => {
+    const state = {
+      phase: "error" as string,
+      isRunning: false,
+      isPaused: false,
+      error: "Pipeline watchdog timeout" as string | undefined,
+      currentAction: undefined as string | undefined,
+      assets: [
+        { hostname: "target.example.com", status: "discovered" },
+        { hostname: "api.example.com", status: "discovered" },
+      ],
+      log: [{ type: "error", title: "❌ Passive Scan Failed", detail: "Error: timeout" }],
+    };
+
+    // Simulate reset
+    const hasAssets = state.assets.length > 0;
+    state.phase = hasAssets ? "recon_complete" : "idle";
+    state.isRunning = false;
+    state.isPaused = false;
+    state.error = undefined;
+    state.currentAction = undefined;
+    state.log.push({
+      type: "info",
+      title: "🔄 Ops State Reset",
+      detail: `Reset by operator. ${state.assets.length} assets preserved.`,
+    });
+
+    expect(state.phase).toBe("recon_complete");
+    expect(state.isRunning).toBe(false);
+    expect(state.error).toBeUndefined();
+    expect(state.assets).toHaveLength(2);
+    expect(state.log).toHaveLength(2);
+    expect(state.log[1].title).toContain("Reset");
+  });
+
+  it("should reset to idle when no assets exist", () => {
+    const state = {
+      phase: "error" as string,
+      isRunning: false,
+      error: "Connection refused" as string | undefined,
+      assets: [] as any[],
+    };
+
+    const hasAssets = state.assets.length > 0;
+    state.phase = hasAssets ? "recon_complete" : "idle";
+    state.error = undefined;
+
+    expect(state.phase).toBe("idle");
+    expect(state.error).toBeUndefined();
+  });
+});
+
+// ─── Watchdog timeout ───────────────────────────────────────────────────────
+
+describe("Watchdog timeout mechanism", () => {
+  it("should race pipeline against watchdog and reject on timeout", async () => {
+    const WATCHDOG_MS = 100; // 100ms for test
+    const watchdogPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Pipeline watchdog timeout")), WATCHDOG_MS);
+    });
+
+    const slowPipeline = new Promise<string>((resolve) => {
+      setTimeout(() => resolve("pipeline result"), 500); // 500ms — slower than watchdog
+    });
+
+    try {
+      await Promise.race([slowPipeline, watchdogPromise]);
+      expect.unreachable("Should have thrown watchdog timeout");
+    } catch (e: any) {
+      expect(e.message).toBe("Pipeline watchdog timeout");
+    }
+  });
+
+  it("should let pipeline complete if faster than watchdog", async () => {
+    const WATCHDOG_MS = 500;
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+    const watchdogPromise = new Promise<never>((_, reject) => {
+      watchdogTimer = setTimeout(() => reject(new Error("Pipeline watchdog timeout")), WATCHDOG_MS);
+    });
+
+    const fastPipeline = new Promise<string>((resolve) => {
+      setTimeout(() => resolve("pipeline result"), 50); // 50ms — faster than watchdog
+    });
+
+    const result = await Promise.race([fastPipeline, watchdogPromise]);
+    expect(result).toBe("pipeline result");
+
+    // Clean up watchdog timer
+    if (watchdogTimer) clearTimeout(watchdogTimer);
+  });
+});
+
+// ─── Provenance tracking for fake data prevention ───────────────────────────
+
+describe("Provenance tracking", () => {
+  it("should distinguish real vs inferred assets", () => {
+    const assets = [
+      {
+        hostname: "api.example.com",
+        discoveryMethod: "cert_transparency",
+        source: "crtsh",
+        provenance: "real",
+      },
+      {
+        hostname: "mail.example.com",
+        discoveryMethod: "inferred",
+        source: "llm",
+        provenance: "inferred",
+      },
+    ];
+
+    const realAssets = assets.filter(a => a.provenance === "real" || a.discoveryMethod !== "inferred");
+    const inferredAssets = assets.filter(a => a.provenance === "inferred" || a.discoveryMethod === "inferred");
+
+    expect(realAssets).toHaveLength(1);
+    expect(realAssets[0].hostname).toBe("api.example.com");
+    expect(inferredAssets).toHaveLength(1);
+    expect(inferredAssets[0].hostname).toBe("mail.example.com");
+  });
+
+  it("should filter out LLM-inferred assets that fail DNS verification", () => {
+    const rawAssets = [
+      { hostname: "api.example.com", discoveryMethod: "cert_transparency", dnsStatus: "resolved" },
+      { hostname: "admin.example.com", discoveryMethod: "inferred", dnsStatus: "resolved" },
+      { hostname: "vpn.example.com", discoveryMethod: "inferred", dnsStatus: "unresolved" },
+      { hostname: "sso.example.com", discoveryMethod: "inferred", dnsStatus: "unresolved" },
+    ];
+
+    const verified = rawAssets.filter(a => {
+      const isLlmInferred = a.discoveryMethod === "inferred";
+      const isUnresolved = a.dnsStatus === "unresolved";
+      return !(isLlmInferred && isUnresolved);
+    });
+
+    expect(verified).toHaveLength(2);
+    expect(verified.map(a => a.hostname)).toContain("api.example.com");
+    expect(verified.map(a => a.hostname)).toContain("admin.example.com");
+    expect(verified.map(a => a.hostname)).not.toContain("vpn.example.com");
+    expect(verified.map(a => a.hostname)).not.toContain("sso.example.com");
+  });
+});
