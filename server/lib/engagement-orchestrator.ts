@@ -60,7 +60,7 @@ export interface OpsLogEntry {
   type: "info" | "scan_start" | "scan_result" | "finding" | "exploit_attempt" |
         "exploit_success" | "exploit_fail" | "approval_request" | "approval_response" |
         "c2_deploy" | "pivot" | "evidence" | "error" | "llm_decision" | "zap_scan" |
-        "waf_detected" | "phase_complete";
+        "waf_detected" | "phase_complete" | "tool_match" | "tool_exec";
   title: string;
   detail: string;
   data?: Record<string, any>;
@@ -469,16 +469,147 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
   addLog(state, { phase: "recon", type: "phase_complete", title: "✅ Phase 1 Complete", detail: `${state.assets.length} assets in scope` });
 }
 
+// ─── Tool Output Parser ────────────────────────────────────────────────────
+
+function parseToolOutput(
+  tool: string,
+  stdout: string,
+  asset: AssetStatus
+): Array<{ severity: string; title: string; cve?: string }> {
+  const findings: Array<{ severity: string; title: string; cve?: string }> = [];
+  if (!stdout || stdout.length < 10) return findings;
+
+  switch (tool) {
+    case "nuclei": {
+      // Nuclei JSON output: one JSON object per line
+      for (const line of stdout.split("\n")) {
+        try {
+          const obj = JSON.parse(line.trim());
+          if (obj.info?.severity && obj.info?.name) {
+            const cve = obj["matched-at"]?.match(/CVE-\d{4}-\d+/)?.[0] ||
+                        obj.info?.classification?.cve?.[0] ||
+                        obj["template-id"]?.match(/CVE-\d{4}-\d+/)?.[0];
+            findings.push({
+              severity: obj.info.severity,
+              title: `[Nuclei] ${obj.info.name}`,
+              cve,
+            });
+          }
+        } catch { /* not JSON line */ }
+      }
+      break;
+    }
+    case "nikto": {
+      // Nikto text output: look for OSVDB, CVE, and vulnerability lines
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("+") && (trimmed.includes("OSVDB") || trimmed.includes("CVE-") || trimmed.includes("vulnerability"))) {
+          const cve = trimmed.match(/CVE-\d{4}-\d+/)?.[0];
+          findings.push({
+            severity: cve ? "high" : "medium",
+            title: `[Nikto] ${trimmed.slice(2, 120)}`,
+            cve,
+          });
+        }
+      }
+      break;
+    }
+    case "httpx": {
+      // httpx JSON output: tech detection
+      for (const line of stdout.split("\n")) {
+        try {
+          const obj = JSON.parse(line.trim());
+          if (obj.tech && Array.isArray(obj.tech)) {
+            // Not vulns but useful context — store as info-level
+            for (const tech of obj.tech) {
+              findings.push({ severity: "info", title: `[httpx] Technology: ${tech}` });
+            }
+          }
+        } catch { /* not JSON */ }
+      }
+      break;
+    }
+    case "gobuster": {
+      // Gobuster: found directories/files
+      for (const line of stdout.split("\n")) {
+        const match = line.match(/\/(\S+)\s+\(Status:\s*(\d+)/);
+        if (match) {
+          const [, path, status] = match;
+          if (["200", "301", "302", "401", "403"].includes(status)) {
+            findings.push({
+              severity: status === "401" || status === "403" ? "low" : "info",
+              title: `[Gobuster] /${path} (${status})`,
+            });
+          }
+        }
+      }
+      break;
+    }
+    case "enum4linux": {
+      // enum4linux: look for shares, users, password policy
+      if (stdout.includes("Sharename")) {
+        findings.push({ severity: "medium", title: "[enum4linux] SMB shares enumerated" });
+      }
+      if (stdout.includes("user:")) {
+        findings.push({ severity: "medium", title: "[enum4linux] User accounts enumerated via SMB" });
+      }
+      break;
+    }
+    case "hydra": {
+      // Hydra: successful login
+      for (const line of stdout.split("\n")) {
+        if (line.includes("login:") && line.includes("password:")) {
+          findings.push({
+            severity: "critical",
+            title: `[Hydra] Valid credentials found: ${line.trim().slice(0, 100)}`,
+          });
+        }
+      }
+      break;
+    }
+    case "dig": {
+      if (stdout.includes("XFR size") || stdout.includes("Transfer")) {
+        findings.push({ severity: "high", title: "[dig] DNS Zone Transfer successful" });
+      }
+      break;
+    }
+    case "smbclient": {
+      if (stdout.includes("Sharename") && !stdout.includes("NT_STATUS_ACCESS_DENIED")) {
+        findings.push({ severity: "medium", title: "[smbclient] Anonymous SMB share access" });
+      }
+      break;
+    }
+    case "ldapsearch": {
+      if (stdout.includes("namingContexts") && !stdout.includes("Operations error")) {
+        findings.push({ severity: "medium", title: "[ldapsearch] Anonymous LDAP bind successful" });
+      }
+      break;
+    }
+    case "onesixtyone": {
+      for (const line of stdout.split("\n")) {
+        if (line.includes("[") && !line.includes("Scanning")) {
+          findings.push({ severity: "high", title: `[onesixtyone] SNMP community string found: ${line.trim().slice(0, 80)}` });
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  return findings;
+}
+
 async function executeEnumeration(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "enumeration";
   state.currentAction = "Running enumeration & fingerprinting...";
-  addLog(state, { phase: "enumeration", type: "info", title: "🔎 Phase 2: Enumeration & Fingerprinting", detail: "Running nmap service/OS detection on all in-scope assets" });
+  addLog(state, { phase: "enumeration", type: "info", title: "🔎 Phase 2: Enumeration & Fingerprinting", detail: "Running nmap service/OS detection on all in-scope assets via scan server" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "enumeration" });
 
   const targets = state.assets.map(a => a.ip || a.hostname);
 
   if (targets.length > 0) {
-    addLog(state, { phase: "enumeration", type: "scan_start", title: "Nmap Service Scan", detail: `Scanning ${targets.length} targets with service detection` });
+    addLog(state, { phase: "enumeration", type: "scan_start", title: "Nmap Service Scan", detail: `Scanning ${targets.length} targets with service detection via remote scan server` });
 
     // Use LLM to decide scan profile based on engagement type
     const decision = await llmDecide({
@@ -497,16 +628,18 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       data: { reasoning: decision.reasoning },
     });
 
-    // Execute nmap scan via the router's internal function
+    // Execute nmap scan via scan server SSH
     try {
-      const { executeNmapScan, scanWithScopeEnforcement } = await import("./nmap-orchestrator");
+      const { executeTool, getScanServerConfigForNmap } = await import("./scan-server-executor");
+      const { executeNmapScan } = await import("./nmap-orchestrator");
+      const serverConfig = getScanServerConfigForNmap();
 
       for (const target of targets) {
         const asset = state.assets.find(a => (a.ip || a.hostname) === target);
         if (!asset) continue;
         asset.status = "scanning";
 
-        addLog(state, { phase: "enumeration", type: "scan_start", title: `Scanning: ${target}`, detail: "Nmap service detection" });
+        addLog(state, { phase: "enumeration", type: "scan_start", title: `Scanning: ${target}`, detail: `Nmap service detection on scan server (${serverConfig.host})` });
 
         try {
           const profile = state.engagementType === "red_team" ? "stealth" : "service";
@@ -514,6 +647,10 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             targets: [target],
             profile,
             timeoutSeconds: 300,
+            engagementId: state.engagementId,
+            operatorId: operatorCtx.id,
+            operatorName: operatorCtx.name,
+            server: serverConfig,
           });
 
           // Parse results into asset ports
@@ -552,6 +689,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           });
         } catch (e: any) {
           addLog(state, { phase: "enumeration", type: "error", title: `Scan Failed: ${target}`, detail: e.message });
+          asset.status = "enumerated"; // Mark as enumerated even on failure so pipeline continues
         }
       }
     } catch (e: any) {
@@ -562,56 +700,94 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   state.progress = 30;
   addLog(state, { phase: "enumeration", type: "phase_complete", title: "✅ Phase 2 Complete", detail: `${state.stats.hostsScanned} hosts scanned, ${state.stats.portsFound} ports found` });
 
-  // ── Tool Matching: LLM analyzes nmap results and selects tools per asset ──
-  addLog(state, { phase: "enumeration", type: "info", title: "🔧 Tool Matching", detail: "LLM analyzing nmap results to select appropriate tools for each asset..." });
+  // ── Tool Matching: LLM analyzes nmap results and selects real tools per asset ──
+  addLog(state, { phase: "enumeration", type: "info", title: "🔧 Tool Matching", detail: "LLM analyzing nmap results to select and deploy tools for each asset on scan server..." });
+
+  const { executeTool, suggestToolCommands } = await import("./scan-server-executor");
 
   for (const asset of state.assets) {
-    if (asset.status !== "enumerated" || asset.ports.length === 0) continue;
+    if (asset.ports.length === 0) continue;
 
-    const tools: string[] = [];
+    // Generate suggested tool commands based on discovered ports
+    const suggestedCmds = suggestToolCommands({
+      hostname: asset.hostname,
+      ip: asset.ip,
+      type: asset.type,
+      ports: asset.ports,
+    });
+
+    const toolNames = [...new Set(suggestedCmds.map(c => c.tool))];
+
+    // Classify asset type based on ports
     const webPorts = asset.ports.filter(p =>
       ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
       [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
     );
-    const loginPorts = asset.ports.filter(p =>
-      ["ssh", "ftp", "telnet", "rdp", "smb", "vnc", "mysql", "postgresql", "mssql"].includes(p.service)
-    );
-
-    // Always run nuclei for CVE detection
-    tools.push("Nuclei (CVE templates)");
-
-    // ZAP for web applications
-    if (webPorts.length > 0) {
-      tools.push(`OWASP ZAP (${webPorts.map(p => `${p.service}:${p.port}`).join(", ")})`);
-      asset.type = "web_app";
-    }
-
-    // Credential testing for login services
-    if (loginPorts.length > 0) {
-      tools.push(`Credential Testing (${loginPorts.map(p => `${p.service}:${p.port}`).join(", ")})`);
-    }
-
-    // Service-specific tools
-    if (asset.ports.some(p => p.service === "smb" || p.port === 445)) {
-      tools.push("SMB Enumeration (shares, users, policies)");
-    }
-    if (asset.ports.some(p => p.service === "ldap" || p.port === 389 || p.port === 636)) {
-      tools.push("LDAP Enumeration");
-    }
-    if (asset.ports.some(p => p.service === "dns" || p.port === 53)) {
-      tools.push("DNS Zone Transfer");
-    }
+    if (webPorts.length > 0) asset.type = "web_app";
 
     addLog(state, {
       phase: "enumeration",
       type: "tool_match",
       title: `Tool Match: ${asset.hostname}`,
-      detail: `${tools.length} tools selected based on ${asset.ports.length} open ports`,
-      data: { tools, ports: asset.ports.map(p => `${p.port}/${p.service}`), assetType: asset.type },
+      detail: `${suggestedCmds.length} commands queued using ${toolNames.length} tools: ${toolNames.join(", ")}`,
+      data: {
+        tools: toolNames,
+        commands: suggestedCmds.map(c => ({ tool: c.tool, purpose: c.purpose, priority: c.priority })),
+        ports: asset.ports.map(p => `${p.port}/${p.service}`),
+        assetType: asset.type,
+      },
     });
+
+    // Execute priority 1 and 2 tool commands on the scan server
+    const highPriorityCmds = suggestedCmds.filter(c => c.priority <= 2);
+    for (const cmd of highPriorityCmds) {
+      addLog(state, {
+        phase: "enumeration",
+        type: "scan_start",
+        title: `Running: ${cmd.tool}`,
+        detail: `${cmd.purpose} — ${cmd.tool} ${cmd.args.slice(0, 100)}...`,
+        data: { tool: cmd.tool, fullCommand: `${cmd.tool} ${cmd.args}` },
+      });
+
+      try {
+        const result = await executeTool({
+          tool: cmd.tool,
+          args: cmd.args,
+          target: asset.ip || asset.hostname,
+          timeoutSeconds: 180,
+          engagementId: state.engagementId,
+        });
+
+        // Parse tool output for findings
+        const findings = parseToolOutput(cmd.tool, result.stdout, asset);
+
+        addLog(state, {
+          phase: "enumeration",
+          type: "scan_result",
+          title: `${cmd.tool} Complete: ${asset.hostname}`,
+          detail: `Exit code ${result.exitCode}, ${result.durationMs}ms, ${findings.length} findings${result.timedOut ? " (TIMED OUT)" : ""}`,
+          data: {
+            tool: cmd.tool,
+            exitCode: result.exitCode,
+            durationMs: result.durationMs,
+            findings,
+            outputPreview: result.stdout.slice(0, 500),
+          },
+        });
+
+        // Add findings to asset vulns
+        for (const f of findings) {
+          asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
+          state.stats.vulnsFound++;
+        }
+      } catch (e: any) {
+        addLog(state, { phase: "enumeration", type: "error", title: `${cmd.tool} Error`, detail: e.message });
+      }
+    }
   }
 
   state.progress = 35;
+  broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
 }
 
 async function executeVulnDetection(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
@@ -620,55 +796,67 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   addLog(state, { phase: "vuln_detection", type: "info", title: "🛡️ Phase 3: Vulnerability Detection", detail: "Running nuclei scans and ZAP web app scans" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "vuln_detection" });
 
-  // ── Nuclei scan on all assets ──
-  const nucleiTargets = state.assets
-    .filter(a => a.status === "enumerated" && a.ports.length > 0)
-    .map(a => ({
-      host: a.ip || a.hostname,
-      port: a.ports[0]?.port,
-      service: a.ports[0]?.service,
-    }));
+  // ── Nuclei scan on all assets via scan server ──
+  const nucleiAssets = state.assets.filter(a => a.ports.length > 0);
 
-  if (nucleiTargets.length > 0) {
-    addLog(state, { phase: "vuln_detection", type: "scan_start", title: "Nuclei Vulnerability Scan", detail: `Scanning ${nucleiTargets.length} targets` });
+  if (nucleiAssets.length > 0) {
+    addLog(state, { phase: "vuln_detection", type: "scan_start", title: "Nuclei Vulnerability Scan (Scan Server)", detail: `Scanning ${nucleiAssets.length} targets via remote nuclei` });
 
-    try {
-      const { startNucleiScan } = await import("./nuclei-engine");
-      const nucleiResult = await startNucleiScan({
-        targets: nucleiTargets,
-        severity: ["critical", "high", "medium"],
-        rateLimit: state.engagementType === "red_team" ? 50 : 150,
-        engagementType: state.engagementType,
-        engagementId: state.engagementId,
-      });
+    const { executeTool } = await import("./scan-server-executor");
 
-      // Map findings to assets
-      if (nucleiResult?.findings) {
-        for (const finding of nucleiResult.findings) {
-          const asset = state.assets.find(a =>
-            finding.host?.includes(a.ip || "") || finding.host?.includes(a.hostname)
-          );
-          if (asset) {
-            asset.vulns.push({
-              id: genId(),
-              severity: finding.severity || "medium",
-              title: finding.templateName || "Unknown",
-              cve: finding.cve,
-            });
+    for (const asset of nucleiAssets) {
+      const target = asset.ip || asset.hostname;
+      // Build nuclei target URLs for web ports, or just the host for non-web
+      const webPorts = asset.ports.filter(p =>
+        ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
+        [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+      );
+
+      const nucleiTargetUrls = webPorts.length > 0
+        ? webPorts.map(p => {
+            const scheme = p.port === 443 || p.port === 8443 ? "https" : "http";
+            return `${scheme}://${target}:${p.port}`;
+          })
+        : [target];
+
+      for (const url of nucleiTargetUrls) {
+        addLog(state, { phase: "vuln_detection", type: "scan_start", title: `Nuclei: ${url}`, detail: "Running CVE and vulnerability template scan" });
+
+        try {
+          const result = await executeTool({
+            tool: "nuclei",
+            args: `-u ${url} -severity critical,high,medium -json -timeout 5 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`,
+            target,
+            timeoutSeconds: 300,
+            engagementId: state.engagementId,
+          });
+
+          // Parse nuclei JSON output
+          const findings = parseToolOutput("nuclei", result.stdout, asset);
+          for (const f of findings) {
+            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
+            state.stats.vulnsFound++;
           }
-          state.stats.vulnsFound++;
+
+          addLog(state, {
+            phase: "vuln_detection",
+            type: "scan_result",
+            title: `Nuclei Complete: ${url}`,
+            detail: `${findings.length} findings, exit code ${result.exitCode}, ${result.durationMs}ms${result.timedOut ? " (TIMED OUT)" : ""}`,
+            data: { findings, outputPreview: result.stdout.slice(0, 500) },
+          });
+        } catch (e: any) {
+          addLog(state, { phase: "vuln_detection", type: "error", title: `Nuclei Error: ${url}`, detail: e.message });
         }
       }
-
-      addLog(state, {
-        phase: "vuln_detection",
-        type: "scan_result",
-        title: "Nuclei Scan Complete",
-        detail: `Found ${state.stats.vulnsFound} vulnerabilities across ${nucleiTargets.length} targets`,
-      });
-    } catch (e: any) {
-      addLog(state, { phase: "vuln_detection", type: "error", title: "Nuclei Scan Error", detail: e.message });
     }
+
+    addLog(state, {
+      phase: "vuln_detection",
+      type: "scan_result",
+      title: "Nuclei Scan Complete",
+      detail: `Found ${state.stats.vulnsFound} vulnerabilities across ${nucleiAssets.length} targets`,
+    });
   }
 
   // ── ZAP scan on web applications (WAF-aware) ──
@@ -805,6 +993,77 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
 
     webApp.status = webApp.vulns.length > 0 ? "vulns_found" : "no_vulns";
+  }
+
+  // ── Credential Testing: run priority 3 tools (hydra) on login services ──
+  addLog(state, { phase: "vuln_detection", type: "info", title: "🔑 Credential Testing", detail: "Testing default/common credentials on discovered login services" });
+
+  try {
+    const { executeTool: execToolCred, suggestToolCommands: suggestCred } = await import("./scan-server-executor");
+
+    for (const asset of state.assets) {
+      if (asset.ports.length === 0) continue;
+      const credCmds = suggestCred({
+        hostname: asset.hostname,
+        ip: asset.ip,
+        type: asset.type,
+        ports: asset.ports,
+      }).filter(c => c.priority === 3); // Priority 3 = credential testing
+
+      for (const cmd of credCmds) {
+        // Request approval for credential testing (orange risk)
+        const approved = await requestApproval(state, {
+          phase: "vuln_detection",
+          riskTier: "orange",
+          title: `Credential Test: ${cmd.purpose}`,
+          description: `Running ${cmd.tool} against ${asset.hostname} (${asset.ip || ""}) for ${cmd.purpose}. This will attempt common credentials against the service.`,
+          target: asset.hostname,
+          module: cmd.tool,
+          detail: { tool: cmd.tool, args: cmd.args, purpose: cmd.purpose },
+        });
+
+        if (!approved) {
+          addLog(state, { phase: "vuln_detection", type: "info", title: `Skipped: ${cmd.purpose}`, detail: "Operator denied credential testing" });
+          continue;
+        }
+
+        addLog(state, {
+          phase: "vuln_detection",
+          type: "scan_start",
+          title: `Running: ${cmd.tool}`,
+          detail: cmd.purpose,
+          data: { tool: cmd.tool, fullCommand: `${cmd.tool} ${cmd.args}` },
+        });
+
+        try {
+          const result = await execToolCred({
+            tool: cmd.tool,
+            args: cmd.args,
+            target: asset.ip || asset.hostname,
+            timeoutSeconds: 120,
+            engagementId: state.engagementId,
+          });
+
+          const findings = parseToolOutput(cmd.tool, result.stdout, asset);
+          for (const f of findings) {
+            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
+            state.stats.vulnsFound++;
+          }
+
+          addLog(state, {
+            phase: "vuln_detection",
+            type: "scan_result",
+            title: `${cmd.tool} Complete: ${asset.hostname}`,
+            detail: `${findings.length} findings, exit code ${result.exitCode}`,
+            data: { findings, outputPreview: result.stdout.slice(0, 300) },
+          });
+        } catch (e: any) {
+          addLog(state, { phase: "vuln_detection", type: "error", title: `${cmd.tool} Error`, detail: e.message });
+        }
+      }
+    }
+  } catch (e: any) {
+    addLog(state, { phase: "vuln_detection", type: "error", title: "Credential Testing Error", detail: e.message });
   }
 
   // ── LLM Correlation: analyze all findings and recommend exploit strategy ──

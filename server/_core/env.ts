@@ -67,6 +67,10 @@ export const ENV = {
   HACKERONE_API_KEY: process.env.HACKERONE_API_KEY ?? "",
   // DigitalOcean — domain purchasing
   DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
+  // Scan Server (DigitalOcean droplet with offensive tools)
+  SCAN_SERVER_HOST: process.env.SCAN_SERVER_HOST ?? "",
+  SCAN_SERVER_USER: process.env.SCAN_SERVER_USER ?? "root",
+  SCAN_SERVER_SSH_KEY: process.env.SCAN_SERVER_SSH_KEY ?? "",
   // Metasploit MSGRPC
   MSF_RPC_HOST: process.env.MSF_RPC_HOST ?? "",
   MSF_RPC_PORT: parseInt(process.env.MSF_RPC_PORT ?? "55553", 10),

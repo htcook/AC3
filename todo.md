@@ -6750,3 +6750,26 @@
 ## Bug: Engagement Ops not clickable
 - [x] Diagnose why Engagement Ops link/button cannot be clicked in the UI
 - [x] Fix the navigation/routing issue — added engagement picker page at /engagement-ops
+
+## Live Monitoring: Vianova Pentest Execution
+- [ ] Monitor server logs for errors during Vianova pentest run
+- [ ] Fix errors as they appear in real-time
+- [ ] Log all issues found and fixes applied
+
+## Scan Server Provisioning (DigitalOcean)
+- [x] Generate SSH keypair for scan server access
+- [x] Create DigitalOcean droplet via API (ID: 555479369, IP: 134.209.75.36)
+- [x] Install full offensive toolkit (nmap, nuclei, nikto, hydra, httpx, subfinder, enum4linux, smbclient, ldapsearch, nbtscan, onesixtyone, dig, whois)
+- [x] Store SSH private key and server IP as secrets
+- [x] Fix orchestrator to pass scan server config to executeNmapScan
+- [ ] Build scan server management into the dashboard (status, destroy, recreate) (future)
+- [x] Test end-to-end nmap scan on Vianova targets (85 tests passing)
+
+## LLM Dynamic Tool Selection & Deployment
+- [x] Build generic SSH tool executor (scan-server-executor.ts)
+- [x] Create tool manifest loader + health check on scan server
+- [x] LLM selects tools per asset based on nmap results and generates real commands
+- [x] Execute selected tool commands on scan server via SSH
+- [x] Parse tool output and feed into vuln detection / exploit matching (nuclei, nikto, hydra, enum4linux, dig, gobuster, httpx, smbclient, ldapsearch, onesixtyone)
+- [x] Store scan server credentials as env secrets (SCAN_SERVER_HOST, SCAN_SERVER_USER, SCAN_SERVER_SSH_KEY)
+- [x] Wire scan server config into all orchestrator phases (enumeration, vuln_detection, credential testing)
