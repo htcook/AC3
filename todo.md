@@ -6905,3 +6905,11 @@
 - [x] Verify assets persist through scan start (32 tests passing)
 - [x] Fix discovery scan not starting/executing (added BAD_REQUEST guard for empty targets)
 - [x] Added immediate "started" broadcast so UI shows progress right away
+
+## Vianova Engagement Compatibility
+- [x] Verify Vianova engagement exists in DB with correct targets (ID: 1350014, 2 domains + 1 IP)
+- [x] Verify ops state initializes correctly for existing engagement (auto-init from DB on server restart)
+- [x] Fix getState to auto-initialize from DB when in-memory state is missing
+- [x] Verify passive scan works with Vianova targets (synchronous asset pre-population)
+- [x] Verify Discovery tab displays correctly for Vianova data
+- [x] Verify report generation works with Vianova engagement

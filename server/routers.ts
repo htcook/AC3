@@ -8452,8 +8452,38 @@ Make the phishing content highly realistic and tailored to the target domain and
     getState: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('./lib/engagement-orchestrator');
-        return getOpsState(input.engagementId);
+        const { getOpsState, initOpsState } = await import('./lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) {
+          // Auto-initialize from DB if in-memory state is missing (e.g. after server restart)
+          const engagement = await db.getEngagementById(input.engagementId);
+          if (engagement) {
+            state = initOpsState(input.engagementId, engagement.engagementType);
+            // Pre-populate assets from existing DB targets
+            const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+            const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
+            for (const d of domains) {
+              if (!state.assets.find((a: any) => a.hostname === d)) {
+                state.assets.push({
+                  hostname: d, type: 'unknown' as const, ports: [], vulns: [],
+                  zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' as const
+                });
+              }
+            }
+            for (const ip of ips) {
+              if (!state.assets.find((a: any) => a.hostname === ip || a.ip === ip)) {
+                state.assets.push({
+                  hostname: ip, ip, type: 'unknown' as const, ports: [], vulns: [],
+                  zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' as const
+                });
+              }
+            }
+            if (state.assets.length > 0) {
+              state.stats.assetsDiscovered = state.assets.length;
+            }
+          }
+        }
+        return state;
       }),
 
     /** Initialize ops state for an engagement */
