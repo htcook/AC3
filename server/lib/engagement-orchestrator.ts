@@ -79,6 +79,27 @@ export interface AssetStatus {
   wafDetected?: string;
 }
 
+export interface AssetScanPlan {
+  hostname: string;
+  ip?: string;
+  assetType: string;
+  nmapFlags: string;
+  nmapRationale: string;
+  activeTools: Array<{
+    tool: string;
+    command: string;
+    rationale: string;
+    priority: number;
+  }>;
+  riskNotes: string;
+}
+export interface ScanPlan {
+  generatedAt: number;
+  overallStrategy: string;
+  assetPlans: AssetScanPlan[];
+  estimatedDuration: string;
+  riskAssessment: string;
+}
 export interface EngagementOpsState {
   engagementId: number;
   engagementType: "pentest" | "red_team" | "purple_team" | "phishing" | "tabletop";
@@ -92,6 +113,7 @@ export interface EngagementOpsState {
   log: OpsLogEntry[];
   approvalGates: ApprovalGate[];
   llmPlan?: string;
+  scanPlan?: ScanPlan;
   currentAction?: string;
   error?: string;
   stats: {
@@ -274,6 +296,197 @@ async function auditLog(params: {
   } catch (e) {
     console.warn("[OpsAudit] Failed to write audit log:", e);
   }
+}
+
+// ─── LLM Scan Plan Generator ──────────────────────────────────────────────
+
+export async function generateScanPlan(engagementId: number): Promise<ScanPlan> {
+  const state = opsStates.get(engagementId);
+  if (!state) throw new Error('No ops state found for engagement');
+  if (state.assets.length === 0) throw new Error('No assets discovered yet — run passive scan first');
+
+  addLog(state, {
+    phase: state.phase,
+    type: 'info',
+    title: '🧠 LLM Scan Plan Analysis Starting',
+    detail: `Analyzing ${state.assets.length} discovered assets to determine optimal nmap settings and active scan tools...`,
+  });
+  broadcastOpsUpdate(engagementId, { type: 'phase_change', phase: 'scan_planning' });
+
+  const assetSummaries = state.assets.map(a => {
+    const info: Record<string, any> = {
+      hostname: a.hostname,
+      ip: a.ip || 'unknown',
+      type: a.type,
+      status: a.status,
+      knownPorts: a.ports.map(p => `${p.port}/${p.service}${p.version ? ` (${p.version})` : ''}`),
+      existingVulns: a.vulns.length,
+      wafDetected: a.wafDetected || 'none',
+    };
+    return info;
+  });
+
+  const availableTools = [
+    { name: 'nmap', desc: 'Port scanner and service fingerprinter', flags: ['-sV (version detection)', '-sC (default scripts)', '-sU (UDP scan)', '-O (OS detection)', '--script vuln (vuln scripts)', '-T4 (aggressive timing)', '-T2 (polite timing)', '-Pn (skip host discovery)', '-p- (all ports)', '--top-ports N'] },
+    { name: 'nuclei', desc: 'Template-based vulnerability scanner', use: 'web apps, known CVEs, misconfigurations' },
+    { name: 'nikto', desc: 'Web server scanner for dangerous files/CGIs', use: 'web servers' },
+    { name: 'gobuster', desc: 'Directory/file brute-forcer', use: 'web apps to find hidden paths' },
+    { name: 'httpx', desc: 'HTTP probe and tech fingerprinter', use: 'web asset enumeration' },
+    { name: 'hydra', desc: 'Credential brute-forcer', use: 'SSH, FTP, RDP, MySQL, HTTP-auth, SMB logins' },
+    { name: 'enum4linux', desc: 'SMB/NetBIOS enumerator', use: 'Windows/Samba hosts' },
+    { name: 'smbclient', desc: 'SMB share lister', use: 'Windows/Samba file shares' },
+    { name: 'ldapsearch', desc: 'LDAP directory enumerator', use: 'Active Directory/LDAP servers' },
+    { name: 'dig', desc: 'DNS query tool', use: 'DNS servers, zone transfers' },
+    { name: 'onesixtyone', desc: 'SNMP scanner', use: 'network devices with SNMP' },
+    { name: 'subfinder', desc: 'Subdomain discovery', use: 'finding additional subdomains' },
+  ];
+
+  const response = await invokeLLM({
+    messages: [
+      {
+        role: 'system',
+        content: `You are an expert penetration tester planning the active scanning phase of a ${state.engagementType} engagement. You have completed passive OSINT reconnaissance and discovered the following assets. Now you must analyze each asset and recommend:
+
+1. **Specific nmap flags** per asset — tailor the scan based on what you already know (e.g., if passive recon found web services, focus on web ports; if it's an IP with no known services, do a broader scan)
+2. **Active tools** to run per asset after nmap — select from the available toolkit based on the asset type and services
+3. **Risk assessment** — note any concerns (WAF detected, rate limiting, IDS evasion needed)
+
+Available tools on the scan server:
+${availableTools.map(t => `- ${t.name}: ${t.desc}${(t as any).use ? ` (best for: ${(t as any).use})` : ''}`).join('\n')}
+
+You MUST respond with valid JSON matching this exact schema:
+{
+  "overallStrategy": "Brief description of the overall scanning approach",
+  "estimatedDuration": "Estimated time for all scans (e.g., '15-25 minutes')",
+  "riskAssessment": "Overall risk notes for active scanning these targets",
+  "assetPlans": [
+    {
+      "hostname": "exact hostname from the asset list",
+      "ip": "IP if known",
+      "assetType": "web_app|server|api|database|network_device|unknown",
+      "nmapFlags": "exact nmap flags to use (e.g., '-sV -sC -T4 -p 80,443,8080')",
+      "nmapRationale": "Why these specific nmap flags",
+      "activeTools": [
+        {
+          "tool": "tool name from available list",
+          "command": "exact command to run (use {target} as placeholder for hostname/IP)",
+          "rationale": "Why this tool for this asset",
+          "priority": 1
+        }
+      ],
+      "riskNotes": "Any risk concerns for this specific asset"
+    }
+  ]
+}`
+      },
+      {
+        role: 'user',
+        content: `Discovered assets from passive OSINT:\n${JSON.stringify(assetSummaries, null, 2)}\n\nEngagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\nGenerate the scan plan for the active scanning phase.`
+      }
+    ],
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'scan_plan',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            overallStrategy: { type: 'string' },
+            estimatedDuration: { type: 'string' },
+            riskAssessment: { type: 'string' },
+            assetPlans: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  hostname: { type: 'string' },
+                  ip: { type: 'string' },
+                  assetType: { type: 'string' },
+                  nmapFlags: { type: 'string' },
+                  nmapRationale: { type: 'string' },
+                  activeTools: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        tool: { type: 'string' },
+                        command: { type: 'string' },
+                        rationale: { type: 'string' },
+                        priority: { type: 'number' }
+                      },
+                      required: ['tool', 'command', 'rationale', 'priority'],
+                      additionalProperties: false
+                    }
+                  },
+                  riskNotes: { type: 'string' }
+                },
+                required: ['hostname', 'ip', 'assetType', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes'],
+                additionalProperties: false
+              }
+            }
+          },
+          required: ['overallStrategy', 'estimatedDuration', 'riskAssessment', 'assetPlans'],
+          additionalProperties: false
+        }
+      }
+    }
+  });
+
+  let parsed: any;
+  try {
+    const content = response.choices?.[0]?.message?.content || '{}';
+    parsed = JSON.parse(content);
+  } catch {
+    addLog(state, { phase: state.phase, type: 'error', title: 'Scan Plan Parse Error', detail: 'LLM returned invalid JSON for scan plan' });
+    throw new Error('Failed to parse LLM scan plan response');
+  }
+
+  const scanPlan: ScanPlan = {
+    generatedAt: Date.now(),
+    overallStrategy: parsed.overallStrategy || 'Standard active scanning',
+    estimatedDuration: parsed.estimatedDuration || 'Unknown',
+    riskAssessment: parsed.riskAssessment || 'Standard risk',
+    assetPlans: (parsed.assetPlans || []).map((ap: any) => ({
+      hostname: ap.hostname,
+      ip: ap.ip,
+      assetType: ap.assetType,
+      nmapFlags: ap.nmapFlags,
+      nmapRationale: ap.nmapRationale,
+      activeTools: (ap.activeTools || []).map((t: any) => ({
+        tool: t.tool,
+        command: t.command,
+        rationale: t.rationale,
+        priority: t.priority || 2,
+      })),
+      riskNotes: ap.riskNotes,
+    })),
+  };
+
+  state.scanPlan = scanPlan;
+
+  // Log the scan plan to the live feed
+  addLog(state, {
+    phase: state.phase,
+    type: 'llm_decision',
+    title: '📋 Scan Plan Generated',
+    detail: `Strategy: ${scanPlan.overallStrategy}\nEstimated duration: ${scanPlan.estimatedDuration}\nAssets planned: ${scanPlan.assetPlans.length}`,
+    data: { scanPlan },
+  });
+
+  for (const ap of scanPlan.assetPlans) {
+    addLog(state, {
+      phase: state.phase,
+      type: 'tool_match',
+      title: `🎯 ${ap.hostname}`,
+      detail: `nmap: ${ap.nmapFlags}\nTools: ${ap.activeTools.map(t => t.tool).join(', ')}\nRisk: ${ap.riskNotes}`,
+      data: { assetPlan: ap },
+    });
+  }
+
+  broadcastOpsUpdate(engagementId, { type: 'scan_plan', scanPlan });
+
+  return scanPlan;
 }
 
 // ─── LLM Decision Engine ───────────────────────────────────────────────────
@@ -642,16 +855,64 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         addLog(state, { phase: "enumeration", type: "scan_start", title: `Scanning: ${target}`, detail: `Nmap service detection on scan server (${serverConfig.host})` });
 
         try {
-          const profile = state.engagementType === "red_team" ? "stealth" : "service";
-          const result = await executeNmapScan({
-            targets: [target],
-            profile,
-            timeoutSeconds: 300,
-            engagementId: state.engagementId,
-            operatorId: operatorCtx.id,
-            operatorName: operatorCtx.name,
-            server: serverConfig,
-          });
+          // Use scan plan nmap flags if available for this asset
+          const assetPlan = state.scanPlan?.assetPlans.find(
+            ap => ap.hostname === (asset?.hostname) || ap.ip === target
+          );
+          let profile: string;
+          let customFlags: string | undefined;
+          if (assetPlan?.nmapFlags) {
+            customFlags = assetPlan.nmapFlags;
+            profile = 'custom';
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `Scan Plan: ${target}`,
+              detail: `Using LLM-recommended nmap flags: ${customFlags}\nRationale: ${assetPlan.nmapRationale}`,
+            });
+          } else {
+            profile = state.engagementType === 'red_team' ? 'stealth' : 'service';
+          }
+
+          // If custom flags, run nmap directly via SSH; otherwise use the nmap orchestrator
+          let result: any;
+          if (customFlags) {
+            const { executeTool: execNmap } = await import('./scan-server-executor');
+            const nmapArgs = `${customFlags} ${target}`;
+            addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `nmap ${target}`, detail: `nmap ${nmapArgs}` });
+            const nmapResult = await execNmap({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 300 });
+            // Parse nmap text output into hosts structure
+            result = { hosts: [{ address: target, ports: [] as any[] }] };
+            if (nmapResult.stdout) {
+              const portRegex = /(\d+)\/tcp\s+open\s+(\S+)(?:\s+(.*))?/g;
+              let match;
+              while ((match = portRegex.exec(nmapResult.stdout)) !== null) {
+                result.hosts[0].ports.push({
+                  portId: parseInt(match[1]),
+                  state: 'open',
+                  service: { name: match[2], product: match[3]?.trim() || undefined },
+                });
+              }
+              // Also parse UDP if present
+              const udpRegex = /(\d+)\/udp\s+open\s+(\S+)(?:\s+(.*))?/g;
+              while ((match = udpRegex.exec(nmapResult.stdout)) !== null) {
+                result.hosts[0].ports.push({
+                  portId: parseInt(match[1]),
+                  state: 'open',
+                  service: { name: match[2], product: match[3]?.trim() || undefined },
+                });
+              }
+            }
+          } else {
+            result = await executeNmapScan({
+              targets: [target],
+              profile,
+              timeoutSeconds: 300,
+              engagementId: state.engagementId,
+              operatorId: operatorCtx.id,
+              operatorName: operatorCtx.name,
+              server: serverConfig,
+            });
+          }
 
           // Parse results into asset ports
           if (result?.hosts) {
@@ -700,23 +961,20 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   state.progress = 30;
   addLog(state, { phase: "enumeration", type: "phase_complete", title: "✅ Phase 2 Complete", detail: `${state.stats.hostsScanned} hosts scanned, ${state.stats.portsFound} ports found` });
 
-  // ── Tool Matching: LLM analyzes nmap results and selects real tools per asset ──
-  addLog(state, { phase: "enumeration", type: "info", title: "🔧 Tool Matching", detail: "LLM analyzing nmap results to select and deploy tools for each asset on scan server..." });
+  // ── Tool Matching: Use scan plan tools if available, otherwise LLM-generated suggestions ──
+  const hasScanPlan = !!state.scanPlan?.assetPlans?.length;
+  addLog(state, {
+    phase: "enumeration", type: "info",
+    title: "🔧 Tool Matching",
+    detail: hasScanPlan
+      ? `Executing LLM scan plan tools for ${state.scanPlan!.assetPlans.length} assets on scan server...`
+      : "LLM analyzing nmap results to select and deploy tools for each asset on scan server...",
+  });
 
   const { executeTool, suggestToolCommands } = await import("./scan-server-executor");
 
   for (const asset of state.assets) {
     if (asset.ports.length === 0) continue;
-
-    // Generate suggested tool commands based on discovered ports
-    const suggestedCmds = suggestToolCommands({
-      hostname: asset.hostname,
-      ip: asset.ip,
-      type: asset.type,
-      ports: asset.ports,
-    });
-
-    const toolNames = [...new Set(suggestedCmds.map(c => c.tool))];
 
     // Classify asset type based on ports
     const webPorts = asset.ports.filter(p =>
@@ -725,35 +983,79 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     );
     if (webPorts.length > 0) asset.type = "web_app";
 
-    addLog(state, {
-      phase: "enumeration",
-      type: "tool_match",
-      title: `Tool Match: ${asset.hostname}`,
-      detail: `${suggestedCmds.length} commands queued using ${toolNames.length} tools: ${toolNames.join(", ")}`,
-      data: {
-        tools: toolNames,
-        commands: suggestedCmds.map(c => ({ tool: c.tool, purpose: c.purpose, priority: c.priority })),
-        ports: asset.ports.map(p => `${p.port}/${p.service}`),
-        assetType: asset.type,
-      },
-    });
+    // Check if scan plan has tools for this asset
+    const assetPlan = state.scanPlan?.assetPlans.find(
+      ap => ap.hostname === asset.hostname || ap.ip === (asset.ip || asset.hostname)
+    );
+
+    // Build unified command list: prefer scan plan, fallback to suggestToolCommands
+    let cmdsToRun: Array<{ tool: string; command: string; purpose: string; priority: number }>;
+
+    if (assetPlan && assetPlan.activeTools.length > 0) {
+      // Use scan plan tools — LLM already analyzed the asset
+      cmdsToRun = assetPlan.activeTools.map(t => ({
+        tool: t.tool,
+        command: t.command.replace(/\{target\}/g, asset.ip || asset.hostname),
+        purpose: t.rationale,
+        priority: t.priority,
+      }));
+      addLog(state, {
+        phase: "enumeration", type: "tool_match",
+        title: `Scan Plan Tools: ${asset.hostname}`,
+        detail: `${cmdsToRun.length} tools from LLM scan plan: ${cmdsToRun.map(c => c.tool).join(", ")}\nRisk: ${assetPlan.riskNotes}`,
+        data: {
+          source: 'scan_plan',
+          tools: cmdsToRun.map(c => c.tool),
+          commands: cmdsToRun.map(c => ({ tool: c.tool, purpose: c.purpose, priority: c.priority })),
+          ports: asset.ports.map(p => `${p.port}/${p.service}`),
+          assetType: asset.type,
+          riskNotes: assetPlan.riskNotes,
+        },
+      });
+    } else {
+      // Fallback to generic tool suggestions
+      const suggestedCmds = suggestToolCommands({
+        hostname: asset.hostname, ip: asset.ip, type: asset.type, ports: asset.ports,
+      });
+      cmdsToRun = suggestedCmds.map(c => ({
+        tool: c.tool,
+        command: `${c.tool} ${c.args}`,
+        purpose: c.purpose,
+        priority: c.priority,
+      }));
+      const toolNames = [...new Set(cmdsToRun.map(c => c.tool))];
+      addLog(state, {
+        phase: "enumeration", type: "tool_match",
+        title: `Tool Match: ${asset.hostname}`,
+        detail: `${cmdsToRun.length} commands queued using ${toolNames.length} tools: ${toolNames.join(", ")}`,
+        data: {
+          source: 'auto_suggest',
+          tools: toolNames,
+          commands: cmdsToRun.map(c => ({ tool: c.tool, purpose: c.purpose, priority: c.priority })),
+          ports: asset.ports.map(p => `${p.port}/${p.service}`),
+          assetType: asset.type,
+        },
+      });
+    }
 
     // Execute priority 1 and 2 tool commands on the scan server
-    const highPriorityCmds = suggestedCmds.filter(c => c.priority <= 2);
+    const highPriorityCmds = cmdsToRun.filter(c => c.priority <= 2);
     for (const cmd of highPriorityCmds) {
       addLog(state, {
-        phase: "enumeration",
-        type: "scan_start",
+        phase: "enumeration", type: "scan_start",
         title: `Running: ${cmd.tool}`,
-        detail: `${cmd.purpose} — ${cmd.tool} ${cmd.args.slice(0, 100)}...`,
-        data: { tool: cmd.tool, fullCommand: `${cmd.tool} ${cmd.args}` },
+        detail: `${cmd.purpose} — ${cmd.command.slice(0, 120)}`,
+        data: { tool: cmd.tool, fullCommand: cmd.command },
       });
 
       try {
+        // Split full command into tool + args for executeTool
+        const cmdArgs = cmd.command.startsWith(cmd.tool)
+          ? cmd.command.slice(cmd.tool.length).trim()
+          : cmd.command;
         const result = await executeTool({
           tool: cmd.tool,
-          args: cmd.args,
-          target: asset.ip || asset.hostname,
+          args: cmdArgs,
           timeoutSeconds: 180,
           engagementId: state.engagementId,
         });
@@ -762,16 +1064,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         const findings = parseToolOutput(cmd.tool, result.stdout, asset);
 
         addLog(state, {
-          phase: "enumeration",
-          type: "scan_result",
+          phase: "enumeration", type: "scan_result",
           title: `${cmd.tool} Complete: ${asset.hostname}`,
           detail: `Exit code ${result.exitCode}, ${result.durationMs}ms, ${findings.length} findings${result.timedOut ? " (TIMED OUT)" : ""}`,
           data: {
-            tool: cmd.tool,
-            exitCode: result.exitCode,
-            durationMs: result.durationMs,
-            findings,
-            outputPreview: result.stdout.slice(0, 500),
+            tool: cmd.tool, exitCode: result.exitCode, durationMs: result.durationMs,
+            findings, outputPreview: result.stdout.slice(0, 500),
           },
         });
 

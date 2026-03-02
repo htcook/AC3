@@ -80,6 +80,28 @@ interface AssetStatus {
   wafDetected?: string;
 }
 
+interface AssetScanPlan {
+  hostname: string;
+  ip?: string;
+  assetType: string;
+  nmapFlags: string;
+  nmapRationale: string;
+  activeTools: Array<{
+    tool: string;
+    command: string;
+    rationale: string;
+    priority: number;
+  }>;
+  riskNotes: string;
+}
+interface ScanPlan {
+  generatedAt: number;
+  overallStrategy: string;
+  assetPlans: AssetScanPlan[];
+  estimatedDuration: string;
+  riskAssessment: string;
+}
+
 interface OpsState {
   engagementId: number;
   engagementType: string;
@@ -93,6 +115,7 @@ interface OpsState {
   log: OpsLogEntry[];
   approvalGates: ApprovalGate[];
   llmPlan?: string;
+  scanPlan?: ScanPlan;
   currentAction?: string;
   error?: string;
   stats: {
@@ -263,8 +286,18 @@ export default function EngagementOps() {
 
   const activeScanMut = trpc.engagementOps.startActiveScan.useMutation({
     onSuccess: (data) => {
-      toast.success(`Active Scan Started — LLM orchestrating nmap → tool matching → exploit on ${data.assetsCount} assets`);
+      toast.success(`Active Scan Started — LLM orchestrating scan plan → nmap → tool matching → exploit on ${data.assetsCount} assets`);
       setActiveTab("feed");
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [showScanPlan, setShowScanPlan] = useState(false);
+  const generatePlanMut = trpc.engagementOps.generateScanPlan.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Scan Plan Generated — ${data.scanPlan.assetPlans.length} assets analyzed`);
+      setShowScanPlan(true);
       opsStateQ.refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -605,36 +638,135 @@ export default function EngagementOps() {
 
       {/* ── Recon Complete Banner — Start Active Scan Prompt ── */}
       {ops?.phase === "recon_complete" && !ops.isRunning && (
-        <div className="flex-none bg-cyan-500/10 border-b border-cyan-500/30 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-cyan-400 text-sm font-medium">
-                <CheckCircle2 className="h-4 w-4" />
-                Passive Discovery Complete — {ops.assets.length} Assets Found
+        <div className="flex-none border-b border-cyan-500/30">
+          {/* Top bar: status + buttons */}
+          <div className="bg-cyan-500/10 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-cyan-400 text-sm font-medium">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Passive Discovery Complete — {ops.assets.length} Assets Found
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {ops.scanPlan
+                    ? "Scan plan generated. Review the LLM's recommended nmap flags and tools per asset below, then start the active scan."
+                    : "Generate a scan plan to let the LLM analyze each asset and recommend specific nmap flags and active tools before scanning."}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Review discovered assets in the Assets tab. When ready, click <strong>Start Active Scan</strong> to hand off to the LLM.
-                The LLM will run nmap on each asset, then match tools to discovered services (ZAP for web apps, nuclei for CVEs, credential testing for login pages).
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-none ml-4">
-              {!roeSigned && (
-                <Badge variant="outline" className="text-orange-400 border-orange-500/30 text-xs">
-                  <ShieldX className="h-3 w-3 mr-1" /> RoE Required
-                </Badge>
-              )}
-              <Button
-                size="sm"
-                onClick={() => activeScanMut.mutate({ engagementId })}
-                disabled={activeScanMut.isPending || !roeSigned}
-                className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500"
-              >
-                {activeScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-                Start Active Scan
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
+              <div className="flex items-center gap-2 flex-none ml-4">
+                {!roeSigned && (
+                  <Badge variant="outline" className="text-orange-400 border-orange-500/30 text-xs">
+                    <ShieldX className="h-3 w-3 mr-1" /> RoE Required
+                  </Badge>
+                )}
+                {!ops.scanPlan && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => generatePlanMut.mutate({ engagementId })}
+                    disabled={generatePlanMut.isPending || !roeSigned}
+                    className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                  >
+                    {generatePlanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
+                    Generate Scan Plan
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => activeScanMut.mutate({ engagementId })}
+                  disabled={activeScanMut.isPending || !roeSigned}
+                  className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500"
+                >
+                  {activeScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                  Start Active Scan
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
           </div>
+
+          {/* Scan Plan Details */}
+          {ops.scanPlan && (
+            <div className="bg-slate-900/50 px-6 py-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium text-cyan-300">
+                  <FileText className="h-4 w-4" />
+                  LLM Scan Plan
+                  <Badge variant="outline" className="text-xs text-green-400 border-green-500/30 ml-2">
+                    {ops.scanPlan.assetPlans.length} assets
+                  </Badge>
+                  <Badge variant="outline" className="text-xs text-muted-foreground border-border ml-1">
+                    Est. {ops.scanPlan.estimatedDuration}
+                  </Badge>
+                </div>
+                <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowScanPlan(!showScanPlan)}>
+                  {showScanPlan ? "Collapse" : "Expand"}
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">{ops.scanPlan.overallStrategy}</p>
+              <p className="text-xs text-yellow-400/80">
+                <AlertTriangle className="h-3 w-3 inline mr-1" />
+                {ops.scanPlan.riskAssessment}
+              </p>
+
+              {showScanPlan && (
+                <div className="space-y-3 mt-2">
+                  {ops.scanPlan.assetPlans.map((ap, i) => (
+                    <div key={i} className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {ap.assetType === "web_app" ? <Globe className="h-4 w-4 text-blue-400" /> :
+                           ap.assetType === "server" ? <Server className="h-4 w-4 text-green-400" /> :
+                           <Network className="h-4 w-4 text-gray-400" />}
+                          <span className="text-sm font-mono text-foreground">{ap.hostname}</span>
+                          {ap.ip && <span className="text-xs text-muted-foreground">({ap.ip})</span>}
+                        </div>
+                        <Badge variant="outline" className="text-xs">{ap.assetType}</Badge>
+                      </div>
+
+                      {/* Nmap flags */}
+                      <div className="mb-2">
+                        <div className="text-xs text-cyan-400 font-medium mb-1">Nmap Flags:</div>
+                        <code className="text-xs bg-black/40 px-2 py-1 rounded font-mono text-green-300 block">
+                          nmap {ap.nmapFlags} {ap.ip || ap.hostname}
+                        </code>
+                        <p className="text-xs text-muted-foreground mt-1 italic">{ap.nmapRationale}</p>
+                      </div>
+
+                      {/* Active tools */}
+                      <div className="mb-2">
+                        <div className="text-xs text-orange-400 font-medium mb-1">Active Tools ({ap.activeTools.length}):</div>
+                        <div className="space-y-1">
+                          {ap.activeTools.map((t, j) => (
+                            <div key={j} className="flex items-start gap-2 text-xs">
+                              <Badge variant="outline" className={`text-[10px] flex-none ${
+                                t.priority === 1 ? "border-red-500/30 text-red-400" :
+                                t.priority === 2 ? "border-orange-500/30 text-orange-400" :
+                                "border-gray-500/30 text-gray-400"
+                              }`}>
+                                P{t.priority}
+                              </Badge>
+                              <code className="font-mono text-green-300/80 bg-black/30 px-1 rounded flex-none">{t.tool}</code>
+                              <span className="text-muted-foreground">{t.rationale}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Risk notes */}
+                      {ap.riskNotes && (
+                        <p className="text-xs text-yellow-400/70 flex items-start gap-1">
+                          <AlertTriangle className="h-3 w-3 flex-none mt-0.5" />
+                          {ap.riskNotes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

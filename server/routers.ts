@@ -8623,7 +8623,31 @@ Make the phishing content highly realistic and tailored to the target domain and
         return { started: true };
       }),
 
-    /** Start LLM-orchestrated active scanning (nmap first, then tool matching per service) */
+    /** Generate LLM scan plan — analyzes passive recon results to determine nmap settings and tools per asset */
+    generateScanPlan: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { getOpsState, generateScanPlan: genPlan } = await import('./lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId);
+        if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state — run passive scan first' });
+        if (state.assets.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No assets discovered yet' });
+
+        await db.logActivity({ userId: ctx.user.id, action: 'scan_plan_generated', details: `LLM scan plan generated for ${state.assets.length} assets in engagement #${input.engagementId}` });
+
+        const scanPlan = await genPlan(input.engagementId);
+        return { scanPlan };
+      }),
+
+    /** Get the current scan plan for an engagement */
+    getScanPlan: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState } = await import('./lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId);
+        return { scanPlan: state?.scanPlan || null };
+      }),
+
+    /** Start LLM-orchestrated active scanning (generates scan plan first, then nmap with plan-specific flags, then tool matching per service) */
     startActiveScan: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
@@ -8634,7 +8658,7 @@ Make the phishing content highly realistic and tailored to the target domain and
           throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'RoE must be signed before active scanning.' });
         }
 
-        const { getOpsState, initOpsState } = await import('./lib/engagement-orchestrator');
+        const { getOpsState, initOpsState, generateScanPlan: genPlan } = await import('./lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
         if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Scan already running' });
@@ -8643,12 +8667,23 @@ Make the phishing content highly realistic and tailored to the target domain and
         state.isRunning = true;
         state.phase = 'enumeration';
 
-        await db.logActivity({ userId: ctx.user.id, action: 'active_scan_started', details: `Started LLM-orchestrated active scan (nmap \u2192 tool match \u2192 exploit) for engagement #${input.engagementId}` });
+        await db.logActivity({ userId: ctx.user.id, action: 'active_scan_started', details: `Started LLM-orchestrated active scan (scan plan \u2192 nmap \u2192 tool match \u2192 exploit) for engagement #${input.engagementId}` });
 
-        // Execute the active pipeline starting from enumeration (nmap first)
-        // Skip recon since passive discovery was already done
-        const { executeEngagement } = await import('./lib/engagement-orchestrator');
-        executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration' });
+        // Generate scan plan first if not already generated, then execute
+        (async () => {
+          try {
+            if (!state!.scanPlan) {
+              await genPlan(input.engagementId);
+            }
+          } catch (e: any) {
+            console.warn('[EngOps] Scan plan generation failed, proceeding with defaults:', e.message);
+          }
+
+          // Execute the active pipeline starting from enumeration (nmap first)
+          // The executeEnumeration phase will use state.scanPlan for nmap flags
+          const { executeEngagement } = await import('./lib/engagement-orchestrator');
+          executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration' });
+        })();
 
         return { started: true, assetsCount: state.assets.length };
       }),

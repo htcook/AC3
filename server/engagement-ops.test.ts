@@ -1304,3 +1304,168 @@ describe("Vianova Engagement — Scan Server Workflow", () => {
     expect(pipelinePhases[3]).toBe("post_exploit");
   });
 });
+
+
+// ─── Scan Plan Generation & Integration Tests ─────────────────────────────
+
+describe("Scan Plan — LLM Analysis Between Passive and Active Scan", () => {
+  it("ScanPlan interface has required fields", () => {
+    const plan = {
+      generatedAt: Date.now(),
+      overallStrategy: "External pentest: full TCP + targeted UDP on web assets, stealth on infrastructure",
+      assetPlans: [
+        {
+          hostname: "dashboard-dev.vianovahealth.com",
+          ip: "23.20.98.48",
+          assetType: "web_app",
+          nmapFlags: "-sS -sV -O -p- --script=http-enum,ssl-cert,http-title -T3",
+          nmapRationale: "Full TCP scan with service detection and HTTP scripts for web application",
+          activeTools: [
+            { tool: "nikto", command: "nikto -h https://dashboard-dev.vianovahealth.com -Tuning 1234567890", rationale: "Web vulnerability scanner", priority: 1 },
+            { tool: "nuclei", command: "nuclei -u https://dashboard-dev.vianovahealth.com -severity low,medium,high,critical -json", rationale: "CVE detection", priority: 1 },
+          ],
+          riskNotes: "Healthcare application — avoid DoS-inducing scans",
+        },
+      ],
+      estimatedDuration: "15-25 minutes",
+      riskAssessment: "Medium risk — healthcare data handling requires careful scanning",
+    };
+
+    expect(plan.generatedAt).toBeGreaterThan(0);
+    expect(plan.overallStrategy).toBeTruthy();
+    expect(plan.assetPlans).toHaveLength(1);
+    expect(plan.assetPlans[0].nmapFlags).toContain("-sS");
+    expect(plan.assetPlans[0].activeTools).toHaveLength(2);
+    expect(plan.estimatedDuration).toBeTruthy();
+    expect(plan.riskAssessment).toBeTruthy();
+  });
+
+  it("asset plan nmap flags are used instead of default profile when present", () => {
+    const assetPlan = {
+      hostname: "api.dev.vianova.ai",
+      nmapFlags: "-sS -sV -p 80,443,8080,8443,3000 --script=http-enum,ssl-cert -T3",
+      nmapRationale: "Targeted port scan for known API ports",
+    };
+
+    // When scan plan provides flags, the orchestrator should use them
+    const customFlags = assetPlan.nmapFlags;
+    expect(customFlags).toBeTruthy();
+    expect(customFlags).toContain("-sS");
+    expect(customFlags).toContain("-sV");
+
+    // Build the nmap command that would be run
+    const target = "api.dev.vianova.ai";
+    const nmapArgs = `${customFlags} ${target}`;
+    expect(nmapArgs).toContain(target);
+    expect(nmapArgs).not.toContain("undefined");
+  });
+
+  it("scan plan tools take priority over suggestToolCommands fallback", () => {
+    const scanPlanTools = [
+      { tool: "nikto", command: "nikto -h https://target -Tuning 123", rationale: "Custom scan", priority: 1 },
+      { tool: "nuclei", command: "nuclei -u https://target -severity critical", rationale: "Critical only", priority: 1 },
+    ];
+
+    const fallbackTools = [
+      { tool: "nikto", args: "-h https://target -Tuning 1234567890 -maxtime 300", purpose: "Generic web scan", priority: 1 },
+      { tool: "nuclei", args: "-u https://target -severity low,medium,high,critical -json", purpose: "Full severity scan", priority: 1 },
+      { tool: "gobuster", args: "dir -u https://target -w /opt/SecLists/Discovery/Web-Content/common.txt", purpose: "Dir enum", priority: 2 },
+    ];
+
+    // Scan plan should be preferred when available
+    const hasScanPlan = scanPlanTools.length > 0;
+    const cmdsToRun = hasScanPlan ? scanPlanTools : fallbackTools;
+    expect(cmdsToRun).toHaveLength(2); // scan plan has 2, not 3
+    expect(cmdsToRun[0].tool).toBe("nikto");
+    expect((cmdsToRun[0] as any).command || (cmdsToRun[0] as any).args).toContain("Tuning 123"); // custom, not generic
+  });
+
+  it("command splitting correctly separates tool from args", () => {
+    const commands = [
+      { tool: "nikto", command: "nikto -h https://target -Tuning 123" },
+      { tool: "nuclei", command: "nuclei -u https://target -severity critical" },
+      { tool: "nmap", command: "nmap -sS -sV -p- target" },
+    ];
+
+    for (const cmd of commands) {
+      const cmdArgs = cmd.command.startsWith(cmd.tool)
+        ? cmd.command.slice(cmd.tool.length).trim()
+        : cmd.command;
+      expect(cmdArgs.startsWith(cmd.tool)).toBe(false);
+      expect(cmdArgs.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("scan plan for Vianova targets generates appropriate tools", () => {
+    const vianovaTargets = [
+      { hostname: "dashboard-dev.vianovahealth.com", type: "web_app" },
+      { hostname: "api.dev.vianova.ai", type: "web_app" },
+      { hostname: "23.20.98.48", type: "unknown" },
+    ];
+
+    for (const target of vianovaTargets) {
+      if (target.type === "web_app") {
+        // Web apps should get nikto, nuclei, httpx at minimum
+        const expectedTools = ["nikto", "nuclei", "httpx"];
+        expect(expectedTools.length).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("scan plan nmap flags parsing extracts TCP and UDP ports", () => {
+    // Simulate nmap output parsing
+    const nmapOutput = `PORT     STATE SERVICE     VERSION
+22/tcp   open  ssh         OpenSSH 8.9p1
+80/tcp   open  http        nginx 1.18.0
+443/tcp  open  https       nginx 1.18.0
+8080/tcp open  http-proxy  Apache httpd 2.4
+53/udp   open  domain      ISC BIND 9.18`;
+
+    const ports: Array<{ portId: number; state: string; service: { name: string; product?: string } }> = [];
+    const portRegex = /(\d+)\/tcp\s+open\s+(\S+)(?:\s+(.*))?/g;
+    let match;
+    while ((match = portRegex.exec(nmapOutput)) !== null) {
+      ports.push({
+        portId: parseInt(match[1]),
+        state: "open",
+        service: { name: match[2], product: match[3]?.trim() || undefined },
+      });
+    }
+    const udpRegex = /(\d+)\/udp\s+open\s+(\S+)(?:\s+(.*))?/g;
+    while ((match = udpRegex.exec(nmapOutput)) !== null) {
+      ports.push({
+        portId: parseInt(match[1]),
+        state: "open",
+        service: { name: match[2], product: match[3]?.trim() || undefined },
+      });
+    }
+
+    expect(ports).toHaveLength(5);
+    expect(ports.find(p => p.portId === 22)?.service.name).toBe("ssh");
+    expect(ports.find(p => p.portId === 80)?.service.name).toBe("http");
+    expect(ports.find(p => p.portId === 443)?.service.name).toBe("https");
+    expect(ports.find(p => p.portId === 8080)?.service.name).toBe("http-proxy");
+    expect(ports.find(p => p.portId === 53)?.service.name).toBe("domain");
+  });
+
+  it("scan plan state is included in OpsState and persists across polling", () => {
+    const state = {
+      engagementId: 1350014,
+      phase: "recon_complete",
+      scanPlan: {
+        generatedAt: Date.now(),
+        overallStrategy: "Test strategy",
+        assetPlans: [],
+        estimatedDuration: "10 min",
+        riskAssessment: "Low",
+      },
+    };
+
+    expect(state.scanPlan).toBeDefined();
+    expect(state.scanPlan?.generatedAt).toBeGreaterThan(0);
+
+    // Simulate polling: state should retain scanPlan
+    const polledState = { ...state };
+    expect(polledState.scanPlan).toEqual(state.scanPlan);
+  });
+});

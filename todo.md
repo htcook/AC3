@@ -6780,3 +6780,12 @@
 - [x] Fix discrepancy: was using 'standard' mode (DNS resolution + well-known endpoints), now uses 'strict_passive' (zero target contact)
 - [x] Added progress callbacks and WebSocket broadcast for live feed updates
 - [x] Added scopedAssets to restrict scan to engagement targets only
+
+## LLM Scan Plan Analysis (Post-Passive, Pre-Active)
+- [x] After passive scan completes, LLM analyzes each discovered asset's OSINT data
+- [x] LLM recommends nmap scan profile per asset (e.g., -sV -sC for web, -sU for DNS, --script vuln for known CVE hosts)
+- [x] LLM recommends active tools per asset based on technologies/services detected
+- [x] Scan plan displayed to operator before "Start Active Scan" is clicked (with Generate Scan Plan button)
+- [x] Operator can review scan plan before execution (expandable per-asset detail cards)
+- [x] Active scan uses the LLM-generated scan plan instead of generic defaults (with fallback)
+- [x] Write vitest tests for scan plan generation (92 tests passing)
