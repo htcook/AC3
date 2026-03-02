@@ -51,6 +51,7 @@ import { forestMapperRouter } from "./routers/forest-mapper";
 import { bloodhoundImportRouter } from "./routers/bloodhound-import";
 import { credentialAutoRotationRouter } from "./routers/credential-auto-rotation";
 import { siemFeedbackRouter } from "./routers/siem-feedback";
+import { accountAuthRouter } from "./routers/account-auth";
 import { tenantRouter } from "./routers/tenants";
 import { vulnScannerRouter } from "./routers/vuln-scanner";
 import { riskTrendingRouter } from "./routers/risk-trending";
@@ -2494,6 +2495,7 @@ export const appRouter = router({
   }),
 
   // Caldera credential authentication
+  accountAuth: accountAuthRouter,
   calderaAuth: router({
     // Login with Caldera credentials
     login: publicProcedure
@@ -2518,7 +2520,7 @@ export const appRouter = router({
 
         // Helper to create session and return success
         const createSession = (username: string, mode: string) => {
-          const role = (username === 'admin' || username === 'red') ? 'admin' : 'user';
+          const role = username === 'admin' ? 'admin' : username === 'red' ? 'operator' : username === 'blue' ? 'analyst' : 'user';
           const jwtExpiry = input.rememberMe ? '7d' : '24h';
           const token = jwt.sign(
             { username, role, loginTime: Date.now() },
@@ -2586,34 +2588,42 @@ export const appRouter = router({
         return { success: false, message: 'Invalid credentials' };
       }),
 
-    // Check current session
+    // Check current session (supports both username-based and email-based JWT tokens)
     session: publicProcedure.query(async ({ ctx }) => {
       const token = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
       
       if (!token) {
         return { authenticated: false, user: null };
       }
-
       try {
         const decoded = jwt.verify(token, CALDERA_JWT_SECRET) as {
-          username: string;
+          username?: string;
+          email?: string;
+          displayName?: string;
+          accountId?: number;
           role: string;
           loginTime: number;
+          authType?: string;
         };
         
+        // Unified session response for both auth types
+        const username = decoded.username || decoded.displayName || decoded.email?.split('@')[0] || 'user';
         return { 
           authenticated: true, 
           user: { 
-            username: decoded.username, 
+            username,
+            email: decoded.email || null,
+            displayName: decoded.displayName || null,
+            accountId: decoded.accountId || null,
             role: decoded.role,
             loginTime: decoded.loginTime,
+            authType: decoded.authType || 'username',
           } 
         };
       } catch {
         return { authenticated: false, user: null };
       }
     }),
-
     // Logout
     logout: publicProcedure.mutation(async ({ ctx }) => {
       const cookieOpts = getCalderaCookieOptions(ctx.req);

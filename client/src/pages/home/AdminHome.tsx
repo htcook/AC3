@@ -1,11 +1,28 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   Server, Users, Shield, ArrowRight, Activity, Database,
-  AlertTriangle, CheckCircle2, Settings, HardDrive, Cpu, Wifi
+  AlertTriangle, CheckCircle2, Settings, Cpu, Wifi,
+  UserPlus, MoreHorizontal, Mail, KeyRound, Ban, RefreshCw,
+  Copy, Eye, EyeOff
 } from "lucide-react";
 
+// ─── Health Indicator ────────────────────────────────────────────────
 function HealthIndicator({ label, status, detail }: { label: string; status: "healthy" | "warning" | "error"; detail: string }) {
   const colors = { healthy: "bg-emerald-500", warning: "bg-amber-500", error: "bg-red-500" };
   return (
@@ -23,7 +40,95 @@ function HealthIndicator({ label, status, detail }: { label: string; status: "he
   );
 }
 
+// ─── Role badge colors ───────────────────────────────────────────────
+const ROLE_COLORS: Record<string, string> = {
+  admin: "bg-red-500/20 text-red-400 border-red-500/30",
+  operator: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  analyst: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  team_lead: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  executive: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  client: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  soc: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  viewer: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active: "bg-emerald-500/20 text-emerald-400",
+  invited: "bg-blue-500/20 text-blue-400",
+  suspended: "bg-amber-500/20 text-amber-400",
+  deactivated: "bg-red-500/20 text-red-400",
+};
+
+const ALL_ROLES = ["admin", "operator", "analyst", "team_lead", "executive", "client", "soc", "viewer"] as const;
+
 export default function AdminHome() {
+
+  const utils = trpc.useUtils();
+
+  // ─── Data queries ─────────────────────────────────────────────────
+  const { data: accounts, isLoading: accountsLoading } = trpc.accountAuth.listAccounts.useQuery(undefined, {
+    retry: 1,
+    refetchInterval: 30000,
+  });
+
+  // ─── Mutations ────────────────────────────────────────────────────
+  const inviteMutation = trpc.accountAuth.inviteUser.useMutation({
+    onSuccess: (data) => {
+      utils.accountAuth.listAccounts.invalidate();
+      setInviteOpen(false);
+      setInviteForm({ email: "", displayName: "", role: "operator", tempPassword: "" });
+      toast.success(`${data.email} has been invited as ${data.role}`);
+    },
+    onError: (err) => {
+      toast.error(`Invite failed: ${err.message}`);
+    },
+  });
+
+  const updateMutation = trpc.accountAuth.updateAccount.useMutation({
+    onSuccess: () => {
+      utils.accountAuth.listAccounts.invalidate();
+      toast.success("Account updated");
+    },
+    onError: (err) => {
+      toast.error(`Update failed: ${err.message}`);
+    },
+  });
+
+  const resendMutation = trpc.accountAuth.resendInvite.useMutation({
+    onSuccess: () => {
+      toast.success("Invite resent — new token generated");
+    },
+    onError: (err) => {
+      toast.error(`Resend failed: ${err.message}`);
+    },
+  });
+
+  const resetMutation = trpc.accountAuth.resetPassword.useMutation({
+    onSuccess: (data) => {
+      setResetResult(data.tempPassword);
+      toast.success("Password reset — temporary password generated");
+    },
+    onError: (err) => {
+      toast.error(`Reset failed: ${err.message}`);
+    },
+  });
+
+  // ─── Local state ──────────────────────────────────────────────────
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: "", displayName: "", role: "operator", tempPassword: "" });
+  const [showTempPassword, setShowTempPassword] = useState(false);
+  const [resetResult, setResetResult] = useState<string | null>(null);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  // ─── Computed stats ───────────────────────────────────────────────
+  const totalAccounts = accounts?.length ?? 0;
+  const activeAccounts = accounts?.filter((a) => a.status === "active").length ?? 0;
+  const pendingInvites = accounts?.filter((a) => a.status === "invited").length ?? 0;
+  const roleCounts = accounts?.reduce((acc, a) => {
+    acc[a.role] = (acc[a.role] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>) ?? {};
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -43,10 +148,10 @@ export default function AdminHome() {
       {/* System Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "TOTAL USERS", value: "24", icon: Users, color: "bg-blue-500/80" },
-          { label: "ACTIVE SERVERS", value: "5", icon: Server, color: "bg-emerald-500/80" },
-          { label: "API CALLS TODAY", value: "12.4K", icon: Activity, color: "bg-purple-500/80" },
-          { label: "SYSTEM ALERTS", value: "2", icon: AlertTriangle, color: "bg-amber-500/80" },
+          { label: "TOTAL ACCOUNTS", value: String(totalAccounts), icon: Users, color: "bg-blue-500/80" },
+          { label: "ACTIVE", value: String(activeAccounts), icon: CheckCircle2, color: "bg-emerald-500/80" },
+          { label: "PENDING INVITES", value: String(pendingInvites), icon: Mail, color: "bg-amber-500/80" },
+          { label: "SYSTEM ALERTS", value: "2", icon: AlertTriangle, color: "bg-red-500/80" },
         ].map((stat) => (
           <Card key={stat.label}>
             <CardContent className="p-4">
@@ -60,8 +165,9 @@ export default function AdminHome() {
         ))}
       </div>
 
-      {/* System Health + User Management */}
+      {/* System Health + Account Management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* System Health */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -85,50 +191,153 @@ export default function AdminHome() {
           </CardContent>
         </Card>
 
+        {/* Account Management — Live Data */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-400" /> USER MANAGEMENT
+                <Users className="w-4 h-4 text-blue-400" /> ACCOUNT MANAGEMENT
               </CardTitle>
-              <Link href="/team">
-                <Button variant="ghost" size="sm" className="text-[10px] font-display tracking-wider h-7">
-                  MANAGE <ArrowRight className="w-3 h-3 ml-1" />
-                </Button>
-              </Link>
+              <Button
+                variant="default"
+                size="sm"
+                className="text-[10px] font-display tracking-wider h-7 gap-1"
+                onClick={() => setInviteOpen(true)}
+              >
+                <UserPlus className="w-3 h-3" /> INVITE USER
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              {[
-                { role: "Operators", count: 8, color: "text-red-400" },
-                { role: "Analysts", count: 6, color: "text-purple-400" },
-                { role: "Executives", count: 4, color: "text-amber-400" },
-              ].map((r) => (
-                <div key={r.role} className="text-center p-2 bg-secondary/30 rounded">
-                  <p className={`text-lg font-display font-bold ${r.color}`}>{r.count}</p>
-                  <p className="text-[9px] font-display tracking-widest text-muted-foreground">{r.role.toUpperCase()}</p>
-                </div>
+            {/* Role breakdown */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {Object.entries(roleCounts).sort((a, b) => b[1] - a[1]).map(([role, count]) => (
+                <span key={role} className={`text-[9px] font-display tracking-widest px-2 py-1 rounded border ${ROLE_COLORS[role] || "bg-secondary text-foreground"}`}>
+                  {role.replace("_", " ").toUpperCase()} ({count})
+                </span>
               ))}
             </div>
-            <div className="space-y-2">
-              <p className="text-[10px] font-display tracking-widest text-muted-foreground">RECENT LOGINS</p>
-              {[
-                { name: "John Doe", role: "operator", time: "2 min ago", status: "online" },
-                { name: "Sarah Kim", role: "analyst", time: "15 min ago", status: "online" },
-                { name: "Mike Ross", role: "operator", time: "1 hr ago", status: "idle" },
-                { name: "CEO", role: "executive", time: "3 hrs ago", status: "offline" },
-              ].map((user) => (
-                <div key={user.name} className="flex items-center gap-3 p-2 rounded hover:bg-secondary/30 transition-colors">
-                  <div className={`w-2 h-2 rounded-full ${
-                    user.status === "online" ? "bg-emerald-500" : user.status === "idle" ? "bg-amber-500" : "bg-gray-500"
-                  }`} />
-                  <span className="text-xs flex-1">{user.name}</span>
-                  <span className="text-[9px] font-display tracking-widest text-muted-foreground">{user.role}</span>
-                  <span className="text-[10px] text-muted-foreground">{user.time}</span>
-                </div>
-              ))}
-            </div>
+
+            {/* Account list */}
+            {accountsLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-12 bg-secondary/30 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : !accounts?.length ? (
+              <div className="text-center py-8">
+                <Users className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                <p className="text-xs text-muted-foreground">No accounts yet. Invite your first team member.</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
+                {accounts.map((account) => (
+                  <div key={account.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-secondary/30 transition-colors group">
+                    {/* Status dot */}
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      account.status === "active" ? "bg-emerald-500" :
+                      account.status === "invited" ? "bg-blue-500 animate-pulse" :
+                      account.status === "suspended" ? "bg-amber-500" : "bg-gray-500"
+                    }`} />
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium truncate">{account.displayName || account.email}</span>
+                        <span className={`text-[8px] font-display tracking-widest px-1.5 py-0.5 rounded ${ROLE_COLORS[account.role] || ""}`}>
+                          {account.role.replace("_", " ").toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground truncate">{account.email}</p>
+                    </div>
+
+                    {/* Status badge */}
+                    <span className={`text-[8px] font-display tracking-widest px-1.5 py-0.5 rounded hidden sm:inline-block ${STATUS_COLORS[account.status] || ""}`}>
+                      {account.status.toUpperCase()}
+                    </span>
+
+                    {/* Last login */}
+                    <span className="text-[10px] text-muted-foreground hidden lg:block whitespace-nowrap">
+                      {account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleDateString() : "Never"}
+                    </span>
+
+                    {/* Actions dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <MoreHorizontal className="w-3.5 h-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem className="text-xs" disabled>
+                          <Mail className="w-3.5 h-3.5 mr-2" /> {account.email}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+
+                        {/* Role change submenu */}
+                        {ALL_ROLES.filter((r) => r !== account.role).slice(0, 4).map((role) => (
+                          <DropdownMenuItem
+                            key={role}
+                            className="text-xs"
+                            onClick={() => updateMutation.mutate({ accountId: account.id, role })}
+                          >
+                            <Shield className="w-3.5 h-3.5 mr-2" />
+                            Set {role.replace("_", " ")}
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+
+                        {/* Password reset */}
+                        <DropdownMenuItem
+                          className="text-xs"
+                          onClick={() => resetMutation.mutate({ accountId: account.id })}
+                        >
+                          <KeyRound className="w-3.5 h-3.5 mr-2" /> Reset password
+                        </DropdownMenuItem>
+
+                        {/* Resend invite (only for invited status) */}
+                        {account.status === "invited" && (
+                          <DropdownMenuItem
+                            className="text-xs"
+                            onClick={() => resendMutation.mutate({ accountId: account.id })}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 mr-2" /> Resend invite
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* Suspend / Activate */}
+                        {account.status === "active" ? (
+                          <DropdownMenuItem
+                            className="text-xs text-amber-400"
+                            onClick={() => updateMutation.mutate({ accountId: account.id, status: "suspended" })}
+                          >
+                            <Ban className="w-3.5 h-3.5 mr-2" /> Suspend account
+                          </DropdownMenuItem>
+                        ) : account.status === "suspended" ? (
+                          <DropdownMenuItem
+                            className="text-xs text-emerald-400"
+                            onClick={() => updateMutation.mutate({ accountId: account.id, status: "active" })}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Reactivate
+                          </DropdownMenuItem>
+                        ) : null}
+
+                        {/* Deactivate */}
+                        {account.status !== "deactivated" && (
+                          <DropdownMenuItem
+                            className="text-xs text-red-400"
+                            onClick={() => updateMutation.mutate({ accountId: account.id, status: "deactivated" })}
+                          >
+                            <Ban className="w-3.5 h-3.5 mr-2" /> Deactivate
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -162,6 +371,139 @@ export default function AdminHome() {
           ))}
         </div>
       </div>
+
+      {/* ─── Invite User Dialog ──────────────────────────────────────── */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-wider">INVITE TEAM MEMBER</DialogTitle>
+            <DialogDescription>
+              Send an invitation to join the platform. They'll receive a temporary password to set up their account.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              inviteMutation.mutate({
+                email: inviteForm.email,
+                displayName: inviteForm.displayName,
+                role: inviteForm.role as any,
+                tempPassword: inviteForm.tempPassword || undefined,
+              });
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <label className="text-[10px] font-display tracking-widest text-muted-foreground">EMAIL ADDRESS</label>
+              <Input
+                type="email"
+                placeholder="partner@company.com"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-display tracking-widest text-muted-foreground">DISPLAY NAME</label>
+              <Input
+                placeholder="Jane Doe"
+                value={inviteForm.displayName}
+                onChange={(e) => setInviteForm((f) => ({ ...f, displayName: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-display tracking-widest text-muted-foreground">ROLE</label>
+              <Select value={inviteForm.role} onValueChange={(v) => setInviteForm((f) => ({ ...f, role: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_ROLES.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role.replace("_", " ").toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-display tracking-widest text-muted-foreground">
+                TEMPORARY PASSWORD <span className="text-muted-foreground/50">(optional — auto-generated if blank)</span>
+              </label>
+              <div className="relative">
+                <Input
+                  type={showTempPassword ? "text" : "password"}
+                  placeholder="Min 12 chars, 1 upper, 1 lower, 1 digit, 1 special"
+                  value={inviteForm.tempPassword}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, tempPassword: e.target.value }))}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                  onClick={() => setShowTempPassword(!showTempPassword)}
+                >
+                  {showTempPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={inviteMutation.isPending}>
+                {inviteMutation.isPending ? "Sending..." : "Send Invitation"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Password Reset Result Dialog ────────────────────────────── */}
+      <Dialog open={!!resetResult} onOpenChange={() => { setResetResult(null); setShowResetPassword(false); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-wider">PASSWORD RESET</DialogTitle>
+            <DialogDescription>
+              A new temporary password has been generated. Share it securely with the user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
+              <code className="flex-1 text-sm font-mono break-all">
+                {showResetPassword ? resetResult : "••••••••••••••••"}
+              </code>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => setShowResetPassword(!showResetPassword)}
+              >
+                {showResetPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => {
+                  if (resetResult) {
+                    navigator.clipboard.writeText(resetResult);
+                    toast.success("Copied to clipboard");
+                  }
+                }}
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <p className="text-[10px] text-amber-400">
+              This password will not be shown again. The user must change it on first login.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setResetResult(null); setShowResetPassword(false); }}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

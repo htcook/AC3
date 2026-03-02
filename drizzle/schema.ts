@@ -6166,3 +6166,23 @@ export const samlAuthEvents = mysqlTable("saml_auth_events", {
 });
 export type SamlAuthEvent = typeof samlAuthEvents.$inferSelect;
 export type InsertSamlAuthEvent = typeof samlAuthEvents.$inferInsert;
+
+// ─── Caldera Platform Accounts (email-based login) ───────────────────────────
+export const calderaAccounts = mysqlTable("caldera_accounts", {
+  id: int("id").primaryKey().autoincrement(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
+  role: mysqlEnum("account_role", ["admin", "operator", "analyst", "team_lead", "executive", "client", "soc", "viewer"]).default("viewer").notNull(),
+  status: mysqlEnum("account_status", ["active", "invited", "suspended", "deactivated"]).default("invited").notNull(),
+  lastLoginAt: timestamp("last_login_at"),
+  invitedBy: int("invited_by"),
+  inviteToken: varchar("invite_token", { length: 128 }),
+  inviteExpiresAt: timestamp("invite_expires_at"),
+  passwordResetToken: varchar("password_reset_token", { length: 128 }),
+  passwordResetExpiresAt: timestamp("password_reset_expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type CalderaAccount = typeof calderaAccounts.$inferSelect;
+export type InsertCalderaAccount = typeof calderaAccounts.$inferInsert;

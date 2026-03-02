@@ -259,10 +259,13 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/">
-          <ProtectedRoute component={RoleHome} pageName="Home" />
+          <PageErrorBoundary pageName="Home"><Home /></PageErrorBoundary>
         </Route>
         <Route path="/overview">
-          <ProtectedRoute component={Home} pageName="Overview" />
+          <PageErrorBoundary pageName="Overview"><Home /></PageErrorBoundary>
+        </Route>
+        <Route path="/home">
+          <ProtectedRoute component={RoleHome} pageName="RoleHome" />
         </Route>
         <Route path="/tool-comparison">
           <ProtectedRoute component={ToolComparison} pageName="ToolComparison" />

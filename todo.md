@@ -6601,3 +6601,20 @@
 - [x] Run vianova.ai in full non-scoped passive scan mode (all subdomains/assets fingerprinted)
 - [x] Verify UI supports both full domain intel scan and scoped asset passive scan modes
 - [x] Ensure scan initiation UI clearly differentiates between full and scoped modes
+## Homepage Routing Fix for Red Account
+- [ ] Fix red account users being redirected to admin panel instead of operator homepage
+## Email-Based Login & User Management
+- [ ] Design caldera_accounts table schema (email, password hash, role, name, status)
+- [ ] Add caldera_accounts table and push migration
+- [ ] Build email-based login endpoint (alongside existing username login)
+- [ ] Build admin invite flow (admin creates account, sets role, sends invite)
+- [ ] Update login page to support email-based login
+- [ ] Build admin user management UI (list users, invite, change roles, deactivate)
+- [ ] Create harrison.cook@gmail.com admin account
+- [ ] Fix red account role from admin to operator
+- [ ] Write vitest tests for new auth flow
+- [ ] Ensure FedRAMP/FIPS 140-3 compliance: bcrypt 12+ rounds, NIST SP 800-63B passwords, FIPS-approved DRBG tokens
+- [ ] Add account lockout after 5 failed attempts (NIST SP 800-53 AC-7)
+- [ ] Add auth event audit logging (FedRAMP AU-2/AU-3)
+- [ ] Fix routing: show public homepage at / for unauthenticated visitors (not login page)
+- [ ] Ensure login page is only shown at /login, not at root /

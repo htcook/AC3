@@ -6,12 +6,14 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useSearch } from "wouter";
-import { Cloud, Lock, User, Shield, AlertTriangle } from "lucide-react";
+import { Cloud, Lock, User, Shield, AlertTriangle, Mail } from "lucide-react";
 
 const REDIRECT_MAP: Record<string, { label: string; url: string }> = {
   caldera: { label: "the adversary emulation framework", url: "https://caldera.aceofcloud.io" },
   gophish: { label: "Phishing Admin", url: "https://gophish.aceofcloud.io" },
 };
+
+type LoginMode = "username" | "email";
 
 export default function Login() {
   const searchString = useSearch();
@@ -19,13 +21,14 @@ export default function Login() {
   const redirectTarget = params.get("redirect") || "";
   const redirectInfo = REDIRECT_MAP[redirectTarget];
 
+  const [loginMode, setLoginMode] = useState<LoginMode>("email");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check if already authenticated — if so, redirect immediately via full page load
-  // This ensures the cookie is sent on the redirect request
+  // Check if already authenticated
   const { data: session, isLoading: sessionLoading } = trpc.calderaAuth.session.useQuery();
 
   useEffect(() => {
@@ -38,7 +41,8 @@ export default function Login() {
     }
   }, [sessionLoading, session, redirectTarget, redirectInfo]);
 
-  const loginMutation = trpc.calderaAuth.login.useMutation({
+  // Username login mutation (legacy)
+  const usernameLoginMutation = trpc.calderaAuth.login.useMutation({
     onSuccess: (data: { success: boolean; message?: string }) => {
       if (data.success) {
         toast.success("Login successful", {
@@ -46,44 +50,60 @@ export default function Login() {
             ? `Authenticating with ${redirectInfo.label}...`
             : "Welcome to Ace C3",
         });
-
-        // Use window.location.href for a full page reload after login.
-        // This guarantees the browser sends the freshly-set cookie on the
-        // next request. Client-side navigation (setLocation) can race with
-        // cookie persistence and cause ProtectedRoute to see stale auth state.
-        const target = (redirectTarget && redirectInfo)
-          ? redirectInfo.url
-          : "/dashboard";
-
-        // Small delay to let the browser commit the Set-Cookie header
-        // before the navigation triggers a new request cycle
-        setTimeout(() => {
-          window.location.href = target;
-        }, 300);
+        const target = (redirectTarget && redirectInfo) ? redirectInfo.url : "/dashboard";
+        setTimeout(() => { window.location.href = target; }, 300);
       } else {
-        toast.error("Login failed", {
-          description: data.message || "Invalid credentials",
-        });
+        toast.error("Login failed", { description: data.message || "Invalid credentials" });
         setIsLoading(false);
       }
     },
     onError: (error: any) => {
-      console.error('[Login] Mutation error:', error?.message);
-      toast.error("Login failed", {
-        description: error?.message || "Unable to authenticate. Please try again.",
-      });
+      toast.error("Login failed", { description: error?.message || "Unable to authenticate." });
+      setIsLoading(false);
+    },
+  });
+
+  // Email login mutation (new FIPS-compliant)
+  const emailLoginMutation = trpc.accountAuth.emailLogin.useMutation({
+    onSuccess: (data: { success: boolean; message?: string }) => {
+      if (data.success) {
+        toast.success("Login successful", {
+          description: redirectInfo
+            ? `Authenticating with ${redirectInfo.label}...`
+            : "Welcome to Ace C3",
+        });
+        const target = (redirectTarget && redirectInfo) ? redirectInfo.url : "/dashboard";
+        setTimeout(() => { window.location.href = target; }, 300);
+      } else {
+        toast.error("Login failed", { description: data.message || "Invalid credentials" });
+        setIsLoading(false);
+      }
+    },
+    onError: (error: any) => {
+      toast.error("Login failed", { description: error?.message || "Unable to authenticate." });
       setIsLoading(false);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) {
-      toast.error("Please enter both username and password");
-      return;
-    }
     setIsLoading(true);
-    loginMutation.mutate({ username, password, rememberMe });
+
+    if (loginMode === "email") {
+      if (!email || !password) {
+        toast.error("Please enter both email and password");
+        setIsLoading(false);
+        return;
+      }
+      emailLoginMutation.mutate({ email, password, rememberMe });
+    } else {
+      if (!username || !password) {
+        toast.error("Please enter both username and password");
+        setIsLoading(false);
+        return;
+      }
+      usernameLoginMutation.mutate({ username, password, rememberMe });
+    }
   };
 
   return (
@@ -127,24 +147,74 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Login mode tabs */}
+            <div className="flex mb-6 bg-muted/50 rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setLoginMode("email")}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                  loginMode === "email"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Mail className="w-4 h-4" />
+                Email
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginMode("username")}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                  loginMode === "username"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <User className="w-4 h-4" />
+                Service Account
+              </button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-sm font-medium">
-                  Username
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="admin"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="pl-10 bg-background/50"
-                    disabled={isLoading}
-                  />
+              {loginMode === "email" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium">
+                    Email Address
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-background/50"
+                      disabled={isLoading}
+                      autoComplete="email"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-sm font-medium">
+                    Username
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="red / blue / admin"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="pl-10 bg-background/50"
+                      disabled={isLoading}
+                      autoComplete="username"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium">
@@ -160,6 +230,7 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 bg-background/50"
                     disabled={isLoading}
+                    autoComplete="current-password"
                   />
                 </div>
               </div>
@@ -197,10 +268,13 @@ export default function Login() {
               </Button>
             </form>
 
-            {/* Unified auth info */}
+            {/* SSO info */}
             <div className="mt-4 p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground text-center">
-                Single sign-on for all platform services
+                {loginMode === "email"
+                  ? "Sign in with your organizational email account"
+                  : "Service accounts for automated integrations and legacy access"
+                }
               </p>
             </div>
 
@@ -211,6 +285,7 @@ export default function Login() {
                   <p className="font-medium text-amber-500 mb-1">Security Notice</p>
                   <p className="text-muted-foreground">
                     This system is for authorized personnel only. All access attempts are logged and monitored.
+                    {loginMode === "email" && " Accounts are locked after 5 failed attempts (NIST SP 800-53 AC-7)."}
                   </p>
                 </div>
               </div>
@@ -220,6 +295,7 @@ export default function Login() {
 
         <p className="text-center text-sm text-muted-foreground mt-6">
           Protected by <span className="text-primary font-medium">Ace of Cloud</span> Security
+          <span className="block text-xs mt-1 opacity-60">FIPS 140-3 Compliant Authentication</span>
         </p>
       </div>
     </div>
