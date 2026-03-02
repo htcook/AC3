@@ -6592,3 +6592,8 @@
 - [x] Add clear navigation to escape admin panel back to homepage
 - [x] Audit all routes for proper auth guards
 - [x] Add scan/engagement initiation and management section to top of OperatorHome
+## Incident INC-MM8J0ZTH-UTUUZI
+- [x] Search for and diagnose incident INC-MM8J0ZTH-UTUUZI
+- [x] Fix the identified issue from the incident
+- [x] Correct Vianova scan domain from vianova.io to vianova.ai
+- [ ] Note: User will provide 3 scoped assets (2 URLs + 1 IP) for separate scoped scan later

@@ -148,6 +148,12 @@ export default function DomainIntelResults() {
     },
   });
 
+  // State declarations that must come before queries that reference them
+  const [refreshing, setRefreshing] = useState(false);
+  const [engagementRunning, setEngagementRunning] = useState(false);
+  const [exploitDeploying, setExploitDeploying] = useState(false);
+  const [matchingRunning, setMatchingRunning] = useState(false);
+
   const FP_REASON_TEMPLATES = [
     { value: "patched", label: "Already patched / remediated" },
     { value: "internal", label: "Internal-only service, not exposed" },
@@ -206,9 +212,6 @@ export default function DomainIntelResults() {
       toast.error(`Failed to start engagement: ${sanitizeErrorForToast(err)}`);
     },
   });
-  const [engagementRunning, setEngagementRunning] = useState(false);
-  const [exploitDeploying, setExploitDeploying] = useState(false);
-
   const deployExploitsMutation = trpc.domainIntel.deployExploits.useMutation({
     onSuccess: (result) => {
       setExploitDeploying(false);
@@ -224,7 +227,6 @@ export default function DomainIntelResults() {
     },
   });
 
-  const [matchingRunning, setMatchingRunning] = useState(false);
   const [subSearch, setSubSearch] = useState('');
   const [subSourceFilter, setSubSourceFilter] = useState('all');
   const [portSearch, setPortSearch] = useState('');
@@ -246,7 +248,6 @@ export default function DomainIntelResults() {
   });
 
   // Refresh scan mutation
-  const [refreshing, setRefreshing] = useState(false);
   const refreshScanMutation = trpc.domainIntel.refreshScan.useMutation({
     onSuccess: () => {
       toast.success('Scan refresh started — re-running full pipeline with latest features...');

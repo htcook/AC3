@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, primaryDomain, status, createdAt FROM domain_intel_scans",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primaryDomain, status, createdAt FROM domain_intel_scans",
+  "rows": [
+    {
+      "id": "1440034",
+      "primaryDomain": "vianova.io",
+      "status": "completed",
+      "createdAt": "2026-03-02 01:46:58"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprimaryDomain\tstatus\tcreatedAt\n1440034\tvianova.io\tcompleted\t2026-03-02 01:46:58\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

@@ -106,7 +106,7 @@ async function main() {
 
   // Step 3: Start Vianova scan with scoped assets (2 URLs + 1 IP)
   const vianovaScanInput = {
-    primaryDomain: 'vianova.io',
+    primaryDomain: 'vianova.ai',
     additionalDomains: [],
     clientType: 'saas',
     sector: 'Technology',
@@ -117,8 +117,8 @@ async function main() {
     scanMode: 'standard',
     scanOnly: false,
     scopedAssets: [
-      'vianova.io',
-      'app.vianova.io',
+      'vianova.ai',
+      'app.vianova.ai',
       '104.26.12.100'
     ],
   };
