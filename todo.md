@@ -6793,3 +6793,48 @@
 ## Bug: Active scan not advancing to nmap
 - [x] Diagnose why active scan is stuck — SSH key was in OpenSSH ed25519 format, ssh2 can't parse it
 - [x] Fix: added RSA key fallback from S3, auto-detects OPENSSH format and downloads RSA PEM key (96 tests passing)
+
+## Scan Server Health Panel
+- [ ] Add scanServer tRPC router with health check procedure (SSH to scan server, get uptime/disk/memory/tools)
+- [ ] Build Scan Server Health page with connection status indicator
+- [ ] Show installed tools with version numbers
+- [ ] Show disk usage, memory usage, and uptime
+- [ ] Add to sidebar navigation
+- [ ] Add page purpose description at top
+
+## Scan Result Persistence
+- [ ] Create scan_results database table (engagement_id, tool, target, output, findings, timestamps)
+- [ ] Push database migration
+- [ ] Add db helper functions for inserting and querying scan results
+- [ ] Update orchestrator to persist tool output after each execution
+- [ ] Add tRPC procedures to query scan results by engagement
+- [ ] Update EngagementOps UI to show persisted scan results
+- [ ] Write vitest tests for both features
+
+## Bug: Ensure passive scans run when initiated in Engagement Ops
+- [ ] Audit passive scan flow: UI button → tRPC startPassiveScan → orchestrator
+- [ ] Fix any issues preventing passive scans from executing
+- [ ] Verify stats panel updates correctly during scans
+- [ ] Fix stats display if not working
+
+## Full Data Persistence & LLM Pipeline
+- [x] Fix WS event type mismatch (log_entry → log) in startPassiveScan
+- [x] Fix targetIp → targetIpRange column name in startPassiveScan
+- [x] Pre-populate assets from engagement targets before running domain intel
+- [x] Add IP target handling in passive scan flow
+- [x] Add 'Assets Discovered' stat to stats panel
+- [x] Add AssetPassiveRecon interface and passiveReconResults to EngagementOpsState
+- [x] Extract structured passive recon data per asset from pipeline results (services, tech, certs, signals)
+- [x] Store passiveRecon on each AssetStatus from domain intel pipeline output
+- [x] Store full passiveReconResults on EngagementOpsState for LLM context
+- [x] Feed all passive recon data into LLM scan plan prompt (services, tech stack, risk signals)
+- [x] Add toolResults field to AssetStatus to store per-asset tool output summaries
+- [x] Persist all tool execution results (nmap, nuclei, nikto, etc.) to database AND ops state
+- [x] Update frontend to show passive recon data per asset (services, tech, certs, signals)
+- [x] Update frontend to show tool results per asset (output summaries, findings)
+- [x] Write vitest tests for data persistence pipeline (12 tests passing)
+- [x] LLM scan plan Phase A: safe discovery nmap with evasion tactics (fragmentation, decoys, timing) on all assets
+- [x] LLM scan plan Phase B: targeted tool deployment based on enriched passive+discovery data
+- [x] executeEnumeration runs discovery scan first, merges results into assets, then LLM plans tools
+- [x] Evasion flags: -f (fragment), -D decoys, -T2/T3 timing, --data-length, --randomize-hosts
+- [x] Discovery scan must map ALL open ports (-p-) with service detection (-sV) and OS detection (-O)

@@ -388,6 +388,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/siem-connectors", icon: Radio, label: "INTEGRATIONS" },
           { href: "/ssil", icon: Scan, label: "SSIL" },
           { href: "/live-infra", icon: Server, label: "INFRASTRUCTURE" },
+          { href: "/scan-server", icon: Activity, label: "SCAN SERVER" },
           { href: "/error-dashboard", icon: Bug, label: "ERROR DASHBOARD" },
           { href: "/oem-credentials", icon: Key, label: "DEFAULT CREDENTIALS" },
           { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },

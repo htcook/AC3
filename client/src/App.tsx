@@ -192,6 +192,7 @@ const ExploitationBridge = lazy(() => import("./pages/ExploitationBridge"));
 const PrivilegeEscalation = lazy(() => import("./pages/PrivilegeEscalation"));
 const CampaignAdvisor = lazy(() => import("./pages/CampaignAdvisor"));
 const ExportCenter = lazy(() => import("./pages/ExportCenter"));
+const ScanServerHealth = lazy(() => import("./pages/ScanServerHealth"));
 const RoleHome = lazy(() => import("./pages/home/RoleHome"));
 const ToolComparison = lazy(() => import("./pages/ToolComparison"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
@@ -824,6 +825,9 @@ function Router() {
         </Route>
         <Route path="/export-center">
           <ProtectedRoute component={ExportCenter} />
+        </Route>
+        <Route path="/scan-server">
+          <ProtectedRoute component={ScanServerHealth} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

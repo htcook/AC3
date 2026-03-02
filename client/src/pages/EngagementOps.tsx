@@ -68,6 +68,28 @@ interface OpsLogEntry {
   riskTier?: "yellow" | "orange" | "red";
 }
 
+interface AssetPassiveRecon {
+  services: Array<{ port: number; service: string; product?: string; version?: string; source: string }>;
+  technologies: string[];
+  certificates: Array<{ subject: string; issuer: string; expiry?: string }>;
+  riskSignals: Array<{ signal: string; severity: string; source: string }>;
+  subdomains: string[];
+  osDetected?: string;
+}
+
+interface ToolResult {
+  tool: string;
+  command: string;
+  exitCode: number;
+  durationMs: number;
+  timedOut: boolean;
+  findingCount: number;
+  findings: Array<{ severity: string; title: string; cve?: string }>;
+  outputPreview: string;
+  executedAt: number;
+  phase: string;
+}
+
 interface AssetStatus {
   hostname: string;
   ip?: string;
@@ -78,14 +100,19 @@ interface AssetStatus {
   exploitAttempts: Array<{ module: string; success: boolean; sessionId?: string }>;
   status: string;
   wafDetected?: string;
+  passiveRecon?: AssetPassiveRecon;
+  toolResults: ToolResult[];
 }
 
 interface AssetScanPlan {
   hostname: string;
   ip?: string;
   assetType: string;
+  discoveryNmapFlags: string;
+  discoveryNmapRationale: string;
   nmapFlags: string;
   nmapRationale: string;
+  evasionTechniques: string[];
   activeTools: Array<{
     tool: string;
     command: string;
@@ -97,6 +124,16 @@ interface AssetScanPlan {
 interface ScanPlan {
   generatedAt: number;
   overallStrategy: string;
+  discoveryStrategy: string;
+  discoveryEvasionProfile: {
+    timing: string;
+    fragmentation: boolean;
+    decoys: boolean;
+    randomizeHosts: boolean;
+    dataLengthPadding: boolean;
+    sourcePortSpoofing: boolean;
+    rationale: string;
+  };
   assetPlans: AssetScanPlan[];
   estimatedDuration: string;
   riskAssessment: string;
@@ -116,6 +153,7 @@ interface OpsState {
   approvalGates: ApprovalGate[];
   llmPlan?: string;
   scanPlan?: ScanPlan;
+  passiveReconResults?: Record<string, any>;
   currentAction?: string;
   error?: string;
   stats: {
@@ -925,10 +963,12 @@ export default function EngagementOps() {
                           <span className="text-sm font-medium text-foreground truncate">{asset.hostname}</span>
                           {assetStatusBadge(asset.status)}
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
                           {asset.ip && <span>IP: {asset.ip}</span>}
                           <span>{asset.ports.length} ports</span>
                           <span>{asset.vulns.length} vulns</span>
+                          {asset.toolResults?.length > 0 && <span className="text-emerald-400">{asset.toolResults.length} tools</span>}
+                          {asset.passiveRecon && <span className="text-indigo-400">OSINT</span>}
                           {asset.zapFindings.length > 0 && <span className="text-blue-400">{asset.zapFindings.length} ZAP</span>}
                           {asset.wafDetected && (
                             <span className="text-orange-400">WAF: {asset.wafDetected}</span>
@@ -1008,6 +1048,158 @@ export default function EngagementOps() {
                                   "text-blue-400 border-blue-500/30"
                                 }`}>{f.risk}</Badge>
                                 <span className="text-foreground truncate">{f.alert}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Passive Recon */}
+                      {selectedAssetData.passiveRecon && (
+                        <div>
+                          <h4 className="text-xs font-medium text-indigo-400 mb-2 flex items-center gap-1">
+                            <Search className="h-3 w-3" /> Passive Recon (OSINT)
+                          </h4>
+
+                          {/* Technologies */}
+                          {selectedAssetData.passiveRecon.technologies.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Tech Stack</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {selectedAssetData.passiveRecon.technologies.map((t, i) => (
+                                  <Badge key={i} variant="outline" className="text-[9px] text-indigo-300 border-indigo-500/30">{t}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* OS Detection */}
+                          {selectedAssetData.passiveRecon.osDetected && (
+                            <div className="mb-2">
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">OS Detected</span>
+                              <p className="text-xs text-foreground mt-0.5">{selectedAssetData.passiveRecon.osDetected}</p>
+                            </div>
+                          )}
+
+                          {/* Services from passive recon */}
+                          {selectedAssetData.passiveRecon.services.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Passive Services ({selectedAssetData.passiveRecon.services.length})</span>
+                              <div className="space-y-0.5 mt-0.5">
+                                {selectedAssetData.passiveRecon.services.slice(0, 10).map((s, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-[10px] px-2 py-0.5 bg-indigo-500/5 rounded">
+                                    <span className="font-mono text-indigo-400 w-10">{s.port}</span>
+                                    <span className="text-foreground">{s.service}</span>
+                                    {s.product && <span className="text-muted-foreground">{s.product} {s.version || ''}</span>}
+                                    <span className="text-muted-foreground/50 ml-auto">{s.source}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Certificates */}
+                          {selectedAssetData.passiveRecon.certificates.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Certificates ({selectedAssetData.passiveRecon.certificates.length})</span>
+                              <div className="space-y-0.5 mt-0.5">
+                                {selectedAssetData.passiveRecon.certificates.slice(0, 5).map((c, i) => (
+                                  <div key={i} className="text-[10px] px-2 py-0.5 bg-indigo-500/5 rounded">
+                                    <span className="text-foreground">{c.subject}</span>
+                                    <span className="text-muted-foreground"> — {c.issuer}</span>
+                                    {c.expiry && <span className="text-muted-foreground/50"> (exp: {c.expiry})</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Subdomains */}
+                          {selectedAssetData.passiveRecon.subdomains.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Subdomains ({selectedAssetData.passiveRecon.subdomains.length})</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {selectedAssetData.passiveRecon.subdomains.slice(0, 20).map((s, i) => (
+                                  <Badge key={i} variant="outline" className="text-[9px] text-cyan-300 border-cyan-500/30 font-mono">{s}</Badge>
+                                ))}
+                                {selectedAssetData.passiveRecon.subdomains.length > 20 && (
+                                  <Badge variant="outline" className="text-[9px] text-muted-foreground">+{selectedAssetData.passiveRecon.subdomains.length - 20} more</Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Risk Signals */}
+                          {selectedAssetData.passiveRecon.riskSignals.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk Signals ({selectedAssetData.passiveRecon.riskSignals.length})</span>
+                              <div className="space-y-0.5 mt-0.5">
+                                {selectedAssetData.passiveRecon.riskSignals.map((r, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-[10px] px-2 py-0.5 bg-red-500/5 rounded">
+                                    <Badge variant="outline" className={`text-[8px] ${
+                                      r.severity === 'critical' ? 'text-red-400 border-red-500/30' :
+                                      r.severity === 'high' ? 'text-orange-400 border-orange-500/30' :
+                                      r.severity === 'medium' ? 'text-yellow-400 border-yellow-500/30' :
+                                      'text-blue-400 border-blue-500/30'
+                                    }`}>{r.severity}</Badge>
+                                    <span className="text-foreground">{r.signal}</span>
+                                    <span className="text-muted-foreground/50 ml-auto">{r.source}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Tool Results */}
+                      {selectedAssetData.toolResults?.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-medium text-emerald-400 mb-2 flex items-center gap-1">
+                            <Terminal className="h-3 w-3" /> Tool Results ({selectedAssetData.toolResults.length})
+                          </h4>
+                          <div className="space-y-2">
+                            {selectedAssetData.toolResults.map((tr, i) => (
+                              <div key={i} className="border border-border/20 rounded-md p-2 bg-muted/5">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="outline" className="text-[9px] text-emerald-300 border-emerald-500/30">{tr.tool}</Badge>
+                                  <Badge variant="outline" className={`text-[8px] ${
+                                    tr.phase === 'discovery' ? 'text-blue-300 border-blue-500/30' :
+                                    tr.phase === 'targeted_enum' ? 'text-cyan-300 border-cyan-500/30' :
+                                    tr.phase === 'vuln_detection' ? 'text-yellow-300 border-yellow-500/30' :
+                                    tr.phase === 'credential_testing' ? 'text-orange-300 border-orange-500/30' :
+                                    'text-muted-foreground border-border/30'
+                                  }`}>{tr.phase.replace(/_/g, ' ')}</Badge>
+                                  <span className={`text-[9px] ${tr.exitCode === 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    exit:{tr.exitCode}
+                                  </span>
+                                  <span className="text-[9px] text-muted-foreground">{Math.round(tr.durationMs / 1000)}s</span>
+                                  {tr.timedOut && <Badge variant="outline" className="text-[8px] text-red-400 border-red-500/30">TIMEOUT</Badge>}
+                                  <span className="text-[9px] text-muted-foreground ml-auto">{new Date(tr.executedAt).toLocaleTimeString()}</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground font-mono truncate mb-1" title={tr.command}>{tr.command}</p>
+                                {tr.findings.length > 0 && (
+                                  <div className="space-y-0.5">
+                                    {tr.findings.slice(0, 8).map((f, fi) => (
+                                      <div key={fi} className="flex items-center gap-1 text-[10px]">
+                                        <Badge variant="outline" className={`text-[7px] px-1 ${
+                                          f.severity === 'critical' ? 'text-red-400 border-red-500/30' :
+                                          f.severity === 'high' ? 'text-orange-400 border-orange-500/30' :
+                                          f.severity === 'medium' ? 'text-yellow-400 border-yellow-500/30' :
+                                          'text-blue-400 border-blue-500/30'
+                                        }`}>{f.severity}</Badge>
+                                        <span className="text-foreground truncate">{f.title}</span>
+                                        {f.cve && <span className="text-muted-foreground font-mono">{f.cve}</span>}
+                                      </div>
+                                    ))}
+                                    {tr.findings.length > 8 && (
+                                      <p className="text-[9px] text-muted-foreground">+{tr.findings.length - 8} more findings</p>
+                                    )}
+                                  </div>
+                                )}
+                                {tr.findings.length === 0 && tr.outputPreview && (
+                                  <pre className="text-[9px] text-muted-foreground/70 font-mono whitespace-pre-wrap max-h-20 overflow-hidden">{tr.outputPreview.slice(0, 300)}</pre>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1237,6 +1429,7 @@ export default function EngagementOps() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stats</h3>
 
           <div className="space-y-3">
+            <StatCard icon={<Globe className="h-4 w-4 text-emerald-400" />} label="Assets Discovered" value={ops?.assets?.length || 0} />
             <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats.hostsScanned || 0} />
             <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={ops?.stats.portsFound || 0} />
             <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={ops?.stats.vulnsFound || 0} />

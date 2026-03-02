@@ -1995,3 +1995,53 @@ export async function getCredentialAttackStats(userId: number) {
   
   return { runs, findings };
 }
+
+// ─── Scan Results Persistence ───────────────────────────────────────────────
+import { scanResults, InsertScanResult, ScanResult } from "../drizzle/schema";
+
+/** Insert a single scan result row after a tool finishes executing. */
+export async function insertScanResult(data: InsertScanResult): Promise<ScanResult | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.insert(scanResults).values(data).$returningId();
+  const [result] = await db.select().from(scanResults).where(eq(scanResults.id, row.id));
+  return result;
+}
+
+/** Get all scan results for an engagement, ordered newest first. */
+export async function getScanResultsByEngagement(engagementId: number): Promise<ScanResult[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(scanResults)
+    .where(eq(scanResults.engagementId, engagementId))
+    .orderBy(sql`${scanResults.createdAt} DESC`);
+}
+
+/** Get scan results filtered by tool (e.g., "nmap", "nuclei"). */
+export async function getScanResultsByTool(engagementId: number, tool: string): Promise<ScanResult[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(scanResults)
+    .where(and(eq(scanResults.engagementId, engagementId), eq(scanResults.tool, tool)))
+    .orderBy(sql`${scanResults.createdAt} DESC`);
+}
+
+/** Get a summary of scan results for an engagement: count per tool, total findings. */
+export async function getScanResultsSummary(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      tool: scanResults.tool,
+      count: sql<number>`COUNT(*)`,
+      totalFindings: sql<number>`COALESCE(SUM(${scanResults.findingCount}), 0)`,
+      avgDurationMs: sql<number>`COALESCE(AVG(${scanResults.durationMs}), 0)`,
+    })
+    .from(scanResults)
+    .where(eq(scanResults.engagementId, engagementId))
+    .groupBy(scanResults.tool);
+}

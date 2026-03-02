@@ -505,6 +505,13 @@
       "when": 1772421628285,
       "tag": "0071_orange_chamber",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "5",
+      "when": 1772471702756,
+      "tag": "0072_yellow_mariko_yashida",
+      "breakpoints": true
     }
   ]
 }

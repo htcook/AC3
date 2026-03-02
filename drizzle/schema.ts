@@ -6206,3 +6206,44 @@ export const activeSessions = mysqlTable("active_sessions", {
 });
 export type ActiveSession = typeof activeSessions.$inferSelect;
 export type InsertActiveSession = typeof activeSessions.$inferInsert;
+
+
+// ─── Scan Results (Persisted Tool Output) ───────────────────────────────────
+/**
+ * Stores raw output and parsed findings from each tool execution during
+ * engagement active scans. Survives server restarts so operators can review
+ * historical results without re-running scans.
+ */
+export const scanResults = mysqlTable("scan_results", {
+  id: int("id").primaryKey().autoincrement(),
+  engagementId: int("engagement_id").notNull(),
+  /** Tool that produced the output (nmap, nuclei, nikto, hydra, etc.) */
+  tool: varchar("tool", { length: 64 }).notNull(),
+  /** Target that was scanned (IP or hostname) */
+  target: varchar("target", { length: 255 }).notNull(),
+  /** Full command that was executed */
+  command: text("command"),
+  /** Raw stdout from the tool */
+  rawOutput: mediumtext("raw_output"),
+  /** Raw stderr from the tool */
+  rawStderr: mediumtext("raw_stderr"),
+  /** Exit code from the tool */
+  exitCode: int("exit_code"),
+  /** Execution duration in milliseconds */
+  durationMs: int("duration_ms"),
+  /** Whether the command timed out */
+  timedOut: boolean("timed_out").default(false),
+  /** Parsed findings as JSON (vulns, ports, credentials, etc.) */
+  findings: json("findings"),
+  /** Number of findings extracted */
+  findingCount: int("finding_count").default(0),
+  /** Severity summary: { critical, high, medium, low, info } */
+  severitySummary: json("severity_summary"),
+  /** Scan phase: enumeration, vuln_detection, credential_testing, exploitation */
+  phase: varchar("phase", { length: 64 }),
+  /** Operator who initiated the scan */
+  operatorId: int("operator_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type ScanResult = typeof scanResults.$inferSelect;
+export type InsertScanResult = typeof scanResults.$inferInsert;
