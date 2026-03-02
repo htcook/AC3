@@ -542,6 +542,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
           asset.status = "enumerated";
           state.stats.hostsScanned++;
+          broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
           addLog(state, {
             phase: "enumeration",
             type: "scan_result",
@@ -839,6 +840,7 @@ Correlate these findings and recommend the best exploitation strategy. For pente
     title: "✅ Phase 3 Complete",
     detail: `${state.stats.vulnsFound} vulns found, ${state.stats.zapScansRun} ZAP scans, ${state.stats.wafDetections} WAFs detected`,
   });
+  broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
 }
 
 async function executeExploitation(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
@@ -977,8 +979,8 @@ Available vulns: ${state.assets.flatMap(a => a.vulns.map(v => `${a.hostname}:${v
     title: "✅ Phase 4 Complete",
     detail: `${state.stats.exploitsAttempted} attempts, ${state.stats.exploitsSucceeded} succeeded, ${state.stats.sessionsOpened} sessions`,
   });
+  broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
 }
-
 async function executePostExploit(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "post_exploit";
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "post_exploit" });

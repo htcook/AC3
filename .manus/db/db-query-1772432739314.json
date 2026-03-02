@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM engagements WHERE customerName = 'Vianova' AND id != 1350014 AND id IN (1350012, 1350013);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DELETE FROM engagements WHERE customerName = 'Vianova' AND id != 1350014 AND id IN (1350012, 1350013);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 69
+}

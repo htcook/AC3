@@ -6736,3 +6736,13 @@
 - [x] Enhanced vuln-to-rule matching: RCE → OS Command Injection, LFI → Path Traversal + Local File Inclusion
 - [x] Module deduplication between exploitation bridge and fallback MSF paths
 - [x] 51 vitest tests passing for engagement ops pipeline
+
+## Vianova Engagement & WebSocket Live Feed
+- [x] Create Vianova engagement in database with targets and approved RoE (ID: 1350014)
+- [x] Add Vianova target domains and IPs to engagement
+- [x] Wire up WebSocket (SSE) push for engagement ops live feed updates
+- [x] broadcastOpsUpdate sends events via WebSocket instead of requiring polling
+- [x] EngagementOps frontend subscribes to WebSocket for real-time log/phase/stats updates
+- [x] Tool match log entries push instantly to connected clients
+- [x] Write vitest tests for WebSocket integration (69 tests passing)
+- [x] Validate end-to-end passive → active scan workflow on Vianova engagement

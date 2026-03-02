@@ -218,15 +218,22 @@ export default function EngagementOps() {
     { id: engagementId },
     { enabled: engagementId > 0 }
   );
+  const utils = trpc.useUtils();
+  const [isRunning, setIsRunning] = useState(false);
   const opsStateQ = trpc.engagementOps.getState.useQuery(
     { engagementId },
-    { enabled: engagementId > 0, refetchInterval: 2000 }
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 3000 : 10000 }
   );
+
+  // Track running state for adaptive polling
+  useEffect(() => {
+    if (opsStateQ.data) setIsRunning(!!opsStateQ.data.isRunning);
+  }, [opsStateQ.data?.isRunning]);
 
   // Exploit matching query — fires when vulns are found
   const exploitsQ = trpc.engagementOps.loadExploits.useQuery(
     { engagementId },
-    { enabled: engagementId > 0 && (opsStateQ.data?.stats?.vulnsFound || 0) > 0, refetchInterval: 5000 }
+    { enabled: engagementId > 0 && (opsStateQ.data?.stats?.vulnsFound || 0) > 0, refetchInterval: isRunning ? 5000 : 30000 }
   );
 
   // ── Mutations ──
@@ -285,12 +292,63 @@ export default function EngagementOps() {
     () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
     [engagementId]
   );
-  const { events: wsEvents, isConnected: wsConnected } = useWebSocket({
+  const { events: wsEvents, lastEvent: wsLastEvent, isConnected: wsConnected } = useWebSocket({
     channels: wsChannels,
     maxEvents: 200,
   });
 
-  const ops: OpsState | null = opsStateQ.data || null;
+  // ── Merge WS events into ops state for instant feed updates ──
+  const [wsLogBuffer, setWsLogBuffer] = useState<OpsLogEntry[]>([]);
+  const lastProcessedWsRef = useRef<number>(0);
+
+  // Process incoming WS events and extract log entries
+  useEffect(() => {
+    if (!wsLastEvent || wsLastEvent.type !== "engagement:progress_update") return;
+    if (wsLastEvent.timestamp <= lastProcessedWsRef.current) return;
+    lastProcessedWsRef.current = wsLastEvent.timestamp;
+
+    const evtData = wsLastEvent.data;
+    if (!evtData) return;
+
+    // Log entry pushed via WS
+    if (evtData.type === "log" && evtData.entry) {
+      const entry = evtData.entry as OpsLogEntry;
+      setWsLogBuffer(prev => {
+        // Deduplicate by id
+        if (prev.some(e => e.id === entry.id)) return prev;
+        const next = [...prev, entry].slice(-100);
+        return next;
+      });
+    }
+
+    // Phase change — immediately refetch full state
+    if (evtData.type === "phase_change" || evtData.type === "approval_request" || evtData.type === "stopped") {
+      utils.engagementOps.getState.invalidate({ engagementId });
+      utils.engagementOps.loadExploits.invalidate({ engagementId });
+    }
+
+    // Stats update — refetch
+    if (evtData.type === "stats_update") {
+      utils.engagementOps.getState.invalidate({ engagementId });
+    }
+  }, [wsLastEvent, engagementId, utils]);
+
+  // Clear WS buffer when polled state refreshes (polled state is authoritative)
+  useEffect(() => {
+    if (opsStateQ.data) {
+      setWsLogBuffer([]);
+    }
+  }, [opsStateQ.dataUpdatedAt]);
+
+  // Merge: polled ops state + any WS log entries that arrived since last poll
+  const ops: OpsState | null = useMemo(() => {
+    const base = opsStateQ.data || null;
+    if (!base || wsLogBuffer.length === 0) return base;
+    const existingIds = new Set(base.log.map(l => l.id));
+    const newEntries = wsLogBuffer.filter(e => !existingIds.has(e.id));
+    if (newEntries.length === 0) return base;
+    return { ...base, log: [...base.log, ...newEntries] };
+  }, [opsStateQ.data, wsLogBuffer]);
   const engagement = engagementQ.data;
 
   // Auto-scroll feed

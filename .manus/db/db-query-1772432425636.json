@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, name, customerName, engagementType, status, roe_status, targetDomain, targetIpRange FROM engagements WHERE customerName = 'Vianova';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, name, customerName, engagementType, status, roe_status, targetDomain, targetIpRange FROM engagements WHERE customerName = 'Vianova';",
+  "rows": [
+    {
+      "id": "1350012",
+      "name": "Vianova - dashboard-dev.vianovahealth.com",
+      "customerName": "Vianova",
+      "engagementType": "pentest",
+      "status": "planning",
+      "roe_status": "signed",
+      "targetDomain": "https://dashboard-dev.vianovahealth.com",
+      "targetIpRange": ""
+    },
+    {
+      "id": "1350013",
+      "name": "Vianova External Pentest",
+      "customerName": "Vianova",
+      "engagementType": "pentest",
+      "status": "active",
+      "roe_status": "signed",
+      "targetDomain": "vianova.io",
+      "targetIpRange": "NULL"
+    },
+    {
+      "id": "1350014",
+      "name": "Vianova External Pentest",
+      "customerName": "Vianova",
+      "engagementType": "pentest",
+      "status": "active",
+      "roe_status": "signed",
+      "targetDomain": "vianova.io, app.vianova.io, api.vianova.io, mail.vianova.io",
+      "targetIpRange": "203.0.113.10, 203.0.113.11, 203.0.113.12, 198.51.100.0/24"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tcustomerName\tengagementType\tstatus\troe_status\ttargetDomain\ttargetIpRange\n1350012\tVianova - dashboard-dev.vianovahealth.com\tVianova\tpentest\tplanning\tsigned\thttps://dashboard-dev.vianovahealth.com\t\n1350013\tVianova External Pentest\tVianova\tpentest\tactive\tsigned\tvianova.io\tNULL\n1350014\tVianova External Pentest\tVianova\tpentest\tactive\tsigned\tvianova.io, app.vianova.io, api.vianova.io, mail.vianova.io\t203.0.113.10, 203.0.113.11, 203.0.113.12, 198.51.100.0/24\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}
