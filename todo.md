@@ -6773,3 +6773,10 @@
 - [x] Parse tool output and feed into vuln detection / exploit matching (nuclei, nikto, hydra, enum4linux, dig, gobuster, httpx, smbclient, ldapsearch, onesixtyone)
 - [x] Store scan server credentials as env secrets (SCAN_SERVER_HOST, SCAN_SERVER_USER, SCAN_SERVER_SSH_KEY)
 - [x] Wire scan server config into all orchestrator phases (enumeration, vuln_detection, credential testing)
+
+## Passive Scan Verification
+- [x] Verify engagement ops passive scan matches non-RoE passive scan
+- [x] Confirm passive scan uses strict_passive mode (only OSINT, no active probing)
+- [x] Fix discrepancy: was using 'standard' mode (DNS resolution + well-known endpoints), now uses 'strict_passive' (zero target contact)
+- [x] Added progress callbacks and WebSocket broadcast for live feed updates
+- [x] Added scopedAssets to restrict scan to engagement targets only

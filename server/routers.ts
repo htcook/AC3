@@ -8542,42 +8542,65 @@ Make the phishing content highly realistic and tailored to the target domain and
 
         await db.logActivity({ userId: ctx.user.id, action: 'passive_scan_started', details: `Started passive discovery for engagement #${input.engagementId}` });
 
-        // Run recon only, then pause for operator to review and start active scan
+        // Run recon only (strict_passive mode — same as non-RoE scans), then pause for operator
         (async () => {
           try {
+            const { broadcastOpsUpdate } = await import('./lib/engagement-orchestrator');
             const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+            const ips = (engagement.targetIp || '').split(/[,;\s]+/).filter(Boolean);
+            const allTargets = [...domains, ...ips];
+
+            state!.log.push({ id: `log-${Date.now()}-mode`, timestamp: Date.now(), phase: 'recon', type: 'info', title: '\ud83d\udd12 Scan Mode: Strict Passive', detail: 'Only querying third-party databases (crt.sh, Shodan, Censys, Wayback, urlscan, SecurityTrails, Dehashed, BinaryEdge). Zero direct contact with target infrastructure.' });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_entry', entry: state!.log[state!.log.length - 1] });
+
             for (const domain of domains) {
               try {
-                state!.log.push({ id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon', type: 'scan_start', title: `Domain Intel: ${domain}`, detail: 'Running passive OSINT scan' });
+                const logEntry = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'scan_start' as const, title: `Domain Intel: ${domain}`, detail: 'Running strict passive OSINT scan (no direct target contact)' };
+                state!.log.push(logEntry);
+                broadcastOpsUpdate(input.engagementId, { type: 'log_entry', entry: logEntry });
 
                 const { runDomainIntelPipeline } = await import('./domainIntel');
-                const result = await runDomainIntelPipeline({
-                  customerName: engagement.customerName || 'Auto',
-                  primaryDomain: domain,
-                  additionalDomains: [],
-                  sector: 'technology',
-                  clientType: 'enterprise',
-                  criticalFunctions: [],
-                  complianceFlags: [],
-                });
+                const result = await runDomainIntelPipeline(
+                  {
+                    customerName: engagement.customerName || 'Auto',
+                    primaryDomain: domain,
+                    additionalDomains: [],
+                    sector: 'technology',
+                    clientType: 'enterprise',
+                    criticalFunctions: [],
+                    complianceFlags: [],
+                  },
+                  // Progress callback — push stage updates to live feed
+                  async (stage) => {
+                    const stageLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `Pipeline: ${domain}`, detail: `Stage: ${stage}` };
+                    state!.log.push(stageLog);
+                    broadcastOpsUpdate(input.engagementId, { type: 'log_entry', entry: stageLog });
+                  },
+                  // Options: strict_passive mode, scoped to engagement targets only
+                  { scanMode: 'strict_passive', skipEngagement: false, scopedAssets: allTargets }
+                );
 
                 const discoveredAssets = (result as any).assets || [];
                 for (const asset of discoveredAssets) {
-                  const hostname = asset.hostname || asset.domain || asset.ip;
+                  const hostname = asset.asset?.hostname || asset.hostname || asset.domain || asset.ip;
                   if (!hostname) continue;
                   const existing = state!.assets.find((a: any) => a.hostname === hostname);
                   if (existing) {
-                    existing.ip = asset.ip || existing.ip;
-                    existing.type = asset.assetType === 'web_application' ? 'web_app' : existing.type;
+                    existing.ip = asset.asset?.ip || asset.ip || existing.ip;
+                    existing.type = (asset.asset?.assetType || asset.assetType) === 'web_application' ? 'web_app' : existing.type;
                     existing.status = 'discovered';
                   } else {
-                    state!.assets.push({ hostname, ip: asset.ip, type: asset.assetType === 'web_application' ? 'web_app' : 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], status: 'discovered' });
+                    state!.assets.push({ hostname, ip: asset.asset?.ip || asset.ip, type: (asset.asset?.assetType || asset.assetType) === 'web_application' ? 'web_app' : 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], status: 'discovered' });
                   }
                 }
 
-                state!.log.push({ id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon', type: 'scan_result', title: `Recon Complete: ${domain}`, detail: `Discovered ${discoveredAssets.length} assets` });
+                const resultLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'scan_result' as const, title: `Recon Complete: ${domain}`, detail: `Discovered ${discoveredAssets.length} assets via strict passive OSINT` };
+                state!.log.push(resultLog);
+                broadcastOpsUpdate(input.engagementId, { type: 'log_entry', entry: resultLog });
               } catch (e: any) {
-                state!.log.push({ id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon', type: 'error', title: `Recon Failed: ${domain}`, detail: e.message });
+                const errLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'error' as const, title: `Recon Failed: ${domain}`, detail: e.message };
+                state!.log.push(errLog);
+                broadcastOpsUpdate(input.engagementId, { type: 'log_entry', entry: errLog });
               }
             }
 
@@ -8586,7 +8609,10 @@ Make the phishing content highly realistic and tailored to the target domain and
             state!.isRunning = false;
             state!.progress = 15;
             state!.currentAction = undefined;
-            state!.log.push({ id: `log-${Date.now()}-done`, timestamp: Date.now(), phase: 'recon', type: 'phase_complete', title: '\u2705 Passive Discovery Complete', detail: `${state!.assets.length} assets discovered. Click "Start Active Scan" to hand off to LLM for nmap \u2192 service matching \u2192 vuln detection \u2192 exploitation.` });
+            const doneLog = { id: `log-${Date.now()}-done`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '\u2705 Strict Passive Discovery Complete', detail: `${state!.assets.length} assets discovered via strict passive OSINT (zero target contact). Click "Start Active Scan" to hand off to LLM for nmap \u2192 service matching \u2192 vuln detection \u2192 exploitation.` };
+            state!.log.push(doneLog);
+            broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon_complete' });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_entry', entry: doneLog });
           } catch (e: any) {
             state!.phase = 'error';
             state!.isRunning = false;
