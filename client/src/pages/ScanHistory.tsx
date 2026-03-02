@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type SortField = "createdAt" | "primaryDomain" | "status" | "overallRiskScore" | "totalAssets";
+type SortField = "updatedAt" | "createdAt" | "primaryDomain" | "status" | "overallRiskScore" | "totalAssets";
 type SortDir = "asc" | "desc";
 
 const STATUS_OPTIONS = [
@@ -73,7 +73,7 @@ export default function ScanHistory() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortField, setSortField] = useState<SortField>("createdAt");
+  const [sortField, setSortField] = useState<SortField>("updatedAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
@@ -115,6 +115,10 @@ export default function ScanHistory() {
     list.sort((a: any, b: any) => {
       let av: any, bv: any;
       switch (sortField) {
+        case "updatedAt":
+          av = new Date(a.updatedAt || a.createdAt || 0).getTime();
+          bv = new Date(b.updatedAt || b.createdAt || 0).getTime();
+          break;
         case "createdAt":
           av = new Date(a.createdAt || 0).getTime();
           bv = new Date(b.createdAt || 0).getTime();
@@ -268,7 +272,7 @@ export default function ScanHistory() {
                         { field: "status" as SortField, label: "Status" },
                         { field: "overallRiskScore" as SortField, label: "Risk" },
                         { field: "totalAssets" as SortField, label: "Assets" },
-                        { field: "createdAt" as SortField, label: "Date" },
+                        { field: "updatedAt" as SortField, label: "Last Activity" },
                       ]).map(col => (
                         <th
                           key={col.field}
@@ -328,7 +332,7 @@ export default function ScanHistory() {
                           </td>
                           <td className="px-4 py-3">
                             <span className="text-xs text-muted-foreground">
-                              {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                              {(scan.updatedAt || scan.createdAt) ? new Date(scan.updatedAt || scan.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right">

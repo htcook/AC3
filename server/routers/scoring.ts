@@ -1355,10 +1355,11 @@ export const scoringRouter = router({
         domain: domainIntelScans.primaryDomain,
         status: domainIntelScans.status,
         createdAt: domainIntelScans.createdAt,
+        updatedAt: domainIntelScans.updatedAt,
       })
       .from(domainIntelScans)
       .where(eq(domainIntelScans.status, "completed"))
-      .orderBy(desc(domainIntelScans.createdAt))
+      .orderBy(desc(domainIntelScans.updatedAt), desc(domainIntelScans.createdAt))
       .limit(50);
   }),
 

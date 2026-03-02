@@ -717,7 +717,7 @@ export async function getDomainIntelScans() {
         sql`${domainIntelScans.primaryDomain} REGEXP '^(msp|enterprise|saas|paas|iaas|mixed_hosting|other)-[0-9]+\\.com$'`
       )
     )
-    .orderBy(desc(domainIntelScans.createdAt));
+    .orderBy(desc(domainIntelScans.updatedAt), desc(domainIntelScans.createdAt));
 }
 
 export async function getDomainIntelScanById(id: number) {
@@ -803,7 +803,7 @@ export async function deleteDomainIntelScan(scanId: number) {
 export async function getDomainIntelScansByEngagement(engagementId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(domainIntelScans).where(eq(domainIntelScans.engagementId, engagementId)).orderBy(desc(domainIntelScans.createdAt));
+  return db.select().from(domainIntelScans).where(eq(domainIntelScans.engagementId, engagementId)).orderBy(desc(domainIntelScans.updatedAt), desc(domainIntelScans.createdAt));
 }
 
 // ─── Threat Actor Database ───────────────────────────────────────────────

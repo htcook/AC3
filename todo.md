@@ -6549,3 +6549,27 @@
 - [ ] Build frontend UI: test runner panel on control detail, results display, pass/fail badges
 - [ ] Wire testing status into compliance dashboard posture scoring
 - [ ] Write vitest tests for control testing engine
+
+## Control Testing Dashboard, C2 Actor Context, Actor Phishing Selection
+- [ ] Build Control Testing Dashboard page with validation status grid, expiration tracking, and evidence timeline
+- [ ] Add tRPC endpoints for dashboard data aggregation (all tested controls, status, expiration)
+- [ ] Wire actor context into C2 Orchestrator for actor-specific technique chaining
+- [ ] Build actor-specific phishing template selection engine
+- [ ] Add tRPC endpoints for actor-phishing template matching
+- [ ] Wire nav items and routes for Control Testing Dashboard
+- [ ] Vitest tests for C2 actor context wiring and phishing template selection
+
+## Vianova Scan Scope Fix
+- [ ] Investigate scope enforcement in discovery pipeline for single-asset scans
+- [ ] Fix scope leakage where out-of-scope assets are pulled into single-asset scans
+- [ ] Re-run Vianova scans and verify only scoped assets (2 URLs + 1 IP) appear in results
+- [x] Fix scan list ordering: sort by most recently run/refreshed first across all scan list views
+- [x] Fix scan list ordering: sort by most recently run/refreshed first across all scan list views
+
+## Homepage & Threat Actor Display Update
+- [x] Fix threat actor display on homepage: only show most active/detailed actors, no "view all" link
+- [x] Create backend endpoint to rank threat actors by activity + data completeness
+- [x] Redesign homepage threat actor section to highlight top actors with rich detail
+- [x] Update homepage layout and overall polish
+- [x] Write vitest tests for new threat actor ranking endpoint
+- [x] Randomize threat actor selection on each page load (shuffle from top-ranked pool)

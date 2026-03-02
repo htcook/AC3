@@ -449,4 +449,85 @@ export const threatIntelRouter = router({
       byTactic: Array.from(byTactic.entries()).map(([tactic, count]) => ({ tactic, count })).sort((a, b) => b.count - a.count),
     };
   }),
+
+  // ─── Featured Actors for Homepage (most detailed, randomized) ───────────
+  featuredActors: protectedProcedure
+    .input(z.object({ count: z.number().min(1).max(20).default(6) }).optional())
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const count = input?.count ?? 6;
+
+      // Fetch all actors with their raw fields so we can score completeness
+      const allActors = await db.select().from(threatActors);
+
+      // Score each actor by data completeness across all fields
+      const scored = allActors.map(a => {
+        let score = 0;
+        const aliases = safeParseArr(a.aliases);
+        const techniques = safeParseArr(a.techniques);
+        const tools = safeParseArr(a.tools);
+        const malware = safeParseArr(a.malware);
+        const targetSectors = safeParseArr(a.targetSectors);
+        const targetRegions = safeParseArr(a.targetRegions);
+        const activityTimeline = safeParseArr(a.activityTimeline);
+        const calderaProfile = safeParseObj(a.calderaProfile);
+
+        // Core identity fields (weighted higher)
+        if (a.description && a.description.length > 50) score += 15;
+        else if (a.description) score += 5;
+        if (a.origin) score += 5;
+        if (a.motivation) score += 5;
+        if (a.firstSeen) score += 3;
+        if (a.lastActive) score += 5;
+
+        // Threat level & sophistication
+        if (a.threatLevel === 'critical') score += 10;
+        else if (a.threatLevel === 'high') score += 7;
+        else if (a.threatLevel === 'medium') score += 3;
+        if (a.sophistication === 'nation-state') score += 8;
+        else if (a.sophistication === 'advanced') score += 5;
+
+        // Richness of structured data
+        score += Math.min(aliases.length * 2, 10);
+        score += Math.min(techniques.length, 20);
+        score += Math.min(tools.length * 2, 12);
+        score += Math.min(malware.length * 2, 12);
+        score += Math.min(targetSectors.length * 2, 10);
+        score += Math.min(targetRegions.length * 2, 10);
+        score += Math.min(activityTimeline.length * 3, 15);
+        if (calderaProfile) score += 10;
+        if (a.confidence && a.confidence >= 80) score += 5;
+        if (a.stixId) score += 3;
+
+        return {
+          ...a,
+          aliases,
+          techniques,
+          tools,
+          malware,
+          targetSectors,
+          targetRegions,
+          activityTimeline,
+          calderaProfile,
+          _completenessScore: score,
+        };
+      });
+
+      // Sort by completeness score descending, take top pool (3x requested count)
+      scored.sort((a, b) => b._completenessScore - a._completenessScore);
+      const poolSize = Math.min(scored.length, count * 3);
+      const pool = scored.slice(0, poolSize);
+
+      // Fisher-Yates shuffle the pool
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      // Return the requested count
+      return pool.slice(0, count).map(a => {
+        const { _completenessScore, ...rest } = a;
+        return rest;
+      });
+    }),
 });

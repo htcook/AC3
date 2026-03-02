@@ -106,19 +106,16 @@ function DashboardInner() {
 
   // Real threat actor data from DB
   const { data: threatStats } = trpc.threatIntel.stats.useQuery();
-  const { data: topActorsData } = trpc.threatIntel.list.useQuery({
-    page: 1,
-    pageSize: 5,
-    type: 'all',
-    threatLevel: 'all',
-    sortBy: 'threatLevel',
-    sortOrder: 'desc',
-  });
+  // Featured actors: randomized from top-completeness pool, refreshes on each mount
+  const { data: featuredActors } = trpc.threatIntel.featuredActors.useQuery(
+    { count: 6 },
+    { staleTime: 0, refetchOnMount: 'always' }
+  );
   const { data: iocStats } = trpc.iocFeed.stats.useQuery();
   const { data: kevData } = trpc.calderaProxy.getKevCatalog.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
 
   // Derived threat data
-  const topActors = topActorsData?.actors || [];
+  const topActors = featuredActors || [];
   const iocCount = iocStats?.total ?? 0;
   const kevCount = kevData?.totalVulnerabilities ?? 0;
 
@@ -794,7 +791,7 @@ function DashboardInner() {
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
                         <span className="text-[10px] text-muted-foreground">
-                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                          {(scan.updatedAt || scan.createdAt) ? new Date(scan.updatedAt || scan.createdAt).toLocaleDateString() : ''}
                         </span>
                         <span className="text-[9px] font-display tracking-wider text-primary">VIEW RESULTS →</span>
                       </div>
@@ -863,7 +860,7 @@ function DashboardInner() {
           <h2 className="font-display text-lg tracking-wider mb-3">QUICK ACCESS</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <QuickAccessCard icon={<Brain />} label="DOMAIN INTEL" desc="AI-powered pipeline" href="/domain-intel" color="text-cyan-400 border-cyan-500/30" />
-            <QuickAccessCard icon={<Target />} label="THREAT ACTORS" desc={`${threatStats?.totalActors ?? '...'}+ actor profiles`} href="/threat-catalog" color="text-red-400 border-red-500/30" />
+            <QuickAccessCard icon={<Target />} label="THREAT INTEL" desc="Featured actor profiles" href="/threat-catalog" color="text-red-400 border-red-500/30" />
             <QuickAccessCard icon={<Layers />} label="ENGAGEMENTS" desc="Manage campaigns" href="/engagements" color="text-primary border-primary/30" />
             <QuickAccessCard icon={<Fish />} label="PHISHING" desc="Phishing campaigns" href="/phishing-ops" color="text-emerald-400 border-emerald-500/30" />
             <QuickAccessCard icon={<Activity />} label="CAMPAIGN EXEC" desc="Live operations" href="/operations/monitor" color="text-yellow-400 border-yellow-500/30" />
@@ -1040,27 +1037,78 @@ function DashboardInner() {
               <div className="text-[10px] tracking-widest text-muted-foreground">KNOWN EXPLOITED</div>
             </div>
           </div>
-          <div className="bg-card border border-border p-4">
-            <h3 className="font-display text-xs tracking-wider mb-3 text-red-400">TOP THREAT ACTORS</h3>
-            <div className="space-y-1.5">
-              {topActors.length === 0 ? (
-                <div className="text-xs text-muted-foreground py-2">Loading threat actors...</div>
-              ) : topActors.map((t) => (
-                <div key={t.actorId || t.name} className="flex items-center justify-between py-1 border-b border-border/30 last:border-0">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 ${t.threatLevel === 'critical' ? 'bg-red-500' : t.threatLevel === 'high' ? 'bg-orange-500' : 'bg-yellow-500'}`} />
-                    <span className="text-xs font-medium">{t.name}</span>
-                    {t.origin && <span className="text-[10px] text-muted-foreground">({t.origin})</span>}
-                  </div>
-                  <span className={`text-[9px] font-display tracking-wider px-1.5 py-0.5 border ${t.threatLevel === 'critical' ? 'border-red-500/30 text-red-400 bg-red-500/10' : 'border-orange-500/30 text-orange-400 bg-orange-500/10'}`}>{(t.threatLevel || 'unknown').toUpperCase()}</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/threat-catalog">
-              <Button variant="ghost" size="sm" className="w-full mt-3 font-display tracking-wider text-xs text-red-400 hover:text-red-300">
-                VIEW ALL {threatStats?.totalActors ?? ''} THREAT ACTORS <ChevronRight className="w-3 h-3 ml-1" />
-              </Button>
-            </Link>
+          <div>
+            <h3 className="font-display text-xs tracking-wider mb-3 text-red-400">FEATURED THREAT ACTORS</h3>
+            <p className="text-[10px] text-muted-foreground mb-3">Randomized selection from the most detailed actor profiles in our catalog — refreshes on each visit</p>
+            {topActors.length === 0 ? (
+              <div className="text-xs text-muted-foreground py-4 text-center">Loading featured actors...</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {topActors.map((t: any) => {
+                  const aliases = Array.isArray(t.aliases) ? t.aliases : [];
+                  const techniques = Array.isArray(t.techniques) ? t.techniques : [];
+                  const tools = Array.isArray(t.tools) ? t.tools : [];
+                  const malware = Array.isArray(t.malware) ? t.malware : [];
+                  const targetSectors = Array.isArray(t.targetSectors) ? t.targetSectors : [];
+                  const threatColor = t.threatLevel === 'critical' ? 'border-red-500/40 bg-red-500/5' : t.threatLevel === 'high' ? 'border-orange-500/40 bg-orange-500/5' : 'border-yellow-500/40 bg-yellow-500/5';
+                  const sophColor = t.sophistication === 'nation-state' ? 'text-purple-400 border-purple-500/30 bg-purple-500/10' : t.sophistication === 'advanced' ? 'text-blue-400 border-blue-500/30 bg-blue-500/10' : 'text-muted-foreground border-border bg-secondary/50';
+                  return (
+                    <Link key={t.actorId || t.name} href={`/threat-catalog/${t.actorId}`}>
+                      <div className={`bg-card border-2 ${threatColor} p-4 hover:bg-secondary/30 transition-all cursor-pointer group h-full`}>
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="font-display text-sm tracking-wider group-hover:text-primary transition-colors truncate">{t.name}</span>
+                            </div>
+                            {aliases.length > 0 && (
+                              <div className="text-[10px] text-muted-foreground truncate">aka {aliases.slice(0, 3).join(', ')}{aliases.length > 3 ? ` +${aliases.length - 3}` : ''}</div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
+                            <span className={`text-[9px] font-display tracking-wider px-1.5 py-0.5 border ${t.threatLevel === 'critical' ? 'border-red-500/30 text-red-400 bg-red-500/10' : t.threatLevel === 'high' ? 'border-orange-500/30 text-orange-400 bg-orange-500/10' : 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10'}`}>{(t.threatLevel || 'unknown').toUpperCase()}</span>
+                            <span className={`text-[9px] font-display tracking-wider px-1.5 py-0.5 border ${sophColor}`}>{(t.sophistication || 'unknown').toUpperCase()}</span>
+                          </div>
+                        </div>
+                        {/* Origin & Type */}
+                        <div className="flex items-center gap-2 mb-2 text-[10px]">
+                          {t.origin && <span className="px-1.5 py-0.5 bg-secondary border border-border">{t.origin}</span>}
+                          <span className="px-1.5 py-0.5 bg-secondary border border-border">{(t.type || 'unknown').replace('_', ' ').toUpperCase()}</span>
+                          {t.motivation && <span className="text-muted-foreground">{t.motivation}</span>}
+                        </div>
+                        {/* Description snippet */}
+                        {t.description && (
+                          <p className="text-[10px] text-muted-foreground line-clamp-2 mb-2">{t.description}</p>
+                        )}
+                        {/* Stats row */}
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {techniques.length > 0 && <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">{techniques.length} TTPs</span>}
+                          {tools.length > 0 && <span className="text-[9px] px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400">{tools.length} tools</span>}
+                          {malware.length > 0 && <span className="text-[9px] px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{malware.length} malware</span>}
+                        </div>
+                        {/* Target sectors */}
+                        {targetSectors.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {targetSectors.slice(0, 4).map((s: string) => (
+                              <span key={s} className="text-[9px] px-1 py-0.5 bg-secondary/80 text-muted-foreground">{s}</span>
+                            ))}
+                            {targetSectors.length > 4 && <span className="text-[9px] text-muted-foreground">+{targetSectors.length - 4}</span>}
+                          </div>
+                        )}
+                        {/* Footer */}
+                        <div className="flex items-center justify-between pt-2 border-t border-border/30">
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            {t.lastActive && <span>Active: {t.lastActive}</span>}
+                            {t.firstSeen && !t.lastActive && <span>Since: {t.firstSeen}</span>}
+                          </div>
+                          <span className="text-[9px] font-display tracking-wider text-primary opacity-0 group-hover:opacity-100 transition-opacity">VIEW PROFILE →</span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </CollapsibleSection>
         </>)}

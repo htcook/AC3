@@ -1715,13 +1715,26 @@ export async function runDomainIntelPipeline(
   }
 
   // Stage 1.4: Scoped Scan Filter — restrict to user-specified assets only (RoE mode)
+  // This is the critical scope enforcement gate: only assets explicitly listed by the user
+  // should survive into the analysis pipeline. Matches on hostname, URL, resolved IPs,
+  // and DNS records to handle both domain-based and IP-based scoped entries.
   if (isScopedScan && options?.scopedAssets) {
     const scopedSet = new Set(options.scopedAssets.map(a => a.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '')));
     const beforeCount = rawAssets.length;
     const filtered = rawAssets.filter(a => {
       const hostname = (a.hostname || '').toLowerCase();
       const url = (a.url || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-      return scopedSet.has(hostname) || scopedSet.has(url);
+      // Direct hostname or URL match
+      if (scopedSet.has(hostname) || scopedSet.has(url)) return true;
+      // Check if any resolved IP from DNS records matches a scoped IP
+      if (a.dnsRecords) {
+        const aRecords: string[] = Array.isArray(a.dnsRecords.A) ? a.dnsRecords.A : [];
+        const aaaaRecords: string[] = Array.isArray(a.dnsRecords.AAAA) ? a.dnsRecords.AAAA : [];
+        for (const ip of [...aRecords, ...aaaaRecords]) {
+          if (scopedSet.has(ip.toLowerCase())) return true;
+        }
+      }
+      return false;
     });
     // If no discovered assets match the scoped list, create stub assets from the scoped list
     if (filtered.length === 0) {

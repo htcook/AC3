@@ -122,6 +122,7 @@ import { scanWebhooksRouter } from "./routers/scan-webhooks";
 import { authAssessmentRouter } from "./routers/auth-assessment";
 import { cloudSecurityValidationRouter } from "./routers/cloud-security-validation";
 import { sigmaRulesRouter } from "./routers/sigma-rules";
+import { c2ActorOrchestrationRouter } from "./routers/c2-actor-orchestration";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -2304,6 +2305,7 @@ export const appRouter = router({
   authAssessment: authAssessmentRouter,
   cloudSecurityValidation: cloudSecurityValidationRouter,
   sigmaRules: sigmaRulesRouter,
+  c2ActorOrchestration: c2ActorOrchestrationRouter,
 
   // Campaign management
   campaign: router({
@@ -4268,6 +4270,8 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
             clientType: input.clientType,
             criticalFunctions: input.criticalFunctions,
             complianceFlags: input.complianceFlags || [],
+            scopedAssets: input.scopedAssets || [],
+            scanMode: input.scanMode || 'standard',
           },
           criticalFunctions: input.criticalFunctions,
           complianceFlags: input.complianceFlags || [],
@@ -5378,7 +5382,11 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
                 await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
                 console.log(`[DomainIntel] Refresh scan ${scanId} stage: ${stage}`);
               },
-              { scanMode: 'standard', skipEngagement: !wasFullEngagement }
+              {
+                scanMode: (orgProfile?.scanMode as any) || 'standard',
+                skipEngagement: !wasFullEngagement,
+                scopedAssets: (orgProfile?.scopedAssets as string[])?.length > 0 ? (orgProfile.scopedAssets as string[]) : undefined,
+              }
             );
 
             // Batch insert new assets

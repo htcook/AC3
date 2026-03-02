@@ -665,7 +665,7 @@ export default function DomainIntel() {
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
                         <span className="text-[10px] text-muted-foreground">
-                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                          {(scan.updatedAt || scan.createdAt) ? new Date(scan.updatedAt || scan.createdAt).toLocaleDateString() : ''}
                         </span>
                         <div className="flex items-center gap-2">
                           <Button
@@ -1475,7 +1475,7 @@ export default function DomainIntel() {
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
                         <span className="text-[10px] text-muted-foreground">
-                          {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : ''}
+                          {(scan.updatedAt || scan.createdAt) ? new Date(scan.updatedAt || scan.createdAt).toLocaleDateString() : ''}
                         </span>
                         <div className="flex items-center gap-1.5">
                           <Button
