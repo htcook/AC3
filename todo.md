@@ -6540,3 +6540,12 @@
 - [ ] Analysis: Review threat-intel-catalog for feedback loop integration
 - [ ] Analysis: Review ransomware-intel for actor behavioral pattern extraction
 - [ ] Analysis: Implement priority enhancements identified in the audit
+
+## Compensating Control Testing
+- [ ] Read current compensating controls data model, router, and frontend
+- [ ] Build control testing engine with validation workflows (technique-based, tool-based, manual)
+- [ ] Generate test cases from control's mitigated threats/techniques
+- [ ] Add tRPC endpoints for running tests, viewing results, and tracking validation status
+- [ ] Build frontend UI: test runner panel on control detail, results display, pass/fail badges
+- [ ] Wire testing status into compliance dashboard posture scoring
+- [ ] Write vitest tests for control testing engine

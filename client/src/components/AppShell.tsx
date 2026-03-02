@@ -342,6 +342,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/compliance", icon: FileText, label: "COMPLIANCE CENTER" },
           { href: "/compliance-mapper", icon: Layers, label: "COMPLIANCE MAPPER" },
           { href: "/compensating-controls", icon: Shield, label: "COMPENSATING CTRL" },
+          { href: "/control-testing", icon: FlaskConical, label: "CONTROL TESTING" },
         ],
       },
     ],

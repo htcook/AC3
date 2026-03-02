@@ -205,6 +205,7 @@ const AuthAssessment = lazy(() => import("./pages/AuthAssessment"));
 const AuthPipeline = lazy(() => import("./pages/AuthPipeline"));
 const CloudSecurityValidation = lazy(() => import("./pages/CloudSecurityValidation"));
 const SigmaRuleGenerator = lazy(() => import("./pages/SigmaRuleGenerator"));
+const ControlTesting = lazy(() => import("./pages/ControlTesting"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -633,6 +634,9 @@ function Router() {
         </Route>
         <Route path="/compensating-controls">
           <ProtectedRoute component={CompensatingControls} />
+        </Route>
+        <Route path="/control-testing">
+          <ProtectedRoute component={ControlTesting} />
         </Route>
         <Route path="/preflight-checks">
           <ProtectedRoute component={PreFlightChecks} />
