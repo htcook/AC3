@@ -19,7 +19,7 @@ import {
   Server, Users, Shield, ArrowRight, Activity, Database,
   AlertTriangle, CheckCircle2, Settings, Cpu, Wifi,
   UserPlus, MoreHorizontal, Mail, KeyRound, Ban, RefreshCw,
-  Copy, Eye, EyeOff
+  Copy, Eye, EyeOff, Monitor, Trash2, LogOut
 } from "lucide-react";
 
 // ─── Health Indicator ────────────────────────────────────────────────
@@ -71,6 +71,11 @@ export default function AdminHome() {
     refetchInterval: 30000,
   });
 
+  const { data: sessions, isLoading: sessionsLoading } = trpc.accountAuth.listSessions.useQuery(undefined, {
+    retry: 1,
+    refetchInterval: 30000,
+  });
+
   // ─── Mutations ────────────────────────────────────────────────────
   const inviteMutation = trpc.accountAuth.inviteUser.useMutation({
     onSuccess: (data) => {
@@ -111,6 +116,22 @@ export default function AdminHome() {
     onError: (err) => {
       toast.error(`Reset failed: ${err.message}`);
     },
+  });
+
+  const revokeSessionMutation = trpc.accountAuth.revokeSession.useMutation({
+    onSuccess: () => {
+      utils.accountAuth.listSessions.invalidate();
+      toast.success("Session revoked");
+    },
+    onError: (err) => toast.error(`Revoke failed: ${err.message}`),
+  });
+
+  const revokeAllSessionsMutation = trpc.accountAuth.revokeAllSessions.useMutation({
+    onSuccess: () => {
+      utils.accountAuth.listSessions.invalidate();
+      toast.success("All sessions revoked for this account");
+    },
+    onError: (err) => toast.error(`Revoke failed: ${err.message}`),
   });
 
   // ─── Local state ──────────────────────────────────────────────────
@@ -341,6 +362,71 @@ export default function AdminHome() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Active Sessions Management */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+              <Monitor className="w-4 h-4 text-cyan-400" /> ACTIVE SESSIONS
+            </CardTitle>
+            <span className="text-[10px] font-display tracking-widest text-muted-foreground">
+              {sessions?.length ?? 0} ACTIVE
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {sessionsLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-14 bg-secondary/30 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : !sessions?.length ? (
+            <div className="text-center py-6">
+              <Monitor className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+              <p className="text-xs text-muted-foreground">No active sessions.</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
+              {sessions.map((session) => (
+                <div key={session.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/30 transition-colors group border border-transparent hover:border-border">
+                  <Monitor className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium truncate">
+                        {session.userDisplayName || session.userEmail || `Account #${session.accountId}`}
+                      </span>
+                      <span className={`text-[8px] font-display tracking-widest px-1.5 py-0.5 rounded ${
+                        ROLE_COLORS[session.userRole || ""] || "bg-secondary text-foreground"
+                      }`}>
+                        {(session.userRole || "unknown").replace("_", " ").toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {session.deviceInfo || "Unknown device"} — {session.ipAddress || "Unknown IP"}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">
+                      Logged in: {session.createdAt ? new Date(session.createdAt).toLocaleString() : "Unknown"}
+                      {" | Expires: "}{session.expiresAt ? new Date(session.expiresAt).toLocaleString() : "Unknown"}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    onClick={() => revokeSessionMutation.mutate({ sessionId: session.id })}
+                    disabled={revokeSessionMutation.isPending}
+                  >
+                    <LogOut className="w-3.5 h-3.5 mr-1" />
+                    <span className="text-[10px] font-display tracking-wider">REVOKE</span>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick Admin Actions */}
       <div>

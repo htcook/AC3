@@ -6181,8 +6181,28 @@ export const calderaAccounts = mysqlTable("caldera_accounts", {
   inviteExpiresAt: timestamp("invite_expires_at"),
   passwordResetToken: varchar("password_reset_token", { length: 128 }),
   passwordResetExpiresAt: timestamp("password_reset_expires_at"),
+  totpSecret: varchar("totp_secret", { length: 255 }),
+  totpEnabled: boolean("totp_enabled").default(false).notNull(),
+  backupCodes: text("backup_codes"),
+  failedLoginAttempts: int("failed_login_attempts").default(0).notNull(),
+  lockedUntil: timestamp("locked_until"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 export type CalderaAccount = typeof calderaAccounts.$inferSelect;
 export type InsertCalderaAccount = typeof calderaAccounts.$inferInsert;
+
+// ─── Active Sessions ────────────────────────────────────────────────────────
+export const activeSessions = mysqlTable("active_sessions", {
+  id: int("id").primaryKey().autoincrement(),
+  accountId: int("account_id").notNull(),
+  sessionToken: varchar("session_token", { length: 255 }).notNull().unique(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  deviceInfo: varchar("device_info", { length: 255 }),
+  lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type ActiveSession = typeof activeSessions.$inferSelect;
+export type InsertActiveSession = typeof activeSessions.$inferInsert;

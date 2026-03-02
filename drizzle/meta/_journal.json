@@ -498,6 +498,13 @@
       "when": 1772418626664,
       "tag": "0070_useful_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "5",
+      "when": 1772421628285,
+      "tag": "0071_orange_chamber",
+      "breakpoints": true
     }
   ]
 }

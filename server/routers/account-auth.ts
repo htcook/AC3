@@ -13,12 +13,14 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { calderaAccounts } from "../../drizzle/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { calderaAccounts, activeSessions } from "../../drizzle/schema";
+import { eq, desc, and, sql, lt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { notifyOwner } from "../_core/notification";
+import * as OTPAuth from "otpauth";
+import QRCode from "qrcode";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const BCRYPT_ROUNDS = 12; // FIPS 140-3 / NIST SP 800-63B compliant
@@ -60,6 +62,23 @@ function recordFailedAttempt(email: string): void {
 
 function clearFailedAttempts(email: string): void {
   failedAttempts.delete(email.toLowerCase());
+}
+
+// ─── Device Info Parser ──────────────────────────────────────────────────────
+function parseDeviceInfo(userAgent: string): string {
+  const ua = userAgent.toLowerCase();
+  let os = "Unknown OS";
+  let browser = "Unknown Browser";
+  if (ua.includes("windows")) os = "Windows";
+  else if (ua.includes("mac os") || ua.includes("macos")) os = "macOS";
+  else if (ua.includes("iphone") || ua.includes("ipad")) os = "iOS";
+  else if (ua.includes("android")) os = "Android";
+  else if (ua.includes("linux")) os = "Linux";
+  if (ua.includes("chrome") && !ua.includes("edg")) browser = "Chrome";
+  else if (ua.includes("firefox")) browser = "Firefox";
+  else if (ua.includes("safari") && !ua.includes("chrome")) browser = "Safari";
+  else if (ua.includes("edg")) browser = "Edge";
+  return `${browser} on ${os}`;
 }
 
 // ─── Cookie Options (reuse from main router pattern) ──────────────────────────
@@ -176,14 +195,35 @@ export const accountAuthRouter = router({
           return { success: false, message: attemptsLeft > 0 ? `Invalid credentials. ${attemptsLeft} attempts remaining.` : "Account temporarily locked due to too many failed attempts." };
         }
 
-        // Success — clear lockout, update last login, issue JWT
+        // Password verified — check if MFA is required
         clearFailedAttempts(email);
 
+        if (account.totpEnabled) {
+          // Issue a short-lived MFA pending token (5 minutes)
+          const mfaPendingToken = jwt.sign(
+            { accountId: account.id, email: account.email, authType: "mfa_pending" },
+            CALDERA_JWT_SECRET,
+            { expiresIn: "5m" }
+          );
+          ctx.res.cookie("caldera_mfa_pending", mfaPendingToken, {
+            ...getCookieOptions(ctx.req, false),
+            maxAge: 5 * 60 * 1000, // 5 minutes
+          });
+          await logAuthEvent({ action: "mfa_required", email, success: true, detail: "Password verified, awaiting TOTP", ipAddress, userId: account.id });
+          return {
+            success: true,
+            mfaRequired: true,
+            message: "Please enter your authenticator code.",
+          };
+        }
+
+        // No MFA — issue full session
         await db.update(calderaAccounts)
           .set({ lastLoginAt: new Date() })
           .where(eq(calderaAccounts.id, account.id));
 
         const jwtExpiry = input.rememberMe ? "7d" : "24h";
+        const sessionId = crypto.randomBytes(16).toString("hex");
         const token = jwt.sign(
           {
             accountId: account.id,
@@ -192,10 +232,23 @@ export const accountAuthRouter = router({
             role: account.role,
             loginTime: Date.now(),
             authType: "email",
+            sessionId,
           },
           CALDERA_JWT_SECRET,
           { expiresIn: jwtExpiry }
         );
+
+        // Track session
+        const userAgent = ctx.req.headers["user-agent"] || "unknown";
+        const deviceInfo = parseDeviceInfo(userAgent);
+        await db.insert(activeSessions).values({
+          accountId: account.id,
+          sessionToken: sessionId,
+          ipAddress,
+          userAgent: userAgent.substring(0, 500),
+          deviceInfo,
+          expiresAt: new Date(Date.now() + (input.rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000)),
+        });
 
         ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCookieOptions(ctx.req, input.rememberMe));
         await logAuthEvent({ action: "login_success", email, success: true, detail: `Role: ${account.role}`, ipAddress, userId: account.id });
@@ -203,6 +256,7 @@ export const accountAuthRouter = router({
         console.log(`[AccountAuth] Login successful for ${email} (role: ${account.role})`);
         return {
           success: true,
+          mfaRequired: false,
           message: "Login successful",
           user: {
             id: account.id,
@@ -523,6 +577,387 @@ export const accountAuthRouter = router({
       await logAuthEvent({ action: "password_changed", email: account.email, success: true, ipAddress, userId: account.id });
       return { success: true, message: "Password changed successfully" };
     }),
+
+  // ─── MFA / TOTP Endpoints ──────────────────────────────────────────────────
+
+  // Generate TOTP secret and QR code for setup
+  mfaSetup: publicProcedure.mutation(async ({ ctx }) => {
+    const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+    if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+    const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+    if (!decoded.accountId) throw new TRPCError({ code: "BAD_REQUEST", message: "MFA only available for email accounts" });
+
+    const db = await getDb();
+    const [account] = await db.select().from(calderaAccounts).where(eq(calderaAccounts.id, decoded.accountId)).limit(1);
+    if (!account) throw new TRPCError({ code: "NOT_FOUND" });
+    if (account.totpEnabled) throw new TRPCError({ code: "BAD_REQUEST", message: "MFA is already enabled" });
+
+    // Generate TOTP secret using FIPS-approved HMAC-SHA256
+    const secret = new OTPAuth.Secret({ size: 20 });
+    const totp = new OTPAuth.TOTP({
+      issuer: "Ace C3 Platform",
+      label: account.email,
+      algorithm: "SHA256",
+      digits: 6,
+      period: 30,
+      secret,
+    });
+
+    // Generate backup codes (8 codes, 8 chars each, FIPS DRBG)
+    const backupCodes = Array.from({ length: 8 }, () =>
+      crypto.randomBytes(4).toString("hex").toUpperCase()
+    );
+
+    // Store secret temporarily (not enabled yet until verified)
+    await db.update(calderaAccounts)
+      .set({
+        totpSecret: secret.base32,
+        backupCodes: JSON.stringify(backupCodes),
+        updatedAt: new Date(),
+      })
+      .where(eq(calderaAccounts.id, account.id));
+
+    const otpauthUri = totp.toString();
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUri, { width: 256, margin: 2 });
+
+    await logAuthEvent({ action: "mfa_setup_initiated", email: account.email, success: true, userId: account.id });
+
+    return {
+      secret: secret.base32,
+      qrCode: qrCodeDataUrl,
+      otpauthUri,
+      backupCodes,
+    };
+  }),
+
+  // Verify TOTP code and enable MFA
+  mfaVerifyAndEnable: publicProcedure
+    .input(z.object({ code: z.string().length(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+      if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+      if (!decoded.accountId) throw new TRPCError({ code: "BAD_REQUEST" });
+
+      const db = await getDb();
+      const [account] = await db.select().from(calderaAccounts).where(eq(calderaAccounts.id, decoded.accountId)).limit(1);
+      if (!account || !account.totpSecret) throw new TRPCError({ code: "BAD_REQUEST", message: "MFA setup not initiated" });
+
+      const totp = new OTPAuth.TOTP({
+        issuer: "Ace C3 Platform",
+        label: account.email,
+        algorithm: "SHA256",
+        digits: 6,
+        period: 30,
+        secret: OTPAuth.Secret.fromBase32(account.totpSecret),
+      });
+
+      const delta = totp.validate({ token: input.code, window: 1 });
+      if (delta === null) {
+        await logAuthEvent({ action: "mfa_enable_failed", email: account.email, success: false, detail: "Invalid TOTP code", userId: account.id });
+        return { success: false, message: "Invalid verification code. Please try again." };
+      }
+
+      await db.update(calderaAccounts)
+        .set({ totpEnabled: true, updatedAt: new Date() })
+        .where(eq(calderaAccounts.id, account.id));
+
+      await logAuthEvent({ action: "mfa_enabled", email: account.email, success: true, userId: account.id });
+      return { success: true, message: "MFA has been enabled successfully." };
+    }),
+
+  // Disable MFA (requires current TOTP code or backup code)
+  mfaDisable: publicProcedure
+    .input(z.object({ code: z.string().min(6).max(8) }))
+    .mutation(async ({ ctx, input }) => {
+      const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+      if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+      if (!decoded.accountId) throw new TRPCError({ code: "BAD_REQUEST" });
+
+      const db = await getDb();
+      const [account] = await db.select().from(calderaAccounts).where(eq(calderaAccounts.id, decoded.accountId)).limit(1);
+      if (!account || !account.totpEnabled) throw new TRPCError({ code: "BAD_REQUEST", message: "MFA is not enabled" });
+
+      // Try TOTP code first
+      let verified = false;
+      if (input.code.length === 6 && account.totpSecret) {
+        const totp = new OTPAuth.TOTP({
+          issuer: "Ace C3 Platform",
+          label: account.email,
+          algorithm: "SHA256",
+          digits: 6,
+          period: 30,
+          secret: OTPAuth.Secret.fromBase32(account.totpSecret),
+        });
+        verified = totp.validate({ token: input.code, window: 1 }) !== null;
+      }
+
+      // Try backup code
+      if (!verified && account.backupCodes) {
+        const codes: string[] = JSON.parse(account.backupCodes);
+        const idx = codes.indexOf(input.code.toUpperCase());
+        if (idx !== -1) {
+          verified = true;
+          codes.splice(idx, 1);
+          await db.update(calderaAccounts)
+            .set({ backupCodes: JSON.stringify(codes) })
+            .where(eq(calderaAccounts.id, account.id));
+        }
+      }
+
+      if (!verified) {
+        await logAuthEvent({ action: "mfa_disable_failed", email: account.email, success: false, detail: "Invalid code", userId: account.id });
+        return { success: false, message: "Invalid verification code or backup code." };
+      }
+
+      await db.update(calderaAccounts)
+        .set({ totpEnabled: false, totpSecret: null, backupCodes: null, updatedAt: new Date() })
+        .where(eq(calderaAccounts.id, account.id));
+
+      await logAuthEvent({ action: "mfa_disabled", email: account.email, success: true, userId: account.id });
+      return { success: true, message: "MFA has been disabled." };
+    }),
+
+  // Verify TOTP during login (called after password verification)
+  mfaLoginVerify: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      code: z.string().min(6).max(8),
+      rememberMe: z.boolean().optional().default(false),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const email = input.email.toLowerCase().trim();
+      const ipAddress = ctx.req.ip || ctx.req.headers["x-forwarded-for"] as string || "unknown";
+
+      // Check for pending MFA token
+      const pendingToken = ctx.req.cookies?.["caldera_mfa_pending"];
+      if (!pendingToken) {
+        return { success: false, message: "MFA session expired. Please log in again." };
+      }
+
+      try {
+        const decoded = jwt.verify(pendingToken, CALDERA_JWT_SECRET) as any;
+        if (decoded.email !== email || decoded.authType !== "mfa_pending") {
+          return { success: false, message: "Invalid MFA session." };
+        }
+
+        const db = await getDb();
+        const [account] = await db.select().from(calderaAccounts).where(eq(calderaAccounts.email, email)).limit(1);
+        if (!account || !account.totpSecret) {
+          return { success: false, message: "Account not found or MFA not configured." };
+        }
+
+        // Try TOTP code
+        let verified = false;
+        if (input.code.length === 6) {
+          const totp = new OTPAuth.TOTP({
+            issuer: "Ace C3 Platform",
+            label: account.email,
+            algorithm: "SHA256",
+            digits: 6,
+            period: 30,
+            secret: OTPAuth.Secret.fromBase32(account.totpSecret),
+          });
+          verified = totp.validate({ token: input.code, window: 1 }) !== null;
+        }
+
+        // Try backup code
+        if (!verified && account.backupCodes) {
+          const codes: string[] = JSON.parse(account.backupCodes);
+          const idx = codes.indexOf(input.code.toUpperCase());
+          if (idx !== -1) {
+            verified = true;
+            codes.splice(idx, 1);
+            await db.update(calderaAccounts)
+              .set({ backupCodes: JSON.stringify(codes) })
+              .where(eq(calderaAccounts.id, account.id));
+          }
+        }
+
+        if (!verified) {
+          recordFailedAttempt(email);
+          await logAuthEvent({ action: "mfa_verify_failed", email, success: false, ipAddress, userId: account.id });
+          return { success: false, message: "Invalid verification code." };
+        }
+
+        // MFA verified — issue full session token
+        clearFailedAttempts(email);
+        await db.update(calderaAccounts).set({ lastLoginAt: new Date() }).where(eq(calderaAccounts.id, account.id));
+
+        const jwtExpiry = input.rememberMe ? "7d" : "24h";
+        const sessionId = crypto.randomBytes(16).toString("hex");
+        const token = jwt.sign(
+          {
+            accountId: account.id,
+            email: account.email,
+            displayName: account.displayName,
+            role: account.role,
+            loginTime: Date.now(),
+            authType: "email",
+            mfaVerified: true,
+            sessionId,
+          },
+          CALDERA_JWT_SECRET,
+          { expiresIn: jwtExpiry }
+        );
+
+        // Track session
+        const userAgent = ctx.req.headers["user-agent"] || "unknown";
+        const deviceInfo = parseDeviceInfo(userAgent);
+        await db.insert(activeSessions).values({
+          accountId: account.id,
+          sessionToken: sessionId,
+          ipAddress,
+          userAgent: userAgent.substring(0, 500),
+          deviceInfo,
+          expiresAt: new Date(Date.now() + (input.rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000)),
+        });
+
+        ctx.res.clearCookie("caldera_mfa_pending");
+        ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCookieOptions(ctx.req, input.rememberMe));
+        await logAuthEvent({ action: "mfa_login_success", email, success: true, ipAddress, userId: account.id });
+
+        return {
+          success: true,
+          message: "Login successful",
+          user: { id: account.id, email: account.email, displayName: account.displayName, role: account.role },
+        };
+      } catch (err) {
+        console.error("[AccountAuth] MFA verify error:", err);
+        return { success: false, message: "MFA verification failed" };
+      }
+    }),
+
+  // Get MFA status for current user
+  mfaStatus: publicProcedure.query(async ({ ctx }) => {
+    const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+    if (!sessionToken) return { enabled: false, available: false };
+    try {
+      const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+      if (!decoded.accountId) return { enabled: false, available: false };
+      const db = await getDb();
+      const [account] = await db.select({
+        totpEnabled: calderaAccounts.totpEnabled,
+        backupCodesCount: sql<number>`JSON_LENGTH(${calderaAccounts.backupCodes})`,
+      }).from(calderaAccounts).where(eq(calderaAccounts.id, decoded.accountId)).limit(1);
+      if (!account) return { enabled: false, available: false };
+      return {
+        enabled: account.totpEnabled,
+        available: true,
+        backupCodesRemaining: account.backupCodesCount || 0,
+      };
+    } catch {
+      return { enabled: false, available: false };
+    }
+  }),
+
+  // ─── Session Management Endpoints ────────────────────────────────────────────
+
+  // Admin: List all active sessions across all accounts
+  listSessions: protectedProcedure.query(async ({ ctx }) => {
+    const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+    if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+    const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+    if (decoded.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+    const db = await getDb();
+    // Clean up expired sessions first
+    await db.delete(activeSessions).where(lt(activeSessions.expiresAt, new Date()));
+
+    const sessions = await db.select({
+      id: activeSessions.id,
+      accountId: activeSessions.accountId,
+      ipAddress: activeSessions.ipAddress,
+      deviceInfo: activeSessions.deviceInfo,
+      lastActivityAt: activeSessions.lastActivityAt,
+      expiresAt: activeSessions.expiresAt,
+      createdAt: activeSessions.createdAt,
+      userEmail: calderaAccounts.email,
+      userDisplayName: calderaAccounts.displayName,
+      userRole: calderaAccounts.role,
+    })
+    .from(activeSessions)
+    .leftJoin(calderaAccounts, eq(activeSessions.accountId, calderaAccounts.id))
+    .orderBy(desc(activeSessions.lastActivityAt));
+
+    return sessions;
+  }),
+
+  // Admin: Revoke a specific session
+  revokeSession: protectedProcedure
+    .input(z.object({ sessionId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+      if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+      if (decoded.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+      const db = await getDb();
+      const [session] = await db.select().from(activeSessions).where(eq(activeSessions.id, input.sessionId)).limit(1);
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+
+      await db.delete(activeSessions).where(eq(activeSessions.id, input.sessionId));
+
+      const ipAddress = ctx.req.ip || ctx.req.headers["x-forwarded-for"] as string || "unknown";
+      await logAuthEvent({
+        action: "session_revoked",
+        email: decoded.email || "admin",
+        success: true,
+        detail: `Session ${input.sessionId} for account ${session.accountId} revoked`,
+        ipAddress,
+      });
+
+      return { success: true, message: "Session revoked" };
+    }),
+
+  // Admin: Revoke all sessions for a specific account
+  revokeAllSessions: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+      if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+      if (decoded.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+      const db = await getDb();
+      const result = await db.delete(activeSessions).where(eq(activeSessions.accountId, input.accountId));
+
+      const ipAddress = ctx.req.ip || ctx.req.headers["x-forwarded-for"] as string || "unknown";
+      await logAuthEvent({
+        action: "all_sessions_revoked",
+        email: decoded.email || "admin",
+        success: true,
+        detail: `All sessions for account ${input.accountId} revoked`,
+        ipAddress,
+      });
+
+      return { success: true, message: "All sessions revoked for this account" };
+    }),
+
+  // Self: List own sessions
+  mySessions: publicProcedure.query(async ({ ctx }) => {
+    const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+    if (!sessionToken) return [];
+    try {
+      const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+      if (!decoded.accountId) return [];
+      const db = await getDb();
+      return await db.select({
+        id: activeSessions.id,
+        ipAddress: activeSessions.ipAddress,
+        deviceInfo: activeSessions.deviceInfo,
+        lastActivityAt: activeSessions.lastActivityAt,
+        createdAt: activeSessions.createdAt,
+        isCurrent: sql<boolean>`${activeSessions.sessionToken} = ${decoded.sessionId || ''}`,
+      })
+      .from(activeSessions)
+      .where(eq(activeSessions.accountId, decoded.accountId))
+      .orderBy(desc(activeSessions.lastActivityAt));
+    } catch {
+      return [];
+    }
+  }),
 
   // Admin: Resend invite (generate new token)
   resendInvite: protectedProcedure

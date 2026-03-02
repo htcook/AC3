@@ -6628,3 +6628,22 @@
 - [x] Add password change form to user profile
 - [x] Enforce FIPS-compliant password requirements on change
 - [x] Write vitest tests for all three features
+
+## MFA/TOTP, Session Management, Role-Based Sidebar
+- [x] Install otpauth/speakeasy TOTP library
+- [x] Add TOTP secret and backup codes to caldera_accounts schema
+- [x] Build MFA setup endpoint (generate secret, QR code URI)
+- [x] Build MFA verify endpoint for login flow
+- [x] Build MFA enable/disable endpoints for account settings
+- [x] Add TOTP verification step to email login flow
+- [x] Build MFA setup UI in Account Settings (QR code, backup codes)
+- [x] Build TOTP verification page in login flow
+- [x] Add active_sessions table to schema
+- [x] Track session creation, last activity, device info, IP
+- [x] Build session list endpoint for admins
+- [x] Build session revoke endpoint for admins
+- [x] Build session management panel UI in AdminHome
+- [x] Implement role-based sidebar nav filtering in AppShell
+- [x] Define nav items per role (admin, operator, analyst, viewer)
+- [x] Ensure mobile responsiveness for filtered sidebar
+- [x] Write vitest tests for MFA, sessions, and sidebar filtering (36 tests passing)
