@@ -719,14 +719,20 @@ export function generateEmailPostureFindings(
 
   // Determine if the domain actually operates mail infrastructure.
   // If there are no MX records the domain is not a mail server, so
-  // missing SPF / DKIM records are expected and should NOT be reported
-  // as findings. DMARC is still relevant because it prevents spoofing
-  // even when the domain doesn't send mail.
+  // missing SPF / DKIM / DMARC records are expected and should NOT be
+  // reported as findings. When in-scope assets aren't mail infra,
+  // flagging "no mail settings" is a false positive.
   const hasMailInfra = report.mx.records.length > 0;
 
+  // If no MX records exist, suppress ALL email findings (SPF, DKIM, DMARC, MX)
+  // because the domain does not operate mail infrastructure.
+  if (!hasMailInfra) {
+    return findings;
+  }
+
   const allWeaknesses = [
-    ...(hasMailInfra ? report.spf.weaknesses.map(w => ({ ...w, component: "SPF" })) : []),
-    ...(hasMailInfra ? report.dkim.weaknesses.map(w => ({ ...w, component: "DKIM" })) : []),
+    ...report.spf.weaknesses.map(w => ({ ...w, component: "SPF" })),
+    ...report.dkim.weaknesses.map(w => ({ ...w, component: "DKIM" })),
     ...report.dmarc.weaknesses.map(w => ({ ...w, component: "DMARC" })),
     ...report.mx.weaknesses.map(w => ({ ...w, component: "MX" })),
   ];

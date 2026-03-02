@@ -1,0 +1,250 @@
+{
+  "query": "SELECT id, name, status, targetDomain, customerName, createdAt FROM engagements ORDER BY createdAt DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, name, status, targetDomain, customerName, createdAt FROM engagements ORDER BY createdAt DESC LIMIT 30;",
+  "rows": [
+    {
+      "id": "1350010",
+      "name": "Results Test Engagement 1772395488331",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Results Test Corp",
+      "createdAt": "2026-03-01 20:04:48"
+    },
+    {
+      "id": "1350011",
+      "name": "tRPC Results Test 1772395488454",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "tRPC Test Corp",
+      "createdAt": "2026-03-01 20:04:48"
+    },
+    {
+      "id": "1350009",
+      "name": "Test Engagement for Linking",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Test Corp",
+      "createdAt": "2026-03-01 20:04:47"
+    },
+    {
+      "id": "1350007",
+      "name": "tRPC Report Filter 1772395437230",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Filter Corp",
+      "createdAt": "2026-03-01 20:03:57"
+    },
+    {
+      "id": "1350008",
+      "name": "tRPC Report Get 1772395437277",
+      "status": "completed",
+      "targetDomain": "NULL",
+      "customerName": "Get Corp",
+      "createdAt": "2026-03-01 20:03:57"
+    },
+    {
+      "id": "1350006",
+      "name": "Report Type Test 1772395436701",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Report Type Corp",
+      "createdAt": "2026-03-01 20:03:56"
+    },
+    {
+      "id": "1350001",
+      "name": "Report Test Engagement 1772395436125",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Report Test Corp",
+      "createdAt": "2026-03-01 20:03:56"
+    },
+    {
+      "id": "1350003",
+      "name": "Report Update Test 1772395436255",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Update Test Corp",
+      "createdAt": "2026-03-01 20:03:56"
+    },
+    {
+      "id": "1350004",
+      "name": "Report List Test 1772395436365",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "List Test Corp",
+      "createdAt": "2026-03-01 20:03:56"
+    },
+    {
+      "id": "1350005",
+      "name": "Client Type Test 1772395436481",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Client Type Corp",
+      "createdAt": "2026-03-01 20:03:56"
+    },
+    {
+      "id": "1350002",
+      "name": "Report Get Test 1772395436208",
+      "status": "completed",
+      "targetDomain": "NULL",
+      "customerName": "Get Test Corp",
+      "createdAt": "2026-03-01 20:03:56"
+    },
+    {
+      "id": "1320151",
+      "name": "tRPC Results Test 1772344699258",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "tRPC Test Corp",
+      "createdAt": "2026-03-01 05:58:19"
+    },
+    {
+      "id": "1320150",
+      "name": "Results Test Engagement 1772344699131",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Results Test Corp",
+      "createdAt": "2026-03-01 05:58:19"
+    },
+    {
+      "id": "1320149",
+      "name": "Test Engagement for Linking",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Test Corp",
+      "createdAt": "2026-03-01 05:58:15"
+    },
+    {
+      "id": "1320148",
+      "name": "tRPC Report Get 1772344629172",
+      "status": "completed",
+      "targetDomain": "NULL",
+      "customerName": "Get Corp",
+      "createdAt": "2026-03-01 05:57:09"
+    },
+    {
+      "id": "1320147",
+      "name": "tRPC Report Filter 1772344629129",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Filter Corp",
+      "createdAt": "2026-03-01 05:57:09"
+    },
+    {
+      "id": "1320144",
+      "name": "Report List Test 1772344628418",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "List Test Corp",
+      "createdAt": "2026-03-01 05:57:08"
+    },
+    {
+      "id": "1320143",
+      "name": "Report Update Test 1772344628362",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Update Test Corp",
+      "createdAt": "2026-03-01 05:57:08"
+    },
+    {
+      "id": "1320141",
+      "name": "Report Test Engagement 1772344628290",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Report Test Corp",
+      "createdAt": "2026-03-01 05:57:08"
+    },
+    {
+      "id": "1320145",
+      "name": "Client Type Test 1772344628503",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Client Type Corp",
+      "createdAt": "2026-03-01 05:57:08"
+    },
+    {
+      "id": "1320142",
+      "name": "Report Get Test 1772344628319",
+      "status": "completed",
+      "targetDomain": "NULL",
+      "customerName": "Get Test Corp",
+      "createdAt": "2026-03-01 05:57:08"
+    },
+    {
+      "id": "1320146",
+      "name": "Report Type Test 1772344628692",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Report Type Corp",
+      "createdAt": "2026-03-01 05:57:08"
+    },
+    {
+      "id": "1320139",
+      "name": "Results Test Engagement 1772343314951",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Results Test Corp",
+      "createdAt": "2026-03-01 05:35:15"
+    },
+    {
+      "id": "1320140",
+      "name": "tRPC Results Test 1772343315087",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "tRPC Test Corp",
+      "createdAt": "2026-03-01 05:35:15"
+    },
+    {
+      "id": "1320138",
+      "name": "Test Engagement for Linking",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Test Corp",
+      "createdAt": "2026-03-01 05:35:11"
+    },
+    {
+      "id": "1320133",
+      "name": "Report List Test 1772343247999",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "List Test Corp",
+      "createdAt": "2026-03-01 05:34:08"
+    },
+    {
+      "id": "1320134",
+      "name": "Client Type Test 1772343248076",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Client Type Corp",
+      "createdAt": "2026-03-01 05:34:08"
+    },
+    {
+      "id": "1320135",
+      "name": "Report Type Test 1772343248287",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Report Type Corp",
+      "createdAt": "2026-03-01 05:34:08"
+    },
+    {
+      "id": "1320136",
+      "name": "tRPC Report Filter 1772343248709",
+      "status": "active",
+      "targetDomain": "NULL",
+      "customerName": "Filter Corp",
+      "createdAt": "2026-03-01 05:34:08"
+    },
+    {
+      "id": "1320137",
+      "name": "tRPC Report Get 1772343248752",
+      "status": "completed",
+      "targetDomain": "NULL",
+      "customerName": "Get Corp",
+      "createdAt": "2026-03-01 05:34:08"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tstatus\ttargetDomain\tcustomerName\tcreatedAt\n1350010\tResults Test Engagement 1772395488331\tactive\tNULL\tResults Test Corp\t2026-03-01 20:04:48\n1350011\ttRPC Results Test 1772395488454\tactive\tNULL\ttRPC Test Corp\t2026-03-01 20:04:48\n1350009\tTest Engagement for Linking\tactive\tNULL\tTest Corp\t2026-03-01 20:04:47\n1350007\ttRPC Report Filter 1772395437230\tactive\tNULL\tFilter Corp\t2026-03-01 20:03:57\n1350008\ttRPC Report Get 1772395437277\tcompleted\tNULL\tGet Corp\t2026-03-01 20:03:57\n1350006\tReport Type Test 1772395436701\tactive\tNULL\tReport Type Corp\t2026-03-01 20:03:56\n1350001\tReport Test Engagement 1772395436125\tactive\tNULL\tReport Test Corp\t2026-03-01 20:03:56\n1350003\tReport Update Test 1772395436255\tactive\tNULL\tUpdate Test Corp\t2026-03-01 20:03:56\n1350004\tReport List Test 1772395436365\tactive\tNULL\tList Test Corp\t2026-03-01 20:03:56\n1350005\tClient Type Test 1772395436481\tactive\tNULL\tClient Type Corp\t2026-03-01 20:03:56\n1350002\tReport Get Test 1772395436208\tcompleted\tNULL\tGet Test Corp\t2026-03-01 20:03:56\n1320151\ttRPC Results Test 1772344699258\tactive\tNULL\ttRPC Test Corp\t2026-03-01 05:58:19\n1320150\tResults Test Engagement 1772344699131\tactive\tNULL\tResults Test Corp\t2026-03-01 05:58:19\n1320149\tTest Engagement for Linking\tactive\tNULL\tTest Corp\t2026-03-01 05:58:15\n1320148\ttRPC Report Get 1772344629172\tcompleted\tNULL\tGet Corp\t2026-03-01 05:57:09\n1320147\ttRPC Report Filter 1772344629129\tactive\tNULL\tFilter Corp\t2026-03-01 05:57:09\n1320144\tReport List Test 1772344628418\tactive\tNULL\tList Test Corp\t2026-03-01 05:57:08\n1320143\tReport Update Test 1772344628362\tactive\tNULL\tUpdate Test Corp\t2026-03-01 05:57:08\n1320141\tReport Test Engagement 1772344628290\tactive\tNULL\tReport Test Corp\t2026-03-01 05:57:08\n1320145\tClient Type Test 1772344628503\tactive\tNULL\tClient Type Corp\t2026-03-01 05:57:08\n1320142\tReport Get Test 1772344628319\tcompleted\tNULL\tGet Test Corp\t2026-03-01 05:57:08\n1320146\tReport Type Test 1772344628692\tactive\tNULL\tReport Type Corp\t2026-03-01 05:57:08\n1320139\tResults Test Engagement 1772343314951\tactive\tNULL\tResults Test Corp\t2026-03-01 05:35:15\n1320140\ttRPC Results Test 1772343315087\tactive\tNULL\ttRPC Test Corp\t2026-03-01 05:35:15\n1320138\tTest Engagement for Linking\tactive\tNULL\tTest Corp\t2026-03-01 05:35:11\n1320133\tReport List Test 1772343247999\tactive\tNULL\tList Test Corp\t2026-03-01 05:34:08\n1320134\tClient Type Test 1772343248076\tactive\tNULL\tClient Type Corp\t2026-03-01 05:34:08\n1320135\tReport Type Test 1772343248287\tactive\tNULL\tReport Type Corp\t2026-03-01 05:34:08\n1320136\ttRPC Report Filter 1772343248709\tactive\tNULL\tFilter Corp\t2026-03-01 05:34:08\n1320137\ttRPC Report Get 1772343248752\tcompleted\tNULL\tGet Corp\t2026-03-01 05:34:08\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

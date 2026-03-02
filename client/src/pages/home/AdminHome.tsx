@@ -317,6 +317,18 @@ export default function AdminHome() {
                           <KeyRound className="w-3.5 h-3.5 mr-2" /> Reset password
                         </DropdownMenuItem>
 
+                        {/* Revoke all sessions */}
+                        <DropdownMenuItem
+                          className="text-xs text-cyan-400"
+                          onClick={() => {
+                            if (confirm(`Revoke all active sessions for ${account.displayName || account.email}?`)) {
+                              revokeAllSessionsMutation.mutate({ accountId: account.id });
+                            }
+                          }}
+                        >
+                          <LogOut className="w-3.5 h-3.5 mr-2" /> Revoke all sessions
+                        </DropdownMenuItem>
+
                         {/* Resend invite (only for invited status) */}
                         {account.status === "invited" && (
                           <DropdownMenuItem

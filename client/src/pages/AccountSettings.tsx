@@ -47,6 +47,7 @@ import {
   Monitor,
   Trash2,
   ShieldOff,
+  RefreshCw,
 } from "lucide-react";
 
 const TIMEZONES = [
@@ -213,6 +214,21 @@ function MFASetupSection() {
     },
     onError: (err) => toast.error(err.message),
   });
+  const mfaRegenBackupCodes = trpc.accountAuth.mfaRegenerateBackupCodes.useMutation({
+    onSuccess: (data) => {
+      if (data.success && data.backupCodes) {
+        setRegenCodes(data.backupCodes);
+        setRegenDialogOpen(false);
+        setRegenCode("");
+        setShowRegenCodes(true);
+        utils.accountAuth.mfaStatus.invalidate();
+        toast.success("Backup codes regenerated — save them now!");
+      } else {
+        toast.error(data.message || "Invalid code");
+      }
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const [setupStep, setSetupStep] = useState<"idle" | "qr" | "verify" | "done">("idle");
   const [setupData, setSetupData] = useState<{ secret: string; qrCode: string; backupCodes: string[] } | null>(null);
@@ -220,6 +236,10 @@ function MFASetupSection() {
   const [showBackupCodes, setShowBackupCodes] = useState(false);
   const [disableDialogOpen, setDisableDialogOpen] = useState(false);
   const [disableCode, setDisableCode] = useState("");
+  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
+  const [regenCode, setRegenCode] = useState("");
+  const [regenCodes, setRegenCodes] = useState<string[] | null>(null);
+  const [showRegenCodes, setShowRegenCodes] = useState(false);
 
   const handleStartSetup = async () => {
     try {
@@ -288,14 +308,99 @@ function MFASetupSection() {
             </div>
           )}
 
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setDisableDialogOpen(true)}
-          >
-            <ShieldOff className="w-4 h-4 mr-2" />
-            DISABLE MFA
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRegenDialogOpen(true)}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              REGENERATE BACKUP CODES
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setDisableDialogOpen(true)}
+            >
+              <ShieldOff className="w-4 h-4 mr-2" />
+              DISABLE MFA
+            </Button>
+          </div>
+
+          {/* Regenerated backup codes display */}
+          {showRegenCodes && regenCodes && (
+            <div className="p-4 bg-card border border-primary/30 rounded-lg">
+              <h3 className="font-display text-sm tracking-wider mb-3 flex items-center gap-2">
+                <Key className="w-4 h-4 text-primary" />
+                NEW BACKUP CODES
+              </h3>
+              <p className="text-xs text-amber-400 mb-3">
+                Save these codes now — they will not be shown again. Your previous codes are no longer valid.
+              </p>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {regenCodes.map((code, i) => (
+                  <code key={i} className="text-xs font-mono bg-secondary/50 p-2 rounded text-center">
+                    {code}
+                  </code>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(regenCodes.join("\n"));
+                    toast.success("Backup codes copied to clipboard");
+                  }}
+                >
+                  <Copy className="w-3.5 h-3.5 mr-1" /> Copy All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setShowRegenCodes(false); setRegenCodes(null); }}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Regenerate Backup Codes Dialog */}
+          <Dialog open={regenDialogOpen} onOpenChange={setRegenDialogOpen}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="font-display tracking-wider">REGENERATE BACKUP CODES</DialogTitle>
+                <DialogDescription>
+                  Enter your current authenticator code to generate new backup codes. All existing backup codes will be invalidated.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Authenticator Code</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="6-digit TOTP code"
+                    value={regenCode}
+                    onChange={(e) => setRegenCode(e.target.value.replace(/\D/g, "").substring(0, 6))}
+                    className="text-center text-lg tracking-[0.3em] font-mono"
+                    maxLength={6}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRegenDialogOpen(false)}>Cancel</Button>
+                <Button
+                  onClick={() => mfaRegenBackupCodes.mutate({ code: regenCode })}
+                  disabled={regenCode.length !== 6 || mfaRegenBackupCodes.isPending}
+                >
+                  {mfaRegenBackupCodes.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Regenerate
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Disable MFA Dialog */}
           <Dialog open={disableDialogOpen} onOpenChange={setDisableDialogOpen}>

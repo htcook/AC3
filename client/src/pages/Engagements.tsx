@@ -744,7 +744,7 @@ export default function Engagements() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2 flex-wrap sm:opacity-0 sm:group-hover:opacity-100 transition-opacity mt-2 sm:mt-0">
-                        <Link href={`/campaign-wizard`}>
+                        <Link href={`/engagement-ops/${engagement.id}`}>
                           <Button
                             variant="outline"
                             size="sm"

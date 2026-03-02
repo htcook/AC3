@@ -959,6 +959,58 @@ export const accountAuthRouter = router({
     }
   }),
 
+  // Regenerate backup codes (requires current TOTP code to verify identity)
+  mfaRegenerateBackupCodes: publicProcedure
+    .input(z.object({ code: z.string().length(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const sessionToken = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+      if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const decoded = jwt.verify(sessionToken, CALDERA_JWT_SECRET) as any;
+      if (!decoded.accountId) throw new TRPCError({ code: "BAD_REQUEST" });
+
+      const db = await getDb();
+      const [account] = await db.select().from(calderaAccounts).where(eq(calderaAccounts.id, decoded.accountId)).limit(1);
+      if (!account || !account.totpEnabled || !account.totpSecret) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "MFA must be enabled to regenerate backup codes" });
+      }
+
+      // Verify current TOTP code
+      const totp = new OTPAuth.TOTP({
+        issuer: "Ace C3 Platform",
+        label: account.email,
+        algorithm: "SHA256",
+        digits: 6,
+        period: 30,
+        secret: OTPAuth.Secret.fromBase32(account.totpSecret),
+      });
+      const delta = totp.validate({ token: input.code, window: 1 });
+      if (delta === null) {
+        await logAuthEvent({ action: "backup_codes_regen_failed", email: account.email, success: false, detail: "Invalid TOTP code", userId: account.id });
+        return { success: false, message: "Invalid verification code. Please try again." };
+      }
+
+      // Generate new backup codes
+      const newBackupCodes = Array.from({ length: 8 }, () =>
+        crypto.randomBytes(4).toString("hex").toUpperCase()
+      );
+
+      await db.update(calderaAccounts)
+        .set({ backupCodes: JSON.stringify(newBackupCodes), updatedAt: new Date() })
+        .where(eq(calderaAccounts.id, account.id));
+
+      const ipAddress = ctx.req.ip || (ctx.req.headers["x-forwarded-for"] as string) || "unknown";
+      await logAuthEvent({
+        action: "backup_codes_regenerated",
+        email: account.email,
+        success: true,
+        detail: "8 new backup codes generated",
+        ipAddress,
+        userId: account.id,
+      });
+
+      return { success: true, backupCodes: newBackupCodes };
+    }),
+
   // Admin: Resend invite (generate new token)
   resendInvite: protectedProcedure
     .input(z.object({ accountId: z.number() }))

@@ -43,6 +43,7 @@ const TemplateGenerator = lazy(() => import("./pages/TemplateGenerator"));
 const AbilitiesLibrary = lazy(() => import("./pages/AbilitiesLibrary"));
 const IOCFeed = lazy(() => import("./pages/IOCFeed"));
 const EngagementPipeline = lazy(() => import("./pages/EngagementPipeline"));
+const EngagementOps = lazy(() => import("./pages/EngagementOps"));
 const ThreatActorDetail = lazy(() => import("./pages/ThreatActorDetail"));
 const TtpKnowledge = lazy(() => import("./pages/TtpKnowledge"));
 const CampaignExecution = lazy(() => import("./pages/CampaignExecution"));
@@ -513,6 +514,12 @@ function Router() {
         </Route>
         <Route path="/engagements/:id/recon">
           {() => <ProtectedRoute component={OsintRecon} />}
+        </Route>
+        <Route path="/engagement-ops/:id">
+          {() => <ProtectedRoute component={EngagementOps} />}
+        </Route>
+        <Route path="/engagement-ops">
+          {() => <Redirect to="/engagements" />}
         </Route>
         <Route path="/emulation-playbooks">
           <ProtectedRoute component={EmulationPlaybooks} />

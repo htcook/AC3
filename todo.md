@@ -6647,3 +6647,49 @@
 - [x] Define nav items per role (admin, operator, analyst, viewer)
 - [x] Ensure mobile responsiveness for filtered sidebar
 - [x] Write vitest tests for MFA, sessions, and sidebar filtering (36 tests passing)
+
+## Revoke All Sessions, Backup Code Regen, Audit Logging, Engagement Builder Test
+- [x] Add "Revoke All Sessions" bulk action button per account in AdminHome
+- [x] Implement TOTP backup code regeneration endpoint (without disabling MFA)
+- [x] Add backup code regeneration UI in Account Settings
+- [x] Add session activity logging to audit trail (revocations, MFA changes)
+- [x] Test engagement builder UX end-to-end
+- [x] Reset harrison.cook@gmail.com temp password
+- [x] Write vitest tests for new features
+- [x] Fix domain recon false-positive: suppress mail findings (SPF/DKIM/DMARC) when in-scope assets are not mail infrastructure
+
+## Engagement Builder Fixes & Active Scan Pipeline
+- [x] Delete test engagements from database (240 test records removed, 2 real engagements kept)
+- [x] Fix Launch button double-select bug — Launch now navigates to /engagement-ops/:id
+- [x] Build unified EngagementOps page — single page for entire engagement workflow
+- [x] Phase 1: Recon & Discovery panel (passive OSINT, domain intel)
+- [x] Phase 2: Enumeration & Fingerprinting panel (nmap, tech stack)
+- [x] Phase 3: Vulnerability Detection panel (nuclei, web app scan, vuln feeds)
+- [x] Phase 4: Exploitation panel (Metasploit, exploitation bridge)
+- [x] Phase 5a (Pentest): Per-asset unauthorized access demo → evidence → report
+- [x] Phase 5b (Red Team): C2 agent deploy → Caldera callback → pivot → objectives
+- [x] Build scan flow: enumeration, fingerprinting, vulnerability detection on in-scope assets
+- [x] Build exploit phase: Metasploit integration for pre-exploit work
+- [x] Pentest track: per-asset exploit → demonstrate unauthorized access to data/privileged functions → evidence → report
+- [x] Red Team track: Shell → deploy C2 agent (Caldera/other) → callback → adversary ops
+- [x] LLM-orchestrated weakness validation (service/logon testing, web app testing)
+- [x] Write vitest tests for engagement ops (32 tests passing)
+- [x] RoE & Scope enforcement gate: signed RoE + defined scope required before active ops
+- [x] All scan targets validated against RoE scope before execution
+- [x] Team Lead setup section: RoE & Scope tab with signer info, in-scope targets, enforcement log
+- [x] Scope lock mechanism: passive recon allowed before RoE; active phases gated behind signed RoE
+- [x] Human-in-the-middle approval gates displayed inline in ops page (banner + approve/deny)
+- [x] Exploit execution approval before high-risk modules (red tier gates)
+- [x] C2 agent deployment confirmation gate (red tier)
+- [x] Offensive audit log entries with sign-off inline
+- [x] Scope violation blocks with team lead override option
+- [x] Verify AI chat works for each role (admin, operator, analyst, viewer) — backend handles all roles with persona switching
+- [x] Fix AI chat window scroll — ensure messages area is scrollable
+- [x] Auto-trigger OWASP ZAP scan on discovered web apps/sites during active scan phase
+- [x] WAF-aware scanning config: throttled requests, randomized UAs, header rotation
+- [x] ZAP scan focus: exploitable vulns, sensitive data (accounts, secrets, API keys), OWASP Top 10
+- [x] WAF detection alert with operator-adjustable evasion settings
+- [x] LLM pipeline: auto-triage ZAP findings, correlate with nmap/nuclei results
+- [x] LLM pipeline: generate exploit recommendations from correlated scan data
+- [x] LLM pipeline: WAF bypass strategy suggestions based on detected WAF signatures
+- [x] LLM pipeline: identify most promising attack vectors per asset

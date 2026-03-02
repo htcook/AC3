@@ -2332,10 +2332,11 @@ export async function runDomainIntelPipeline(
 
   // Stage 3.9: Email Security Analysis — check SPF/DKIM/DMARC for phishing weaknesses
   let emailSecurityReport: any = undefined;
+  let hasMx = false;
   try {
     const { analyzeEmailSecurity, generateEmailPostureFindings } = await import('./lib/email-security-analyzer');
     emailSecurityReport = await analyzeEmailSecurity(org.primaryDomain);
-    const hasMx = emailSecurityReport.mx?.records?.length > 0;
+    hasMx = emailSecurityReport.mx?.records?.length > 0;
     console.log(`[DomainIntel] Email security: grade=${emailSecurityReport.overallGrade}, score=${emailSecurityReport.overallScore}, weaknesses=${emailSecurityReport.totalWeaknesses}, phishing=${emailSecurityReport.phishingDifficultyRating}, hasMX=${hasMx}`);
     if (!hasMx) {
       console.log(`[DomainIntel] No MX records for ${org.primaryDomain} — SPF/DKIM findings suppressed (not a mail server)`);
@@ -2356,9 +2357,11 @@ export async function runDomainIntelPipeline(
         tags: a.asset.tags,
       }));
 
-      // Fallback: only use the root domain asset (hostname === primaryDomain) if it exists,
-      // but NEVER fall back to an arbitrary non-mail asset like www, api, sso, etc.
-      const rootDomainAsset = !mailAsset ? analyses.find(a =>
+      // Fallback: only use the root domain asset (hostname === primaryDomain) if it exists
+      // AND the domain actually has MX records (i.e., operates mail infrastructure).
+      // If there are no MX records, the in-scope assets are not mail infra and email
+      // findings should NOT be assigned to any asset — they are false positives.
+      const rootDomainAsset = (!mailAsset && hasMx) ? analyses.find(a =>
         a.asset.hostname === org.primaryDomain &&
         (a.asset.assetType === 'other' || a.asset.assetClasses?.includes('dns_root'))
       ) : null;
@@ -2407,11 +2410,15 @@ export async function runDomainIntelPipeline(
         tags: a.asset.tags,
       });
 
-      // Also allow root domain assets (dns_root) to keep email findings
-      // since they represent the domain-level DNS configuration
-      const isRootDomain = a.asset.assetClasses?.includes('dns_root') || a.asset.assetType === 'other' && a.asset.hostname === org.primaryDomain;
+      // Only allow root domain assets (dns_root) to keep email findings if the
+      // domain actually has MX records. If there are no MX records, the domain
+      // does not operate mail infrastructure and email findings are false positives.
+      const isRootDomainWithMail = (
+        a.asset.assetClasses?.includes('dns_root') ||
+        (a.asset.assetType === 'other' && a.asset.hostname === org.primaryDomain)
+      ) && emailSecurityReport?.mx?.records?.length > 0;
 
-      if (!assetIsMailRelated && !isRootDomain) {
+      if (!assetIsMailRelated && !isRootDomainWithMail) {
         const before = a.postureFindings.length;
         a.postureFindings = a.postureFindings.filter((f: any) => {
           const cat = (f.category || '').toLowerCase();

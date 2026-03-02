@@ -283,7 +283,7 @@ export function GlobalAiChat() {
             "fixed z-[9999] bg-background border border-border rounded-lg shadow-2xl flex overflow-hidden transition-all duration-200",
             isExpanded
               ? "top-4 right-4 bottom-4 left-4 md:left-auto md:w-[700px]"
-              : "top-4 right-4 w-[440px] h-[75vh] max-h-[750px] min-h-[400px]"
+              : "top-4 right-4 bottom-auto w-[440px] h-[75vh] max-h-[750px] min-h-[400px]"
           )}
         >
           {/* ── Session Sidebar ── */}
@@ -476,7 +476,7 @@ export function GlobalAiChat() {
             </div>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-2">
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center py-8">
                   <div className={cn("w-10 h-10 rounded-full flex items-center justify-center mb-2", iconColor)}>

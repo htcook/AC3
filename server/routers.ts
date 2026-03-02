@@ -8199,5 +8199,95 @@ Make the phishing content highly realistic and tailored to the target domain and
         };
       }),
   }),
+
+  // ── Engagement Ops: LLM-orchestrated autonomous execution engine ──────────
+  engagementOps: router({
+    /** Get current ops state for an engagement */
+    getState: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState } = await import('./lib/engagement-orchestrator');
+        return getOpsState(input.engagementId);
+      }),
+
+    /** Initialize ops state for an engagement */
+    init: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        const { initOpsState } = await import('./lib/engagement-orchestrator');
+        return initOpsState(input.engagementId, engagement.engagementType);
+      }),
+
+    /** Start autonomous execution — one-click pentest/red team */
+    execute: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+        // Validate RoE scope exists
+        if (!engagement.targetDomain && !engagement.targetIpRange) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets defined. Add target domains or IP ranges first.' });
+        }
+
+        const { executeEngagement, initOpsState, getOpsState } = await import('./lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) {
+          state = initOpsState(input.engagementId, engagement.engagementType);
+        }
+        if (state.isRunning) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is already running' });
+        }
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagement_ops_started',
+          details: `Started autonomous ${engagement.engagementType} execution for engagement #${input.engagementId}`,
+        });
+
+        // Fire and forget — the pipeline runs asynchronously
+        executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+
+        return { started: true, engagementId: input.engagementId };
+      }),
+
+    /** Stop execution */
+    stop: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { stopEngagement } = await import('./lib/engagement-orchestrator');
+        const stopped = stopEngagement(input.engagementId);
+        if (stopped) {
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'engagement_ops_stopped',
+            details: `Stopped execution for engagement #${input.engagementId}`,
+          });
+        }
+        return { stopped };
+      }),
+
+    /** Resolve an approval gate */
+    resolveApproval: protectedProcedure
+      .input(z.object({
+        gateId: z.string(),
+        approved: z.boolean(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { resolveApproval } = await import('./lib/engagement-orchestrator');
+        const resolved = resolveApproval(input.gateId, input.approved, ctx.user.name || String(ctx.user.id));
+        if (!resolved) throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found or already resolved' });
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: input.approved ? 'ops_approval_granted' : 'ops_approval_denied',
+          details: `${input.approved ? 'Approved' : 'Denied'} gate ${input.gateId}`,
+        });
+
+        return { resolved: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

@@ -133,6 +133,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
           { href: "/workflows", icon: Rocket, label: "MISSION WORKFLOWS" },
           { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
+          { href: "/engagement-ops", icon: Crosshair, label: "ENGAGEMENT OPS" },
           { href: "/engagement-timeline", icon: Workflow, label: "KILL CHAIN" },
           { href: "/kill-chain", icon: GitMerge, label: "KILL CHAIN VISUALIZER" },
           { href: "/opsec-dashboard", icon: ShieldAlert, label: "OPSEC DASHBOARD" },
