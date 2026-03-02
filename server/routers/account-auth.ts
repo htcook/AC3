@@ -18,6 +18,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { notifyOwner } from "../_core/notification";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const BCRYPT_ROUNDS = 12; // FIPS 140-3 / NIST SP 800-63B compliant
@@ -274,6 +275,32 @@ export const accountAuthRouter = router({
         });
 
         console.log(`[AccountAuth] User invited: ${email} (role: ${input.role})`);
+
+        // Send invite notification to the platform owner
+        const loginUrl = `${ctx.req.protocol}://${ctx.req.get('host')}/login`;
+        const inviteUrl = input.tempPassword
+          ? loginUrl
+          : `${ctx.req.protocol}://${ctx.req.get('host')}/accept-invite?token=${inviteToken}`;
+        await notifyOwner({
+          title: `New Team Member Invited: ${input.displayName}`,
+          content: [
+            `A new team member has been invited to the Ace C3 platform.`,
+            ``,
+            `**Email:** ${email}`,
+            `**Display Name:** ${input.displayName}`,
+            `**Role:** ${input.role}`,
+            `**Invited By:** ${decoded.email || decoded.username}`,
+            ``,
+            input.tempPassword
+              ? `The account is active immediately. Share the login URL with the user: ${loginUrl}`
+              : `The user must accept their invite within ${INVITE_EXPIRY_HOURS} hours: ${inviteUrl}`,
+            ``,
+            `Please share the credentials with the invited user securely.`,
+          ].join('\n'),
+        }).catch((err) => {
+          console.warn(`[AccountAuth] Failed to send invite notification for ${email}:`, err);
+        });
+
         return {
           success: true,
           accountId: (result as any).insertId,

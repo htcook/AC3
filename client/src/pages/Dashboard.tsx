@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import ZeroDayFeed from "@/components/ZeroDayFeed";
 import DashboardConfigPanel from "@/components/DashboardConfigPanel";
+import WhatsNew, { WhatsNewTrigger } from "@/components/WhatsNew";
 import { useState, useEffect, useMemo } from "react";
 import AppShell from "@/components/AppShell";
 import { useDashboardEvents } from "@/hooks/useWebSocket";
@@ -372,6 +373,7 @@ function DashboardInner() {
 
   return (
     <AppShell activePath="/dashboard">
+      <WhatsNew />
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between">
           <div>
@@ -387,6 +389,7 @@ function DashboardInner() {
               <div className={`w-2.5 h-2.5 rounded-full ml-2 ${wsConnected ? 'bg-cyan-500 animate-pulse' : 'bg-gray-500'}`} />
               <span className="text-[10px] font-display tracking-wider text-muted-foreground hidden sm:inline">LIVE</span>
             </div>
+            <WhatsNewTrigger />
             <Button variant="outline" size="sm" className="font-display tracking-wider text-xs" onClick={openConfig}>
               <Settings2 className="w-3.5 h-3.5 mr-1" />
               CUSTOMIZE

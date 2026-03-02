@@ -58,6 +58,114 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: "Viewer",
 };
 
+function PasswordChangeForm() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
+
+  const changePassword = trpc.accountAuth.changePassword.useMutation({
+    onSuccess: () => {
+      toast.success("Password changed successfully");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const passwordValid = newPassword.length >= 12
+    && /[A-Z]/.test(newPassword)
+    && /[a-z]/.test(newPassword)
+    && /[0-9]/.test(newPassword)
+    && /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
+  const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordValid) {
+      toast.error("Password does not meet NIST SP 800-63B requirements");
+      return;
+    }
+    if (!passwordsMatch) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    changePassword.mutate({ currentPassword, newPassword });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="currentPassword">Current Password</Label>
+        <Input
+          id="currentPassword"
+          type={showPasswords ? "text" : "password"}
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          placeholder="Enter current password"
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="newPassword">New Password</Label>
+        <Input
+          id="newPassword"
+          type={showPasswords ? "text" : "password"}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="Min 12 chars, upper+lower+number+special"
+          required
+        />
+        {newPassword.length > 0 && (
+          <div className="grid grid-cols-2 gap-1 text-xs mt-1">
+            <span className={newPassword.length >= 12 ? "text-green-500" : "text-red-400"}>✓ 12+ characters</span>
+            <span className={/[A-Z]/.test(newPassword) ? "text-green-500" : "text-red-400"}>✓ Uppercase letter</span>
+            <span className={/[a-z]/.test(newPassword) ? "text-green-500" : "text-red-400"}>✓ Lowercase letter</span>
+            <span className={/[0-9]/.test(newPassword) ? "text-green-500" : "text-red-400"}>✓ Number</span>
+            <span className={/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword) ? "text-green-500" : "text-red-400"}>✓ Special character</span>
+          </div>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="confirmPassword">Confirm New Password</Label>
+        <Input
+          id="confirmPassword"
+          type={showPasswords ? "text" : "password"}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Re-enter new password"
+          required
+        />
+        {confirmPassword.length > 0 && !passwordsMatch && (
+          <p className="text-xs text-red-400">Passwords do not match</p>
+        )}
+      </div>
+      <div className="flex items-center gap-4 pt-2">
+        <Button
+          type="submit"
+          disabled={!passwordValid || !passwordsMatch || !currentPassword || changePassword.isPending}
+        >
+          {changePassword.isPending ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> CHANGING...</>
+          ) : (
+            <><Lock className="w-4 h-4 mr-2" /> CHANGE PASSWORD</>
+          )}
+        </Button>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showPasswords}
+            onChange={(e) => setShowPasswords(e.target.checked)}
+            className="rounded"
+          />
+          Show passwords
+        </label>
+      </div>
+    </form>
+  );
+}
+
 export default function AccountSettings() {
   const { user } = useAuth();
   const profile = trpc.account.getProfile.useQuery(undefined, { enabled: !!user });
@@ -254,6 +362,19 @@ export default function AccountSettings() {
                 </p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Change Password Card */}
+        <Card className="border-2 border-border">
+          <CardHeader>
+            <CardTitle className="font-display tracking-wider flex items-center gap-2">
+              <Lock className="w-5 h-5" /> CHANGE PASSWORD
+            </CardTitle>
+            <CardDescription>Update your account password. Must meet NIST SP 800-63B requirements (min 12 characters, mixed case, number, special character).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PasswordChangeForm />
           </CardContent>
         </Card>
 

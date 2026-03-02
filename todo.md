@@ -6608,13 +6608,23 @@
 - [ ] Add caldera_accounts table and push migration
 - [ ] Build email-based login endpoint (alongside existing username login)
 - [ ] Build admin invite flow (admin creates account, sets role, sends invite)
-- [ ] Update login page to support email-based login
-- [ ] Build admin user management UI (list users, invite, change roles, deactivate)
-- [ ] Create harrison.cook@gmail.com admin account
-- [ ] Fix red account role from admin to operator
-- [ ] Write vitest tests for new auth flow
-- [ ] Ensure FedRAMP/FIPS 140-3 compliance: bcrypt 12+ rounds, NIST SP 800-63B passwords, FIPS-approved DRBG tokens
-- [ ] Add account lockout after 5 failed attempts (NIST SP 800-53 AC-7)
-- [ ] Add auth event audit logging (FedRAMP AU-2/AU-3)
-- [ ] Fix routing: show public homepage at / for unauthenticated visitors (not login page)
-- [ ] Ensure login page is only shown at /login, not at root /
+- [x] Update login page to support email-based login
+- [x] Build admin user management UI (list users, invite, change roles, deactivate)
+- [x] Create harrison.cook@gmail.com admin account
+- [x] Fix red account role from admin to operator
+- [x] Write vitest tests for new auth flow
+- [x] Ensure FedRAMP/FIPS 140-3 compliance: bcrypt 12+ rounds, NIST SP 800-63B passwords, FIPS-approved DRBG tokens
+- [x] Add account lockout after 5 failed attempts (NIST SP 800-53 AC-7)
+- [x] Add auth event audit logging (FedRAMP AU-2/AU-3)
+- [x] Fix routing: show public homepage at / for unauthenticated visitors (not login page)
+- [x] Ensure login page is only shown at /login, not at root /
+
+## What's New Pop-up, Invite Emails, Password Change
+- [x] Build "What's New" pop-up component with dismiss button
+- [x] Store dismiss state in localStorage per version
+- [x] Continuously update What's New content with platform changes
+- [x] Build invite email integration using notification/email system
+- [x] Send credentials to invited partners via email automatically
+- [x] Add password change form to user profile
+- [x] Enforce FIPS-compliant password requirements on change
+- [x] Write vitest tests for all three features
