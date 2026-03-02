@@ -90,6 +90,8 @@ export default function Engagements() {
   }, []);
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -112,6 +114,9 @@ export default function Engagements() {
 
   // RoE documents for the selector dropdown
   const { data: roeDocuments } = trpc.roeBuilder.list.useQuery();
+
+  // Engagement templates
+  const { data: templates } = trpc.engagements.listTemplates.useQuery();
 
   // Engagement data
   const { data: engagements, refetch } = trpc.engagements.list.useQuery();
@@ -155,8 +160,24 @@ export default function Engagements() {
     onSuccess: () => {
       toast.success('Engagement created');
       setShowCreateForm(false);
+      setShowTemplateSelector(false);
+      setSelectedTemplateId(null);
       resetForm();
       refetch();
+    },
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
+  });
+
+  const createFromTemplateMutation = trpc.engagements.createFromTemplate.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Engagement created from template! RoE auto-generated.`);
+      setShowCreateForm(false);
+      setShowTemplateSelector(false);
+      setSelectedTemplateId(null);
+      resetForm();
+      refetch();
+      // Navigate to the new engagement ops page
+      navigate(`/engagement-ops/${result.id}`);
     },
     onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
@@ -220,6 +241,36 @@ export default function Engagements() {
       engagementType: 'red_team', status: 'planning',
       targetDomain: '', targetIpRange: '', phishingDomain: '', notes: '',
       roeDocumentId: undefined,
+    });
+    setSelectedTemplateId(null);
+  }
+
+  function applyTemplate(templateId: string) {
+    const tmpl = templates?.find((t: any) => t.id === templateId);
+    if (!tmpl) return;
+    setSelectedTemplateId(templateId);
+    setFormData(prev => ({
+      ...prev,
+      engagementType: tmpl.engagementType as EngagementType,
+      description: tmpl.description,
+    }));
+    setShowTemplateSelector(false);
+    setShowCreateForm(true);
+  }
+
+  function handleTemplateSubmit() {
+    if (!selectedTemplateId || !formData.name || !formData.customerName) {
+      toast.error('Name and customer name are required');
+      return;
+    }
+    createFromTemplateMutation.mutate({
+      templateId: selectedTemplateId,
+      name: formData.name,
+      customerName: formData.customerName,
+      targetDomain: formData.targetDomain || undefined,
+      targetIpRange: formData.targetIpRange || undefined,
+      phishingDomain: formData.phishingDomain || undefined,
+      notes: formData.notes || undefined,
     });
   }
 
@@ -287,12 +338,21 @@ export default function Engagements() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => { setShowCreateForm(true); setEditingId(null); resetForm(); setActiveTab('engagements'); }}
+            onClick={() => { setShowTemplateSelector(true); setShowCreateForm(false); setEditingId(null); resetForm(); setActiveTab('engagements'); }}
             className="font-display tracking-wider"
             size="sm"
           >
             <Plus className="w-4 h-4 mr-2" />
             NEW ENGAGEMENT
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => { setShowCreateForm(true); setShowTemplateSelector(false); setEditingId(null); resetForm(); setActiveTab('engagements'); }}
+            className="font-display tracking-wider"
+            size="sm"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            BLANK
           </Button>
           <Button
             variant="outline"
@@ -390,12 +450,89 @@ export default function Engagements() {
             </select>
           </div>
 
+          {/* Template Selector */}
+          {showTemplateSelector && !showCreateForm && (
+            <div className="bg-card border border-border p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-display text-lg tracking-wider">SELECT ENGAGEMENT TEMPLATE</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Choose a pre-configured profile to auto-fill RoE, scan configs, and phase settings</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setShowTemplateSelector(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {templates?.map((tmpl: any) => {
+                  const iconMap: Record<string, any> = {
+                    globe: Globe2, network: Activity, skull: Skull, fish: Fish,
+                    cloud: Cloud, shield: Shield, clipboard: FileText,
+                  };
+                  const Icon = iconMap[tmpl.icon] || Target;
+                  const difficultyColors: Record<string, string> = {
+                    beginner: 'text-green-400 bg-green-500/10',
+                    intermediate: 'text-yellow-400 bg-yellow-500/10',
+                    advanced: 'text-orange-400 bg-orange-500/10',
+                    expert: 'text-red-400 bg-red-500/10',
+                  };
+                  const categoryColors: Record<string, string> = {
+                    pentest: 'border-blue-500/30 hover:border-blue-500/60',
+                    red_team: 'border-red-500/30 hover:border-red-500/60',
+                    phishing: 'border-yellow-500/30 hover:border-yellow-500/60',
+                    purple_team: 'border-purple-500/30 hover:border-purple-500/60',
+                    tabletop: 'border-green-500/30 hover:border-green-500/60',
+                  };
+                  return (
+                    <button
+                      key={tmpl.id}
+                      onClick={() => applyTemplate(tmpl.id)}
+                      className={`text-left p-4 bg-background border ${categoryColors[tmpl.category] || 'border-border'} hover:bg-muted/50 transition-all group`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-primary/10 text-primary">
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-display text-sm tracking-wider group-hover:text-primary transition-colors">{tmpl.shortName}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{tmpl.description}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            <span className={`text-[9px] px-1.5 py-0.5 ${difficultyColors[tmpl.difficulty] || ''}`}>
+                              {tmpl.difficulty.toUpperCase()}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 text-muted-foreground bg-muted">
+                              {tmpl.estimatedDuration}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 text-muted-foreground bg-muted">
+                              {tmpl.teamSize}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Create/Edit Form */}
           {showCreateForm && (
             <div className="bg-card border border-border p-6 mb-6">
-              <h2 className="font-display text-lg tracking-wider mb-4">
-                {editingId ? 'EDIT ENGAGEMENT' : 'NEW ENGAGEMENT'}
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-display text-lg tracking-wider">
+                    {editingId ? 'EDIT ENGAGEMENT' : selectedTemplateId ? `NEW ENGAGEMENT — ${templates?.find((t: any) => t.id === selectedTemplateId)?.shortName?.toUpperCase() || 'TEMPLATE'}` : 'NEW ENGAGEMENT'}
+                  </h2>
+                  {selectedTemplateId && (
+                    <p className="text-xs text-emerald-400 mt-1">Template applied — RoE, scan config, and phase settings will be auto-configured</p>
+                  )}
+                </div>
+                {selectedTemplateId && !editingId && (
+                  <Button variant="ghost" size="sm" onClick={() => { setSelectedTemplateId(null); }}>
+                    <X className="w-3.5 h-3.5 mr-1" /> CLEAR TEMPLATE
+                  </Button>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-muted-foreground tracking-wider block mb-1">ENGAGEMENT NAME *</label>
@@ -553,8 +690,12 @@ export default function Engagements() {
                 </div>
               </div>
               <div className="flex gap-3 mt-4">
-                <Button onClick={handleSubmit} className="font-display tracking-wider">
-                  {editingId ? 'UPDATE' : 'CREATE'} ENGAGEMENT
+                <Button
+                  onClick={selectedTemplateId && !editingId ? handleTemplateSubmit : handleSubmit}
+                  disabled={createFromTemplateMutation.isPending || createMutation.isPending}
+                  className="font-display tracking-wider"
+                >
+                  {(createFromTemplateMutation.isPending || createMutation.isPending) ? 'CREATING...' : editingId ? 'UPDATE' : selectedTemplateId ? 'CREATE FROM TEMPLATE' : 'CREATE'} {!createFromTemplateMutation.isPending && !createMutation.isPending && 'ENGAGEMENT'}
                 </Button>
                 <Button
                   variant="outline"

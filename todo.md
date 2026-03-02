@@ -6693,3 +6693,11 @@
 - [x] LLM pipeline: generate exploit recommendations from correlated scan data
 - [x] LLM pipeline: WAF bypass strategy suggestions based on detected WAF signatures
 - [x] LLM pipeline: identify most promising attack vectors per asset
+
+## Engagement Templates
+- [x] Create engagement templates as server-side constants (7 templates: ext-webapp-pentest, internal-network-pentest, full-scope-red-team, phishing-social-engineering, cloud-infra-assessment, purple-team-exercise, tabletop-exercise)
+- [x] Each template includes: default RoE text, scan configs (nmap/nuclei/ZAP), phase settings, scope guidance, engagement type, difficulty, team size, estimated duration
+- [x] Build tRPC procedures: listTemplates, getTemplate, createFromTemplate (auto-creates engagement + RoE + Caldera op)
+- [x] Build template selector UI in engagement creation flow (category-colored cards, difficulty badges, duration/team size)
+- [x] Auto-navigate to EngagementOps after template creation
+- [x] Write vitest tests for engagement templates (25 tests passing)

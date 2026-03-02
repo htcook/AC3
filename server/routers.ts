@@ -2971,6 +2971,193 @@ export const appRouter = router({
         });
         return { success: true, deleted: result?.deleted ?? 0 };
       }),
+
+    // ── Engagement Templates ──────────────────────────────────────────────
+    listTemplates: publicProcedure.query(async () => {
+      const { ENGAGEMENT_TEMPLATES } = await import('./lib/engagement-templates');
+      return ENGAGEMENT_TEMPLATES.map(t => ({
+        id: t.id,
+        name: t.name,
+        shortName: t.shortName,
+        description: t.description,
+        icon: t.icon,
+        category: t.category,
+        engagementType: t.engagementType,
+        estimatedDuration: t.estimatedDuration,
+        teamSize: t.teamSize,
+        difficulty: t.difficulty,
+        tags: t.tags,
+      }));
+    }),
+
+    getTemplate: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        const { getTemplateById } = await import('./lib/engagement-templates');
+        const template = getTemplateById(input.id);
+        if (!template) throw new TRPCError({ code: 'NOT_FOUND', message: 'Template not found' });
+        return template;
+      }),
+
+    createFromTemplate: protectedProcedure
+      .input(z.object({
+        templateId: z.string(),
+        name: z.string().min(1),
+        customerName: z.string().min(1),
+        targetDomain: z.string().optional(),
+        targetIpRange: z.string().optional(),
+        phishingDomain: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { getTemplateById } = await import('./lib/engagement-templates');
+        const template = getTemplateById(input.templateId);
+        if (!template) throw new TRPCError({ code: 'NOT_FOUND', message: 'Template not found' });
+
+        // Validate: at least one target domain or IP range (unless tabletop)
+        if (template.engagementType !== 'tabletop' && !input.targetDomain && !input.targetIpRange) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'At least one target domain or IP range is required.',
+          });
+        }
+
+        // Create engagement with template defaults
+        const id = await db.createEngagement({
+          name: input.name,
+          customerName: input.customerName,
+          description: template.defaultDescription,
+          engagementType: template.engagementType,
+          status: 'planning',
+          targetDomain: input.targetDomain || '',
+          targetIpRange: input.targetIpRange || '',
+          phishingDomain: input.phishingDomain || '',
+          notes: `${template.defaultNotes}${input.notes ? `\n\n--- Operator Notes ---\n${input.notes}` : ''}`,
+          createdBy: ctx.user.id,
+        });
+
+        // Auto-create RoE with template defaults
+        let roeDocId: number | null = null;
+        try {
+          const { roeDocuments } = await import('../drizzle/schema');
+          const { getDb } = await import('./db');
+          const dbConn = await getDb();
+          if (dbConn) {
+            const inScopeDomains: Array<{ domain: string; includeSubdomains: boolean; description: string }> = [];
+            const inScopeIpRanges: Array<{ cidr: string; description: string }> = [];
+
+            if (input.targetDomain) {
+              const domains = input.targetDomain.split(/[,;\s]+/).map(d => d.trim()).filter(Boolean);
+              for (const domain of domains) {
+                inScopeDomains.push({ domain, includeSubdomains: true, description: 'From engagement template' });
+              }
+            }
+            if (input.targetIpRange) {
+              const ranges = input.targetIpRange.split(/[,;\s]+/).map(r => r.trim()).filter(Boolean);
+              for (const range of ranges) {
+                inScopeIpRanges.push({ cidr: range.includes('/') ? range : `${range}/32`, description: 'From engagement template' });
+              }
+            }
+
+            const [roeResult] = await dbConn.insert(roeDocuments).values({
+              title: `RoE — ${input.name}`,
+              engagementId: id,
+              organizationName: input.customerName,
+              testingFirmName: 'ACE C3 — AceofCloud',
+              status: 'draft',
+              purpose: template.roeDefaults.purpose,
+              inScopeDomains: inScopeDomains.length > 0 ? inScopeDomains : undefined,
+              inScopeIpRanges: inScopeIpRanges.length > 0 ? inScopeIpRanges : undefined,
+              testingDays: template.roeDefaults.testingDays,
+              testTimezone: template.roeDefaults.testTimezone,
+              createdBy: ctx.user.id,
+              lastModifiedBy: ctx.user.id,
+            } as any);
+            roeDocId = roeResult.insertId;
+
+            // Link RoE to engagement
+            const { engagements } = await import('../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            await dbConn.update(engagements)
+              .set({ roeDocumentId: roeDocId, roeStatus: 'pending' })
+              .where(eq(engagements.id, id));
+          }
+        } catch (e) {
+          console.warn('[createFromTemplate] RoE auto-creation failed:', e);
+        }
+
+        // Seed roeScope JSON
+        if (input.targetDomain || input.targetIpRange) {
+          try {
+            const roeScope: any = {};
+            if (input.targetDomain) {
+              const domains = input.targetDomain.split(/[,;\s]+/).map(d => d.trim()).filter(Boolean);
+              roeScope.inScopeDomains = domains.map(d => ({ domain: d, includeSubdomains: true, description: 'From template' }));
+            }
+            if (input.targetIpRange) {
+              const ranges = input.targetIpRange.split(/[,;\s]+/).map(r => r.trim()).filter(Boolean);
+              roeScope.inScopeIpRanges = ranges.map(r => ({ cidr: r.includes('/') ? r : `${r}/32`, description: 'From template' }));
+            }
+            const { engagements } = await import('../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            const { getDb } = await import('./db');
+            const dbConn = await getDb();
+            if (dbConn) {
+              await dbConn.update(engagements).set({ roeScope }).where(eq(engagements.id, id));
+            }
+          } catch (e) {
+            console.warn('[createFromTemplate] roeScope seed failed:', e);
+          }
+        }
+
+        // Auto-create Caldera operation (same as regular create)
+        let calderaOpId: string | null = null;
+        try {
+          const { validateCalderaConnection } = await import('../lib/caldera-preflight');
+          const preflight = await validateCalderaConnection({ timeout: 8000 });
+          const opName = `${input.name} — ${input.customerName} [#${id}]`;
+          const calderaApiKey = (await import('../_core/env')).ENV.calderaApiKey;
+          const opPayload: Record<string, any> = {
+            name: opName, group: 'red', state: 'paused', auto_close: false, jitter: '2/8', visibility: 51,
+          };
+          const opResponse = await fetch(`${preflight.baseUrl}/api/v2/operations`, {
+            method: 'POST',
+            headers: { KEY: calderaApiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify(opPayload),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (opResponse.ok) {
+            const opData = await opResponse.json();
+            calderaOpId = opData.id || opData.operation_id || null;
+            if (calderaOpId) {
+              const { engagements: engTable } = await import('../drizzle/schema');
+              const { eq: eqOp } = await import('drizzle-orm');
+              const { getDb: getDbOp } = await import('./db');
+              const dbOp = await getDbOp();
+              if (dbOp) {
+                await dbOp.update(engTable).set({ calderaOperationId: calderaOpId }).where(eqOp(engTable.id, id));
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[createFromTemplate] Caldera auto-creation failed (non-fatal):', e);
+        }
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagement_created_from_template',
+          details: `Created engagement from template "${template.name}": ${input.name} for ${input.customerName}`,
+        });
+
+        return {
+          id,
+          templateId: template.id,
+          roeDocumentId: roeDocId,
+          calderaOperationId: calderaOpId,
+          scanConfig: template.scanConfig,
+          phaseConfig: template.phaseConfig,
+        };
+      }),
   }),
 
   // ==================== OSINT RECON ====================
