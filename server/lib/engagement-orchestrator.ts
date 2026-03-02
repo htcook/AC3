@@ -2345,7 +2345,7 @@ export async function executeEngagement(
   let engagement: any;
   try {
     const db = await import("../db");
-    engagement = await db.default.getEngagementById(engagementId);
+    engagement = await db.getEngagementById(engagementId);
     if (!engagement) throw new Error("Engagement not found");
     state.engagementType = engagement.engagementType || "pentest";
   } catch (e: any) {
