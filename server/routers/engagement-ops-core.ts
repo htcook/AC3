@@ -41,6 +41,10 @@ export const engagementOpsRouter = router({
             }
           }
         }
+        // Convert Set to array for JSON serialization (superjson handles Date but not Set)
+        if (state && state.skippedDomains instanceof Set) {
+          return { ...state, skippedDomains: [...state.skippedDomains] };
+        }
         return state;
       }),
 
@@ -101,6 +105,26 @@ export const engagementOpsRouter = router({
           });
         }
         return { stopped };
+      }),
+
+    /** Skip the currently scanning domain — marks it as skipped so the pipeline moves to the next domain */
+    skipCurrentDomain: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { getOpsState, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId);
+        if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
+        if (!state.isRunning || !state.currentDomain) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'No domain is currently being scanned' });
+        }
+        const domain = state.currentDomain;
+        if (!state.skippedDomains) state.skippedDomains = new Set();
+        state.skippedDomains.add(domain);
+        const skipLog = { id: `log-${Date.now()}-skip-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `\u23ed Skip Requested: ${domain}`, detail: `Operator requested skip for ${domain}. Will take effect after current stage completes.` };
+        state.log.push(skipLog);
+        broadcastOpsUpdate(input.engagementId, { type: 'log', entry: skipLog });
+        await db.logActivity({ userId: ctx.user.id, action: 'domain_skip_requested', details: `Requested skip for domain ${domain} in engagement #${input.engagementId}` });
+        return { skipped: true, domain };
       }),
 
     /** Reset ops state — clears error state so operator can retry */
@@ -268,6 +292,18 @@ export const engagementOpsRouter = router({
                 break;
               }
 
+              // Check if this domain was skipped by operator
+              if (state!.skippedDomains?.has(domain)) {
+                const skipLog = { id: `log-${Date.now()}-skip-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `⏭ Skipped: ${domain}`, detail: 'Domain skipped by operator request.' };
+                state!.log.push(skipLog);
+                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: skipLog });
+                continue;
+              }
+
+              // Track current domain for UI elapsed timer and skip button
+              state!.currentDomain = domain;
+              state!.currentDomainStartedAt = Date.now();
+
               // Per-domain watchdog
               let domainWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
               const domainWatchdogPromise = new Promise<never>((_, reject) => {
@@ -297,14 +333,43 @@ export const engagementOpsRouter = router({
                     },
                     // Progress callback — push stage updates to live feed
                     async (stage) => {
+                      // Check if domain was skipped mid-pipeline
+                      if (state!.skippedDomains?.has(domain)) {
+                        throw new Error(`Domain ${domain} skipped by operator`);
+                      }
                       console.log(`[PassiveScan] Pipeline stage: ${stage} for ${domain}`);
                       state!.currentAction = `${domain}: ${stage}`;
                       const stageLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `Pipeline: ${domain}`, detail: `Stage: ${stage}` };
                       state!.log.push(stageLog);
                       broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stageLog });
                     },
-                    // Options: strict_passive mode, scoped to engagement targets only
-                    { scanMode: 'strict_passive', skipEngagement: false, scopedAssets: allTargets }
+                    // Options: strict_passive mode, scoped to engagement targets only, with per-connector progress
+                    {
+                      scanMode: 'strict_passive',
+                      skipEngagement: false,
+                      scopedAssets: allTargets,
+                      onConnectorProgress: async (event) => {
+                        const statusIcon = event.status === 'started' ? '\u25b6' : event.status === 'completed' ? '\u2705' : event.status === 'failed' ? '\u274c' : '\u23ed';
+                        const detail = event.status === 'completed'
+                          ? `${event.observations || 0} observations in ${((event.durationMs || 0) / 1000).toFixed(1)}s`
+                          : event.status === 'failed'
+                          ? `Error: ${event.error || 'unknown'}`
+                          : event.status === 'skipped'
+                          ? `Skipped: ${event.error || 'circuit breaker'}`
+                          : 'Querying...';
+                        state!.currentAction = `${domain}: ${statusIcon} ${event.connector} ${event.status}`;
+                        const connLog = {
+                          id: `log-${Date.now()}-conn-${Math.random().toString(36).slice(2,6)}`,
+                          timestamp: Date.now(),
+                          phase: 'recon' as const,
+                          type: 'info' as const,
+                          title: `${statusIcon} ${event.connector} — ${domain}`,
+                          detail,
+                        };
+                        state!.log.push(connLog);
+                        broadcastOpsUpdate(input.engagementId, { type: 'log', entry: connLog });
+                      },
+                    }
                   ),
                   domainWatchdogPromise,
                   globalWatchdogPromise,
@@ -497,12 +562,23 @@ export const engagementOpsRouter = router({
                 state!.log.push(resultLog);
                 broadcastOpsUpdate(input.engagementId, { type: 'log', entry: resultLog });
               } catch (e: any) {
-                console.error(`[PassiveScan] Domain ${domain} failed:`, e.message);
-                const errLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'error' as const, title: `Recon Failed: ${domain}`, detail: e.message };
-                state!.log.push(errLog);
-                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: errLog });
+                const isSkip = e.message?.includes('skipped by operator');
+                if (isSkip) {
+                  console.log(`[PassiveScan] Domain ${domain} skipped by operator`);
+                  const skipLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `\u23ed Skipped: ${domain}`, detail: 'Domain skipped by operator. Moving to next target.' };
+                  state!.log.push(skipLog);
+                  broadcastOpsUpdate(input.engagementId, { type: 'log', entry: skipLog });
+                } else {
+                  console.error(`[PassiveScan] Domain ${domain} failed:`, e.message);
+                  const errLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'error' as const, title: `Recon Failed: ${domain}`, detail: e.message };
+                  state!.log.push(errLog);
+                  broadcastOpsUpdate(input.engagementId, { type: 'log', entry: errLog });
+                }
               } finally {
                 if (domainWatchdogTimer) clearTimeout(domainWatchdogTimer);
+                // Clear per-domain tracking
+                state!.currentDomain = undefined;
+                state!.currentDomainStartedAt = undefined;
               }
             }
 

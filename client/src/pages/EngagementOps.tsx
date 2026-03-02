@@ -155,6 +155,8 @@ interface OpsState {
   scanPlan?: ScanPlan;
   passiveReconResults?: Record<string, any>;
   currentAction?: string;
+  currentDomain?: string;
+  currentDomainStartedAt?: number;
   error?: string;
   stats: {
     hostsScanned: number;
@@ -356,6 +358,29 @@ export default function EngagementOps() {
       setConfirmStop(false);
     },
   });
+
+  const skipDomainMut = trpc.engagementOps.skipCurrentDomain.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Skip requested for ${data.domain} — will advance after current stage`);
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // ── Elapsed timer (ticks every second while scan is running) ──
+  const [elapsedNow, setElapsedNow] = useState(Date.now());
+  useEffect(() => {
+    if (!isRunning) return;
+    const interval = setInterval(() => setElapsedNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  const formatElapsed = (startMs: number) => {
+    const secs = Math.max(0, Math.floor((elapsedNow - startMs) / 1000));
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   const resetMut = trpc.engagementOps.resetOps.useMutation({
     onSuccess: (data) => {
@@ -560,13 +585,43 @@ export default function EngagementOps() {
           <div className="flex items-center gap-2">
             {ops?.isRunning ? (
               <>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
-                  <span className="max-w-[200px] truncate">{ops.currentAction || "Running..."}</span>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="max-w-[280px] truncate text-muted-foreground">{ops.currentAction || "Running..."}</span>
+                    <div className="flex items-center gap-2 text-xs">
+                      {ops.startedAt && (
+                        <span className="text-cyan-400 font-mono">
+                          <Clock className="h-3 w-3 inline mr-0.5" />
+                          Total: {formatElapsed(ops.startedAt)}
+                        </span>
+                      )}
+                      {ops.currentDomain && ops.currentDomainStartedAt && (
+                        <span className="text-amber-400 font-mono">
+                          {ops.currentDomain}: {formatElapsed(ops.currentDomainStartedAt)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <Button variant="destructive" size="sm" onClick={() => setConfirmStop(true)}>
-                  <Square className="h-4 w-4 mr-1" /> Stop
-                </Button>
+                <div className="flex items-center gap-1">
+                  {ops.currentDomain && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => skipDomainMut.mutate({ engagementId })}
+                      disabled={skipDomainMut.isPending}
+                      className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs"
+                      title={`Skip ${ops.currentDomain} and move to next domain`}
+                    >
+                      {skipDomainMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      Skip Domain
+                    </Button>
+                  )}
+                  <Button variant="destructive" size="sm" onClick={() => setConfirmStop(true)}>
+                    <Square className="h-4 w-4 mr-1" /> Stop
+                  </Button>
+                </div>
               </>
             ) : (
               <div className="flex items-center gap-2">

@@ -102,6 +102,8 @@ export interface PassiveReconConfig {
   };
   timeout?: number;
   maxConcurrent?: number;
+  /** Optional callback fired when each connector starts/completes */
+  onConnectorProgress?: (event: { connector: string; status: 'started' | 'completed' | 'failed' | 'skipped'; observations?: number; durationMs?: number; error?: string }) => void | Promise<void>;
 }
 
 export interface PassiveReconResult {
@@ -182,16 +184,19 @@ export async function runPassiveRecon(
     batches.push(allowed.slice(i, i + maxConcurrent));
   }
 
+  const { onConnectorProgress } = config;
+
   for (const batch of batches) {
     const results = await Promise.allSettled(
       batch.map(async (connector) => {
         const serviceName = connector.name;
 
-        // ── Circuit Breaker Gate ──────────────────────────────────
+        // ── Circuit Breaker Gate ──────────────────────────────────────────
         const cbCheck = shouldAllowRequest(serviceName, cbConfig);
         if (!cbCheck.allowed) {
           console.log(`[PassiveRecon] Circuit OPEN for ${serviceName} — skipping (${cbCheck.reason})`);
           trackCall(serviceName, false);
+          await onConnectorProgress?.({ connector: serviceName, status: 'skipped', error: cbCheck.reason });
           return {
             connector: serviceName,
             domain,
@@ -203,6 +208,8 @@ export async function runPassiveRecon(
         }
 
         try {
+          await onConnectorProgress?.({ connector: serviceName, status: 'started' });
+          const connStart = Date.now();
           const result = await connector.collect(domain, connectorConfigs.get(serviceName));
 
           // Track success/failure based on result errors
@@ -228,12 +235,15 @@ export async function runPassiveRecon(
             trackCall(serviceName, true);
           }
 
+          const connDuration = Date.now() - connStart;
+          await onConnectorProgress?.({ connector: serviceName, status: 'completed', observations: result.observations.length, durationMs: connDuration });
           return result;
         } catch (err: any) {
           const classified = classifyError(err, serviceName);
           recordFailure(serviceName, classified, cbConfig);
           trackCall(serviceName, false);
           console.error(`[PassiveRecon] ${serviceName} failed (${classified.category}): ${classified.message}`);
+          await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: err.message });
           return {
             connector: serviceName,
             domain,

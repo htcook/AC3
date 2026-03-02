@@ -1574,7 +1574,7 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 export async function runDomainIntelPipeline(
   org: OrgProfile,
   onProgress?: (stage: 'passive_recon' | 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>,
-  options?: { scanMode?: ScanMode; skipEngagement?: boolean; scopedAssets?: string[] }
+  options?: { scanMode?: ScanMode; skipEngagement?: boolean; scopedAssets?: string[]; onConnectorProgress?: (event: { connector: string; status: 'started' | 'completed' | 'failed' | 'skipped'; observations?: number; durationMs?: number; error?: string }) => void | Promise<void> }
 ): Promise<PipelineResult> {
   // Defensive defaults for optional arrays to prevent undefined access
   org.criticalFunctions = org.criticalFunctions || [];
@@ -1616,6 +1616,7 @@ export async function runDomainIntelPipeline(
       },
       timeout: 30000,
       maxConcurrent: 5,
+      onConnectorProgress: options?.onConnectorProgress,
     });
     console.log(`[DomainIntel] Passive Recon: ${passiveRecon.summary.totalObservations} observations from ${passiveRecon.connectorResults.filter(r => r.observations.length > 0).length} connectors, ${passiveRecon.summary.totalSignals} risk signals detected`);
 

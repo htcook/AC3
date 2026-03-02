@@ -164,6 +164,12 @@ export interface EngagementOpsState {
   scanPlan?: ScanPlan;
   currentAction?: string;
   error?: string;
+  /** Currently scanning domain name — used for elapsed timer and skip button */
+  currentDomain?: string;
+  /** Timestamp when current domain scan started — used for per-domain elapsed timer */
+  currentDomainStartedAt?: number;
+  /** Set of domains the operator has requested to skip */
+  skippedDomains?: Set<string>;
   /** Raw passive recon results keyed by domain — full pipeline output for LLM consumption */
   passiveReconResults?: Record<string, any>;
   stats: {
@@ -203,6 +209,7 @@ export function initOpsState(engagementId: number, engagementType: string): Enga
     assets: [],
     log: [],
     approvalGates: [],
+    skippedDomains: new Set(),
     stats: {
       hostsScanned: 0, portsFound: 0, vulnsFound: 0,
       exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,

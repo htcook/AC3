@@ -6934,3 +6934,8 @@
 
 ## Bug: Domain Watchdog Timeout Too Short
 - [x] Fix domain watchdog timeout — increased per-domain from 3 min to 8 min, global from 8 min to 20 min
+
+## Scan UX Improvements
+- [x] Add elapsed time display in ops header — running timer showing total scan time and per-domain time
+- [x] Add per-connector progress logging — show which OSINT connector (Shodan, Censys, crt.sh) is running/completing
+- [x] Add Skip Domain button — skip a slow domain mid-scan without stopping the entire pipeline
