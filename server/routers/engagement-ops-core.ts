@@ -90,8 +90,20 @@ export const engagementOpsRouter = router({
           details: `Started autonomous ${engagement.engagementType} execution for engagement #${input.engagementId}`,
         });
 
-        // Fire and forget — the pipeline runs asynchronously
-        executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+        // Fire and forget — the pipeline runs asynchronously, but catch crashes
+        executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined })
+          .catch(async (err: any) => {
+            console.error('[EngOps] executeEngagement crashed:', err.message);
+            const { addLog: addOpsLog, broadcastOpsUpdate: broadcast, persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+            if (state) {
+              state.isRunning = false;
+              state.phase = 'error' as any;
+              state.error = err.message;
+              addOpsLog(state, { phase: 'recon', type: 'error', title: '\u274c Engagement Execution Failed', detail: `Pipeline crashed: ${err.message}` });
+              broadcast(input.engagementId, { type: 'phase_change', phase: 'error' });
+              await persistOpsStateNow(input.engagementId).catch(() => {});
+            }
+          });
 
         return { started: true, engagementId: input.engagementId };
       }),
@@ -719,8 +731,27 @@ export const engagementOpsRouter = router({
 
           // Execute the active pipeline starting from enumeration (nmap first)
           // The executeEnumeration phase will use state.scanPlan for nmap flags
-          const { executeEngagement } = await import('../lib/engagement-orchestrator');
-          executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration' });
+          const { executeEngagement, addLog: addOpsLog, broadcastOpsUpdate: broadcast } = await import('../lib/engagement-orchestrator');
+          try {
+            await executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration' });
+          } catch (execErr: any) {
+            console.error('[EngOps] executeEngagement crashed:', execErr.message);
+            if (state) {
+              state.isRunning = false;
+              state.phase = 'error' as any;
+              state.error = execErr.message;
+              addOpsLog(state, {
+                phase: 'enumeration',
+                type: 'error',
+                title: '❌ Active Scan Execution Failed',
+                detail: `The scan pipeline crashed: ${execErr.message}\n\nThis may be caused by a configuration issue. Check scan server connectivity and credentials.`,
+              });
+              broadcast(input.engagementId, { type: 'phase_change', phase: 'error' });
+              // Persist error state so it survives refresh
+              const { persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+              await persistOpsStateNow(input.engagementId).catch(() => {});
+            }
+          }
         })();
 
         return { started: true, assetsCount: state.assets.length };

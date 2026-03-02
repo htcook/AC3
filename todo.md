@@ -6947,3 +6947,9 @@
 - [x] Add global crash protection (process.on unhandledRejection/uncaughtException handlers)
 - [x] Force-persist at critical transitions: after assets populated, after each domain, on completion, on error
 - [x] broadcastOpsUpdate wrapped in try/catch to prevent cascading failures
+
+## Bug: Active Scan No Data Returned
+- [ ] Audit LLM scan plan generation — verify targets are inserted into nmap commands
+- [ ] Audit scan execution pipeline — verify commands are actually run on scan server
+- [ ] Audit result processing — verify nmap output is parsed and stored correctly
+- [ ] Fix any issues causing empty scan results
