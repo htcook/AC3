@@ -104,7 +104,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 3: Start Vianova scan with scoped assets (2 URLs + 1 IP)
+  // Step 3: Start Vianova full domain intelligence scan (non-scoped)
   const vianovaScanInput = {
     primaryDomain: 'vianova.ai',
     additionalDomains: [],
@@ -113,19 +113,15 @@ async function main() {
     customerName: 'Vianova',
     criticalFunctions: ['Web Application', 'API Services', 'Customer Portal'],
     complianceFlags: ['SOC2', 'GDPR'],
-    notes: 'Scoped scan test: 2 URLs + 1 IP only per Rules of Engagement',
+    notes: 'Full domain intelligence scan — all subdomains and assets fingerprinted',
     scanMode: 'standard',
     scanOnly: false,
-    scopedAssets: [
-      'vianova.ai',
-      'app.vianova.ai',
-      '104.26.12.100'
-    ],
+    // No scopedAssets = full discovery mode (all subdomains/assets)
   };
 
-  console.log('Starting Vianova scoped scan...');
+  console.log('Starting Vianova FULL domain intelligence scan (non-scoped)...');
   console.log(`  Primary domain: ${vianovaScanInput.primaryDomain}`);
-  console.log(`  Scoped assets: ${vianovaScanInput.scopedAssets.join(', ')}`);
+  console.log('  Mode: Full Discovery — all subdomains and assets will be fingerprinted');
   console.log('');
 
   try {

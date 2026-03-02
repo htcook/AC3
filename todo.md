@@ -6597,3 +6597,7 @@
 - [x] Fix the identified issue from the incident
 - [x] Correct Vianova scan domain from vianova.io to vianova.ai
 - [ ] Note: User will provide 3 scoped assets (2 URLs + 1 IP) for separate scoped scan later
+## Full Domain Intel Scan Mode
+- [x] Run vianova.ai in full non-scoped passive scan mode (all subdomains/assets fingerprinted)
+- [x] Verify UI supports both full domain intel scan and scoped asset passive scan modes
+- [x] Ensure scan initiation UI clearly differentiates between full and scoped modes
