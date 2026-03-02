@@ -198,6 +198,29 @@ export function getOpsState(engagementId: number): EngagementOpsState | null {
   return opsStates.get(engagementId) || null;
 }
 
+/**
+ * Get ops state with auto-recovery from DB if in-memory state is missing.
+ * Use this from API endpoints; the sync version above is for internal pipeline use.
+ */
+export async function getOpsStateWithRecovery(engagementId: number): Promise<EngagementOpsState | null> {
+  const memState = opsStates.get(engagementId);
+  if (memState) return memState;
+
+  // Try to recover from DB snapshot
+  try {
+    const { loadOpsSnapshot } = await import('../db');
+    const snapshot = await loadOpsSnapshot(engagementId);
+    if (snapshot) {
+      console.log(`[OpsState] Recovered state for engagement #${engagementId} from DB snapshot (${snapshot.assets?.length || 0} assets)`);
+      opsStates.set(engagementId, snapshot);
+      return snapshot;
+    }
+  } catch (e: any) {
+    console.error(`[OpsState] Failed to recover from DB:`, e.message);
+  }
+  return null;
+}
+
 export function initOpsState(engagementId: number, engagementType: string): EngagementOpsState {
   const state: EngagementOpsState = {
     engagementId,
@@ -217,18 +240,59 @@ export function initOpsState(engagementId: number, engagementType: string): Enga
     },
   };
   opsStates.set(engagementId, state);
+  // Persist initial state to DB
+  persistOpsStateDebounced(engagementId);
   return state;
+}
+
+// ─── State Persistence ──────────────────────────────────────────────────────
+// Debounced persistence to avoid hammering the DB on every log entry
+const persistTimers = new Map<number, NodeJS.Timeout>();
+
+function persistOpsStateDebounced(engagementId: number, delayMs = 2000) {
+  const existing = persistTimers.get(engagementId);
+  if (existing) clearTimeout(existing);
+  persistTimers.set(engagementId, setTimeout(async () => {
+    persistTimers.delete(engagementId);
+    const state = opsStates.get(engagementId);
+    if (!state) return;
+    try {
+      const { saveOpsSnapshot } = await import('../db');
+      await saveOpsSnapshot(engagementId, state);
+    } catch (e: any) {
+      console.error(`[OpsState] Failed to persist state for #${engagementId}:`, e.message);
+    }
+  }, delayMs));
+}
+
+/** Force-persist state immediately (use before critical transitions) */
+export async function persistOpsStateNow(engagementId: number): Promise<void> {
+  const existing = persistTimers.get(engagementId);
+  if (existing) clearTimeout(existing);
+  persistTimers.delete(engagementId);
+  const state = opsStates.get(engagementId);
+  if (!state) return;
+  try {
+    const { saveOpsSnapshot } = await import('../db');
+    await saveOpsSnapshot(engagementId, state);
+  } catch (e: any) {
+    console.error(`[OpsState] Failed to force-persist state for #${engagementId}:`, e.message);
+  }
 }
 
 // ─── Broadcast helpers ──────────────────────────────────────────────────────
 
 export function broadcastOpsUpdate(engagementId: number, data: Record<string, any>) {
-  eventHub.broadcastEngagement(engagementId, {
-    type: "engagement:progress_update",
-    timestamp: Date.now(),
-    engagementId,
-    data,
-  });
+  try {
+    eventHub.broadcastEngagement(engagementId, {
+      type: "engagement:progress_update",
+      timestamp: Date.now(),
+      engagementId,
+      data,
+    });
+  } catch (e: any) {
+    console.error(`[broadcastOpsUpdate] WebSocket broadcast failed for #${engagementId}:`, e.message);
+  }
 }
 
 function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
@@ -237,6 +301,8 @@ function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "time
   // Keep last 500 entries
   if (state.log.length > 500) state.log = state.log.slice(-500);
   broadcastOpsUpdate(state.engagementId, { type: "log", entry: logEntry });
+  // Trigger debounced persistence on every log entry
+  persistOpsStateDebounced(state.engagementId);
   return logEntry;
 }
 

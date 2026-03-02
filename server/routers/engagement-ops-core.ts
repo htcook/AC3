@@ -10,10 +10,15 @@ export const engagementOpsRouter = router({
     getState: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState, initOpsState } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery, initOpsState } = await import('../lib/engagement-orchestrator');
+        // First try in-memory, then try DB recovery, then initialize fresh
         let state = getOpsState(input.engagementId);
         if (!state) {
-          // Auto-initialize from DB if in-memory state is missing (e.g. after server restart)
+          // Try to recover from DB snapshot (preserves assets from previous scans)
+          state = await getOpsStateWithRecovery(input.engagementId);
+        }
+        if (!state) {
+          // No snapshot either — initialize fresh from engagement targets
           const engagement = await db.getEngagementById(input.engagementId);
           if (engagement) {
             state = initOpsState(input.engagementId, engagement.engagementType);
@@ -146,6 +151,9 @@ export const engagementOpsRouter = router({
         broadcastOpsUpdate(input.engagementId, { type: 'log', entry: resetLog });
         broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: state.phase });
         await db.logActivity({ userId: ctx.user.id, action: 'engagement_ops_reset', details: `Reset ops state for engagement #${input.engagementId}` });
+        // Persist the reset state to DB
+        const { persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+        await persistOpsStateNow(input.engagementId).catch(() => {});
         return { reset: true, phase: state.phase, assetsPreserved: state.assets.length };
       }),
 
@@ -261,6 +269,10 @@ export const engagementOpsRouter = router({
         broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon' });
         broadcastOpsUpdate(input.engagementId, { type: 'log', entry: startLog });
         console.log(`[PassiveScan] Started for engagement #${input.engagementId}: ${allTargets.join(', ')}`);
+
+        // Force-persist state immediately so assets survive a crash before pipeline starts
+        const { persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+        await persistOpsStateNow(input.engagementId);
 
         state.log.push({ id: `log-${Date.now()}-mode`, timestamp: Date.now(), phase: 'recon', type: 'info', title: '\ud83d\udd12 Scan Mode: Strict Passive', detail: `Scanning ${allTargets.length} targets. Only querying third-party databases (crt.sh, Shodan, Censys, Wayback, urlscan, SecurityTrails, Dehashed, BinaryEdge). Zero direct contact with target infrastructure.` });
         broadcastOpsUpdate(input.engagementId, { type: 'log', entry: state.log[state.log.length - 1] });
@@ -579,6 +591,9 @@ export const engagementOpsRouter = router({
                 // Clear per-domain tracking
                 state!.currentDomain = undefined;
                 state!.currentDomainStartedAt = undefined;
+                // Force-persist after each domain so assets survive crashes
+                const { persistOpsStateNow: persistAfterDomain } = await import('../lib/engagement-orchestrator');
+                await persistAfterDomain(input.engagementId).catch(() => {});
               }
             }
 
@@ -621,6 +636,9 @@ export const engagementOpsRouter = router({
             state!.log.push(doneLog);
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon_complete' });
             broadcastOpsUpdate(input.engagementId, { type: 'log', entry: doneLog });
+            // Force-persist final state on completion
+            const { persistOpsStateNow: persistOnComplete } = await import('../lib/engagement-orchestrator');
+            await persistOnComplete(input.engagementId).catch(() => {});
           } catch (e: any) {
             console.error(`[PassiveScan] Pipeline error for engagement #${input.engagementId}:`, e.message, e.stack?.slice(0, 500));
             state!.phase = 'error';
@@ -631,6 +649,9 @@ export const engagementOpsRouter = router({
             state!.log.push(errLog);
             broadcastOpsUpdate(input.engagementId, { type: 'log', entry: errLog });
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'error' });
+            // Force-persist error state so assets are preserved
+            const { persistOpsStateNow: persistOnError } = await import('../lib/engagement-orchestrator');
+            await persistOnError(input.engagementId).catch(() => {});
           } finally {
             // Clean up global watchdog timer
             if (globalWatchdogTimer) clearTimeout(globalWatchdogTimer);

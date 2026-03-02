@@ -5,7 +5,8 @@ import {
   serverConfigs, InsertServerConfig, ServerConfig,
   serverCredentials, InsertServerCredential, ServerCredential,
   activityLogs, InsertActivityLog,
-  calderaStats, InsertCalderaStats, CalderaStats
+  calderaStats, InsertCalderaStats, CalderaStats,
+  engagementOpsSnapshots
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -2044,4 +2045,108 @@ export async function getScanResultsSummary(engagementId: number) {
     .from(scanResults)
     .where(eq(scanResults.engagementId, engagementId))
     .groupBy(scanResults.tool);
+}
+
+
+// ─── Engagement Ops State Persistence ───────────────────────────────────────
+// Saves/loads the in-memory ops state to/from the database so it survives
+// server crashes and restarts.
+
+/**
+ * Save (upsert) an ops state snapshot for an engagement.
+ * Uses INSERT ... ON DUPLICATE KEY UPDATE pattern via engagementId.
+ */
+export async function saveOpsSnapshot(engagementId: number, state: any): Promise<void> {
+  const db = await getDbRequired();
+  // Serialize the state — strip non-serializable fields (Set → Array already handled in getState)
+  const stateToSave = {
+    ...state,
+    skippedDomains: state.skippedDomains instanceof Set ? Array.from(state.skippedDomains) : (state.skippedDomains || []),
+  };
+
+  // Check if snapshot exists for this engagement
+  const existing = await db.select({ id: engagementOpsSnapshots.id })
+    .from(engagementOpsSnapshots)
+    .where(eq(engagementOpsSnapshots.engagementId, engagementId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db.update(engagementOpsSnapshots)
+      .set({
+        stateJson: stateToSave,
+        phase: state.phase || 'idle',
+        isRunning: state.isRunning || false,
+        assetCount: state.assets?.length || 0,
+      })
+      .where(eq(engagementOpsSnapshots.engagementId, engagementId));
+  } else {
+    await db.insert(engagementOpsSnapshots).values({
+      engagementId,
+      stateJson: stateToSave,
+      phase: state.phase || 'idle',
+      isRunning: state.isRunning || false,
+      assetCount: state.assets?.length || 0,
+    });
+  }
+}
+
+/**
+ * Load the latest ops state snapshot for an engagement.
+ * Returns null if no snapshot exists.
+ */
+export async function loadOpsSnapshot(engagementId: number): Promise<any | null> {
+  try {
+    const db = await getDbRequired();
+    const rows = await db.select()
+      .from(engagementOpsSnapshots)
+      .where(eq(engagementOpsSnapshots.engagementId, engagementId))
+      .limit(1);
+
+    if (rows.length === 0) return null;
+
+    const snapshot = rows[0];
+    const state = snapshot.stateJson as any;
+
+    // Restore Set from array
+    if (Array.isArray(state.skippedDomains)) {
+      state.skippedDomains = new Set(state.skippedDomains);
+    } else {
+      state.skippedDomains = new Set();
+    }
+
+    // If the snapshot says it was running but the server restarted, mark it as crashed
+    if (state.isRunning) {
+      state.isRunning = false;
+      state.phase = 'error';
+      state.error = 'Server restarted during scan — state recovered from last snapshot. Assets are preserved. You can retry the scan.';
+      const recoveryLog = {
+        id: `log-${Date.now()}-recovery`,
+        timestamp: Date.now(),
+        phase: 'recon' as const,
+        type: 'warning' as const,
+        title: '⚠️ Scan Interrupted — State Recovered',
+        detail: `The server restarted while the scan was running. ${state.assets?.length || 0} assets have been recovered from the last snapshot. You can reset and re-run the scan.`,
+      };
+      if (!state.log) state.log = [];
+      state.log.push(recoveryLog);
+    }
+
+    return state;
+  } catch (e: any) {
+    console.error(`[OpsSnapshot] Failed to load snapshot for engagement #${engagementId}:`, e.message);
+    return null;
+  }
+}
+
+/**
+ * Delete ops snapshot for an engagement (used when resetting state).
+ */
+export async function deleteOpsSnapshot(engagementId: number): Promise<void> {
+  try {
+    const db = await getDbRequired();
+    await db.delete(engagementOpsSnapshots)
+      .where(eq(engagementOpsSnapshots.engagementId, engagementId));
+  } catch (e: any) {
+    console.error(`[OpsSnapshot] Failed to delete snapshot for engagement #${engagementId}:`, e.message);
+  }
 }

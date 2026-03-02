@@ -6247,3 +6247,26 @@ export const scanResults = mysqlTable("scan_results", {
 });
 export type ScanResult = typeof scanResults.$inferSelect;
 export type InsertScanResult = typeof scanResults.$inferInsert;
+
+
+/**
+ * Engagement ops state snapshots — persists the in-memory scan state to survive server crashes/restarts.
+ * Each engagement has at most one active snapshot (latest wins).
+ * The state JSON contains assets, logs, stats, phase, scan plan, etc.
+ */
+export const engagementOpsSnapshots = mysqlTable("engagement_ops_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  /** Full serialized EngagementOpsState (JSON) */
+  stateJson: json("state_json").notNull(),
+  /** Phase at time of snapshot for quick filtering */
+  phase: varchar("phase", { length: 64 }),
+  /** Whether the scan was still running when snapshotted */
+  isRunning: boolean("is_running").default(false),
+  /** Number of assets at time of snapshot */
+  assetCount: int("asset_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type EngagementOpsSnapshot = typeof engagementOpsSnapshots.$inferSelect;
+export type InsertEngagementOpsSnapshot = typeof engagementOpsSnapshots.$inferInsert;

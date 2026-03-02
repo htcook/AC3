@@ -6939,3 +6939,11 @@
 - [x] Add elapsed time display in ops header — running timer showing total scan time and per-domain time
 - [x] Add per-connector progress logging — show which OSINT connector (Shodan, Censys, crt.sh) is running/completing
 - [x] Add Skip Domain button — skip a slow domain mid-scan without stopping the entire pipeline
+
+## Bug: Discovery Scan Crash + Assets Disappeared
+- [x] Diagnose why discovery scan crashed and assets disappeared (in-memory Map wiped on server restart)
+- [x] Add ops state persistence to database so assets survive server crashes/restarts (engagement_ops_snapshots table + debounced persistence)
+- [x] Add auto-recovery: reload state from DB on getState if in-memory state is missing (getOpsStateWithRecovery)
+- [x] Add global crash protection (process.on unhandledRejection/uncaughtException handlers)
+- [x] Force-persist at critical transitions: after assets populated, after each domain, on completion, on error
+- [x] broadcastOpsUpdate wrapped in try/catch to prevent cascading failures

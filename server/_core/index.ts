@@ -312,6 +312,18 @@ async function startServer() {
   // Attach WebSocket event hub to the HTTP server
   eventHub.attach(server);
 
+  // ── Global crash protection ──────────────────────────────────────────────
+  // Prevent unhandled errors from killing the server process and wiping in-memory state
+  process.on('unhandledRejection', (reason: any) => {
+    console.error('[CRASH PROTECTION] Unhandled Promise rejection:', reason?.message || reason);
+    if (reason?.stack) console.error(reason.stack.slice(0, 500));
+  });
+  process.on('uncaughtException', (err: Error) => {
+    console.error('[CRASH PROTECTION] Uncaught exception:', err.message);
+    if (err.stack) console.error(err.stack.slice(0, 500));
+    // Don't exit — let the server keep running
+  });
+
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
 
