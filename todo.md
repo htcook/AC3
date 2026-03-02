@@ -6931,3 +6931,6 @@
 
 ## Bug: Active Scan Error After Router Split
 - [x] Fix active scan error: "Cannot read properties of undefined (reading 'getEngagementById')" — fixed dynamic import paths (./lib/ → ../lib/) in all 16 extracted router files
+
+## Bug: Domain Watchdog Timeout Too Short
+- [x] Fix domain watchdog timeout — increased per-domain from 3 min to 8 min, global from 8 min to 20 min

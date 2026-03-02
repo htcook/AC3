@@ -245,13 +245,16 @@ export const engagementOpsRouter = router({
 
         // Run pipeline in background — mutation returns immediately with assets already populated
         (async () => {
-          // ── Per-domain watchdog: 3 minutes per domain to prevent indefinite hangs ──
-          const PER_DOMAIN_WATCHDOG_MS = 3 * 60 * 1000;
-          // ── Global watchdog: 8 minutes total for entire pipeline ──
-          const GLOBAL_WATCHDOG_MS = 8 * 60 * 1000;
+          // ── Per-domain watchdog: 8 minutes per domain ──
+          // The full pipeline runs ~10 stages (passive recon connectors, LLM discovery,
+          // DNS verification, WAF detection, LLM analysis) with external API calls.
+          // Individual LLM calls have a 60s timeout. 8 min gives enough headroom.
+          const PER_DOMAIN_WATCHDOG_MS = 8 * 60 * 1000;
+          // ── Global watchdog: 20 minutes total for entire pipeline ──
+          const GLOBAL_WATCHDOG_MS = 20 * 60 * 1000;
           let globalWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
           const globalWatchdogPromise = new Promise<never>((_, reject) => {
-            globalWatchdogTimer = setTimeout(() => reject(new Error('Global pipeline watchdog timeout (8 min) — aborting all remaining domains')), GLOBAL_WATCHDOG_MS);
+            globalWatchdogTimer = setTimeout(() => reject(new Error('Global pipeline watchdog timeout (20 min) — aborting all remaining domains')), GLOBAL_WATCHDOG_MS);
           });
 
           try {
@@ -268,7 +271,7 @@ export const engagementOpsRouter = router({
               // Per-domain watchdog
               let domainWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
               const domainWatchdogPromise = new Promise<never>((_, reject) => {
-                domainWatchdogTimer = setTimeout(() => reject(new Error(`Domain watchdog timeout (3 min) for ${domain}`)), PER_DOMAIN_WATCHDOG_MS);
+                domainWatchdogTimer = setTimeout(() => reject(new Error(`Domain watchdog timeout (8 min) for ${domain}`)), PER_DOMAIN_WATCHDOG_MS);
               });
 
               try {
