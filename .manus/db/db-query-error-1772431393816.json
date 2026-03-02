@@ -1,0 +1,8 @@
+{
+  "query": "UPDATE roe_documents SET status = 'signed' WHERE engagement_id = 1350012;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute UPDATE roe_documents SET status = 'signed' WHERE engagement_id = 1350012;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1265 (01000) at line 1: Data truncated for column '%s' at row %d"
+  ]
+}

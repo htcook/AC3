@@ -6701,3 +6701,38 @@
 - [x] Build template selector UI in engagement creation flow (category-colored cards, difficulty badges, duration/team size)
 - [x] Auto-navigate to EngagementOps after template creation
 - [x] Write vitest tests for engagement templates (25 tests passing)
+
+## Engagement Ops & LLM Orchestration Diagnostics
+- [x] Check server logs for engagement ops errors
+- [x] Test engagement ops tRPC endpoints (getState, startExecution, respondToGate)
+- [x] Verify LLM orchestration pipeline runs correctly
+- [x] Verify EngagementOps UI shows real-time scan progress to operator
+- [x] Fix any identified issues preventing tests from running visibly
+
+## Vianova Engagement & EngagementOps Workflow Update
+- [ ] Create Vianova engagement with RoE approved status in database
+- [x] Add asset paste-in field to EngagementOps for manual target entry
+- [x] Passive discovery scan on pasted assets (domain intel, OSINT)
+- [x] "Start Active Scan" button — hands off to LLM for active discovery
+- [x] LLM-orchestrated active scanning: enum → fingerprint → service/web app testing
+- [x] Auto-detect logins and trigger credential testing (default creds, brute force)
+- [x] Exploit approval prompt when exploitable vulns are discovered
+- [x] Metasploit server integration: load matching exploits for discovered vulns
+- [x] ZAP active scan rules loaded alongside Metasploit when web app vulns matched
+- [x] Write vitest tests for the updated flow (51 tests passing)
+
+## Nmap-First Enforcement & Tool Matching
+- [x] executeEngagement accepts startPhase option to skip recon when called from startActiveScan
+- [x] startActiveScan passes startPhase: 'enumeration' to skip redundant recon after passive scan
+- [x] Tool matching step after nmap: LLM analyzes open ports and selects tools per asset
+- [x] Web ports (http/https/8080/8443) → OWASP ZAP + Nuclei
+- [x] Login services (ssh/ftp/rdp/smb/mysql) → Credential Testing
+- [x] SMB port 445 → SMB Enumeration (shares, users, policies)
+- [x] LDAP port 389/636 → LDAP Enumeration
+- [x] DNS port 53 → Zone Transfer check
+- [x] Tool match log entries with tools array, ports, and asset type in live feed
+- [x] Exploitation Bridge integration in loadExploits for better MSF module matching
+- [x] Exploit Match tab shows Exploitation Bridge Modules (purple), MSF Modules (red), ZAP Rules (blue)
+- [x] Enhanced vuln-to-rule matching: RCE → OS Command Injection, LFI → Path Traversal + Local File Inclusion
+- [x] Module deduplication between exploitation bridge and fallback MSF paths
+- [x] 51 vitest tests passing for engagement ops pipeline

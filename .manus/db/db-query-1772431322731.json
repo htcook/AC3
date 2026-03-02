@@ -1,0 +1,46 @@
+{
+  "query": "SELECT * FROM engagements WHERE name LIKE '%Vianova%' LIMIT 2;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT * FROM engagements WHERE name LIKE '%Vianova%' LIMIT 2;",
+  "rows": [
+    {
+      "id": "1350013",
+      "name": "Vianova External Pentest",
+      "customerName": "Vianova",
+      "description": "External penetration test engagement for Vianova infrastructure. RoE approved. Scope: web applications, public-facing services, and network assets.",
+      "engagementType": "pentest",
+      "status": "active",
+      "startDate": "NULL",
+      "endDate": "NULL",
+      "targetDomain": "vianova.io",
+      "targetIpRange": "NULL",
+      "phishingDomain": "NULL",
+      "calderaOperationId": "NULL",
+      "calderaAdversaryId": "NULL",
+      "gophishCampaignId": "NULL",
+      "notes": "RoE signed and approved. Ready for active operations.",
+      "createdBy": "NULL",
+      "createdAt": "2026-03-02 05:44:56",
+      "updatedAt": "2026-03-02 05:44:56",
+      "roe_status": "signed",
+      "roe_signed_date": "2026-03-02 05:44:56",
+      "roe_expiry_date": "NULL",
+      "roe_document_url": "NULL",
+      "roe_scope": "NULL",
+      "roe_signer_name": "Harrison Cook",
+      "roe_signer_email": "harrison.cook@gmail.com",
+      "roe_document_id": "NULL",
+      "eng_tenant_id": "NULL"
+    }
+  ],
+  "messages": [
+    "1350012\tVianova - dashboard-dev.vianovahealth.com\tVianova\tExternal web application penetration test targeting customer-facing web applications. Testing will cover OWASP Top 10 vulnerabilities, authentication/authorization flaws, business logic errors, and sensitive data exposure. Goal: demonstrate unauthorized access to data or privileged functions on each in-scope asset.\tpentest\tplanning\tNULL\tNULL\tHttps:\\\\dashboard-dev.vianovahealth.com\t\t\tNULL\tNULL\tNULL\tPre-engagement checklist:",
+    "- Confirm all target URLs/domains",
+    "- Verify test accounts provided (if authenticated testing)",
+    "- Confirm WAF whitelisting or test from approved IPs",
+    "- Establish emergency contact and deconfliction process",
+    "- Review any excluded endpoints or functionality\t1\t2026-03-02 05:32:00\t2026-03-02 05:32:00\tpending\tNULL\tNULL\tNULL\t{\"inScopeDomains\": [{\"description\": \"From template\", \"domain\": \"Https:\\\\\\\\dashboard-dev.vianovahealth.com\", \"includeSubdomains\": true}]}\tNULL\tNULL\t30001\tNULL"
+  ],
+  "stdout": "id\tname\tcustomerName\tdescription\tengagementType\tstatus\tstartDate\tendDate\ttargetDomain\ttargetIpRange\tphishingDomain\tcalderaOperationId\tcalderaAdversaryId\tgophishCampaignId\tnotes\tcreatedBy\tcreatedAt\tupdatedAt\troe_status\troe_signed_date\troe_expiry_date\troe_document_url\troe_scope\troe_signer_name\troe_signer_email\troe_document_id\teng_tenant_id\n1350012\tVianova - dashboard-dev.vianovahealth.com\tVianova\tExternal web application penetration test targeting customer-facing web applications. Testing will cover OWASP Top 10 vulnerabilities, authentication/authorization flaws, business logic errors, and sensitive data exposure. Goal: demonstrate unauthorized access to data or privileged functions on each in-scope asset.\tpentest\tplanning\tNULL\tNULL\tHttps:\\\\dashboard-dev.vianovahealth.com\t\t\tNULL\tNULL\tNULL\tPre-engagement checklist:\n- Confirm all target URLs/domains\n- Verify test accounts provided (if authenticated testing)\n- Confirm WAF whitelisting or test from approved IPs\n- Establish emergency contact and deconfliction process\n- Review any excluded endpoints or functionality\t1\t2026-03-02 05:32:00\t2026-03-02 05:32:00\tpending\tNULL\tNULL\tNULL\t{\"inScopeDomains\": [{\"description\": \"From template\", \"domain\": \"Https:\\\\\\\\dashboard-dev.vianovahealth.com\", \"includeSubdomains\": true}]}\tNULL\tNULL\t30001\tNULL\n1350013\tVianova External Pentest\tVianova\tExternal penetration test engagement for Vianova infrastructure. RoE approved. Scope: web applications, public-facing services, and network assets.\tpentest\tactive\tNULL\tNULL\tvianova.io\tNULL\tNULL\tNULL\tNULL\tNULL\tRoE signed and approved. Ready for active operations.\tNULL\t2026-03-02 05:44:56\t2026-03-02 05:44:56\tsigned\t2026-03-02 05:44:56\tNULL\tNULL\tNULL\tHarrison Cook\tharrison.cook@gmail.com\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

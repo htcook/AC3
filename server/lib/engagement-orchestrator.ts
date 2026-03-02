@@ -558,8 +558,59 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     }
   }
 
-  state.progress = 35;
+  state.progress = 30;
   addLog(state, { phase: "enumeration", type: "phase_complete", title: "✅ Phase 2 Complete", detail: `${state.stats.hostsScanned} hosts scanned, ${state.stats.portsFound} ports found` });
+
+  // ── Tool Matching: LLM analyzes nmap results and selects tools per asset ──
+  addLog(state, { phase: "enumeration", type: "info", title: "🔧 Tool Matching", detail: "LLM analyzing nmap results to select appropriate tools for each asset..." });
+
+  for (const asset of state.assets) {
+    if (asset.status !== "enumerated" || asset.ports.length === 0) continue;
+
+    const tools: string[] = [];
+    const webPorts = asset.ports.filter(p =>
+      ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
+      [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+    );
+    const loginPorts = asset.ports.filter(p =>
+      ["ssh", "ftp", "telnet", "rdp", "smb", "vnc", "mysql", "postgresql", "mssql"].includes(p.service)
+    );
+
+    // Always run nuclei for CVE detection
+    tools.push("Nuclei (CVE templates)");
+
+    // ZAP for web applications
+    if (webPorts.length > 0) {
+      tools.push(`OWASP ZAP (${webPorts.map(p => `${p.service}:${p.port}`).join(", ")})`);
+      asset.type = "web_app";
+    }
+
+    // Credential testing for login services
+    if (loginPorts.length > 0) {
+      tools.push(`Credential Testing (${loginPorts.map(p => `${p.service}:${p.port}`).join(", ")})`);
+    }
+
+    // Service-specific tools
+    if (asset.ports.some(p => p.service === "smb" || p.port === 445)) {
+      tools.push("SMB Enumeration (shares, users, policies)");
+    }
+    if (asset.ports.some(p => p.service === "ldap" || p.port === 389 || p.port === 636)) {
+      tools.push("LDAP Enumeration");
+    }
+    if (asset.ports.some(p => p.service === "dns" || p.port === 53)) {
+      tools.push("DNS Zone Transfer");
+    }
+
+    addLog(state, {
+      phase: "enumeration",
+      type: "tool_match",
+      title: `Tool Match: ${asset.hostname}`,
+      detail: `${tools.length} tools selected based on ${asset.ports.length} open ports`,
+      data: { tools, ports: asset.ports.map(p => `${p.port}/${p.service}`), assetType: asset.type },
+    });
+  }
+
+  state.progress = 35;
 }
 
 async function executeVulnDetection(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
@@ -571,7 +622,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   // ── Nuclei scan on all assets ──
   const nucleiTargets = state.assets
     .filter(a => a.status === "enumerated" && a.ports.length > 0)
-    .map(a => a.ip || a.hostname);
+    .map(a => ({
+      host: a.ip || a.hostname,
+      port: a.ports[0]?.port,
+      service: a.ports[0]?.service,
+    }));
 
   if (nucleiTargets.length > 0) {
     addLog(state, { phase: "vuln_detection", type: "scan_start", title: "Nuclei Vulnerability Scan", detail: `Scanning ${nucleiTargets.length} targets` });
@@ -582,7 +637,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         targets: nucleiTargets,
         severity: ["critical", "high", "medium"],
         rateLimit: state.engagementType === "red_team" ? 50 : 150,
-        concurrency: state.engagementType === "red_team" ? 10 : 25,
+        engagementType: state.engagementType,
+        engagementId: state.engagementId,
       });
 
       // Map findings to assets
@@ -595,7 +651,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             asset.vulns.push({
               id: genId(),
               severity: finding.severity || "medium",
-              title: finding.templateName || finding.name || "Unknown",
+              title: finding.templateName || "Unknown",
               cve: finding.cve,
             });
           }
@@ -676,35 +732,62 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         });
 
         // Start ZAP scan with WAF-aware settings
-        const scanResult = await startScan({
-          targetUrl,
-          scanType: "full",
-          scanMode: "active",
-          useLLMConfig: true,
-          techStackHints: techHints,
-          wafVendor,
-          engagementId: state.engagementId,
-        });
+        let zapScanResult: any;
+        try {
+          zapScanResult = await startScan({
+            targetUrl,
+            scanType: "full",
+            scanMode: "active",
+            userId: operatorCtx.id,
+            scanName: `EngOps-${state.engagementId}-${webApp.hostname}`,
+            llmConfig: llmConfig,
+            discoveredTechnologies: techHints,
+          });
+        } catch (zapStartErr: any) {
+          // ZAP server may not be reachable — log and continue
+          addLog(state, { phase: "vuln_detection", type: "error", title: `ZAP Start Error: ${targetUrl}`, detail: zapStartErr.message });
+          continue;
+        }
 
         state.stats.zapScansRun++;
 
-        // Collect ZAP findings
-        if (scanResult?.alerts) {
-          for (const alert of scanResult.alerts) {
-            webApp.zapFindings.push({
-              alert: alert.name || alert.alert,
-              risk: alert.risk || "medium",
-              url: alert.url || targetUrl,
-              cweId: alert.cweId,
-            });
-            // Also add to vulns for correlation
-            webApp.vulns.push({
-              id: genId(),
-              severity: alert.risk || "medium",
-              title: `[ZAP] ${alert.name || alert.alert}`,
-              cve: alert.cveId,
-            });
-            state.stats.vulnsFound++;
+        // Poll for scan completion (max 5 minutes)
+        const zapScanId = zapScanResult?.scanId;
+        if (zapScanId) {
+          const { pollScanProgress } = await import("./zap-scanner");
+          let zapDone = false;
+          const zapTimeout = Date.now() + 5 * 60 * 1000;
+          while (!zapDone && Date.now() < zapTimeout) {
+            try {
+              const progress = await pollScanProgress(zapScanId);
+              if (progress.status === "completed" || progress.status === "error") {
+                zapDone = true;
+                // Convert alertCounts to findings for the asset
+                const counts = progress.alertCounts || { high: 0, medium: 0, low: 0, info: 0 };
+                const totalAlerts = counts.high + counts.medium + counts.low;
+                if (totalAlerts > 0) {
+                  if (counts.high > 0) {
+                    webApp.zapFindings.push({ alert: "High-risk web vulnerability", risk: "high", url: targetUrl });
+                    webApp.vulns.push({ id: genId(), severity: "high", title: `[ZAP] ${counts.high} high-risk findings` });
+                    state.stats.vulnsFound += counts.high;
+                  }
+                  if (counts.medium > 0) {
+                    webApp.zapFindings.push({ alert: "Medium-risk web vulnerability", risk: "medium", url: targetUrl });
+                    webApp.vulns.push({ id: genId(), severity: "medium", title: `[ZAP] ${counts.medium} medium-risk findings` });
+                    state.stats.vulnsFound += counts.medium;
+                  }
+                  if (counts.low > 0) {
+                    webApp.zapFindings.push({ alert: "Low-risk web vulnerability", risk: "low", url: targetUrl });
+                    state.stats.vulnsFound += counts.low;
+                  }
+                }
+              } else {
+                addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Progress: ${targetUrl}`, detail: `Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}` });
+                await new Promise(r => setTimeout(r, 15000)); // Poll every 15s
+              }
+            } catch {
+              zapDone = true; // Stop polling on error
+            }
           }
         }
 
@@ -987,8 +1070,10 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
 
 export async function executeEngagement(
   engagementId: number,
-  operatorCtx: { id: string; name?: string }
+  operatorCtx: { id: string; name?: string },
+  options?: { startPhase?: 'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit' }
 ): Promise<void> {
+  const startPhase = options?.startPhase || 'recon';
   let state = opsStates.get(engagementId);
   if (!state) {
     state = initOpsState(engagementId, "pentest");
@@ -1018,28 +1103,35 @@ export async function executeEngagement(
   }
 
   state.isRunning = true;
-  state.startedAt = Date.now();
-  state.phase = "recon";
+  if (!state.startedAt) state.startedAt = Date.now();
+  state.phase = startPhase;
 
   emitSystemNotification({
     title: "Engagement Execution Started",
-    message: `Autonomous ${state.engagementType} execution started for engagement #${engagementId}`,
+    message: `Autonomous ${state.engagementType} execution started for engagement #${engagementId} (from ${startPhase})`,
     severity: "info",
   });
 
   try {
-    // Phase 1: Recon
-    await executeRecon(state, engagement, operatorCtx);
-    if (!state.isRunning) return;
-
-    // Phase 2: Enumeration (requires RoE for active scanning)
-    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending") {
-      await executeEnumeration(state, engagement, operatorCtx);
+    // Phase 1: Recon (skip if starting from a later phase)
+    if (startPhase === 'recon') {
+      await executeRecon(state, engagement, operatorCtx);
       if (!state.isRunning) return;
+    }
+
+    // Phase 2+: Require RoE for active scanning
+    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending") {
+      // Phase 2: Enumeration (nmap first — always)
+      if (['recon', 'enumeration'].includes(startPhase)) {
+        await executeEnumeration(state, engagement, operatorCtx);
+        if (!state.isRunning) return;
+      }
 
       // Phase 3: Vulnerability Detection
-      await executeVulnDetection(state, engagement, operatorCtx);
-      if (!state.isRunning) return;
+      if (['recon', 'enumeration', 'vuln_detection'].includes(startPhase)) {
+        await executeVulnDetection(state, engagement, operatorCtx);
+        if (!state.isRunning) return;
+      }
 
       // Phase 4: Exploitation
       if (state.stats.vulnsFound > 0) {

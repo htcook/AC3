@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO engagements (name, customerName, description, engagementType, status, targetDomain, roe_status, roe_signed_date, roe_signer_name, roe_signer_email, notes, createdAt, updatedAt) VALUES ('Vianova External Pentest', 'Vianova', 'External penetration test engagement for Vianova infrastructure. RoE approved. Scope: web applications, public-facing services, and network assets.', 'pentest', 'active', 'vianova.io', 'signed', NOW(), 'Harrison Cook', 'harrison.cook@gmail.com', 'RoE signed and approved. Ready for active operations.', NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute INSERT INTO engagements (name, customerName, description, engagementType, status, targetDomain, roe_status, roe_signed_date, roe_signer_name, roe_signer_email, notes, createdAt, updatedAt) VALUES ('Vianova External Pentest', 'Vianova', 'External penetration test engagement for Vianova infrastructure. RoE approved. Scope: web applications, public-facing services, and network assets.', 'pentest', 'active', 'vianova.io', 'signed', NOW(), 'Harrison Cook', 'harrison.cook@gmail.com', 'RoE signed and approved. Ready for active operations.', NOW(), NOW());",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 602
+}

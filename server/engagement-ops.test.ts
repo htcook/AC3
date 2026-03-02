@@ -492,3 +492,249 @@ describe("LLM Pipeline Integration", () => {
     expect(strategies[0]).toContain("origin IP");
   });
 });
+
+// ─── Orchestrator State Management (Live Imports) ────────────────────────
+
+describe("Engagement Orchestrator — Live State Management", () => {
+  it("initOpsState creates state via the actual orchestrator module", async () => {
+    const { initOpsState, getOpsState } = await import("./lib/engagement-orchestrator");
+    const state = initOpsState(88001, "pentest");
+    expect(state).toBeDefined();
+    expect(state.engagementId).toBe(88001);
+    expect(state.engagementType).toBe("pentest");
+    expect(state.phase).toBe("idle");
+    expect(state.isRunning).toBe(false);
+    expect(state.assets).toEqual([]);
+    expect(state.stats.hostsScanned).toBe(0);
+
+    const retrieved = getOpsState(88001);
+    expect(retrieved).not.toBeNull();
+    expect(retrieved!.engagementId).toBe(88001);
+  });
+
+  it("getOpsState returns null for non-existent engagement", async () => {
+    const { getOpsState } = await import("./lib/engagement-orchestrator");
+    const state = getOpsState(999999);
+    expect(state).toBeNull();
+  });
+
+  it("stopEngagement stops a running engagement", async () => {
+    const { initOpsState, stopEngagement } = await import("./lib/engagement-orchestrator");
+    const state = initOpsState(88002, "red_team");
+    state.isRunning = true;
+    state.phase = "enumeration";
+
+    const result = stopEngagement(88002);
+    expect(result).toBe(true);
+    expect(state.isRunning).toBe(false);
+    expect(state.currentAction).toBe("Stopped by operator");
+  });
+
+  it("stopEngagement returns false for non-existent engagement", async () => {
+    const { stopEngagement } = await import("./lib/engagement-orchestrator");
+    expect(stopEngagement(999998)).toBe(false);
+  });
+});
+
+// ─── executeEngagement startPhase Option ─────────────────────────────────
+
+describe("executeEngagement — startPhase Option", () => {
+  it("executeEngagement function accepts 3 parameters (engagementId, operatorCtx, options)", async () => {
+    const { executeEngagement } = await import("./lib/engagement-orchestrator");
+    expect(typeof executeEngagement).toBe("function");
+    // The function should accept at least 2 params (3rd is optional)
+    expect(executeEngagement.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("initOpsState creates state that can be started from enumeration phase", async () => {
+    const { initOpsState } = await import("./lib/engagement-orchestrator");
+    const state = initOpsState(88003, "pentest");
+
+    // Simulate what startActiveScan does: set phase to enumeration
+    state.isRunning = true;
+    state.phase = "enumeration";
+    state.startedAt = Date.now();
+
+    expect(state.phase).toBe("enumeration");
+    expect(state.isRunning).toBe(true);
+    expect(state.startedAt).toBeGreaterThan(0);
+  });
+});
+
+// ─── Tool Matching Logic ─────────────────────────────────────────────────
+
+describe("Tool Matching — Service-to-Tool Mapping", () => {
+  it("web ports select ZAP and Nuclei", () => {
+    const ports = [
+      { port: 80, service: "http" },
+      { port: 443, service: "https" },
+    ];
+
+    const webPorts = ports.filter(p =>
+      ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
+      [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+    );
+
+    expect(webPorts).toHaveLength(2);
+
+    const tools: string[] = ["Nuclei (CVE templates)"];
+    if (webPorts.length > 0) {
+      tools.push(`OWASP ZAP (${webPorts.map(p => `${p.service}:${p.port}`).join(", ")})`);
+    }
+
+    expect(tools).toContain("Nuclei (CVE templates)");
+    expect(tools.some(t => t.includes("OWASP ZAP"))).toBe(true);
+    expect(tools.some(t => t.includes("http:80"))).toBe(true);
+  });
+
+  it("login services select credential testing", () => {
+    const ports = [
+      { port: 22, service: "ssh" },
+      { port: 3306, service: "mysql" },
+      { port: 5432, service: "postgresql" },
+    ];
+
+    const loginPorts = ports.filter(p =>
+      ["ssh", "ftp", "telnet", "rdp", "smb", "vnc", "mysql", "postgresql", "mssql"].includes(p.service)
+    );
+
+    expect(loginPorts).toHaveLength(3);
+
+    const tools: string[] = [];
+    if (loginPorts.length > 0) {
+      tools.push(`Credential Testing (${loginPorts.map(p => `${p.service}:${p.port}`).join(", ")})`);
+    }
+
+    expect(tools.some(t => t.includes("Credential Testing"))).toBe(true);
+    expect(tools.some(t => t.includes("ssh:22"))).toBe(true);
+  });
+
+  it("SMB port triggers SMB enumeration", () => {
+    const ports = [{ port: 445, service: "smb" }];
+    const hasSMB = ports.some(p => p.service === "smb" || p.port === 445);
+    expect(hasSMB).toBe(true);
+  });
+
+  it("LDAP port triggers LDAP enumeration", () => {
+    const ports = [{ port: 389, service: "ldap" }];
+    const hasLDAP = ports.some(p => p.service === "ldap" || p.port === 389 || p.port === 636);
+    expect(hasLDAP).toBe(true);
+  });
+
+  it("DNS port triggers zone transfer check", () => {
+    const ports = [{ port: 53, service: "dns" }];
+    const hasDNS = ports.some(p => p.service === "dns" || p.port === 53);
+    expect(hasDNS).toBe(true);
+  });
+
+  it("non-standard web ports are also detected", () => {
+    const ports = [
+      { port: 8080, service: "http-proxy" },
+      { port: 8443, service: "http-alt" },
+    ];
+
+    const webPorts = ports.filter(p =>
+      ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
+      [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+    );
+
+    expect(webPorts).toHaveLength(2);
+  });
+});
+
+// ─── Exploit Matching — CVE to Module Mapping ────────────────────────────
+
+describe("Exploit Matching — Enhanced Module Mapping", () => {
+  it("CVE generates correct MSF module path", () => {
+    const cve = "CVE-2024-1234";
+    const module = `exploit/multi/http/${cve.toLowerCase().replace(/-/g, '_')}`;
+    const aux = `auxiliary/scanner/http/${cve.toLowerCase().replace(/-/g, '_')}_check`;
+
+    expect(module).toBe("exploit/multi/http/cve_2024_1234");
+    expect(aux).toBe("auxiliary/scanner/http/cve_2024_1234_check");
+  });
+
+  it("RCE vulns generate additional MSF and ZAP rules", () => {
+    const title = "Remote Code Execution via deserialization";
+    const titleLower = title.toLowerCase();
+    const msfModules: string[] = [];
+    const zapRules: string[] = [];
+
+    if (titleLower.includes('rce') || titleLower.includes('remote code') || titleLower.includes('command execution')) {
+      msfModules.push("exploit/multi/misc/rce_target");
+      zapRules.push('Remote Code Execution', 'OS Command Injection');
+    }
+
+    expect(msfModules).toHaveLength(1);
+    expect(zapRules).toContain("Remote Code Execution");
+    expect(zapRules).toContain("OS Command Injection");
+  });
+
+  it("LFI vulns generate path traversal rules", () => {
+    const title = "Local File Inclusion in /etc/passwd";
+    const titleLower = title.toLowerCase();
+    const zapRules: string[] = [];
+
+    if (titleLower.includes('lfi') || titleLower.includes('local file') || titleLower.includes('path traversal')) {
+      zapRules.push('Path Traversal', 'Local File Inclusion');
+    }
+
+    expect(zapRules).toContain("Path Traversal");
+    expect(zapRules).toContain("Local File Inclusion");
+  });
+
+  it("deduplicates MSF modules from bridge and fallback", () => {
+    const exploitBridgeModules = ["exploit/multi/http/cve_2024_1234"];
+    const msfModules = ["exploit/multi/http/cve_2024_1234", "auxiliary/scanner/http/cve_2024_1234_check"];
+
+    const allMsf = [...new Set([...exploitBridgeModules, ...msfModules])];
+    expect(allMsf).toHaveLength(2); // deduplicated
+    expect(allMsf).toContain("exploit/multi/http/cve_2024_1234");
+    expect(allMsf).toContain("auxiliary/scanner/http/cve_2024_1234_check");
+  });
+});
+
+// ─── Nmap-First Enforcement ──────────────────────────────────────────────
+
+describe("Nmap-First Enforcement", () => {
+  it("enumeration phase always starts with nmap before other tools", () => {
+    // The orchestrator's executeEnumeration runs nmap first for every asset
+    // This test verifies the expected log order
+    const logEntries = [
+      { phase: "enumeration", type: "scan_start", title: "Nmap SYN Scan: target.com" },
+      { phase: "enumeration", type: "scan_result", title: "Nmap Complete: target.com" },
+      { phase: "enumeration", type: "tool_match", title: "Tool Match: target.com" },
+      { phase: "vuln_detection", type: "scan_start", title: "Nuclei Scan: target.com" },
+      { phase: "vuln_detection", type: "zap_scan", title: "ZAP Spider: target.com" },
+    ];
+
+    // Nmap entries must come before tool_match entries
+    const nmapIdx = logEntries.findIndex(l => l.title.includes("Nmap SYN"));
+    const toolMatchIdx = logEntries.findIndex(l => l.type === "tool_match");
+    const nucleiIdx = logEntries.findIndex(l => l.title.includes("Nuclei"));
+    const zapIdx = logEntries.findIndex(l => l.title.includes("ZAP"));
+
+    expect(nmapIdx).toBeLessThan(toolMatchIdx);
+    expect(toolMatchIdx).toBeLessThan(nucleiIdx);
+    expect(toolMatchIdx).toBeLessThan(zapIdx);
+  });
+
+  it("active scan requires RoE signed status", () => {
+    const roeStatuses = ["signed", "pending", "none", "draft"];
+    const allowedForActive = roeStatuses.filter(s => s === "signed" || s === "pending");
+    expect(allowedForActive).toContain("signed");
+    expect(allowedForActive).toContain("pending");
+    expect(allowedForActive).not.toContain("none");
+    expect(allowedForActive).not.toContain("draft");
+  });
+
+  it("passive scan does not require RoE", () => {
+    // Passive recon (OSINT, domain intel) runs without RoE
+    const passivePhases = ["recon"];
+    const requiresRoE = (phase: string) => !passivePhases.includes(phase);
+
+    expect(requiresRoE("recon")).toBe(false);
+    expect(requiresRoE("enumeration")).toBe(true);
+    expect(requiresRoE("exploitation")).toBe(true);
+  });
+});

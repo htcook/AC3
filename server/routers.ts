@@ -8475,6 +8475,229 @@ Make the phishing content highly realistic and tailored to the target domain and
 
         return { resolved: true };
       }),
+
+    /** Add targets to an engagement (paste-in from operator) */
+    addTargets: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        targets: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+        const parsed = input.targets.split(/[\n,;]+/).map(t => t.trim()).filter(Boolean);
+        const domains: string[] = [];
+        const ips: string[] = [];
+        for (const t of parsed) {
+          if (/^https?:\/\//i.test(t)) domains.push(new URL(t).hostname);
+          else if (/^\d{1,3}(\.\d{1,3}){3}/.test(t)) ips.push(t);
+          else domains.push(t);
+        }
+
+        const existingDomains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+        const existingIps = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
+        const allDomains = [...new Set([...existingDomains, ...domains])];
+        const allIps = [...new Set([...existingIps, ...ips])];
+
+        await db.updateEngagement(input.engagementId, {
+          targetDomain: allDomains.join(', '),
+          targetIpRange: allIps.join(', '),
+        });
+
+        const { initOpsState, getOpsState } = await import('./lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
+
+        for (const d of allDomains) {
+          if (!state.assets.find((a: any) => a.hostname === d)) {
+            state.assets.push({ hostname: d, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], status: 'pending' });
+          }
+        }
+        for (const ip of allIps) {
+          if (!state.assets.find((a: any) => a.ip === ip || a.hostname === ip)) {
+            state.assets.push({ hostname: ip, ip, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], status: 'pending' });
+          }
+        }
+
+        await db.logActivity({ userId: ctx.user.id, action: 'targets_added', details: `Added ${parsed.length} targets to engagement #${input.engagementId}` });
+        return { added: parsed.length, domains: allDomains, ips: allIps, totalAssets: state.assets.length };
+      }),
+
+    /** Start passive discovery scan only (Phase 1: Recon) */
+    startPassiveScan: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+        const { initOpsState, getOpsState } = await import('./lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
+        if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Scan already running' });
+
+        state.isRunning = true;
+        state.phase = 'recon';
+        state.startedAt = Date.now();
+
+        await db.logActivity({ userId: ctx.user.id, action: 'passive_scan_started', details: `Started passive discovery for engagement #${input.engagementId}` });
+
+        // Run recon only, then pause for operator to review and start active scan
+        (async () => {
+          try {
+            const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+            for (const domain of domains) {
+              try {
+                state!.log.push({ id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon', type: 'scan_start', title: `Domain Intel: ${domain}`, detail: 'Running passive OSINT scan' });
+
+                const { runDomainIntelPipeline } = await import('./domainIntel');
+                const result = await runDomainIntelPipeline({
+                  customerName: engagement.customerName || 'Auto',
+                  primaryDomain: domain,
+                  additionalDomains: [],
+                  sector: 'technology',
+                  clientType: 'enterprise',
+                  criticalFunctions: [],
+                  complianceFlags: [],
+                });
+
+                const discoveredAssets = (result as any).assets || [];
+                for (const asset of discoveredAssets) {
+                  const hostname = asset.hostname || asset.domain || asset.ip;
+                  if (!hostname) continue;
+                  const existing = state!.assets.find((a: any) => a.hostname === hostname);
+                  if (existing) {
+                    existing.ip = asset.ip || existing.ip;
+                    existing.type = asset.assetType === 'web_application' ? 'web_app' : existing.type;
+                    existing.status = 'discovered';
+                  } else {
+                    state!.assets.push({ hostname, ip: asset.ip, type: asset.assetType === 'web_application' ? 'web_app' : 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], status: 'discovered' });
+                  }
+                }
+
+                state!.log.push({ id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon', type: 'scan_result', title: `Recon Complete: ${domain}`, detail: `Discovered ${discoveredAssets.length} assets` });
+              } catch (e: any) {
+                state!.log.push({ id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon', type: 'error', title: `Recon Failed: ${domain}`, detail: e.message });
+              }
+            }
+
+            // Mark recon complete — wait for operator to start active scan
+            state!.phase = 'recon_complete' as any;
+            state!.isRunning = false;
+            state!.progress = 15;
+            state!.currentAction = undefined;
+            state!.log.push({ id: `log-${Date.now()}-done`, timestamp: Date.now(), phase: 'recon', type: 'phase_complete', title: '\u2705 Passive Discovery Complete', detail: `${state!.assets.length} assets discovered. Click "Start Active Scan" to hand off to LLM for nmap \u2192 service matching \u2192 vuln detection \u2192 exploitation.` });
+          } catch (e: any) {
+            state!.phase = 'error';
+            state!.isRunning = false;
+            state!.error = e.message;
+          }
+        })();
+
+        return { started: true };
+      }),
+
+    /** Start LLM-orchestrated active scanning (nmap first, then tool matching per service) */
+    startActiveScan: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+        if (engagement.roeStatus !== 'signed' && engagement.roeStatus !== 'pending') {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'RoE must be signed before active scanning.' });
+        }
+
+        const { getOpsState, initOpsState } = await import('./lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
+        if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Scan already running' });
+        if (state.assets.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets. Run passive scan or add targets first.' });
+
+        state.isRunning = true;
+        state.phase = 'enumeration';
+
+        await db.logActivity({ userId: ctx.user.id, action: 'active_scan_started', details: `Started LLM-orchestrated active scan (nmap \u2192 tool match \u2192 exploit) for engagement #${input.engagementId}` });
+
+        // Execute the active pipeline starting from enumeration (nmap first)
+        // Skip recon since passive discovery was already done
+        const { executeEngagement } = await import('./lib/engagement-orchestrator');
+        executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration' });
+
+        return { started: true, assetsCount: state.assets.length };
+      }),
+
+    /** Load matching exploits (Metasploit + ZAP rules) for discovered vulns */
+    loadExploits: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState } = await import('./lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId);
+        if (!state) return { exploits: [], totalVulns: 0 };
+
+        const allVulns = state.assets.flatMap(a => a.vulns.map(v => ({ ...v, asset: a.hostname, ip: a.ip })));
+        const exploitMatches: Array<{ asset: string; vuln: string; cve?: string; severity: string; msfModules: string[]; zapRules: string[]; exploitBridgeModules: string[] }> = [];
+
+        // Try to use the exploitation bridge for better module matching
+        let lookupExploits: ((cve: string) => Promise<any>) | null = null;
+        try {
+          const bridge = await import('./lib/exploitation-bridge');
+          lookupExploits = bridge.lookupExploitsForCve;
+        } catch { /* exploitation bridge not available */ }
+
+        for (const vuln of allVulns) {
+          const msfModules: string[] = [];
+          const zapRules: string[] = [];
+          const exploitBridgeModules: string[] = [];
+
+          // Use exploitation bridge for CVE-based matching
+          if (vuln.cve && lookupExploits) {
+            try {
+              const bridgeResult = await lookupExploits(vuln.cve);
+              if (bridgeResult?.modules) {
+                for (const mod of bridgeResult.modules) {
+                  exploitBridgeModules.push(mod.fullName || mod.name || mod);
+                }
+              }
+            } catch { /* bridge lookup failed, fall back */ }
+          }
+
+          // Fallback: generate MSF module paths from CVE
+          if (vuln.cve && exploitBridgeModules.length === 0) {
+            msfModules.push(
+              `exploit/multi/http/${vuln.cve.toLowerCase().replace(/-/g, '_')}`,
+              `auxiliary/scanner/http/${vuln.cve.toLowerCase().replace(/-/g, '_')}_check`,
+            );
+          }
+
+          const titleLower = vuln.title.toLowerCase();
+          if (titleLower.includes('[zap]') || titleLower.includes('xss') || titleLower.includes('sql') || titleLower.includes('injection')) {
+            zapRules.push('SQL Injection', 'XSS (Reflected)', 'XSS (Persistent)', 'Command Injection', 'Path Traversal');
+          }
+          if (titleLower.includes('auth') || titleLower.includes('login') || titleLower.includes('credential')) {
+            zapRules.push('Authentication Bypass', 'Session Fixation', 'Forced Browse: Default Credentials');
+          }
+          if (titleLower.includes('ssrf') || titleLower.includes('redirect')) {
+            zapRules.push('Server Side Request Forgery', 'Open Redirect');
+          }
+          if (titleLower.includes('rce') || titleLower.includes('remote code') || titleLower.includes('command execution')) {
+            msfModules.push(`exploit/multi/misc/rce_${vuln.asset.replace(/[^a-z0-9]/gi, '_')}`);
+            zapRules.push('Remote Code Execution', 'OS Command Injection');
+          }
+          if (titleLower.includes('lfi') || titleLower.includes('local file') || titleLower.includes('path traversal')) {
+            zapRules.push('Path Traversal', 'Local File Inclusion');
+          }
+
+          const allMsf = [...new Set([...exploitBridgeModules, ...msfModules])];
+          const allZap = [...new Set(zapRules)];
+
+          if (allMsf.length > 0 || allZap.length > 0) {
+            exploitMatches.push({ asset: vuln.asset, vuln: vuln.title, cve: vuln.cve, severity: vuln.severity, msfModules: allMsf, zapRules: allZap, exploitBridgeModules });
+          }
+        }
+
+        return { exploits: exploitMatches, totalVulns: allVulns.length };
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;
