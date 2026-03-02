@@ -275,6 +275,76 @@ export async function getAdminContext(): Promise<string> {
   }, "");
 }
 
+// ─── SOC Context ──────────────────────────────────────────────────────────
+
+export async function getSocContext(): Promise<string> {
+  return safe(async () => {
+    const db = (await getDb())!;
+
+    // Threat actor landscape — SOC needs full awareness
+    const [taStats] = await db.select({
+      total: count(),
+      active: sum(sql`CASE WHEN ${threatActors.active} = 1 THEN 1 ELSE 0 END`),
+    }).from(threatActors);
+    const [iocStats] = await db.select({ total: count() }).from(threatActorIocs);
+    const [rwStats] = await db.select({ total: count() }).from(ransomwareGroups);
+
+    // Vulnerability posture for triage context
+    const [vulns] = await db.select({
+      total: count(),
+      critical: sum(sql`CASE WHEN ${scanObservations.severity} = 'critical' THEN 1 ELSE 0 END`),
+      high: sum(sql`CASE WHEN ${scanObservations.severity} = 'high' THEN 1 ELSE 0 END`),
+    }).from(scanObservations);
+
+    // Opsec events (last 24h) — SOC monitors for detection triggers
+    const oneDayAgo = new Date(Date.now() - 86400000);
+    const [opsecRecent] = await db.select({ total: count() })
+      .from(opsecEvents)
+      .where(gt(opsecEvents.createdAt, oneDayAgo));
+
+    // Active engagements for emulation awareness
+    const activeEngagements = await db.select({ name: engagements.name, status: engagements.status })
+      .from(engagements)
+      .where(eq(engagements.status, "active"))
+      .limit(5);
+
+    // Top active threat actors for SOC threat awareness
+    const topActors = await db.select({
+      name: threatActors.name,
+      sophistication: threatActors.sophistication,
+      type: threatActors.type,
+    }).from(threatActors).where(eq(threatActors.active, true)).limit(10);
+
+    // Defense scores for detection coverage context
+    const defScores = await db.select({
+      category: defenseScores.category,
+      score: defenseScores.overallScore,
+    }).from(defenseScores).orderBy(desc(defenseScores.createdAt)).limit(10);
+
+    const lines = [
+      `\n--- LIVE SOC CONTEXT ---`,
+      `Threat Landscape: ${taStats?.total || 0} actors tracked (${taStats?.active || 0} active), ${iocStats?.total || 0} IOCs, ${rwStats?.total || 0} ransomware groups`,
+      `Vulnerability Posture: ${vulns?.total || 0} findings (${vulns?.critical || 0} critical, ${vulns?.high || 0} high)`,
+      `Opsec Events (24h): ${opsecRecent?.total || 0} events — monitor for detection triggers`,
+    ];
+
+    if (topActors.length > 0) {
+      lines.push(`Active Threat Actors: ${topActors.map(a => `${a.name} [${a.type || 'unknown'}/${a.sophistication || '?'}]`).join(', ')}`);
+    }
+
+    if (activeEngagements.length > 0) {
+      lines.push(`Active Emulations: ${activeEngagements.map(e => e.name).join(', ')} — validate detection coverage`);
+    }
+
+    if (defScores.length > 0) {
+      lines.push(`Defense Scores: ${defScores.map(d => `${d.category}: ${d.score}`).join(', ')}`);
+    }
+
+    lines.push(`SOC Focus Areas: Alert triage, detection engineering, threat hunting, Sigma/YARA rule generation, emulation validation, IOC correlation`);
+    return lines.join("\n");
+  }, "");
+}
+
 /**
  * Get the appropriate context enrichment for a given role.
  */
@@ -286,6 +356,7 @@ export async function getRoleContext(role: string): Promise<string> {
     case "team_lead": return getTeamLeadContext();
     case "client": return getClientContext();
     case "admin": return getAdminContext();
+    case "soc": return getSocContext();
     default: return getOperatorContext();
   }
 }

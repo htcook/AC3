@@ -6502,3 +6502,41 @@
 - [ ] Build Sigma Rule Generator frontend page with technique selector, rule editor, export
 - [ ] Add nav item to Adversary Emulation > Defense Validation section
 - [ ] Write vitest tests for Sigma engine and router
+
+## Threat Actor Catalog Enhancements
+- [x] P0: Build Actor Context Provider (server/lib/actor-context-provider.ts)
+- [x] P0: Connect AD Attack Sim to actor context — actor-specific AD attack chains
+- [x] P0: Connect Cloud Attack Paths to actor context — actor-specific cloud TTPs
+- [ ] P0: Connect Credential Attack Engine to actor context — actor-specific credential patterns
+- [ ] P0: Connect ZAP Attack Playbooks to actor context — actor-specific web exploit preferences
+- [x] P0: Connect Sigma Rule Engine to actor context — actor-specific detection rules
+- [ ] P0: Add SOC context injection to role-chat-context.ts for WATCH ADVISOR
+- [x] P1: Build Actor Behavioral Sequence Engine (server/lib/actor-sequence-engine.ts)
+- [ ] P1: Extract behavioral sequences from incident reports
+- [ ] P1: Build per-actor sequence graphs with transition probabilities
+- [x] P2: Implement C2 Learning → Actor Profile Feedback Loop
+- [ ] P2: Propagate execution success/failure to actor technique confidence
+- [ ] P2: Build actor effectiveness matrix (actor × defense → outcome)
+- [ ] Tests: Vitest coverage for all new threat actor enhancement modules
+- [x] Enrichment: Actor Context Provider pulls from SpicyTIP bridge (ransomware stats, ThreatFox IOCs, OTX pulses)
+- [x] Enrichment: Actor Context Provider pulls from abuse.ch feeds (URLhaus, ThreatFox)
+- [x] Enrichment: Actor Context Provider pulls from CISA KEV for exploit-to-actor correlation
+- [x] Enrichment: Actor Context Provider pulls from incident reports (DFIR, Unit42, CISA advisories)
+- [x] Enrichment: Actor Context Provider pulls from darkweb feeds (access brokers, info ops)
+- [x] Enrichment: Actor Context Provider pulls from C2 learning outcomes (technique effectiveness)
+- [x] Enrichment: Actor Context Provider pulls from ransomware intel (LLM-enriched profiles)
+- [x] Enrichment: Actor Context Provider pulls from IOC sync feeds for live IOC correlation
+- [x] TTP Learning: Extract novel TTPs from incident reports (DFIR, Unit42, CISA advisories)
+- [x] TTP Learning: Extract novel TTPs from darkweb feeds (access broker techniques, initial access methods)
+- [x] TTP Learning: Extract novel TTPs from C2 execution feedback (what worked, what was blocked)
+- [x] TTP Learning: Extract novel TTPs from SpicyTIP intelligence (ThreatFox, OTX pulses)
+- [ ] TTP Learning: Cross-reference learned TTPs against MITRE ATT&CK and flag novel/unmapped techniques
+- [ ] TTP Learning: Feed learned TTPs back into actor profiles, knowledge base, and campaign design
+- [x] Analysis: Audit all existing models consuming threat actor data for enhancement opportunities
+- [ ] Analysis: Review threat-actor-matcher for actor context provider integration
+- [ ] Analysis: Review cross-module-enrichment for deeper actor-driven correlation
+- [ ] Analysis: Review attack-sequence-learner for behavioral sequence engine integration
+- [ ] Analysis: Review ttp-engine for actor-driven campaign design improvements
+- [ ] Analysis: Review threat-intel-catalog for feedback loop integration
+- [ ] Analysis: Review ransomware-intel for actor behavioral pattern extraction
+- [ ] Analysis: Implement priority enhancements identified in the audit
