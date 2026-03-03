@@ -155,6 +155,7 @@ interface OpsState {
   llmPlan?: string;
   scanPlan?: ScanPlan;
   passiveReconResults?: Record<string, any>;
+  scanProfile?: 'quick' | 'standard' | 'deep' | 'stealth';
   currentAction?: string;
   currentDomain?: string;
   currentDomainStartedAt?: number;
@@ -272,6 +273,8 @@ export default function EngagementOps() {
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
   const [activeTab, setActiveTab] = useState("feed");
+  const [selectedProfile, setSelectedProfile] = useState<'quick' | 'standard' | 'deep' | 'stealth'>('standard');
+  const [showProfileDetails, setShowProfileDetails] = useState(false);
 
   // ── Target paste-in state ──
   const [targetInput, setTargetInput] = useState("");
@@ -325,9 +328,14 @@ export default function EngagementOps() {
     onError: (e) => toast.error(e.message),
   });
 
+  const scanProfilesQ = trpc.engagementOps.listScanProfiles.useQuery(
+    undefined,
+    { enabled: engagementId > 0 }
+  );
+
   const activeScanMut = trpc.engagementOps.startActiveScan.useMutation({
     onSuccess: (data) => {
-      toast.success(`Active Scan Started — LLM orchestrating scan plan → nmap → tool matching → exploit on ${data.assetsCount} assets`);
+      toast.success(`Active Scan Started (${selectedProfile.toUpperCase()}) — LLM orchestrating scan plan → nmap → tool matching → exploit on ${data.assetsCount} assets`);
       setActiveTab("feed");
       opsStateQ.refetch();
     },
@@ -654,7 +662,7 @@ export default function EngagementOps() {
                 {canStartActive && (
                   <Button
                     size="sm"
-                    onClick={() => activeScanMut.mutate({ engagementId })}
+                    onClick={() => activeScanMut.mutate({ engagementId, scanProfile: selectedProfile })}
                     disabled={activeScanMut.isPending}
                     className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500"
                   >
@@ -836,19 +844,97 @@ export default function EngagementOps() {
                     Generate Scan Plan
                   </Button>
                 )}
+                {/* Scan Profile Selector */}
+                <div className="relative">
+                  <select
+                    value={selectedProfile}
+                    onChange={(e) => setSelectedProfile(e.target.value as any)}
+                    className="h-9 rounded-md border border-border bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
+                  >
+                    <option value="quick">⚡ Quick</option>
+                    <option value="standard">🎯 Standard</option>
+                    <option value="deep">🔬 Deep</option>
+                    <option value="stealth">🥷 Stealth</option>
+                  </select>
+                </div>
                 <Button
                   size="sm"
-                  onClick={() => activeScanMut.mutate({ engagementId })}
+                  variant="ghost"
+                  onClick={() => setShowProfileDetails(!showProfileDetails)}
+                  className="text-xs text-muted-foreground hover:text-cyan-400 px-2"
+                >
+                  {showProfileDetails ? "Hide" : "Details"}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => activeScanMut.mutate({ engagementId, scanProfile: selectedProfile })}
                   disabled={activeScanMut.isPending || !roeSigned}
                   className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500"
                 >
                   {activeScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-                  Start Active Scan
+                  Start Active Scan ({selectedProfile.charAt(0).toUpperCase() + selectedProfile.slice(1)})
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
             </div>
           </div>
+
+          {/* Scan Profile Details Panel */}
+          {showProfileDetails && scanProfilesQ.data && (() => {
+            const profile = scanProfilesQ.data.find(p => p.name === selectedProfile);
+            if (!profile) return null;
+            return (
+              <div className="bg-slate-900/70 border-b border-border px-6 py-3">
+                <div className="flex items-start gap-6">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-foreground">{profile.displayName}</span>
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                        {profile.estimatedTimePerAsset}/asset
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{profile.description}</p>
+                    <div className="grid grid-cols-3 gap-4 text-[10px]">
+                      <div>
+                        <span className="text-muted-foreground">Ports:</span>{" "}
+                        <span className="text-cyan-400 font-mono">{profile.nmapPorts}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Timing:</span>{" "}
+                        <span className="text-cyan-400 font-mono">{profile.nmapTiming}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Nuclei:</span>{" "}
+                        <span className="text-yellow-400 font-mono">{profile.nucleiSeverity}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-none">
+                    <div className="text-[10px] text-muted-foreground mb-1">Tools</div>
+                    <div className="flex flex-wrap gap-1">
+                      {Object.entries(profile.tools).filter(([, v]) => v).map(([tool]) => (
+                        <Badge key={tool} variant="outline" className="text-[9px] text-green-400 border-green-500/30">
+                          {tool}
+                        </Badge>
+                      ))}
+                    </div>
+                    {Object.values(profile.evasion).some(v => v) && (
+                      <div className="mt-1">
+                        <div className="text-[10px] text-muted-foreground mb-0.5">Evasion</div>
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(profile.evasion).filter(([, v]) => v).map(([tech]) => (
+                            <Badge key={tech} variant="outline" className="text-[9px] text-orange-400 border-orange-500/30">
+                              {tech.replace(/([A-Z])/g, ' $1').trim()}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Scan Plan Details */}
           {ops.scanPlan && (

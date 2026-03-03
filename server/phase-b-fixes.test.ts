@@ -176,6 +176,9 @@ function sanitizeNucleiCommand(
   asset: { ip?: string; hostname: string; ports: Array<{ port: number; service: string }>; passiveRecon?: { technologies?: string[] } }
 ): string {
   let nucleiCmd = command;
+  // Strip ALL occurrences of 'nuclei' keyword — we'll re-add it once at the end
+  // The LLM sometimes generates 'nuclei -u URL nuclei -severity...' (doubled)
+  nucleiCmd = nucleiCmd.replace(/\bnuclei\b/g, '').trim();
   // Extract target from the command
   const targetMatch = nucleiCmd.match(/-(?:target|u)\s+(\S+)/) || nucleiCmd.match(/(https?:\/\/\S+)/);
   let nucleiTarget = targetMatch?.[1] || asset.ip || asset.hostname;
@@ -297,19 +300,28 @@ describe("Nuclei command sanitization", () => {
 // ─── httpx Pipe Mode Conversion Tests ──────────────────────────────────────
 
 function convertHttpxToPipeMode(command: string): { converted: boolean; command: string } {
-  const urlMatch = command.match(/-u\s+(\S+)/);
+  // Strip ALL occurrences of 'httpx' keyword first — we'll re-add it once in the pipe
+  let httpxCmd = command.replace(/\bhttpx\b/g, '').trim();
+  const urlMatch = httpxCmd.match(/-u\s+(\S+)/);
   if (urlMatch) {
     const httpxUrl = urlMatch[1];
-    const httpxFlags = command
-      .replace(/^httpx\s*/, '')
-      .replace(/-u\s+\S+/, '')
-      .trim();
+    const httpxFlags = httpxCmd.replace(/-u\s+\S+/, '').trim();
     return {
       converted: true,
       command: `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim(),
     };
   }
-  return { converted: false, command };
+  // Check for bare URL
+  const bareUrl = httpxCmd.match(/(https?:\/\/\S+)/);
+  if (bareUrl) {
+    const httpxUrl = bareUrl[1];
+    const httpxFlags = httpxCmd.replace(/(https?:\/\/\S+)/, '').trim();
+    return {
+      converted: true,
+      command: `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim(),
+    };
+  }
+  return { converted: false, command: `httpx ${httpxCmd}`.replace(/\s+/g, ' ').trim() };
 }
 
 describe("httpx pipe mode conversion", () => {
@@ -329,16 +341,40 @@ describe("httpx pipe mode conversion", () => {
     expect(result.command).toContain("-follow-redirects");
   });
 
-  it("should not convert commands without -u flag", () => {
+  it("should handle already-piped commands (strip extra httpx)", () => {
     const result = convertHttpxToPipeMode("echo https://example.com | httpx -json");
-    expect(result.converted).toBe(false);
-    expect(result.command).toBe("echo https://example.com | httpx -json");
+    // After stripping all 'httpx', we get 'echo https://example.com | -json'
+    // The bare URL match should pick up the URL
+    expect(result.converted).toBe(true);
+    expect(result.command).toContain("httpx");
+    // Should only have ONE httpx in the output
+    const httpxCount = (result.command.match(/\bhttpx\b/g) || []).length;
+    expect(httpxCount).toBe(1);
   });
 
   it("should handle URL with port number", () => {
     const result = convertHttpxToPipeMode("httpx -u https://example.com:8443 -json");
     expect(result.converted).toBe(true);
     expect(result.command).toContain("echo https://example.com:8443");
+  });
+
+  // ── NEW: Test for doubled httpx command (the actual bug from scan results) ──
+  it("should fix doubled httpx command: 'httpx echo URL | httpx flags'", () => {
+    const result = convertHttpxToPipeMode("httpx echo https://23.20.98.48:443 | httpx -json -title -status-code -tech-detect -follow-redirects");
+    expect(result.converted).toBe(true);
+    // Should produce clean pipe: 'echo URL | httpx flags'
+    const httpxCount = (result.command.match(/\bhttpx\b/g) || []).length;
+    expect(httpxCount).toBe(1);
+    expect(result.command).toContain("echo https://23.20.98.48:443");
+    expect(result.command).toContain("| httpx");
+  });
+
+  it("should fix doubled httpx command: 'httpx -u URL httpx -json'", () => {
+    const result = convertHttpxToPipeMode("httpx -u https://example.com httpx -json -tech-detect");
+    expect(result.converted).toBe(true);
+    const httpxCount = (result.command.match(/\bhttpx\b/g) || []).length;
+    expect(httpxCount).toBe(1);
+    expect(result.command).toContain("echo https://example.com");
   });
 });
 
@@ -370,11 +406,117 @@ describe("Tool timeout configuration", () => {
   });
 });
 
-// ─── suggestToolCommands httpx format test ──────────────────────────────────
+// ── NEW: Nuclei doubled-command tests (the actual bug from scan results) ──
+
+describe("Nuclei doubled-command fix", () => {
+  const webAsset = {
+    hostname: "23.20.98.48",
+    ip: "23.20.98.48",
+    ports: [{ port: 443, service: "https" }, { port: 80, service: "http" }],
+    passiveRecon: { technologies: ["Nginx"] },
+  };
+
+  it("should fix 'nuclei -u URL nuclei -severity...' (doubled nuclei from LLM)", () => {
+    const result = sanitizeNucleiCommand(
+      "nuclei -u http://23.20.98.48:80 nuclei -severity low,medium,high,critical -jsonl -nc -duc -ni -timeout 10 -retries 1",
+      webAsset
+    );
+    // Should have exactly ONE 'nuclei' keyword
+    const nucleiCount = (result.match(/\bnuclei\b/g) || []).length;
+    expect(nucleiCount).toBe(1);
+    expect(result).toMatch(/^nuclei -u /);
+    expect(result).toContain("-severity");
+  });
+
+  it("should fix 'nuclei -u URL nuclei -nc -duc -ni -jsonl -severity...' (doubled with reordered flags)", () => {
+    const result = sanitizeNucleiCommand(
+      "nuclei -u http://api.dev.vianova.ai:80 nuclei -nc -duc -ni -jsonl -severity critical,high,medium -timeout 10 -retries 1 -tags nginx",
+      { hostname: "api.dev.vianova.ai", ports: [{ port: 80, service: "http" }, { port: 443, service: "https" }], passiveRecon: { technologies: ["Nginx"] } }
+    );
+    const nucleiCount = (result.match(/\bnuclei\b/g) || []).length;
+    expect(nucleiCount).toBe(1);
+    expect(result).toMatch(/^nuclei -u /);
+  });
+
+  it("should produce a valid command from the exact failing scan result", () => {
+    const result = sanitizeNucleiCommand(
+      "nuclei -u https://23.20.98.48:443 nuclei -severity low,medium,high,critical -jsonl -nc -duc -ni -timeout 10 -retries 1",
+      webAsset
+    );
+    // Verify the command is well-formed
+    expect(result).toMatch(/^nuclei -u https:\/\/23\.20\.98\.48/);
+    expect(result).toContain("-severity");
+    expect(result).toContain("-jsonl");
+    // No doubled nuclei
+    const nucleiCount = (result.match(/\bnuclei\b/g) || []).length;
+    expect(nucleiCount).toBe(1);
+  });
+});
+
+// ── Gobuster sanitizer tests ──
+
+describe("Gobuster command sanitization", () => {
+  function sanitizeGobusterCommand(command: string): string {
+    let gobCmd = command.replace(/\bgobuster\b/g, '').trim();
+    if (!gobCmd.startsWith('dir')) gobCmd = `dir ${gobCmd}`;
+    gobCmd = `gobuster ${gobCmd}`;
+    gobCmd = gobCmd
+      .replace(/\/usr\/share\/wordlists\/dirbuster\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
+      .replace(/\/usr\/share\/wordlists\/dirb\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
+      .replace(/\/usr\/share\/wordlists\/[\w/.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
+      .replace(/\/usr\/share\/seclists\/[\w/.-]+/gi, '/opt/SecLists/Discovery/Web-Content/common.txt');
+    if (!gobCmd.includes('-w ')) gobCmd += ' -w /opt/SecLists/Discovery/Web-Content/common.txt';
+    if (!gobCmd.includes('-q')) gobCmd += ' -q';
+    if (!gobCmd.includes('--no-error')) gobCmd += ' --no-error';
+    if (!gobCmd.includes('-t ')) gobCmd += ' -t 20';
+    return gobCmd.replace(/\s+/g, ' ').trim();
+  }
+
+  it("should replace Kali dirbuster wordlist path with scan server path", () => {
+    const result = sanitizeGobusterCommand(
+      "gobuster dir -u https://api.dev.vianova.ai -w /usr/share/wordlists/dirbuster/directory-list-2.3-small.txt -t 50 -k"
+    );
+    expect(result).toContain("/opt/SecLists/Discovery/Web-Content/common.txt");
+    expect(result).not.toContain("/usr/share/wordlists");
+  });
+
+  it("should add -q and --no-error flags when missing", () => {
+    const result = sanitizeGobusterCommand(
+      "gobuster dir -u https://example.com -w /opt/SecLists/Discovery/Web-Content/common.txt"
+    );
+    expect(result).toContain("-q");
+    expect(result).toContain("--no-error");
+  });
+
+  it("should add -w wordlist when missing entirely", () => {
+    const result = sanitizeGobusterCommand("gobuster dir -u https://example.com");
+    expect(result).toContain("-w /opt/SecLists/Discovery/Web-Content/common.txt");
+  });
+
+  it("should add -t thread count when missing", () => {
+    const result = sanitizeGobusterCommand("gobuster dir -u https://example.com -w /opt/SecLists/Discovery/Web-Content/common.txt");
+    expect(result).toContain("-t 20");
+  });
+
+  it("should handle doubled gobuster keyword", () => {
+    const result = sanitizeGobusterCommand("gobuster gobuster dir -u https://example.com");
+    const gobCount = (result.match(/\bgobuster\b/g) || []).length;
+    expect(gobCount).toBe(1);
+    expect(result).toMatch(/^gobuster dir/);
+  });
+
+  it("should handle /usr/share/seclists paths (case insensitive)", () => {
+    const result = sanitizeGobusterCommand(
+      "gobuster dir -u https://example.com -w /usr/share/SecLists/Discovery/Web-Content/big.txt"
+    );
+    expect(result).toContain("/opt/SecLists/Discovery/Web-Content/common.txt");
+  });
+});
+
+// ── suggestToolCommands httpx format test ──
 
 describe("suggestToolCommands httpx uses pipe mode", () => {
   it("should generate httpx commands with pipe mode format", () => {
-    // The suggestToolCommands function in scan-server-executor.ts should now use pipe mode
     const url = "https://example.com:443";
     const expectedPattern = `echo ${url} | httpx`;
     const args = `echo ${url} | httpx -json -title -status-code -tech-detect -follow-redirects`;

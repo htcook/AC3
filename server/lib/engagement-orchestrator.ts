@@ -181,6 +181,8 @@ export interface EngagementOpsState {
   skippedDomains?: Set<string>;
   /** Raw passive recon results keyed by domain — full pipeline output for LLM consumption */
   passiveReconResults?: Record<string, any>;
+  /** Selected scan profile for this engagement */
+  scanProfile?: 'quick' | 'standard' | 'deep' | 'stealth';
   stats: {
     hostsScanned: number;
     portsFound: number;
@@ -1814,8 +1816,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       // Fix LLM-generated nuclei commands: ensure -u URL format with severity/tag filters
       if (cmd.tool === 'nuclei') {
         let nucleiCmd = cmd.command;
-        // Strip leading 'nuclei' prefix — we'll re-add it at the end
-        nucleiCmd = nucleiCmd.replace(/^nuclei\s+/, '').trim();
+        // Strip ALL occurrences of 'nuclei' keyword — we'll re-add it once at the end
+        // The LLM sometimes generates 'nuclei -u URL nuclei -severity...' (doubled)
+        nucleiCmd = nucleiCmd.replace(/\bnuclei\b/g, '').trim();
         const targetMatch = nucleiCmd.match(/-(?:target|u)\s+(\S+)/) || nucleiCmd.match(/(https?:\/\/\S+)/);
         let nucleiTarget = targetMatch?.[1] || asset.ip || asset.hostname;
         if (nucleiTarget && !nucleiTarget.startsWith('http')) {
@@ -1851,24 +1854,44 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
       // Fix LLM-generated httpx commands: convert -u single-URL mode to pipe mode
       if (cmd.tool === 'httpx') {
-        const urlMatch = cmd.command.match(/-u\s+(\S+)/);
+        // Strip ALL occurrences of 'httpx' keyword first — we'll re-add it once in the pipe
+        let httpxCmd = cmd.command.replace(/\bhttpx\b/g, '').trim();
+        const urlMatch = httpxCmd.match(/-u\s+(\S+)/);
         if (urlMatch) {
           const httpxUrl = urlMatch[1];
-          const httpxFlags = cmd.command.replace(/^httpx\s*/, '').replace(/-u\s+\S+/, '').trim();
+          const httpxFlags = httpxCmd.replace(/-u\s+\S+/, '').trim();
           cmd.command = `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim();
+        } else {
+          // No -u flag — check if there's a bare URL in the command
+          const bareUrl = httpxCmd.match(/(https?:\/\/\S+)/);
+          if (bareUrl) {
+            const httpxUrl = bareUrl[1];
+            const httpxFlags = httpxCmd.replace(/(https?:\/\/\S+)/, '').trim();
+            cmd.command = `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim();
+          } else {
+            // Fallback: just ensure 'httpx' prefix is clean
+            cmd.command = `httpx ${httpxCmd}`.replace(/\s+/g, ' ').trim();
+          }
         }
       }
 
       // Fix LLM-generated gobuster commands: replace Kali Linux wordlist paths with scan server paths
       if (cmd.tool === 'gobuster') {
-        cmd.command = cmd.command
+        // Strip duplicate 'gobuster' keywords, then re-add once
+        let gobCmd = cmd.command.replace(/\bgobuster\b/g, '').trim();
+        // Ensure 'dir' subcommand is present
+        if (!gobCmd.startsWith('dir')) gobCmd = `dir ${gobCmd}`;
+        gobCmd = `gobuster ${gobCmd}`;
+        gobCmd = gobCmd
           .replace(/\/usr\/share\/wordlists\/dirbuster\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
           .replace(/\/usr\/share\/wordlists\/dirb\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
           .replace(/\/usr\/share\/wordlists\/[\w/.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
           .replace(/\/usr\/share\/seclists\/[\w/.-]+/gi, '/opt/SecLists/Discovery/Web-Content/common.txt');
-        if (!cmd.command.includes('-q')) cmd.command += ' -q';
-        if (!cmd.command.includes('--no-error')) cmd.command += ' --no-error';
-        cmd.command = cmd.command.replace(/\s+/g, ' ').trim();
+        if (!gobCmd.includes('-w ')) gobCmd += ' -w /opt/SecLists/Discovery/Web-Content/common.txt';
+        if (!gobCmd.includes('-q')) gobCmd += ' -q';
+        if (!gobCmd.includes('--no-error')) gobCmd += ' --no-error';
+        if (!gobCmd.includes('-t ')) gobCmd += ' -t 20';
+        cmd.command = gobCmd.replace(/\s+/g, ' ').trim();
       }
     }
 
@@ -2650,6 +2673,7 @@ export async function executeEngagement(
   options?: {
     startPhase?: 'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit';
     resume?: boolean; // If true, resume from last saved phase instead of startPhase
+    scanProfile?: 'quick' | 'standard' | 'deep' | 'stealth';
   }
 ): Promise<void> {
   let startPhase = options?.startPhase || 'recon';
@@ -2713,6 +2737,7 @@ export async function executeEngagement(
   state.isRunning = true;
   if (!state.startedAt) state.startedAt = Date.now();
   state.phase = startPhase;
+  if (options?.scanProfile) state.scanProfile = options.scanProfile;
 
   emitSystemNotification({
     title: options?.resume ? "Engagement Resumed" : "Engagement Execution Started",
@@ -2748,6 +2773,89 @@ export async function executeEngagement(
         await executeVulnDetection(state, engagement, operatorCtx);
         await phaseCheckpoint('vuln_detection');
         if (!state.isRunning) return;
+
+        // Phase 3.5: Specialized Vulnerability Analysis (Shannon-inspired)
+        // Run dedicated analysis agents per vulnerability class for deeper insights
+        if (state.stats.vulnsFound > 0) {
+          try {
+            state.currentAction = 'Running specialized vulnerability analysis agents...';
+            addLog(state, {
+              phase: 'vuln_detection', type: 'info',
+              title: '🧠 Specialized Vuln Analysis',
+              detail: `Dispatching ${state.stats.vulnsFound} findings to specialized analysis agents (injection, XSS, auth, config, crypto, etc.)`,
+            });
+            broadcastOpsUpdate(state.engagementId, { type: 'action', action: 'vuln_analysis_agents' });
+
+            const { batchAnalyzeFindings, generateAnalysisSummary, classifyVulnerability } = await import('./vuln-analysis-agents');
+
+            // Collect all findings from all assets
+            const allFindings = state.assets.flatMap(asset =>
+              asset.vulns.map((v, idx) => ({
+                id: `${asset.hostname}-${idx}`,
+                title: v.title || v.id || 'Unknown',
+                severity: v.severity || 'medium',
+                description: v.description,
+                cve: v.cve,
+                asset: asset.hostname,
+                port: v.port || (asset.ports.length > 0 ? asset.ports[0].port : undefined),
+                service: v.service || (asset.ports.length > 0 ? asset.ports[0].service : undefined),
+                rawOutput: v.rawOutput,
+                tool: v.tool,
+              }))
+            );
+
+            // Build services map for context
+            const servicesMap: Record<string, string[]> = {};
+            for (const asset of state.assets) {
+              servicesMap[asset.hostname] = asset.ports.map(p => `${p.port}/${p.service || 'unknown'}`);
+            }
+
+            // Run analysis (max 3 concurrent agents)
+            const analysisResults = await batchAnalyzeFindings(allFindings, {
+              maxConcurrency: 3,
+              services: servicesMap,
+            });
+
+            // Store analysis results in state for UI consumption
+            (state as any).vulnAnalysis = analysisResults;
+
+            // Generate summary
+            const summary = generateAnalysisSummary(analysisResults);
+
+            // Log the classification breakdown
+            const classBreakdown = Object.entries(summary.byClass)
+              .map(([cls, count]) => `${cls}: ${count}`)
+              .join(', ');
+
+            addLog(state, {
+              phase: 'vuln_detection', type: 'phase_complete',
+              title: `✅ Vuln Analysis Complete — ${analysisResults.length} findings analyzed`,
+              detail: `Agent classes: ${classBreakdown}\nAvg risk score: ${summary.avgRiskScore}/10\nChainable: ${summary.chainableCount}\nTop risk: ${summary.topRisks[0]?.title || 'none'} (${summary.topRisks[0]?.riskScore || 0}/10)`,
+              data: { summary },
+            });
+
+            // Log high-confidence, high-risk findings
+            const criticalFindings = analysisResults
+              .filter(r => r.analysis.riskScore >= 8 && r.analysis.confidence === 'high')
+              .sort((a, b) => b.analysis.riskScore - a.analysis.riskScore);
+
+            for (const cf of criticalFindings.slice(0, 5)) {
+              addLog(state, {
+                phase: 'vuln_detection', type: 'finding',
+                title: `🚨 High-Risk: ${cf.finding.title} [${cf.agentClass}]`,
+                detail: `Risk: ${cf.analysis.riskScore}/10 | ${cf.analysis.technicalAnalysis.substring(0, 200)}...\nPoC: ${cf.analysis.poc || 'N/A'}`,
+                data: { analysis: cf },
+              });
+            }
+          } catch (analysisErr: any) {
+            console.error('[VulnAgents] Batch analysis failed:', analysisErr.message);
+            addLog(state, {
+              phase: 'vuln_detection', type: 'warning',
+              title: '⚠️ Vuln Analysis Agents Failed',
+              detail: `Specialized analysis could not complete: ${analysisErr.message}. Proceeding with raw findings.`,
+            });
+          }
+        }
       }
 
       // Phase 4: Exploitation

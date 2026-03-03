@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, action, details, createdAt FROM activity_logs WHERE (details LIKE '%llm%' OR details LIKE '%LLM%' OR details LIKE '%error%' OR details LIKE '%fail%' OR action LIKE '%scan%') AND createdAt > DATE_SUB(NOW(), INTERVAL 4 HOUR) ORDER BY createdAt DESC LIMIT 20",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, action, details, createdAt FROM activity_logs WHERE (details LIKE '%llm%' OR details LIKE '%LLM%' OR details LIKE '%error%' OR details LIKE '%fail%' OR action LIKE '%scan%') AND createdAt > DATE_SUB(NOW(), INTERVAL 4 HOUR) ORDER BY createdAt DESC LIMIT 20",
+  "rows": [
+    {
+      "id": "1530004",
+      "action": "active_scan_started",
+      "details": "Started LLM-orchestrated active scan (scan plan → nmap → tool match → exploit) for engagement #1350014",
+      "createdAt": "2026-03-03 17:03:04"
+    },
+    {
+      "id": "1530003",
+      "action": "active_scan_started",
+      "details": "Started LLM-orchestrated active scan (scan plan → nmap → tool match → exploit) for engagement #1350014",
+      "createdAt": "2026-03-03 15:54:12"
+    },
+    {
+      "id": "1530002",
+      "action": "passive_scan_started",
+      "details": "Started passive discovery for engagement #1350014",
+      "createdAt": "2026-03-03 15:45:37"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taction\tdetails\tcreatedAt\n1530004\tactive_scan_started\tStarted LLM-orchestrated active scan (scan plan → nmap → tool match → exploit) for engagement #1350014\t2026-03-03 17:03:04\n1530003\tactive_scan_started\tStarted LLM-orchestrated active scan (scan plan → nmap → tool match → exploit) for engagement #1350014\t2026-03-03 15:54:12\n1530002\tpassive_scan_started\tStarted passive discovery for engagement #1350014\t2026-03-03 15:45:37\n",
+  "stderr": "",
+  "execution_time_ms": 66
+}

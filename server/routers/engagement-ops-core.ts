@@ -718,7 +718,7 @@ export const engagementOpsRouter = router({
 
     /** Start LLM-orchestrated active scanning (generates scan plan first, then nmap with plan-specific flags, then tool matching per service) */
     startActiveScan: protectedProcedure
-      .input(z.object({ engagementId: z.number() }))
+      .input(z.object({ engagementId: z.number(), scanProfile: z.enum(['quick', 'standard', 'deep', 'stealth']).optional() }))
       .mutation(async ({ input, ctx }) => {
         const engagement = await db.getEngagementById(input.engagementId);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
@@ -752,7 +752,7 @@ export const engagementOpsRouter = router({
           // The executeEnumeration phase will use state.scanPlan for nmap flags
           const { executeEngagement, addLog: addOpsLog, broadcastOpsUpdate: broadcast } = await import('../lib/engagement-orchestrator');
           try {
-            await executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration' });
+            await executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration', scanProfile: input.scanProfile || 'standard' });
           } catch (execErr: any) {
             console.error('[EngOps] executeEngagement crashed:', execErr.message);
             if (state) {
@@ -861,5 +861,118 @@ export const engagementOpsRouter = router({
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         return db.getScanResultsSummary(input.engagementId);
+      }),
+
+    /** Get specialized vulnerability analysis results */
+    getVulnAnalysis: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId) || await getOpsStateWithRecovery(input.engagementId);
+        if (!state) return { analyses: [], summary: null };
+
+        const vulnAnalysis = (state as any).vulnAnalysis;
+        if (!vulnAnalysis || !Array.isArray(vulnAnalysis)) return { analyses: [], summary: null };
+
+        const { generateAnalysisSummary } = await import('../lib/vuln-analysis-agents');
+        const summary = generateAnalysisSummary(vulnAnalysis);
+
+        return {
+          analyses: vulnAnalysis.map((r: any) => ({
+            agentClass: r.agentClass,
+            findingTitle: r.finding?.title,
+            findingSeverity: r.finding?.severity,
+            findingAsset: r.finding?.asset,
+            riskScore: r.analysis?.riskScore,
+            confidence: r.analysis?.confidence,
+            technicalAnalysis: r.analysis?.technicalAnalysis,
+            exploitationPath: r.analysis?.exploitationPath,
+            impactAssessment: r.analysis?.impactAssessment,
+            chainable: r.analysis?.chainable,
+            remediation: r.analysis?.remediation,
+            poc: r.analysis?.poc,
+            relatedCves: r.analysis?.relatedCves,
+          })),
+          summary,
+        };
+      }),
+
+    /** Run on-demand vulnerability analysis for a specific engagement */
+    runVulnAnalysis: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId) || await getOpsStateWithRecovery(input.engagementId);
+        if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
+        if (state.stats.vulnsFound === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No vulnerabilities to analyze' });
+
+        const { batchAnalyzeFindings, generateAnalysisSummary } = await import('../lib/vuln-analysis-agents');
+
+        // Collect findings
+        const allFindings = state.assets.flatMap(asset =>
+          asset.vulns.map((v: any, idx: number) => ({
+            id: `${asset.hostname}-${idx}`,
+            title: v.title || v.id || 'Unknown',
+            severity: v.severity || 'medium',
+            description: v.description,
+            cve: v.cve,
+            asset: asset.hostname,
+            port: v.port || (asset.ports.length > 0 ? asset.ports[0].port : undefined),
+            service: v.service || (asset.ports.length > 0 ? asset.ports[0].service : undefined),
+            rawOutput: v.rawOutput,
+            tool: v.tool,
+          }))
+        );
+
+        addLog(state, {
+          phase: state.phase, type: 'info',
+          title: '\ud83e\udde0 On-Demand Vuln Analysis',
+          detail: `Analyzing ${allFindings.length} findings with specialized agents...`,
+        });
+        broadcastOpsUpdate(input.engagementId, { type: 'action', action: 'vuln_analysis_agents' });
+
+        const results = await batchAnalyzeFindings(allFindings, { maxConcurrency: 3 });
+        (state as any).vulnAnalysis = results;
+        const summary = generateAnalysisSummary(results);
+
+        addLog(state, {
+          phase: state.phase, type: 'phase_complete',
+          title: `\u2705 Vuln Analysis Complete \u2014 ${results.length} findings`,
+          detail: `Avg risk: ${summary.avgRiskScore}/10 | Chainable: ${summary.chainableCount}`,
+        });
+
+        return { analyzed: results.length, summary };
+      }),
+
+    /** List available scan profiles */
+    listScanProfiles: protectedProcedure
+      .query(async () => {
+        const { getAllScanProfiles, SCAN_PROFILES } = await import('../lib/scan-profiles');
+        const profiles = getAllScanProfiles();
+        // Include tool details for each profile
+        return profiles.map(p => {
+          const full = SCAN_PROFILES[p.name];
+          return {
+            ...p,
+            tools: {
+              httpx: full.tools.httpx,
+              nikto: full.tools.nikto,
+              gobuster: full.tools.gobuster,
+              nuclei: true,
+              zap: full.tools.zap,
+              hydra: full.tools.hydra,
+            },
+            evasion: {
+              fragmentation: full.evasion.fragmentation,
+              decoys: full.evasion.decoys,
+              randomizeHosts: full.evasion.randomizeHosts,
+              sourcePortSpoofing: full.evasion.sourcePortSpoofing,
+            },
+            nucleiSeverity: full.nuclei.severityFilter,
+            nmapPorts: full.nmap.discoveryPorts,
+            nmapTiming: full.nmap.timing,
+            concurrency: full.tools.concurrency,
+          };
+        });
       }),
   });
