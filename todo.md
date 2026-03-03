@@ -7108,3 +7108,10 @@
 - [x] Add Manjusaka to c2-orchestrator payloads and session type mapping
 - [x] Write vitest tests for ManjusakaAdapter (13 tests passing)
 - [x] Verify build compiles and save checkpoint
+
+## Bug Fix: LLM Invoke 403 Forbidden Error
+- [x] Diagnose source of "LLM invoke failed: 403 forbidden" error — transient Forge API issue, not reproducible
+- [x] Add retry logic with exponential backoff (3 retries, 2s/4s/8s) to invokeLLM for 403/429/5xx errors
+- [x] Add retry for timeout and network errors (ECONNRESET, fetch failed)
+- [x] Increase timeout from 60s to 90s for large exploit generation prompts
+- [x] Verify LLM retry logic works correctly (10 tests passing)

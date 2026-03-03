@@ -265,6 +265,19 @@ const normalizeResponseFormat = ({
   };
 };
 
+// ─── Retry Configuration ──────────────────────────────────────────────────
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 2_000; // 2s → 4s → 8s
+const RETRYABLE_STATUS_CODES = new Set([403, 429, 500, 502, 503, 504]);
+
+function isRetryable(status: number): boolean {
+  return RETRYABLE_STATUS_CODES.has(status);
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
 
@@ -312,36 +325,87 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  // 60-second timeout to prevent hanging on slow/unresponsive LLM API
-  const LLM_TIMEOUT_MS = 60_000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+  const bodyStr = JSON.stringify(payload);
+  let lastError: Error | null = null;
 
-  try {
-    const response = await fetch(resolveApiUrl(), {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${ENV.forgeApiKey}`,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // 90-second timeout to prevent hanging on slow/unresponsive LLM API
+    const LLM_TIMEOUT_MS = 90_000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-      );
+    try {
+      const response = await fetch(resolveApiUrl(), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${ENV.forgeApiKey}`,
+        },
+        body: bodyStr,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const status = response.status;
+
+        // If retryable and we have attempts left, wait and retry
+        if (isRetryable(status) && attempt < MAX_RETRIES) {
+          const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+          console.warn(
+            `[LLM] Attempt ${attempt + 1}/${MAX_RETRIES + 1} failed with ${status} ${response.statusText}. Retrying in ${backoff}ms...`
+          );
+          lastError = new Error(
+            `LLM invoke failed: ${status} ${response.statusText} – ${errorText}`
+          );
+          clearTimeout(timeoutId);
+          await sleep(backoff);
+          continue;
+        }
+
+        throw new Error(
+          `LLM invoke failed: ${status} ${response.statusText} – ${errorText}`
+        );
+      }
+
+      if (attempt > 0) {
+        console.log(`[LLM] Succeeded on attempt ${attempt + 1} after ${attempt} retries`);
+      }
+
+      return (await response.json()) as InvokeResult;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+
+      if (err.name === 'AbortError') {
+        if (attempt < MAX_RETRIES) {
+          const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+          console.warn(
+            `[LLM] Attempt ${attempt + 1}/${MAX_RETRIES + 1} timed out after ${LLM_TIMEOUT_MS / 1000}s. Retrying in ${backoff}ms...`
+          );
+          lastError = new Error(`LLM invoke timed out after ${LLM_TIMEOUT_MS / 1000}s`);
+          await sleep(backoff);
+          continue;
+        }
+        throw new Error(`LLM invoke timed out after ${LLM_TIMEOUT_MS / 1000}s — all ${MAX_RETRIES + 1} attempts exhausted`);
+      }
+
+      // Network errors (ECONNRESET, ECONNREFUSED, etc.) are retryable
+      if (attempt < MAX_RETRIES && (err.code === 'ECONNRESET' || err.code === 'ECONNREFUSED' || err.code === 'UND_ERR_SOCKET' || err.message?.includes('fetch failed'))) {
+        const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        console.warn(
+          `[LLM] Attempt ${attempt + 1}/${MAX_RETRIES + 1} network error: ${err.message}. Retrying in ${backoff}ms...`
+        );
+        lastError = err;
+        await sleep(backoff);
+        continue;
+      }
+
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return (await response.json()) as InvokeResult;
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      throw new Error(`LLM invoke timed out after ${LLM_TIMEOUT_MS / 1000}s — the model API did not respond in time`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  // Should not reach here, but safety net
+  throw lastError || new Error('LLM invoke failed after all retries');
 }
