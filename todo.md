@@ -6995,3 +6995,12 @@
 - [x] Nuclei/credential testing not appearing — root cause was nmap Phase A failure (0 ports) cascading to skip all Phase B/vuln_detection tools; nmap placeholder fix unblocks entire pipeline
 - [x] Added placeholder stripping for activeTools commands ({target}, {host}, {ip}, {naabu} patterns)
 - [x] 30 pipeline tests + 21 hub tabs tests all passing
+
+## Fix: Nmap Returning 0 Results — Pipeline Rushes Through
+- [x] Investigated actual nmap commands — evasion flags (-f -D RND:5 --data-length --source-port) cause cloud firewalls to DROP all packets, showing all ports as 'filtered'
+- [x] Confirmed: simple flags (-Pn -sV -sC) find ports 80/443 in 14 seconds; evasion flags find 0 in 211 seconds
+- [x] Added auto-retry: when nmap returns all-filtered + evasion flags present, automatically retries with simple flags
+- [x] Updated LLM prompt with CRITICAL cloud evasion guidance — warns against evasion flags on CDN/cloud targets
+- [x] Added httpx port backfill: when nmap finds 0 ports but httpx confirms live services, backfills asset.ports from httpx
+- [x] Added nuclei tech-targeted scanning: uses httpx-detected technologies to select relevant nuclei template tags
+- [x] 42 pipeline tests + 21 hub tabs tests all passing

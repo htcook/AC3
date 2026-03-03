@@ -245,6 +245,89 @@ describe('Active Scan Pipeline Audit', () => {
     });
   });
 
+  describe('Auto-retry: nmap retries without evasion flags when all ports filtered', () => {
+    it('orchestrator detects all-filtered output and retries with simple flags', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      // Should detect filtered output
+      expect(orch).toContain('allFiltered');
+      expect(orch).toContain('hasEvasionFlags');
+      // Should retry with simple flags
+      expect(orch).toContain("'-Pn -sV -sC -T3 --top-ports 1000'");
+      expect(orch).toContain('nmap Retry:');
+    });
+
+    it('retry only triggers when evasion flags are present', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      // Should check for evasion flags before retrying
+      expect(orch).toContain('if (allFiltered && hasEvasionFlags)');
+    });
+
+    it('retry persists results with discovery_retry phase', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain("phase: 'discovery_retry'");
+    });
+  });
+
+  describe('httpx port backfill when nmap finds 0 ports', () => {
+    it('orchestrator backfills ports from httpx when nmap finds nothing', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain('httpx Port Backfill');
+      expect(orch).toContain('asset.ports.length === 0 && webPorts.length > 0');
+    });
+
+    it('backfill parses httpx JSON output for confirmed ports', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain('obj.status_code && obj.port');
+      expect(orch).toContain('confirmedPorts');
+    });
+
+    it('backfill falls back to standard web ports (80, 443) when httpx has findings', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain("{ port: 80, service: 'http' }");
+      expect(orch).toContain("{ port: 443, service: 'https' }");
+    });
+  });
+
+  describe('Cloud target evasion guidance in LLM prompt', () => {
+    it('LLM prompt warns against evasion flags on cloud targets', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain('EVASION FLAGS vs CLOUD TARGETS');
+      expect(orch).toContain('cloud firewalls DROP fragmented packets');
+    });
+
+    it('LLM prompt provides simple flag example for cloud targets', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain("Example for cloud targets: '-Pn -sV -sC'");
+    });
+
+    it('LLM prompt prioritizes finding ports over evasion', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain('Finding open ports is ALWAYS more important than evasion');
+    });
+  });
+
+  describe('Nuclei tech-targeted template selection', () => {
+    it('nuclei uses httpx-detected technologies for template tags', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain('techTags');
+      expect(orch).toContain('passiveRecon?.technologies');
+      expect(orch).toContain('-tags');
+    });
+
+    it('maps common technologies to nuclei template tags', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain("techTags.push('wordpress')");
+      expect(orch).toContain("techTags.push('nginx')");
+      expect(orch).toContain("techTags.push('apache')");
+      expect(orch).toContain("techTags.push('php')");
+    });
+
+    it('falls back to broad severity scan when no tech detected', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain("techTags.length > 0 ? `-tags ${techTags.join(',')}`");
+    });
+  });
+
   describe('Result parsing', () => {
     it('nmap output is parsed for open ports', () => {
       const orch = fs.readFileSync(orchestratorPath, 'utf-8');

@@ -579,18 +579,22 @@ Phase A runs TWO mandatory tools in sequence for every asset:
 ### Step 1: nmap (port discovery + service fingerprinting)
 - Run nmap with --top-ports 1000 and -T3 timing for reliable port discovery
 - The system automatically appends the target and enforces --top-ports 1000 with -T3 timing
-- discoveryNmapFlags should ONLY contain scan type and evasion flags, NOT port specs or target
-- Example discoveryNmapFlags: '-Pn -sV -sC -O -f -D RND:5 --data-length 64 --source-port 53'
-- DO NOT include -p, --top-ports, -T flags, or {target}/{naabu_ports} placeholders in discoveryNmapFlags
+- discoveryNmapFlags should ONLY contain scan type flags, NOT port specs or target
+- DO NOT include -p, --top-ports, -T flags, or any {placeholder} strings in discoveryNmapFlags
 - DO NOT use -p- (all 65535 ports) — it takes 30+ minutes per host and will timeout
-- EVASION TECHNIQUES to maximize data return while avoiding IDS/IPS detection:
-  * Packet fragmentation (-f or --mtu 24) to split probes across fragments
-  * Timing control (-T2 for polite, -T3 for normal) — NEVER use -T4/-T5 on first scan
-  * Decoy addresses (-D RND:5 to mix real scan with 5 random decoy IPs)
-  * Data length padding (--data-length 50-100) to avoid signature matching
-  * Source port spoofing (--source-port 53 or 80) to appear as DNS/HTTP traffic
-  * Host randomization (--randomize-hosts) when scanning multiple targets
-  * Skip ping (-Pn) if host may filter ICMP
+
+⚠️ CRITICAL: EVASION FLAGS vs CLOUD TARGETS
+- If the target is behind a CDN/WAF (CloudFront, CloudFlare, Akamai, etc.) or is cloud-hosted (AWS, Azure, GCP):
+  * DO NOT use -f (fragmentation) — cloud firewalls DROP fragmented packets, causing ALL ports to show as 'filtered'
+  * DO NOT use -D RND:5 (decoys) — cloud infrastructure ignores decoy responses
+  * DO NOT use --data-length (padding) — gets stripped/blocked by cloud WAFs
+  * DO NOT use --source-port 53/80 (source port spoofing) — cloud firewalls block spoofed source ports
+  * USE SIMPLE FLAGS ONLY: '-Pn -sV -sC' — this reliably finds open ports on cloud targets
+  * Example for cloud targets: '-Pn -sV -sC'
+- If the target is on-premise / self-hosted / no CDN detected:
+  * Evasion flags are appropriate: '-Pn -sV -sC -O -f -D RND:5 --data-length 64 --source-port 53'
+  * Example for on-premise targets: '-Pn -sV -sC -O -f -D RND:5 --data-length 64'
+- When in doubt, use SIMPLE flags — finding ports is more important than evasion
 
 ### Step 2: httpx (HTTP probing on all web ports)
 - Run httpx on ALL HTTP/HTTPS ports found by nmap
@@ -614,11 +618,12 @@ Available tools on the scan server:
 ${availableTools.map(t => `- ${t.name}: ${t.desc}${(t as any).use ? ` (best for: ${(t as any).use})` : ''}`).join('\n')}
 
 IMPORTANT EVASION CONSIDERATIONS:
-- If WAF/CDN detected (CloudFlare, Akamai, etc.): use slower timing, smaller scan batches, avoid aggressive scripts
-- If cloud-hosted (AWS, Azure, GCP): be aware of cloud WAF rules, use --scan-delay
-- For red_team engagements: maximize stealth with -T2, full fragmentation, decoys
-- For pentest engagements: balance speed vs stealth with -T3, selective evasion
-- Always test evasion effectiveness — if a host drops packets, the plan should note fallback flags
+- If WAF/CDN detected (CloudFront, CloudFlare, Akamai, etc.): DO NOT use evasion flags (-f, -D, --data-length, --source-port). Cloud firewalls DROP fragmented/spoofed packets, causing 0 results. Use simple '-Pn -sV -sC' instead.
+- If cloud-hosted (AWS, Azure, GCP): same rule — simple flags only. Cloud WAFs filter evasion techniques.
+- For on-premise targets: evasion flags are appropriate and recommended.
+- For red_team engagements against on-premise: maximize stealth with -T2, fragmentation, decoys
+- For pentest engagements: balance speed vs stealth with -T3, selective evasion only on non-cloud targets
+- RULE: Finding open ports is ALWAYS more important than evasion. If evasion might cause 0 results, skip it.
 
 You MUST respond with valid JSON matching this exact schema:
 {
@@ -1278,7 +1283,58 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             }
           }
 
-          const durationMs = Date.now() - startTime;
+          let durationMs = Date.now() - startTime;
+
+          // ── AUTO-RETRY: If nmap found 0 ports and output shows "filtered", retry without evasion flags ──
+          // Cloud firewalls (CloudFront, AWS, etc.) DROP fragmented/spoofed packets, causing all ports to show as "filtered"
+          const allFiltered = discoveredPorts.length === 0 && nmapResult.stdout && /All \d+ scanned ports.*filtered|\d+\/tcp\s+filtered/.test(nmapResult.stdout);
+          const hasEvasionFlags = /\-f\b|\-D\s|--data-length|--source-port|--mtu/.test(discoveryFlags);
+
+          if (allFiltered && hasEvasionFlags) {
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `⚠️ nmap Retry: ${target} (removing evasion flags)`,
+              detail: `First scan returned all-filtered (likely cloud WAF blocking evasion techniques). Retrying with simple flags: -Pn -sV -sC -T3 --top-ports 1000`,
+            });
+
+            const retryFlags = '-Pn -sV -sC -T3 --top-ports 1000';
+            const retryArgs = `${retryFlags} ${target}`;
+            const retryStart = Date.now();
+            try {
+              const retryResult = await executeTool({ tool: 'nmap', args: retryArgs, timeoutSeconds: 600, sudo: true });
+              if (retryResult.stdout) {
+                const tcpRegex2 = /(\d+)\/tcp\s+open\s+(\S+)(?:\s+(.*))?/g;
+                let m2;
+                while ((m2 = tcpRegex2.exec(retryResult.stdout)) !== null) {
+                  const pv = m2[3]?.trim() || '';
+                  const pts = pv.split(/\s+/);
+                  discoveredPorts.push({
+                    port: parseInt(m2[1]), protocol: 'tcp', service: m2[2],
+                    product: pts.length > 0 ? pts.slice(0, -1).join(' ') || pts[0] : undefined,
+                    version: pts.length > 1 ? pts[pts.length - 1] : undefined,
+                  });
+                }
+              }
+              durationMs += (Date.now() - retryStart);
+              addLog(state, {
+                phase: 'enumeration', type: 'scan_result',
+                title: `nmap Retry Complete: ${target}`,
+                detail: `Retry found ${discoveredPorts.length} services (simple flags worked)`,
+              });
+
+              // Persist retry result too
+              await persistScanResult({
+                engagementId: state.engagementId, tool: 'nmap', target,
+                command: `nmap ${retryArgs}`, stdout: retryResult.stdout || '',
+                stderr: retryResult.stderr || '', exitCode: retryResult.exitCode ?? 0,
+                durationMs: Date.now() - retryStart, timedOut: retryResult.timedOut || false,
+                findings: discoveredPorts.map(p => ({ type: 'open_port', port: p.port, protocol: p.protocol, service: p.service, product: p.product, version: p.version })),
+                phase: 'discovery_retry',
+              });
+            } catch (retryErr: any) {
+              addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Retry Failed: ${target}`, detail: retryErr.message });
+            }
+          }
 
           // Merge discovery ports into asset
           asset.ports = discoveredPorts.map(p => ({
@@ -1478,11 +1534,60 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           }
         }
 
-        // ── Discovery complete for this asset ────────────────────────────
+         // ── httpx Port Backfill: if nmap found 0 ports but httpx confirmed live services ──
+        // This is critical for cloud-hosted targets where nmap may show all ports as "filtered"
+        // but httpx successfully connects to web services on 80/443
+        if (asset.ports.length === 0 && webPorts.length > 0) {
+          // Check which web ports httpx actually confirmed as live (got a status code response)
+          const httpxToolResult = asset.toolResults.find(tr => tr.tool === 'httpx');
+          const confirmedPorts: Array<{ port: number; service: string; version?: string }> = [];
+
+          if (httpxToolResult?.outputPreview) {
+            for (const line of httpxToolResult.outputPreview.split('\n')) {
+              try {
+                const obj = JSON.parse(line.trim());
+                if (obj.status_code && obj.port) {
+                  const svc = obj.scheme === 'https' ? 'https' : 'http';
+                  if (!confirmedPorts.find(p => p.port === obj.port)) {
+                    confirmedPorts.push({
+                      port: obj.port,
+                      service: svc,
+                      version: obj.webserver || undefined,
+                    });
+                  }
+                }
+              } catch { /* not JSON */ }
+            }
+          }
+
+          // Fallback: if httpx output didn't have port info, use the common web ports we probed
+          if (confirmedPorts.length === 0) {
+            // httpx found findings but we can't parse port info — assume standard web ports
+            const httpxFindingCount = httpxToolResult?.findingCount || 0;
+            if (httpxFindingCount > 0) {
+              confirmedPorts.push({ port: 80, service: 'http' });
+              confirmedPorts.push({ port: 443, service: 'https' });
+            }
+          }
+
+          if (confirmedPorts.length > 0) {
+            asset.ports = confirmedPorts;
+            asset.type = 'web_app';
+            state.stats.portsFound += confirmedPorts.length;
+
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `🌐 httpx Port Backfill: ${target}`,
+              detail: `nmap found 0 open ports (cloud firewall), but httpx confirmed ${confirmedPorts.length} live web services: ${confirmedPorts.map(p => `${p.port}/${p.service}`).join(', ')}. Pipeline will continue with httpx-discovered ports.`,
+            });
+          }
+        }
+
+        // ── Discovery complete for this asset ────────────────────────
         addLog(state, {
           phase: 'enumeration', type: 'scan_result',
           title: `✅ Discovery Complete: ${target}`,
-          detail: `nmap: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'}`,
+          detail: `nmap: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'} | Final ports: ${asset.ports.length}`,
         });
       }
     } catch (e: any) {
@@ -1764,13 +1869,42 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           })
         : [target];
 
+      // Build technology-aware nuclei tags from httpx-detected technologies
+      const detectedTechs = asset.passiveRecon?.technologies || [];
+      const techTags: string[] = [];
+      const techLower = detectedTechs.map((t: string) => t.toLowerCase());
+      // Map detected technologies to nuclei template tags for targeted scanning
+      if (techLower.some((t: string) => t.includes('wordpress'))) techTags.push('wordpress');
+      if (techLower.some((t: string) => t.includes('joomla'))) techTags.push('joomla');
+      if (techLower.some((t: string) => t.includes('drupal'))) techTags.push('drupal');
+      if (techLower.some((t: string) => t.includes('nginx'))) techTags.push('nginx');
+      if (techLower.some((t: string) => t.includes('apache'))) techTags.push('apache');
+      if (techLower.some((t: string) => t.includes('iis'))) techTags.push('iis');
+      if (techLower.some((t: string) => t.includes('php'))) techTags.push('php');
+      if (techLower.some((t: string) => t.includes('laravel'))) techTags.push('laravel');
+      if (techLower.some((t: string) => t.includes('spring'))) techTags.push('springboot');
+      if (techLower.some((t: string) => t.includes('tomcat'))) techTags.push('tomcat');
+      if (techLower.some((t: string) => t.includes('jenkins'))) techTags.push('jenkins');
+      if (techLower.some((t: string) => t.includes('grafana'))) techTags.push('grafana');
+      if (techLower.some((t: string) => t.includes('gitlab'))) techTags.push('gitlab');
+      if (techLower.some((t: string) => t.includes('cloudfront') || t.includes('aws'))) techTags.push('aws');
+      if (techLower.some((t: string) => t.includes('react') || t.includes('next.js') || t.includes('node'))) techTags.push('nodejs');
+
       for (const url of nucleiTargetUrls) {
-        addLog(state, { phase: "vuln_detection", type: "scan_start", title: `Nuclei: ${url}`, detail: "Running CVE and vulnerability template scan" });
+        // Build nuclei args: use tech-specific tags if available, otherwise broad severity scan
+        const tagArgs = techTags.length > 0 ? `-tags ${techTags.join(',')}` : '';
+        const nucleiArgs = `-u ${url} -severity critical,high,medium ${tagArgs} -jsonl -nc -duc -ni -timeout 10 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
+
+        addLog(state, {
+          phase: "vuln_detection", type: "scan_start",
+          title: `Nuclei: ${url}`,
+          detail: `Running vulnerability scan${techTags.length > 0 ? ` (tech-targeted: ${techTags.join(', ')})` : ' (broad severity scan)'}`,
+        });
 
         try {
           const result = await executeTool({
             tool: "nuclei",
-            args: `-u ${url} -severity critical,high,medium -jsonl -nc -duc -ni -timeout 10 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`,
+            args: nucleiArgs,
             target,
             timeoutSeconds: 600,
             engagementId: state.engagementId,
@@ -1784,7 +1918,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           }
 
           // Store as toolResult on asset
-          const nucleiCmd = `nuclei -u ${url} -severity critical,high,medium -jsonl -nc -duc -ni -timeout 10 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
+          const nucleiCmd = `nuclei ${nucleiArgs}`;
           asset.toolResults.push({
             tool: 'nuclei',
             command: nucleiCmd,
