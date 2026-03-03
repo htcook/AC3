@@ -7018,3 +7018,15 @@
 - [x] Keep subfinder for domain intelligence scans (only filtered in engagement orchestrator)
 - [x] Updated LLM prompt to mark subfinder as skip-for-scoped
 - [x] Added log entry when subfinder is skipped explaining why
+
+## Fix: Timeout Errors in Last Scan
+- [x] Investigated timeout errors — all DB errors were d.includes crash (already fixed), no actual SSH timeouts
+- [x] Verified SSH timeout settings: nmap 600s, httpx 120s, nuclei 600s, Phase B tools 180s — all adequate
+- [x] Root cause was UI crash from d.includes bug, not scan server timeouts
+
+## Task: Clean Up Previous Scan Data
+- [x] Deleted scan_results for engagement 1350014
+- [x] Deleted engagement_ops_snapshots (live state)
+- [x] Deleted scan_signals (128 rows), scan_risk_cards (111 rows), validation_results (20 rows)
+- [x] Deleted error_incidents (81 old crash reports)
+- [x] Preserved engagement record, osint_findings (6), domain_recon (3)

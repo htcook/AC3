@@ -1,0 +1,49 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'error_incidents' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'error_incidents' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "incidentId"
+    },
+    {
+      "COLUMN_NAME": "scope"
+    },
+    {
+      "COLUMN_NAME": "errorName"
+    },
+    {
+      "COLUMN_NAME": "errorMessage"
+    },
+    {
+      "COLUMN_NAME": "errorStack"
+    },
+    {
+      "COLUMN_NAME": "componentStack"
+    },
+    {
+      "COLUMN_NAME": "url"
+    },
+    {
+      "COLUMN_NAME": "userAgent"
+    },
+    {
+      "COLUMN_NAME": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "viewportWidth"
+    },
+    {
+      "COLUMN_NAME": "viewportHeight"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nincidentId\nscope\nerrorName\nerrorMessage\nerrorStack\ncomponentStack\nurl\nuserAgent\ntimestamp\nviewportWidth\nviewportHeight\ncreatedAt\n",
+  "stderr": "",
+  "execution_time_ms": 51
+}
