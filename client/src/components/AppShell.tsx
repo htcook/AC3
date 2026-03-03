@@ -390,6 +390,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/live-infra", icon: Server, label: "INFRASTRUCTURE" },
           { href: "/scan-server", icon: Activity, label: "SCAN SERVER" },
           { href: "/error-dashboard", icon: Bug, label: "ERROR DASHBOARD" },
+          { href: "/llm-telemetry", icon: BarChart3, label: "LLM TELEMETRY" },
           { href: "/oem-credentials", icon: Key, label: "DEFAULT CREDENTIALS" },
           { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
           { href: "/vendor-integrations", icon: Layers, label: "VENDOR INTEGRATIONS" },

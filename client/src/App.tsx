@@ -208,6 +208,7 @@ const AuthPipeline = lazy(() => import("./pages/AuthPipeline"));
 const CloudSecurityValidation = lazy(() => import("./pages/CloudSecurityValidation"));
 const SigmaRuleGenerator = lazy(() => import("./pages/SigmaRuleGenerator"));
 const ControlTesting = lazy(() => import("./pages/ControlTesting"));
+const LlmTelemetry = lazy(() => import("./pages/LlmTelemetry"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -828,6 +829,9 @@ function Router() {
         </Route>
         <Route path="/scan-server">
           <ProtectedRoute component={ScanServerHealth} />
+        </Route>
+        <Route path="/llm-telemetry">
+          <ProtectedRoute component={LlmTelemetry} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

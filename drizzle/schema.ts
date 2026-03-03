@@ -6270,3 +6270,40 @@ export const engagementOpsSnapshots = mysqlTable("engagement_ops_snapshots", {
 });
 export type EngagementOpsSnapshot = typeof engagementOpsSnapshots.$inferSelect;
 export type InsertEngagementOpsSnapshot = typeof engagementOpsSnapshots.$inferInsert;
+
+
+/**
+ * LLM Telemetry — tracks every invokeLLM call for observability.
+ * Records latency, retry counts, token usage, success/failure status,
+ * and caller context to power the telemetry dashboard.
+ */
+export const llmTelemetry = mysqlTable("llm_telemetry", {
+  id: int("id").autoincrement().primaryKey(),
+  /** ISO timestamp of the call start */
+  calledAt: timestamp("called_at").defaultNow().notNull(),
+  /** Identifier of the calling function/module (e.g. "engagement-orchestrator.generateScanPlan") */
+  caller: varchar("caller", { length: 255 }).default("unknown").notNull(),
+  /** Model name used for the request */
+  model: varchar("model", { length: 128 }).default("gemini-2.5-flash").notNull(),
+  /** Final outcome: "success", "error", "timeout", "retried_success" */
+  status: mysqlEnum("llm_status", ["success", "error", "timeout", "retried_success"]).default("success").notNull(),
+  /** HTTP status code from the API (200, 403, 429, 500, etc.) */
+  httpStatus: int("http_status"),
+  /** Total wall-clock latency in milliseconds (including retries) */
+  latencyMs: int("latency_ms").default(0).notNull(),
+  /** Number of retry attempts before final result (0 = succeeded first try) */
+  retryCount: int("retry_count").default(0).notNull(),
+  /** Prompt/input tokens consumed */
+  tokensIn: int("tokens_in").default(0),
+  /** Completion/output tokens consumed */
+  tokensOut: int("tokens_out").default(0),
+  /** Whether a structured response_format (json_schema) was used */
+  hasResponseFormat: boolean("has_response_format").default(false),
+  /** Error message if the call failed */
+  errorMessage: text("error_message"),
+  /** Optional engagement ID for context */
+  engagementId: int("engagement_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type LlmTelemetry = typeof llmTelemetry.$inferSelect;
+export type InsertLlmTelemetry = typeof llmTelemetry.$inferInsert;

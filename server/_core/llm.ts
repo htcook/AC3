@@ -66,6 +66,10 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  /** Optional caller identifier for telemetry (e.g. "engagement-orchestrator.generateScanPlan") */
+  _caller?: string;
+  /** Optional engagement ID for telemetry context */
+  _engagementId?: number;
 };
 
 export type ToolCall = {
@@ -290,7 +294,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
     responseFormat,
     response_format,
+    _caller,
+    _engagementId,
   } = params;
+
+  const telemetryStart = Date.now();
+  let telemetryRetries = 0;
+  let telemetryHttpStatus: number | undefined;
+  let telemetryStatus: "success" | "error" | "timeout" | "retried_success" = "success";
+  let telemetryError: string | undefined;
 
   const payload: Record<string, unknown> = {
     model: "gemini-2.5-flash",
@@ -363,8 +375,21 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           continue;
         }
 
+        // Record failed telemetry
+        recordTelemetry({
+          caller: _caller,
+          model: "gemini-2.5-flash",
+          status: "error",
+          httpStatus: status,
+          latencyMs: Date.now() - telemetryStart,
+          retryCount: attempt,
+          hasResponseFormat: !!normalizedResponseFormat,
+          errorMessage: `${status} ${response.statusText} \u2013 ${errorText}`.substring(0, 1000),
+          engagementId: _engagementId,
+        });
+
         throw new Error(
-          `LLM invoke failed: ${status} ${response.statusText} – ${errorText}`
+          `LLM invoke failed: ${status} ${response.statusText} \u2013 ${errorText}`
         );
       }
 
@@ -372,7 +397,28 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         console.log(`[LLM] Succeeded on attempt ${attempt + 1} after ${attempt} retries`);
       }
 
-      return (await response.json()) as InvokeResult;
+      const result = (await response.json()) as InvokeResult;
+
+      // Record telemetry (fire-and-forget)
+      telemetryHttpStatus = 200;
+      telemetryStatus = attempt > 0 ? "retried_success" : "success";
+      telemetryRetries = attempt;
+      const tokensIn = result.usage?.prompt_tokens ?? 0;
+      const tokensOut = result.usage?.completion_tokens ?? 0;
+      recordTelemetry({
+        caller: _caller,
+        model: (result.model || "gemini-2.5-flash"),
+        status: telemetryStatus,
+        httpStatus: 200,
+        latencyMs: Date.now() - telemetryStart,
+        retryCount: telemetryRetries,
+        tokensIn,
+        tokensOut,
+        hasResponseFormat: !!normalizedResponseFormat,
+        engagementId: _engagementId,
+      });
+
+      return result;
     } catch (err: any) {
       clearTimeout(timeoutId);
 
@@ -386,7 +432,17 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           await sleep(backoff);
           continue;
         }
-        throw new Error(`LLM invoke timed out after ${LLM_TIMEOUT_MS / 1000}s — all ${MAX_RETRIES + 1} attempts exhausted`);
+        recordTelemetry({
+          caller: _caller,
+          model: "gemini-2.5-flash",
+          status: "timeout",
+          latencyMs: Date.now() - telemetryStart,
+          retryCount: attempt,
+          hasResponseFormat: !!normalizedResponseFormat,
+          errorMessage: `Timed out after ${LLM_TIMEOUT_MS / 1000}s \u2014 all ${MAX_RETRIES + 1} attempts exhausted`,
+          engagementId: _engagementId,
+        });
+        throw new Error(`LLM invoke timed out after ${LLM_TIMEOUT_MS / 1000}s \u2014 all ${MAX_RETRIES + 1} attempts exhausted`);
       }
 
       // Network errors (ECONNRESET, ECONNREFUSED, etc.) are retryable
@@ -400,6 +456,18 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         continue;
       }
 
+      // Record telemetry for unrecoverable errors
+      recordTelemetry({
+        caller: _caller,
+        model: "gemini-2.5-flash",
+        status: "error",
+        latencyMs: Date.now() - telemetryStart,
+        retryCount: attempt,
+        hasResponseFormat: !!normalizedResponseFormat,
+        errorMessage: (err.message || String(err)).substring(0, 1000),
+        engagementId: _engagementId,
+      });
+
       throw err;
     } finally {
       clearTimeout(timeoutId);
@@ -408,4 +476,56 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   // Should not reach here, but safety net
   throw lastError || new Error('LLM invoke failed after all retries');
+}
+
+// ─── Telemetry Recording (fire-and-forget) ─────────────────────────────────
+function recordTelemetry(data: {
+  caller?: string;
+  model: string;
+  status: "success" | "error" | "timeout" | "retried_success";
+  httpStatus?: number;
+  latencyMs: number;
+  retryCount: number;
+  tokensIn?: number;
+  tokensOut?: number;
+  hasResponseFormat?: boolean;
+  errorMessage?: string;
+  engagementId?: number;
+}): void {
+  // Lazy import to avoid circular dependency at module load time
+  import("../db").then(({ recordLlmTelemetry }) => {
+    recordLlmTelemetry({
+      calledAt: new Date(),
+      caller: data.caller || inferCaller(),
+      model: data.model,
+      status: data.status,
+      httpStatus: data.httpStatus ?? null,
+      latencyMs: data.latencyMs,
+      retryCount: data.retryCount,
+      tokensIn: data.tokensIn ?? 0,
+      tokensOut: data.tokensOut ?? 0,
+      hasResponseFormat: data.hasResponseFormat ?? false,
+      errorMessage: data.errorMessage ?? null,
+      engagementId: data.engagementId ?? null,
+    });
+  }).catch(() => { /* telemetry must never break the caller */ });
+}
+
+/**
+ * Infer the caller from the stack trace when _caller is not provided.
+ * Extracts the first meaningful frame outside of llm.ts.
+ */
+function inferCaller(): string {
+  try {
+    const stack = new Error().stack || "";
+    const lines = stack.split("\n");
+    for (const line of lines) {
+      if (line.includes("llm.ts") || line.includes("llm.js") || line.includes("at Error") || line.includes("at Object")) continue;
+      const match = line.match(/at\s+(?:async\s+)?([\w.]+)\s+\(/);
+      if (match) return match[1];
+      const fileMatch = line.match(/([\w-]+)\.(?:ts|js):(\d+)/);
+      if (fileMatch) return `${fileMatch[1]}:${fileMatch[2]}`;
+    }
+  } catch { /* ignore */ }
+  return "unknown";
 }

@@ -7115,3 +7115,14 @@
 - [x] Add retry for timeout and network errors (ECONNRESET, fetch failed)
 - [x] Increase timeout from 60s to 90s for large exploit generation prompts
 - [x] Verify LLM retry logic works correctly (10 tests passing)
+
+## Feature: LLM Usage Telemetry Dashboard
+- [x] Add llm_telemetry table to drizzle schema (timestamp, caller, model, status, latency_ms, retries, tokens_in, tokens_out, error_message)
+- [x] Push database migration
+- [x] Instrument invokeLLM to record telemetry after each call (fire-and-forget with stack-based caller inference)
+- [x] Create db helpers for telemetry aggregation queries (hourly/daily stats, top callers, error rates)
+- [x] Create tRPC procedures for telemetry data (summary stats, time series, recent errors)
+- [x] Build LLM Telemetry dashboard page with charts (success rate, latency distribution, retry frequency, usage over time)
+- [x] Add navigation entry for telemetry page (sidebar + App.tsx route)
+- [x] Write vitest tests for telemetry recording and aggregation (15 tests passing)
+- [x] Verify build and save checkpoint

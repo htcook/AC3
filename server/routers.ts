@@ -106,6 +106,7 @@ import { nmapRouter } from "./routers/nmap";
 import { discoveryChainRouter } from "./routers/discovery-chain";
 import { crawlPhishRouter } from "./routers/crawl-phish";
 import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
+import { llmTelemetryRouter } from "./routers/llm-telemetry";
 import { containerRegistryRouter } from "./routers/container-registry";
 import { exploitationBridgeRouter } from "./routers/exploitation-bridge";
 import { privescRouter } from "./routers/privesc";
@@ -440,6 +441,9 @@ export const appRouter = router({
 
   // ─── Scan Server Health ──────────────────────────────────────────────────
   scanServer: scanServerRouter,
+
+  // ─── LLM Telemetry Dashboard ────────────────────────────────────────────
+  llmTelemetry: llmTelemetryRouter,
 });
 export type AppRouter = typeof appRouter;
 

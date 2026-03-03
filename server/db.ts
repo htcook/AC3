@@ -6,7 +6,8 @@ import {
   serverCredentials, InsertServerCredential, ServerCredential,
   activityLogs, InsertActivityLog,
   calderaStats, InsertCalderaStats, CalderaStats,
-  engagementOpsSnapshots
+  engagementOpsSnapshots,
+  llmTelemetry, InsertLlmTelemetry, LlmTelemetry
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -2168,4 +2169,158 @@ export async function deleteOpsSnapshot(engagementId: number): Promise<void> {
   } catch (e: any) {
     console.error(`[OpsSnapshot] Failed to delete snapshot for engagement #${engagementId}:`, e.message);
   }
+}
+
+
+// ─── LLM Telemetry Helpers ──────────────────────────────────────────────────
+
+/**
+ * Record a single LLM telemetry event. Fire-and-forget — errors are logged but
+ * never propagated so telemetry never breaks the calling code path.
+ */
+export async function recordLlmTelemetry(entry: Omit<InsertLlmTelemetry, "id" | "createdAt">): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.insert(llmTelemetry).values(entry);
+  } catch (e: any) {
+    console.warn("[LLM Telemetry] Failed to record:", e.message);
+  }
+}
+
+/**
+ * Get summary statistics for LLM usage over a time window.
+ */
+export async function getLlmTelemetrySummary(windowHours: number = 24) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      COUNT(*) as total_calls,
+      SUM(CASE WHEN llm_status = 'success' THEN 1 ELSE 0 END) as success_count,
+      SUM(CASE WHEN llm_status = 'retried_success' THEN 1 ELSE 0 END) as retried_success_count,
+      SUM(CASE WHEN llm_status = 'error' THEN 1 ELSE 0 END) as error_count,
+      SUM(CASE WHEN llm_status = 'timeout' THEN 1 ELSE 0 END) as timeout_count,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      MAX(latency_ms) as max_latency_ms,
+      MIN(latency_ms) as min_latency_ms,
+      ROUND(AVG(retry_count), 2) as avg_retries,
+      SUM(COALESCE(tokens_in, 0)) as total_tokens_in,
+      SUM(COALESCE(tokens_out, 0)) as total_tokens_out,
+      SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) as total_tokens
+    FROM llm_telemetry
+    WHERE called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
+  `);
+  return (rows as any[])[0] || {};
+}
+
+/**
+ * Get hourly time series data for LLM usage.
+ */
+export async function getLlmTelemetryTimeSeries(windowHours: number = 24) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      DATE_FORMAT(called_at, '%Y-%m-%d %H:00:00') as hour_bucket,
+      COUNT(*) as total_calls,
+      SUM(CASE WHEN llm_status IN ('success', 'retried_success') THEN 1 ELSE 0 END) as success_count,
+      SUM(CASE WHEN llm_status IN ('error', 'timeout') THEN 1 ELSE 0 END) as failure_count,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      ROUND(AVG(retry_count), 2) as avg_retries,
+      SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) as total_tokens
+    FROM llm_telemetry
+    WHERE called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
+    GROUP BY hour_bucket
+    ORDER BY hour_bucket ASC
+  `);
+  return rows as any[];
+}
+
+/**
+ * Get top callers by invocation count.
+ */
+export async function getLlmTelemetryTopCallers(windowHours: number = 24, limit: number = 15) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      caller,
+      COUNT(*) as call_count,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      SUM(CASE WHEN llm_status IN ('error', 'timeout') THEN 1 ELSE 0 END) as error_count,
+      ROUND(SUM(CASE WHEN llm_status IN ('success', 'retried_success') THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) as success_rate,
+      SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) as total_tokens
+    FROM llm_telemetry
+    WHERE called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
+    GROUP BY caller
+    ORDER BY call_count DESC
+    LIMIT ${limit}
+  `);
+  return rows as any[];
+}
+
+/**
+ * Get recent errors for debugging.
+ */
+export async function getLlmTelemetryRecentErrors(limit: number = 20) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      id, called_at, caller, model, llm_status, http_status,
+      latency_ms, retry_count, error_message, engagement_id
+    FROM llm_telemetry
+    WHERE llm_status IN ('error', 'timeout')
+    ORDER BY called_at DESC
+    LIMIT ${limit}
+  `);
+  return rows as any[];
+}
+
+/**
+ * Get latency distribution buckets for histogram.
+ */
+export async function getLlmTelemetryLatencyDistribution(windowHours: number = 24) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      CASE
+        WHEN latency_ms < 1000 THEN '<1s'
+        WHEN latency_ms < 3000 THEN '1-3s'
+        WHEN latency_ms < 5000 THEN '3-5s'
+        WHEN latency_ms < 10000 THEN '5-10s'
+        WHEN latency_ms < 30000 THEN '10-30s'
+        WHEN latency_ms < 60000 THEN '30-60s'
+        ELSE '>60s'
+      END as latency_bucket,
+      COUNT(*) as count
+    FROM llm_telemetry
+    WHERE called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
+    GROUP BY latency_bucket
+    ORDER BY MIN(latency_ms) ASC
+  `);
+  return rows as any[];
+}
+
+/**
+ * Get model usage breakdown.
+ */
+export async function getLlmTelemetryModelUsage(windowHours: number = 24) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      model,
+      COUNT(*) as call_count,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      SUM(COALESCE(tokens_in, 0)) as total_tokens_in,
+      SUM(COALESCE(tokens_out, 0)) as total_tokens_out,
+      ROUND(SUM(CASE WHEN llm_status IN ('success', 'retried_success') THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) as success_rate
+    FROM llm_telemetry
+    WHERE called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
+    GROUP BY model
+    ORDER BY call_count DESC
+  `);
+  return rows as any[];
 }
