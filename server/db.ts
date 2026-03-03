@@ -2107,6 +2107,25 @@ export async function loadOpsSnapshot(engagementId: number): Promise<any | null>
     const snapshot = rows[0];
     const state = snapshot.stateJson as any;
 
+    // Ensure all required fields exist (handles empty {} from DB reset)
+    if (!state.engagementId) state.engagementId = engagementId;
+    if (!state.phase) state.phase = 'idle';
+    if (state.progress === undefined) state.progress = 0;
+    if (state.isRunning === undefined) state.isRunning = false;
+    if (state.isPaused === undefined) state.isPaused = false;
+    if (!Array.isArray(state.assets)) state.assets = [];
+    if (!Array.isArray(state.log)) state.log = [];
+    if (!Array.isArray(state.approvalGates)) state.approvalGates = [];
+    if (!state.stats) state.stats = { hostsScanned: 0, portsFound: 0, vulnsFound: 0, exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0, zapScansRun: 0, wafDetections: 0 };
+    // Ensure each asset has required arrays
+    for (const asset of state.assets) {
+      if (!Array.isArray(asset.ports)) asset.ports = [];
+      if (!Array.isArray(asset.vulns)) asset.vulns = [];
+      if (!Array.isArray(asset.zapFindings)) asset.zapFindings = [];
+      if (!Array.isArray(asset.exploitAttempts)) asset.exploitAttempts = [];
+      if (!Array.isArray(asset.toolResults)) asset.toolResults = [];
+    }
+
     // Restore Set from array
     if (Array.isArray(state.skippedDomains)) {
       state.skippedDomains = new Set(state.skippedDomains);

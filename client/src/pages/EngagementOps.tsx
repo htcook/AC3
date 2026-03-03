@@ -460,7 +460,13 @@ export default function EngagementOps() {
   // Merge: polled ops state + any WS log entries that arrived since last poll
   const ops: OpsState | null = useMemo(() => {
     const base = opsStateQ.data || null;
-    if (!base || wsLogBuffer.length === 0) return base;
+    if (!base) return null;
+    // Ensure required arrays exist (defensive against empty DB state)
+    if (!base.log) base.log = [];
+    if (!base.assets) base.assets = [];
+    if (!base.approvalGates) base.approvalGates = [];
+    if (!base.stats) base.stats = { hostsScanned: 0, portsFound: 0, vulnsFound: 0, exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0, zapScansRun: 0, wafDetections: 0 };
+    if (wsLogBuffer.length === 0) return base;
     const existingIds = new Set(base.log.map(l => l.id));
     const newEntries = wsLogBuffer.filter(e => !existingIds.has(e.id));
     if (newEntries.length === 0) return base;

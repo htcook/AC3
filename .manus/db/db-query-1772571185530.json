@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, email, display_name FROM caldera_accounts LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, email, display_name FROM caldera_accounts LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "email": "harrison.cook@gmail.com",
+      "display_name": "Harrison Cook"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tdisplay_name\n1\tharrison.cook@gmail.com\tHarrison Cook\n",
+  "stderr": "",
+  "execution_time_ms": 390
+}

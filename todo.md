@@ -7083,3 +7083,6 @@
 - [x] Reset Vianova engagement scan state — cleared 54 old scan results, reset snapshot to idle
 - [ ] Re-run scan with fixed nuclei/httpx/nikto commands (user will trigger from UI)
 - [ ] Validate parallel execution, PoC generation, and profile integration
+
+## Bug Fix: Engagement Page Crash
+- [x] Fix TypeError: Cannot read properties of undefined (reading 'length') when accessing engagement page — added defensive null checks in frontend ops useMemo for log/assets/approvalGates/stats arrays
