@@ -84,6 +84,13 @@ const TOOL_COVERAGE: Record<string, {
     techniqueCount: 15,
     color: '#ec4899',
   },
+  manjusaka: {
+    tool: 'manjusaka',
+    label: 'Rust C2 Framework',
+    tactics: ['TA0002', 'TA0003', 'TA0004', 'TA0005', 'TA0006', 'TA0007', 'TA0008', 'TA0009', 'TA0011', 'TA0010'],
+    techniqueCount: 65,
+    color: '#f43f5e',
+  },
 };
 
 export const attackCoverageRouter = router({

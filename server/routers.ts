@@ -74,6 +74,7 @@ import { icsOtSecurityRouter } from "./routers/ics-ot-security";
 import { webAppScanningRouter } from "./routers/web-app-scanning";
 import { atomicRedTeamRouter } from "./routers/atomic-red-team";
 import { sliverC2Router } from "./routers/sliver-c2";
+import { manjusakaC2Router } from "./routers/manjusaka-c2";
 import { nucleiScannerRouter } from "./routers/nuclei-scanner";
 import { attackCoverageRouter } from "./routers/attack-coverage";
 import { unifiedPipelineRouter } from "./routers/unified-pipeline";
@@ -300,6 +301,7 @@ export const appRouter = router({
   webAppScanning: webAppScanningRouter,
   atomicRedTeam: atomicRedTeamRouter,
   sliverC2: sliverC2Router,
+  manjusakaC2: manjusakaC2Router,
   nucleiScanner: nucleiScannerRouter,
   attackCoverage: attackCoverageRouter,
   unifiedPipeline: unifiedPipelineRouter,

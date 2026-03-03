@@ -597,7 +597,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 List All Agents ───
   c2Agents: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]).optional(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]).optional(),
     }).optional())
     .query(async ({ input }) => {
       const registry = getC2Registry();
@@ -612,7 +612,7 @@ export const abilityGraphRouter = router({
   c2Modules: protectedProcedure
     .input(z.object({
       query: z.string(),
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]).optional(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]).optional(),
     }))
     .query(async ({ input }) => {
       const registry = getC2Registry();
@@ -626,7 +626,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 Dispatch Task ───
   c2Dispatch: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]),
       agentId: z.string(),
       moduleId: z.string(),
       options: z.record(z.string(), z.any()).optional(),
@@ -663,7 +663,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 Poll Task Result ───
   c2PollResult: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]),
       taskId: z.string(),
       agentId: z.string(),
     }))
@@ -694,7 +694,7 @@ export const abilityGraphRouter = router({
   // ─── Multi-C2 Kill Agent ───
   c2KillAgent: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]),
       agentId: z.string(),
     }))
     .mutation(async ({ input }) => {
@@ -715,7 +715,7 @@ export const abilityGraphRouter = router({
     .input(z.object({
       limit: z.number().default(50),
       techniqueId: z.string().optional(),
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]).optional(),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]).optional(),
     }).optional())
     .query(async ({ input }) => {
       return getExecutionHistory({
@@ -824,7 +824,7 @@ export const abilityGraphRouter = router({
   // ─── C2 Module Builder ───
   generateModule: protectedProcedure
     .input(z.object({
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]),
       techniqueId: z.string(),
       techniqueName: z.string(),
       platform: z.string().default("windows"),
@@ -842,7 +842,7 @@ export const abilityGraphRouter = router({
         category: "exploitation" as any,
         platforms: [input.platform as any],
         techniqueIds: [input.techniqueId],
-        language: input.framework === "metasploit" ? "ruby" : input.framework === "sliver" ? "go" : "python",
+        language: input.framework === "metasploit" ? "ruby" : input.framework === "sliver" ? "go" : input.framework === "manjusaka" ? "rust" : "python",
         targetFrameworks: [input.framework as any],
         requiresAdmin: false,
         requiresNetwork: true,
@@ -856,7 +856,7 @@ export const abilityGraphRouter = router({
   generateModulesFromAssets: protectedProcedure
     .input(z.object({
       scanId: z.number(),
-      frameworks: z.array(z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"])).default(["caldera", "metasploit", "cobaltstrike"]),
+      frameworks: z.array(z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"])).default(["caldera", "metasploit", "cobaltstrike"]),
       evasionLevel: z.enum(["none", "basic", "advanced", "maximum"]).default("basic"),
     }))
     .mutation(async ({ input }) => {
@@ -883,7 +883,7 @@ export const abilityGraphRouter = router({
         code: z.string(),
         filename: z.string(),
       })),
-      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike"]),
+      framework: z.enum(["caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka"]),
     }))
     .mutation(async ({ input }) => {
       return pushModulesToC2(input.modules.map(m => ({

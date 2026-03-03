@@ -193,6 +193,9 @@ export const unifiedPipelineRouter = router({
         case 'sliver_c2':
           pipelineFindings = convertSliverFindings(input.findings, phase);
           break;
+        case 'manjusaka_c2':
+          pipelineFindings = convertSliverFindings(input.findings, phase); // Same C2 finding format
+          break;
         case 'atomic_red_team':
           pipelineFindings = convertAtomicFindings(input.findings, phase);
           break;

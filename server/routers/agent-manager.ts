@@ -38,7 +38,7 @@ import {
 
 const c2ServerInput = z.object({
   name: z.string().min(1).max(255),
-  type: z.enum(["caldera", "sliver", "metasploit"]),
+  type: z.enum(["caldera", "sliver", "metasploit", "manjusaka"]),
   baseUrl: z.string().url(),
   authConfig: z.record(z.string(), z.unknown()),
 });
@@ -48,7 +48,7 @@ const agentDeployInput = z.object({
   description: z.string().optional(),
   engagementId: z.number().optional(),
   targetPlatform: z.enum(["windows", "linux", "darwin"]),
-  c2Protocol: z.enum(["caldera", "sliver", "metasploit", "native"]),
+  c2Protocol: z.enum(["caldera", "sliver", "metasploit", "manjusaka", "native"]),
   ttlSeconds: z.number().min(300).max(604800).default(86400),
   watchdogSeconds: z.number().min(300).max(86400).default(14400),
   beaconIntervalSeconds: z.number().min(5).max(3600).default(60),
@@ -322,7 +322,7 @@ export const agentManagerRouter = router({
       const result = await checkC2Health({
         id: server.id,
         name: server.name,
-        type: server.type as "caldera" | "sliver" | "metasploit",
+        type: server.type as "caldera" | "sliver" | "metasploit" | "manjusaka",
         baseUrl: server.baseUrl,
         authConfigEncrypted: server.authConfigEncrypted,
       });

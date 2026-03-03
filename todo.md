@@ -7091,3 +7091,20 @@
 - [x] Fix all remaining .length accesses on undefined arrays in EngagementOps.tsx (production crash persists)
 - [x] Audit all .map, .filter, .find, .forEach calls on potentially undefined arrays
 - [x] Save checkpoint and publish to production
+
+## Manjusaka C2 Framework Integration
+- [x] Implement ManjusakaAdapter in c2-abstraction.ts (IC2Adapter interface)
+- [x] Register ManjusakaAdapter in C2Registry
+- [x] Add "manjusaka" to C2FrameworkType union type
+- [x] Update all framework z.enum() references across routers (ability-graph, agent-manager, payload-generator, etc.)
+- [x] Update orchestrator DEFAULT_FRAMEWORK_PRIORITY with Manjusaka
+- [x] Add Manjusaka to FRAMEWORK_CAPABILITIES matrix
+- [x] Create manjusaka-c2.ts router (listeners, implants, sessions, tunnels, VNC)
+- [x] Add Manjusaka to payload generator c2Framework enum
+- [x] Add Manjusaka to attack coverage tool mapping
+- [x] Add Manjusaka to unified pipeline findings converter
+- [x] Create ManjusakaC2 UI page with listener/implant/session/tunnel management
+- [x] Add Manjusaka tab to C2Hub.tsx
+- [x] Add Manjusaka to c2-orchestrator payloads and session type mapping
+- [x] Write vitest tests for ManjusakaAdapter (13 tests passing)
+- [x] Verify build compiles and save checkpoint

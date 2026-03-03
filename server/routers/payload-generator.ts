@@ -254,7 +254,7 @@ export const payloadGeneratorRouter = router({
         extraOptions: z.record(z.string(), z.string()).optional(),
         engagementId: z.number().optional(),
         // C2 framework selection — defaults to Caldera
-        c2Framework: z.enum(["caldera", "metasploit", "sliver"]).default("caldera"),
+        c2Framework: z.enum(["caldera", "metasploit", "sliver", "manjusaka"]).default("caldera"),
         deployCalderaAgent: z.boolean().default(true),
       })
     )
