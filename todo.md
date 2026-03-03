@@ -7041,3 +7041,24 @@
 - [x] Updated suggestToolCommands httpx fallback to use pipe mode
 - [x] 34 new Phase B fix tests + 42 pipeline + 27 audit tests all passing
 - [ ] Monitor current engagement for LLM and tool errors
+
+## Shannon-Inspired Platform Improvements
+- [ ] Parallel tool execution: run nuclei/nikto/gobuster/httpx concurrently per asset in Phase B and vuln_detection
+- [ ] Durable state persistence: persist EngagementOpsState to DB after each tool execution and phase transition
+- [ ] Resume capability: add resumeEngagement() that loads last persisted state and continues from checkpoint
+- [ ] PoC generation: transform raw tool findings into reproducible curl/HTTP commands with expected responses
+- [ ] Scan profile presets: Quick/Standard/Deep/Stealth profiles with configurable tool selection, timeouts, concurrency
+- [ ] Specialized vulnerability analysis agents: dedicated LLM prompts per vuln class for post-scan deep analysis
+- [ ] Structured deliverables: typed per-phase deliverables (recon summary, vuln assessment, exploit evidence) stored in DB
+
+## Check Current Scan Results & Fix Errors
+- [ ] Query current engagement scan results from DB
+- [ ] Check for LLM errors in scan pipeline
+- [ ] Check for tool execution errors (timeouts, crashes)
+- [ ] Fix any identified errors
+
+## Stop Test Engagements from Polluting Production DB
+- [x] Find all sources of test engagement creation — 3 test files: reportAndMonitor, campaignEngagements, newFeatures
+- [x] Fix tests to clean up after themselves with afterAll hooks that delete test engagements
+- [x] Delete all 117 existing test engagements and related data from DB (only Vianova Pentest remains)
+- [x] Verified: tests now create and delete their own data — 38 tests pass, 1 engagement remains

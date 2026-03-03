@@ -1809,15 +1809,15 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         }
         return true;
       });
+    // ── Phase B command sanitization (applied to all commands before execution) ──
     for (const cmd of highPriorityCmds) {
-      // ── Phase B command sanitization ──────────────────────────────────
       // Fix LLM-generated nuclei commands: ensure -u URL format with severity/tag filters
       if (cmd.tool === 'nuclei') {
         let nucleiCmd = cmd.command;
-        // Extract target from the command
+        // Strip leading 'nuclei' prefix — we'll re-add it at the end
+        nucleiCmd = nucleiCmd.replace(/^nuclei\s+/, '').trim();
         const targetMatch = nucleiCmd.match(/-(?:target|u)\s+(\S+)/) || nucleiCmd.match(/(https?:\/\/\S+)/);
         let nucleiTarget = targetMatch?.[1] || asset.ip || asset.hostname;
-        // Ensure target is a URL for web assets
         if (nucleiTarget && !nucleiTarget.startsWith('http')) {
           const webPorts = asset.ports.filter(p =>
             ['http', 'https', 'http-proxy', 'http-alt'].includes(p.service) ||
@@ -1828,7 +1828,6 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             nucleiTarget = `${scheme}://${nucleiTarget}:${webPorts[0].port}`;
           }
         }
-        // Replace -target with -u and ensure severity filter exists
         nucleiCmd = nucleiCmd.replace(/-target\s+\S+/g, '').replace(/-u\s+\S+/g, '').trim();
         if (!nucleiCmd.includes('-severity')) nucleiCmd += ' -severity critical,high,medium';
         if (!nucleiCmd.includes('-jsonl')) nucleiCmd += ' -jsonl';
@@ -1837,7 +1836,6 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         if (!nucleiCmd.includes('-ni')) nucleiCmd += ' -ni';
         if (!nucleiCmd.includes('-timeout')) nucleiCmd += ' -timeout 10';
         if (!nucleiCmd.includes('-retries')) nucleiCmd += ' -retries 1';
-        // Build tech-targeted tags if available
         const detectedTechs = asset.passiveRecon?.technologies || [];
         const techLower = detectedTechs.map((t: string) => t.toLowerCase());
         const techTags: string[] = [];
@@ -1849,11 +1847,6 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         if (techLower.some((t: string) => t.includes('cloudfront') || t.includes('aws'))) techTags.push('aws');
         if (!nucleiCmd.includes('-tags') && techTags.length > 0) nucleiCmd += ` -tags ${techTags.join(',')}`;
         cmd.command = `nuclei -u ${nucleiTarget} ${nucleiCmd}`.replace(/\s+/g, ' ').trim();
-        addLog(state, {
-          phase: 'enumeration', type: 'info',
-          title: `Nuclei command sanitized`,
-          detail: `Ensured -u URL format with severity/tag filters: ${cmd.command.slice(0, 150)}`,
-        });
       }
 
       // Fix LLM-generated httpx commands: convert -u single-URL mode to pipe mode
@@ -1861,21 +1854,37 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         const urlMatch = cmd.command.match(/-u\s+(\S+)/);
         if (urlMatch) {
           const httpxUrl = urlMatch[1];
-          const httpxFlags = cmd.command
-            .replace(/^httpx\s*/, '')
-            .replace(/-u\s+\S+/, '')
-            .trim();
-          // Convert to pipe mode which is more reliable
+          const httpxFlags = cmd.command.replace(/^httpx\s*/, '').replace(/-u\s+\S+/, '').trim();
           cmd.command = `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim();
-          // httpx pipe mode needs executeRawCommand, not executeTool
-          addLog(state, {
-            phase: 'enumeration', type: 'info',
-            title: `httpx command converted to pipe mode`,
-            detail: `Pipe mode is more reliable than -u flag: ${cmd.command.slice(0, 150)}`,
-          });
         }
       }
 
+      // Fix LLM-generated gobuster commands: replace Kali Linux wordlist paths with scan server paths
+      if (cmd.tool === 'gobuster') {
+        cmd.command = cmd.command
+          .replace(/\/usr\/share\/wordlists\/dirbuster\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
+          .replace(/\/usr\/share\/wordlists\/dirb\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
+          .replace(/\/usr\/share\/wordlists\/[\w/.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
+          .replace(/\/usr\/share\/seclists\/[\w/.-]+/gi, '/opt/SecLists/Discovery/Web-Content/common.txt');
+        if (!cmd.command.includes('-q')) cmd.command += ' -q';
+        if (!cmd.command.includes('--no-error')) cmd.command += ' --no-error';
+        cmd.command = cmd.command.replace(/\s+/g, ' ').trim();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PARALLEL TOOL EXECUTION — Run tools concurrently with concurrency limit
+    // Shannon-inspired: run up to 3 tools in parallel per asset (SSH connection limit)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const CONCURRENCY_LIMIT = 3;
+    addLog(state, {
+      phase: 'enumeration', type: 'info',
+      title: `⚡ Parallel Execution: ${fmtTarget(asset)}`,
+      detail: `Running ${highPriorityCmds.length} tools with concurrency=${CONCURRENCY_LIMIT} (${highPriorityCmds.map(c => c.tool).join(', ')})`,
+    });
+
+    // Execute a single tool command and return results
+    async function executeToolCmd(cmd: { tool: string; command: string; purpose: string; priority: number }) {
       addLog(state, {
         phase: "enumeration", type: "scan_start",
         title: `Running: ${cmd.tool}`,
@@ -1883,83 +1892,110 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         data: { tool: cmd.tool, fullCommand: cmd.command },
       });
 
-      try {
-        // Determine timeout: nuclei gets 300s, others get 180s
-        const toolTimeout = cmd.tool === 'nuclei' ? 300 : 180;
+      const toolTimeout = cmd.tool === 'nuclei' ? 300 : 180;
+      let result: any;
 
-        let result: any;
-        // httpx pipe commands need executeRawCommand
-        if (cmd.tool === 'httpx' && cmd.command.includes('echo ')) {
-          const { executeRawCommand } = await import("./scan-server-executor");
-          const startTimeRaw = Date.now();
-          result = await executeRawCommand(cmd.command + ' 2>&1', toolTimeout);
-          result.durationMs = Date.now() - startTimeRaw;
-        } else {
-          const cmdArgs = cmd.command.startsWith(cmd.tool)
-            ? cmd.command.slice(cmd.tool.length).trim()
-            : cmd.command;
-          const startTime = Date.now();
-          result = await executeTool({
-            tool: cmd.tool,
-            args: cmdArgs,
-            timeoutSeconds: toolTimeout,
-            engagementId: state.engagementId,
-          });
-          if (!result.durationMs) result.durationMs = Date.now() - startTime;
-        }
-        const durationMs = result.durationMs;
-
-        // Parse tool output for findings
-        const findings = parseToolOutput(cmd.tool, result.stdout, asset);
-
-        // Store as toolResult on the asset
-        asset.toolResults.push({
+      // httpx pipe commands need executeRawCommand
+      if (cmd.tool === 'httpx' && cmd.command.includes('echo ')) {
+        const { executeRawCommand } = await import("./scan-server-executor");
+        const startTimeRaw = Date.now();
+        result = await executeRawCommand(cmd.command + ' 2>&1', toolTimeout);
+        result.durationMs = Date.now() - startTimeRaw;
+      } else {
+        const cmdArgs = cmd.command.startsWith(cmd.tool)
+          ? cmd.command.slice(cmd.tool.length).trim()
+          : cmd.command;
+        const startTime = Date.now();
+        result = await executeTool({
           tool: cmd.tool,
-          command: cmd.command,
-          exitCode: result.exitCode,
-          durationMs: result.durationMs || durationMs,
-          timedOut: result.timedOut,
-          findingCount: findings.length,
-          findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
-          outputPreview: result.stdout.slice(0, 2048),
-          executedAt: Date.now(),
-          phase: 'targeted_enum',
-        });
-
-        addLog(state, {
-          phase: "enumeration", type: "scan_result",
-          title: `${cmd.tool} Complete: ${fmtTarget(asset)}`,
-          detail: `Exit code ${result.exitCode}, ${result.durationMs}ms, ${findings.length} findings${result.timedOut ? " (TIMED OUT)" : ""}`,
-          data: {
-            tool: cmd.tool, exitCode: result.exitCode, durationMs: result.durationMs,
-            findings, outputPreview: result.stdout.slice(0, 500),
-          },
-        });
-
-        // Persist to database
-        await persistScanResult({
+          args: cmdArgs,
+          timeoutSeconds: toolTimeout,
           engagementId: state.engagementId,
-          tool: cmd.tool,
-          target: asset.hostname || asset.ip,
-          command: cmd.command,
-          stdout: result.stdout,
-          stderr: result.stderr,
-          exitCode: result.exitCode,
-          durationMs: result.durationMs,
-          timedOut: result.timedOut,
-          findings,
-          phase: "targeted_enum",
         });
+        if (!result.durationMs) result.durationMs = Date.now() - startTime;
+      }
 
-        // Add findings to asset vulns
-        for (const f of findings) {
-          asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
-          state.stats.vulnsFound++;
-        }
-      } catch (e: any) {
-        addLog(state, { phase: "enumeration", type: "error", title: `${cmd.tool} Error`, detail: e.message });
+      // Parse tool output for findings
+      const findings = parseToolOutput(cmd.tool, result.stdout, asset);
+
+      // Store as toolResult on the asset
+      asset.toolResults.push({
+        tool: cmd.tool,
+        command: cmd.command,
+        exitCode: result.exitCode,
+        durationMs: result.durationMs,
+        timedOut: result.timedOut,
+        findingCount: findings.length,
+        findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
+        outputPreview: result.stdout.slice(0, 2048),
+        executedAt: Date.now(),
+        phase: 'targeted_enum',
+      });
+
+      addLog(state, {
+        phase: "enumeration", type: "scan_result",
+        title: `${cmd.tool} Complete: ${fmtTarget(asset)}`,
+        detail: `Exit code ${result.exitCode}, ${result.durationMs}ms, ${findings.length} findings${result.timedOut ? " (TIMED OUT)" : ""}`,
+        data: {
+          tool: cmd.tool, exitCode: result.exitCode, durationMs: result.durationMs,
+          findings, outputPreview: result.stdout.slice(0, 500),
+        },
+      });
+
+      // Persist to database
+      await persistScanResult({
+        engagementId: state.engagementId,
+        tool: cmd.tool,
+        target: asset.hostname || asset.ip,
+        command: cmd.command,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+        durationMs: result.durationMs,
+        timedOut: result.timedOut,
+        findings,
+        phase: "targeted_enum",
+      });
+
+      // Add findings to asset vulns
+      for (const f of findings) {
+        asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
+        state.stats.vulnsFound++;
+      }
+
+      return { tool: cmd.tool, findings: findings.length, timedOut: result.timedOut };
+    }
+
+    // Run tools in batches with concurrency limit
+    const parallelStartTime = Date.now();
+    for (let i = 0; i < highPriorityCmds.length; i += CONCURRENCY_LIMIT) {
+      const batch = highPriorityCmds.slice(i, i + CONCURRENCY_LIMIT);
+      const batchResults = await Promise.allSettled(
+        batch.map(cmd => executeToolCmd(cmd).catch(e => {
+          addLog(state, { phase: "enumeration", type: "error", title: `${cmd.tool} Error`, detail: e.message });
+          return null;
+        }))
+      );
+      // Log batch completion
+      const succeeded = batchResults.filter(r => r.status === 'fulfilled' && r.value).length;
+      const failed = batchResults.length - succeeded;
+      if (batch.length > 1) {
+        addLog(state, {
+          phase: 'enumeration', type: 'info',
+          title: `Batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1} complete`,
+          detail: `${succeeded}/${batch.length} tools finished (${failed} errors). Tools: ${batch.map(c => c.tool).join(', ')}`,
+        });
       }
     }
+    const parallelDuration = Date.now() - parallelStartTime;
+    addLog(state, {
+      phase: 'enumeration', type: 'info',
+      title: `⚡ Parallel execution complete: ${fmtTarget(asset)}`,
+      detail: `${highPriorityCmds.length} tools finished in ${Math.round(parallelDuration / 1000)}s (parallel batches of ${CONCURRENCY_LIMIT})`,
+    });
+
+    // Persist state after each asset completes
+    persistOpsStateDebounced(state.engagementId, 500);
   }
 
   state.progress = 35;
@@ -2611,10 +2647,42 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
 export async function executeEngagement(
   engagementId: number,
   operatorCtx: { id: string; name?: string },
-  options?: { startPhase?: 'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit' }
+  options?: {
+    startPhase?: 'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit';
+    resume?: boolean; // If true, resume from last saved phase instead of startPhase
+  }
 ): Promise<void> {
-  const startPhase = options?.startPhase || 'recon';
+  let startPhase = options?.startPhase || 'recon';
   let state = opsStates.get(engagementId);
+
+  // ═══ DURABLE STATE RESUME ═══
+  // If resume=true, try to recover from DB snapshot and continue from last phase
+  if (options?.resume && !state) {
+    try {
+      const recovered = await getOpsStateWithRecovery(engagementId);
+      if (recovered && recovered.phase !== 'completed' && recovered.phase !== 'error' && recovered.phase !== 'idle') {
+        state = recovered;
+        // Determine the next phase to run based on what was completed
+        const phaseOrder: OpsPhase[] = ['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'];
+        const lastPhaseIdx = phaseOrder.indexOf(recovered.phase);
+        if (lastPhaseIdx >= 0 && lastPhaseIdx < phaseOrder.length - 1) {
+          // Resume from the phase that was interrupted (re-run it)
+          startPhase = recovered.phase as any;
+        } else {
+          startPhase = recovered.phase as any;
+        }
+        addLog(state, {
+          phase: state.phase, type: 'info',
+          title: '🔄 Resuming from checkpoint',
+          detail: `Recovered state from DB snapshot. Resuming from phase: ${startPhase}. Assets: ${state.assets.length}, Vulns: ${state.stats.vulnsFound}, Progress: ${state.progress}%`,
+        });
+        console.log(`[OpsState] Resuming engagement #${engagementId} from phase ${startPhase} (${state.assets.length} assets, ${state.stats.vulnsFound} vulns)`);
+      }
+    } catch (e: any) {
+      console.error(`[OpsState] Resume failed for #${engagementId}:`, e.message);
+    }
+  }
+
   if (!state) {
     state = initOpsState(engagementId, "pentest");
   }
@@ -2647,15 +2715,22 @@ export async function executeEngagement(
   state.phase = startPhase;
 
   emitSystemNotification({
-    title: "Engagement Execution Started",
-    message: `Autonomous ${state.engagementType} execution started for engagement #${engagementId} (from ${startPhase})`,
+    title: options?.resume ? "Engagement Resumed" : "Engagement Execution Started",
+    message: `Autonomous ${state.engagementType} execution ${options?.resume ? 'resumed' : 'started'} for engagement #${engagementId} (from ${startPhase})`,
     severity: "info",
   });
+
+  // Helper: checkpoint state to DB after each phase completes
+  async function phaseCheckpoint(completedPhase: string) {
+    await persistOpsStateNow(engagementId);
+    console.log(`[OpsState] Phase checkpoint saved: ${completedPhase} for engagement #${engagementId}`);
+  }
 
   try {
     // Phase 1: Recon (skip if starting from a later phase)
     if (startPhase === 'recon') {
       await executeRecon(state, engagement, operatorCtx);
+      await phaseCheckpoint('recon');
       if (!state.isRunning) return;
     }
 
@@ -2664,18 +2739,21 @@ export async function executeEngagement(
       // Phase 2: Enumeration (nmap first — always)
       if (['recon', 'enumeration'].includes(startPhase)) {
         await executeEnumeration(state, engagement, operatorCtx);
+        await phaseCheckpoint('enumeration');
         if (!state.isRunning) return;
       }
 
       // Phase 3: Vulnerability Detection
       if (['recon', 'enumeration', 'vuln_detection'].includes(startPhase)) {
         await executeVulnDetection(state, engagement, operatorCtx);
+        await phaseCheckpoint('vuln_detection');
         if (!state.isRunning) return;
       }
 
       // Phase 4: Exploitation
       if (state.stats.vulnsFound > 0) {
         await executeExploitation(state, engagement, operatorCtx);
+        await phaseCheckpoint('exploitation');
         if (!state.isRunning) return;
       } else {
         addLog(state, { phase: "exploitation", type: "info", title: "No Exploitable Vulns", detail: "No vulnerabilities found to exploit. Engagement complete." });
@@ -2684,6 +2762,7 @@ export async function executeEngagement(
       // Phase 5: Post-Exploit
       if (state.stats.exploitsSucceeded > 0) {
         await executePostExploit(state, engagement, operatorCtx);
+        await phaseCheckpoint('post_exploit');
       }
     } else {
       addLog(state, { phase: "enumeration", type: "error", title: "⛔ Active Phases Blocked", detail: "RoE must be signed to proceed past recon. Please have the team lead sign the RoE." });
@@ -2703,6 +2782,9 @@ export async function executeEngagement(
       detail: `${state.stats.hostsScanned} hosts, ${state.stats.vulnsFound} vulns, ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits, ${state.stats.zapScansRun} ZAP scans`,
     });
 
+    // Final checkpoint
+    await phaseCheckpoint('completed');
+
     emitSystemNotification({
       title: "Engagement Complete",
       message: `${state.engagementType} engagement #${engagementId} finished: ${state.stats.exploitsSucceeded} successful exploits`,
@@ -2713,6 +2795,8 @@ export async function executeEngagement(
     state.isRunning = false;
     state.error = e.message;
     addLog(state, { phase: "error", type: "error", title: "Pipeline Error", detail: e.message });
+    // Save error state so it can be inspected and potentially resumed
+    await persistOpsStateNow(engagementId);
   }
 }
 
@@ -2722,7 +2806,52 @@ export function stopEngagement(engagementId: number): boolean {
   state.isRunning = false;
   state.isPaused = false;
   state.currentAction = "Stopped by operator";
-  addLog(state, { phase: state.phase, type: "info", title: "⏹ Execution Stopped", detail: "Operator stopped the engagement execution" });
+  addLog(state, { phase: state.phase, type: "info", title: "⏹ Execution Stopped", detail: "Operator stopped the engagement execution. Use 'Resume' to continue from this phase." });
   broadcastOpsUpdate(engagementId, { type: "stopped" });
+  // Persist stopped state so it can be resumed later
+  persistOpsStateNow(engagementId);
   return true;
+}
+
+/**
+ * Resume a stopped or crashed engagement from its last saved phase.
+ * Recovers state from DB if not in memory.
+ */
+export async function resumeEngagement(
+  engagementId: number,
+  operatorCtx: { id: string; name?: string }
+): Promise<{ success: boolean; message: string; resumePhase?: string }> {
+  // Try to get state from memory or DB
+  let state = await getOpsStateWithRecovery(engagementId);
+  if (!state) {
+    return { success: false, message: "No saved state found for this engagement. Start a new execution instead." };
+  }
+
+  if (state.isRunning) {
+    return { success: false, message: "Engagement is already running." };
+  }
+
+  if (state.phase === 'completed') {
+    return { success: false, message: "Engagement already completed. Start a new execution to re-run." };
+  }
+
+  const resumePhase = state.phase === 'error' || state.phase === 'idle' || state.phase === 'paused'
+    ? (state.log.length > 0 ? state.log[state.log.length - 1].phase : 'recon')
+    : state.phase;
+
+  // Reset error state
+  state.error = undefined;
+  state.isRunning = false; // Will be set to true by executeEngagement
+
+  // Fire off the execution with resume flag
+  executeEngagement(engagementId, operatorCtx, {
+    startPhase: resumePhase as any,
+    resume: true,
+  });
+
+  return {
+    success: true,
+    message: `Resuming engagement from phase: ${resumePhase}. ${state.assets.length} assets, ${state.stats.vulnsFound} vulns recovered.`,
+    resumePhase,
+  };
 }

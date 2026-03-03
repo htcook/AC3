@@ -8,6 +8,7 @@ import {
   getAllCampaignEngagementLinks,
   unlinkCampaignFromEngagement,
   createEngagement,
+  deleteEngagement,
 } from "./db";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
@@ -49,6 +50,13 @@ describe("campaignEngagements", () => {
       engagementType: "phishing",
       status: "active",
     });
+  });
+
+  afterAll(async () => {
+    // Clean up test engagement
+    try {
+      await deleteEngagement(testEngagementId);
+    } catch (_) { /* ignore cleanup errors */ }
   });
 
   describe("DB helpers", () => {

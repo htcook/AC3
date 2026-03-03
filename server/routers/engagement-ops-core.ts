@@ -124,6 +124,25 @@ export const engagementOpsRouter = router({
         return { stopped };
       }),
 
+    /** Resume a stopped or crashed engagement from its last saved phase */
+    resume: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { resumeEngagement } = await import('../lib/engagement-orchestrator');
+        const result = await resumeEngagement(input.engagementId, {
+          id: String(ctx.user.id),
+          name: ctx.user.name || undefined,
+        });
+        if (result.success) {
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'engagement_ops_resumed',
+            details: `Resumed execution for engagement #${input.engagementId} from phase: ${result.resumePhase}`,
+          });
+        }
+        return result;
+      }),
+
     /** Skip the currently scanning domain — marks it as skipped so the pipeline moves to the next domain */
     skipCurrentDomain: protectedProcedure
       .input(z.object({ engagementId: z.number() }))

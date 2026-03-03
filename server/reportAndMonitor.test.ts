@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterAll } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import {
   createEngagement,
+  deleteEngagement,
   createOsintMonitor,
   getOsintMonitors,
   getOsintMonitorById,
@@ -18,6 +19,25 @@ import {
   updateReport,
   getAllReports,
 } from "./db";
+
+// Track all test engagement IDs for cleanup
+const testEngagementIds: number[] = [];
+
+// Wrap createEngagement to track IDs for cleanup
+async function createTestEngagement(data: Parameters<typeof createEngagement>[0]) {
+  const id = await createEngagement(data);
+  testEngagementIds.push(id);
+  return id;
+}
+
+afterAll(async () => {
+  // Clean up all test engagements created during this test run
+  for (const id of testEngagementIds) {
+    try {
+      await deleteEngagement(id);
+    } catch (_) { /* ignore cleanup errors */ }
+  }
+});
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -206,7 +226,7 @@ describe("Monitor Changes DB operations", () => {
 // ==================== ENGAGEMENT REPORTS DB TESTS ====================
 describe("Engagement Reports DB operations", () => {
   it("should create an engagement report", async () => {
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "Report Test Engagement " + Date.now(),
       customerName: "Report Test Corp",
       engagementType: "phishing",
@@ -230,7 +250,7 @@ describe("Engagement Reports DB operations", () => {
   });
 
   it("should get report by ID", async () => {
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "Report Get Test " + Date.now(),
       customerName: "Get Test Corp",
       engagementType: "red_team",
@@ -254,7 +274,7 @@ describe("Engagement Reports DB operations", () => {
   });
 
   it("should update a report status", async () => {
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "Report Update Test " + Date.now(),
       customerName: "Update Test Corp",
       engagementType: "phishing",
@@ -282,7 +302,7 @@ describe("Engagement Reports DB operations", () => {
   });
 
   it("should list reports by engagement", async () => {
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "Report List Test " + Date.now(),
       customerName: "List Test Corp",
       engagementType: "pentest",
@@ -319,7 +339,7 @@ describe("Engagement Reports DB operations", () => {
 
   it("should support all client types", async () => {
     const clientTypes = ["msp", "enterprise", "saas", "paas", "iaas", "mixed_hosting", "other"] as const;
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "Client Type Test " + Date.now(),
       customerName: "Client Type Corp",
       engagementType: "red_team",
@@ -352,7 +372,7 @@ describe("Engagement Reports DB operations", () => {
       "red_team_assessment",
       "detection_gap_analysis",
     ] as const;
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "Report Type Test " + Date.now(),
       customerName: "Report Type Corp",
       engagementType: "phishing",
@@ -475,7 +495,7 @@ describe("Reports tRPC procedures", () => {
   });
 
   it("reports.list should filter by engagement", async () => {
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "tRPC Report Filter " + Date.now(),
       customerName: "Filter Corp",
       engagementType: "phishing",
@@ -498,7 +518,7 @@ describe("Reports tRPC procedures", () => {
   });
 
   it("reports.get should return a specific report", async () => {
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "tRPC Report Get " + Date.now(),
       customerName: "Get Corp",
       engagementType: "red_team",

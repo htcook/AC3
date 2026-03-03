@@ -1,11 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterAll } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import {
   linkCampaignToEngagement,
   getCampaignsByEngagement,
   createEngagement,
+  deleteEngagement,
 } from "./db";
+
+// Track all test engagement IDs for cleanup
+const testEngagementIds: number[] = [];
+
+async function createTestEngagement(data: Parameters<typeof createEngagement>[0]) {
+  const id = await createEngagement(data);
+  testEngagementIds.push(id);
+  return id;
+}
+
+afterAll(async () => {
+  for (const id of testEngagementIds) {
+    try {
+      await deleteEngagement(id);
+    } catch (_) { /* ignore cleanup errors */ }
+  }
+});
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -124,7 +142,7 @@ describe("getCampaignSummary procedure", () => {
 describe("engagement results aggregation", () => {
   it("should create engagement and link campaigns for results view", async () => {
     // Create a test engagement
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "Results Test Engagement " + Date.now(),
       customerName: "Results Test Corp",
       engagementType: "phishing",
@@ -157,7 +175,7 @@ describe("engagement results aggregation", () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    const engId = await createEngagement({
+    const engId = await createTestEngagement({
       name: "tRPC Results Test " + Date.now(),
       customerName: "tRPC Test Corp",
       engagementType: "red_team",

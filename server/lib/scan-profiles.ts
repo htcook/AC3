@@ -1,0 +1,402 @@
+/**
+ * Scan Profiles — Operator-selectable presets that control scan depth, speed, evasion, and tool selection.
+ *
+ * Shannon-inspired: Let operators choose the right balance of speed vs depth for each engagement.
+ *
+ * Profiles:
+ *   - Quick:    Fast recon + top-100 ports + critical vulns only. ~5-10 min per asset.
+ *   - Standard: Full recon + top-1000 ports + all severity levels. ~15-30 min per asset.
+ *   - Deep:     Exhaustive recon + all 65535 ports + all templates + brute force. ~45-90 min per asset.
+ *   - Stealth:  Slow timing + fragmentation + decoys + minimal fingerprinting. ~30-60 min per asset.
+ */
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+export type ScanProfileName = "quick" | "standard" | "deep" | "stealth";
+
+export interface ScanProfile {
+  name: ScanProfileName;
+  displayName: string;
+  description: string;
+  estimatedTimePerAsset: string;
+
+  // Nmap configuration
+  nmap: {
+    /** Port range for discovery scan */
+    discoveryPorts: string;
+    /** Port range for targeted scan */
+    targetedPorts: string;
+    /** Timing template (T0-T5) */
+    timing: string;
+    /** Additional nmap flags */
+    extraFlags: string[];
+    /** Enable OS detection */
+    osDetection: boolean;
+    /** Enable script scanning */
+    scriptScan: boolean;
+    /** Service version detection intensity (0-9) */
+    versionIntensity: number;
+  };
+
+  // Nuclei configuration
+  nuclei: {
+    /** Severity levels to scan for */
+    severityFilter: string;
+    /** Max templates to load (0 = unlimited) */
+    maxTemplates: number;
+    /** Rate limit (requests per second) */
+    rateLimit: number;
+    /** Timeout per template in seconds */
+    templateTimeout: number;
+    /** Additional nuclei flags */
+    extraFlags: string[];
+  };
+
+  // Tool selection
+  tools: {
+    /** Run nikto web scanner */
+    nikto: boolean;
+    /** Run gobuster directory brute-force */
+    gobuster: boolean;
+    /** Run httpx HTTP probing */
+    httpx: boolean;
+    /** Run ZAP active scan */
+    zap: boolean;
+    /** Run hydra brute-force */
+    hydra: boolean;
+    /** Max concurrent tools per asset */
+    concurrency: number;
+  };
+
+  // Timeouts
+  timeouts: {
+    /** Per-tool timeout in seconds */
+    toolTimeout: number;
+    /** Nuclei-specific timeout in seconds */
+    nucleiTimeout: number;
+    /** ZAP scan timeout in seconds */
+    zapTimeout: number;
+    /** Overall phase timeout in seconds (0 = unlimited) */
+    phaseTimeout: number;
+  };
+
+  // Evasion
+  evasion: {
+    /** Use packet fragmentation */
+    fragmentation: boolean;
+    /** Use decoy IPs */
+    decoys: boolean;
+    /** Randomize host scan order */
+    randomizeHosts: boolean;
+    /** Add data length padding */
+    dataLengthPadding: boolean;
+    /** Spoof source port */
+    sourcePortSpoofing: boolean;
+    /** Delay between requests (ms) */
+    requestDelay: number;
+  };
+
+  // Gobuster configuration
+  gobuster: {
+    /** Wordlist path */
+    wordlist: string;
+    /** Number of threads */
+    threads: number;
+    /** Additional flags */
+    extraFlags: string[];
+  };
+}
+
+// ─── Profile Definitions ────────────────────────────────────────────────────
+
+export const SCAN_PROFILES: Record<ScanProfileName, ScanProfile> = {
+  quick: {
+    name: "quick",
+    displayName: "Quick Scan",
+    description: "Fast reconnaissance with top-100 ports and critical/high vulnerabilities only. Best for initial triage or time-sensitive assessments.",
+    estimatedTimePerAsset: "5-10 minutes",
+    nmap: {
+      discoveryPorts: "--top-ports 100",
+      targetedPorts: "--top-ports 100",
+      timing: "-T4",
+      extraFlags: ["-sV", "--version-intensity", "5"],
+      osDetection: false,
+      scriptScan: false,
+      versionIntensity: 5,
+    },
+    nuclei: {
+      severityFilter: "critical,high",
+      maxTemplates: 500,
+      rateLimit: 150,
+      templateTimeout: 8,
+      extraFlags: ["-duc", "-ni", "-nc"],
+    },
+    tools: {
+      nikto: false,
+      gobuster: false,
+      httpx: true,
+      zap: false,
+      hydra: false,
+      concurrency: 4,
+    },
+    timeouts: {
+      toolTimeout: 120,
+      nucleiTimeout: 180,
+      zapTimeout: 0,
+      phaseTimeout: 600,
+    },
+    evasion: {
+      fragmentation: false,
+      decoys: false,
+      randomizeHosts: false,
+      dataLengthPadding: false,
+      sourcePortSpoofing: false,
+      requestDelay: 0,
+    },
+    gobuster: {
+      wordlist: "/opt/SecLists/Discovery/Web-Content/common.txt",
+      threads: 50,
+      extraFlags: ["-q", "--no-error"],
+    },
+  },
+
+  standard: {
+    name: "standard",
+    displayName: "Standard Scan",
+    description: "Comprehensive scan with top-1000 ports, all severity levels, and full tool suite. The default for most engagements.",
+    estimatedTimePerAsset: "15-30 minutes",
+    nmap: {
+      discoveryPorts: "--top-ports 1000",
+      targetedPorts: "--top-ports 1000",
+      timing: "-T3",
+      extraFlags: ["-sV", "-sC", "--version-intensity", "7"],
+      osDetection: true,
+      scriptScan: true,
+      versionIntensity: 7,
+    },
+    nuclei: {
+      severityFilter: "critical,high,medium",
+      maxTemplates: 0,
+      rateLimit: 100,
+      templateTimeout: 10,
+      extraFlags: ["-duc", "-ni", "-nc", "-jsonl"],
+    },
+    tools: {
+      nikto: true,
+      gobuster: true,
+      httpx: true,
+      zap: true,
+      hydra: false,
+      concurrency: 3,
+    },
+    timeouts: {
+      toolTimeout: 180,
+      nucleiTimeout: 300,
+      zapTimeout: 300,
+      phaseTimeout: 1800,
+    },
+    evasion: {
+      fragmentation: false,
+      decoys: false,
+      randomizeHosts: true,
+      dataLengthPadding: false,
+      sourcePortSpoofing: false,
+      requestDelay: 0,
+    },
+    gobuster: {
+      wordlist: "/opt/SecLists/Discovery/Web-Content/common.txt",
+      threads: 30,
+      extraFlags: ["-q", "--no-error"],
+    },
+  },
+
+  deep: {
+    name: "deep",
+    displayName: "Deep Scan",
+    description: "Exhaustive scan of all 65535 ports with all nuclei templates, directory brute-force, and credential testing. For thorough assessments with no time pressure.",
+    estimatedTimePerAsset: "45-90 minutes",
+    nmap: {
+      discoveryPorts: "-p-",
+      targetedPorts: "-p-",
+      timing: "-T3",
+      extraFlags: ["-sV", "-sC", "-O", "--version-intensity", "9", "-A"],
+      osDetection: true,
+      scriptScan: true,
+      versionIntensity: 9,
+    },
+    nuclei: {
+      severityFilter: "critical,high,medium,low",
+      maxTemplates: 0,
+      rateLimit: 75,
+      templateTimeout: 15,
+      extraFlags: ["-duc", "-ni", "-nc", "-jsonl"],
+    },
+    tools: {
+      nikto: true,
+      gobuster: true,
+      httpx: true,
+      zap: true,
+      hydra: true,
+      concurrency: 3,
+    },
+    timeouts: {
+      toolTimeout: 300,
+      nucleiTimeout: 600,
+      zapTimeout: 600,
+      phaseTimeout: 3600,
+    },
+    evasion: {
+      fragmentation: false,
+      decoys: false,
+      randomizeHosts: true,
+      dataLengthPadding: false,
+      sourcePortSpoofing: false,
+      requestDelay: 0,
+    },
+    gobuster: {
+      wordlist: "/opt/SecLists/Discovery/Web-Content/directory-list-2.3-medium.txt",
+      threads: 20,
+      extraFlags: ["-q", "--no-error", "-x", "php,html,js,txt,bak,old,conf"],
+    },
+  },
+
+  stealth: {
+    name: "stealth",
+    displayName: "Stealth Scan",
+    description: "Low-and-slow scanning with maximum evasion techniques. Fragmentation, decoys, timing delays, and randomization to avoid detection by IDS/IPS/WAF.",
+    estimatedTimePerAsset: "30-60 minutes",
+    nmap: {
+      discoveryPorts: "--top-ports 1000",
+      targetedPorts: "--top-ports 1000",
+      timing: "-T1",
+      extraFlags: [
+        "-sV", "--version-intensity", "5",
+        "-f", "--mtu", "24",
+        "-D", "RND:5",
+        "--data-length", "50",
+        "--randomize-hosts",
+        "-g", "53",
+      ],
+      osDetection: false,
+      scriptScan: false,
+      versionIntensity: 5,
+    },
+    nuclei: {
+      severityFilter: "critical,high,medium",
+      maxTemplates: 0,
+      rateLimit: 25,
+      templateTimeout: 15,
+      extraFlags: ["-duc", "-ni", "-nc", "-jsonl", "-rl", "25"],
+    },
+    tools: {
+      nikto: true,
+      gobuster: false, // Too noisy for stealth
+      httpx: true,
+      zap: false, // Too noisy for stealth
+      hydra: false, // Too noisy for stealth
+      concurrency: 2,
+    },
+    timeouts: {
+      toolTimeout: 300,
+      nucleiTimeout: 600,
+      zapTimeout: 0,
+      phaseTimeout: 3600,
+    },
+    evasion: {
+      fragmentation: true,
+      decoys: true,
+      randomizeHosts: true,
+      dataLengthPadding: true,
+      sourcePortSpoofing: true,
+      requestDelay: 500,
+    },
+    gobuster: {
+      wordlist: "/opt/SecLists/Discovery/Web-Content/common.txt",
+      threads: 5,
+      extraFlags: ["-q", "--no-error", "--delay", "500ms"],
+    },
+  },
+};
+
+// ─── Helper Functions ───────────────────────────────────────────────────────
+
+/**
+ * Get a scan profile by name, defaulting to "standard" if not found.
+ */
+export function getScanProfile(name?: string): ScanProfile {
+  if (name && name in SCAN_PROFILES) {
+    return SCAN_PROFILES[name as ScanProfileName];
+  }
+  return SCAN_PROFILES.standard;
+}
+
+/**
+ * Get all available scan profiles for display in the UI.
+ */
+export function getAllScanProfiles(): Array<{
+  name: ScanProfileName;
+  displayName: string;
+  description: string;
+  estimatedTimePerAsset: string;
+}> {
+  return Object.values(SCAN_PROFILES).map(p => ({
+    name: p.name,
+    displayName: p.displayName,
+    description: p.description,
+    estimatedTimePerAsset: p.estimatedTimePerAsset,
+  }));
+}
+
+/**
+ * Build nmap flags from a scan profile for discovery phase.
+ */
+export function buildDiscoveryNmapFlags(profile: ScanProfile, target: string): string {
+  const flags = [
+    profile.nmap.discoveryPorts,
+    profile.nmap.timing,
+    "-sV",
+    "--version-intensity", String(profile.nmap.versionIntensity),
+  ];
+
+  if (profile.nmap.osDetection) flags.push("-O");
+  if (profile.nmap.scriptScan) flags.push("-sC");
+
+  // Evasion flags
+  if (profile.evasion.fragmentation) flags.push("-f", "--mtu", "24");
+  if (profile.evasion.decoys) flags.push("-D", "RND:5");
+  if (profile.evasion.dataLengthPadding) flags.push("--data-length", "50");
+  if (profile.evasion.randomizeHosts) flags.push("--randomize-hosts");
+  if (profile.evasion.sourcePortSpoofing) flags.push("-g", "53");
+
+  flags.push(target);
+  return flags.join(" ");
+}
+
+/**
+ * Build nuclei flags from a scan profile.
+ */
+export function buildNucleiFlags(profile: ScanProfile, targetUrl: string): string {
+  const flags = [
+    "-u", targetUrl,
+    "-severity", profile.nuclei.severityFilter,
+    "-rl", String(profile.nuclei.rateLimit),
+    "-timeout", String(profile.nuclei.templateTimeout),
+    "-retries", "1",
+    ...profile.nuclei.extraFlags,
+  ];
+
+  return `nuclei ${flags.join(" ")}`;
+}
+
+/**
+ * Get the list of tools to run for a given profile.
+ */
+export function getProfileTools(profile: ScanProfile): string[] {
+  const tools: string[] = [];
+  if (profile.tools.httpx) tools.push("httpx");
+  if (profile.tools.nikto) tools.push("nikto");
+  if (profile.tools.gobuster) tools.push("gobuster");
+  // nuclei is always included
+  tools.push("nuclei");
+  return tools;
+}

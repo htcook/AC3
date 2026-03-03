@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, name, roe_status, status, customerName FROM engagements;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, name, roe_status, status, customerName FROM engagements;",
+  "rows": [
+    {
+      "id": "1350014",
+      "name": "Vianova External Pentest",
+      "roe_status": "signed",
+      "status": "active",
+      "customerName": "Vianova"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\troe_status\tstatus\tcustomerName\n1350014\tVianova External Pentest\tsigned\tactive\tVianova\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}
