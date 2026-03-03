@@ -1855,6 +1855,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       // Fix LLM-generated httpx commands: convert -u single-URL mode to pipe mode
       if (cmd.tool === 'httpx') {
         // Normalize: strip ALL 'httpx' keywords, strip any existing 'echo ... |' pipe prefix
+        // Fixed: handles LLM patterns like 'httpx echo URL | httpx flags' and 'echo URL | httpx echo | flags'
         let httpxCmd = cmd.command.replace(/\bhttpx\b/g, '').trim();
         // If LLM already included a pipe (echo URL | flags), extract URL and flags separately
         const pipeMatch = httpxCmd.match(/^echo\s+(\S+)\s*\|\s*(.*)$/);
