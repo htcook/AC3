@@ -578,9 +578,11 @@ Phase A runs TWO mandatory tools in sequence for every asset:
 
 ### Step 1: nmap (port discovery + service fingerprinting)
 - Run nmap with --top-ports 1000 and -T3 timing for reliable port discovery
-- Use: nmap -Pn -sV -sC -O --top-ports 1000 {evasion_flags} {target}
+- The system automatically appends the target and enforces --top-ports 1000 with -T3 timing
+- discoveryNmapFlags should ONLY contain scan type and evasion flags, NOT port specs or target
+- Example discoveryNmapFlags: '-Pn -sV -sC -O -f -D RND:5 --data-length 64 --source-port 53'
+- DO NOT include -p, --top-ports, -T flags, or {target}/{naabu_ports} placeholders in discoveryNmapFlags
 - DO NOT use -p- (all 65535 ports) — it takes 30+ minutes per host and will timeout
-- Always include --top-ports 1000 in discoveryNmapFlags
 - EVASION TECHNIQUES to maximize data return while avoiding IDS/IPS detection:
   * Packet fragmentation (-f or --mtu 24) to split probes across fragments
   * Timing control (-T2 for polite, -T3 for normal) — NEVER use -T4/-T5 on first scan
@@ -592,7 +594,7 @@ Phase A runs TWO mandatory tools in sequence for every asset:
 
 ### Step 2: httpx (HTTP probing on all web ports)
 - Run httpx on ALL HTTP/HTTPS ports found by nmap
-- Use: echo '{target}' | httpx -json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent
+- The system automatically builds the httpx command with discovered ports — no need to specify in flags
 - httpx detects: technology stack, CDN/WAF presence, TLS certificate info, HTTP status codes, web server software, page titles
 - This data is CRITICAL for Phase B tool selection (e.g., if httpx detects WordPress → nuclei wordpress templates)
 
@@ -638,14 +640,14 @@ You MUST respond with valid JSON matching this exact schema:
       "hostname": "exact hostname from the asset list",
       "ip": "IP if known",
       "assetType": "web_app|server|api|database|network_device|unknown",
-      "discoveryNmapFlags": "Phase A nmap flags with evasion — MUST include --top-ports 1000, DO NOT use -p-. Example: '-Pn -sV -sC -O --top-ports 1000 -f -T3 -D RND:5 --data-length 64'",
+      "discoveryNmapFlags": "ONLY scan type and evasion flags. NO -p, --top-ports, -T, or placeholders. Example: '-Pn -sV -sC -O -f -D RND:5 --data-length 64 --source-port 53'",
       "discoveryNmapRationale": "Why these discovery+evasion flags for this specific asset",
-      "nmapFlags": "Phase B targeted nmap flags (e.g., '-sV -sC --script vuln -p 80,443,8080')",
+      "nmapFlags": "Phase B scan type flags ONLY. NO -p port specs or placeholders. Example: '-sV -sC --script vuln'. Ports are added automatically from Phase A results.",
       "nmapRationale": "Why these targeted flags based on expected services",
       "activeTools": [
         {
           "tool": "tool name from available list",
-          "command": "exact command to run (use {target} as placeholder for hostname/IP)",
+          "command": "exact command with the ACTUAL hostname/IP from the asset list (NOT a placeholder)",
           "rationale": "Why this tool for this asset based on passive recon data",
           "priority": 1
         }
@@ -1219,7 +1221,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         // Build nmap flags: always use --top-ports 1000 with -T3 timing for reliable results
         // CRITICAL: Never use -p- (all 65535 ports) — it takes 30+ min per host and will timeout
         const baseFlags = (assetPlan?.discoveryNmapFlags || '-Pn -sV -sC -O -f -D RND:5 --data-length 64')
-          .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')  // Remove all -p port specs (-p80,443 -p 80 -p- -p1-65535)
+          .replace(/(?:^|\s)-p\s*(?:\{[^}]+\}|[\d,\-]+)(?=\s|$)/g, '')  // Remove -p with any value (numeric: -p80,443 or placeholder: -p {naabu_ports})
+          .replace(/\s*-p-/g, '')           // Remove -p- (all ports)
+          .replace(/\{[^}]+\}/g, '')        // Remove ALL {placeholder} strings (e.g., {target}, {naabu_ports})
           .replace(/--top-ports\s+\d+/g, '') // Remove existing --top-ports
           .replace(/-T\d/g, '')             // Remove timing flags (we force -T3)
           .replace(/--randomize-hosts/g, '')
@@ -1526,7 +1530,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       // Sanitize LLM-generated flags: replace any -p port specs with actual discovered ports
       const discoveredPortList = asset.ports.map(p => p.port).join(',');
       let targetedFlags = assetPlan.nmapFlags
-        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')  // Remove LLM port specs
+        .replace(/(?:^|\s)-p\s*(?:\{[^}]+\}|[\d,\-]+)(?=\s|$)/g, '')  // Remove -p with any value (numeric or placeholder)
+        .replace(/\s*-p-/g, '')           // Remove -p- (all ports)
+        .replace(/\{[^}]+\}/g, '')        // Remove ALL {placeholder} strings
         .replace(/\s+/g, ' ')
         .trim();
       // Add discovered ports if any were found, otherwise use --top-ports 1000
@@ -1602,7 +1608,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     if (assetPlan && assetPlan.activeTools.length > 0) {
       cmdsToRun = assetPlan.activeTools.map(t => ({
         tool: t.tool,
-        command: t.command.replace(/\{target\}/g, asset.ip || asset.hostname),
+        command: t.command
+          .replace(/\{target\}/g, asset.ip || asset.hostname)
+          .replace(/\{[^}]*host[^}]*\}/gi, asset.ip || asset.hostname)
+          .replace(/\{[^}]*ip[^}]*\}/gi, asset.ip || asset.hostname)
+          .replace(/\{[^}]*naabu[^}]*\}/gi, '')  // Remove any naabu placeholders
+          .replace(/\s+/g, ' ').trim(),
         purpose: t.rationale,
         priority: t.priority,
       }));

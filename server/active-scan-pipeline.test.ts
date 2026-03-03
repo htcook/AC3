@@ -120,6 +120,44 @@ describe('Active Scan Pipeline Audit', () => {
     });
   });
 
+  describe('LLM placeholder stripping', () => {
+    it('strips {naabu_ports} placeholder from nmap flags', () => {
+      const flags = '-Pn -sV -sC -O -p {naabu_ports} -f -D RND:5';
+      const result = flags
+        .replace(/(?:^|\s)-p\s*(?:\{[^}]+\}|[\d,\-]+)(?=\s|$)/g, '')  // Remove -p with any value
+        .replace(/\{[^}]+\}/g, '')  // Remove remaining placeholders
+        .replace(/\s+/g, ' ').trim();
+      expect(result).not.toContain('{naabu_ports}');
+      expect(result).not.toContain('-p ');
+    });
+
+    it('strips {target} placeholder from nmap flags', () => {
+      const flags = '-Pn -sV -sC {target} -T3';
+      const result = flags
+        .replace(/\{[^}]*\}/g, '')
+        .replace(/\s+/g, ' ').trim();
+      expect(result).not.toContain('{target}');
+      expect(result).toBe('-Pn -sV -sC -T3');
+    });
+
+    it('orchestrator strips curly-brace placeholders from discovery flags', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      // Should strip any {placeholder} patterns from LLM-generated flags
+      expect(orch).toContain("\\{[^}]+\\}");
+    });
+
+    it('activeTools command replaces {target} with actual hostname/IP', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain(".replace(/\\{target\\}/g, asset.ip || asset.hostname)");
+    });
+
+    it('activeTools command strips naabu placeholders', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      expect(orch).toContain("naabu");
+      expect(orch).toContain(".replace(/\\{[^}]*naabu[^}]*\\}/gi, '')");
+    });
+  });
+
   describe('Nmap port specification sanitization', () => {
     it('strips -p80,443 format (no space) from discovery flags', () => {
       const flags = '-Pn -sV -p80,443 -sC';
@@ -171,10 +209,39 @@ describe('Active Scan Pipeline Audit', () => {
 
     it('orchestrator uses the improved port spec regex', () => {
       const orch = fs.readFileSync(orchestratorPath, 'utf-8');
-      // Should use the improved regex that catches all -p variants
-      expect(orch).toContain('-p[\\s]*[\\d,\\-]+');
+      // Should use the improved regex that catches -p with numeric or placeholder values
+      expect(orch).toContain('\\{[^}]+\\}|[\\d,\\-]+');
       // Should NOT use the old broken regex
       expect(orch).not.toContain("/-p[- ]\\S*/g");
+    });
+  });
+
+  describe('UI: httpx findings display', () => {
+    it('EngagementOps shows httpx findings count in Discovery tab', () => {
+      const opsPage = fs.readFileSync(
+        path.resolve(__dirname, '../client/src/pages/EngagementOps.tsx'), 'utf-8'
+      );
+      // Should calculate httpx findings count using reduce
+      expect(opsPage).toContain('httpxResults.reduce');
+      expect(opsPage).toContain('findings?.length || tr.findingCount || 0');
+    });
+
+    it('EngagementOps shows Nuclei card instead of Naabu', () => {
+      const opsPage = fs.readFileSync(
+        path.resolve(__dirname, '../client/src/pages/EngagementOps.tsx'), 'utf-8'
+      );
+      // Should have nuclei card, not naabu
+      expect(opsPage).toContain('nucleiResults');
+      expect(opsPage).not.toContain('naabuResults');
+    });
+
+    it('findings rendering handles object findings (not just strings)', () => {
+      const opsPage = fs.readFileSync(
+        path.resolve(__dirname, '../client/src/pages/EngagementOps.tsx'), 'utf-8'
+      );
+      // Should use typeof check for findings
+      expect(opsPage).toContain("typeof f === 'string'");
+      expect(opsPage).toContain("f?.title");
     });
   });
 

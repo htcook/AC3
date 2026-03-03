@@ -1,0 +1,58 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'scan_results' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'scan_results' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "engagement_id"
+    },
+    {
+      "COLUMN_NAME": "tool"
+    },
+    {
+      "COLUMN_NAME": "target"
+    },
+    {
+      "COLUMN_NAME": "command"
+    },
+    {
+      "COLUMN_NAME": "raw_output"
+    },
+    {
+      "COLUMN_NAME": "raw_stderr"
+    },
+    {
+      "COLUMN_NAME": "exit_code"
+    },
+    {
+      "COLUMN_NAME": "duration_ms"
+    },
+    {
+      "COLUMN_NAME": "timed_out"
+    },
+    {
+      "COLUMN_NAME": "findings"
+    },
+    {
+      "COLUMN_NAME": "finding_count"
+    },
+    {
+      "COLUMN_NAME": "severity_summary"
+    },
+    {
+      "COLUMN_NAME": "phase"
+    },
+    {
+      "COLUMN_NAME": "operator_id"
+    },
+    {
+      "COLUMN_NAME": "created_at"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nengagement_id\ntool\ntarget\ncommand\nraw_output\nraw_stderr\nexit_code\nduration_ms\ntimed_out\nfindings\nfinding_count\nseverity_summary\nphase\noperator_id\ncreated_at\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, engagementId, tool, target, command, exitCode, durationMs, timedOut, findingCount, LEFT(stderr, 500) as stderr_preview, LEFT(stdout, 500) as stdout_preview, phase, createdAt FROM scan_results WHERE engagementId = 1350014 ORDER BY createdAt DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, engagementId, tool, target, command, exitCode, durationMs, timedOut, findingCount, LEFT(stderr, 500) as stderr_preview, LEFT(stdout, 500) as stdout_preview, phase, createdAt FROM scan_results WHERE engagementId = 1350014 ORDER BY createdAt DESC LIMIT 20;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'engagementid' in 'where clause'"
+  ]
+}

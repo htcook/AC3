@@ -1374,7 +1374,7 @@ export default function EngagementOps() {
                     const assets = ops?.assets || [];
                     const allToolResults = assets.flatMap((a: any) => (a.toolResults || []).map((tr: any) => ({ ...tr, assetHostname: a.hostname })));
                     const nmapResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery');
-                    const naabuResults = allToolResults.filter((tr: any) => tr.tool === 'naabu');
+                    const nucleiResults = allToolResults.filter((tr: any) => tr.tool === 'nuclei');
                     const httpxResults = allToolResults.filter((tr: any) => tr.tool === 'httpx');
 
                     // Aggregate ports across all assets
@@ -1521,14 +1521,14 @@ export default function EngagementOps() {
 
                         {/* Tool Run Summary */}
                         <div className="grid grid-cols-3 gap-3">
-                          <Card className="bg-card/50 border-cyan-500/20">
+                          <Card className="bg-card/50 border-red-500/20">
                             <CardContent className="p-3">
                               <div className="flex items-center gap-2 mb-2">
-                                <Network className="h-4 w-4 text-cyan-400" />
-                                <span className="text-xs font-medium">Naabu</span>
-                                <Badge variant="secondary" className="ml-auto text-[9px] h-4">{naabuResults.length} runs</Badge>
+                                <Bug className="h-4 w-4 text-red-400" />
+                                <span className="text-xs font-medium">Nuclei</span>
+                                <Badge variant="secondary" className="ml-auto text-[9px] h-4">{nucleiResults.length} runs</Badge>
                               </div>
-                              <p className="text-[10px] text-muted-foreground">Fast port discovery across all assets</p>
+                              <p className="text-[10px] text-muted-foreground">Vulnerability scanning with 9800+ templates</p>
                             </CardContent>
                           </Card>
                           <Card className="bg-card/50 border-blue-500/20">
@@ -1548,7 +1548,9 @@ export default function EngagementOps() {
                                 <span className="text-xs font-medium">Httpx</span>
                                 <Badge variant="secondary" className="ml-auto text-[9px] h-4">{httpxResults.length} runs</Badge>
                               </div>
-                              <p className="text-[10px] text-muted-foreground">HTTP probing, tech & CDN/WAF detection</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {httpxResults.reduce((sum: number, tr: any) => sum + (tr.findings?.length || tr.findingCount || 0), 0)} findings &mdash; HTTP probing, tech & CDN/WAF
+                              </p>
                             </CardContent>
                           </Card>
                         </div>
@@ -1794,12 +1796,15 @@ export default function EngagementOps() {
                                     )}
                                     {tr.findings && tr.findings.length > 0 && (
                                       <div className="space-y-0.5">
-                                        {tr.findings.slice(0, 5).map((f: string, fi: number) => (
-                                          <div key={fi} className="text-[9px] text-amber-300/80 flex items-start gap-1">
-                                            <Zap className="h-2.5 w-2.5 mt-0.5 shrink-0" />
-                                            <span className="break-all">{f}</span>
-                                          </div>
-                                        ))}
+                                        {tr.findings.slice(0, 5).map((f: any, fi: number) => {
+                                          const fStr = typeof f === 'string' ? f : (f?.title || JSON.stringify(f));
+                                          return (
+                                            <div key={fi} className="text-[9px] text-amber-300/80 flex items-start gap-1">
+                                              <Zap className="h-2.5 w-2.5 mt-0.5 shrink-0" />
+                                              <span className="break-all">{fStr}</span>
+                                            </div>
+                                          );
+                                        })}
                                         {tr.findings.length > 5 && <p className="text-[9px] text-muted-foreground">+{tr.findings.length - 5} more findings</p>}
                                       </div>
                                     )}

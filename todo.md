@@ -6988,3 +6988,10 @@
 - [x] Diagnose root cause — toolResults.findings are objects {severity,title,cve} but code called .includes() treating them as strings
 - [x] Implement fix — added typeof guard: `const fStr = typeof f === 'string' ? f : (f?.title || '')` before .includes() calls
 - [x] Verify fix with tests — 43 tests pass
+
+## Fix: Active Scan Pipeline — Three Issues
+- [x] Nmap port spec errors — LLM copies {naabu_ports}/{target} placeholders into flags; added regex to strip all {placeholder} patterns + updated LLM prompt to not use placeholders in examples
+- [x] httpx 0 findings in live feed — replaced Naabu card with Nuclei card, added httpx findings count via reduce(), fixed object findings rendering with typeof guard
+- [x] Nuclei/credential testing not appearing — root cause was nmap Phase A failure (0 ports) cascading to skip all Phase B/vuln_detection tools; nmap placeholder fix unblocks entire pipeline
+- [x] Added placeholder stripping for activeTools commands ({target}, {host}, {ip}, {naabu} patterns)
+- [x] 30 pipeline tests + 21 hub tabs tests all passing
