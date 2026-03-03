@@ -7086,3 +7086,8 @@
 
 ## Bug Fix: Engagement Page Crash
 - [x] Fix TypeError: Cannot read properties of undefined (reading 'length') when accessing engagement page — added defensive null checks in frontend ops useMemo for log/assets/approvalGates/stats arrays
+
+## Bug Fix: Production Engagement Page Crash (INC-MMB41KB3-D8WNXK)
+- [x] Fix all remaining .length accesses on undefined arrays in EngagementOps.tsx (production crash persists)
+- [x] Audit all .map, .filter, .find, .forEach calls on potentially undefined arrays
+- [x] Save checkpoint and publish to production

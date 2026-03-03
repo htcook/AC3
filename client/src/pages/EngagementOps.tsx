@@ -345,7 +345,7 @@ export default function EngagementOps() {
   const [showScanPlan, setShowScanPlan] = useState(false);
   const generatePlanMut = trpc.engagementOps.generateScanPlan.useMutation({
     onSuccess: (data) => {
-      toast.success(`Scan Plan Generated — ${data.scanPlan.assetPlans.length} assets analyzed`);
+      toast.success(`Scan Plan Generated — ${data?.scanPlan?.assetPlans?.length || 0} assets analyzed`);
       setShowScanPlan(true);
       opsStateQ.refetch();
     },
@@ -824,7 +824,7 @@ export default function EngagementOps() {
               <div>
                 <div className="flex items-center gap-2 text-cyan-400 text-sm font-medium">
                   <CheckCircle2 className="h-4 w-4" />
-                  Passive Discovery Complete — {ops.assets.length} Assets Found
+                  Passive Discovery Complete — {ops?.assets?.length || 0} Assets Found
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {ops.scanPlan
@@ -950,10 +950,10 @@ export default function EngagementOps() {
                   <FileText className="h-4 w-4" />
                   LLM Scan Plan
                   <Badge variant="outline" className="text-xs text-green-400 border-green-500/30 ml-2">
-                    {ops.scanPlan.assetPlans.length} assets
+                    {ops?.scanPlan?.assetPlans?.length || 0} assets
                   </Badge>
                   <Badge variant="outline" className="text-xs text-muted-foreground border-border ml-1">
-                    Est. {ops.scanPlan.estimatedDuration}
+                    Est. {ops?.scanPlan?.estimatedDuration || 'N/A'}
                   </Badge>
                 </div>
                 <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowScanPlan(!showScanPlan)}>
@@ -961,15 +961,15 @@ export default function EngagementOps() {
                 </Button>
               </div>
 
-              <p className="text-xs text-muted-foreground">{ops.scanPlan.overallStrategy}</p>
+              <p className="text-xs text-muted-foreground">{ops?.scanPlan?.overallStrategy || ''}</p>
               <p className="text-xs text-yellow-400/80">
                 <AlertTriangle className="h-3 w-3 inline mr-1" />
-                {ops.scanPlan.riskAssessment}
+                {ops?.scanPlan?.riskAssessment || ''}
               </p>
 
               {showScanPlan && (
                 <div className="space-y-3 mt-2">
-                  {ops.scanPlan.assetPlans.map((ap, i) => (
+                  {(ops?.scanPlan?.assetPlans || []).map((ap, i) => (
                     <div key={i} className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -993,9 +993,9 @@ export default function EngagementOps() {
 
                       {/* Active tools */}
                       <div className="mb-2">
-                        <div className="text-xs text-orange-400 font-medium mb-1">Active Tools ({ap.activeTools.length}):</div>
+                        <div className="text-xs text-orange-400 font-medium mb-1">Active Tools ({ap.activeTools?.length || 0}):</div>
                         <div className="space-y-1">
-                          {ap.activeTools.map((t, j) => (
+                          {(ap.activeTools || []).map((t, j) => (
                             <div key={j} className="flex items-start gap-2 text-xs">
                               <Badge variant="outline" className={`text-[10px] flex-none ${
                                 t.priority === 1 ? "border-red-500/30 text-red-400" :
@@ -1107,7 +1107,7 @@ export default function EngagementOps() {
             <TabsContent value="feed" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <ScrollArea className="h-full">
                 <div className="space-y-1 py-3">
-                  {(!ops || ops.log.length === 0) && (
+                  {(!ops || !ops.log || ops.log.length === 0) && (
                     <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                       <Crosshair className="h-12 w-12 mb-4 opacity-20" />
                       <p className="text-sm font-medium mb-2">Ready to Begin</p>
@@ -1122,7 +1122,7 @@ export default function EngagementOps() {
                       )}
                     </div>
                   )}
-                  {ops?.log.map(entry => (
+                  {(ops?.log || []).map(entry => (
                     <div
                       key={entry.id}
                       className={`flex items-start gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
@@ -1170,13 +1170,13 @@ export default function EngagementOps() {
                 {/* Asset List */}
                 <ScrollArea className="w-1/2 border border-border/30 rounded-lg">
                   <div className="p-2 space-y-1">
-                    {(!ops || ops.assets.length === 0) && (
+                    {(!ops || !ops.assets || ops.assets.length === 0) && (
                       <div className="text-center py-10">
                         <p className="text-sm text-muted-foreground">No assets discovered yet</p>
                         <p className="text-xs text-muted-foreground mt-1">Add targets and run passive discovery</p>
                       </div>
                     )}
-                    {ops?.assets.map(asset => (
+                    {(ops?.assets || []).map(asset => (
                       <button
                         key={asset.hostname}
                         onClick={() => setSelectedAsset(asset.hostname)}
@@ -1190,11 +1190,11 @@ export default function EngagementOps() {
                           {assetStatusBadge(asset.status)}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
-                          <span>{asset.ports.length} ports</span>
-                          <span>{asset.vulns.length} vulns</span>
+                          <span>{(asset.ports || []).length} ports</span>
+                          <span>{(asset.vulns || []).length} vulns</span>
                           {asset.toolResults?.length > 0 && <span className="text-emerald-400">{asset.toolResults.length} tools</span>}
                           {asset.passiveRecon && <span className="text-indigo-400">OSINT</span>}
-                          {asset.zapFindings.length > 0 && <span className="text-blue-400">{asset.zapFindings.length} ZAP</span>}
+                          {(asset.zapFindings || []).length > 0 && <span className="text-blue-400">{asset.zapFindings.length} ZAP</span>}
                           {asset.wafDetected && (
                             <span className="text-orange-400">WAF: {asset.wafDetected}</span>
                           )}
@@ -1221,11 +1221,11 @@ export default function EngagementOps() {
                       )}
 
                       {/* Ports */}
-                      {selectedAssetData.ports.length > 0 && (
+                      {(selectedAssetData.ports || []).length > 0 && (
                         <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Open Ports ({selectedAssetData.ports.length})</h4>
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Open Ports ({(selectedAssetData.ports || []).length})</h4>
                           <div className="space-y-0.5">
-                            {selectedAssetData.ports.map((p, i) => (
+                            {(selectedAssetData.ports || []).map((p, i) => (
                               <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
                                 <span className="font-mono text-cyan-400 w-12">{p.port}</span>
                                 <span className="text-foreground">{p.service}</span>
@@ -1237,11 +1237,11 @@ export default function EngagementOps() {
                       )}
 
                       {/* Vulns */}
-                      {selectedAssetData.vulns.length > 0 && (
+                      {(selectedAssetData.vulns || []).length > 0 && (
                         <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Vulnerabilities ({selectedAssetData.vulns.length})</h4>
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Vulnerabilities ({(selectedAssetData.vulns || []).length})</h4>
                           <div className="space-y-0.5">
-                            {selectedAssetData.vulns.map((v, i) => (
+                            {(selectedAssetData.vulns || []).map((v, i) => (
                               <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
                                 <Badge variant="outline" className={`text-[9px] ${
                                   v.severity === "critical" ? "text-red-400 border-red-500/30" :
@@ -1258,11 +1258,11 @@ export default function EngagementOps() {
                       )}
 
                       {/* ZAP Findings */}
-                      {selectedAssetData.zapFindings.length > 0 && (
+                      {(selectedAssetData.zapFindings || []).length > 0 && (
                         <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">ZAP Web App Findings ({selectedAssetData.zapFindings.length})</h4>
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">ZAP Web App Findings ({(selectedAssetData.zapFindings || []).length})</h4>
                           <div className="space-y-0.5">
-                            {selectedAssetData.zapFindings.map((f, i) => (
+                            {(selectedAssetData.zapFindings || []).map((f, i) => (
                               <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
                                 <Badge variant="outline" className={`text-[9px] ${
                                   f.risk === "High" ? "text-red-400 border-red-500/30" :
@@ -1284,11 +1284,11 @@ export default function EngagementOps() {
                           </h4>
 
                           {/* Technologies */}
-                          {selectedAssetData.passiveRecon.technologies.length > 0 && (
+                          {(selectedAssetData.passiveRecon?.technologies || []).length > 0 && (
                             <div className="mb-2">
                               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Tech Stack</span>
                               <div className="flex flex-wrap gap-1 mt-0.5">
-                                {selectedAssetData.passiveRecon.technologies.map((t, i) => (
+                                {(selectedAssetData.passiveRecon?.technologies || []).map((t, i) => (
                                   <Badge key={i} variant="outline" className="text-[9px] text-indigo-300 border-indigo-500/30">{t}</Badge>
                                 ))}
                               </div>
@@ -1304,11 +1304,11 @@ export default function EngagementOps() {
                           )}
 
                           {/* Services from passive recon */}
-                          {selectedAssetData.passiveRecon.services.length > 0 && (
+                          {(selectedAssetData.passiveRecon?.services || []).length > 0 && (
                             <div className="mb-2">
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Passive Services ({selectedAssetData.passiveRecon.services.length})</span>
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Passive Services ({(selectedAssetData.passiveRecon?.services || []).length})</span>
                               <div className="space-y-0.5 mt-0.5">
-                                {selectedAssetData.passiveRecon.services.slice(0, 10).map((s, i) => (
+                                {(selectedAssetData.passiveRecon?.services || []).slice(0, 10).map((s, i) => (
                                   <div key={i} className="flex items-center gap-2 text-[10px] px-2 py-0.5 bg-indigo-500/5 rounded">
                                     <span className="font-mono text-indigo-400 w-10">{s.port}</span>
                                     <span className="text-foreground">{s.service}</span>
@@ -1321,11 +1321,11 @@ export default function EngagementOps() {
                           )}
 
                           {/* Certificates */}
-                          {selectedAssetData.passiveRecon.certificates.length > 0 && (
+                          {(selectedAssetData.passiveRecon?.certificates || []).length > 0 && (
                             <div className="mb-2">
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Certificates ({selectedAssetData.passiveRecon.certificates.length})</span>
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Certificates ({(selectedAssetData.passiveRecon?.certificates || []).length})</span>
                               <div className="space-y-0.5 mt-0.5">
-                                {selectedAssetData.passiveRecon.certificates.slice(0, 5).map((c, i) => (
+                                {(selectedAssetData.passiveRecon?.certificates || []).slice(0, 5).map((c, i) => (
                                   <div key={i} className="text-[10px] px-2 py-0.5 bg-indigo-500/5 rounded">
                                     <span className="text-foreground">{c.subject}</span>
                                     <span className="text-muted-foreground"> — {c.issuer}</span>
@@ -1337,26 +1337,26 @@ export default function EngagementOps() {
                           )}
 
                           {/* Subdomains */}
-                          {selectedAssetData.passiveRecon.subdomains.length > 0 && (
+                          {(selectedAssetData.passiveRecon?.subdomains || []).length > 0 && (
                             <div className="mb-2">
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Subdomains ({selectedAssetData.passiveRecon.subdomains.length})</span>
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Subdomains ({(selectedAssetData.passiveRecon?.subdomains || []).length})</span>
                               <div className="flex flex-wrap gap-1 mt-0.5">
-                                {selectedAssetData.passiveRecon.subdomains.slice(0, 20).map((s, i) => (
+                                {(selectedAssetData.passiveRecon?.subdomains || []).slice(0, 20).map((s, i) => (
                                   <Badge key={i} variant="outline" className="text-[9px] text-cyan-300 border-cyan-500/30 font-mono">{s}</Badge>
                                 ))}
-                                {selectedAssetData.passiveRecon.subdomains.length > 20 && (
-                                  <Badge variant="outline" className="text-[9px] text-muted-foreground">+{selectedAssetData.passiveRecon.subdomains.length - 20} more</Badge>
+                                {(selectedAssetData.passiveRecon?.subdomains || []).length > 20 && (
+                                  <Badge variant="outline" className="text-[9px] text-muted-foreground">+{(selectedAssetData.passiveRecon?.subdomains || []).length - 20} more</Badge>
                                 )}
                               </div>
                             </div>
                           )}
 
                           {/* Risk Signals */}
-                          {selectedAssetData.passiveRecon.riskSignals.length > 0 && (
+                          {(selectedAssetData.passiveRecon?.riskSignals || []).length > 0 && (
                             <div className="mb-2">
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk Signals ({selectedAssetData.passiveRecon.riskSignals.length})</span>
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk Signals ({(selectedAssetData.passiveRecon?.riskSignals || []).length})</span>
                               <div className="space-y-0.5 mt-0.5">
-                                {selectedAssetData.passiveRecon.riskSignals.map((r, i) => (
+                                {(selectedAssetData.passiveRecon?.riskSignals || []).map((r, i) => (
                                   <div key={i} className="flex items-center gap-2 text-[10px] px-2 py-0.5 bg-red-500/5 rounded">
                                     <Badge variant="outline" className={`text-[8px] ${
                                       r.severity === 'critical' ? 'text-red-400 border-red-500/30' :
@@ -1378,10 +1378,10 @@ export default function EngagementOps() {
                       {selectedAssetData.toolResults?.length > 0 && (
                         <div>
                           <h4 className="text-xs font-medium text-emerald-400 mb-2 flex items-center gap-1">
-                            <Terminal className="h-3 w-3" /> Tool Results ({selectedAssetData.toolResults.length})
+                            <Terminal className="h-3 w-3" /> Tool Results ({(selectedAssetData.toolResults || []).length})
                           </h4>
                           <div className="space-y-2">
-                            {selectedAssetData.toolResults.map((tr, i) => (
+                            {(selectedAssetData.toolResults || []).map((tr, i) => (
                               <div key={i} className="border border-border/20 rounded-md p-2 bg-muted/5">
                                 <div className="flex items-center gap-2 mb-1">
                                   <Badge variant="outline" className="text-[9px] text-emerald-300 border-emerald-500/30">{tr.tool}</Badge>
@@ -1400,9 +1400,9 @@ export default function EngagementOps() {
                                   <span className="text-[9px] text-muted-foreground ml-auto">{new Date(tr.executedAt).toLocaleTimeString()}</span>
                                 </div>
                                 <p className="text-[10px] text-muted-foreground font-mono truncate mb-1" title={tr.command}>{tr.command}</p>
-                                {tr.findings.length > 0 && (
-                                  <div className="space-y-0.5">
-                                    {tr.findings.slice(0, 8).map((f, fi) => (
+                               {(tr.findings || []).length > 0 && (
+                                   <div className="space-y-0.5">
+                                     {(tr.findings || []).slice(0, 8).map((f, fi) => (
                                       <div key={fi} className="flex items-center gap-1 text-[10px]">
                                         <Badge variant="outline" className={`text-[7px] px-1 ${
                                           f.severity === 'critical' ? 'text-red-400 border-red-500/30' :
@@ -1414,12 +1414,12 @@ export default function EngagementOps() {
                                         {f.cve && <span className="text-muted-foreground font-mono">{f.cve}</span>}
                                       </div>
                                     ))}
-                                    {tr.findings.length > 8 && (
-                                      <p className="text-[9px] text-muted-foreground">+{tr.findings.length - 8} more findings</p>
+{(tr.findings || []).length > 8 && (
+                                       <p className="text-[9px] text-muted-foreground">+{(tr.findings || []).length - 8} more findings</p>
                                     )}
                                   </div>
                                 )}
-                                {tr.findings.length === 0 && tr.outputPreview && (
+                                {(tr.findings || []).length === 0 && tr.outputPreview && (
                                   <pre className="text-[9px] text-muted-foreground/70 font-mono whitespace-pre-wrap max-h-20 overflow-hidden">{tr.outputPreview.slice(0, 300)}</pre>
                                 )}
                               </div>
@@ -1429,11 +1429,11 @@ export default function EngagementOps() {
                       )}
 
                       {/* Exploit Attempts */}
-                      {selectedAssetData.exploitAttempts.length > 0 && (
+                      {(selectedAssetData.exploitAttempts || []).length > 0 && (
                         <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Exploit Attempts ({selectedAssetData.exploitAttempts.length})</h4>
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Exploit Attempts ({(selectedAssetData.exploitAttempts || []).length})</h4>
                           <div className="space-y-0.5">
-                            {selectedAssetData.exploitAttempts.map((e, i) => (
+                            {(selectedAssetData.exploitAttempts || []).map((e, i) => (
                               <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
                                 {e.success ? <CheckCircle2 className="h-3 w-3 text-green-400" /> : <XCircle className="h-3 w-3 text-red-400" />}
                                 <span className="text-foreground">{e.module}</span>
@@ -1882,9 +1882,9 @@ export default function EngagementOps() {
                                         $ {tr.command}
                                       </div>
                                     )}
-                                    {tr.findings && tr.findings.length > 0 && (
+                                    {tr.findings && (tr.findings || []).length > 0 && (
                                       <div className="space-y-0.5">
-                                        {tr.findings.slice(0, 5).map((f: any, fi: number) => {
+                                        {(tr.findings || []).slice(0, 5).map((f: any, fi: number) => {
                                           const fStr = typeof f === 'string' ? f : (f?.title || JSON.stringify(f));
                                           return (
                                             <div key={fi} className="text-[9px] text-amber-300/80 flex items-start gap-1">
@@ -1893,7 +1893,7 @@ export default function EngagementOps() {
                                             </div>
                                           );
                                         })}
-                                        {tr.findings.length > 5 && <p className="text-[9px] text-muted-foreground">+{tr.findings.length - 5} more findings</p>}
+                                        {(tr.findings || []).length > 5 && <p className="text-[9px] text-muted-foreground">+{(tr.findings || []).length - 5} more findings</p>}
                                       </div>
                                     )}
                                   </div>
@@ -1914,7 +1914,7 @@ export default function EngagementOps() {
             <TabsContent value="exploits" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <ScrollArea className="h-full">
                 <div className="py-3 space-y-3">
-                  {(!exploitsQ.data || exploitsQ.data.exploits.length === 0) ? (
+                  {(!exploitsQ.data || !exploitsQ.data.exploits || exploitsQ.data.exploits.length === 0) ? (
                     <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                       <Swords className="h-12 w-12 mb-4 opacity-20" />
                       <p className="text-sm">No exploit matches yet</p>
@@ -1924,13 +1924,13 @@ export default function EngagementOps() {
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-foreground">
-                          {exploitsQ.data.exploits.length} Exploit Matches for {exploitsQ.data.totalVulns} Vulnerabilities
+                          {(exploitsQ.data?.exploits || []).length} Exploit Matches for {exploitsQ.data?.totalVulns || 0} Vulnerabilities
                         </h3>
                         <Badge variant="outline" className="text-[10px] text-muted-foreground">
                           MSF + ZAP + Exploitation Bridge
                         </Badge>
                       </div>
-                      {exploitsQ.data.exploits.map((match: any, idx: number) => (
+                      {(exploitsQ.data?.exploits || []).map((match: any, idx: number) => (
                         <Card key={idx} className="bg-card/50 border-border/30">
                           <CardContent className="p-4">
                             <div className="flex items-center gap-2 mb-2">
@@ -1961,13 +1961,13 @@ export default function EngagementOps() {
                               </div>
                             )}
 
-                            {match.msfModules.length > 0 && (
+                            {(match.msfModules || []).length > 0 && (
                               <div className="mb-2">
                                 <h5 className="text-[10px] font-medium text-red-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                   <Skull className="h-3 w-3" /> Metasploit Modules
                                 </h5>
                                 <div className="space-y-0.5">
-                                  {match.msfModules.map((mod: string, i: number) => (
+                                  {(match.msfModules || []).map((mod: string, i: number) => (
                                     <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-red-500/5 rounded border border-red-500/10">
                                       <Skull className="h-3 w-3 text-red-400" />
                                       <span className="font-mono text-foreground">{mod}</span>
@@ -1977,13 +1977,13 @@ export default function EngagementOps() {
                               </div>
                             )}
 
-                            {match.zapRules.length > 0 && (
+                            {(match.zapRules || []).length > 0 && (
                               <div>
                                 <h5 className="text-[10px] font-medium text-blue-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                   <Globe className="h-3 w-3" /> ZAP Active Scan Rules
                                 </h5>
                                 <div className="flex flex-wrap gap-1">
-                                  {match.zapRules.map((rule: string, i: number) => (
+                                  {(match.zapRules || []).map((rule: string, i: number) => (
                                     <Badge key={i} variant="outline" className="text-[9px] text-blue-400 border-blue-500/30">{rule}</Badge>
                                   ))}
                                 </div>
@@ -2084,14 +2084,14 @@ export default function EngagementOps() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-1">
-                        {ops?.log.filter(l => l.type === "approval_request" || l.type === "approval_response").map(entry => (
+                        {(ops?.log || []).filter(l => l.type === "approval_request" || l.type === "approval_response").map(entry => (
                           <div key={entry.id} className="flex items-center gap-2 text-xs px-2 py-1.5 bg-muted/10 rounded">
                             {logIcon(entry.type)}
                             <span className="text-foreground">{entry.title}</span>
                             <span className="text-muted-foreground ml-auto">{formatTime(entry.timestamp)}</span>
                           </div>
                         ))}
-                        {(!ops || ops.log.filter(l => l.type === "approval_request" || l.type === "approval_response").length === 0) && (
+                        {(!ops || !(ops.log || []).filter(l => l.type === "approval_request" || l.type === "approval_response").length) && (
                           <p className="text-xs text-muted-foreground text-center py-4">No scope enforcement events yet</p>
                         )}
                       </div>
@@ -2109,14 +2109,14 @@ export default function EngagementOps() {
 
           <div className="space-y-3">
             <StatCard icon={<Globe className="h-4 w-4 text-emerald-400" />} label="Assets Discovered" value={ops?.assets?.length || 0} />
-            <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats.hostsScanned || 0} />
-            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={ops?.stats.portsFound || 0} />
-            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={ops?.stats.vulnsFound || 0} />
-            <StatCard icon={<Globe className="h-4 w-4 text-blue-400" />} label="ZAP Scans" value={ops?.stats.zapScansRun || 0} />
-            <StatCard icon={<ShieldAlert className="h-4 w-4 text-orange-400" />} label="WAFs Detected" value={ops?.stats.wafDetections || 0} />
-            <StatCard icon={<Crosshair className="h-4 w-4 text-red-400" />} label="Exploits Tried" value={ops?.stats.exploitsAttempted || 0} />
-            <StatCard icon={<Skull className="h-4 w-4 text-red-500" />} label="Exploits OK" value={ops?.stats.exploitsSucceeded || 0} />
-            <StatCard icon={<Terminal className="h-4 w-4 text-green-400" />} label="Sessions" value={ops?.stats.sessionsOpened || 0} />
+            <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats?.hostsScanned || 0} />
+            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={ops?.stats?.portsFound || 0} />
+            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={ops?.stats?.vulnsFound || 0} />
+            <StatCard icon={<Globe className="h-4 w-4 text-blue-400" />} label="ZAP Scans" value={ops?.stats?.zapScansRun || 0} />
+            <StatCard icon={<ShieldAlert className="h-4 w-4 text-orange-400" />} label="WAFs Detected" value={ops?.stats?.wafDetections || 0} />
+            <StatCard icon={<Crosshair className="h-4 w-4 text-red-400" />} label="Exploits Tried" value={ops?.stats?.exploitsAttempted || 0} />
+            <StatCard icon={<Skull className="h-4 w-4 text-red-500" />} label="Exploits OK" value={ops?.stats?.exploitsSucceeded || 0} />
+            <StatCard icon={<Terminal className="h-4 w-4 text-green-400" />} label="Sessions" value={ops?.stats?.sessionsOpened || 0} />
           </div>
 
           <Separator />
@@ -2152,13 +2152,13 @@ export default function EngagementOps() {
           )}
 
           {/* Approval History */}
-          {ops && ops.approvalGates.length > 0 && (
+          {ops && (ops.approvalGates || []).length > 0 && (
             <>
               <Separator />
               <div>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Approvals</h3>
                 <div className="space-y-1">
-                  {ops.approvalGates.map(gate => (
+                  {(ops.approvalGates || []).map(gate => (
                     <div key={gate.id} className="flex items-center gap-1.5 text-[10px]">
                       {gate.status === "approved" ? <CheckCircle2 className="h-3 w-3 text-green-400" /> :
                        gate.status === "denied" ? <XCircle className="h-3 w-3 text-red-400" /> :
