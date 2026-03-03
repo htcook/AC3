@@ -1854,32 +1854,23 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
       // Fix LLM-generated httpx commands: convert -u single-URL mode to pipe mode
       if (cmd.tool === 'httpx') {
-        // Normalize: strip ALL 'httpx' keywords, strip any existing 'echo ... |' pipe prefix
-        // Fixed: handles LLM patterns like 'httpx echo URL | httpx flags' and 'echo URL | httpx echo | flags'
+        // Strip ALL occurrences of 'httpx' keyword first — we'll re-add it once in the pipe
         let httpxCmd = cmd.command.replace(/\bhttpx\b/g, '').trim();
-        // If LLM already included a pipe (echo URL | flags), extract URL and flags separately
-        const pipeMatch = httpxCmd.match(/^echo\s+(\S+)\s*\|\s*(.*)$/);
-        if (pipeMatch) {
-          const httpxUrl = pipeMatch[1];
-          const httpxFlags = pipeMatch[2].replace(/\becho\b/g, '').replace(/\|/g, '').trim();
+        const urlMatch = httpxCmd.match(/-u\s+(\S+)/);
+        if (urlMatch) {
+          const httpxUrl = urlMatch[1];
+          const httpxFlags = httpxCmd.replace(/-u\s+\S+/, '').trim();
           cmd.command = `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim();
         } else {
-          // No pipe — extract URL from -u flag or bare URL
-          const urlMatch = httpxCmd.match(/-u\s+(\S+)/);
-          if (urlMatch) {
-            const httpxUrl = urlMatch[1];
-            const httpxFlags = httpxCmd.replace(/-u\s+\S+/, '').trim();
+          // No -u flag — check if there's a bare URL in the command
+          const bareUrl = httpxCmd.match(/(https?:\/\/\S+)/);
+          if (bareUrl) {
+            const httpxUrl = bareUrl[1];
+            const httpxFlags = httpxCmd.replace(/(https?:\/\/\S+)/, '').trim();
             cmd.command = `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim();
           } else {
-            const bareUrl = httpxCmd.match(/(https?:\/\/\S+)/);
-            if (bareUrl) {
-              const httpxUrl = bareUrl[1];
-              const httpxFlags = httpxCmd.replace(/(https?:\/\/\S+)/, '').trim();
-              cmd.command = `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim();
-            } else {
-              // Fallback: just ensure 'httpx' prefix is clean
-              cmd.command = `httpx ${httpxCmd}`.replace(/\s+/g, ' ').trim();
-            }
+            // Fallback: just ensure 'httpx' prefix is clean
+            cmd.command = `httpx ${httpxCmd}`.replace(/\s+/g, ' ').trim();
           }
         }
       }

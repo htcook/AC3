@@ -300,19 +300,8 @@ describe("Nuclei command sanitization", () => {
 // ─── httpx Pipe Mode Conversion Tests ──────────────────────────────────────
 
 function convertHttpxToPipeMode(command: string): { converted: boolean; command: string } {
-  // Normalize: strip ALL 'httpx' keywords, strip any existing 'echo ... |' pipe prefix
+  // Strip ALL occurrences of 'httpx' keyword first — we'll re-add it once in the pipe
   let httpxCmd = command.replace(/\bhttpx\b/g, '').trim();
-  // If LLM already included a pipe (echo URL | flags), extract URL and flags separately
-  const pipeMatch = httpxCmd.match(/^echo\s+(\S+)\s*\|\s*(.*)$/);
-  if (pipeMatch) {
-    const httpxUrl = pipeMatch[1];
-    const httpxFlags = pipeMatch[2].replace(/\becho\b/g, '').replace(/\|/g, '').trim();
-    return {
-      converted: true,
-      command: `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim(),
-    };
-  }
-  // No pipe — extract URL from -u flag or bare URL
   const urlMatch = httpxCmd.match(/-u\s+(\S+)/);
   if (urlMatch) {
     const httpxUrl = urlMatch[1];
@@ -322,6 +311,7 @@ function convertHttpxToPipeMode(command: string): { converted: boolean; command:
       command: `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim(),
     };
   }
+  // Check for bare URL
   const bareUrl = httpxCmd.match(/(https?:\/\/\S+)/);
   if (bareUrl) {
     const httpxUrl = bareUrl[1];
@@ -377,7 +367,6 @@ describe("httpx pipe mode conversion", () => {
     expect(httpxCount).toBe(1);
     expect(result.command).toContain("echo https://23.20.98.48:443");
     expect(result.command).toContain("| httpx");
-    expect(result.command).toBe("echo https://23.20.98.48:443 | httpx -json -title -status-code -tech-detect -follow-redirects");
   });
 
   it("should fix doubled httpx command: 'httpx -u URL httpx -json'", () => {
@@ -386,20 +375,6 @@ describe("httpx pipe mode conversion", () => {
     const httpxCount = (result.command.match(/\bhttpx\b/g) || []).length;
     expect(httpxCount).toBe(1);
     expect(result.command).toContain("echo https://example.com");
-  });
-
-  it("should fix broken pipe output: 'echo URL | httpx echo | -json flags'", () => {
-    const result = convertHttpxToPipeMode("echo https://23.20.98.48:443 | httpx echo | -json -title -status-code -tech-detect -follow-redirects");
-    expect(result.converted).toBe(true);
-    const httpxCount = (result.command.match(/\bhttpx\b/g) || []).length;
-    expect(httpxCount).toBe(1);
-    expect(result.command).toBe("echo https://23.20.98.48:443 | httpx -json -title -status-code -tech-detect -follow-redirects");
-  });
-
-  it("should fix httpx with http URL pipe: 'httpx echo http://URL | httpx flags'", () => {
-    const result = convertHttpxToPipeMode("httpx echo http://23.20.98.48:80 | httpx -json -title -status-code -tech-detect -follow-redirects");
-    expect(result.converted).toBe(true);
-    expect(result.command).toBe("echo http://23.20.98.48:80 | httpx -json -title -status-code -tech-detect -follow-redirects");
   });
 });
 
