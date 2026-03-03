@@ -373,7 +373,7 @@ export function suggestToolCommands(asset: {
 
       commands.push({
         tool: "httpx",
-        args: `-u ${url} -json -title -status-code -tech-detect -follow-redirects`,
+        args: `echo ${url} | httpx -json -title -status-code -tech-detect -follow-redirects`,
         purpose: `HTTP probe and tech detection on ${url}`,
         priority: 1,
       });

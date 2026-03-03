@@ -558,10 +558,10 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
 
   const availableTools = [
     { name: 'nmap', desc: 'Port scanner and service fingerprinter', flags: ['-sV (version detection)', '-sC (default scripts)', '-sU (UDP scan)', '-O (OS detection)', '--script vuln (vuln scripts)', '-T4 (aggressive timing)', '-T2 (polite timing)', '-Pn (skip host discovery)', '-p- (all ports)', '--top-ports N'] },
-    { name: 'nuclei', desc: 'Template-based vulnerability scanner (v3.7.0, 9800+ templates). IMPORTANT FLAGS: always use -nc -duc -ni -jsonl for reliable execution', use: 'web apps, known CVEs, misconfigurations' },
-    { name: 'nikto', desc: 'Web server scanner for dangerous files/CGIs', use: 'web servers' },
+    { name: 'nuclei', desc: 'Template-based vulnerability scanner (v3.7.0, 9800+ templates). CRITICAL: always use -u URL (NOT -target), always include -severity critical,high,medium to filter templates, always use -nc -duc -ni -jsonl flags. Example: nuclei -u https://target:443 -severity critical,high,medium -tags nginx -jsonl -nc -duc -ni -timeout 10 -retries 1', use: 'web apps, known CVEs, misconfigurations' },
+    { name: 'nikto', desc: 'Web server scanner for dangerous files/CGIs. Use -h URL format. Example: nikto -h https://target:443 -Tuning 1234567890 -maxtime 300', use: 'web servers' },
     { name: 'gobuster', desc: 'Directory/file brute-forcer', use: 'web apps to find hidden paths' },
-    { name: 'httpx', desc: 'HTTP probe, tech fingerprinter, and web asset enumerator', flags: ['-json (JSON output)', '-tech-detect', '-status-code', '-title', '-cdn', '-tls-grab', '-follow-redirects', '-content-length', '-web-server', '-method GET', '-threads 50', '-ports 80,443,8080,8443', '-probe', '-silent'], use: 'mandatory HTTP probing after port discovery — detects tech stack, CDN/WAF, TLS, status codes, web server' },
+    { name: 'httpx', desc: 'HTTP probe, tech fingerprinter, and web asset enumerator. CRITICAL: use pipe mode (echo URL | httpx flags) NOT -u flag. Example: echo https://target:443 | httpx -json -tech-detect -status-code -title -follow-redirects', flags: ['-json (JSON output)', '-tech-detect', '-status-code', '-title', '-cdn', '-tls-grab', '-follow-redirects', '-content-length', '-web-server', '-method GET', '-threads 50', '-ports 80,443,8080,8443', '-probe', '-silent'], use: 'mandatory HTTP probing after port discovery — detects tech stack, CDN/WAF, TLS, status codes, web server' },
     { name: 'hydra', desc: 'Credential brute-forcer', use: 'SSH, FTP, RDP, MySQL, HTTP-auth, SMB logins' },
     { name: 'enum4linux', desc: 'SMB/NetBIOS enumerator', use: 'Windows/Samba hosts' },
     { name: 'smbclient', desc: 'SMB share lister', use: 'Windows/Samba file shares' },
@@ -659,7 +659,7 @@ You MUST respond with valid JSON matching this exact schema:
       "activeTools": [
         {
           "tool": "tool name from available list",
-          "command": "exact command with the ACTUAL hostname/IP from the asset list (NOT a placeholder)",
+          "command": "exact command with the ACTUAL hostname/IP. CRITICAL FORMAT RULES: nuclei MUST use '-u URL' format with -severity filter (e.g. 'nuclei -u https://target:443 -severity critical,high,medium -tags nginx -jsonl -nc -duc -ni -timeout 10 -retries 1'). httpx MUST use pipe mode (e.g. 'echo https://target:443 | httpx -json -tech-detect -status-code -title -follow-redirects'). nikto uses -h URL (e.g. 'nikto -h https://target:443 -Tuning 1234567890 -maxtime 300')",
           "rationale": "Why this tool for this asset based on passive recon data",
           "priority": 1
         }
@@ -1052,17 +1052,42 @@ function parseToolOutput(
       break;
     }
     case "nikto": {
-      // Nikto text output: look for OSVDB, CVE, and vulnerability lines
+      // Nikto text output: parse all finding lines (start with "+")
+      // Nikto findings include: OSVDB, CVE, missing headers, misconfigurations, info leaks
+      const niktoSkipPatterns = [
+        /^\+ Target IP:/i,
+        /^\+ Target Hostname:/i,
+        /^\+ Target Port:/i,
+        /^\+ Start Time:/i,
+        /^\+ End Time:/i,
+        /^\+ Server:/i,
+        /^\+ \d+ host\(s\) tested/i,
+        /^\+ \d+ items? checked/i,
+        /^\+ No CGI Directories found/i,
+        /^\+ ERROR:/i,
+      ];
       for (const line of stdout.split("\n")) {
         const trimmed = line.trim();
-        if (trimmed.startsWith("+") && (trimmed.includes("OSVDB") || trimmed.includes("CVE-") || trimmed.includes("vulnerability"))) {
-          const cve = trimmed.match(/CVE-\d{4}-\d+/)?.[0];
-          findings.push({
-            severity: cve ? "high" : "medium",
-            title: `[Nikto] ${trimmed.slice(2, 120)}`,
-            cve,
-          });
-        }
+        if (!trimmed.startsWith("+")) continue;
+        // Skip informational/meta lines
+        if (niktoSkipPatterns.some(p => p.test(trimmed))) continue;
+
+        const cve = trimmed.match(/CVE-\d{4}-\d+/)?.[0];
+        const osvdb = trimmed.match(/OSVDB-\d+/)?.[0];
+        // Determine severity based on content
+        let severity = "info";
+        if (cve) severity = "high";
+        else if (osvdb) severity = "medium";
+        else if (/is not present|not set|is not defined|header.*missing|missing.*header/i.test(trimmed)) severity = "low";
+        else if (/directory indexing|listing|backup|config/i.test(trimmed)) severity = "medium";
+        else if (/injection|xss|rfi|lfi|traversal|upload/i.test(trimmed)) severity = "high";
+        else if (/default|sample|test|example/i.test(trimmed)) severity = "low";
+
+        findings.push({
+          severity,
+          title: `[Nikto] ${trimmed.slice(2, 150).trim()}`,
+          cve,
+        });
       }
       break;
     }
@@ -1785,6 +1810,72 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         return true;
       });
     for (const cmd of highPriorityCmds) {
+      // ── Phase B command sanitization ──────────────────────────────────
+      // Fix LLM-generated nuclei commands: ensure -u URL format with severity/tag filters
+      if (cmd.tool === 'nuclei') {
+        let nucleiCmd = cmd.command;
+        // Extract target from the command
+        const targetMatch = nucleiCmd.match(/-(?:target|u)\s+(\S+)/) || nucleiCmd.match(/(https?:\/\/\S+)/);
+        let nucleiTarget = targetMatch?.[1] || asset.ip || asset.hostname;
+        // Ensure target is a URL for web assets
+        if (nucleiTarget && !nucleiTarget.startsWith('http')) {
+          const webPorts = asset.ports.filter(p =>
+            ['http', 'https', 'http-proxy', 'http-alt'].includes(p.service) ||
+            [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+          );
+          if (webPorts.length > 0) {
+            const scheme = webPorts[0].port === 443 || webPorts[0].port === 8443 ? 'https' : 'http';
+            nucleiTarget = `${scheme}://${nucleiTarget}:${webPorts[0].port}`;
+          }
+        }
+        // Replace -target with -u and ensure severity filter exists
+        nucleiCmd = nucleiCmd.replace(/-target\s+\S+/g, '').replace(/-u\s+\S+/g, '').trim();
+        if (!nucleiCmd.includes('-severity')) nucleiCmd += ' -severity critical,high,medium';
+        if (!nucleiCmd.includes('-jsonl')) nucleiCmd += ' -jsonl';
+        if (!nucleiCmd.includes('-nc')) nucleiCmd += ' -nc';
+        if (!nucleiCmd.includes('-duc')) nucleiCmd += ' -duc';
+        if (!nucleiCmd.includes('-ni')) nucleiCmd += ' -ni';
+        if (!nucleiCmd.includes('-timeout')) nucleiCmd += ' -timeout 10';
+        if (!nucleiCmd.includes('-retries')) nucleiCmd += ' -retries 1';
+        // Build tech-targeted tags if available
+        const detectedTechs = asset.passiveRecon?.technologies || [];
+        const techLower = detectedTechs.map((t: string) => t.toLowerCase());
+        const techTags: string[] = [];
+        if (techLower.some((t: string) => t.includes('wordpress'))) techTags.push('wordpress');
+        if (techLower.some((t: string) => t.includes('nginx'))) techTags.push('nginx');
+        if (techLower.some((t: string) => t.includes('apache'))) techTags.push('apache');
+        if (techLower.some((t: string) => t.includes('php'))) techTags.push('php');
+        if (techLower.some((t: string) => t.includes('node') || t.includes('next'))) techTags.push('nodejs');
+        if (techLower.some((t: string) => t.includes('cloudfront') || t.includes('aws'))) techTags.push('aws');
+        if (!nucleiCmd.includes('-tags') && techTags.length > 0) nucleiCmd += ` -tags ${techTags.join(',')}`;
+        cmd.command = `nuclei -u ${nucleiTarget} ${nucleiCmd}`.replace(/\s+/g, ' ').trim();
+        addLog(state, {
+          phase: 'enumeration', type: 'info',
+          title: `Nuclei command sanitized`,
+          detail: `Ensured -u URL format with severity/tag filters: ${cmd.command.slice(0, 150)}`,
+        });
+      }
+
+      // Fix LLM-generated httpx commands: convert -u single-URL mode to pipe mode
+      if (cmd.tool === 'httpx') {
+        const urlMatch = cmd.command.match(/-u\s+(\S+)/);
+        if (urlMatch) {
+          const httpxUrl = urlMatch[1];
+          const httpxFlags = cmd.command
+            .replace(/^httpx\s*/, '')
+            .replace(/-u\s+\S+/, '')
+            .trim();
+          // Convert to pipe mode which is more reliable
+          cmd.command = `echo ${httpxUrl} | httpx ${httpxFlags}`.replace(/\s+/g, ' ').trim();
+          // httpx pipe mode needs executeRawCommand, not executeTool
+          addLog(state, {
+            phase: 'enumeration', type: 'info',
+            title: `httpx command converted to pipe mode`,
+            detail: `Pipe mode is more reliable than -u flag: ${cmd.command.slice(0, 150)}`,
+          });
+        }
+      }
+
       addLog(state, {
         phase: "enumeration", type: "scan_start",
         title: `Running: ${cmd.tool}`,
@@ -1793,17 +1884,30 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       });
 
       try {
-        const cmdArgs = cmd.command.startsWith(cmd.tool)
-          ? cmd.command.slice(cmd.tool.length).trim()
-          : cmd.command;
-        const startTime = Date.now();
-        const result = await executeTool({
-          tool: cmd.tool,
-          args: cmdArgs,
-          timeoutSeconds: 180,
-          engagementId: state.engagementId,
-        });
-        const durationMs = Date.now() - startTime;
+        // Determine timeout: nuclei gets 300s, others get 180s
+        const toolTimeout = cmd.tool === 'nuclei' ? 300 : 180;
+
+        let result: any;
+        // httpx pipe commands need executeRawCommand
+        if (cmd.tool === 'httpx' && cmd.command.includes('echo ')) {
+          const { executeRawCommand } = await import("./scan-server-executor");
+          const startTimeRaw = Date.now();
+          result = await executeRawCommand(cmd.command + ' 2>&1', toolTimeout);
+          result.durationMs = Date.now() - startTimeRaw;
+        } else {
+          const cmdArgs = cmd.command.startsWith(cmd.tool)
+            ? cmd.command.slice(cmd.tool.length).trim()
+            : cmd.command;
+          const startTime = Date.now();
+          result = await executeTool({
+            tool: cmd.tool,
+            args: cmdArgs,
+            timeoutSeconds: toolTimeout,
+            engagementId: state.engagementId,
+          });
+          if (!result.durationMs) result.durationMs = Date.now() - startTime;
+        }
+        const durationMs = result.durationMs;
 
         // Parse tool output for findings
         const findings = parseToolOutput(cmd.tool, result.stdout, asset);

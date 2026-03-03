@@ -7030,3 +7030,14 @@
 - [x] Deleted scan_signals (128 rows), scan_risk_cards (111 rows), validation_results (20 rows)
 - [x] Deleted error_incidents (81 old crash reports)
 - [x] Preserved engagement record, osint_findings (6), domain_recon (3)
+
+## Fix: Nuclei/httpx Timeouts and Nikto Execution
+- [x] Fix Phase B nuclei: uses -target (not -u), no severity/tags filter → loads ALL 9800+ templates → timeout — added command sanitization that converts -target to -u URL, adds -severity filter, -jsonl/-nc/-duc/-ni flags, and tech-targeted -tags
+- [x] Fix Phase B httpx: uses -u single-URL mode which hangs → must use echo pipe mode — added automatic conversion of -u to pipe mode, uses executeRawCommand for pipe commands
+- [x] Fix Phase B nuclei timeout: 180s too short → increase to 300s — nuclei now gets 300s, other tools keep 180s
+- [x] Fix Nikto output parsing: ran successfully (exit 0) but reported 0 findings — expanded parser to catch all finding lines (missing headers, misconfigs, etc.), not just OSVDB/CVE/vulnerability
+- [x] Fix vuln_detection nuclei timeout: already set to 600s in executeVulnDetection — confirmed adequate
+- [x] Updated LLM prompt with correct nuclei/httpx/nikto command format examples
+- [x] Updated suggestToolCommands httpx fallback to use pipe mode
+- [x] 34 new Phase B fix tests + 42 pipeline + 27 audit tests all passing
+- [ ] Monitor current engagement for LLM and tool errors
