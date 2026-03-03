@@ -1,0 +1,30 @@
+{
+  "query": "SELECT * FROM error_incidents WHERE incidentId = 'INC-MM9XT4QX-XEITJ6' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT * FROM error_incidents WHERE incidentId = 'INC-MM9XT4QX-XEITJ6' LIMIT 5;",
+  "rows": [],
+  "messages": [
+    "150003\tINC-MM9XT4QX-XEITJ6\tPage\tTypeError\td.includes is not a function\tTypeError: d.includes is not a function",
+    "    at https://dashboard.aceofcloud.io/assets/EngagementOps-kTaGFEL2.js:4:38961",
+    "    at pt (https://dashboard.aceofcloud.io/assets/EngagementOps-kTaGFEL2.js:4:60966)",
+    "    at Qc (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:47992)",
+    "    at ff (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:70753)",
+    "    at wr (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:80875)",
+    "    at dd (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:116841)",
+    "    at sh (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:115887)",
+    "    at Nf (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:115719)",
+    "    at id (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:112519)",
+    "    at Od (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:124420)\t",
+    "    at pt (https://dashboard.aceofcloud.io/assets/EngagementOps-kTaGFEL2.js:1:6902)",
+    "    at Un (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:10:7046)",
+    "    at Ht (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:23:4879)",
+    "    at h (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:23:32583)",
+    "    at p (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:10:3409)",
+    "    at xa (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:10:4207)",
+    "    at Suspense (<anonymous>)",
+    "    at Vu (<anonymous>)",
+    "    at d (https://dashboard.aceofcloud.io/assets/vendor-radix-C-5f4w1b.js:1:1151)\thttps://dashboard.aceofcloud.io/engagement-ops/1350014\tMozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36\t2026-03-03T01:36:43.594Z\t1536\t730\t1772501804831"
+  ],
+  "stdout": "id\tincidentId\tscope\terrorName\terrorMessage\terrorStack\tcomponentStack\turl\tuserAgent\ttimestamp\tviewportWidth\tviewportHeight\tcreatedAt\n150003\tINC-MM9XT4QX-XEITJ6\tPage\tTypeError\td.includes is not a function\tTypeError: d.includes is not a function\n    at https://dashboard.aceofcloud.io/assets/EngagementOps-kTaGFEL2.js:4:38961\n    at pt (https://dashboard.aceofcloud.io/assets/EngagementOps-kTaGFEL2.js:4:60966)\n    at Qc (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:47992)\n    at ff (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:70753)\n    at wr (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:80875)\n    at dd (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:116841)\n    at sh (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:115887)\n    at Nf (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:115719)\n    at id (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:112519)\n    at Od (https://dashboard.aceofcloud.io/assets/vendor-react-C_BUKeWh.js:32:124420)\t\n    at pt (https://dashboard.aceofcloud.io/assets/EngagementOps-kTaGFEL2.js:1:6902)\n    at Un (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:10:7046)\n    at Ht (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:23:4879)\n    at h (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:23:32583)\n    at p (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:10:3409)\n    at xa (https://dashboard.aceofcloud.io/assets/index-CsdjWaDP.js:10:4207)\n    at Suspense (<anonymous>)\n    at Vu (<anonymous>)\n    at d (https://dashboard.aceofcloud.io/assets/vendor-radix-C-5f4w1b.js:1:1151)\thttps://dashboard.aceofcloud.io/engagement-ops/1350014\tMozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36\t2026-03-03T01:36:43.594Z\t1536\t730\t1772501804831\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

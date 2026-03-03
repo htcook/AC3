@@ -6982,3 +6982,9 @@
 - [x] Fix regex from /-p[- ]\S*/g to /(?<=\s|^)-p[\s]*[\d,\-]+|-p-/g to catch all port spec variants
 - [x] Add Phase B port spec sanitization — replaces LLM port specs with actual discovered ports
 - [x] Add 7 unit tests for port spec regex covering all edge cases
+
+## Fix: Incident INC-MM9XT4QX-XEITJ6 — Active Scan Error
+- [x] Investigate incident details from database/logs — TypeError: d.includes is not a function in EngagementOps
+- [x] Diagnose root cause — toolResults.findings are objects {severity,title,cve} but code called .includes() treating them as strings
+- [x] Implement fix — added typeof guard: `const fStr = typeof f === 'string' ? f : (f?.title || '')` before .includes() calls
+- [x] Verify fix with tests — 43 tests pass

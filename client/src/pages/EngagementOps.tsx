@@ -1402,8 +1402,9 @@ export default function EngagementOps() {
                       for (const tr of (a.toolResults || [])) {
                         if (tr.tool === 'httpx' && tr.findings) {
                           for (const f of tr.findings) {
-                            if (f.includes('Tech:') || f.includes('tech:')) {
-                              const t = f.replace(/^.*[Tt]ech:\s*/, '').trim();
+                            const fStr = typeof f === 'string' ? f : (f?.title || '');
+                            if (fStr.includes('Tech:') || fStr.includes('tech:') || fStr.includes('Technology:')) {
+                              const t = fStr.replace(/^.*[Tt]ech(nology)?:\s*/, '').trim();
                               if (t) techs.push(t);
                             }
                           }
@@ -1448,8 +1449,9 @@ export default function EngagementOps() {
                       for (const tr of (a.toolResults || [])) {
                         if (tr.tool === 'httpx' && tr.findings) {
                           for (const f of tr.findings) {
-                            if (f.includes('CDN:') || f.includes('WAF:') || f.includes('cdn:') || f.includes('waf:')) {
-                              const val = f.replace(/^.*[CcWw][DdAa][NnFf]:\s*/, '').trim();
+                            const fStr = typeof f === 'string' ? f : (f?.title || '');
+                            if (fStr.includes('CDN:') || fStr.includes('WAF:') || fStr.includes('cdn:') || fStr.includes('waf:') || fStr.includes('CDN/WAF:')) {
+                              const val = fStr.replace(/^.*(?:[Cc][Dd][Nn]|[Ww][Aa][Ff]|CDN\/WAF):\s*/, '').trim();
                               if (val && val !== 'none' && val !== 'unknown') {
                                 if (!cdnWafMap.has(val)) cdnWafMap.set(val, new Set());
                                 cdnWafMap.get(val)!.add(a.hostname);
