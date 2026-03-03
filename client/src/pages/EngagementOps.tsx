@@ -1094,11 +1094,10 @@ export default function EngagementOps() {
                       >
                         <div className="flex items-center gap-2">
                           {assetIcon(asset.type)}
-                          <span className="text-sm font-medium text-foreground truncate">{asset.hostname}</span>
+                          <span className="text-sm font-medium text-foreground truncate">{asset.hostname}{asset.ip && asset.ip !== asset.hostname && <span className="text-muted-foreground text-xs ml-1">({asset.ip})</span>}</span>
                           {assetStatusBadge(asset.status)}
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
-                          {asset.ip && <span>IP: {asset.ip}</span>}
                           <span>{asset.ports.length} ports</span>
                           <span>{asset.vulns.length} vulns</span>
                           {asset.toolResults?.length > 0 && <span className="text-emerald-400">{asset.toolResults.length} tools</span>}
@@ -1119,12 +1118,9 @@ export default function EngagementOps() {
                     <div className="p-4 space-y-4">
                       <div className="flex items-center gap-2">
                         {assetIcon(selectedAssetData.type)}
-                        <h3 className="font-semibold text-foreground">{selectedAssetData.hostname}</h3>
+                        <h3 className="font-semibold text-foreground">{selectedAssetData.hostname}{selectedAssetData.ip && selectedAssetData.ip !== selectedAssetData.hostname && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedAssetData.ip})</span>}</h3>
                         {assetStatusBadge(selectedAssetData.status)}
                       </div>
-                      {selectedAssetData.ip && (
-                        <p className="text-xs text-muted-foreground">IP: {selectedAssetData.ip}</p>
-                      )}
                       {selectedAssetData.wafDetected && (
                         <div className="flex items-center gap-2 text-xs text-orange-400 bg-orange-500/10 rounded px-2 py-1">
                           <ShieldAlert className="h-3.5 w-3.5" />
@@ -1726,7 +1722,7 @@ export default function EngagementOps() {
                                         className="border-b border-border/10 hover:bg-muted/20 cursor-pointer transition-colors"
                                         onClick={() => { setActiveTab('assets'); setSelectedAsset(a.hostname); }}
                                       >
-                                        <td className="py-1.5 px-2 font-mono text-foreground">{a.hostname}</td>
+                                        <td className="py-1.5 px-2 font-mono text-foreground">{a.hostname}{a.ip && a.ip !== a.hostname && <span className="text-muted-foreground ml-1">({a.ip})</span>}</td>
                                         <td className="py-1.5 px-2 text-center">
                                           <span className={ports > 0 ? 'text-cyan-400' : 'text-muted-foreground'}>{ports}</span>
                                         </td>

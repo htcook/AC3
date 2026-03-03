@@ -3289,7 +3289,7 @@ export default function DomainIntelResults() {
                             <tr key={i} className={`hover:bg-muted/20 ${item.riskBand === 'critical' ? 'bg-red-500/5' : item.riskBand === 'high' ? 'bg-orange-500/5' : ''}`}>
                               <td className="px-3 py-2">
                                 <div>
-                                  <p className="font-mono text-xs font-medium">{item.hostname}</p>
+                                  <p className="font-mono text-xs font-medium">{item.hostname}{item.ip && item.ip !== item.hostname && <span className="text-muted-foreground font-normal ml-1">({item.ip})</span>}</p>
                                   {item.essentialService && (
                                     <p className="text-[10px] text-muted-foreground mt-0.5">{item.essentialService}</p>
                                   )}

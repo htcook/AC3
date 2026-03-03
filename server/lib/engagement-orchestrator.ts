@@ -111,6 +111,13 @@ export interface AssetStatus {
   }>;
 }
 
+/** Format target display: always show IP alongside hostname when available */
+function fmtTarget(asset: { hostname: string; ip?: string } | null, fallbackTarget?: string): string {
+  if (!asset) return fallbackTarget || 'unknown';
+  if (asset.ip && asset.ip !== asset.hostname) return `${asset.hostname} (${asset.ip})`;
+  return asset.hostname;
+}
+
 export interface AssetScanPlan {
   hostname: string;
   ip?: string;
@@ -562,7 +569,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     { name: 'dig', desc: 'DNS query tool', use: 'DNS servers, zone transfers' },
     { name: 'onesixtyone', desc: 'SNMP scanner', use: 'network devices with SNMP' },
     // naabu removed — raw socket issues on DigitalOcean; use nmap --top-ports for port discovery
-    { name: 'subfinder', desc: 'Subdomain discovery', use: 'finding additional subdomains' },
+    { name: 'subfinder', desc: 'Subdomain discovery (skip for scoped engagements — only use when doing broad domain discovery)', use: 'finding additional subdomains in unscoped/domain-intel mode' },
   ];
 
   const response = await invokeLLM({
@@ -612,7 +619,7 @@ After discovery results are merged, select specific tools per asset based on the
 - DNS → dig (zone transfer attempts)
 - SNMP → onesixtyone
 - Login services (SSH, FTP, RDP, MySQL) → hydra (only if approved)
-- Additional subdomains → subfinder
+- Additional subdomains → subfinder (ONLY for domain intelligence / unscoped discovery — skip for scoped engagements where targets are already defined)
 
 Available tools on the scan server:
 ${availableTools.map(t => `- ${t.name}: ${t.desc}${(t as any).use ? ` (best for: ${(t as any).use})` : ''}`).join('\n')}
@@ -804,7 +811,7 @@ You MUST respond with valid JSON matching this exact schema:
     addLog(state, {
       phase: state.phase,
       type: 'tool_match',
-      title: `🎯 ${ap.hostname}`,
+      title: `🎯 ${ap.hostname}${ap.ip && ap.ip !== ap.hostname ? ` (${ap.ip})` : ''}`,
       detail: `Phase A discovery: ${ap.discoveryNmapFlags}\n  Rationale: ${ap.discoveryNmapRationale}\nPhase B targeted: ${ap.nmapFlags}\n  Rationale: ${ap.nmapRationale}\nTools: ${ap.activeTools.map(t => t.tool).join(', ')}\nEvasion: ${ap.evasionTechniques.join(', ')}\nRisk: ${ap.riskNotes}`,
       data: { assetPlan: ap },
     });
@@ -1239,14 +1246,14 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
         addLog(state, {
           phase: 'enumeration', type: 'scan_start',
-          title: `🔒 nmap: ${target}`,
+          title: `🔒 nmap: ${fmtTarget(asset, target)}`,
           detail: `Phase A Step 1 — ${discoveryRationale}\nFlags: ${discoveryFlags}\nEvasion: ${assetPlan?.evasionTechniques?.join(', ') || 'fragmentation, decoys, normal timing'}`,
         });
 
         const startTime = Date.now();
         try {
           const nmapArgs = `${discoveryFlags} ${target}`;
-          addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `nmap ${target}`, detail: `nmap ${nmapArgs}` });
+          addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `nmap ${fmtTarget(asset, target)}`, detail: `nmap ${nmapArgs}` });
           const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 600, sudo: true });
 
           // Parse nmap text output into structured port data
@@ -1293,7 +1300,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           if (allFiltered && hasEvasionFlags) {
             addLog(state, {
               phase: 'enumeration', type: 'info',
-              title: `⚠️ nmap Retry: ${target} (removing evasion flags)`,
+              title: `⚠️ nmap Retry: ${fmtTarget(asset, target)} (removing evasion flags)`,
               detail: `First scan returned all-filtered (likely cloud WAF blocking evasion techniques). Retrying with simple flags: -Pn -sV -sC -T3 --top-ports 1000`,
             });
 
@@ -1318,7 +1325,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               durationMs += (Date.now() - retryStart);
               addLog(state, {
                 phase: 'enumeration', type: 'scan_result',
-                title: `nmap Retry Complete: ${target}`,
+                title: `nmap Retry Complete: ${fmtTarget(asset, target)}`,
                 detail: `Retry found ${discoveredPorts.length} services (simple flags worked)`,
               });
 
@@ -1332,7 +1339,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
                 phase: 'discovery_retry',
               });
             } catch (retryErr: any) {
-              addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Retry Failed: ${target}`, detail: retryErr.message });
+              addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Retry Failed: ${fmtTarget(asset, target)}`, detail: retryErr.message });
             }
           }
 
@@ -1367,7 +1374,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: { ...state.stats } });
           addLog(state, {
             phase: 'enumeration', type: 'scan_result',
-            title: `nmap Complete: ${target}`,
+            title: `nmap Complete: ${fmtTarget(asset, target)}`,
             detail: `${discoveredPorts.length} services fingerprinted in ${Math.round(durationMs / 1000)}s\nPorts: ${discoveredPorts.map(p => `${p.port}/${p.service}${p.product ? ` (${p.product})` : ''}`).join(', ')}`,
             data: { ports: asset.ports, discoveryFlags, evasion: assetPlan?.evasionTechniques },
           });
@@ -1386,7 +1393,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             phase: 'discovery',
           });
         } catch (e: any) {
-          addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Failed: ${target}`, detail: e.message });
+          addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Failed: ${fmtTarget(asset, target)}`, detail: e.message });
           asset.status = 'enumerated'; // Continue pipeline
         }
 
@@ -1415,7 +1422,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
           addLog(state, {
             phase: 'enumeration', type: 'scan_start',
-            title: `🌐 httpx: ${target}`,
+            title: `🌐 httpx: ${fmtTarget(asset, target)}`,
             detail: `Phase A Step 2 — HTTP probing ${webPorts.length} web ports\nTargets: ${httpxTargets.join(', ')}\nFlags: ${httpxFlags}`,
           });
 
@@ -1425,7 +1432,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             const httpxInput = httpxTargets.join('\\n');
             const httpxArgs = `${httpxFlags}`;
             const httpxCmd = `echo -e '${httpxInput}' | httpx ${httpxArgs}`;
-            addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `httpx ${target}`, detail: httpxCmd });
+            addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `httpx ${fmtTarget(asset, target)}`, detail: httpxCmd });
             const httpxResult = await executeTool({ tool: 'bash', args: `-c "echo -e '${httpxInput}' | httpx ${httpxArgs}"`, timeoutSeconds: 120 });
             const httpxDuration = Date.now() - httpxStart;
 
@@ -1525,12 +1532,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
             addLog(state, {
               phase: 'enumeration', type: 'scan_result',
-              title: `httpx Complete: ${target}`,
+              title: `httpx Complete: ${fmtTarget(asset, target)}`,
               detail: `${httpxFindings.length} findings in ${Math.round(httpxDuration / 1000)}s${techDetected.length > 0 ? `\nTech: ${techDetected.join(', ')}` : ''}${cdnDetected.length > 0 ? `\nCDN/WAF: ${cdnDetected.join(', ')}` : ''}${webServer ? `\nServer: ${webServer}` : ''}`,
               data: { tech: techDetected, cdn: cdnDetected, webServer, tls: tlsInfo },
             });
           } catch (e: any) {
-            addLog(state, { phase: 'enumeration', type: 'error', title: `httpx Failed: ${target}`, detail: e.message });
+            addLog(state, { phase: 'enumeration', type: 'error', title: `httpx Failed: ${fmtTarget(asset, target)}`, detail: e.message });
           }
         }
 
@@ -1577,7 +1584,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
             addLog(state, {
               phase: 'enumeration', type: 'info',
-              title: `🌐 httpx Port Backfill: ${target}`,
+              title: `🌐 httpx Port Backfill: ${fmtTarget(asset, target)}`,
               detail: `nmap found 0 open ports (cloud firewall), but httpx confirmed ${confirmedPorts.length} live web services: ${confirmedPorts.map(p => `${p.port}/${p.service}`).join(', ')}. Pipeline will continue with httpx-discovered ports.`,
             });
           }
@@ -1586,7 +1593,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         // ── Discovery complete for this asset ────────────────────────
         addLog(state, {
           phase: 'enumeration', type: 'scan_result',
-          title: `✅ Discovery Complete: ${target}`,
+          title: `✅ Discovery Complete: ${fmtTarget(asset, target)}`,
           detail: `nmap: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'} | Final ports: ${asset.ports.length}`,
         });
       }
@@ -1648,7 +1655,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       }
       addLog(state, {
         phase: 'enumeration', type: 'scan_start',
-        title: `🎯 Targeted Nmap: ${target}`,
+        title: `🎯 Targeted Nmap: ${fmtTarget(asset, target)}`,
         detail: `Phase B flags: ${targetedFlags}\nRationale: ${assetPlan.nmapRationale}`,
       });
 
@@ -1677,7 +1684,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
         addLog(state, {
           phase: 'enumeration', type: 'scan_result',
-          title: `Targeted Nmap Complete: ${target}`,
+          title: `Targeted Nmap Complete: ${fmtTarget(asset, target)}`,
           detail: `${findings.length} findings from targeted scripts in ${Math.round(durationMs / 1000)}s`,
           data: { findings, outputPreview: (nmapResult.stdout || '').slice(0, 500) },
         });
@@ -1703,7 +1710,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           state.stats.vulnsFound++;
         }
       } catch (e: any) {
-        addLog(state, { phase: 'enumeration', type: 'error', title: `Targeted Nmap Failed: ${target}`, detail: e.message });
+        addLog(state, { phase: 'enumeration', type: 'error', title: `Targeted Nmap Failed: ${fmtTarget(asset, target)}`, detail: e.message });
       }
     }
 
@@ -1724,7 +1731,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       }));
       addLog(state, {
         phase: "enumeration", type: "tool_match",
-        title: `Scan Plan Tools: ${asset.hostname}`,
+        title: `Scan Plan Tools: ${fmtTarget(asset)}`,
         detail: `${cmdsToRun.length} tools from LLM scan plan: ${cmdsToRun.map(c => c.tool).join(", ")}\nRisk: ${assetPlan.riskNotes}`,
         data: {
           source: 'scan_plan',
@@ -1748,7 +1755,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       const toolNames = [...new Set(cmdsToRun.map(c => c.tool))];
       addLog(state, {
         phase: "enumeration", type: "tool_match",
-        title: `Tool Match: ${asset.hostname}`,
+        title: `Tool Match: ${fmtTarget(asset)}`,
         detail: `${cmdsToRun.length} commands queued using ${toolNames.length} tools: ${toolNames.join(", ")}`,
         data: {
           source: 'auto_suggest',
@@ -1761,7 +1768,22 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     }
 
     // Execute priority 1 and 2 tool commands on the scan server
-    const highPriorityCmds = cmdsToRun.filter(c => c.priority <= 2);
+    // Skip subfinder for scoped engagements — targets are already defined, subfinder
+    // discovers new subdomains outside scope. Keep it only for domain intelligence scans.
+    const isScoped = state.assets.length > 0; // Scoped = operator defined targets
+    const highPriorityCmds = cmdsToRun
+      .filter(c => c.priority <= 2)
+      .filter(c => {
+        if (c.tool === 'subfinder' && isScoped) {
+          addLog(state, {
+            phase: 'enumeration', type: 'info',
+            title: `Skipped: subfinder (scoped engagement)`,
+            detail: `Subfinder skipped — targets are already defined in scope. Subfinder is only used for domain intelligence / unscoped discovery.`,
+          });
+          return false;
+        }
+        return true;
+      });
     for (const cmd of highPriorityCmds) {
       addLog(state, {
         phase: "enumeration", type: "scan_start",
@@ -1802,7 +1824,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
         addLog(state, {
           phase: "enumeration", type: "scan_result",
-          title: `${cmd.tool} Complete: ${asset.hostname}`,
+          title: `${cmd.tool} Complete: ${fmtTarget(asset)}`,
           detail: `Exit code ${result.exitCode}, ${result.durationMs}ms, ${findings.length} findings${result.timedOut ? " (TIMED OUT)" : ""}`,
           data: {
             tool: cmd.tool, exitCode: result.exitCode, durationMs: result.durationMs,
@@ -2191,7 +2213,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           addLog(state, {
             phase: "vuln_detection",
             type: "scan_result",
-            title: `${cmd.tool} Complete: ${asset.hostname}`,
+            title: `${cmd.tool} Complete: ${fmtTarget(asset)}`,
             detail: `${findings.length} findings, exit code ${result.exitCode}`,
             data: { findings, outputPreview: result.stdout.slice(0, 300) },
           });
@@ -2408,21 +2430,21 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
       const approved = await requestApproval(state, {
         phase: "post_exploit",
         riskTier: "red",
-        title: `Deploy C2 Agent: ${asset.hostname}`,
+        title: `Deploy C2 Agent: ${fmtTarget(asset)}`,
         description: `Deploying Caldera agent on ${asset.hostname} (${asset.ip || "unknown IP"}). This will establish a persistent callback to the C2 server for adversary operations and lateral movement.`,
         target: asset.hostname,
         detail: { hostname: asset.hostname, ip: asset.ip, platform: "linux" },
       });
 
       if (!approved) {
-        addLog(state, { phase: "post_exploit", type: "info", title: `C2 Skipped: ${asset.hostname}`, detail: "Operator denied C2 deployment" });
+        addLog(state, { phase: "post_exploit", type: "info", title: `C2 Skipped: ${fmtTarget(asset)}`, detail: "Operator denied C2 deployment" });
         continue;
       }
 
       addLog(state, {
         phase: "post_exploit",
         type: "c2_deploy",
-        title: `C2 Agent Deploying: ${asset.hostname}`,
+        title: `C2 Agent Deploying: ${fmtTarget(asset)}`,
         detail: "Deploying Caldera Sandcat agent via established session",
         riskTier: "red",
       });
@@ -2450,7 +2472,7 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
       addLog(state, {
         phase: "post_exploit",
         type: "c2_deploy",
-        title: `✅ C2 Active: ${asset.hostname}`,
+        title: `✅ C2 Active: ${fmtTarget(asset)}`,
         detail: "Agent callback established. Ready for lateral movement and adversary operations.",
         riskTier: "red",
       });
@@ -2465,7 +2487,7 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
       addLog(state, {
         phase: "post_exploit",
         type: "evidence",
-        title: `Evidence: ${asset.hostname}`,
+        title: `Evidence: ${fmtTarget(asset)}`,
         detail: `Unauthorized access demonstrated via ${asset.exploitAttempts.filter(e => e.success).map(e => e.module).join(", ")}. ${asset.vulns.length} vulnerabilities confirmed exploitable.`,
         data: {
           hostname: asset.hostname,

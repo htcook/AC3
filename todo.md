@@ -7004,3 +7004,17 @@
 - [x] Added httpx port backfill: when nmap finds 0 ports but httpx confirms live services, backfills asset.ports from httpx
 - [x] Added nuclei tech-targeted scanning: uses httpx-detected technologies to select relevant nuclei template tags
 - [x] 42 pipeline tests + 21 hub tabs tests all passing
+
+## Fix: Always Display IP Address with URL/FQDN
+- [x] Audit all scan result displays for missing IP addresses
+- [x] Add IP display in live feed log entries — added fmtTarget() helper in engagement-orchestrator.ts
+- [x] Add IP display in EngagementOps asset list, detail header, vulnerability table
+- [x] Add IP display in DiscoveryCuration asset cards
+- [x] Add IP display in DomainIntelResults asset inventory table
+- [x] Removed redundant standalone IP lines where IP now shown inline with hostname
+
+## Fix: Skip Subfinder for Scoped Engagements
+- [x] Skip subfinder during scoped engagement active scans — runtime filter in Phase B tool execution
+- [x] Keep subfinder for domain intelligence scans (only filtered in engagement orchestrator)
+- [x] Updated LLM prompt to mark subfinder as skip-for-scoped
+- [x] Added log entry when subfinder is skipped explaining why

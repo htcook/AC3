@@ -594,7 +594,7 @@ function AssetRow({ asset, isSelected, isExpanded, isExcludedView, onToggleSelec
         {/* Main Info */}
         <button onClick={onToggleExpand} className="flex-1 text-left min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm truncate">{asset.hostname}</span>
+            <span className="font-mono text-sm truncate">{asset.hostname}{asset.ip && asset.ip !== asset.hostname && <span className="text-muted-foreground text-xs ml-1">({asset.ip})</span>}</span>
             {asset.assetType && (
               <span className="text-[9px] font-display tracking-wider px-1.5 py-0.5 bg-secondary text-muted-foreground shrink-0">{asset.assetType.toUpperCase()}</span>
             )}
