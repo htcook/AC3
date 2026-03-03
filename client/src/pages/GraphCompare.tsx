@@ -42,6 +42,7 @@ import {
   Minus,
   ChevronLeft,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Tactic colors (shared with AbilityGraph) ──────────────────────────
 
@@ -388,7 +389,8 @@ export default function GraphCompare() {
   const graphs = graphList.data?.items || [];
 
   return (
-    <div className="p-6 space-y-6">
+      <AppShell activePath="/ability-graph-compare">
+      <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -719,5 +721,6 @@ export default function GraphCompare() {
         </div>
       )}
     </div>
+      </AppShell>
   );
 }

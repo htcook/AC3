@@ -10,6 +10,7 @@ import {
   AlertTriangle, Activity, TrendingUp, Loader2, RefreshCw, Database,
   Shield, BarChart3
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function KsiDashboard() {
   
@@ -52,7 +53,8 @@ export default function KsiDashboard() {
   const oscStats = oscalStats.data;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/ksi-dashboard">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -369,5 +371,6 @@ export default function KsiDashboard() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

@@ -14,6 +14,7 @@ import {
   ShieldAlert, Link2, Plus, Search, CheckCircle2, XCircle,
   AlertTriangle, Shield, Loader2, RefreshCw, Hash, Eye
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const EVIDENCE_TYPES = [
   "scan_result", "configuration_check", "log_entry", "screenshot",
@@ -114,7 +115,8 @@ export default function KsiEvidenceChain() {
     : [];
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/ksi-evidence-chain">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -421,5 +423,6 @@ export default function KsiEvidenceChain() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

@@ -11,6 +11,7 @@ import {
   AlertTriangle, BarChart3, Clock, Target, Cpu, Network, Lock,
   ChevronDown, ChevronUp, Info
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Static Knowledge Base (matches server TOOL_KNOWLEDGE_BASE) ─────────────
 const TOOLS = {
@@ -515,7 +516,8 @@ function DecisionMatrix() {
 
 export default function ToolComparison() {
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/tool-comparison">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-display tracking-wider">TOOL COMPARISON</h1>
@@ -654,5 +656,6 @@ export default function ToolComparison() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

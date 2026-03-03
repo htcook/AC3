@@ -28,6 +28,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import AppShell from "@/components/AppShell";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -551,6 +552,7 @@ export default function EngagementOps() {
   const isLoading = engagementQ.isLoading;
 
   return (
+    <AppShell activePath="/engagement-ops">
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Header ── */}
       <div className="flex-none border-b border-border/50 bg-card/50 backdrop-blur-sm px-6 py-4">
@@ -2097,6 +2099,7 @@ export default function EngagementOps() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </AppShell>
   );
 }
 

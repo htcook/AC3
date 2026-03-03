@@ -8,6 +8,7 @@ import {
   MemoryStick, Clock, Wrench, CheckCircle2, XCircle, Zap,
   Terminal, Shield
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 function parseDiskInfo(raw: string | null) {
   if (!raw) return null;
@@ -41,6 +42,7 @@ export default function ScanServerHealth() {
   const statusBg = health?.status === "online" ? "bg-emerald-500/10 border-emerald-500/30" : health?.status === "offline" ? "bg-red-500/10 border-red-500/30" : "bg-yellow-500/10 border-yellow-500/30";
 
   return (
+    <AppShell activePath="/scan-server">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -257,6 +259,7 @@ export default function ScanServerHealth() {
         </>
       )}
     </div>
+    </AppShell>
   );
 }
 
@@ -279,7 +282,7 @@ function ToolCategoryBadge({ name }: { name: string }) {
   const cat = categories[name];
   if (!cat) return null;
   return (
-    <span className={`ml-auto text-[10px] font-medium uppercase tracking-wider border rounded px-1.5 py-0.5 ${cat.color}`}>
+      <span className={`ml-auto text-[10px] font-medium uppercase tracking-wider border rounded px-1.5 py-0.5 ${cat.color}`}>
       {cat.label}
     </span>
   );

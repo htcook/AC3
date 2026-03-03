@@ -17,6 +17,7 @@ import {
   FileText, Globe, BarChart3, ChevronDown, ChevronUp, Filter, X,
   Loader2, CheckCircle2, XCircle, Clock,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // Priority tier colors
 const TIER_COLORS: Record<string, string> = {
@@ -198,7 +199,8 @@ export default function BatchDomainScanner() {
   }, [parsedDomains]);
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/batch-scanner">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Batch Domain Scanner</h1>
@@ -606,5 +608,6 @@ export default function BatchDomainScanner() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

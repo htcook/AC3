@@ -13,6 +13,7 @@ import {
   Download, RefreshCw, ChevronRight, TrendingUp, TrendingDown,
   Hash, Eye, Filter, ArrowUpDown
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,8 @@ export default function ControlTestingDashboard() {
   }, [controls, filterVerdict, sortBy]);
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/control-testing-dashboard">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Control Testing Dashboard</h1>
@@ -465,5 +467,6 @@ export default function ControlTestingDashboard() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

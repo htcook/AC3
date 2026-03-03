@@ -12,6 +12,7 @@ import {
   Shield, Cloud, Server, Database, Network, Eye, AlertTriangle, CheckCircle2,
   XCircle, Minus, ChevronDown, ChevronRight, BarChart3, FileText, Loader2,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 type Provider = "aws" | "azure" | "gcp";
 type Domain = "iam" | "networking" | "storage" | "compute" | "logging";
@@ -103,7 +104,8 @@ export default function CloudSecurityValidation() {
   const currentProviderStats = providerStats?.providers.find(p => p.provider === provider);
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/cloud-security-validation">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -456,5 +458,6 @@ export default function CloudSecurityValidation() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

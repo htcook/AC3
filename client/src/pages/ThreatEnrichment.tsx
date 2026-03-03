@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function ThreatEnrichment() {
   const [selectedKsi, setSelectedKsi] = useState("");
@@ -113,7 +114,8 @@ export default function ThreatEnrichment() {
   };
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/threat-enrichment">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -582,5 +584,6 @@ export default function ThreatEnrichment() {
         </Card>
       )}
     </div>
+      </AppShell>
   );
 }

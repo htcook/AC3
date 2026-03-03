@@ -13,6 +13,7 @@ import {
   FileOutput, Download, Plus, Loader2, RefreshCw, FileJson,
   FileText, ClipboardList, CheckCircle2, XCircle, Clock, Hash
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const DOC_TYPES = [
   { id: "ssp", name: "System Security Plan (SSP)", icon: FileText, description: "Comprehensive security plan documenting KSI implementations" },
@@ -76,7 +77,8 @@ export default function OscalExport() {
   const stats = statsQuery.data;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/oscal-export">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -290,5 +292,6 @@ export default function OscalExport() {
         </DialogContent>
       </Dialog>
     </div>
+      </AppShell>
   );
 }

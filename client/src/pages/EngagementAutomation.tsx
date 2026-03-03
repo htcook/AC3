@@ -16,6 +16,7 @@ import {
   FileText, Crosshair, Layers, ArrowRight, CheckCircle2, XCircle,
   Clock, Loader2, BarChart3
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function EngagementAutomation() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -107,7 +108,8 @@ export default function EngagementAutomation() {
   };
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/engagement-automation">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -483,5 +485,6 @@ export default function EngagementAutomation() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

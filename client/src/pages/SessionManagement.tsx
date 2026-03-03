@@ -11,6 +11,7 @@ import {
   LogOut, AlertTriangle, CheckCircle2, Laptop, Trash2, RefreshCw,
   Activity, Users
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const DEVICE_ICONS: Record<string, React.ReactNode> = {
   desktop: <Monitor className="h-8 w-8" />,
@@ -81,6 +82,7 @@ export default function SessionManagement() {
   });
 
   return (
+    <AppShell activePath="/sessions">
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -210,6 +212,7 @@ export default function SessionManagement() {
         )}
       </Tabs>
     </div>
+    </AppShell>
   );
 }
 
@@ -240,7 +243,7 @@ function SessionCard({ session, onRevoke, isRevoking }: {
   const loginInfo = LOGIN_METHOD_LABELS[session.loginMethod] || LOGIN_METHOD_LABELS.oauth;
 
   return (
-    <Card className={isCurrent ? "border-amber-500/30 bg-amber-500/5" : ""}>
+      <Card className={isCurrent ? "border-amber-500/30 bg-amber-500/5" : ""}>
       <CardContent className="pt-5 pb-4">
         <div className="flex items-start gap-4">
           <div className={`shrink-0 ${isCurrent ? "text-amber-400" : "text-zinc-400"}`}>

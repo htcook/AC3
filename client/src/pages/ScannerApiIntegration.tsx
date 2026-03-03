@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Plug, CheckCircle2, XCircle, Download, RefreshCw, Server, Shield } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 type ScannerType = "nessus" | "tenable_io" | "qualys" | "rapid7";
 
@@ -119,7 +120,8 @@ const ScannerApiIntegration = () => {
   const info = SCANNER_INFO[scannerType];
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/scanner-api">
+      <div className="space-y-6">
       {/* Connection Configuration */}
       <Card>
         <CardHeader>
@@ -298,6 +300,7 @@ const ScannerApiIntegration = () => {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 };
 

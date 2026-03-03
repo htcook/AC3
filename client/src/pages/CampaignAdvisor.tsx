@@ -18,6 +18,7 @@ import {
   MessageSquare,
   RefreshCw,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -125,7 +126,8 @@ export default function CampaignAdvisor() {
   };
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/campaign-advisor">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -383,5 +385,6 @@ export default function CampaignAdvisor() {
         </div>
       </div>
     </div>
+      </AppShell>
   );
 }

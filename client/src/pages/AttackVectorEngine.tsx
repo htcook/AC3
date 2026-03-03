@@ -17,6 +17,7 @@ import {
   CheckCircle2, XCircle, Clock, ArrowRight, Layers, Terminal, Bug,
   BarChart3, Eye, Lock, Network, Globe2, Server
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-red-500/10 text-red-500 border-red-500/30",
@@ -90,7 +91,8 @@ export default function AttackVectorEngine() {
   const stats = dashboard.data;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/attack-vector-engine">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -576,5 +578,6 @@ export default function AttackVectorEngine() {
         </DialogContent>
       </Dialog>
     </div>
+      </AppShell>
   );
 }

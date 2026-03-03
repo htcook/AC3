@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Shield, Target, Crosshair, Users, Zap, AlertTriangle, ChevronRight, ExternalLink } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const TACTIC_COLORS: Record<string, string> = {
   "Reconnaissance": "bg-slate-500",
@@ -48,7 +49,8 @@ export default function KsiThreatMap() {
   );
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/ksi-threat-map">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Indicator Threat Map</h1>
         <p className="text-muted-foreground">
@@ -388,5 +390,6 @@ export default function KsiThreatMap() {
         </DialogContent>
       </Dialog>
     </div>
+      </AppShell>
   );
 }

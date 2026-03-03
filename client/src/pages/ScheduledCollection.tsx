@@ -10,6 +10,7 @@ import {
   Clock, Zap, RefreshCw, CheckCircle2, XCircle, AlertTriangle,
   Loader2, Play, Calendar, Database, Activity, BarChart3, Settings
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const CADENCE_LABELS: Record<string, string> = {
   hourly: "Every Hour",
@@ -76,7 +77,8 @@ export default function ScheduledCollection() {
   const stats = dashboard.data;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/scheduled-collection">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -290,5 +292,6 @@ export default function ScheduledCollection() {
         </CardContent>
       </Card>
     </div>
+      </AppShell>
   );
 }

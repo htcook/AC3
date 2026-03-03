@@ -25,6 +25,7 @@ import {
   CheckCircle, XCircle, Package, Layers, Eye, Scan,
   Server, Cloud, Lock, Loader2, ChevronRight, ExternalLink,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Registry Type Config ───────────────────────────────────────────
 
@@ -769,7 +770,8 @@ export default function ContainerRegistry() {
   const registries = trpc.containerRegistry.listRegistries.useQuery();
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/container-registry">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -840,5 +842,6 @@ export default function ContainerRegistry() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

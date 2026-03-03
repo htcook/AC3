@@ -11,6 +11,7 @@ import {
   Brain, Crosshair, ScanLine, Zap, Shield, Server, Database,
   ArrowUpDown, FileText, Trash2, Play, Clock
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 /** Kill Chain Visualizer — Track engagement progress through the full attack lifecycle.
  *  This page provides a visual representation of your engagement's position in the kill chain,
@@ -88,7 +89,8 @@ export default function KillChainVisualizer() {
   }, [allPhases, phaseProgress]);
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/kill-chain">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -337,5 +339,6 @@ export default function KillChainVisualizer() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

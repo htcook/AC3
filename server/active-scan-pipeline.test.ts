@@ -27,8 +27,6 @@ describe('Active Scan Pipeline Audit', () => {
       const orch = fs.readFileSync(orchestratorPath, 'utf-8');
       // The nmap command is built as: `${discoveryFlags} ${target}`
       expect(orch).toContain('`${discoveryFlags} ${target}`');
-      // naabu command is built as: `-host ${target} ${naabuFlags}`
-      expect(orch).toContain('`-host ${target} ${naabuFlags}`');
     });
 
     it('targets are extracted from state.assets', () => {
@@ -39,7 +37,6 @@ describe('Active Scan Pipeline Audit', () => {
     it('executeTool is called with the constructed command', () => {
       const orch = fs.readFileSync(orchestratorPath, 'utf-8');
       expect(orch).toContain("executeTool({ tool: 'nmap', args: nmapArgs");
-      expect(orch).toContain("executeTool({ tool: 'naabu', args: naabuArgs");
     });
   });
 
@@ -115,10 +112,69 @@ describe('Active Scan Pipeline Audit', () => {
         orch.indexOf('// ─── LLM Decision Engine')
       );
       expect(genBlock).toContain('discoveryNmapFlags');
-      expect(genBlock).toContain('naabuFlags');
       expect(genBlock).toContain('httpxFlags');
       expect(genBlock).toContain('activeTools');
       expect(genBlock).toContain('evasionTechniques');
+      // naabu removed — nmap is the primary port scanner
+      expect(genBlock).not.toContain("naabuFlags: { type: 'string'");
+    });
+  });
+
+  describe('Nmap port specification sanitization', () => {
+    it('strips -p80,443 format (no space) from discovery flags', () => {
+      const flags = '-Pn -sV -p80,443 -sC';
+      const result = flags
+        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')
+        .replace(/\s+/g, ' ').trim();
+      expect(result).toBe('-Pn -sV -sC');
+    });
+
+    it('strips -p 80,443 format (with space) from discovery flags', () => {
+      const flags = '-Pn -sV -p 80,443 -sC';
+      const result = flags
+        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')
+        .replace(/\s+/g, ' ').trim();
+      expect(result).toBe('-Pn -sV -sC');
+    });
+
+    it('strips -p- (all ports) from discovery flags', () => {
+      const flags = '-Pn -sV -p- -sC';
+      const result = flags
+        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')
+        .replace(/\s+/g, ' ').trim();
+      expect(result).toBe('-Pn -sV -sC');
+    });
+
+    it('strips -p1-65535 range format from discovery flags', () => {
+      const flags = '-Pn -sV -p1-65535 -sC';
+      const result = flags
+        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')
+        .replace(/\s+/g, ' ').trim();
+      expect(result).toBe('-Pn -sV -sC');
+    });
+
+    it('does NOT strip -Pn (uppercase P) from discovery flags', () => {
+      const flags = '-Pn -sV -sC';
+      const result = flags
+        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')
+        .replace(/\s+/g, ' ').trim();
+      expect(result).toBe('-Pn -sV -sC');
+    });
+
+    it('does NOT strip --top-ports from discovery flags', () => {
+      const flags = '-Pn -sV --top-ports 1000 -sC';
+      const result = flags
+        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')
+        .replace(/\s+/g, ' ').trim();
+      expect(result).toBe('-Pn -sV --top-ports 1000 -sC');
+    });
+
+    it('orchestrator uses the improved port spec regex', () => {
+      const orch = fs.readFileSync(orchestratorPath, 'utf-8');
+      // Should use the improved regex that catches all -p variants
+      expect(orch).toContain('-p[\\s]*[\\d,\\-]+');
+      // Should NOT use the old broken regex
+      expect(orch).not.toContain("/-p[- ]\\S*/g");
     });
   });
 
@@ -131,10 +187,11 @@ describe('Active Scan Pipeline Audit', () => {
       expect(orch).toContain("/(\\d+)\\/udp\\s+open\\s+(\\S+)");
     });
 
-    it('naabu output is parsed for discovered ports', () => {
+    it('nuclei output is parsed for vulnerability findings', () => {
       const orch = fs.readFileSync(orchestratorPath, 'utf-8');
-      expect(orch).toContain('obj.port && typeof obj.port');
-      expect(orch).toContain('naabuPorts.push');
+      // Nuclei JSONL parsing
+      expect(orch).toContain('obj.info?.severity && obj.info?.name');
+      expect(orch).toContain('[Nuclei]');
     });
 
     it('scan results are persisted to database', () => {

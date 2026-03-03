@@ -118,6 +118,8 @@ export interface AssetScanPlan {
   /** Phase A: discovery nmap flags — broad port sweep + service fingerprinting with evasion */
   discoveryNmapFlags: string;
   discoveryNmapRationale: string;
+  /** httpx flags for HTTP probing on discovered web ports */
+  httpxFlags: string;
   /** Phase B: targeted nmap flags — deeper scan based on discovery results */
   nmapFlags: string;
   nmapRationale: string;
@@ -549,7 +551,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
 
   const availableTools = [
     { name: 'nmap', desc: 'Port scanner and service fingerprinter', flags: ['-sV (version detection)', '-sC (default scripts)', '-sU (UDP scan)', '-O (OS detection)', '--script vuln (vuln scripts)', '-T4 (aggressive timing)', '-T2 (polite timing)', '-Pn (skip host discovery)', '-p- (all ports)', '--top-ports N'] },
-    { name: 'nuclei', desc: 'Template-based vulnerability scanner', use: 'web apps, known CVEs, misconfigurations' },
+    { name: 'nuclei', desc: 'Template-based vulnerability scanner (v3.7.0, 9800+ templates). IMPORTANT FLAGS: always use -nc -duc -ni -jsonl for reliable execution', use: 'web apps, known CVEs, misconfigurations' },
     { name: 'nikto', desc: 'Web server scanner for dangerous files/CGIs', use: 'web servers' },
     { name: 'gobuster', desc: 'Directory/file brute-forcer', use: 'web apps to find hidden paths' },
     { name: 'httpx', desc: 'HTTP probe, tech fingerprinter, and web asset enumerator', flags: ['-json (JSON output)', '-tech-detect', '-status-code', '-title', '-cdn', '-tls-grab', '-follow-redirects', '-content-length', '-web-server', '-method GET', '-threads 50', '-ports 80,443,8080,8443', '-probe', '-silent'], use: 'mandatory HTTP probing after port discovery — detects tech stack, CDN/WAF, TLS, status codes, web server' },
@@ -559,7 +561,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     { name: 'ldapsearch', desc: 'LDAP directory enumerator', use: 'Active Directory/LDAP servers' },
     { name: 'dig', desc: 'DNS query tool', use: 'DNS servers, zone transfers' },
     { name: 'onesixtyone', desc: 'SNMP scanner', use: 'network devices with SNMP' },
-    { name: 'naabu', desc: 'Fast port scanner (SYN/CONNECT)', flags: ['-p - (all ports)', '-top-ports 1000', '-rate 1000', '-c 25 (concurrency)', '-nmap-cli (pipe to nmap)', '-json (JSON output)', '-silent', '-exclude-ports N'], use: 'fast port pre-scan before deep nmap fingerprinting' },
+    // naabu removed — raw socket issues on DigitalOcean; use nmap --top-ports for port discovery
     { name: 'subfinder', desc: 'Subdomain discovery', use: 'finding additional subdomains' },
   ];
 
@@ -571,18 +573,14 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
 
 Your scan plan MUST follow a two-phase approach:
 
-## PHASE A: Discovery Scan (MANDATORY FIRST STEP — 3 tools in sequence)
-Phase A runs THREE mandatory tools in sequence for every asset:
+## PHASE A: Discovery Scan (MANDATORY FIRST STEP — 2 tools in sequence)
+Phase A runs TWO mandatory tools in sequence for every asset:
 
-### Step 1: naabu (fast port pre-scan)
-- Run naabu FIRST to quickly discover all open ports with minimal footprint
-- Use: naabu -host {target} -p - -json -silent -rate 1000 -c 25
-- naabu is much faster than nmap for port discovery — it finds open ports in seconds
-- The discovered ports feed directly into nmap for deep fingerprinting
-
-### Step 2: nmap (deep service fingerprinting on naabu-discovered ports)
-- Run nmap ONLY on ports discovered by naabu (not full -p- scan, which is slow)
-- Use: nmap -Pn -sV -sC -O -p {naabu_ports} {evasion_flags} {target}
+### Step 1: nmap (port discovery + service fingerprinting)
+- Run nmap with --top-ports 1000 and -T3 timing for reliable port discovery
+- Use: nmap -Pn -sV -sC -O --top-ports 1000 {evasion_flags} {target}
+- DO NOT use -p- (all 65535 ports) — it takes 30+ minutes per host and will timeout
+- Always include --top-ports 1000 in discoveryNmapFlags
 - EVASION TECHNIQUES to maximize data return while avoiding IDS/IPS detection:
   * Packet fragmentation (-f or --mtu 24) to split probes across fragments
   * Timing control (-T2 for polite, -T3 for normal) — NEVER use -T4/-T5 on first scan
@@ -592,13 +590,13 @@ Phase A runs THREE mandatory tools in sequence for every asset:
   * Host randomization (--randomize-hosts) when scanning multiple targets
   * Skip ping (-Pn) if host may filter ICMP
 
-### Step 3: httpx (HTTP probing on all web ports)
-- Run httpx on ALL HTTP/HTTPS ports found by naabu+nmap
+### Step 2: httpx (HTTP probing on all web ports)
+- Run httpx on ALL HTTP/HTTPS ports found by nmap
 - Use: echo '{target}' | httpx -json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent
 - httpx detects: technology stack, CDN/WAF presence, TLS certificate info, HTTP status codes, web server software, page titles
 - This data is CRITICAL for Phase B tool selection (e.g., if httpx detects WordPress → nuclei wordpress templates)
 
-The discovery scan ENRICHES the passive recon data — all three tools' results will be fed back to you for Phase B planning
+The discovery scan ENRICHES the passive recon data — both tools' results will be fed back to you for Phase B planning
 
 ## PHASE B: Targeted Tool Deployment
 After discovery results are merged, select specific tools per asset based on the COMBINED passive recon + discovery data:
@@ -640,7 +638,7 @@ You MUST respond with valid JSON matching this exact schema:
       "hostname": "exact hostname from the asset list",
       "ip": "IP if known",
       "assetType": "web_app|server|api|database|network_device|unknown",
-      "discoveryNmapFlags": "Phase A nmap flags with evasion (e.g., '-Pn -sV -O -p- -f -T2 -D RND:5 --data-length 64 --randomize-hosts')",
+      "discoveryNmapFlags": "Phase A nmap flags with evasion — MUST include --top-ports 1000, DO NOT use -p-. Example: '-Pn -sV -sC -O --top-ports 1000 -f -T3 -D RND:5 --data-length 64'",
       "discoveryNmapRationale": "Why these discovery+evasion flags for this specific asset",
       "nmapFlags": "Phase B targeted nmap flags (e.g., '-sV -sC --script vuln -p 80,443,8080')",
       "nmapRationale": "Why these targeted flags based on expected services",
@@ -660,7 +658,7 @@ You MUST respond with valid JSON matching this exact schema:
       },
       {
         role: 'user',
-        content: `## Passive OSINT Results\n\n### Per-Asset Intelligence:\n${JSON.stringify(assetSummaries, null, 2)}\n\n${domainReconSummary.length > 0 ? `### Domain-Level Intelligence Summary:\n${JSON.stringify(domainReconSummary, null, 2)}\n\n` : ''}Engagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\nGenerate the two-phase scan plan. Phase A discovery nmap MUST use evasion techniques and scan all ports. Phase B tools should be tailored to what passive recon already revealed about each asset.`
+        content: `## Passive OSINT Results\n\n### Per-Asset Intelligence:\n${JSON.stringify(assetSummaries, null, 2)}\n\n${domainReconSummary.length > 0 ? `### Domain-Level Intelligence Summary:\n${JSON.stringify(domainReconSummary, null, 2)}\n\n` : ''}Engagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\nGenerate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
       }
     ],
     response_format: {
@@ -697,7 +695,6 @@ You MUST respond with valid JSON matching this exact schema:
                   hostname: { type: 'string' },
                   ip: { type: 'string' },
                   assetType: { type: 'string' },
-                  naabuFlags: { type: 'string', description: 'naabu flags for fast port pre-scan' },
                   discoveryNmapFlags: { type: 'string' },
                   discoveryNmapRationale: { type: 'string' },
                   httpxFlags: { type: 'string', description: 'httpx flags for HTTP probing on discovered web ports' },
@@ -720,7 +717,7 @@ You MUST respond with valid JSON matching this exact schema:
                   riskNotes: { type: 'string' },
                   evasionTechniques: { type: 'array', items: { type: 'string' } }
                 },
-                required: ['hostname', 'ip', 'assetType', 'naabuFlags', 'discoveryNmapFlags', 'discoveryNmapRationale', 'httpxFlags', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
+                required: ['hostname', 'ip', 'assetType', 'discoveryNmapFlags', 'discoveryNmapRationale', 'httpxFlags', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
                 additionalProperties: false
               }
             }
@@ -760,9 +757,8 @@ You MUST respond with valid JSON matching this exact schema:
       hostname: ap.hostname,
       ip: ap.ip,
       assetType: ap.assetType,
-      naabuFlags: ap.naabuFlags || '-p - -json -silent -rate 1000 -c 25',
       discoveryNmapFlags: ap.discoveryNmapFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
-      discoveryNmapRationale: ap.discoveryNmapRationale || 'Default discovery scan with evasion on naabu-discovered ports',
+      discoveryNmapRationale: ap.discoveryNmapRationale || 'Default discovery scan with evasion and --top-ports 1000',
       httpxFlags: ap.httpxFlags || '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
       nmapFlags: ap.nmapFlags,
       nmapRationale: ap.nmapRationale,
@@ -1020,21 +1016,24 @@ function parseToolOutput(
 
   switch (tool) {
     case "nuclei": {
-      // Nuclei JSON output: one JSON object per line
+      // Nuclei JSONL output: one JSON object per line (-jsonl flag)
       for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('[')) continue; // skip empty lines and banner
         try {
-          const obj = JSON.parse(line.trim());
+          const obj = JSON.parse(trimmed);
           if (obj.info?.severity && obj.info?.name) {
             const cve = obj["matched-at"]?.match(/CVE-\d{4}-\d+/)?.[0] ||
                         obj.info?.classification?.cve?.[0] ||
                         obj["template-id"]?.match(/CVE-\d{4}-\d+/)?.[0];
+            const matchedAt = obj["matched-at"] || obj.host || '';
             findings.push({
               severity: obj.info.severity,
-              title: `[Nuclei] ${obj.info.name}`,
+              title: `[Nuclei] ${obj.info.name}${matchedAt ? ` @ ${matchedAt}` : ''}`,
               cve,
             });
           }
-        } catch { /* not JSON line */ }
+        } catch { /* not JSON line — nuclei banner or progress output */ }
       }
       break;
     }
@@ -1215,101 +1214,31 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           ap => ap.hostname === asset.hostname || ap.ip === target
         );
 
-        // ── Step 1: naabu (fast port pre-scan) ──────────────────────────
-        const naabuFlags = assetPlan?.naabuFlags || '-p - -json -silent -rate 1000 -c 25';
-        addLog(state, {
-          phase: 'enumeration', type: 'scan_start',
-          title: `🔍 naabu: ${target}`,
-          detail: `Phase A Step 1 — Fast port pre-scan\nFlags: ${naabuFlags}`,
-        });
-
-        let naabuPorts: number[] = [];
-        try {
-          const naabuStart = Date.now();
-          const naabuArgs = `-host ${target} ${naabuFlags}`;
-          addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `naabu ${target}`, detail: `naabu ${naabuArgs}` });
-          const naabuResult = await executeTool({ tool: 'naabu', args: naabuArgs, timeoutSeconds: 180 });
-          const naabuDuration = Date.now() - naabuStart;
-
-          // Parse naabu JSON output: each line is {"host":"x","port":N,...}
-          if (naabuResult.stdout) {
-            for (const line of naabuResult.stdout.split('\n')) {
-              const trimmed = line.trim();
-              if (!trimmed) continue;
-              try {
-                const obj = JSON.parse(trimmed);
-                if (obj.port && typeof obj.port === 'number') {
-                  naabuPorts.push(obj.port);
-                }
-              } catch {
-                // Also handle plain "host:port" format
-                const portMatch = trimmed.match(/:(\d+)$/);
-                if (portMatch) naabuPorts.push(parseInt(portMatch[1]));
-              }
-            }
-          }
-          naabuPorts = [...new Set(naabuPorts)].sort((a, b) => a - b);
-
-          // Store naabu result
-          asset.toolResults.push({
-            tool: 'naabu',
-            command: `naabu ${naabuArgs}`,
-            exitCode: naabuResult.exitCode ?? 0,
-            durationMs: naabuDuration,
-            timedOut: naabuResult.timedOut || false,
-            findingCount: naabuPorts.length,
-            findings: naabuPorts.map(p => ({ severity: 'info', title: `Port ${p} open` })),
-            outputPreview: (naabuResult.stdout || '').slice(0, 2048),
-            executedAt: Date.now(),
-            phase: 'discovery',
-          });
-
-          await persistScanResult({
-            engagementId: state.engagementId,
-            tool: 'naabu',
-            target,
-            command: `naabu ${naabuArgs}`,
-            stdout: naabuResult.stdout || '',
-            stderr: naabuResult.stderr || '',
-            exitCode: naabuResult.exitCode ?? 0,
-            durationMs: naabuDuration,
-            timedOut: naabuResult.timedOut || false,
-            findings: naabuPorts.map(p => ({ type: 'open_port', port: p })),
-            phase: 'discovery',
-          });
-
-          addLog(state, {
-            phase: 'enumeration', type: 'scan_result',
-            title: `naabu Complete: ${target}`,
-            detail: `${naabuPorts.length} open ports found in ${Math.round(naabuDuration / 1000)}s: ${naabuPorts.join(', ')}`,
-            data: { ports: naabuPorts },
-          });
-        } catch (e: any) {
-          addLog(state, { phase: 'enumeration', type: 'error', title: `naabu Failed: ${target}`, detail: e.message });
-        }
-
-        // ── Step 2: nmap (deep fingerprinting on naabu-discovered ports) ──
+        // ── Step 1: nmap (port discovery + service fingerprinting) ──────────
         const discoveredPorts: Array<{ port: number; protocol: string; service: string; product?: string; version?: string }> = [];
-        const portList = naabuPorts.length > 0 ? naabuPorts.join(',') : null;
-        // Build nmap flags: use naabu ports if available, otherwise fall back to scan plan flags
-        const discoveryFlags = portList
-          ? (assetPlan?.discoveryNmapFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64').replace(/-p[- ]\S*/g, '') + ` -p ${portList}`
-          : (assetPlan?.discoveryNmapFlags || '-Pn -sV -sC -O -p- -f -T2 -D RND:5 --data-length 64 --randomize-hosts');
-        const discoveryRationale = portList
-          ? `Deep fingerprinting on ${naabuPorts.length} naabu-discovered ports`
-          : (assetPlan?.discoveryNmapRationale || 'Full port discovery (naabu unavailable)');
+        // Build nmap flags: always use --top-ports 1000 with -T3 timing for reliable results
+        // CRITICAL: Never use -p- (all 65535 ports) — it takes 30+ min per host and will timeout
+        const baseFlags = (assetPlan?.discoveryNmapFlags || '-Pn -sV -sC -O -f -D RND:5 --data-length 64')
+          .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')  // Remove all -p port specs (-p80,443 -p 80 -p- -p1-65535)
+          .replace(/--top-ports\s+\d+/g, '') // Remove existing --top-ports
+          .replace(/-T\d/g, '')             // Remove timing flags (we force -T3)
+          .replace(/--randomize-hosts/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const discoveryFlags = `${baseFlags} -T3 --top-ports 1000`;
+        const discoveryRationale = 'Top 1000 ports scan with service fingerprinting';
 
         addLog(state, {
           phase: 'enumeration', type: 'scan_start',
           title: `🔒 nmap: ${target}`,
-          detail: `Phase A Step 2 — ${discoveryRationale}\nFlags: ${discoveryFlags}\nEvasion: ${assetPlan?.evasionTechniques?.join(', ') || 'fragmentation, decoys, slow timing'}`,
+          detail: `Phase A Step 1 — ${discoveryRationale}\nFlags: ${discoveryFlags}\nEvasion: ${assetPlan?.evasionTechniques?.join(', ') || 'fragmentation, decoys, normal timing'}`,
         });
 
         const startTime = Date.now();
         try {
           const nmapArgs = `${discoveryFlags} ${target}`;
           addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `nmap ${target}`, detail: `nmap ${nmapArgs}` });
-          const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 600 });
+          const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 600, sudo: true });
 
           // Parse nmap text output into structured port data
           if (nmapResult.stdout) {
@@ -1406,10 +1335,11 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           ['http', 'https', 'http-proxy', 'http-alt', 'ssl'].includes(p.service) ||
           [80, 443, 8080, 8443, 8000, 3000, 5000, 9443].includes(p.port)
         );
-        // Also check naabu ports for common web ports if nmap didn't find them
+        // Also probe common web ports even if nmap didn't detect them as open
         const commonWebPorts = [80, 443, 8080, 8443];
         for (const wp of commonWebPorts) {
-          if (naabuPorts.includes(wp) && !webPorts.find(p => p.port === wp)) {
+          if (!webPorts.find(p => p.port === wp)) {
+            // Always try common web ports — httpx will quickly determine if they're actually open
             webPorts.push({ port: wp, protocol: 'tcp', service: wp === 443 || wp === 8443 ? 'https' : 'http' });
           }
         }
@@ -1426,7 +1356,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           addLog(state, {
             phase: 'enumeration', type: 'scan_start',
             title: `🌐 httpx: ${target}`,
-            detail: `Phase A Step 3 — HTTP probing ${webPorts.length} web ports\nTargets: ${httpxTargets.join(', ')}\nFlags: ${httpxFlags}`,
+            detail: `Phase A Step 2 — HTTP probing ${webPorts.length} web ports\nTargets: ${httpxTargets.join(', ')}\nFlags: ${httpxFlags}`,
           });
 
           try {
@@ -1548,7 +1478,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         addLog(state, {
           phase: 'enumeration', type: 'scan_result',
           title: `✅ Discovery Complete: ${target}`,
-          detail: `naabu: ${naabuPorts.length} ports | nmap: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'}`,
+          detail: `nmap: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'}`,
         });
       }
     } catch (e: any) {
@@ -1593,7 +1523,18 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
     // Phase B targeted nmap: run deeper scripts on discovered ports
     if (assetPlan?.nmapFlags) {
-      const targetedFlags = assetPlan.nmapFlags;
+      // Sanitize LLM-generated flags: replace any -p port specs with actual discovered ports
+      const discoveredPortList = asset.ports.map(p => p.port).join(',');
+      let targetedFlags = assetPlan.nmapFlags
+        .replace(/(?<=\s|^)-p[\s]*[\d,\-]+(?=\s|$)|-p-/g, '')  // Remove LLM port specs
+        .replace(/\s+/g, ' ')
+        .trim();
+      // Add discovered ports if any were found, otherwise use --top-ports 1000
+      if (discoveredPortList) {
+        targetedFlags = `${targetedFlags} -p ${discoveredPortList}`;
+      } else {
+        targetedFlags = `${targetedFlags} --top-ports 1000`;
+      }
       addLog(state, {
         phase: 'enumeration', type: 'scan_start',
         title: `🎯 Targeted Nmap: ${target}`,
@@ -1603,7 +1544,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       try {
         const startTime = Date.now();
         const nmapArgs = `${targetedFlags} ${target}`;
-        const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 300 });
+        const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 300, sudo: true });
         const durationMs = Date.now() - startTime;
 
         // Parse targeted scan findings (vuln scripts, etc.)
@@ -1818,9 +1759,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         try {
           const result = await executeTool({
             tool: "nuclei",
-            args: `-u ${url} -severity critical,high,medium -json -timeout 5 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`,
+            args: `-u ${url} -severity critical,high,medium -jsonl -nc -duc -ni -timeout 10 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`,
             target,
-            timeoutSeconds: 300,
+            timeoutSeconds: 600,
             engagementId: state.engagementId,
           });
 
@@ -1832,7 +1773,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           }
 
           // Store as toolResult on asset
-          const nucleiCmd = `nuclei -u ${url} -severity critical,high,medium -json -timeout 5 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
+          const nucleiCmd = `nuclei -u ${url} -severity critical,high,medium -jsonl -nc -duc -ni -timeout 10 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
           asset.toolResults.push({
             tool: 'nuclei',
             command: nucleiCmd,

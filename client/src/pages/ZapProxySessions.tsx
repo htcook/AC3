@@ -15,6 +15,7 @@ import {
   Radio, Lock, Key, FileText, Clock, ArrowUpDown, Eye, Wifi,
   ShieldAlert, ChevronRight, Copy, ExternalLink, Activity
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const STATUS_COLORS: Record<string, string> = {
   initializing: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
@@ -129,6 +130,7 @@ export default function ZapProxySessions() {
   const totalAlerts = sessions.reduce((sum: number, s: any) => sum + (s.alertsFound || 0), 0);
 
   return (
+    <AppShell activePath="/zap-proxy">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -556,6 +558,7 @@ export default function ZapProxySessions() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppShell>
   );
 }
 
@@ -568,7 +571,7 @@ function TrafficViewer({ sessionId }: { sessionId: number }) {
   const entries = historyQuery.data?.messages ?? [];
 
   return (
-    <div className="space-y-2">
+      <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-mono text-muted-foreground">{entries.length} intercepted requests</span>
         <Button variant="ghost" size="sm" onClick={() => historyQuery.refetch()}>

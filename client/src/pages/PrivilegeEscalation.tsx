@@ -11,6 +11,7 @@ import {
   ArrowUpDown, Brain, Server, Terminal, Cloud, Key,
   Shield, ChevronRight, Zap, AlertTriangle, CheckCircle2, BookOpen
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 /** Privilege Escalation — Analyze enumeration output and find escalation paths.
  *  Paste WinPEAS, LinPEAS, or manual enumeration output and the AI will identify
@@ -47,7 +48,8 @@ export default function PrivilegeEscalation() {
   const analysis = llmAnalyze.data || quickAnalyze.data;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/privilege-escalation">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <ArrowUpDown className="w-7 h-7 text-red-400" />
@@ -293,5 +295,6 @@ export default function PrivilegeEscalation() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

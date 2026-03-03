@@ -14,6 +14,7 @@ import {
   RefreshCw, Settings, Zap, Database, Clock, ChevronRight, Loader2,
   Link2, Unlink, Eye, EyeOff, Trash2, Play, Search
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -518,7 +519,8 @@ export default function VendorIntegrations() {
   }, [integrations, catalog]);
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/vendor-integrations">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -667,5 +669,6 @@ export default function VendorIntegrations() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

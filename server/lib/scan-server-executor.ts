@@ -359,7 +359,7 @@ export function suggestToolCommands(asset: {
 
       commands.push({
         tool: "nuclei",
-        args: `-u ${url} -severity low,medium,high,critical -json -timeout 5 -retries 1`,
+        args: `-u ${url} -severity low,medium,high,critical -jsonl -nc -duc -ni -timeout 10 -retries 1`,
         purpose: `CVE/vulnerability template scan on ${url}`,
         priority: 1,
       });

@@ -15,6 +15,7 @@ import {
   Building2, Shield, Users, Rocket, Check, ChevronRight, ChevronLeft,
   Globe, Lock, UserPlus, Plus, X, AlertTriangle, CheckCircle2, Loader2
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const STEPS = [
   { id: "org_info", label: "Organization", icon: Building2, description: "Set up your organization profile" },
@@ -181,7 +182,8 @@ export default function TenantOnboarding() {
   const isLoading = saveOrgMut.isPending || saveIdpMut.isPending || saveInvitesMut.isPending || activateMut.isPending;
 
   return (
-    <div className="min-h-screen bg-background">
+      <AppShell activePath="/onboarding">
+      <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-card">
         <div className="max-w-4xl mx-auto px-6 py-6">
@@ -570,5 +572,6 @@ export default function TenantOnboarding() {
         </Card>
       </div>
     </div>
+      </AppShell>
   );
 }

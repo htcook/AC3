@@ -6953,3 +6953,32 @@
 - [ ] Audit scan execution pipeline — verify commands are actually run on scan server
 - [ ] Audit result processing — verify nmap output is parsed and stored correctly
 - [ ] Fix any issues causing empty scan results
+
+## Bug: Active Scans Still Return No Results (Post db.default Fix)
+- [ ] Test SSH connectivity to scan server from deployed app
+- [ ] Check if executeEngagement is actually being called and reaching executeEnumeration
+- [ ] Verify scan server has nmap/naabu/httpx installed and working
+- [ ] Check if error handling is swallowing errors silently
+- [ ] Fix root cause
+
+## Fix: Active Scan Pipeline — Remove Broken naabu
+- [x] Remove naabu step from executeEnumeration (hangs on scan server)
+- [x] Make nmap --top-ports 1000 with -T3 the primary port discovery method
+- [x] Update LLM prompt to not reference naabu as Step 1
+- [x] Remove naabu from available tools list (raw socket issues on DigitalOcean)
+
+## Fix: Global Navigation on All Pages
+- [x] Audit all pages/routes for DashboardLayout sidebar wrapping
+- [x] Fix 42 pages missing AppShell global navigation wrapper
+
+## Fix: Nuclei Integration in Phase B
+- [x] Verify nuclei is installed on scan server (v3.7.0, 9810 templates)
+- [x] Audit Phase B pipeline for nuclei execution and result parsing
+- [x] Fix nuclei flags: added -nc -duc -ni for reliable execution
+- [x] Updated nuclei to v3.7.0 on scan server with fresh templates
+
+## Fix: Nmap Port Specification Errors
+- [x] Investigate nmap "port specifications illegal" error — caused by regex not catching -p80,443 format
+- [x] Fix regex from /-p[- ]\S*/g to /(?<=\s|^)-p[\s]*[\d,\-]+|-p-/g to catch all port spec variants
+- [x] Add Phase B port spec sanitization — replaces LLM port specs with actual discovered ports
+- [x] Add 7 unit tests for port spec regex covering all edge cases

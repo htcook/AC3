@@ -102,7 +102,7 @@ describe("Hub Tab Navigation", () => {
       tabs: [
         { id: "subfinder", label: "Subfinder", componentPath: "pages/SubfinderPage" },
         { id: "httpx", label: "HTTPX", componentPath: "pages/HttpxPage" },
-        { id: "naabu", label: "Naabu", componentPath: "pages/NaabuPage" },
+        { id: "port-scanner", label: "Port Scanner", componentPath: "pages/NaabuPage" },
       ],
     },
     {
@@ -166,10 +166,10 @@ describe("Hub Tab Navigation", () => {
     }
   });
 
-  it("Discovery Toolkit should consolidate subfinder, httpx, naabu", () => {
+  it("Discovery Toolkit should consolidate subfinder, httpx, port-scanner", () => {
     const discovery = HUB_PAGES.find(h => h.title === "Discovery Toolkit");
     expect(discovery).toBeDefined();
-    expect(discovery!.tabs.map(t => t.id)).toEqual(["subfinder", "httpx", "naabu"]);
+    expect(discovery!.tabs.map(t => t.id)).toEqual(["subfinder", "httpx", "port-scanner"]);
   });
 
   it("C2 Hub should consolidate caldera and sliver", () => {

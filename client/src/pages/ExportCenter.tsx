@@ -16,6 +16,7 @@ import {
   BarChart3,
   Loader2,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 function downloadContent(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -210,7 +211,8 @@ export default function ExportCenter() {
   ];
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/export-center">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-zinc-100">Export Center</h1>
         <p className="text-sm text-zinc-400 mt-1">
@@ -304,5 +306,6 @@ export default function ExportCenter() {
         </CardContent>
       </Card>
     </div>
+      </AppShell>
   );
 }

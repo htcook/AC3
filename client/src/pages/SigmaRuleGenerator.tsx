@@ -12,6 +12,7 @@ import {
   FileCode2, Zap, Shield, Copy, Download, Loader2, Plus, Trash2,
   ChevronDown, ChevronRight, AlertTriangle, Search,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const TACTIC_COLORS: Record<string, string> = {
   "initial-access": "bg-red-500/20 text-red-400",
@@ -152,7 +153,8 @@ export default function SigmaRuleGenerator() {
   }, [templateData, searchFilter]);
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/sigma-rules">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -544,5 +546,6 @@ export default function SigmaRuleGenerator() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

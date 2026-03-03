@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Zap, Database, ArrowRight, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const SOURCE_ICONS: Record<string, string> = {
   "vuln-scanner": "🔍",
@@ -101,7 +102,8 @@ export default function KsiAutoCollector() {
   };
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/ksi-auto-collector">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Indicator Auto-Collection</h1>
@@ -257,5 +259,6 @@ export default function KsiAutoCollector() {
         </Card>
       )}
     </div>
+      </AppShell>
   );
 }

@@ -12,6 +12,7 @@ import {
   Server, Network, ArrowRight, Brain, Shield, Wifi, Terminal,
   GitBranch, Lock, ChevronRight, Zap, Globe
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 /** Lateral Movement — Plan and execute lateral movement across compromised networks.
  *  Use the AI planner to select optimal pivot techniques based on network topology,
@@ -58,7 +59,8 @@ export default function LateralMovement() {
   const plan = llmPlan.data || quickPlan.data;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/lateral-movement">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Network className="w-7 h-7 text-purple-400" />
@@ -214,5 +216,6 @@ export default function LateralMovement() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

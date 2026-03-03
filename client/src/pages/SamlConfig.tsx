@@ -17,6 +17,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, Globe, Key, FileText,
   Building2, Cloud
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const PROVIDER_ICONS: Record<string, React.ReactNode> = {
   okta: <img src="https://www.okta.com/sites/default/files/Okta_Logo_BrightBlue_Medium.png" alt="Okta" className="h-5 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />,
@@ -105,6 +106,7 @@ export default function SamlConfig() {
   }
 
   return (
+    <AppShell activePath="/saml-config">
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -365,6 +367,7 @@ export default function SamlConfig() {
         />
       )}
     </div>
+    </AppShell>
   );
 }
 
@@ -533,7 +536,7 @@ function EditIdPDialog({ idpId, onClose, onSave, isLoading }: {
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
+      <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Identity Provider</DialogTitle>

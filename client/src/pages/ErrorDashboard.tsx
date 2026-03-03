@@ -43,6 +43,7 @@ import {
   Crosshair,
 } from "lucide-react";
 import { toast } from "sonner";
+import AppShell from "@/components/AppShell";
 
 const SEVERITY_CONFIG = {
   critical: { icon: XCircle, color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" },
@@ -109,7 +110,8 @@ export default function ErrorDashboard() {
   const statsData = stats.data as any;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/error-dashboard">
+      <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Error Dashboard</h1>
@@ -521,5 +523,6 @@ export default function ErrorDashboard() {
         </DialogContent>
       </Dialog>
     </div>
+      </AppShell>
   );
 }

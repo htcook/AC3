@@ -12,6 +12,7 @@ import {
   ClipboardCheck, Clock, Play, Search, CheckCircle2, XCircle,
   AlertTriangle, Loader2, RefreshCw, Calendar, Timer, Pause, SkipForward
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 export default function KsiValidation() {
   
@@ -78,7 +79,8 @@ export default function KsiValidation() {
   };
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/ksi-validation">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -324,5 +326,6 @@ export default function KsiValidation() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

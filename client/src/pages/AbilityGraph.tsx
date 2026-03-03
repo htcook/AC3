@@ -58,6 +58,7 @@ import {
   Users,
   ArrowLeftRight,
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 // ─── Safety tier colors ─────────────────────────────────────────────────
 const SAFETY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -1447,7 +1448,8 @@ export default function AbilityGraph() {
 
   // ─── List View ──────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-6">
+      <AppShell activePath="/ability-graph">
+      <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1615,5 +1617,6 @@ export default function AbilityGraph() {
         </div>
       )}
     </div>
+      </AppShell>
   );
 }

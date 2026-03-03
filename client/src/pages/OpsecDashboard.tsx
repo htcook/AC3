@@ -12,6 +12,7 @@ import {
   ShieldAlert, Activity, AlertTriangle, Eye, Gauge, Flame,
   Shield, Radio, Wifi, Cpu, ChevronRight, Zap, Brain
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 /** OPSEC Dashboard — Real-time detection risk scoring, burn detection, and operator guidance.
  *  This page helps red team operators understand the detection risk of every action they take,
@@ -155,7 +156,8 @@ export default function OpsecDashboard() {
   };
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/opsec-dashboard">
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -424,5 +426,6 @@ export default function OpsecDashboard() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

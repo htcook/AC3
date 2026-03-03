@@ -13,6 +13,7 @@ import {
   FileText, ChevronRight, RefreshCw, Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import AppShell from "@/components/AppShell";
 
 const statusConfig = {
   compliant: { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10", badge: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
@@ -133,7 +134,8 @@ export default function ComplianceDashboard() {
   const data = posture.data;
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <AppShell activePath="/compliance-dashboard">
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -340,5 +342,6 @@ export default function ComplianceDashboard() {
         </p>
       )}
     </div>
+      </AppShell>
   );
 }

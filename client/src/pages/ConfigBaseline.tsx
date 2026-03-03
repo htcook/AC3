@@ -14,6 +14,7 @@ import {
   Shield, AlertTriangle, CheckCircle2, XCircle, Plus, Play,
   Settings, FileText, TrendingDown, ArrowUpDown
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "text-red-500 bg-red-500/10 border-red-500/30",
@@ -74,7 +75,8 @@ export default function ConfigBaseline() {
   const criticalDrift = driftAlerts?.filter(a => a.status === "open" && a.severity === "critical").length ?? 0;
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/config-baseline">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Configuration Baseline Engine</h1>
@@ -414,5 +416,6 @@ export default function ConfigBaseline() {
         </DialogContent>
       </Dialog>
     </div>
+      </AppShell>
   );
 }

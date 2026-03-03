@@ -48,6 +48,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import AppShell from "@/components/AppShell";
 
 const PROTOCOL_COLORS: Record<string, string> = {
   ssh: "text-green-400 bg-green-500/10 border-green-500/20",
@@ -108,7 +109,8 @@ export default function OemCredentials() {
   };
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/oem-credentials">
+      <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">OEM Default Credentials</h1>
@@ -324,5 +326,6 @@ export default function OemCredentials() {
         </div>
       )}
     </div>
+      </AppShell>
   );
 }

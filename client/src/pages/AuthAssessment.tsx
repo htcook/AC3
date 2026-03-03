@@ -28,6 +28,7 @@ import {
   Info,
 } from "lucide-react";
 import { toast } from "sonner";
+import AppShell from "@/components/AppShell";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -147,7 +148,8 @@ export default function AuthAssessment() {
   const samlResults = useMemo(() => latestRun?.results.filter(r => r.protocol === "saml") || [], [latestRun]);
 
   return (
-    <div className="space-y-6">
+      <AppShell activePath="/auth-assessment">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -394,5 +396,6 @@ export default function AuthAssessment() {
         </TabsContent>
       </Tabs>
     </div>
+      </AppShell>
   );
 }

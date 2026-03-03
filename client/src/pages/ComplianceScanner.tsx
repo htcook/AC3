@@ -17,6 +17,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, HelpCircle, MinusCircle,
   Upload, Play, FileText, BarChart3
 } from "lucide-react";
+import AppShell from "@/components/AppShell";
 
 type ComplianceStatus = "pass" | "fail" | "not_applicable" | "error" | "manual_review";
 
@@ -118,7 +119,8 @@ const ComplianceScanner = () => {
   }, [displayResult]);
 
   return (
-    <div className="space-y-6">
+    <AppShell activePath="/compliance-scanner">
+      <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="scan"><Play className="w-4 h-4 mr-1" /> External Audit</TabsTrigger>
@@ -432,6 +434,7 @@ const ComplianceScanner = () => {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 };
 

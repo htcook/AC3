@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AppShell from "@/components/AppShell";
 
 // ─── Scan type config ────────────────────────────────────────────────────────
 
@@ -113,7 +114,8 @@ export default function ScanWebhooks() {
   const isAdmin = user?.role === "admin" || user?.role === "team_lead";
 
   return (
-    <div className="space-y-6 p-6">
+      <AppShell activePath="/scan-webhooks">
+      <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -521,5 +523,6 @@ export default function ScanWebhooks() {
         </DialogContent>
       </Dialog>
     </div>
+      </AppShell>
   );
 }
