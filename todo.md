@@ -7284,3 +7284,8 @@
 - [x] Convert markdown to PDF with proper formatting (30 pages, weasyprint, professional styling)
 - [x] Upload PDF to CDN and update download references in Home.tsx and FedRAMP20xReadiness.tsx
 - [x] Verify the PDF download works correctly (CDN returns 120,033 bytes, PDF v1.7)
+
+## Fix FedRAMP PDF Still Blank (Round 2)
+- [x] Investigate why CDN-hosted PDF downloads as blank (content-type was application/octet-stream instead of application/pdf)
+- [x] Re-uploaded via S3 storagePut with content-type application/pdf
+- [x] Verified PDF opens correctly in browser PDF viewer (30 pages, all content visible)
