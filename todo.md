@@ -7376,3 +7376,22 @@
 - [x] Diagnose ReferenceError: prev is not defined on /domain-intel/:id page
 - [x] Fix the undefined 'prev' variable in DomainIntelResults component (prev was scoped inside IIFE, replaced with pipeline.previousSnapshot)
 - [x] Verify page loads without errors
+
+## DDW Sync, RSS Automation, and FULCRUMSEC IOC Cross-Reference
+- [ ] Trigger Daily Dark Web sync to populate database with all threat actors and events
+- [x] Build RSS/scraping automation for dailydarkweb.net to pull new articles daily (dailydarkweb-rss.ts)
+- [x] Add RSS feed parser with category-based extraction (ransomware, data breaches, cyber attacks, unauthorized accesses)
+- [x] Integrate RSS automation into the darkweb feed scheduler (cron at 08:30 UTC)
+- [x] Add UI controls for RSS feed management (DDW RSS SYNC + ALL FEEDS buttons)
+- [x] Cross-reference FULCRUMSEC IOCs against engagement assets (ioc-cross-reference.ts)
+- [x] Build IOC cross-reference endpoint that checks threat actor IOCs against discovered assets
+- [x] Display cross-reference results in the UI with risk indicators (IOC CROSS-REF button)
+- [x] Write tests for RSS automation and IOC cross-reference features (42/42 passed)
+
+## Additional Darkweb/Threat Intel RSS Feeds
+- [x] Research quality darkweb/threat intel RSS feeds — found 18 sources across 4 tiers
+- [x] Add new RSS feed sources to the ingestion pipeline (threat-intel-rss.ts)
+- [x] Ensure RSS ingest updates existing breach event tables (undergroundIntelEvents + incidentReports)
+- [x] Ensure RSS ingest updates existing ransomware victim feed tables (ransomwareEvents + ransomwareGroups stats)
+- [ ] Add geopolitical/Iran-bordering-country OSINT feeds per intelligence requirements
+- [x] Write tests for new feeds and cross-table ingestion (42/42 threat-intel-rss.test.ts)

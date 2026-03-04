@@ -966,13 +966,19 @@ export const darkwebIntelRouter = router({
         try {
           darkwebResult = await runDarkwebFeedSync();
         } catch (e) { /* ignore */ }
+        // Also trigger multi-source RSS sync (Tier 1 only for speed)
+        let rssResult: any = null;
+        try {
+          const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+          rssResult = await syncAllThreatIntelFeeds({ tiers: [1] });
+        } catch (e) { /* ignore */ }
         return {
-          actorsImported: 0,
+          actorsImported: rssResult?.totalActorsUpdated || 0,
           iocsImported: iocResult?.totalFetched || 0,
-          eventsImported: darkwebResult?.totalInserted || 0,
+          eventsImported: (darkwebResult?.totalInserted || 0) + (rssResult?.totalThreatGroupEvents || 0) + (rssResult?.totalRansomwareEvents || 0) + (rssResult?.totalUndergroundEvents || 0) + (rssResult?.totalIncidentReports || 0),
           ratingsUpdated: 0,
           errors: [],
-          source: "local_database + darkweb_feeds",
+          source: "local_database + darkweb_feeds + multi_source_rss",
         };
       }
     } catch (err: any) {
@@ -1009,5 +1015,93 @@ export const darkwebIntelRouter = router({
     const { runFullDarkwebSync } = await import("../lib/darkweb-feed-scheduler");
     const result = await runFullDarkwebSync();
     return result;
+  }),
+
+  // ─── RSS Automation ──────────────────────────────────────────────
+
+  /** Fetch Daily Dark Web RSS feed and auto-ingest new threat events. */
+  syncDailyDarkWebRSS: protectedProcedure
+    .input(z.object({ useAllFeeds: z.boolean().optional() }).optional())
+    .mutation(async ({ input }) => {
+      const { syncDailyDarkWebRSS } = await import("../lib/dailydarkweb-rss");
+      const result = await syncDailyDarkWebRSS(input?.useAllFeeds ?? false);
+      return result;
+    }),
+
+  /** Get available RSS feed URLs for Daily Dark Web. */
+  getDDWRSSFeeds: protectedProcedure.query(async () => {
+    const { DDW_RSS_FEEDS } = await import("../lib/dailydarkweb-rss");
+    return DDW_RSS_FEEDS;
+  }),
+
+  // ─── IOC Cross-Reference ─────────────────────────────────────────
+
+  /** Cross-reference threat actor IOCs against discovered engagement assets. */
+  crossReferenceIOCs: protectedProcedure
+    .input(z.object({
+      actorId: z.string().optional(),
+      engagementId: z.number().optional(),
+      scanId: z.number().optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { crossReferenceIOCs } = await import("../lib/ioc-cross-reference");
+      const result = await crossReferenceIOCs(input ?? undefined);
+      return result;
+    }),
+
+  /** Cross-reference FULCRUMSEC IOCs specifically against all engagement assets. */
+  crossReferenceFulcrumsec: protectedProcedure
+    .input(z.object({
+      engagementId: z.number().optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { crossReferenceIOCs } = await import("../lib/ioc-cross-reference");
+      const result = await crossReferenceIOCs({
+        actorId: "fulcrumsec",
+        engagementId: input?.engagementId,
+      });
+      return result;
+    }),
+
+  /** Sync ALL threat intel RSS feeds (18 sources across 4 tiers). */
+  syncAllThreatIntelRSS: protectedProcedure
+    .input(z.object({
+      tiers: z.array(z.number()).optional(),
+      feedIds: z.array(z.string()).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+      const result = await syncAllThreatIntelFeeds(input ?? {});
+      return result;
+    }),
+
+  /** Get the full feed catalog with enabled/disabled status. */
+  getThreatIntelFeedCatalog: protectedProcedure.query(async () => {
+    const { getFeedCatalog } = await import("../lib/threat-intel-rss");
+    return getFeedCatalog();
+  }),
+
+  /** Sync only Tier 1 feeds (ransomware & breach focused). */
+  syncTier1Feeds: protectedProcedure.mutation(async () => {
+    const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+    return syncAllThreatIntelFeeds({ tiers: [1] });
+  }),
+
+  /** Sync only Tier 2 feeds (threat intel & zero-day). */
+  syncTier2Feeds: protectedProcedure.mutation(async () => {
+    const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+    return syncAllThreatIntelFeeds({ tiers: [2] });
+  }),
+
+  /** Sync only Tier 3 feeds (vendor threat research). */
+  syncTier3Feeds: protectedProcedure.mutation(async () => {
+    const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+    return syncAllThreatIntelFeeds({ tiers: [3] });
+  }),
+
+  /** Sync only Tier 4 feeds (geopolitical & OSINT). */
+  syncTier4Feeds: protectedProcedure.mutation(async () => {
+    const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+    return syncAllThreatIntelFeeds({ tiers: [4] });
   }),
 });

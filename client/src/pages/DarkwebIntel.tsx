@@ -6,7 +6,7 @@ import { Link } from "wouter";
 import AlertDetailModal from "@/components/AlertDetailModal";
 import {
   AlertTriangle, Eye, Globe2, Shield, Skull, Clock,
-  Activity, TrendingUp, Search, ExternalLink, Radio,
+  Activity, TrendingUp, Search, ExternalLink, Radio, Rss, ScanSearch,
   Database, Loader2, RefreshCw, Crosshair, FileText,
   Zap, Bug, Key, Tag, Wifi, WifiOff, ChevronDown, ChevronUp, ChevronRight,
   ShieldAlert, Megaphone, DollarSign, Users, Network, FileJson,
@@ -133,6 +133,44 @@ export default function DarkwebIntel() {
     },
   });
 
+  const syncRSS = trpc.darkwebIntel.syncDailyDarkWebRSS.useMutation({
+    onSuccess: (result) => {
+      toast.success("DDW RSS Sync Complete", {
+        description: `Fetched ${result.totalItemsFetched} articles, extracted ${result.totalEventsExtracted} events, ingested ${result.totalEventsIngested} new events, updated ${result.totalActorsUpdated} actors (${result.duration}ms)`,
+      });
+      refetchEvents();
+    },
+    onError: (err) => toast.error("RSS Sync Failed", { description: sanitizeErrorForToast(err) }),
+  });
+
+  const crossRefIOCs = trpc.darkwebIntel.crossReferenceIOCs.useMutation({
+    onSuccess: (result) => {
+      const matchCount = result.matches.length;
+      if (matchCount === 0) {
+        toast.info("IOC Cross-Reference Complete", {
+          description: `Checked ${result.totalIOCsChecked} IOCs against ${result.totalAssetsChecked} assets. No matches found. (${result.duration}ms)`,
+        });
+      } else {
+        toast.warning(`IOC Cross-Reference: ${matchCount} Match${matchCount > 1 ? "es" : ""} Found`, {
+          description: `Critical: ${result.matchesByRiskLevel.critical ?? 0}, High: ${result.matchesByRiskLevel.high ?? 0}, Medium: ${result.matchesByRiskLevel.medium ?? 0}. Checked ${result.totalIOCsChecked} IOCs against ${result.totalAssetsChecked} assets. (${result.duration}ms)`,
+          duration: 10000,
+        });
+      }
+    },
+    onError: (err) => toast.error("IOC Cross-Reference Failed", { description: sanitizeErrorForToast(err) }),
+  });
+
+  const syncAllRSS = trpc.darkwebIntel.syncAllThreatIntelRSS.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Multi-Source RSS Sync Complete (${result.feedsSucceeded}/${result.totalFeeds} feeds)`, {
+        description: `${result.totalItemsFetched} items → TGE:${result.totalThreatGroupEvents} RE:${result.totalRansomwareEvents} UIE:${result.totalUndergroundEvents} IR:${result.totalIncidentReports} | ${result.totalDuplicatesSkipped} dupes skipped (${(result.duration / 1000).toFixed(1)}s)`,
+        duration: 10000,
+      });
+      refetchEvents();
+    },
+    onError: (err) => toast.error("Multi-Source RSS Sync Failed", { description: sanitizeErrorForToast(err) }),
+  });
+
   const eventTypes = [
     "all", "attack", "campaign", "data_leak", "infrastructure_change",
     "malware_update", "law_enforcement", "ttp_evolution", "zero_day", "new_tool",
@@ -188,6 +226,30 @@ export default function DarkwebIntel() {
             >
               {monitoringSweep.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radio className="w-3 h-3" />}
               RUN LLM SWEEP
+            </button>
+            <button
+              onClick={() => syncRSS.mutate({})}
+              disabled={syncRSS.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-display tracking-wider hover:bg-orange-500/20 transition-colors disabled:opacity-50"
+            >
+              {syncRSS.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rss className="w-3 h-3" />}
+              DDW RSS SYNC
+            </button>
+            <button
+              onClick={() => syncAllRSS.mutate({})}
+              disabled={syncAllRSS.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-display tracking-wider hover:bg-purple-500/20 transition-colors disabled:opacity-50"
+            >
+              {syncAllRSS.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Globe2 className="w-3 h-3" />}
+              ALL FEEDS (18)
+            </button>
+            <button
+              onClick={() => crossRefIOCs.mutate({})}
+              disabled={crossRefIOCs.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-display tracking-wider hover:bg-red-500/20 transition-colors disabled:opacity-50"
+            >
+              {crossRefIOCs.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanSearch className="w-3 h-3" />}
+              IOC CROSS-REF
             </button>
             <Link href="/stix-export">
               <button className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-display tracking-wider hover:bg-cyan-500/20 transition-colors">
