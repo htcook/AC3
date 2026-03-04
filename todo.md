@@ -7248,3 +7248,12 @@
 - [x] Found root cause: `engagement_ops_snapshots` table had a 624KB JSON snapshot with all old state
 - [x] Deleted ops snapshot (1 row) + restarted server to clear in-memory opsStates Map
 - [x] Verified UI now shows clean state: 0 log entries, all stats at 0, "Ready to Begin" prompt
+
+## KSI Gap Analysis & Homepage Update
+- [x] Analyze ChatGPT FedRAMP KSI assessment against our actual implementation
+- [x] Audit every real platform module (routers, scanners, integrations) for actual vs mock capabilities
+- [x] Build honest KSI-to-real-capability mapping (KSI_CAPABILITY_MAPPING.md + KSI_CHATGPT_ANALYSIS.md)
+- [x] Note: KSI module has mock data — mapped only to capabilities that actually work
+- [x] Update FedRAMPKSIMap component: 13 themes, 75 KSIs (34 direct, 32 supporting, 9 planned = 88% coverage)
+- [x] Update homepage language: What's New, About, architecture, pillar cards, footer all updated to 75 KSIs / 13 themes
+- [x] Verify homepage changes compile and render correctly (HMR applied, 12 vitest tests passing)

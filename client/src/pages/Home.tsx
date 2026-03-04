@@ -48,10 +48,10 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Unified Pipeline Enhancement", desc: "Nmap, Amass, and Service Fingerprinter now wired into the TOOL_PHASE_MATRIX enumeration phase with priority boost logic. Three new finding converters translate tool-specific results into unified PipelineFinding format. Extended discovery source weights and coverage tags for cross-tool correlation." },
   { date: "Feb 2026", title: "Passive Scan Clarity", desc: "Domain intel results now display a clear disclaimer distinguishing passive OSINT findings from active scanning. Scan completion prompts users to create a formal engagement with Rules of Engagement (ROE) for authorized active scanning and vulnerability enumeration." },
   { date: "Feb 2026", title: "CVE & Threat Actor Sorting", desc: "CVE lists now default to most-recent-first ordering by published date, with sort options for date, priority, CVSS, and actor count. Threat actor catalog defaults to most-recently-active sorting for faster triage of current threats." },
-  { date: "Feb 2026", title: "Threat Intelligence Enrichment Engine", desc: "Continuously learns threat actor TTPs and IOCs to enhance KSI analysis, monitoring, evaluation, and validation across all platform modules. Full enrichment cycle correlates 1,698+ threat actors against all 45 FedRAMP KSIs with risk scoring, coverage matrix, IOC feeds per module, and cross-module priority updates for validation, attack vectors, and config baselines." },
+  { date: "Feb 2026", title: "Threat Intelligence Enrichment Engine", desc: "Continuously learns threat actor TTPs and IOCs to enhance KSI analysis, monitoring, evaluation, and validation across all platform modules. Full enrichment cycle correlates 1,698+ threat actors against all 75 FedRAMP 20x KSIs with risk scoring, coverage matrix, IOC feeds per module, and cross-module priority updates for validation, attack vectors, and config baselines." },
   { date: "Feb 2026", title: "Live Scanner Integration", desc: "Real-time cross-referencing of live scan evidence against the threat catalog. Auto-collection pipelines with 6 configurable sources feed KSI evidence chains. Scheduled collection with cron-based automation and source health monitoring." },
   { date: "Feb 2026", title: "Engagement Automation Engine", desc: "Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates (full pentest, red team, purple team, phishing assessment, cloud security) with kill chain phase mapping, recommended techniques, and pre-loaded Caldera abilities and Metasploit modules." },
-  { date: "Feb 2026", title: "FedRAMP KSI Coverage Map", desc: "Interactive map showing how ACE C3 addresses 29 of 45 FedRAMP Key Security Indicators across 9 compliance themes — 16 with direct coverage and 13 with supporting evidence. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped ACE C3 modules." },
+  { date: "Feb 2026", title: "FedRAMP KSI Coverage Map", desc: "Interactive map showing how ACE C3 addresses 75 FedRAMP 20x Key Security Indicators across 13 compliance themes — 34 with direct automated validation and 32 with supporting evidence. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped ACE C3 modules and honest capability grounding." },
   { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped atomic tests synced and ready to execute. Browse by technique, tactic, or platform. Run tests against target systems with full audit trails. Cross-module integration links validation tests to Attack Planner, Emulation Playbooks, Purple Team exercises, adversary operations, DAST findings, and detection rule validation." },
   { date: "Feb 2026", title: "DAST Server Deployed", desc: "Dedicated DAST scanning server deployed with auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. AI-powered scan configuration auto-tunes spider depth, authentication handlers, and scan policies based on target tech stack detection." },
   { date: "Feb 2026", title: "OpenAPI / GraphQL / SOAP Import", desc: "Import API specifications directly into DAST scans for targeted API security testing. Supports OpenAPI/Swagger, GraphQL introspection endpoints, and WSDL definitions. Auto-discovers API endpoints and parameters for comprehensive coverage beyond traditional web crawling." },
@@ -527,8 +527,8 @@ export default function Home() {
               description={`${stats.threatActors.toLocaleString()} threat actor profiles with continuous enrichment engine that correlates TTPs and IOCs against all KSIs, attack vectors, validation schedules, and config baselines. Five aggregated vulnerability feeds with live verification.`}
               features={[
                 "Continuous enrichment engine with full-cycle automation",
-                "KSI-to-MITRE technique coverage matrix across 9 themes",
-                "IOC feeds per module: KSI, attack vectors, config, validation",
+                "KSI-to-MITRE technique coverage matrix across 13 FedRAMP 20x themes",
+                "IOC feeds per module: 75 KSIs, attack vectors, config, validation",
                 "Threat-informed validation priority scoring",
                 "Attack vector enrichment with actor correlation",
                 "Config baseline prioritization from threat landscape",
@@ -671,12 +671,12 @@ export default function Home() {
               title="THREAT ENRICHMENT & AUTOMATION"
               color="text-purple-400"
               modules={[
-                { icon: Brain, name: "Enrichment Engine", desc: "Continuous threat intelligence enrichment correlating TTPs and IOCs against KSIs, attack vectors, and config baselines" },
-                { icon: TrendingUp, name: "Coverage Matrix", desc: "KSI-to-MITRE technique coverage across 9 FedRAMP themes with actor density and risk scoring" },
+                { icon: Brain, name: "Enrichment Engine", desc: "Continuous threat intelligence enrichment correlating TTPs and IOCs against 75 KSIs across 13 FedRAMP 20x themes" },
+                { icon: TrendingUp, name: "Coverage Matrix", desc: "KSI-to-MITRE technique coverage across 13 FedRAMP 20x themes with actor density and risk scoring" },
                 { icon: Zap, name: "Engagement Automation", desc: "5 engagement templates with kill chain mapping, pre-loaded Caldera abilities and Metasploit modules" },
                 { icon: Scan, name: "Live Scanner", desc: "Real-time cross-referencing of scan evidence against threat catalog with auto-collection pipelines" },
                 { icon: Clock, name: "Scheduled Collection", desc: "Cron-based automated evidence collection with source health monitoring" },
-                { icon: Radio, name: "IOC Feeds", desc: "Per-module IOC feeds from correlated threat actors for KSI, attack vectors, config, and validation" },
+                { icon: Radio, name: "IOC Feeds", desc: "Per-module IOC feeds from correlated threat actors for 75 KSIs, attack vectors, config, and validation" },
               ]}
             />
 
@@ -686,7 +686,7 @@ export default function Home() {
               modules={[
                 { icon: FileText, name: "Engagement Report", desc: "Branded HTML reports with MITRE heatmaps, evidence artifacts, and validation coverage" },
                 { icon: BarChart3, name: "Report Generator", desc: "Executive summaries with proof-of-exploit evidence links and coverage bars" },
-                { icon: Globe, name: "Compliance", desc: "NIST CSF, CMMC, and FedRAMP framework mapping" },
+                { icon: Globe, name: "Compliance", desc: "NIST CSF, CMMC, and FedRAMP 20x framework mapping with 142 SP 800-53 control mappings" },
               ]}
             />
           </div>
@@ -711,7 +711,7 @@ export default function Home() {
               { step: "04", title: "PHISH", desc: "Launch social engineering campaigns with 17 exploit-enhanced phishing techniques and typosquat domains", icon: Zap },
               { step: "05", title: "VALIDATE", desc: "Run ATT&CK validation tests and autonomous exploit validation with evidence capture", icon: FlaskConical },
               { step: "06", title: "DETECT", desc: "Auto-generate Sigma/YARA/Suricata rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
-              { step: "07", title: "ENRICH", desc: "Continuous threat intelligence enrichment correlates findings against threat actors, updates KSI priorities, and feeds IOCs to all modules", icon: Brain },
+              { step: "07", title: "ENRICH", desc: "Continuous threat intelligence enrichment correlates findings against threat actors, updates priorities across 75 FedRAMP 20x KSIs, and feeds IOCs to all modules", icon: Brain },
               { step: "08", title: "REPORT", desc: "Deliver reports with enrichment-driven priorities, validation coverage metrics, evidence artifacts, and remediation steps", icon: FileText },
             ].map((item) => (
               <div key={item.step} className="text-center p-4 border border-border/50 bg-card/30 hover:border-primary/50 transition-colors">
@@ -806,8 +806,8 @@ export default function Home() {
               icon={<Brain className="w-6 h-6" />}
               title="THREAT ENRICHMENT ENGINE"
               items={[
-                "Continuous TTP/IOC correlation against all KSIs",
-                "Coverage matrix across 9 FedRAMP themes",
+                "Continuous TTP/IOC correlation against all 75 FedRAMP 20x KSIs",
+                "Coverage matrix across 13 FedRAMP 20x themes",
                 "Cross-module IOC feeds and priority scoring",
                 "Engagement automation with 5 templates",
                 "Scheduled auto-collection with source health monitoring",
@@ -854,6 +854,8 @@ export default function Home() {
                 CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
                 Ace C3 is our unified offensive platform — orchestrating exploit execution, adversary emulation,
                 DAST scanning, ATT&CK validation, social engineering, and continuous threat intelligence enrichment through a single AI-powered command center.
+                With coverage across 75 FedRAMP 20x Key Security Indicators spanning 13 compliance themes and 142 NIST SP 800-53 control mappings,
+                Ace C3 provides automated evidence collection, validation, and continuous monitoring to support CSPs pursuing FedRAMP authorization.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                 Created by Harrison Cook, Ace C3 aligns to Gartner's CTEM framework across all five stages:
@@ -912,7 +914,7 @@ export default function Home() {
             <span className="font-display tracking-wider">ACE C3</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
-            Ace C3 — Unified Offensive Platform with Continuous Threat Intelligence Enrichment | Powered by Ace of Cloud
+            Ace C3 — Unified Offensive Platform with FedRAMP 20x KSI Coverage & Continuous Threat Intelligence Enrichment | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">

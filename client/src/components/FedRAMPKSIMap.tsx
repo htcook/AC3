@@ -3,7 +3,8 @@ import {
   Shield, Building2, ChevronRight, CheckCircle2,
   Layers, Lock, Eye, Server, Users, BookOpen, RefreshCw,
   FileText, Radar, Target, Zap, Brain, ShieldCheck, BarChart3,
-  Fingerprint, Clock, ArrowRight, AlertTriangle, Info
+  Fingerprint, Clock, ArrowRight, AlertTriangle, Info,
+  Package, Code2, ScrollText, KeyRound
 } from "lucide-react";
 
 // ─── KSI Theme Data ─────────────────────────────────────────────────
@@ -32,129 +33,73 @@ type KSITheme = {
   ksis: KSIEntry[];
 };
 
-// ─── Honest KSI Data — Only references modules that actually exist ──
+// ─── Honest KSI Data — Grounded in real platform capabilities ──────
+// Coverage levels:
+//   DIRECT = platform actively performs the function and generates evidence
+//   SUPPORTING = platform provides telemetry/testing that validates the control
+//   PLANNED = module exists but relies on mock data or is not yet wired
 
 const KSI_THEMES: KSITheme[] = [
   {
-    id: "vdr",
-    name: "Vulnerability Detection & Response",
-    abbrev: "VDR",
-    icon: Target,
-    color: "text-red-400",
-    totalKSIs: 3,
+    id: "afr",
+    name: "Authorization by FedRAMP",
+    abbrev: "AFR",
+    icon: Shield,
+    color: "text-indigo-400",
+    totalKSIs: 8,
     directCoverage: 3,
-    supportingCoverage: 0,
-    description: "Continuous vulnerability scanning, remediation within SLA, and annual penetration testing across all 6 FedRAMP attack vectors.",
-    cspValue: "ACE C3 executes real penetration tests across all 6 mandatory attack vectors — external, internal, web app, API, mobile, and social engineering — with evidence capture proving exploitability. DAST scanning, exploit validation, and vulnerability intelligence feeds provide continuous detection.",
-    agencyValue: "Agencies can passively monitor CSP vulnerability posture through ingested scan reports, passive domain discovery, and enumeration data. CSP-submitted penetration test evidence, DAST scan results, and vulnerability remediation timelines are available for review. Agencies track remediation SLA compliance without initiating any active testing.",
+    supportingCoverage: 4,
+    description: "FedRAMP authorization lifecycle — compliance monitoring, assessment scope, vulnerability assessment, security configuration guides, and data sharing.",
+    cspValue: "ACE C3 provides continuous compliance monitoring through the KSI Dashboard with automated validation scheduling, OSCAL-formatted evidence export for machine-readable data sharing, and full penetration testing across all 6 mandatory attack vectors to satisfy periodic vulnerability assessment requirements.",
+    agencyValue: "Agencies can review CSP-submitted OSCAL exports, KSI evidence chains, and assessment reports to verify continuous compliance posture. Periodic vulnerability assessment results and NIST control mapping evidence are available for passive monitoring without initiating any active testing.",
     ksis: [
       {
-        id: "KSI-VDR-001", name: "Vulnerability Detection & Response", status: "direct",
-        aceModules: ["Domain Intel", "Vuln Intel", "Validation Engine", "DAST Scanner"],
-        cspDetail: "Domain Intel discovers external attack surface. Vuln Intel aggregates KEV, NVD, and ExploitDB feeds. DAST Scanner performs active web application testing. Validation Engine confirms exploitability with proof artifacts.",
-        agencyDetail: "Review CSP-submitted vulnerability scan results from Domain Intel and DAST Scanner. Passive discovery and enumeration independently verify external attack surface. Track remediation SLA compliance through Evidence Chain timestamps without initiating any active scans."
+        id: "KSI-AFR-ADS", name: "Authorization Data Sharing", status: "supporting",
+        aceModules: ["OSCAL Export", "STIX Export", "Evidence Chain"],
+        cspDetail: "OSCAL Export produces machine-readable compliance evidence packages. STIX Export provides threat intelligence in standardized format. Evidence Chain maintains tamper-resistant audit trails with SHA-256 integrity hashing.",
+        agencyDetail: "Review CSP-submitted OSCAL packages and STIX feeds for machine-readable compliance and threat data. Evidence Chain integrity hashes allow independent verification of evidence authenticity."
       },
       {
-        id: "KSI-VDR-002", name: "Penetration Testing", status: "direct",
-        aceModules: ["Exploit Arsenal", "Red Team Ops", "Phishing Ops", "DAST Scanner", "Post-Engagement Report"],
-        cspDetail: "Exploit Arsenal provides 16,000+ modules for real exploitation. Red Team Ops orchestrates adversary emulation with Caldera. Phishing Ops tests human defenses with 17 techniques. Post-Engagement Report generates evidence-backed deliverables.",
-        agencyDetail: "Agencies ingest CSP-submitted Post-Engagement Reports with evidence artifacts proving each finding. Reports include MITRE ATT&CK heatmaps showing which techniques were tested, exploit proof screenshots, and remediation recommendations with severity ratings. Agencies review — not execute — these assessments."
+        id: "KSI-AFR-CCM", name: "Continuous Compliance Monitoring", status: "direct",
+        aceModules: ["KSI Dashboard", "Validation Scheduler", "Auto-Collectors"],
+        cspDetail: "KSI Dashboard tracks 70 Key Security Indicators with NIST SP 800-53 control mappings. Validation Scheduler automates assessment cadence at configurable frequencies (3-day, 7-day, monthly). Auto-Collectors gather evidence from live API integrations.",
+        agencyDetail: "Monitor CSP compliance posture through KSI Dashboard evidence showing validation frequency, coverage percentages, and control mapping completeness. Track assessment cadence compliance passively."
       },
       {
-        id: "KSI-VDR-003", name: "Persistent Validation & Assessment", status: "direct",
-        aceModules: ["Validation Scheduler", "Agentless BAS", "ATT&CK Validation Tests"],
-        cspDetail: "Validation Scheduler runs assessments at configurable cadences (3-day, 7-day, monthly). Agentless BAS tests detection coverage without deploying agents. ATT&CK Validation Tests execute 1,400+ atomic tests mapped to MITRE techniques.",
-        agencyDetail: "Monitor CSP continuous validation cadence through submitted assessment evidence. Agentless BAS results show detection coverage percentages. ATT&CK Validation test results demonstrate which techniques the CSP can detect and which remain blind spots. Agencies track assessment frequency and remediation progress passively."
-      },
-    ],
-  },
-  {
-    id: "pva",
-    name: "Persistent Validation & Assessment",
-    abbrev: "PVA",
-    icon: ShieldCheck,
-    color: "text-emerald-400",
-    totalKSIs: 3,
-    directCoverage: 1,
-    supportingCoverage: 1,
-    description: "Machine-based validation at 3-day/7-day cadence, ongoing assessment reports, and significant change notification.",
-    cspValue: "ACE C3 generates OSCAL-formatted evidence packages from validation results and produces ongoing assessment reports with evidence artifacts. Validation Scheduler automates assessment cadence at FedRAMP-mandated frequencies.",
-    agencyValue: "Agencies ingest OSCAL exports submitted by CSPs using ACE C3 to verify assessment data in machine-readable format. Evidence Chain provides tamper-resistant audit trails of all validation activities. Agencies passively monitor CSP assessment cadence, completeness, and remediation status without conducting any active testing.",
-    ksis: [
-      {
-        id: "KSI-PVA-002", name: "Ongoing Assessment Reports", status: "direct",
-        aceModules: ["Post-Engagement Report", "Evidence Chain", "Report Generator"],
-        cspDetail: "Post-Engagement Report generates branded assessment deliverables with MITRE heatmaps and evidence links. Report Generator produces executive summaries with validation coverage metrics. Evidence Chain links all findings to proof artifacts.",
-        agencyDetail: "Review CSP-submitted ongoing assessment reports with embedded evidence links. Reports include validation coverage percentages, MITRE ATT&CK technique coverage, and links to proof artifacts stored in Evidence Chain. Agencies monitor report cadence and remediation progress."
+        id: "KSI-AFR-FSI", name: "FedRAMP Security Inbox", status: "planned",
+        aceModules: ["Notification System"],
+        cspDetail: "Platform notification system exists but a dedicated FedRAMP communication channel for agency-CSP correspondence is planned for future development.",
+        agencyDetail: "Planned capability for structured FedRAMP communication between agencies and CSPs through the platform."
       },
       {
-        id: "KSI-PVA-003", name: "Significant Change Notification", status: "supporting",
-        aceModules: ["Config Baseline Engine", "Audit Log"],
-        cspDetail: "Config Baseline Engine detects drift from approved configurations. Audit Log records all security-relevant changes with timestamps and user attribution for change documentation.",
-        agencyDetail: "Review CSP-submitted configuration change history through Audit Log exports. Config Baseline drift reports show what changed from the approved baseline, enabling agencies to assess whether changes require re-assessment — all through passive monitoring."
+        id: "KSI-AFR-ICP", name: "Initial Compliance Posture", status: "supporting",
+        aceModules: ["KSI Evidence Chain", "NIST Control Mappings"],
+        cspDetail: "KSI Evidence Chain documents initial security posture with 142 NIST SP 800-53 control mappings across all 70 KSIs. Evidence is stored with integrity verification for audit readiness.",
+        agencyDetail: "Review CSP-submitted initial compliance posture documentation through KSI Evidence Chain exports with NIST control mapping traceability."
       },
       {
-        id: "KSI-PVA-004", name: "Feedback Mechanism", status: "planned",
-        aceModules: ["Evidence Chain"],
-        cspDetail: "Evidence Chain can store agency feedback artifacts, but a dedicated feedback portal for agency-CSP communication is planned for future development.",
-        agencyDetail: "A structured feedback mechanism for agencies to communicate findings and concerns to CSPs is planned. Currently, CSP-submitted assessment evidence can be reviewed through Evidence Chain exports."
-      },
-    ],
-  },
-  {
-    id: "iam",
-    name: "Identity & Access Management",
-    abbrev: "IAM",
-    icon: Fingerprint,
-    color: "text-blue-400",
-    totalKSIs: 7,
-    directCoverage: 2,
-    supportingCoverage: 2,
-    description: "Phishing-resistant MFA, privileged access management, least privilege enforcement, and account lifecycle controls.",
-    cspValue: "ACE C3 tests MFA resilience through real phishing campaigns with MFA bypass techniques (AiTM, BITB, device code). AD Attack Simulation validates privileged access controls. Cloud Attack Paths identifies excessive permissions.",
-    agencyValue: "Agencies can review CSP-submitted MFA bypass test results to verify phishing resistance. AD Attack Simulation reports submitted by CSPs show whether privileged access controls withstand real attack techniques. Cloud Attack Paths analysis reveals excessive permission chains. All review is passive — agencies do not initiate these tests.",
-    ksis: [
-      {
-        id: "KSI-IAM-001", name: "Phishing-Resistant MFA", status: "direct",
-        aceModules: ["Phishing Ops", "Campaign Wizard"],
-        cspDetail: "Phishing Ops executes real MFA bypass attacks including AiTM proxy, BITB, device code phishing, and HTML smuggling. Campaign Wizard configures targeted MFA resilience tests. Results prove whether MFA implementation resists actual attack techniques.",
-        agencyDetail: "Review CSP-submitted MFA bypass test results showing which attack techniques succeeded or failed. Phishing campaign reports include click rates, credential capture attempts, and MFA bypass success rates. Agencies monitor these results passively to verify MFA resilience."
+        id: "KSI-AFR-MAS", name: "Minimum Assessment Scope", status: "direct",
+        aceModules: ["RoE Builder", "Engagement Pipeline", "Scope Guard"],
+        cspDetail: "RoE Builder defines and enforces assessment scope with version-controlled rules of engagement. Engagement Pipeline orchestrates multi-phase assessments (passive → active → exploitation → reporting). Scope Guard prevents out-of-scope testing.",
+        agencyDetail: "Review CSP-submitted RoE documentation and scope definitions. Engagement Pipeline evidence shows assessment coverage across all defined scope boundaries."
       },
       {
-        id: "KSI-IAM-002", name: "Privileged Access Management", status: "direct",
-        aceModules: ["AD Attack Simulation", "AD Domain Connector"],
-        cspDetail: "AD Attack Simulation tests privileged access controls with techniques like Kerberoasting, DCSync, Golden Ticket, and Pass-the-Hash. AD Domain Connector enumerates domain structure to identify privileged account exposure.",
-        agencyDetail: "Review CSP-submitted AD Attack Simulation results showing whether privileged access controls resist real attack techniques. Reports detail which privilege escalation paths exist and whether PAM controls effectively contain lateral movement. Agencies monitor remediation status."
+        id: "KSI-AFR-PVA", name: "Periodic Vulnerability Assessment", status: "direct",
+        aceModules: ["ZAP DAST", "Nuclei Scanner", "Vuln Scanner Import", "Engagement Pipeline"],
+        cspDetail: "ZAP DAST performs active web application testing. Nuclei Scanner executes template-based vulnerability scanning on remote scan servers. Vuln Scanner Import normalizes Nessus/Qualys/Burp reports. Engagement Pipeline orchestrates periodic assessment cycles.",
+        agencyDetail: "Review CSP-submitted vulnerability assessment results from DAST, Nuclei, and imported scanner reports. Track assessment frequency and remediation SLA compliance passively."
       },
       {
-        id: "KSI-IAM-003", name: "Account Lifecycle", status: "supporting",
-        aceModules: ["AD Domain Connector", "Audit Log"],
-        cspDetail: "AD Domain Connector enumerates accounts, group memberships, and last-login timestamps to identify stale or orphaned accounts. Audit Log tracks account provisioning and deprovisioning events.",
-        agencyDetail: "Review CSP-submitted AD Domain Connector reports showing stale accounts, group membership sprawl, and orphaned service accounts. Audit Log exports demonstrate account lifecycle management practices. Agencies passively enumerate and monitor account hygiene."
+        id: "KSI-AFR-SCG", name: "Secure Configuration Guide", status: "supporting",
+        aceModules: ["Config Baseline Engine", "SCAP Compliance Scanner"],
+        cspDetail: "Config Baseline Engine tracks security configurations against approved baselines. SCAP Compliance Scanner checks CIS benchmarks. These inform SCG development but don't auto-generate configuration guides.",
+        agencyDetail: "Review CSP-submitted configuration baseline reports and CIS benchmark compliance data to verify alignment with secure configuration standards."
       },
       {
-        id: "KSI-IAM-004", name: "Least Privilege", status: "supporting",
-        aceModules: ["Cloud Attack Paths", "AD Attack Simulation"],
-        cspDetail: "Cloud Attack Paths maps permission chains across AWS, Azure, and GCP to identify over-privileged roles. AD Attack Simulation tests whether least privilege is enforced by attempting privilege escalation.",
-        agencyDetail: "Review CSP-submitted Cloud Attack Paths reports revealing excessive permission chains. AD Attack Simulation results show whether privilege escalation is possible, indicating least privilege enforcement gaps. Agencies track remediation of identified gaps."
-      },
-      {
-        id: "KSI-IAM-005", name: "Just-in-Time Access", status: "planned",
-        aceModules: ["Cloud Attack Paths"],
-        cspDetail: "Cloud Attack Paths can identify persistent privileged access that should be JIT. Dedicated JIT access validation is planned.",
-        agencyDetail: "Planned capability to passively verify CSP JIT access implementations through review of submitted privilege elevation audit logs and time-bound access control configurations."
-      },
-      {
-        id: "KSI-IAM-006", name: "Single Sign-On", status: "planned",
-        aceModules: ["AD Domain Connector"],
-        cspDetail: "AD Domain Connector can enumerate SSO configurations. Dedicated SSO security testing is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted SSO configuration reports including federation trust configurations and token security assessments."
-      },
-      {
-        id: "KSI-IAM-007", name: "Network Access Control", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track network access control configurations. Dedicated NAC validation testing is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted network access control configurations through baseline comparison and segmentation audit reports."
+        id: "KSI-AFR-SCN", name: "Significant Change Notification", status: "supporting",
+        aceModules: ["Audit Log", "Evidence Chain", "Config Baseline Engine"],
+        cspDetail: "Audit Log records all security-relevant changes with timestamps and user attribution. Config Baseline Engine detects drift from approved configurations. Evidence Chain provides tamper-resistant change records.",
+        agencyDetail: "Review CSP-submitted Audit Log exports and Config Baseline drift reports to identify significant changes. Evidence Chain records provide tamper-resistant proof of change management."
       },
     ],
   },
@@ -164,36 +109,42 @@ const KSI_THEMES: KSITheme[] = [
     abbrev: "CMT",
     icon: RefreshCw,
     color: "text-amber-400",
-    totalKSIs: 4,
+    totalKSIs: 5,
     directCoverage: 2,
-    supportingCoverage: 2,
-    description: "Automated configuration management, configuration databases, documented changes, and deployment validation.",
-    cspValue: "Config Baseline Engine tracks configuration drift from approved baselines. Validation Scheduler validates security controls after changes. Audit Log and RoE Builder maintain complete change documentation with version history.",
-    agencyValue: "Agencies passively review CSP-submitted Config Baseline drift reports to verify approved configurations are maintained. Audit Log exports demonstrate change documentation practices. Validation Scheduler evidence shows whether security controls are re-validated after changes. No active testing is initiated by agencies.",
+    supportingCoverage: 3,
+    description: "Log and monitor modifications, validate changes through deployment, review change management procedures, and governance.",
+    cspValue: "Audit Log records all security-relevant changes with timestamps and user attribution. Validation Scheduler triggers post-change security validation. Agentless BAS tests detection coverage after changes to verify security controls still function.",
+    agencyValue: "Agencies passively review CSP-submitted Audit Log exports and Validation Scheduler evidence showing security controls are re-validated after changes. Config Baseline drift reports demonstrate change management practices.",
     ksis: [
       {
-        id: "KSI-CMT-001", name: "Automate Configuration Management", status: "supporting",
-        aceModules: ["Config Baseline Engine", "Validation Scheduler"],
-        cspDetail: "Config Baseline Engine defines and monitors security configuration baselines. Validation Scheduler triggers automated re-validation after configuration changes are detected.",
-        agencyDetail: "Review CSP-submitted Config Baseline reports showing configuration compliance rates and drift history. Validation Scheduler evidence demonstrates automated re-assessment after changes. Agencies monitor compliance passively."
+        id: "KSI-CMT-LMC", name: "Log and Monitor Modifications", status: "direct",
+        aceModules: ["Audit Log", "Evidence Chain"],
+        cspDetail: "Audit Log records all security-relevant changes with timestamps, user attribution, and change details. Evidence Chain provides tamper-resistant storage of modification records with SHA-256 integrity hashing.",
+        agencyDetail: "Review CSP-submitted Audit Log exports showing complete modification history with timestamps and attribution. Evidence Chain integrity records provide tamper-resistant proof of change logging."
       },
       {
-        id: "KSI-CMT-002", name: "Configuration Database", status: "supporting",
-        aceModules: ["Config Baseline Engine", "Domain Intel"],
-        cspDetail: "Config Baseline Engine maintains a database of approved configurations and current state. Domain Intel provides asset inventory data that feeds configuration tracking.",
-        agencyDetail: "Review CSP-submitted Config Baseline exports showing configuration inventory and compliance status. Passive enumeration via Domain Intel independently verifies whether all assets are tracked in the configuration database."
+        id: "KSI-CMT-RMV", name: "Redeployment of Version-Controlled Resources", status: "supporting",
+        aceModules: ["Config Baseline Engine", "Audit Log"],
+        cspDetail: "Config Baseline Engine tracks deployment configurations and detects drift from approved baselines. Audit Log records deployment events. The platform does not manage IaC directly.",
+        agencyDetail: "Review CSP-submitted Config Baseline reports showing deployment configuration compliance and drift history."
       },
       {
-        id: "KSI-CMT-003", name: "Document Changes", status: "direct",
-        aceModules: ["Audit Log", "RoE Builder", "Evidence Chain"],
-        cspDetail: "Audit Log records all security-relevant changes with timestamps and user attribution. RoE Builder maintains version-controlled rules of engagement documentation. Evidence Chain provides tamper-resistant change records.",
-        agencyDetail: "Review CSP-submitted Audit Log exports showing complete change history with timestamps and attribution. RoE Builder version history demonstrates documentation practices. Evidence Chain records provide tamper-resistant proof of change management. Agencies monitor change cadence passively."
+        id: "KSI-CMT-RVP", name: "Review Change Management Procedures", status: "supporting",
+        aceModules: ["Evidence Chain", "RoE Builder"],
+        cspDetail: "Evidence Chain stores procedure documentation with version history. RoE Builder maintains version-controlled rules of engagement. LLM analysis can review procedures for completeness.",
+        agencyDetail: "Review CSP-submitted change management procedure documentation through Evidence Chain exports with version history tracking."
       },
       {
-        id: "KSI-CMT-004", name: "Validate Through Deployment", status: "direct",
+        id: "KSI-CMT-VTD", name: "Validate Changes Throughout Deployment", status: "direct",
         aceModules: ["Validation Scheduler", "Agentless BAS", "ATT&CK Validation Tests"],
-        cspDetail: "Validation Scheduler triggers post-deployment security validation. Agentless BAS tests detection coverage after changes. ATT&CK Validation Tests confirm security controls still function after deployment.",
-        agencyDetail: "Review CSP-submitted Validation Scheduler evidence showing security controls are re-validated after deployments. Agentless BAS and ATT&CK test results before and after changes demonstrate deployment validation practices. Agencies track remediation status passively."
+        cspDetail: "Validation Scheduler triggers post-deployment security validation at configurable cadences. Agentless BAS tests detection coverage without deploying agents. ATT&CK Validation Tests confirm security controls function after deployment.",
+        agencyDetail: "Review CSP-submitted Validation Scheduler evidence showing security controls are re-validated after deployments. Agentless BAS results before and after changes demonstrate deployment validation practices."
+      },
+      {
+        id: "KSI-CMT-CMG", name: "Change Management Governance", status: "supporting",
+        aceModules: ["RoE Builder", "Audit Log", "Scope Guard"],
+        cspDetail: "RoE Builder maintains version-controlled governance documentation. Audit Log provides complete change audit trail. Scope Guard enforces operational boundaries. The platform supports governance documentation but doesn't enforce CM policy.",
+        agencyDetail: "Review CSP-submitted governance documentation, audit trails, and scope enforcement evidence to verify change management governance practices."
       },
     ],
   },
@@ -203,201 +154,72 @@ const KSI_THEMES: KSITheme[] = [
     abbrev: "CNA",
     icon: Server,
     color: "text-cyan-400",
-    totalKSIs: 8,
-    directCoverage: 2,
-    supportingCoverage: 3,
-    description: "Minimal attack surface, logical network segmentation, DoS protection, high availability, resilience, and container security.",
-    cspValue: "Domain Intel and DAST Scanner continuously discover and test the external attack surface. Cloud Attack Paths identifies excessive privileges and misconfigurations. Nuclei Scanner tests container and infrastructure security with template-based scanning.",
-    agencyValue: "Agencies passively monitor CSP external attack surface through ingested Domain Intel reports and independent passive enumeration. CSP-submitted DAST Scanner results and Cloud Attack Paths analysis are available for review. Agencies do not initiate scans — they monitor submitted evidence and track remediation of identified issues.",
+    totalKSIs: 10,
+    directCoverage: 3,
+    supportingCoverage: 5,
+    description: "Minimal attack surface, secure-by-design architecture, encryption enforcement, network controls, cloud infrastructure hardening, and availability.",
+    cspValue: "Domain Intel and service fingerprinting continuously discover the external attack surface. DigitalOcean infrastructure auditing validates cloud configurations. ZAP DAST validates TLS/encryption. NGFW validation tests network segmentation and firewall rules.",
+    agencyValue: "Agencies passively monitor CSP external attack surface through ingested Domain Intel reports and independent passive enumeration. CSP-submitted DAST, NGFW validation, and cloud infrastructure audit results are available for review.",
     ksis: [
       {
-        id: "KSI-CNA-001", name: "Minimal Attack Surface", status: "direct",
-        aceModules: ["Domain Intel", "DAST Scanner", "Vuln Scanner"],
-        cspDetail: "Domain Intel discovers all external-facing assets, subdomains, and services. DAST Scanner tests web applications for vulnerabilities. Vuln Scanner identifies exposed services and known vulnerabilities across the attack surface.",
-        agencyDetail: "Review CSP-submitted Domain Intel reports and independently verify external attack surface through passive discovery and enumeration — subdomains, open ports, exposed services. Track attack surface size over time to verify reduction efforts. No active scanning is initiated by agencies."
-      },
-      {
-        id: "KSI-CNA-002", name: "Define Functionality/Privileges", status: "direct",
+        id: "KSI-CNA-DFP", name: "Define Functionality and Privileges", status: "direct",
         aceModules: ["Cloud Attack Paths", "AD Attack Simulation"],
-        cspDetail: "Cloud Attack Paths maps permission chains to identify over-privileged roles and unnecessary functionality. AD Attack Simulation tests whether privilege boundaries are enforced.",
-        agencyDetail: "Review CSP-submitted Cloud Attack Paths reports revealing whether environments follow least-functionality principles. AD Attack Simulation results show whether privilege boundaries contain lateral movement. Agencies track remediation of over-privileged roles."
+        cspDetail: "Cloud Attack Paths maps permission chains across cloud environments to identify over-privileged roles and unnecessary functionality. AD Attack Simulation tests whether privilege boundaries are enforced by attempting escalation.",
+        agencyDetail: "Review CSP-submitted Cloud Attack Paths reports revealing whether environments follow least-functionality principles. AD Attack Simulation results show whether privilege boundaries contain lateral movement."
       },
       {
-        id: "KSI-CNA-003", name: "Logical Network Segmentation", status: "supporting",
-        aceModules: ["Config Baseline Engine", "NGFW Validation"],
-        cspDetail: "Config Baseline Engine tracks network segmentation configurations. NGFW Validation tests firewall rules and network boundaries to verify segmentation effectiveness.",
-        agencyDetail: "Review CSP-submitted NGFW Validation results showing whether network segmentation rules are properly configured. Config Baseline reports track segmentation configuration compliance. Agencies monitor passively."
+        id: "KSI-CNA-EDE", name: "Encrypt Data at Rest and In Transit (FIPS)", status: "supporting",
+        aceModules: ["ZAP DAST", "Email Security Analyzer"],
+        cspDetail: "ZAP DAST validates TLS configurations, cipher suites, and certificate validity across all endpoints. Email Security Analyzer tests SPF, DKIM, and DMARC configurations. The platform tests encryption but doesn't implement it.",
+        agencyDetail: "Review CSP-submitted DAST TLS test results showing cipher suite strength, certificate validity, and protocol versions. Email Security Analyzer reports verify email authentication compliance."
       },
       {
-        id: "KSI-CNA-004", name: "Container/Image Security", status: "supporting",
-        aceModules: ["Nuclei Scanner", "Config Baseline Engine"],
-        cspDetail: "Nuclei Scanner runs container security templates against container registries and running containers. Config Baseline Engine tracks container configuration compliance.",
-        agencyDetail: "Review CSP-submitted Nuclei Scanner container security results showing image vulnerabilities and misconfigurations. Config Baseline reports demonstrate container hardening compliance. Agencies track remediation status."
+        id: "KSI-CNA-MAS", name: "Minimal Attack Surface", status: "direct",
+        aceModules: ["Domain Intel", "Service Fingerprinting", "Shodan", "Censys"],
+        cspDetail: "Domain Intel discovers all external-facing assets, subdomains, and services using Shodan, Censys, SecurityTrails, and URLScan. Service Fingerprinting identifies exposed services, technologies, and versions across the attack surface.",
+        agencyDetail: "Review CSP-submitted Domain Intel reports and independently verify external attack surface through passive discovery — subdomains, open ports, exposed services. Track attack surface size over time."
       },
       {
-        id: "KSI-CNA-005", name: "DoS Protection", status: "supporting",
+        id: "KSI-CNA-OFA", name: "Optimize for High Availability", status: "planned",
         aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine tracks DoS protection configurations (WAF rules, rate limiting, CDN settings). Active DoS testing is out of scope for offensive security platforms.",
-        agencyDetail: "Review CSP-submitted Config Baseline reports showing DoS protection configuration compliance — WAF rules, rate limiting, and CDN configurations. Agencies monitor passively."
-      },
-      {
-        id: "KSI-CNA-006", name: "High Availability", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track HA configurations. Dedicated availability testing and failover validation is planned.",
+        cspDetail: "Config Baseline Engine can track HA configurations. Active availability testing and failover validation is planned for future development.",
         agencyDetail: "Planned capability to passively review CSP-submitted high availability configuration reports and failover test results."
       },
       {
-        id: "KSI-CNA-007", name: "Resilience", status: "planned",
+        id: "KSI-CNA-RNT", name: "Restrict Network Traffic", status: "supporting",
+        aceModules: ["DigitalOcean Firewall Validation", "NGFW Validation"],
+        cspDetail: "DigitalOcean Firewall Validation audits cloud firewall rules and port exposure. NGFW Validation tests next-generation firewall rules and network boundaries to verify traffic restriction effectiveness.",
+        agencyDetail: "Review CSP-submitted firewall validation results showing whether network traffic restrictions are properly configured and enforced."
+      },
+      {
+        id: "KSI-CNA-RVP", name: "Review DoS Protection Effectiveness", status: "planned",
         aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track resilience configurations. Dedicated resilience testing is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted resilience test results and recovery validation exercise reports."
+        cspDetail: "Config Baseline Engine can track DoS protection configurations (WAF rules, rate limiting). Active DoS testing is out of scope for offensive security platforms.",
+        agencyDetail: "Planned capability to passively review CSP-submitted DoS protection configuration reports."
       },
       {
-        id: "KSI-CNA-008", name: "Secure Software Management", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track software management configurations. Dedicated SBOM analysis and software supply chain testing is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted SBOM analysis reports and dependency vulnerability tracking data."
-      },
-    ],
-  },
-  {
-    id: "mla",
-    name: "Monitoring, Logging & Alerting",
-    abbrev: "MLA",
-    icon: Eye,
-    color: "text-violet-400",
-    totalKSIs: 5,
-    directCoverage: 3,
-    supportingCoverage: 1,
-    description: "Centralized logging, event type catalogs, tamper-resistant logs, log archival, and security monitoring.",
-    cspValue: "SIEM Connectors integrate with your SIEM to validate detection coverage. Detection Rule Generator auto-creates Sigma/YARA/Suricata rules from executed TTPs. ATT&CK Coverage Matrix measures detection gaps against real attack techniques.",
-    agencyValue: "Agencies passively review CSP-submitted SIEM detection coverage reports showing which attack techniques the CSP can detect. Detection Rule Generator output demonstrates detection engineering maturity. ATT&CK Coverage Matrix reveals monitoring blind spots. Agencies do not initiate detection tests — they ingest and monitor submitted evidence.",
-    ksis: [
-      {
-        id: "KSI-MLA-001", name: "Centralized Logging", status: "direct",
-        aceModules: ["SIEM Connectors", "Evidence Chain"],
-        cspDetail: "SIEM Connectors push security events to centralized SIEM platforms. Evidence Chain maintains its own centralized, tamper-resistant log of all platform activities and findings.",
-        agencyDetail: "Review CSP-submitted SIEM Connector configuration reports showing centralized logging integration. Evidence Chain exports demonstrate comprehensive logging of all security assessment activities. Agencies monitor passively."
+        id: "KSI-CNA-SBD", name: "Secure By Design Architecture", status: "supporting",
+        aceModules: ["Cloud Attack Paths", "SCAP Compliance Scanner"],
+        cspDetail: "Cloud Attack Paths identifies architectural security weaknesses through permission chain analysis. SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture.",
+        agencyDetail: "Review CSP-submitted Cloud Attack Paths analysis and SCAP compliance reports to assess architectural security posture."
       },
       {
-        id: "KSI-MLA-002", name: "Event Type Catalog", status: "direct",
-        aceModules: ["SIEM Connectors", "Detection Rule Generator"],
-        cspDetail: "SIEM Connectors define event types for all platform activities. Detection Rule Generator produces detection rules covering specific event types from executed TTPs, creating a comprehensive event catalog.",
-        agencyDetail: "Review CSP-submitted Detection Rule Generator output showing event type coverage. SIEM Connector event mappings demonstrate which security events are captured and forwarded. Agencies track detection maturity passively."
+        id: "KSI-CNA-ULN", name: "Use Logical Networking Controls", status: "supporting",
+        aceModules: ["NGFW Validation", "DigitalOcean Firewall Auditing"],
+        cspDetail: "NGFW Validation tests firewall rules and network segmentation. DigitalOcean Firewall Auditing validates cloud-native networking controls and security group configurations.",
+        agencyDetail: "Review CSP-submitted NGFW validation and firewall audit results to verify logical networking controls are properly configured."
       },
       {
-        id: "KSI-MLA-003", name: "Security Monitoring", status: "direct",
-        aceModules: ["SIEM Connectors", "ATT&CK Coverage Matrix", "SIEM Feedback Loop"],
-        cspDetail: "ATT&CK Coverage Matrix measures detection coverage against executed techniques. SIEM Feedback Loop validates whether SIEM rules actually fire during red team exercises. SIEM Connectors ensure monitoring data flows to centralized platforms.",
-        agencyDetail: "Review CSP-submitted ATT&CK Coverage Matrix showing detection percentages across MITRE techniques. SIEM Feedback Loop results prove whether monitoring actually detects real attacks. Agencies monitor detection coverage trends and remediation of blind spots passively."
+        id: "KSI-CNA-HCI", name: "Harden Cloud Infrastructure", status: "direct",
+        aceModules: ["DigitalOcean Infrastructure Audit", "Cloud Misconfiguration Detection"],
+        cspDetail: "DigitalOcean Infrastructure Audit checks droplets, firewalls, load balancers, and databases for misconfigurations. Cloud Misconfiguration Detection via live KSI collectors identifies hardening gaps.",
+        agencyDetail: "Review CSP-submitted cloud infrastructure audit results showing hardening compliance across compute, network, and database resources."
       },
       {
-        id: "KSI-MLA-004", name: "Tamper-Resistant Logging", status: "supporting",
-        aceModules: ["Evidence Chain", "Config Baseline Engine"],
-        cspDetail: "Evidence Chain stores assessment artifacts in S3 with integrity verification. Config Baseline Engine can track log integrity configurations.",
-        agencyDetail: "Review CSP-submitted Evidence Chain integrity records showing tamper-resistant storage of assessment artifacts. Config Baseline reports demonstrate log protection configuration compliance. Agencies verify log integrity passively."
-      },
-      {
-        id: "KSI-MLA-005", name: "Log Archival", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track log retention configurations. Dedicated log archival validation is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted log retention configuration reports and archival practice documentation."
-      },
-    ],
-  },
-  {
-    id: "svc",
-    name: "Service Configuration & Vaulting",
-    abbrev: "SVC",
-    icon: Lock,
-    color: "text-pink-400",
-    totalKSIs: 7,
-    directCoverage: 2,
-    supportingCoverage: 1,
-    description: "Encryption at rest and in transit, data handling restrictions, key management, API security, and secure configuration guides.",
-    cspValue: "DAST Scanner and API Security Testing validate TLS configurations and API security. Email Security Analyzer tests email encryption and authentication (SPF, DKIM, DMARC). Config Baseline Engine tracks encryption and key management configurations.",
-    agencyValue: "Agencies passively review CSP-submitted DAST Scanner TLS test results and API Security Testing reports to verify encryption implementations. Email Security Analyzer results show email authentication compliance. Config Baseline reports demonstrate encryption configuration standards. Agencies do not initiate scans.",
-    ksis: [
-      {
-        id: "KSI-SVC-001", name: "API Security", status: "direct",
-        aceModules: ["DAST Scanner", "API Security Testing"],
-        cspDetail: "DAST Scanner tests web APIs with OpenAPI/GraphQL/SOAP spec import for comprehensive coverage. API Security Testing performs targeted API vulnerability assessment including authentication bypass, injection, and authorization testing.",
-        agencyDetail: "Review CSP-submitted DAST Scanner API test results showing vulnerability findings across APIs. API Security Testing reports demonstrate whether APIs enforce proper authentication, authorization, and input validation. Agencies track remediation status passively."
-      },
-      {
-        id: "KSI-SVC-002", name: "Encryption in Transit", status: "direct",
-        aceModules: ["DAST Scanner", "Email Security Analyzer"],
-        cspDetail: "DAST Scanner validates TLS configurations, cipher suites, and certificate validity across all endpoints. Email Security Analyzer tests SPF, DKIM, and DMARC configurations for email encryption in transit.",
-        agencyDetail: "Review CSP-submitted DAST Scanner TLS test results showing cipher suite strength, certificate validity, and protocol versions. Email Security Analyzer reports verify email authentication compliance. Agencies monitor passively."
-      },
-      {
-        id: "KSI-SVC-003", name: "Encryption at Rest", status: "supporting",
-        aceModules: ["Config Baseline Engine", "Cloud Attack Paths"],
-        cspDetail: "Config Baseline Engine tracks encryption-at-rest configurations. Cloud Attack Paths can identify unencrypted storage resources through permission chain analysis.",
-        agencyDetail: "Review CSP-submitted Config Baseline reports showing encryption-at-rest configuration compliance across storage services. Agencies monitor passively."
-      },
-      {
-        id: "KSI-SVC-004", name: "Key Management", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track key management configurations. Dedicated key rotation and lifecycle validation is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted key management configuration reports including rotation schedules and lifecycle management."
-      },
-      {
-        id: "KSI-SVC-005", name: "Secure Configuration Guide", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine maintains approved configurations that can serve as the basis for secure configuration guides. Automated SCG generation is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted secure configuration guides and verify alignment with approved baselines."
-      },
-      {
-        id: "KSI-SVC-006", name: "Data Handling Restrictions", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track data handling configurations. Dedicated data classification and handling validation is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted data handling configuration reports and data flow documentation."
-      },
-      {
-        id: "KSI-SVC-007", name: "Third-Party Access", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track third-party access configurations. Dedicated third-party access validation is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted third-party access configuration reports and access path audit documentation."
-      },
-    ],
-  },
-  {
-    id: "rpl",
-    name: "Resilience, Planning & Logistics",
-    abbrev: "RPL",
-    icon: RefreshCw,
-    color: "text-orange-400",
-    totalKSIs: 4,
-    directCoverage: 0,
-    supportingCoverage: 2,
-    description: "Backup alignment, recovery validation testing, RTO/RPO objectives, and disaster recovery planning.",
-    cspValue: "BIA Report generates business impact analysis documentation. Config Baseline Engine tracks backup and recovery configurations. Dedicated recovery validation testing with automated failover exercises is planned.",
-    agencyValue: "Agencies passively review CSP-submitted BIA Report outputs showing business impact analysis. Config Baseline reports demonstrate backup configuration compliance. Agencies monitor recovery posture and remediation status without initiating any active tests.",
-    ksis: [
-      {
-        id: "KSI-RPL-001", name: "Recovery Validation Testing", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track recovery configurations. Automated recovery validation testing with failover exercises and RTO/RPO measurement is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted recovery validation test results and actual RTO/RPO measurements against stated targets."
-      },
-      {
-        id: "KSI-RPL-002", name: "RTO/RPO Objectives", status: "supporting",
-        aceModules: ["BIA Report", "Config Baseline Engine"],
-        cspDetail: "BIA Report documents RTO/RPO objectives based on business impact analysis. Config Baseline Engine tracks whether recovery configurations align with stated objectives.",
-        agencyDetail: "Review CSP-submitted BIA Report outputs showing RTO/RPO objectives and their business justification. Config Baseline reports verify recovery configurations align with stated targets. Agencies monitor compliance passively."
-      },
-      {
-        id: "KSI-RPL-003", name: "Backup Alignment", status: "supporting",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine tracks backup configurations and schedules to verify alignment with recovery objectives.",
-        agencyDetail: "Review CSP-submitted Config Baseline reports showing backup configuration compliance and alignment with stated recovery objectives. Agencies monitor passively."
-      },
-      {
-        id: "KSI-RPL-004", name: "Disaster Recovery Plan", status: "planned",
-        aceModules: ["Config Baseline Engine"],
-        cspDetail: "Config Baseline Engine can track DR configurations. Automated DR plan validation and tabletop exercise support is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted disaster recovery plan documentation and tabletop exercise results."
+        id: "KSI-CNA-NSD", name: "Network Segmentation & Defense", status: "supporting",
+        aceModules: ["NGFW Validation", "Service Fingerprinting"],
+        cspDetail: "NGFW Validation tests network segmentation boundaries. Service Fingerprinting identifies services that may cross segmentation boundaries. The platform tests segmentation but doesn't implement it.",
+        agencyDetail: "Review CSP-submitted NGFW validation results and service discovery data to verify network segmentation effectiveness."
       },
     ],
   },
@@ -409,34 +231,457 @@ const KSI_THEMES: KSITheme[] = [
     color: "text-teal-400",
     totalKSIs: 4,
     directCoverage: 1,
-    supportingCoverage: 1,
-    description: "Security awareness training, developer training, incident response training, and privileged user training.",
-    cspValue: "Phishing Ops runs realistic social engineering campaigns with 17 exploit techniques to measure security awareness. Campaign Wizard configures targeted training exercises. Purple Team exercises provide hands-on incident response training.",
-    agencyValue: "Agencies passively review CSP-submitted phishing simulation results showing employee click rates, credential capture rates, and improvement trends over time. Purple Team exercise reports demonstrate incident response training effectiveness. Agencies monitor training program maturity without initiating any exercises.",
+    supportingCoverage: 2,
+    description: "Security awareness training effectiveness, developer training, incident response training, and high-risk role training.",
+    cspValue: "Phishing Ops runs realistic social engineering campaigns with 17 exploit techniques to measure security awareness. Purple Team exercises provide hands-on incident response training. AD Attack Simulation targets privileged users for high-risk role training.",
+    agencyValue: "Agencies passively review CSP-submitted phishing simulation results showing employee click rates and improvement trends. Purple Team exercise reports demonstrate IR training effectiveness.",
     ksis: [
       {
-        id: "KSI-CED-001", name: "Security Awareness Training", status: "direct",
+        id: "KSI-CED-RGT", name: "General Employee Training Effectiveness", status: "direct",
         aceModules: ["Phishing Ops", "Campaign Wizard", "Template Generator"],
-        cspDetail: "Phishing Ops executes realistic phishing campaigns with 17 exploit techniques including AiTM, BITB, and HTML smuggling. Campaign Wizard configures targeted awareness exercises. Template Generator creates customized phishing templates for training scenarios.",
-        agencyDetail: "Review CSP-submitted phishing simulation results showing click rates, credential capture rates, and reporting rates. Track improvement trends over successive campaigns to verify training effectiveness. Agencies monitor passively."
+        cspDetail: "Phishing Ops executes realistic phishing campaigns with 17 exploit techniques including AiTM, BITB, device code phishing, and HTML smuggling. Campaign Wizard configures targeted awareness exercises. Results measure click rates, credential capture rates, and improvement trends.",
+        agencyDetail: "Review CSP-submitted phishing simulation results showing click rates, credential capture rates, and reporting rates. Track improvement trends over successive campaigns to verify training effectiveness."
       },
       {
-        id: "KSI-CED-002", name: "Incident Response Training", status: "supporting",
-        aceModules: ["Red Team Ops", "Purple Team"],
-        cspDetail: "Red Team Ops provides realistic attack scenarios for IR team training. Purple Team exercises enable collaborative attack-defense training with real-time feedback on detection and response.",
-        agencyDetail: "Review CSP-submitted Purple Team exercise reports showing incident response team performance — detection times, containment actions, and communication effectiveness during simulated incidents. Agencies do not participate in or trigger exercises."
+        id: "KSI-CED-RRT", name: "IR/DR Staff Training Effectiveness", status: "supporting",
+        aceModules: ["Red Team Ops", "Purple Team", "SIEM Feedback Loop"],
+        cspDetail: "Red Team Ops provides realistic attack scenarios for IR team training. Purple Team exercises enable collaborative attack-defense training. SIEM Feedback Loop validates whether IR procedures detect real attacks during exercises.",
+        agencyDetail: "Review CSP-submitted Purple Team exercise reports showing IR team performance — detection times, containment actions, and communication effectiveness during simulated incidents."
       },
       {
-        id: "KSI-CED-003", name: "Developer Training", status: "planned",
-        aceModules: ["DAST Scanner"],
-        cspDetail: "DAST Scanner findings can inform developer security training priorities. Dedicated developer training content and tracking is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted developer training program reports and vulnerability trend analysis showing whether common vulnerability classes decrease over time."
+        id: "KSI-CED-RST", name: "High-Risk Role Training Effectiveness", status: "supporting",
+        aceModules: ["AD Attack Simulation", "Phishing Ops"],
+        cspDetail: "AD Attack Simulation targets privileged accounts with techniques like Kerberoasting and Pass-the-Hash. Phishing Ops can target high-risk roles specifically with tailored social engineering campaigns.",
+        agencyDetail: "Review CSP-submitted privileged user testing results and targeted phishing campaign reports to assess high-risk role security awareness."
       },
       {
-        id: "KSI-CED-004", name: "Privileged User Training", status: "planned",
-        aceModules: ["AD Attack Simulation"],
-        cspDetail: "AD Attack Simulation results can inform privileged user training priorities. Dedicated privileged user training tracking is planned.",
-        agencyDetail: "Planned capability to passively review CSP-submitted privileged user training reports and social engineering exercise results."
+        id: "KSI-CED-DET", name: "Developer/Engineering Training Effectiveness", status: "planned",
+        aceModules: ["ZAP DAST"],
+        cspDetail: "DAST findings can inform developer security training priorities by identifying common vulnerability classes. Dedicated developer training tracking is planned.",
+        agencyDetail: "Planned capability to review CSP-submitted vulnerability trend analysis showing whether common vulnerability classes decrease over time."
+      },
+    ],
+  },
+  {
+    id: "iam",
+    name: "Identity & Access Management",
+    abbrev: "IAM",
+    icon: Fingerprint,
+    color: "text-blue-400",
+    totalKSIs: 8,
+    directCoverage: 4,
+    supportingCoverage: 4,
+    description: "Phishing-resistant MFA, privileged access management, least privilege enforcement, account lifecycle, JIT authorization, and service authentication.",
+    cspValue: "ACE C3 tests MFA resilience through real phishing campaigns with 17 MFA bypass techniques. AD Attack Simulation validates privileged access controls. Cloud Attack Paths identifies excessive permissions. Credential attack engine tests password policies.",
+    agencyValue: "Agencies review CSP-submitted MFA bypass test results, AD Attack Simulation reports, and Cloud Attack Paths analysis to verify identity and access management controls. All review is passive.",
+    ksis: [
+      {
+        id: "KSI-IAM-MFA", name: "Phishing-Resistant MFA Enforcement", status: "direct",
+        aceModules: ["Phishing Ops", "Campaign Wizard"],
+        cspDetail: "Phishing Ops executes real MFA bypass attacks including AiTM proxy, BITB, device code phishing, and HTML smuggling — 17 techniques total. Results prove whether MFA implementation resists actual attack techniques.",
+        agencyDetail: "Review CSP-submitted MFA bypass test results showing which attack techniques succeeded or failed. Campaign reports include click rates, credential capture attempts, and MFA bypass success rates."
+      },
+      {
+        id: "KSI-IAM-APM", name: "Authentication Policy Management", status: "direct",
+        aceModules: ["Phishing Ops", "Credential Attack Engine"],
+        cspDetail: "Phishing Ops tests MFA bypass and credential harvesting. Credential Attack Engine tests password policies, lockout thresholds, and authentication mechanisms. Results validate authentication policy effectiveness.",
+        agencyDetail: "Review CSP-submitted authentication testing results showing password policy strength, lockout behavior, and MFA resilience."
+      },
+      {
+        id: "KSI-IAM-ELP", name: "Enforce Least Privilege", status: "direct",
+        aceModules: ["Cloud Attack Paths", "AD Attack Simulation", "Privilege Escalation Engine"],
+        cspDetail: "Cloud Attack Paths maps permission chains to identify over-privileged roles. AD Attack Simulation tests privilege escalation paths. Privilege Escalation Engine automates discovery of escalation vectors.",
+        agencyDetail: "Review CSP-submitted Cloud Attack Paths reports and privilege escalation test results to verify least privilege enforcement."
+      },
+      {
+        id: "KSI-IAM-PRA", name: "Privileged Access Reviews & Auditing", status: "direct",
+        aceModules: ["AD Domain Connector", "Cloud Attack Paths", "Audit Log"],
+        cspDetail: "AD Domain Connector enumerates domain structure, group memberships, and privileged accounts. Cloud Attack Paths identifies excessive cloud permissions. Audit Log records all privileged access events.",
+        agencyDetail: "Review CSP-submitted privileged access review reports showing account enumeration, group membership analysis, and permission chain mapping."
+      },
+      {
+        id: "KSI-IAM-AAM", name: "Automated Account Lifecycle Management", status: "supporting",
+        aceModules: ["AD Domain Connector", "Audit Log"],
+        cspDetail: "AD Domain Connector enumerates accounts, group memberships, and last-login timestamps to identify stale or orphaned accounts. Audit Log tracks account provisioning events. The platform identifies lifecycle issues but doesn't manage accounts directly.",
+        agencyDetail: "Review CSP-submitted AD Domain Connector reports showing stale accounts, group membership sprawl, and orphaned service accounts."
+      },
+      {
+        id: "KSI-IAM-JIT", name: "Just-In-Time Authorization", status: "supporting",
+        aceModules: ["Cloud Attack Paths"],
+        cspDetail: "Cloud Attack Paths can identify persistent privileged access that should be JIT by mapping always-on admin permissions. The platform identifies JIT gaps but doesn't implement JIT controls.",
+        agencyDetail: "Review CSP-submitted Cloud Attack Paths reports to identify persistent privileged access that should be converted to JIT."
+      },
+      {
+        id: "KSI-IAM-SNU", name: "Secure Non-User Authentication", status: "supporting",
+        aceModules: ["Service Fingerprinting", "API Security Testing"],
+        cspDetail: "Service Fingerprinting identifies exposed service accounts and API endpoints. API Security Testing validates service-to-service authentication mechanisms. The platform tests but doesn't implement service authentication.",
+        agencyDetail: "Review CSP-submitted service discovery and API security testing results to verify non-user authentication security."
+      },
+      {
+        id: "KSI-IAM-SUS", name: "Suspend Suspicious Privileged Accounts", status: "supporting",
+        aceModules: ["AD Attack Simulation", "Session Alerter"],
+        cspDetail: "AD Attack Simulation identifies compromisable privileged accounts. Session Alerter detects suspicious activity patterns during red team exercises. The platform identifies suspicious accounts but doesn't suspend them.",
+        agencyDetail: "Review CSP-submitted attack simulation results and session alert data to verify suspicious account detection and response capabilities."
+      },
+    ],
+  },
+  {
+    id: "inr",
+    name: "Incident Response",
+    abbrev: "INR",
+    icon: AlertTriangle,
+    color: "text-red-400",
+    totalKSIs: 7,
+    directCoverage: 5,
+    supportingCoverage: 2,
+    description: "After-action reports, IR procedure review, incident pattern analysis, threat intelligence feeds, IOC management, and IR planning.",
+    cspValue: "Report Generator produces post-engagement reports with MITRE heatmaps. Purple Team exercises test IR procedures. abuse.ch, Shodan, SecurityTrails, and DeHashed provide real threat intelligence feeds. IOC Feed manages indicators with automated enrichment.",
+    agencyValue: "Agencies review CSP-submitted post-engagement reports, Purple Team exercise results, and threat intelligence integration evidence to verify incident response capabilities.",
+    ksis: [
+      {
+        id: "KSI-INR-AAR", name: "After-Action Reports and Lessons Learned", status: "direct",
+        aceModules: ["Report Generator", "Evidence Chain", "MITRE Heatmaps"],
+        cspDetail: "Report Generator produces AI-powered post-engagement reports with findings, recommendations, and MITRE ATT&CK heatmaps. Evidence Chain links all findings to proof artifacts. Reports include executive summaries and technical details.",
+        agencyDetail: "Review CSP-submitted post-engagement reports with embedded evidence links, MITRE ATT&CK coverage heatmaps, and remediation recommendations."
+      },
+      {
+        id: "KSI-INR-RIR", name: "Review IR Procedures Effectiveness", status: "direct",
+        aceModules: ["Purple Team", "SIEM Feedback Loop", "Detection Rule Generator"],
+        cspDetail: "Purple Team exercises test whether IR procedures detect and respond to real attacks. SIEM Feedback Loop validates whether SIEM rules fire during red team exercises. Detection Rule Generator creates rules from executed TTPs to improve detection.",
+        agencyDetail: "Review CSP-submitted Purple Team exercise results showing IR procedure effectiveness — detection rates, response times, and SIEM alert coverage."
+      },
+      {
+        id: "KSI-INR-RPI", name: "Review Past Incidents for Patterns", status: "supporting",
+        aceModules: ["Threat Intel Connectors", "Threat Actor Crawler", "Ransomware Intel"],
+        cspDetail: "Threat Intel Connectors aggregate incident data from multiple sources. Threat Actor Crawler identifies relevant threat actor patterns. Ransomware Intel tracks ransomware group activity and TTPs.",
+        agencyDetail: "Review CSP-submitted threat intelligence analysis showing incident pattern identification and threat actor tracking."
+      },
+      {
+        id: "KSI-INR-IRP", name: "Incident Response Planning", status: "supporting",
+        aceModules: ["Red Team Ops", "RoE Builder", "Emulation Playbooks"],
+        cspDetail: "Red Team Ops provides realistic attack scenarios for IR planning. RoE Builder documents IR scope and rules of engagement. Emulation Playbooks define repeatable attack scenarios for IR exercises.",
+        agencyDetail: "Review CSP-submitted Red Team exercise scope documentation and emulation playbook evidence to verify IR planning maturity."
+      },
+      {
+        id: "KSI-INR-TIF", name: "Threat Intelligence Feeds", status: "direct",
+        aceModules: ["abuse.ch (URLhaus/ThreatFox)", "Shodan", "SecurityTrails", "DeHashed"],
+        cspDetail: "abuse.ch provides URLhaus malware URL feeds and ThreatFox IOC feeds. Shodan provides internet-wide scanning data. SecurityTrails provides DNS and domain intelligence. DeHashed provides credential breach data. All are real API integrations.",
+        agencyDetail: "Review CSP-submitted threat intelligence feed integration evidence showing active consumption of URLhaus, ThreatFox, Shodan, SecurityTrails, and breach data feeds."
+      },
+      {
+        id: "KSI-INR-TIU", name: "Threat Intelligence Utilization", status: "direct",
+        aceModules: ["Threat Actor Matcher", "Threat Enrichment Engine", "IOC Feed"],
+        cspDetail: "Threat Actor Matcher correlates discovered vulnerabilities with known threat actor TTPs. Threat Enrichment Engine adds context to raw indicators. IOC Feed integrates indicators into operational workflows.",
+        agencyDetail: "Review CSP-submitted threat intelligence utilization evidence showing how threat data informs security operations and testing priorities."
+      },
+      {
+        id: "KSI-INR-IOC", name: "Indicator of Compromise Management", status: "direct",
+        aceModules: ["IOC Feed", "Darkweb Intel", "Threat Intel Ingest"],
+        cspDetail: "IOC Feed manages indicators with automated enrichment from abuse.ch and other sources. Darkweb Intel monitors dark web sources for relevant IOCs. Threat Intel Ingest normalizes and stores indicators for operational use.",
+        agencyDetail: "Review CSP-submitted IOC management evidence showing indicator collection, enrichment, and operational integration."
+      },
+    ],
+  },
+  {
+    id: "mla",
+    name: "Monitoring, Logging & Auditing",
+    abbrev: "MLA",
+    icon: Eye,
+    color: "text-violet-400",
+    totalKSIs: 6,
+    directCoverage: 4,
+    supportingCoverage: 2,
+    description: "Centralized SIEM operation, event type catalogs, configuration evaluation, log access controls, log review, and alert engineering.",
+    cspValue: "SIEM Connectors integrate with SIEM platforms to validate detection coverage. Detection Rule Generator auto-creates Sigma/YARA/Suricata rules from executed TTPs. SIEM Feedback Loop validates whether rules fire during red team exercises. SIEM Mutation Engine tests alert quality.",
+    agencyValue: "Agencies review CSP-submitted SIEM detection coverage reports, detection rule output, and ATT&CK Coverage Matrix results showing monitoring effectiveness.",
+    ksis: [
+      {
+        id: "KSI-MLA-OSM", name: "Operate SIEM for Centralized Logging", status: "direct",
+        aceModules: ["SIEM Connectors", "SIEM Feedback Loop"],
+        cspDetail: "SIEM Connectors integration tests connectivity and event forwarding to centralized SIEM platforms. SIEM Feedback Loop validates whether the SIEM actually processes and alerts on security events during red team exercises.",
+        agencyDetail: "Review CSP-submitted SIEM Connector configuration and feedback loop results showing centralized logging is operational and detecting real attacks."
+      },
+      {
+        id: "KSI-MLA-LET", name: "Log Event Types Catalog", status: "direct",
+        aceModules: ["SIEM Connectors", "Detection Rule Generator"],
+        cspDetail: "SIEM Connectors define event types for platform activities. Detection Rule Generator produces Sigma/YARA/Suricata rules covering specific event types from executed TTPs, creating a comprehensive event catalog.",
+        agencyDetail: "Review CSP-submitted Detection Rule Generator output showing event type coverage and SIEM Connector event mappings."
+      },
+      {
+        id: "KSI-MLA-EVC", name: "Evaluate and Test Configuration", status: "direct",
+        aceModules: ["Config Baseline Engine", "SCAP Compliance Scanner"],
+        cspDetail: "Config Baseline Engine defines and monitors security configuration baselines. SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture. Results identify configuration drift and non-compliance.",
+        agencyDetail: "Review CSP-submitted configuration evaluation results showing baseline compliance rates, drift history, and CIS benchmark scores."
+      },
+      {
+        id: "KSI-MLA-ALE", name: "Alert Engineering & Response", status: "direct",
+        aceModules: ["Detection Rule Generator", "SIEM Mutation Engine", "Sigma Rule Engine"],
+        cspDetail: "Detection Rule Generator creates Sigma/YARA/Suricata rules from executed TTPs. SIEM Mutation Engine tests alert quality by mutating attack patterns. Sigma Rule Engine validates and optimizes detection rules.",
+        agencyDetail: "Review CSP-submitted detection rule output and alert quality testing results showing alert engineering maturity."
+      },
+      {
+        id: "KSI-MLA-ALA", name: "Access Controls for Log Data", status: "supporting",
+        aceModules: ["Evidence Chain", "Config Baseline Engine"],
+        cspDetail: "Evidence Chain provides tamper-resistant log storage with SHA-256 integrity verification. Config Baseline Engine can track log access control configurations. The platform verifies log integrity but doesn't implement access controls.",
+        agencyDetail: "Review CSP-submitted Evidence Chain integrity records and log access control configuration reports."
+      },
+      {
+        id: "KSI-MLA-RVL", name: "Review and Audit Logs", status: "supporting",
+        aceModules: ["ATT&CK Coverage Matrix", "SIEM Feedback Loop"],
+        cspDetail: "ATT&CK Coverage Matrix measures detection coverage against MITRE techniques, revealing which logs are being reviewed effectively. SIEM Feedback Loop validates log review processes during exercises.",
+        agencyDetail: "Review CSP-submitted ATT&CK Coverage Matrix showing detection percentages and SIEM Feedback Loop results demonstrating log review effectiveness."
+      },
+    ],
+  },
+  {
+    id: "piy",
+    name: "Policy & Inventory",
+    abbrev: "PIY",
+    icon: FileText,
+    color: "text-emerald-400",
+    totalKSIs: 5,
+    directCoverage: 1,
+    supportingCoverage: 3,
+    description: "Real-time asset inventories, security investment review, SDLC security review, vulnerability disclosure programs, and executive support.",
+    cspValue: "Domain Intel, service fingerprinting, and web crawler generate real-time asset inventories. Risk trending and scoring engine provide ROI metrics. Bug bounty intelligence integrates HackerOne program data.",
+    agencyValue: "Agencies review CSP-submitted asset inventory data, risk trending reports, and vulnerability disclosure program evidence.",
+    ksis: [
+      {
+        id: "KSI-PIY-GIV", name: "Generate Real-Time Inventories", status: "direct",
+        aceModules: ["Domain Intel", "Service Fingerprinting", "Web Crawler"],
+        cspDetail: "Domain Intel discovers all external-facing assets using Shodan, Censys, SecurityTrails, and URLScan. Service Fingerprinting identifies exposed services, technologies, and versions. Web Crawler maps application structure and content.",
+        agencyDetail: "Review CSP-submitted asset inventory data and independently verify through passive discovery — subdomains, open ports, exposed services, technology stacks."
+      },
+      {
+        id: "KSI-PIY-RIS", name: "Review Security Investment Effectiveness", status: "supporting",
+        aceModules: ["Risk Trending", "Scoring Engine", "Temporal Decay"],
+        cspDetail: "Risk Trending tracks historical risk trajectory. Scoring Engine (CARVER+Shock/CVSS) quantifies security posture. Temporal Decay models score degradation over time. These provide ROI metrics but don't evaluate investment decisions.",
+        agencyDetail: "Review CSP-submitted risk trending data and scoring metrics to assess security investment effectiveness over time."
+      },
+      {
+        id: "KSI-PIY-RSD", name: "Review SDLC Security (CISA Secure By Design)", status: "supporting",
+        aceModules: ["ZAP DAST", "API Security Testing", "Nuclei Scanner"],
+        cspDetail: "ZAP DAST and API Security Testing validate SDLC security outputs by testing deployed applications. Nuclei Scanner checks for known vulnerabilities. Results inform SDLC security but don't audit the SDLC process itself.",
+        agencyDetail: "Review CSP-submitted DAST and API security testing results to assess whether SDLC produces secure outputs."
+      },
+      {
+        id: "KSI-PIY-RVD", name: "Review Vulnerability Disclosure Program", status: "supporting",
+        aceModules: ["Bug Bounty Intelligence (HackerOne)"],
+        cspDetail: "Bug Bounty Intelligence integrates HackerOne API to provide vulnerability disclosure program data — program activity, submission trends, and resolution metrics.",
+        agencyDetail: "Review CSP-submitted vulnerability disclosure program data showing program activity and resolution metrics."
+      },
+      {
+        id: "KSI-PIY-RES", name: "Review Executive Support for Security", status: "planned",
+        aceModules: [],
+        cspDetail: "Organizational governance requirement — outside the scope of an offensive security platform. Executive support review requires organizational processes.",
+        agencyDetail: "Organizational governance requirement that must be assessed through CSP organizational documentation, not through security testing tools."
+      },
+    ],
+  },
+  {
+    id: "rpl",
+    name: "Recovery Planning",
+    abbrev: "RPL",
+    icon: RefreshCw,
+    color: "text-orange-400",
+    totalKSIs: 4,
+    directCoverage: 0,
+    supportingCoverage: 1,
+    description: "Recovery plan alignment, RTO/RPO objectives, recovery capability testing, and disaster recovery planning.",
+    cspValue: "Config Baseline Engine can track recovery configurations against objectives. Dedicated recovery validation testing with automated failover exercises is planned for future development.",
+    agencyValue: "Agencies can review CSP-submitted configuration reports showing recovery configuration compliance. Active recovery testing capabilities are planned.",
+    ksis: [
+      {
+        id: "KSI-RPL-ARP", name: "Align Recovery Plans with Objectives", status: "supporting",
+        aceModules: ["Config Baseline Engine"],
+        cspDetail: "Config Baseline Engine tracks whether recovery configurations align with stated objectives. The platform can verify configuration alignment but doesn't create recovery plans.",
+        agencyDetail: "Review CSP-submitted Config Baseline reports verifying recovery configurations align with stated objectives."
+      },
+      {
+        id: "KSI-RPL-ABO", name: "Recovery Planning Alignment", status: "planned",
+        aceModules: [],
+        cspDetail: "No active recovery planning capability. Recovery planning is an organizational process outside the scope of an offensive security platform.",
+        agencyDetail: "Recovery planning alignment must be assessed through CSP organizational documentation."
+      },
+      {
+        id: "KSI-RPL-RRO", name: "Review RTO and RPO Objectives", status: "planned",
+        aceModules: [],
+        cspDetail: "No RTO/RPO measurement capability. Recovery time and point objectives require infrastructure-level testing outside the platform's scope.",
+        agencyDetail: "RTO/RPO review must be assessed through CSP recovery test documentation and infrastructure monitoring."
+      },
+      {
+        id: "KSI-RPL-TRC", name: "Test Recovery Capabilities", status: "planned",
+        aceModules: [],
+        cspDetail: "No automated failover or recovery testing capability. Recovery capability testing requires infrastructure-level access outside the platform's scope.",
+        agencyDetail: "Recovery capability testing must be assessed through CSP failover test documentation and disaster recovery exercise results."
+      },
+    ],
+  },
+  {
+    id: "svc",
+    name: "Service Configuration",
+    abbrev: "SVC",
+    icon: Lock,
+    color: "text-pink-400",
+    totalKSIs: 9,
+    directCoverage: 6,
+    supportingCoverage: 2,
+    description: "Attack surface management, vulnerability scanning, configuration management, endpoint security, remediation management, and service transparency.",
+    cspValue: "Domain Intel + Shodan + Censys provide continuous attack surface management. ZAP DAST + Nuclei + vuln scanner imports produce real scanning results. NVD/KEV integration + remediation verification provide full vulnerability lifecycle management.",
+    agencyValue: "Agencies review CSP-submitted attack surface discovery data, vulnerability scanning results, and remediation tracking evidence to verify service configuration security.",
+    ksis: [
+      {
+        id: "KSI-SVC-ASM", name: "Attack Surface Management", status: "direct",
+        aceModules: ["Domain Intel", "Shodan", "Censys", "Service Fingerprinting"],
+        cspDetail: "Domain Intel discovers all external-facing assets using Shodan, Censys, SecurityTrails, and URLScan. Service Fingerprinting identifies exposed services and technologies. Continuous discovery tracks attack surface changes over time.",
+        agencyDetail: "Review CSP-submitted attack surface discovery data and independently verify through passive enumeration."
+      },
+      {
+        id: "KSI-SVC-VSR", name: "Vulnerability Scanning Results", status: "direct",
+        aceModules: ["ZAP DAST", "Nuclei Scanner", "Vuln Scanner Import"],
+        cspDetail: "ZAP DAST performs active web application vulnerability scanning. Nuclei Scanner executes template-based scanning on remote scan servers via SSH. Vuln Scanner Import normalizes Nessus/Qualys/Burp reports into a unified format.",
+        agencyDetail: "Review CSP-submitted vulnerability scanning results from DAST, Nuclei, and imported scanner reports."
+      },
+      {
+        id: "KSI-SVC-VRI", name: "Vulnerability Risk Identification", status: "direct",
+        aceModules: ["Scoring Engine (CARVER+Shock/CVSS)", "Temporal Decay", "Risk Trending"],
+        cspDetail: "Scoring Engine combines CARVER+Shock methodology with CVSS for vulnerability prioritization. Temporal Decay models score degradation over time. Risk Trending tracks historical risk trajectory for trend analysis.",
+        agencyDetail: "Review CSP-submitted vulnerability risk scoring and trending data to verify risk identification and prioritization practices."
+      },
+      {
+        id: "KSI-SVC-VCM", name: "Vulnerability/Configuration Management", status: "direct",
+        aceModules: ["Vuln Feeds (NVD/KEV)", "Vuln Scanner Import", "Remediation Verification"],
+        cspDetail: "Vuln Feeds aggregate NVD and CISA KEV data for continuous vulnerability intelligence. Vuln Scanner Import normalizes multi-vendor scan results. Remediation Verification tracks and validates fix implementation.",
+        agencyDetail: "Review CSP-submitted vulnerability management evidence showing NVD/KEV integration, scan normalization, and remediation tracking."
+      },
+      {
+        id: "KSI-SVC-VRM", name: "Vulnerability Remediation Management", status: "direct",
+        aceModules: ["Remediation Verification", "Risk Trending"],
+        cspDetail: "Remediation Verification tracks remediation progress and validates fixes through re-scanning. Risk Trending shows whether remediation efforts reduce overall risk over time.",
+        agencyDetail: "Review CSP-submitted remediation tracking evidence showing fix implementation rates, re-scan results, and risk reduction trends."
+      },
+      {
+        id: "KSI-SVC-EIS", name: "Endpoint/Infrastructure Security", status: "direct",
+        aceModules: ["Nuclei Scanner", "Vuln Scanner", "DigitalOcean Infrastructure Audit"],
+        cspDetail: "Nuclei Scanner tests endpoint security with template-based scanning. Vuln Scanner Import processes endpoint scan results. DigitalOcean Infrastructure Audit validates cloud endpoint configurations.",
+        agencyDetail: "Review CSP-submitted endpoint scanning results and infrastructure audit data to verify endpoint security posture."
+      },
+      {
+        id: "KSI-SVC-ACM", name: "Automated Configuration Management", status: "supporting",
+        aceModules: ["Config Baseline Engine", "SCAP Compliance Scanner"],
+        cspDetail: "Config Baseline Engine tracks configurations against approved baselines and detects drift. SCAP Compliance Scanner checks CIS benchmarks. The platform monitors configurations but doesn't manage them directly.",
+        agencyDetail: "Review CSP-submitted configuration baseline compliance reports and CIS benchmark scores."
+      },
+      {
+        id: "KSI-SVC-PRR", name: "Post-Change Residual Review", status: "supporting",
+        aceModules: ["Validation Scheduler"],
+        cspDetail: "Validation Scheduler can trigger post-change re-validation to identify residual risks after changes. The platform tests for residual issues but doesn't manage the change process.",
+        agencyDetail: "Review CSP-submitted post-change validation results showing whether security controls function correctly after changes."
+      },
+      {
+        id: "KSI-SVC-SNT", name: "Service Notification/Transparency", status: "planned",
+        aceModules: [],
+        cspDetail: "No dedicated service notification capability. Service transparency requires organizational communication processes outside the platform's scope.",
+        agencyDetail: "Service notification and transparency must be assessed through CSP organizational communication documentation."
+      },
+    ],
+  },
+  {
+    id: "scr",
+    name: "Supply Chain Risk",
+    abbrev: "SCR",
+    icon: Package,
+    color: "text-lime-400",
+    totalKSIs: 5,
+    directCoverage: 4,
+    supportingCoverage: 1,
+    description: "Penetration testing, APT simulation, security awareness testing, third-party vulnerability monitoring, and supply chain risk mitigation.",
+    cspValue: "Full penetration testing pipeline across all 6 FedRAMP attack vectors. Caldera C2 + MITRE ATT&CK technique execution for APT simulation. Phishing Ops for security awareness testing. NVD/KEV integration for third-party vulnerability monitoring.",
+    agencyValue: "Agencies review CSP-submitted penetration test reports, APT simulation results, phishing campaign data, and third-party vulnerability monitoring evidence.",
+    ksis: [
+      {
+        id: "KSI-SCR-PEN", name: "Penetration Testing", status: "direct",
+        aceModules: ["Engagement Pipeline", "Exploit Arsenal", "ZAP DAST", "Nuclei Scanner"],
+        cspDetail: "Engagement Pipeline orchestrates multi-phase penetration tests (recon → vuln assessment → exploitation → reporting). Exploit Arsenal provides 16,000+ Metasploit modules. ZAP DAST and Nuclei Scanner perform automated vulnerability discovery.",
+        agencyDetail: "Review CSP-submitted penetration test reports with evidence artifacts, MITRE ATT&CK heatmaps, and remediation recommendations."
+      },
+      {
+        id: "KSI-SCR-APT", name: "Advanced Persistent Threat Simulation", status: "direct",
+        aceModules: ["Caldera C2", "Emulation Playbooks", "Threat Actor Matcher"],
+        cspDetail: "Caldera C2 provides full adversary emulation with MITRE ATT&CK technique execution. Emulation Playbooks define repeatable APT scenarios. Threat Actor Matcher correlates findings with known threat actor TTPs.",
+        agencyDetail: "Review CSP-submitted APT simulation results showing MITRE ATT&CK technique coverage, detection rates, and threat actor TTP correlation."
+      },
+      {
+        id: "KSI-SCR-SAT", name: "Security Awareness Testing", status: "direct",
+        aceModules: ["Phishing Ops", "Campaign Wizard", "GoPhish"],
+        cspDetail: "Phishing Ops executes realistic social engineering campaigns via GoPhish integration. Campaign Wizard configures multi-step campaigns. Results measure click rates, credential capture, and improvement trends.",
+        agencyDetail: "Review CSP-submitted phishing campaign results showing employee security awareness metrics and improvement trends."
+      },
+      {
+        id: "KSI-SCR-MON", name: "Monitor Third-Party Software Vulnerabilities", status: "direct",
+        aceModules: ["Vuln Feeds (NVD/KEV)", "Container Registry Scanner"],
+        cspDetail: "Vuln Feeds aggregate NVD and CISA KEV data for continuous third-party vulnerability monitoring. Container Registry Scanner checks container images for known vulnerabilities in dependencies.",
+        agencyDetail: "Review CSP-submitted third-party vulnerability monitoring evidence showing NVD/KEV integration and container image scanning results."
+      },
+      {
+        id: "KSI-SCR-MIT", name: "Mitigate Supply Chain Risks", status: "supporting",
+        aceModules: ["Container Registry Scanner", "Nuclei Scanner"],
+        cspDetail: "Container Registry Scanner identifies vulnerable dependencies in container images. Nuclei Scanner tests for known supply chain vulnerabilities. The platform identifies risks but doesn't implement supply chain controls.",
+        agencyDetail: "Review CSP-submitted container scanning and dependency analysis results to verify supply chain risk identification."
+      },
+    ],
+  },
+  {
+    id: "sde",
+    name: "Secure Development",
+    abbrev: "SDE",
+    icon: Code2,
+    color: "text-sky-400",
+    totalKSIs: 2,
+    directCoverage: 1,
+    supportingCoverage: 1,
+    description: "Secure software testing and secure development practices validation.",
+    cspValue: "ZAP DAST + API Security Testing + Nuclei Scanner perform automated security testing of developed software. DAST findings inform secure development but don't enforce SDLC processes.",
+    agencyValue: "Agencies review CSP-submitted software security testing results to assess whether development practices produce secure outputs.",
+    ksis: [
+      {
+        id: "KSI-SDE-SST", name: "Secure Software Testing", status: "direct",
+        aceModules: ["ZAP DAST", "API Security Testing", "Nuclei Scanner"],
+        cspDetail: "ZAP DAST performs active web application security testing. API Security Testing validates API security (authentication, authorization, injection). Nuclei Scanner executes template-based security checks. All produce real vulnerability data.",
+        agencyDetail: "Review CSP-submitted software security testing results from DAST, API testing, and Nuclei scanning."
+      },
+      {
+        id: "KSI-SDE-SDP", name: "Secure Development Practices", status: "supporting",
+        aceModules: ["ZAP DAST", "Vuln Analysis Agents"],
+        cspDetail: "DAST findings and Vuln Analysis Agents inform secure development priorities by identifying common vulnerability classes. The platform tests outputs but doesn't audit SDLC processes directly.",
+        agencyDetail: "Review CSP-submitted vulnerability trend analysis to assess whether secure development practices reduce common vulnerability classes over time."
+      },
+    ],
+  },
+  {
+    id: "ppm",
+    name: "Policy & Procedure Management",
+    abbrev: "PPM",
+    icon: ScrollText,
+    color: "text-stone-400",
+    totalKSIs: 2,
+    directCoverage: 0,
+    supportingCoverage: 2,
+    description: "Policy and procedure review and implementation verification.",
+    cspValue: "RoE Builder + Evidence Chain store and version policy documents. Scope Enforcement Middleware + Scan Policy Engine enforce operational policies within the platform. The platform supports policy documentation but doesn't manage organizational policies.",
+    agencyValue: "Agencies review CSP-submitted policy documentation and operational enforcement evidence.",
+    ksis: [
+      {
+        id: "KSI-PPM-PPR", name: "Policy & Procedure Review", status: "supporting",
+        aceModules: ["RoE Builder", "Evidence Chain"],
+        cspDetail: "RoE Builder maintains version-controlled rules of engagement and policy documents. Evidence Chain stores policy documentation with integrity verification. LLM analysis can review policies for completeness.",
+        agencyDetail: "Review CSP-submitted policy documentation through RoE Builder version history and Evidence Chain exports."
+      },
+      {
+        id: "KSI-PPM-PPI", name: "Policy & Procedure Implementation", status: "supporting",
+        aceModules: ["Scope Enforcement Middleware", "Scan Policy Engine"],
+        cspDetail: "Scope Enforcement Middleware enforces operational boundaries during testing. Scan Policy Engine defines and enforces scan policies. These demonstrate policy implementation within the platform's operational scope.",
+        agencyDetail: "Review CSP-submitted operational policy enforcement evidence showing scope enforcement and scan policy compliance."
       },
     ],
   },
@@ -467,8 +712,8 @@ export default function FedRAMPKSIMap() {
           </div>
           <h2 className="text-4xl sm:text-5xl font-display mb-4">FEDRAMP 20x KSI MAP</h2>
           <p className="text-lg text-muted-foreground max-w-3xl">
-            How ACE C3 maps to all {TOTAL_KSIS} FedRAMP Key Security Indicators across 9 compliance themes — 
-            supporting cloud service providers in preparing for authorization and providing federal agencies with passive monitoring to evaluate CSP security posture through submitted evidence.
+            How ACE C3 maps to {TOTAL_KSIS} FedRAMP 20x Key Security Indicators across {KSI_THEMES.length} compliance themes — 
+            providing direct automated validation for {DIRECT} KSIs and supporting evidence for {SUPPORTING} more, grounded in real penetration testing, adversary emulation, and continuous security monitoring capabilities.
           </p>
         </div>
 
@@ -543,22 +788,22 @@ export default function FedRAMPKSIMap() {
           {activeView === "csp" ? (
             <div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                <span className="text-primary font-display tracking-wider">CSP VIEW</span> — ACE C3 supports cloud service providers in preparing for and maintaining FedRAMP authorization by providing automated security validation, evidence generation, penetration testing across all 6 mandatory attack vectors, and OSCAL-formatted export for submission. ACE C3 does not grant or enable authorization itself — it equips CSPs with the tools, evidence, and continuous validation needed to satisfy FedRAMP requirements.
+                <span className="text-primary font-display tracking-wider">CSP VIEW</span> — ACE C3 supports cloud service providers in preparing for and maintaining FedRAMP 20x authorization by providing automated security validation, evidence generation, penetration testing across all 6 mandatory attack vectors, and OSCAL-formatted export for submission. ACE C3 does not grant authorization — it equips CSPs with the tools, evidence, and continuous validation needed to satisfy FedRAMP requirements.
               </p>
               <p className="text-xs text-muted-foreground/70 leading-relaxed">
-                Each KSI shows the specific ACE C3 modules that provide coverage, what they actually do, and whether coverage is direct (the module performs the KSI function), supporting (the module contributes evidence or partial coverage), or planned (capability is on the roadmap).
+                Each KSI shows the specific ACE C3 modules that provide coverage, what they actually do, and whether coverage is direct (the module performs the KSI function and generates evidence), supporting (the module contributes telemetry or partial coverage), or planned (capability is on the roadmap).
               </p>
             </div>
           ) : (
             <div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                <span className="text-primary font-display tracking-wider">AGENCY VIEW</span> — ACE C3 provides federal agencies with a passive monitoring and oversight capability for evaluating CSP security posture. Agencies do not run, trigger, or conduct their own penetration tests or active testing through the platform. Instead, agencies can monitor CSP status through passive discovery and enumeration, ingest CSP-submitted scan reports and assessment evidence, and track remediation status across all KSI themes.
+                <span className="text-primary font-display tracking-wider">AGENCY VIEW</span> — ACE C3 provides federal agencies with a passive monitoring and oversight capability for evaluating CSP security posture. Agencies do not run, trigger, or conduct their own penetration tests through the platform. Instead, agencies can monitor CSP status through passive discovery, ingest CSP-submitted assessment evidence, and track remediation status across all KSI themes.
               </p>
               <div className="mt-3 p-3 bg-primary/5 border border-primary/20">
                 <div className="flex items-start gap-2">
                   <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-muted-foreground leading-relaxed">
-                    <span className="text-primary font-display tracking-wider">AGENCY MONITORING MODEL</span> — Agencies consume evidence produced by CSPs using ACE C3 — they do not initiate scans or active tests. Each KSI below describes what CSP-submitted evidence agencies can review, how passive discovery and enumeration supports independent verification, and how remediation tracking enables continuous monitoring decisions.
+                    <span className="text-primary font-display tracking-wider">AGENCY MONITORING MODEL</span> — Agencies consume evidence produced by CSPs using ACE C3 — they do not initiate scans or active tests. Each KSI below describes what CSP-submitted evidence agencies can review and how passive monitoring supports continuous oversight.
                   </div>
                 </div>
               </div>
@@ -704,7 +949,7 @@ export default function FedRAMPKSIMap() {
             </h3>
             <p className="text-sm text-muted-foreground">
               {activeView === "csp"
-                ? `ACE C3 covers ${COVERAGE_PCT}% of all ${TOTAL_KSIS} KSIs today — ${DIRECT} with direct coverage and ${SUPPORTING} with supporting evidence. Automated validation, evidence generation, and OSCAL export for FedRAMP submission.`
+                ? `ACE C3 covers ${COVERAGE_PCT}% of all ${TOTAL_KSIS} KSIs today — ${DIRECT} with direct automated validation and ${SUPPORTING} with supporting evidence. Real penetration testing, adversary emulation, and OSCAL export for FedRAMP submission.`
                 : `ACE C3 provides evidence-based CSP evaluation across ${DIRECT + SUPPORTING} of ${TOTAL_KSIS} KSIs — with real penetration test evidence, detection coverage metrics, and configuration compliance data instead of self-attestation.`}
             </p>
           </div>
