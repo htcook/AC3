@@ -18,6 +18,7 @@ import {
   threatActorIocs,
   threatGroupEvents,
   ransomwareGroups,
+  ransomwareEvents,
 } from "../../drizzle/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -378,10 +379,11 @@ const DAILYDARKWEB_EVENTS = [
 
 // ─── Sync Functions ───────────────────────────────────────────────────
 
-export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; events: number }> {
+export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; events: number; breachEvents: number }> {
   const db = await requireDb();
   let iocsInserted = 0;
   let eventsInserted = 0;
+  let breachEventsInserted = 0;
 
   const [existing] = await db.select().from(threatActors).where(eq(threatActors.actorId, FULCRUMSEC_ACTOR.actorId)).limit(1);
 
@@ -446,14 +448,36 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
     });
   }
 
-  console.log(`[DailyDarkWeb] FULCRUMSEC sync: actor=${!existing ? "new" : "updated"}, iocs=${iocsInserted}, events=${eventsInserted}`);
-  return { actor: true, iocs: iocsInserted, events: eventsInserted };
+  // Also insert attack events into ransomware_events for the Breach Events feed
+  for (const evt of FULCRUMSEC_EVENTS) {
+    if (evt.eventType === "attack" && evt.victimName) {
+      const [existingRe] = await db.select().from(ransomwareEvents)
+        .where(sql`${ransomwareEvents.groupName} = 'FULCRUMSEC' AND ${ransomwareEvents.victimName} = ${evt.victimName}`).limit(1);
+      if (!existingRe) {
+        await db.insert(ransomwareEvents).values({
+          groupName: "FULCRUMSEC",
+          victimName: evt.victimName,
+          country: evt.victimCountry,
+          sector: evt.victimSector,
+          description: evt.description,
+          publishedAt: new Date(evt.eventDate),
+          source: "dailydarkweb_osint",
+          verified: true,
+        });
+        breachEventsInserted++;
+      }
+    }
+  }
+
+  console.log(`[DailyDarkWeb] FULCRUMSEC sync: actor=${!existing ? "new" : "updated"}, iocs=${iocsInserted}, events=${eventsInserted}, breachEvents=${breachEventsInserted}`);
+  return { actor: true, iocs: iocsInserted, events: eventsInserted, breachEvents: breachEventsInserted };
 }
 
-export async function syncDailyDarkWebActors(): Promise<{ actors: number; events: number }> {
+export async function syncDailyDarkWebActors(): Promise<{ actors: number; events: number; breachEvents: number }> {
   const db = await requireDb();
   let actorsInserted = 0;
   let eventsInserted = 0;
+  let breachEventsInserted = 0;
 
   for (const actor of DAILYDARKWEB_ACTORS) {
     const [existing] = await db.select().from(threatActors).where(eq(threatActors.actorId, actor.actorId)).limit(1);
@@ -489,13 +513,35 @@ export async function syncDailyDarkWebActors(): Promise<{ actors: number; events
     }
   }
 
-  console.log(`[DailyDarkWeb] Actor sync: ${actorsInserted} new actors, ${eventsInserted} new events`);
-  return { actors: actorsInserted, events: eventsInserted };
+  // Also insert attack events into ransomware_events for the Breach Events feed
+  for (const evt of DAILYDARKWEB_EVENTS) {
+    if (evt.eventType === "attack" && evt.victimName) {
+      const actorName = DAILYDARKWEB_ACTORS.find(a => a.actorId === evt.actorId)?.name || evt.actorId;
+      const [existingRe] = await db.select().from(ransomwareEvents)
+        .where(sql`${ransomwareEvents.groupName} = ${actorName} AND ${ransomwareEvents.victimName} = ${evt.victimName}`).limit(1);
+      if (!existingRe) {
+        await db.insert(ransomwareEvents).values({
+          groupName: actorName,
+          victimName: evt.victimName,
+          country: evt.victimCountry,
+          sector: evt.victimSector,
+          description: evt.description,
+          publishedAt: new Date(evt.eventDate),
+          source: "dailydarkweb_osint",
+          verified: true,
+        });
+        breachEventsInserted++;
+      }
+    }
+  }
+
+  console.log(`[DailyDarkWeb] Actor sync: ${actorsInserted} new actors, ${eventsInserted} new events, ${breachEventsInserted} breach events`);
+  return { actors: actorsInserted, events: eventsInserted, breachEvents: breachEventsInserted };
 }
 
 export async function syncDailyDarkWebFeed(): Promise<{
-  fulcrumsec: { actor: boolean; iocs: number; events: number };
-  actors: { actors: number; events: number };
+  fulcrumsec: { actor: boolean; iocs: number; events: number; breachEvents: number };
+  actors: { actors: number; events: number; breachEvents: number };
   source: typeof DAILYDARKWEB_SOURCE;
 }> {
   const fulcrumsec = await syncFulcrumsec();

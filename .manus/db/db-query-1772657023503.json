@@ -1,0 +1,42 @@
+{
+  "query": "SELECT reGroupName, victimName, reSector, reCountry, publishedAt, reSource FROM ransomware_events WHERE reGroupName = 'FULCRUMSEC' ORDER BY publishedAt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT reGroupName, victimName, reSector, reCountry, publishedAt, reSource FROM ransomware_events WHERE reGroupName = 'FULCRUMSEC' ORDER BY publishedAt DESC;",
+  "rows": [
+    {
+      "reGroupName": "FULCRUMSEC",
+      "victimName": "LexisNexis (RELX Group)",
+      "reSector": "Legal & Professional Services",
+      "reCountry": "United States",
+      "publishedAt": "2026-03-03 00:00:00",
+      "reSource": "dailydarkweb.net"
+    },
+    {
+      "reGroupName": "FULCRUMSEC",
+      "victimName": "Raptor Supplies",
+      "reSector": "Military/Industrial",
+      "reCountry": "United Kingdom",
+      "publishedAt": "2025-11-01 00:00:00",
+      "reSource": "watchguard"
+    },
+    {
+      "reGroupName": "FULCRUMSEC",
+      "victimName": "youX",
+      "reSector": "FinTech",
+      "reCountry": "Australia",
+      "publishedAt": "2025-10-15 00:00:00",
+      "reSource": "watchguard"
+    },
+    {
+      "reGroupName": "FULCRUMSEC",
+      "victimName": "Avnet",
+      "reSector": "Electronics",
+      "reCountry": "United States",
+      "publishedAt": "2025-09-26 00:00:00",
+      "reSource": "watchguard"
+    }
+  ],
+  "messages": [],
+  "stdout": "reGroupName\tvictimName\treSector\treCountry\tpublishedAt\treSource\nFULCRUMSEC\tLexisNexis (RELX Group)\tLegal & Professional Services\tUnited States\t2026-03-03 00:00:00\tdailydarkweb.net\nFULCRUMSEC\tRaptor Supplies\tMilitary/Industrial\tUnited Kingdom\t2025-11-01 00:00:00\twatchguard\nFULCRUMSEC\tyouX\tFinTech\tAustralia\t2025-10-15 00:00:00\twatchguard\nFULCRUMSEC\tAvnet\tElectronics\tUnited States\t2025-09-26 00:00:00\twatchguard\n",
+  "stderr": "",
+  "execution_time_ms": 49
+}

@@ -7395,3 +7395,21 @@
 - [x] Ensure RSS ingest updates existing ransomware victim feed tables (ransomwareEvents + ransomwareGroups stats)
 - [ ] Add geopolitical/Iran-bordering-country OSINT feeds per intelligence requirements
 - [x] Write tests for new feeds and cross-table ingestion (42/42 threat-intel-rss.test.ts)
+
+## Verify FULCRUMSEC in Database
+- [x] Insert FULCRUMSEC into threat_actors table (1 record, actorId: fulcrumsec, 10 MITRE techniques, 3 tools)
+- [x] Insert FULCRUMSEC into ransomware_groups table (1 record, 5 notable attacks, 5 IOCs in knownInfrastructure)
+- [x] Insert FULCRUMSEC LexisNexis breach + 3 prior victims into ransomware_events (4 records)
+- [x] Insert FULCRUMSEC full activity history into threat_group_events (7 records with cited sources)
+- [x] Verified all data queryable across all 4 tables
+
+## Auto-Seed DDW Feed + All RSS Feeds on Server Startup
+- [x] Add auto-seed function that runs DDW feed sync on server startup (server/_core/index.ts)
+- [x] Also auto-trigger all 18 RSS feed sync on startup (with 30s delay)
+- [x] Ensure DDW sync also populates ransomware_events table (dailydarkweb-feed.ts updated)
+- [x] Wire auto-seed into server/_core/index.ts startup
+- [x] Make all syncs idempotent (safe to re-run)
+- [x] Created "Breach Events" page and added to sidebar navigation in Intelligence section
+- [x] Wire Breach Events feed to display latest breaches AND ransomware notifications from all sources
+- [x] Aggregate ransomware_events + underground_intel_events (data_leak, ransomware, credential, exploit_kit) + incident_reports into unified Breach Events feed
+- [x] Write vitest tests for Breach Events (26/26 passed)

@@ -1,0 +1,18 @@
+{
+  "query": "SELECT 'threat_group_events' as tbl, COUNT(*) as cnt FROM threat_group_events WHERE tgeActorId LIKE '%FULCRUM%' OR tgeActorId LIKE '%fulcrum%' UNION ALL SELECT 'ransomware_events', COUNT(*) FROM ransomware_events WHERE reGroupName LIKE '%FULCRUM%' OR reGroupName LIKE '%fulcrum%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT 'threat_group_events' as tbl, COUNT(*) as cnt FROM threat_group_events WHERE tgeActorId LIKE '%FULCRUM%' OR tgeActorId LIKE '%fulcrum%' UNION ALL SELECT 'ransomware_events', COUNT(*) FROM ransomware_events WHERE reGroupName LIKE '%FULCRUM%' OR reGroupName LIKE '%fulcrum%';",
+  "rows": [
+    {
+      "tbl": "ransomware_events",
+      "cnt": "0"
+    },
+    {
+      "tbl": "threat_group_events",
+      "cnt": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nransomware_events\t0\nthreat_group_events\t0\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

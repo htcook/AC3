@@ -1104,4 +1104,73 @@ export const darkwebIntelRouter = router({
     const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
     return syncAllThreatIntelFeeds({ tiers: [4] });
   }),
+
+  /**
+   * Breach Events Feed — aggregates breach notifications and ransomware events from all sources.
+   * Combines: ransomware_events + underground_intel_events (data_leak, ransomware, credential) + incident_reports
+   */
+  getBreachEvents: protectedProcedure.query(async () => {
+    const db = await getDb();
+    const { ransomwareEvents, undergroundIntelEvents, incidentReports } = await import("../../drizzle/schema");
+
+    // 1. Ransomware events
+    const rwEvents = await db.select().from(ransomwareEvents).orderBy(desc(ransomwareEvents.publishedAt)).limit(500);
+    const rwMapped = rwEvents.map((r: any) => ({
+      id: r.id,
+      type: "ransomware" as const,
+      groupName: r.groupName || "Unknown",
+      victimName: r.victimName || "Unknown",
+      country: r.country,
+      sector: r.sector,
+      description: r.description,
+      publishedAt: r.publishedAt ? new Date(r.publishedAt).toISOString() : new Date().toISOString(),
+      source: r.source || "ransomware_feed",
+      sourceUrl: r.sourceUrl || null,
+      verified: r.verified ?? false,
+      severity: "high",
+    }));
+
+    // 2. Underground intel events (data_leak, ransomware, credential types)
+    const uieEvents = await db.select().from(undergroundIntelEvents)
+      .where(sql`${undergroundIntelEvents.eventType} IN ('data_leak', 'ransomware', 'credential', 'exploit_kit')`)
+      .orderBy(desc(undergroundIntelEvents.detectedAt)).limit(500);
+    const uieMapped = uieEvents.map((u: any) => ({
+      id: u.id + 100000, // offset to avoid ID collision
+      type: (u.eventType === "ransomware" ? "ransomware" : u.eventType === "credential" ? "unauthorized_access" : "data_leak") as any,
+      groupName: u.actorName || u.source || "Unknown",
+      victimName: u.title || "Unknown",
+      country: u.targetCountry,
+      sector: u.targetSector,
+      description: u.description,
+      publishedAt: u.detectedAt ? new Date(u.detectedAt).toISOString() : new Date().toISOString(),
+      source: u.source || "underground_intel",
+      sourceUrl: u.sourceUrl || null,
+      verified: u.verified ?? false,
+      severity: u.severity,
+    }));
+
+    // 3. Incident reports
+    const irEvents = await db.select().from(incidentReports).orderBy(desc(incidentReports.publishedAt)).limit(200);
+    const irMapped = irEvents.map((ir: any) => ({
+      id: ir.id + 200000, // offset to avoid ID collision
+      type: "incident" as const,
+      groupName: ir.attributedActor || "Unknown",
+      victimName: ir.title || "Unknown",
+      country: ir.targetCountry,
+      sector: ir.targetSector,
+      description: ir.summary || ir.description,
+      publishedAt: ir.publishedAt ? new Date(ir.publishedAt).toISOString() : new Date().toISOString(),
+      source: ir.source || "incident_report",
+      sourceUrl: ir.sourceUrl || null,
+      verified: ir.extractionStatus === "completed",
+      severity: ir.severity,
+    }));
+
+    // Combine and sort by date descending
+    const allEvents = [...rwMapped, ...uieMapped, ...irMapped]
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+      .slice(0, 1000);
+
+    return allEvents;
+  }),
 });

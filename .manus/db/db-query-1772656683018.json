@@ -1,0 +1,226 @@
+{
+  "query": "DESCRIBE ransomware_groups;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DESCRIBE ransomware_groups;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "groupName",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "UNI",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "aliases",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "description",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "activityScore",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "trend",
+      "Type": "enum('surging','active','declining','dormant')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "active",
+      "Extra": ""
+    },
+    {
+      "Field": "rwThreatLevel",
+      "Type": "enum('critical','high','medium','low')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "medium",
+      "Extra": ""
+    },
+    {
+      "Field": "victims7d",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "victims30d",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "totalVictims",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "topSectors",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "topCountries",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "associatedMalware",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "mitreTechniques",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ransomwareFamily",
+      "Type": "varchar(255)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "extortionModel",
+      "Type": "enum('single','double','triple','unknown')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "unknown",
+      "Extra": ""
+    },
+    {
+      "Field": "affiliateProgram",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "knownInfrastructure",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "notableAttacks",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "rwFirstSeen",
+      "Type": "varchar(32)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "rwLastActive",
+      "Type": "varchar(32)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "calderaActorId",
+      "Type": "varchar(128)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "rwDataSource",
+      "Type": "varchar(128)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "rwConfidence",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "75",
+      "Extra": ""
+    },
+    {
+      "Field": "lastEnriched",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\ngroupName\tvarchar(255)\tNO\tUNI\tNULL\t\naliases\tjson\tYES\t\tNULL\t\ndescription\ttext\tYES\t\tNULL\t\nactivityScore\tint\tYES\t\t0\t\ntrend\tenum('surging','active','declining','dormant')\tYES\t\tactive\t\nrwThreatLevel\tenum('critical','high','medium','low')\tYES\t\tmedium\t\nvictims7d\tint\tYES\t\t0\t\nvictims30d\tint\tYES\t\t0\t\ntotalVictims\tint\tYES\t\t0\t\ntopSectors\tjson\tYES\t\tNULL\t\ntopCountries\tjson\tYES\t\tNULL\t\nassociatedMalware\tjson\tYES\t\tNULL\t\nmitreTechniques\tjson\tYES\t\tNULL\t\nransomwareFamily\tvarchar(255)\tYES\t\tNULL\t\nextortionModel\tenum('single','double','triple','unknown')\tYES\t\tunknown\t\naffiliateProgram\ttinyint(1)\tYES\t\t0\t\nknownInfrastructure\tjson\tYES\t\tNULL\t\nnotableAttacks\tjson\tYES\t\tNULL\t\nrwFirstSeen\tvarchar(32)\tYES\t\tNULL\t\nrwLastActive\tvarchar(32)\tYES\t\tNULL\t\ncalderaActorId\tvarchar(128)\tYES\t\tNULL\t\nrwDataSource\tvarchar(128)\tYES\t\tNULL\t\nrwConfidence\tint\tYES\t\t75\t\nlastEnriched\ttimestamp\tYES\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 49
+}

@@ -1,0 +1,38 @@
+{
+  "query": "SELECT 'threat_actors' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM threat_actors WHERE actorId = 'fulcrumsec'; SELECT 'ransomware_groups' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM ransomware_groups WHERE groupName = 'FULCRUMSEC'; SELECT 'ransomware_events' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM ransomware_events WHERE reGroupName = 'FULCRUMSEC'; SELECT 'threat_group_events' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM threat_group_events WHERE tgeActorId = 'fulcrumsec';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT 'threat_actors' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM threat_actors WHERE actorId = 'fulcrumsec'; SELECT 'ransomware_groups' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM ransomware_groups WHERE groupName = 'FULCRUMSEC'; SELECT 'ransomware_events' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM ransomware_events WHERE reGroupName = 'FULCRUMSEC'; SELECT 'threat_group_events' as tbl, CAST(COUNT(*) AS CHAR) as cnt FROM threat_group_events WHERE tgeActorId = 'fulcrumsec';",
+  "rows": [
+    {
+      "tbl": "threat_actors",
+      "cnt": "1"
+    },
+    {
+      "tbl": "tbl",
+      "cnt": "cnt"
+    },
+    {
+      "tbl": "ransomware_groups",
+      "cnt": "1"
+    },
+    {
+      "tbl": "tbl",
+      "cnt": "cnt"
+    },
+    {
+      "tbl": "ransomware_events",
+      "cnt": "4"
+    },
+    {
+      "tbl": "tbl",
+      "cnt": "cnt"
+    },
+    {
+      "tbl": "threat_group_events",
+      "cnt": "7"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nthreat_actors\t1\ntbl\tcnt\nransomware_groups\t1\ntbl\tcnt\nransomware_events\t4\ntbl\tcnt\nthreat_group_events\t7\n",
+  "stderr": "",
+  "execution_time_ms": 72
+}

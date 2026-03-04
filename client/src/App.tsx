@@ -57,6 +57,7 @@ const ScanComparison = lazy(() => import("./pages/ScanComparison"));
 const ThreatCatalog = lazy(() => import("./pages/ThreatCatalog"));
 const ThreatActorCatalogDetail = lazy(() => import("./pages/ThreatActorCatalogDetail"));
 const DarkwebIntel = lazy(() => import("./pages/DarkwebIntel"));
+const BreachEvents = lazy(() => import("./pages/BreachEvents"));
 const ThreatIntelHub = lazy(() => import("./pages/ThreatIntelHub"));
 const CampaignArchetypes = lazy(() => import("./pages/CampaignArchetypes"));
 const ExploitArsenal = lazy(() => import("./pages/ExploitArsenal"));
@@ -465,6 +466,9 @@ function Router() {
         </Route>
         <Route path="/darkweb-intel">
           <ProtectedRoute component={DarkwebIntel} />
+        </Route>
+        <Route path="/breach-events">
+          <ProtectedRoute component={BreachEvents} />
         </Route>
         <Route path="/phishing-exploit-catalog">
           <Redirect to="/exploit-catalog" />

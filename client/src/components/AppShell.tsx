@@ -307,6 +307,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/threat-intel-hub", icon: Shield, label: "THREAT INTEL HUB" },
           { href: "/vuln-intel", icon: Bug, label: "VULN INTEL" },
           { href: "/darkweb-intel", icon: AlertTriangle, label: "DARKWEB INTEL" },
+          { href: "/breach-events", icon: Bell, label: "BREACH EVENTS" },
           { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
           { href: "/threat-actor-crawler", icon: Satellite, label: "ACTOR INTEL" },
           { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },

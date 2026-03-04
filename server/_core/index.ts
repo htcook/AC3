@@ -374,6 +374,30 @@ async function startServer() {
         console.warn("[DarkwebScheduler] Failed to initialize darkweb feed scheduler:", err);
       });
 
+      // Auto-seed DDW threat actor data + RSS feeds on startup (30s delay to let server stabilize)
+      setTimeout(async () => {
+        try {
+          console.log("[AutoSeed] Starting DDW feed auto-seed...");
+          const { syncDailyDarkWebFeed } = await import("../lib/dailydarkweb-feed");
+          const ddwResult = await syncDailyDarkWebFeed();
+          console.log(`[AutoSeed] DDW seed complete: FULCRUMSEC(iocs=${ddwResult.fulcrumsec.iocs}, events=${ddwResult.fulcrumsec.events}, breachEvents=${ddwResult.fulcrumsec.breachEvents}), actors(${ddwResult.actors.actors} new, ${ddwResult.actors.events} events, ${ddwResult.actors.breachEvents} breach events)`);
+        } catch (err: any) {
+          console.warn("[AutoSeed] DDW feed auto-seed failed:", err.message);
+        }
+
+        // Trigger all 18 RSS feeds after DDW seed (additional 30s delay)
+        setTimeout(async () => {
+          try {
+            console.log("[AutoSeed] Starting multi-source RSS feed sync...");
+            const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+            const rssResult = await syncAllThreatIntelFeeds({});
+            console.log(`[AutoSeed] RSS sync complete: ${rssResult.feedsSucceeded}/${rssResult.totalFeeds} feeds, TGE:${rssResult.totalThreatGroupEvents} RE:${rssResult.totalRansomwareEvents} UIE:${rssResult.totalUndergroundEvents} IR:${rssResult.totalIncidentReports}`);
+          } catch (err: any) {
+            console.warn("[AutoSeed] RSS feed sync failed:", err.message);
+          }
+        }, 30_000);
+      }, 30_000);
+
       // Initialize Automated Domain Scan Scheduler (every 5 minutes)
       import("../lib/scan-scheduler").then(({ initScanScheduler }) => {
         initScanScheduler();

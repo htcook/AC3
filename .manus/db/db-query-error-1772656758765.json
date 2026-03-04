@@ -1,0 +1,8 @@
+{
+  "query": "SELECT 'threat_group_events' as tbl, COUNT(*) as cnt FROM threat_group_events WHERE groupName LIKE '%FULCRUM%' UNION ALL SELECT 'ransomware_events', COUNT(*) FROM ransomware_events WHERE reGroupName LIKE '%FULCRUM%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT 'threat_group_events' as tbl, COUNT(*) as cnt FROM threat_group_events WHERE groupName LIKE '%FULCRUM%' UNION ALL SELECT 'ransomware_events', COUNT(*) FROM ransomware_events WHERE reGroupName LIKE '%FULCRUM%';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'groupname' in 'where clause'"
+  ]
+}
