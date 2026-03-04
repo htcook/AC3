@@ -7242,3 +7242,9 @@
 - [x] Investigate all tables with Vianova engagement data (13 tables checked, found 174 scan_results rows remaining)
 - [x] Delete all scan results, findings, stats, reports, and related data (174 rows deleted from scan_results)
 - [x] Verify engagement is fully reset to start state (all 13 verification checks passed with 0 rows)
+
+## Fix: Vianova Still Showing Old Data in UI
+- [x] Browse Engagement Ops to see what's still visible (stats, live feed with 518 entries, duplicates)
+- [x] Found root cause: `engagement_ops_snapshots` table had a 624KB JSON snapshot with all old state
+- [x] Deleted ops snapshot (1 row) + restarted server to clear in-memory opsStates Map
+- [x] Verified UI now shows clean state: 0 log entries, all stats at 0, "Ready to Begin" prompt
