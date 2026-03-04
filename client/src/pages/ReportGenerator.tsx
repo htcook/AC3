@@ -35,7 +35,7 @@ const REPORT_TYPES = [
 ] as const;
 
 const BRANDING_COLORS = [
-  { value: '#dc2626', label: 'AceofCloud Red', className: 'bg-red-600' },
+  { value: '#213555', label: 'Ace of Cloud Navy', className: 'bg-[#213555]' },
   { value: '#2563eb', label: 'Corporate Blue', className: 'bg-blue-600' },
   { value: '#059669', label: 'Security Green', className: 'bg-emerald-600' },
   { value: '#7c3aed', label: 'Purple', className: 'bg-violet-600' },

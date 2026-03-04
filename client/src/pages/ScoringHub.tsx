@@ -1842,33 +1842,37 @@ export default function ScoringHub() {
               {/* Tier Breakdown */}
               {industryTierQ.data && (
                 <div className="space-y-3">
-                  {Object.entries(industryTierQ.data.tiers).map(([tierKey, tierData]: [string, any]) => (
-                    <div key={tierKey} className={`p-3 rounded-lg border ${
-                      tierKey === "Tier_1_Strategic" ? "bg-red-500/5 border-red-500/20" :
-                      tierKey === "Tier_2_Operational" ? "bg-amber-500/5 border-amber-500/20" :
-                      "bg-zinc-800/50 border-zinc-700/50"
-                    }`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`font-semibold text-sm ${
-                          tierKey === "Tier_1_Strategic" ? "text-red-400" :
-                          tierKey === "Tier_2_Operational" ? "text-amber-400" :
-                          "text-zinc-400"
-                        }`}>
-                          {tierKey.replace(/_/g, " ")}
-                        </span>
-                        <Badge variant="outline" className="text-[10px]">
-                          Weight: {tierKey === "Tier_1_Strategic" ? "1.5x" : tierKey === "Tier_2_Operational" ? "1.2x" : "1.0x"}
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(tierData as string[]).map((asset: string) => (
-                          <Badge key={asset} variant="outline" className="text-[10px] bg-zinc-800/60 border-zinc-700">
-                            {asset}
+                  {(Array.isArray(industryTierQ.data.tiers) ? industryTierQ.data.tiers : []).map((tierObj: any) => {
+                    const tierKey = tierObj.tier ?? "Unknown";
+                    const assets: string[] = Array.isArray(tierObj.assets) ? tierObj.assets : [];
+                    return (
+                      <div key={tierKey} className={`p-3 rounded-lg border ${
+                        tierKey === "Tier_1_Strategic" ? "bg-red-500/5 border-red-500/20" :
+                        tierKey === "Tier_2_Operational" ? "bg-amber-500/5 border-amber-500/20" :
+                        "bg-zinc-800/50 border-zinc-700/50"
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`font-semibold text-sm ${
+                            tierKey === "Tier_1_Strategic" ? "text-red-400" :
+                            tierKey === "Tier_2_Operational" ? "text-amber-400" :
+                            "text-zinc-400"
+                          }`}>
+                            {tierKey.replace(/_/g, " ")}
+                          </span>
+                          <Badge variant="outline" className="text-[10px]">
+                            Weight: {tierObj.weight ? `${tierObj.weight}x` : tierKey === "Tier_1_Strategic" ? "1.5x" : tierKey === "Tier_2_Operational" ? "1.2x" : "1.0x"}
                           </Badge>
-                        ))}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {assets.map((asset: string) => (
+                            <Badge key={asset} variant="outline" className="text-[10px] bg-zinc-800/60 border-zinc-700">
+                              {asset}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

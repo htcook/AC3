@@ -638,18 +638,15 @@ function wrapInHtmlDocument(data: ReportData, bodyContent: string): string {
   }
 
   .brand-logo {
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, ${THEME.accent}, ${THEME.bg});
-    border: 2px solid ${THEME.accent};
+    width: 48px;
+    height: 48px;
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: ${THEME.fontMono};
-    font-weight: 700;
-    font-size: 16px;
-    color: ${THEME.accent};
+    overflow: hidden;
+  }
+  .brand-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .brand-name {
@@ -1175,9 +1172,9 @@ function wrapInHtmlDocument(data: ReportData, bodyContent: string): string {
   <div class="report-header">
     <div class="header-top">
       <div class="brand">
-        <div class="brand-logo">C3</div>
+        <div class="brand-logo"><img src="https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/ace_of_cloud_logo_8934407a.jpeg" alt="Ace of Cloud" /></div>
         <div>
-          <div class="brand-name">ACE C3 — CALDERA OPERATIONS</div>
+          <div class="brand-name">ACE OF CLOUD — ACE C3</div>
           <div class="brand-sub">Web Application Security Assessment</div>
         </div>
       </div>
@@ -1202,7 +1199,7 @@ function wrapInHtmlDocument(data: ReportData, bodyContent: string): string {
   ${bodyContent}
 
   <div class="report-footer">
-    ACE C3 — CALDERA OPERATIONS PLATFORM &nbsp;|&nbsp; ACEOFCLOUD &nbsp;|&nbsp; ${dateStr}
+    ACE OF CLOUD LLC — ACE C3 PLATFORM &nbsp;|&nbsp; aceofcloud.com &nbsp;|&nbsp; ${dateStr}
     <br>
     This report is ${data.classification}. Distribution is restricted to authorized personnel only.
   </div>

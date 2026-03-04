@@ -131,6 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Mission Operations",
         items: [
           { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
+          { href: "/ksi-dashboard", icon: BadgeCheck, label: "KEY SECURITY INDICATORS" },
           { href: "/workflows", icon: Rocket, label: "MISSION WORKFLOWS" },
           { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
           { href: "/engagement-ops", icon: Crosshair, label: "ENGAGEMENT OPS" },

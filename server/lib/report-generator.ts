@@ -284,7 +284,7 @@ export async function generateReport(input: ReportInput): Promise<ReportData> {
       messages: [
         {
           role: "system",
-          content: "You are a senior penetration testing consultant at AceofCloud writing a post-engagement report. Write in a professional, technical but accessible tone. Do not use markdown formatting - write plain text paragraphs.",
+          content: "You are a senior penetration testing consultant at Ace of Cloud LLC writing a post-engagement report for the Ace C3 (Cyber Campaign Command) platform. Write in a professional, technical but accessible tone. Do not use markdown formatting - write plain text paragraphs.",
         },
         {
           role: "user",
@@ -473,8 +473,8 @@ Return JSON with:
     metadata: {
       title: `Post-Engagement Security Assessment Report`,
       subtitle: op?.name || 'Security Assessment',
-      author: 'Ace C3',
-      company: 'AceofCloud',
+      author: 'Ace of Cloud LLC',
+      company: 'Ace of Cloud LLC',
       website: 'https://aceofcloud.com',
       date: dateStr,
       clientName: input.clientName || 'Client',
@@ -484,7 +484,7 @@ Return JSON with:
       classification: 'CONFIDENTIAL',
     },
     executiveSummary,
-    scopeAndMethodology: `This ${input.engagementType || 'purple team exercise'} was conducted using the MITRE ATT&CK framework as the primary reference for adversary emulation. The engagement leveraged Caldera as the adversary emulation platform, executing ${techniquesAttempted} techniques across ${tacticsCovered} tactical phases. Each technique was mapped to specific MITRE ATT&CK identifiers and tested against the target environment's detection capabilities. Detection rules were auto-generated and validated using the AceofCloud Rule Validation Engine, covering Sigma, YARA, and Suricata rule formats.`,
+    scopeAndMethodology: `This ${input.engagementType || 'purple team exercise'} was conducted using the MITRE ATT&CK framework as the primary reference for adversary emulation. The engagement leveraged Caldera as the adversary emulation platform, executing ${techniquesAttempted} techniques across ${tacticsCovered} tactical phases. Each technique was mapped to specific MITRE ATT&CK identifiers and tested against the target environment's detection capabilities. Detection rules were auto-generated and validated using the Ace C3 Rule Validation Engine, covering Sigma, YARA, and Suricata rule formats.`,
     operationTimeline: timeline.map((t: any) => ({
       time: t.time || t.finishTime || '',
       event: t.abilityName || 'Unknown',

@@ -7325,3 +7325,49 @@
   - [x] Update vulnerability_analysis phase success criteria to include OEM defaults
   - [x] Write vitest tests for OEM credential integration (10 tests pass)
 - [x] Verify all 30 tests pass (dedup + credential testing)
+
+## AI Pentest Report Engine Integration Analysis
+- [ ] Audit existing platform modules against proposed package
+- [ ] Write comprehensive integration analysis with module-by-module mapping
+- [ ] Ensure report engine wires into existing Reports module and Engagement Dashboard
+- [ ] Audit data completeness: trace every report field back through discovery/passive/active/exploit pipelines
+- [ ] Identify data gaps that would prevent generating a complete pentest report
+- [ ] Deliver analysis document to user
+
+## Expand OEM Default Credential Database
+- [ ] Add Palo Alto Panorama default credentials
+- [ ] Add SonicWall default credentials
+- [ ] Add ICS/SCADA device default credentials (Siemens, Schneider, Allen-Bradley, etc.)
+- [ ] Add additional network/security vendor defaults (Juniper, Check Point, F5, etc.)
+- [ ] Write vitest tests for new credential entries
+
+## Credential Testing Summary Card
+- [ ] Create database schema for credential test results tracking
+- [ ] Create tRPC procedure to fetch credential testing summary per engagement
+- [ ] Build Credential Testing Summary card component for engagement results UI
+- [ ] Show vendor defaults tested, pass/fail status, and coverage metrics
+- [ ] Wire into Engagement Dashboard alongside existing cards
+- [ ] Write vitest tests for the new procedure
+
+## Ace of Cloud Branding Update (from aceofcloud.com)
+- [x] Visit aceofcloud.com and extract branding (logo, colors, typography)
+- [x] Upload logo to CDN
+- [x] Update pdf-report-generator.ts with accurate branding (navy #213555, logo, company name)
+- [x] Update zap-report-generator.ts with accurate branding
+- [x] Update report-generator.ts metadata and LLM prompts
+- [x] Update reports-core.ts LLM system prompts
+- [x] Update ReportGenerator.tsx branding color options
+
+## Fix ScoringHub Crash (INC-MMC9TDRT-8B3WUZ)
+- [x] Diagnose TypeError: c.map is not a function on /scoring page
+- [x] Fix the .map() call on non-array data in ScoringHub component
+- [x] Verify /scoring page loads without errors
+
+## Key Security Indicators Tab in Operations
+- [x] Add KSI (Key Security Indicators) link next to Dashboard in Mission Operations section
+- [x] KSI Dashboard already fully implemented with Indicators, Evidence Chain, Auto-Collection, Threat Map, Validation, FedRAMP 20x tabs
+- [x] Moved KSI link to prominent position right after DASHBOARD in sidebar
+
+## All Pages Error-Free Verification
+- [x] Verify all major pages load without throwing errors (scoring, ksi-dashboard, dashboard, engagement-ops)
+- [x] Write vitest tests for branding, scoring fix, and KSI navigation (15/15 passed)

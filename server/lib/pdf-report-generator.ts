@@ -18,13 +18,17 @@ export interface ReportConfig {
 }
 
 const BRAND_COLORS = {
-  primary: "#0a1628",
-  accent: "#14b8a6",
+  primary: "#213555",      // Ace of Cloud navy blue (from aceofcloud.com)
+  accent: "#14b8a6",       // Teal accent
+  cream: "#F5EFE7",        // Warm cream background
+  secondary: "#D8C4B6",    // Warm tan/beige
   danger: "#ef4444",
   warning: "#f59e0b",
   success: "#22c55e",
   muted: "#64748b",
 };
+
+const BRAND_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/ace_of_cloud_logo_8934407a.jpeg";
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -54,7 +58,8 @@ export function generateReportHtml(config: ReportConfig): string {
   .header { border-bottom: 3px solid ${BRAND_COLORS.accent}; padding-bottom: 24px; margin-bottom: 32px; }
   .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
   .brand { display: flex; align-items: center; gap: 12px; }
-  .brand-logo { width: 40px; height: 40px; background: ${BRAND_COLORS.primary}; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: ${BRAND_COLORS.accent}; font-weight: 700; font-size: 18px; }
+  .brand-logo { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; }
+  .brand-logo img { width: 100%; height: 100%; object-fit: contain; }
   .brand-name { font-size: 20px; font-weight: 700; color: ${BRAND_COLORS.primary}; }
   .brand-sub { font-size: 11px; color: ${BRAND_COLORS.muted}; text-transform: uppercase; letter-spacing: 1px; }
   .classification { background: ${BRAND_COLORS.primary}; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
@@ -119,10 +124,10 @@ export function generateReportHtml(config: ReportConfig): string {
   <div class="header">
     <div class="header-top">
       <div class="brand">
-        <div class="brand-logo">A</div>
+        <div class="brand-logo"><img src="${BRAND_LOGO_URL}" alt="Ace of Cloud" /></div>
         <div>
-          <div class="brand-name">AceofCloud</div>
-          <div class="brand-sub">Ace C3 Platform</div>
+          <div class="brand-name">Ace of Cloud</div>
+          <div class="brand-sub">Ace C3 — Cyber Campaign Command</div>
         </div>
       </div>
       <div class="classification">${classification}</div>
@@ -131,8 +136,9 @@ export function generateReportHtml(config: ReportConfig): string {
     ${config.subtitle ? `<div class="report-subtitle">${escapeHtml(config.subtitle)}</div>` : ""}
     <div class="report-meta">
       <span>Generated: ${dateStr}</span>
-      <span>Author: Harrison Cook</span>
+      <span>Prepared by: Ace of Cloud LLC</span>
       <span>Platform: Ace C3</span>
+      <span>aceofcloud.com</span>
     </div>
   </div>
   
@@ -144,7 +150,7 @@ export function generateReportHtml(config: ReportConfig): string {
   `).join("")}
   
   <div class="footer">
-    <div>AceofCloud — Ace C3 Platform | aceofcloud.com</div>
+    <div>Ace of Cloud LLC — Ace C3 Platform | aceofcloud.com</div>
     <div>${classification} — ${dateStr}</div>
   </div>
 </div>

@@ -139,6 +139,141 @@ export const BUILTIN_DEFAULT_CREDS: Array<{
   // ─── VoIP / Telephony ─────────────────────────────────────────────
   { vendor: "Asterisk", product: "FreePBX", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["voip", "pbx", "telephony"] },
   { vendor: "Cisco", product: "Unified CM", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["voip", "pbx", "telephony"] },
+  { vendor: "Avaya", product: "IP Office", protocol: "https", port: 443, username: "Administrator", password: "Administrator", accessLevel: "admin", source: "Vendor documentation", tags: ["voip", "pbx", "telephony"] },
+  { vendor: "Polycom", product: "VVX Phone", protocol: "web_admin", port: 80, username: "Polycom", password: "456", accessLevel: "admin", source: "Vendor documentation", tags: ["voip", "phone", "iot"] },
+  { vendor: "Yealink", product: "IP Phone", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["voip", "phone", "iot"] },
+
+  // ─── Palo Alto Networks (Expanded) ────────────────────────────────
+  { vendor: "Palo Alto", product: "Panorama", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Panorama management server factory default", source: "Palo Alto documentation", tags: ["firewall", "management", "network"] },
+  { vendor: "Palo Alto", product: "Panorama", protocol: "ssh", port: 22, username: "admin", password: "admin", accessLevel: "admin", source: "Palo Alto documentation", tags: ["firewall", "management", "network"] },
+  { vendor: "Palo Alto", product: "PAN-OS", protocol: "ssh", port: 22, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["firewall", "network"] },
+  { vendor: "Palo Alto", product: "GlobalProtect", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "GlobalProtect portal/gateway", source: "Vendor documentation", tags: ["vpn", "firewall", "remote_access"] },
+  { vendor: "Palo Alto", product: "Prisma Access", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["cloud", "sase", "network"] },
+
+  // ─── SonicWall (Expanded) ─────────────────────────────────────────
+  { vendor: "SonicWall", product: "SonicOS", protocol: "ssh", port: 22, username: "admin", password: "password", accessLevel: "admin", source: "Vendor documentation", tags: ["firewall", "network"] },
+  { vendor: "SonicWall", product: "SMA 100", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", notes: "Secure Mobile Access appliance", source: "Vendor documentation", tags: ["vpn", "remote_access", "firewall"] },
+  { vendor: "SonicWall", product: "SMA 1000", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", source: "Vendor documentation", tags: ["vpn", "remote_access", "firewall"] },
+  { vendor: "SonicWall", product: "NSA", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", notes: "Network Security Appliance", source: "Vendor documentation", tags: ["firewall", "network"] },
+  { vendor: "SonicWall", product: "TZ Series", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", notes: "TZ entry-level firewall", source: "Vendor documentation", tags: ["firewall", "network"] },
+  { vendor: "SonicWall", product: "Email Security", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", source: "Vendor documentation", tags: ["email", "security"] },
+  { vendor: "SonicWall", product: "GMS", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", notes: "Global Management System", source: "Vendor documentation", tags: ["management", "firewall", "network"] },
+
+  // ─── ICS / SCADA / OT (Expanded) ──────────────────────────────────
+  { vendor: "Siemens", product: "SIMATIC HMI", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "hmi", "ics"] },
+  { vendor: "Siemens", product: "SCALANCE", protocol: "web_admin", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Industrial Ethernet switches", source: "ICS-CERT advisory", tags: ["scada", "ics", "network", "switch"] },
+  { vendor: "Siemens", product: "SINEMA", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Network management", source: "ICS-CERT advisory", tags: ["scada", "ics", "management"] },
+  { vendor: "Siemens", product: "TIA Portal", protocol: "other", port: 4840, username: "admin", password: "admin", accessLevel: "admin", notes: "OPC UA default", source: "ICS-CERT advisory", tags: ["scada", "ics", "engineering"] },
+  { vendor: "Schneider Electric", product: "Unity Pro", protocol: "other", port: 502, username: "", password: "", accessLevel: "admin", notes: "Modbus TCP — no auth by default", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "Schneider Electric", product: "EcoStruxure", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "ics", "management"] },
+  { vendor: "Schneider Electric", product: "PowerLogic", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Power monitoring", source: "ICS-CERT advisory", tags: ["scada", "ics", "power"] },
+  { vendor: "Allen-Bradley", product: "ControlLogix", protocol: "web_admin", port: 80, username: "admin", password: "1234", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "Allen-Bradley", product: "CompactLogix", protocol: "web_admin", port: 80, username: "admin", password: "1234", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "Rockwell", product: "FactoryTalk", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "ics", "hmi"] },
+  { vendor: "Emerson", product: "DeltaV", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "DCS controller", source: "ICS-CERT advisory", tags: ["scada", "dcs", "ics"] },
+  { vendor: "Emerson", product: "ROC800", protocol: "other", port: 4000, username: "LOI", password: "LOI", accessLevel: "admin", notes: "Remote Operations Controller", source: "ICS-CERT advisory", tags: ["scada", "ics", "rtu"] },
+  { vendor: "Yokogawa", product: "CENTUM VP", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "DCS platform", source: "ICS-CERT advisory", tags: ["scada", "dcs", "ics"] },
+  { vendor: "Yokogawa", product: "ProSafe-RS", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Safety instrumented system", source: "ICS-CERT advisory", tags: ["scada", "sis", "ics"] },
+  { vendor: "Beckhoff", product: "TwinCAT", protocol: "other", port: 48898, username: "Administrator", password: "1", accessLevel: "admin", notes: "ADS/AMS default", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "WAGO", product: "PFC200", protocol: "web_admin", port: 80, username: "admin", password: "wago", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "Phoenix Contact", product: "AXC F 2152", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "Moxa", product: "NPort", protocol: "web_admin", port: 80, username: "admin", password: "", accessLevel: "admin", notes: "Serial device server — empty password default", source: "ICS-CERT advisory", tags: ["scada", "ics", "serial", "iot"] },
+  { vendor: "Moxa", product: "EDS Switch", protocol: "web_admin", port: 80, username: "admin", password: "", accessLevel: "admin", notes: "Industrial Ethernet switch", source: "ICS-CERT advisory", tags: ["scada", "ics", "switch", "network"] },
+  { vendor: "Advantech", product: "WebAccess", protocol: "web_admin", port: 80, username: "admin", password: "", accessLevel: "admin", notes: "HMI/SCADA platform", cveReference: "CVE-2019-3953", source: "ICS-CERT advisory", tags: ["scada", "hmi", "ics"] },
+  { vendor: "Mitsubishi", product: "MELSEC", protocol: "other", port: 5007, username: "", password: "", accessLevel: "admin", notes: "MC Protocol — no auth by default", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "Omron", product: "CJ2 PLC", protocol: "other", port: 9600, username: "", password: "", accessLevel: "admin", notes: "FINS protocol — no auth by default", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+  { vendor: "B&R", product: "Automation Runtime", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["scada", "ics", "plc"] },
+
+  // ─── Building Automation / BACnet ──────────────────────────────────
+  { vendor: "Tridium", product: "Niagara", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Niagara Framework BAS", source: "ICS-CERT advisory", tags: ["bas", "building_automation", "ics"] },
+  { vendor: "Johnson Controls", product: "Metasys", protocol: "https", port: 443, username: "MetasysSysAgent", password: "Mets1234!", accessLevel: "admin", notes: "Building management system", source: "ICS-CERT advisory", tags: ["bas", "building_automation", "ics"] },
+  { vendor: "Honeywell", product: "WEBs-AX", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Niagara-based BAS", source: "ICS-CERT advisory", tags: ["bas", "building_automation", "ics"] },
+  { vendor: "Schneider Electric", product: "SmartStruxure", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "ICS-CERT advisory", tags: ["bas", "building_automation", "ics"] },
+
+  // ─── Medical / Healthcare IoT ─────────────────────────────────────
+  { vendor: "GE Healthcare", product: "CARESCAPE", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Patient monitoring", source: "ICS-CERT advisory", tags: ["medical", "iot", "healthcare"] },
+  { vendor: "Philips", product: "IntelliVue", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Patient monitoring", source: "ICS-CERT advisory", tags: ["medical", "iot", "healthcare"] },
+  { vendor: "BD", product: "Alaris Infusion", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Infusion pump", source: "ICS-CERT advisory", tags: ["medical", "iot", "healthcare"] },
+  { vendor: "Baxter", product: "Sigma Spectrum", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Infusion pump", source: "ICS-CERT advisory", tags: ["medical", "iot", "healthcare"] },
+
+  // ─── Additional Firewalls & UTM ───────────────────────────────────
+  { vendor: "Sophos", product: "XG Firewall", protocol: "https", port: 4444, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["firewall", "utm", "network"] },
+  { vendor: "Sophos", product: "UTM", protocol: "https", port: 4444, username: "admin", password: "", accessLevel: "admin", notes: "Set during initial wizard", source: "Vendor documentation", tags: ["firewall", "utm", "network"] },
+  { vendor: "Barracuda", product: "CloudGen Firewall", protocol: "https", port: 443, username: "admin", password: "", accessLevel: "admin", notes: "Password set during setup", source: "Vendor documentation", tags: ["firewall", "network"] },
+  { vendor: "Barracuda", product: "WAF", protocol: "https", port: 8443, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["waf", "web_security", "network"] },
+  { vendor: "Forcepoint", product: "NGFW", protocol: "https", port: 8082, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["firewall", "network"] },
+  { vendor: "Zyxel", product: "USG", protocol: "https", port: 443, username: "admin", password: "1234", accessLevel: "admin", cveReference: "CVE-2020-29583", source: "CVE advisory", tags: ["firewall", "network"] },
+  { vendor: "Zyxel", product: "ATP", protocol: "https", port: 443, username: "admin", password: "1234", accessLevel: "admin", source: "Vendor documentation", tags: ["firewall", "network"] },
+  { vendor: "Zyxel", product: "NAS", protocol: "web_admin", port: 5000, username: "admin", password: "1234", accessLevel: "admin", source: "Vendor documentation", tags: ["nas", "storage", "iot"] },
+
+  // ─── Network Attached Storage ─────────────────────────────────────
+  { vendor: "Synology", product: "DiskStation", protocol: "https", port: 5001, username: "admin", password: "", accessLevel: "admin", notes: "Empty password on first setup", source: "Vendor documentation", tags: ["nas", "storage"] },
+  { vendor: "QNAP", product: "QTS", protocol: "https", port: 8080, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["nas", "storage"] },
+  { vendor: "Western Digital", product: "My Cloud", protocol: "web_admin", port: 80, username: "admin", password: "", accessLevel: "admin", notes: "No password by default", cveReference: "CVE-2018-17153", source: "CVE advisory", tags: ["nas", "storage", "iot"] },
+  { vendor: "Buffalo", product: "TeraStation", protocol: "web_admin", port: 80, username: "admin", password: "password", accessLevel: "admin", source: "Vendor documentation", tags: ["nas", "storage"] },
+
+  // ─── Wireless Access Points ───────────────────────────────────────
+  { vendor: "Ruckus", product: "ZoneDirector", protocol: "https", port: 443, username: "super", password: "sp-admin", accessLevel: "admin", source: "Vendor documentation", tags: ["wireless", "network"] },
+  { vendor: "Ruckus", product: "Unleashed", protocol: "https", port: 443, username: "super", password: "sp-admin", accessLevel: "admin", source: "Vendor documentation", tags: ["wireless", "network"] },
+  { vendor: "Meraki", product: "MR AP", protocol: "web_admin", port: 80, username: "", password: "", accessLevel: "admin", notes: "Cloud-managed — local admin often disabled", source: "Vendor documentation", tags: ["wireless", "network", "cloud"] },
+  { vendor: "Fortinet", product: "FortiAP", protocol: "ssh", port: 22, username: "admin", password: "", accessLevel: "admin", notes: "Empty password on factory reset", source: "Vendor documentation", tags: ["wireless", "network"] },
+  { vendor: "Aruba", product: "Instant AP", protocol: "https", port: 4343, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["wireless", "network"] },
+
+  // ─── Load Balancers & ADC ─────────────────────────────────────────
+  { vendor: "F5", product: "BIG-IP", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["load_balancer", "adc", "network"] },
+  { vendor: "F5", product: "BIG-IP", protocol: "ssh", port: 22, username: "root", password: "default", accessLevel: "root", source: "Vendor documentation", tags: ["load_balancer", "adc", "network"] },
+  { vendor: "Citrix", product: "NetScaler", protocol: "https", port: 443, username: "nsroot", password: "nsroot", accessLevel: "admin", source: "Vendor documentation", tags: ["load_balancer", "adc", "network"] },
+  { vendor: "Citrix", product: "NetScaler", protocol: "ssh", port: 22, username: "nsroot", password: "nsroot", accessLevel: "admin", source: "Vendor documentation", tags: ["load_balancer", "adc", "network"] },
+  { vendor: "HAProxy", product: "HAProxy", protocol: "http", port: 8404, username: "admin", password: "admin", accessLevel: "admin", notes: "Stats page default", source: "Common misconfiguration", tags: ["load_balancer", "network", "open_source"] },
+  { vendor: "Kemp", product: "LoadMaster", protocol: "https", port: 443, username: "bal", password: "1fourall", accessLevel: "admin", source: "Vendor documentation", tags: ["load_balancer", "adc", "network"] },
+
+  // ─── Containers & Orchestration ───────────────────────────────────
+  { vendor: "Kubernetes", product: "Dashboard", protocol: "https", port: 8443, username: "", password: "", accessLevel: "admin", notes: "Often exposed without auth", source: "Common misconfiguration", tags: ["container", "orchestration", "devops"] },
+  { vendor: "Rancher", product: "Rancher", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["container", "orchestration", "devops"] },
+  { vendor: "Docker", product: "Docker API", protocol: "http", port: 2375, username: "", password: "", accessLevel: "root", notes: "Unauthenticated Docker API", source: "Common misconfiguration", tags: ["container", "devops"] },
+  { vendor: "Docker", product: "Docker Registry", protocol: "http", port: 5000, username: "", password: "", accessLevel: "admin", notes: "Unauthenticated registry", source: "Common misconfiguration", tags: ["container", "registry", "devops"] },
+  { vendor: "HashiCorp", product: "Vault", protocol: "http", port: 8200, username: "", password: "", accessLevel: "admin", notes: "Dev mode — no auth", source: "HashiCorp documentation", tags: ["secrets", "devops"] },
+  { vendor: "HashiCorp", product: "Nomad", protocol: "http", port: 4646, username: "", password: "", accessLevel: "admin", notes: "No ACL by default", source: "HashiCorp documentation", tags: ["orchestration", "devops"] },
+
+  // ─── CI/CD & DevOps ───────────────────────────────────────────────
+  { vendor: "JFrog", product: "Artifactory", protocol: "http", port: 8081, username: "admin", password: "password", accessLevel: "admin", source: "JFrog documentation", tags: ["artifact_repo", "devops"] },
+  { vendor: "Nexus", product: "Repository Manager", protocol: "http", port: 8081, username: "admin", password: "admin123", accessLevel: "admin", source: "Sonatype documentation", tags: ["artifact_repo", "devops"] },
+  { vendor: "TeamCity", product: "TeamCity", protocol: "http", port: 8111, username: "admin", password: "admin", accessLevel: "admin", source: "JetBrains documentation", tags: ["ci_cd", "devops"] },
+  { vendor: "Bamboo", product: "Bamboo", protocol: "http", port: 8085, username: "admin", password: "admin", accessLevel: "admin", source: "Atlassian documentation", tags: ["ci_cd", "devops"] },
+  { vendor: "GoCD", product: "GoCD", protocol: "http", port: 8153, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["ci_cd", "devops", "open_source"] },
+  { vendor: "Argo", product: "Argo CD", protocol: "https", port: 443, username: "admin", password: "", accessLevel: "admin", notes: "Password is the pod name on first install", source: "Argo documentation", tags: ["ci_cd", "devops", "kubernetes"] },
+
+  // ─── Email & Collaboration ────────────────────────────────────────
+  { vendor: "Zimbra", product: "Zimbra", protocol: "https", port: 7071, username: "admin", password: "admin", accessLevel: "admin", notes: "Admin console", source: "Vendor documentation", tags: ["email", "collaboration"] },
+  { vendor: "Roundcube", product: "Roundcube", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["email", "webmail"] },
+  { vendor: "Mattermost", product: "Mattermost", protocol: "http", port: 8065, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["collaboration", "chat"] },
+
+  // ─── Additional IoT / Embedded ────────────────────────────────────
+  { vendor: "Ubiquiti", product: "AirOS", protocol: "ssh", port: 22, username: "ubnt", password: "ubnt", accessLevel: "admin", source: "Vendor documentation", tags: ["wireless", "iot", "network"] },
+  { vendor: "Ubiquiti", product: "UniFi Protect", protocol: "https", port: 443, username: "ubnt", password: "ubnt", accessLevel: "admin", source: "Vendor documentation", tags: ["surveillance", "iot", "camera"] },
+  { vendor: "FLIR", product: "Thermal Camera", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["camera", "iot", "surveillance"] },
+  { vendor: "Bosch", product: "IP Camera", protocol: "web_admin", port: 80, username: "", password: "", accessLevel: "admin", notes: "No password on factory reset", source: "Vendor documentation", tags: ["camera", "iot", "surveillance"] },
+  { vendor: "Crestron", product: "Control System", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["iot", "building_automation", "av"] },
+  { vendor: "Extron", product: "Control System", protocol: "web_admin", port: 80, username: "admin", password: "extron", accessLevel: "admin", source: "Vendor documentation", tags: ["iot", "building_automation", "av"] },
+  { vendor: "AMX", product: "NX Controller", protocol: "web_admin", port: 80, username: "administrator", password: "password", accessLevel: "admin", source: "Vendor documentation", tags: ["iot", "building_automation", "av"] },
+
+  // ─── Physical Access Control ──────────────────────────────────────
+  { vendor: "HID", product: "VertX", protocol: "web_admin", port: 80, username: "root", password: "pass", accessLevel: "admin", notes: "Physical access controller", source: "Security research", tags: ["physical_access", "iot"] },
+  { vendor: "Lenel", product: "OnGuard", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Access control management", source: "Vendor documentation", tags: ["physical_access", "iot"] },
+  { vendor: "Genetec", product: "Security Center", protocol: "https", port: 443, username: "admin", password: "", accessLevel: "admin", notes: "Set during installation", source: "Vendor documentation", tags: ["physical_access", "surveillance", "iot"] },
+
+  // ─── Additional Databases ─────────────────────────────────────────
+  { vendor: "Cassandra", product: "Apache Cassandra", protocol: "other", port: 9042, username: "cassandra", password: "cassandra", accessLevel: "admin", source: "Apache documentation", tags: ["database", "nosql"] },
+  { vendor: "InfluxDB", product: "InfluxDB", protocol: "http", port: 8086, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["database", "timeseries"] },
+  { vendor: "Neo4j", product: "Neo4j", protocol: "http", port: 7474, username: "neo4j", password: "neo4j", accessLevel: "admin", notes: "Forces password change on first login", source: "Neo4j documentation", tags: ["database", "graph"] },
+  { vendor: "Memcached", product: "Memcached", protocol: "other", port: 11211, username: "", password: "", accessLevel: "admin", notes: "No auth by default", source: "Common misconfiguration", tags: ["database", "cache"] },
+  { vendor: "ClickHouse", product: "ClickHouse", protocol: "http", port: 8123, username: "default", password: "", accessLevel: "admin", notes: "Empty password by default", source: "ClickHouse documentation", tags: ["database", "analytics"] },
+
+  // ─── Additional Server Management ─────────────────────────────────
+  { vendor: "Lenovo", product: "XClarity", protocol: "https", port: 443, username: "USERID", password: "PASSW0RD", accessLevel: "admin", source: "Lenovo documentation", tags: ["bmc", "server_management"] },
+  { vendor: "Cisco", product: "CIMC", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", notes: "Cisco Integrated Management Controller", source: "Vendor documentation", tags: ["bmc", "server_management"] },
+  { vendor: "Oracle", product: "ILOM", protocol: "https", port: 443, username: "root", password: "changeme", accessLevel: "root", source: "Oracle documentation", tags: ["bmc", "server_management"] },
+  { vendor: "Fujitsu", product: "iRMC", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["bmc", "server_management"] },
 ];
 
 /**

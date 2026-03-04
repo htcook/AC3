@@ -36,7 +36,7 @@ import {
   XCircle, Clock, Loader2, ChevronRight, Eye, FileText,
   Zap, Lock, Unlock, Activity, Terminal, Network, Wifi,
   Plus, Search, ArrowRight, Swords, RotateCcw, CircleDollarSign, Coins,
-  Sparkles, ClipboardList,
+  Sparkles, ClipboardList, Key, KeyRound,
 } from "lucide-react";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
@@ -1168,6 +1168,18 @@ export default function EngagementOps() {
                     <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-red-500/20 text-red-400">{exploitsQ.data!.exploits.length}</Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="credentials" className="text-xs">
+                  <KeyRound className="h-3.5 w-3.5 mr-1" /> Credentials
+                  {(() => {
+                    const credTests = (ops?.assets || []).flatMap((a: any) => (a.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing'));
+                    const found = credTests.filter((tr: any) => tr.findings?.length > 0).length;
+                    return credTests.length > 0 ? (
+                      <Badge variant="secondary" className={`ml-1 text-[9px] h-4 px-1 ${found > 0 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                        {found > 0 ? `${found} found` : credTests.length}
+                      </Badge>
+                    ) : null;
+                  })()}
+                </TabsTrigger>
                 <TabsTrigger value="scope" className="text-xs">
                   <Shield className="h-3.5 w-3.5 mr-1" /> RoE & Scope
                 </TabsTrigger>
@@ -2089,6 +2101,208 @@ export default function EngagementOps() {
                       ))}
                     </>
                   )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Credential Testing Summary Tab ── */}
+            <TabsContent value="credentials" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-3 space-y-4">
+                  {(() => {
+                    // Aggregate credential testing data from all assets
+                    const allCredTests = (ops?.assets || []).flatMap((a: any) =>
+                      (a.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing').map((tr: any) => ({ ...tr, asset: a }))
+                    );
+                    const totalTests = allCredTests.length;
+                    const successfulTests = allCredTests.filter((t: any) => t.findings?.length > 0);
+                    const failedTests = allCredTests.filter((t: any) => !t.findings?.length);
+                    const uniqueAssets = new Set(allCredTests.map((t: any) => t.asset.hostname)).size;
+                    const uniqueServices = new Set(allCredTests.map((t: any) => {
+                      const m = t.command?.match(/hydra.*?\s(\S+)\s*$/); return m ? m[1] : t.tool;
+                    })).size;
+                    // Extract OEM credential info from passive recon
+                    const oemCreds: any[] = [];
+                    if (ops?.passiveReconResults) {
+                      Object.values(ops.passiveReconResults).forEach((d: any) => {
+                        if (d?.oemCredentials) oemCreds.push(...d.oemCredentials);
+                      });
+                    }
+
+                    if (totalTests === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                          <KeyRound className="h-12 w-12 mb-4 opacity-20" />
+                          <p className="text-sm">No credential tests executed yet</p>
+                          <p className="text-xs mt-1">Credential testing activates during the vulnerability detection phase on discovered login services</p>
+                          {oemCreds.length > 0 && (
+                            <div className="mt-6 w-full max-w-md">
+                              <p className="text-xs font-medium text-yellow-400 mb-2 flex items-center gap-1"><Key className="h-3 w-3" /> {oemCreds.length} Vendor Default Credentials Identified (Pending Test)</p>
+                              <div className="space-y-1">
+                                {oemCreds.slice(0, 8).map((c: any, i: number) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-yellow-500/5 rounded border border-yellow-500/10">
+                                    <Lock className="h-3 w-3 text-yellow-400" />
+                                    <span className="text-foreground">{c.vendor} {c.product}</span>
+                                    <span className="text-muted-foreground">:{c.port} ({c.protocol})</span>
+                                  </div>
+                                ))}
+                                {oemCreds.length > 8 && <p className="text-[10px] text-muted-foreground pl-2">+{oemCreds.length - 8} more</p>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {/* Summary Stats */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <Card className="bg-card/50 border-border/30">
+                            <CardContent className="p-3 text-center">
+                              <p className="text-2xl font-bold text-foreground">{totalTests}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Tests</p>
+                            </CardContent>
+                          </Card>
+                          <Card className={`border-border/30 ${successfulTests.length > 0 ? 'bg-red-500/5 border-red-500/20' : 'bg-card/50'}`}>
+                            <CardContent className="p-3 text-center">
+                              <p className={`text-2xl font-bold ${successfulTests.length > 0 ? 'text-red-400' : 'text-foreground'}`}>{successfulTests.length}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Creds Found</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-card/50 border-border/30">
+                            <CardContent className="p-3 text-center">
+                              <p className="text-2xl font-bold text-foreground">{uniqueAssets}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Assets Tested</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-card/50 border-border/30">
+                            <CardContent className="p-3 text-center">
+                              <p className="text-2xl font-bold text-foreground">{uniqueServices}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Services</p>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Valid Credentials Found */}
+                        {successfulTests.length > 0 && (
+                          <Card className="bg-red-500/5 border-red-500/20">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm flex items-center gap-2 text-red-400">
+                                <Unlock className="h-4 w-4" /> Valid Credentials Discovered
+                              </CardTitle>
+                              <CardDescription className="text-xs">These credentials were successfully authenticated against live services</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                              {successfulTests.map((test: any, idx: number) => (
+                                <div key={idx} className="p-3 bg-red-500/5 rounded-lg border border-red-500/10">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <Unlock className="h-3.5 w-3.5 text-red-400" />
+                                      <span className="text-sm font-medium text-foreground">{test.asset.hostname}</span>
+                                      {test.asset.ip && test.asset.ip !== test.asset.hostname && (
+                                        <span className="text-xs text-muted-foreground">({test.asset.ip})</span>
+                                      )}
+                                    </div>
+                                    <Badge variant="outline" className="text-[9px] text-red-400 border-red-500/30">
+                                      {test.findings.length} credential{test.findings.length !== 1 ? 's' : ''}
+                                    </Badge>
+                                  </div>
+                                  {test.findings.map((f: any, fi: number) => (
+                                    <div key={fi} className="flex items-center gap-2 text-xs px-2 py-1.5 bg-background/50 rounded">
+                                      <Key className="h-3 w-3 text-red-400" />
+                                      <span className="text-foreground font-mono">{f.title}</span>
+                                      <Badge variant="outline" className={`text-[8px] ml-auto ${
+                                        f.severity === 'critical' ? 'text-red-400 border-red-500/30' :
+                                        f.severity === 'high' ? 'text-orange-400 border-orange-500/30' :
+                                        'text-yellow-400 border-yellow-500/30'
+                                      }`}>{f.severity}</Badge>
+                                    </div>
+                                  ))}
+                                  <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                                    <span className="flex items-center gap-1"><Terminal className="h-2.5 w-2.5" /> {test.tool}</span>
+                                    <span className="flex items-center gap-1"><Clock className="h-2.5 w-2.5" /> {(test.durationMs / 1000).toFixed(1)}s</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* OEM Default Credentials Tested */}
+                        {oemCreds.length > 0 && (
+                          <Card className="bg-card/50 border-border/30">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm flex items-center gap-2 text-yellow-400">
+                                <Key className="h-4 w-4" /> Vendor/OEM Default Credentials
+                              </CardTitle>
+                              <CardDescription className="text-xs">{oemCreds.length} vendor-specific default credentials were identified and prioritized for testing</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {oemCreds.map((c: any, i: number) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs px-3 py-2 bg-yellow-500/5 rounded border border-yellow-500/10">
+                                    <Lock className="h-3 w-3 text-yellow-400 flex-none" />
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-foreground font-medium">{c.vendor} {c.product}</span>
+                                      <span className="text-muted-foreground ml-1">:{c.port} ({c.protocol})</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Per-Asset Credential Test Results */}
+                        <Card className="bg-card/50 border-border/30">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <ClipboardList className="h-4 w-4 text-muted-foreground" /> Per-Asset Test Results
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            {(ops?.assets || []).filter((a: any) => (a.toolResults || []).some((tr: any) => tr.phase === 'credential_testing')).map((asset: any, ai: number) => {
+                              const assetCredTests = (asset.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing');
+                              const assetFound = assetCredTests.some((t: any) => t.findings?.length > 0);
+                              return (
+                                <div key={ai} className={`p-3 rounded-lg border ${assetFound ? 'bg-red-500/5 border-red-500/10' : 'bg-background/50 border-border/20'}`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      {assetFound ? <Unlock className="h-3.5 w-3.5 text-red-400" /> : <Lock className="h-3.5 w-3.5 text-emerald-400" />}
+                                      <span className="text-sm font-medium text-foreground">{asset.hostname}</span>
+                                      {asset.ip && asset.ip !== asset.hostname && <span className="text-xs text-muted-foreground">({asset.ip})</span>}
+                                    </div>
+                                    <Badge variant="outline" className={`text-[9px] ${assetFound ? 'text-red-400 border-red-500/30' : 'text-emerald-400 border-emerald-500/30'}`}>
+                                      {assetFound ? 'CREDENTIALS FOUND' : 'NO VALID CREDS'}
+                                    </Badge>
+                                  </div>
+                                  <div className="space-y-1">
+                                    {assetCredTests.map((test: any, ti: number) => {
+                                      const svcMatch = test.command?.match(/hydra.*?\s(\S+)\s*$/);
+                                      const service = svcMatch ? svcMatch[1] : test.tool;
+                                      const hasFindings = test.findings?.length > 0;
+                                      return (
+                                        <div key={ti} className="flex items-center gap-2 text-xs">
+                                          {hasFindings ? <XCircle className="h-3 w-3 text-red-400 flex-none" /> : <CheckCircle2 className="h-3 w-3 text-emerald-400 flex-none" />}
+                                          <span className="text-muted-foreground w-16 flex-none font-mono">{service}</span>
+                                          <span className={hasFindings ? 'text-red-400' : 'text-muted-foreground'}>
+                                            {hasFindings ? `${test.findings.length} valid credential${test.findings.length !== 1 ? 's' : ''}` : 'No valid credentials'}
+                                          </span>
+                                          <span className="text-muted-foreground/50 ml-auto text-[10px]">{(test.durationMs / 1000).toFixed(1)}s</span>
+                                          {test.timedOut && <Badge variant="outline" className="text-[8px] text-orange-400 border-orange-500/30">TIMEOUT</Badge>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </CardContent>
+                        </Card>
+                      </>
+                    );
+                  })()}
                 </div>
               </ScrollArea>
             </TabsContent>
