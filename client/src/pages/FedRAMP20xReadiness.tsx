@@ -221,7 +221,7 @@ export default function FedRAMP20xReadiness() {
               <p className="text-xs text-muted-foreground">Comprehensive PDF covering SaaS/PaaS breakdowns and full KSI-to-capability mapping</p>
             </div>
           </div>
-          <a href="/FedRAMP_20x_Readiness_Guide.pdf" download>
+          <a href="https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/FedRAMP_20x_Readiness_Guide_AceC3_v2_c8553ade.pdf" target="_blank" rel="noopener noreferrer">
             <Button variant="outline" size="sm" className="font-display tracking-wider text-xs">
               <ArrowRight className="w-3 h-3 mr-1" />
               DOWNLOAD PDF

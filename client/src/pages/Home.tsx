@@ -867,7 +867,7 @@ export default function Home() {
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
-            <a href="/FedRAMP_20x_Readiness_Guide.pdf" download>
+            <a href="https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/FedRAMP_20x_Readiness_Guide_AceC3_v2_c8553ade.pdf" target="_blank" rel="noopener noreferrer">
               <Button variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white">
                 <FileText className="w-4 h-4 mr-2" />
                 DOWNLOAD READINESS GUIDE

@@ -7277,3 +7277,10 @@
 - [x] Add FedRAMP 20x tab to KSI Hub with collapsible sections (What Is FedRAMP 20x, What Are KSIs, Ace C3's Role)
 - [x] Embed FedRAMPKSIMap component inside the new tab with embedded prop
 - [x] Verify dashboard renders correctly with the new content
+
+## Fix Blank FedRAMP 20x Readiness Guide PDF
+- [x] Investigate current PDF and identify why it's blank (was never uploaded to CDN)
+- [x] Write comprehensive FedRAMP 20x Readiness Guide markdown content (reused existing 525-line source)
+- [x] Convert markdown to PDF with proper formatting (30 pages, weasyprint, professional styling)
+- [x] Upload PDF to CDN and update download references in Home.tsx and FedRAMP20xReadiness.tsx
+- [x] Verify the PDF download works correctly (CDN returns 120,033 bytes, PDF v1.7)
