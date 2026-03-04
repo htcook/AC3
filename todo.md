@@ -7371,3 +7371,8 @@
 ## All Pages Error-Free Verification
 - [x] Verify all major pages load without throwing errors (scoring, ksi-dashboard, dashboard, engagement-ops)
 - [x] Write vitest tests for branding, scoring fix, and KSI navigation (15/15 passed)
+
+## Fix DomainIntelResults Crash (INC-MMCBDK0Z-LED1JX)
+- [x] Diagnose ReferenceError: prev is not defined on /domain-intel/:id page
+- [x] Fix the undefined 'prev' variable in DomainIntelResults component (prev was scoped inside IIFE, replaced with pipeline.previousSnapshot)
+- [x] Verify page loads without errors

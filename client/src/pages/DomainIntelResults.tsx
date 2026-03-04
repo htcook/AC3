@@ -822,9 +822,9 @@ export default function DomainIntelResults() {
               })()}
             </div>
             <p className="text-[10px] text-muted-foreground mt-2">
-              Previous scan: {prev?.snapshotAt ? new Date(pipeline.previousSnapshot.snapshotAt).toLocaleString() : 'N/A'} — 
-              {pipeline.previousSnapshot.totalAssets || 0} assets, {pipeline.previousSnapshot.totalFindings || 0} findings, 
-              risk score {pipeline.previousSnapshot.overallRiskScore || 0}
+              Previous scan: {pipeline.previousSnapshot?.snapshotAt ? new Date(pipeline.previousSnapshot.snapshotAt).toLocaleString() : 'N/A'} — 
+              {pipeline.previousSnapshot?.totalAssets || 0} assets, {pipeline.previousSnapshot?.totalFindings || 0} findings, 
+              risk score {pipeline.previousSnapshot?.overallRiskScore || 0}
             </p>
           </CardContent>
         </Card>
