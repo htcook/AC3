@@ -17,6 +17,7 @@
  */
 import { Client as SSHClient } from "ssh2";
 import { ENV } from "../_core/env";
+import { matchCredentialsForAsset } from "./oem-default-creds";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -326,12 +327,17 @@ export async function getScanServerConfigForNmap() {
  * Generate tool commands based on asset type and discovered services.
  * This is used by the LLM to get suggested commands, which it can then
  * modify or execute directly.
+ *
+ * When `technologies` are provided, OEM/vendor default credentials are
+ * looked up and injected as high-priority credential tests BEFORE the
+ * generic wordlist fallback.
  */
 export function suggestToolCommands(asset: {
   hostname?: string;
   ip?: string;
   type?: string;
   ports: Array<{ port: number; service: string; version?: string }>;
+  technologies?: Array<{ name?: string; vendor?: string; version?: string; cpe?: string; port?: number; protocol?: string }>;
 }): Array<{ tool: string; args: string; purpose: string; priority: number }> {
   const target = asset.ip || asset.hostname || "";
   const commands: Array<{ tool: string; args: string; purpose: string; priority: number }> = [];
@@ -380,14 +386,57 @@ export function suggestToolCommands(asset: {
     }
   }
 
-  // SSH
+  // ── Vendor/OEM Default Credential Testing (priority 3, before generic wordlists) ──
+  // Look up known default credentials based on detected technologies
+  if (asset.technologies && asset.technologies.length > 0) {
+    try {
+      const oemMatches = matchCredentialsForAsset(asset.technologies);
+      for (const svc of oemMatches) {
+        // Build per-service hydra commands with vendor-specific user:pass pairs
+        const credPairs = svc.credentials;
+        if (credPairs.length === 0) continue;
+
+        // Find the matching port on the asset
+        const matchingPort = svc.port
+          ? asset.ports.find(p => p.port === svc.port)
+          : null;
+        if (svc.port && !matchingPort) continue; // Port not open, skip
+
+        // Map OEM protocol to hydra module
+        const protocolToHydra: Record<string, string> = {
+          ssh: "ssh", telnet: "telnet", ftp: "ftp", mysql: "mysql",
+          postgres: "postgres", mssql: "mssql", rdp: "rdp",
+          http: "http-get", https: "https-get", web_admin: "http-get",
+          snmp: "snmp", ldap: "ldap2", oracle: "oracle-listener",
+        };
+        const hydraModule = protocolToHydra[credPairs[0].protocol] || credPairs[0].protocol;
+        const port = svc.port || matchingPort?.port;
+        if (!port) continue;
+
+        // Create a targeted credential file approach: test each vendor default pair
+        for (const cred of credPairs) {
+          const passArg = cred.password === "" ? `-e n` : `-p '${cred.password}'`;
+          commands.push({
+            tool: "hydra",
+            args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f ${target} ${hydraModule}`,
+            purpose: `[OEM Default] ${cred.vendor} ${cred.product} — ${cred.username}:${cred.password || "(empty)"} on port ${port}`,
+            priority: 3,
+          });
+        }
+      }
+    } catch (e) {
+      // OEM module not available, fall through to generic testing
+    }
+  }
+
+  // SSH (generic wordlist fallback)
   const sshPorts = asset.ports.filter(p => p.service === "ssh" || p.port === 22);
   if (sshPorts.length > 0) {
     for (const sp of sshPorts) {
       commands.push({
         tool: "hydra",
         args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/10k-most-common.txt -s ${sp.port} -t 4 -f ${target} ssh`,
-        purpose: `SSH credential testing on port ${sp.port}`,
+        purpose: `SSH credential testing (generic wordlist) on port ${sp.port}`,
         priority: 3,
       });
     }
@@ -471,7 +520,7 @@ export function suggestToolCommands(asset: {
     });
   }
 
-  // MySQL/PostgreSQL
+  // MySQL/PostgreSQL (generic wordlist fallback)
   const dbPorts = asset.ports.filter(p =>
     ["mysql", "postgresql"].includes(p.service) || [3306, 5432].includes(p.port)
   );
@@ -481,13 +530,13 @@ export function suggestToolCommands(asset: {
       commands.push({
         tool: "hydra",
         args: `-l root -P /opt/SecLists/Passwords/Common-Credentials/10k-most-common.txt -s ${dp.port} -t 4 -f ${target} ${proto}`,
-        purpose: `${proto} credential testing on port ${dp.port}`,
+        purpose: `${proto} credential testing (generic wordlist) on port ${dp.port}`,
         priority: 3,
       });
     }
   }
 
-  // RDP
+  // RDP (generic wordlist fallback)
   const rdpPorts = asset.ports.filter(p =>
     p.service === "ms-wbt-server" || p.port === 3389
   );
@@ -495,7 +544,7 @@ export function suggestToolCommands(asset: {
     commands.push({
       tool: "hydra",
       args: `-l administrator -P /opt/SecLists/Passwords/Common-Credentials/10k-most-common.txt -s 3389 -t 4 -f ${target} rdp`,
-      purpose: `RDP credential testing`,
+      purpose: `RDP credential testing (generic wordlist)`,
       priority: 3,
     });
   }

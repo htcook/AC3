@@ -2322,18 +2322,33 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   }
 
   // ── Credential Testing: run priority 3 tools (hydra) on login services ──
-  addLog(state, { phase: "vuln_detection", type: "info", title: "🔑 Credential Testing", detail: "Testing default/common credentials on discovered login services" });
+  addLog(state, { phase: "vuln_detection", type: "info", title: "🔑 Credential Testing", detail: "Testing vendor/OEM default credentials first, then common wordlists on discovered login services" });
 
   try {
     const { executeTool: execToolCred, suggestToolCommands: suggestCred } = await import("./scan-server-executor");
 
     for (const asset of state.assets) {
       if (asset.ports.length === 0) continue;
+
+      // Build technology list from passiveRecon for OEM default credential lookup
+      const techList = (asset.passiveRecon?.technologies || []).map(t => {
+        // Map technology strings to structured objects for matchCredentialsForAsset
+        const parts = t.split(/[\s\/]+/);
+        return { name: t, vendor: parts[0], version: parts.length > 1 ? parts[parts.length - 1] : undefined };
+      });
+      // Also add service-level tech from ports (e.g., "OpenSSH 8.9" → vendor: OpenSSH)
+      for (const p of asset.ports) {
+        if (p.version) {
+          techList.push({ name: `${p.service} ${p.version}`, vendor: p.version.split(/[\s\/]+/)[0], version: p.version, port: p.port, protocol: p.service } as any);
+        }
+      }
+
       const credCmds = suggestCred({
         hostname: asset.hostname,
         ip: asset.ip,
         type: asset.type,
         ports: asset.ports,
+        technologies: techList.length > 0 ? techList : undefined,
       }).filter(c => c.priority === 3); // Priority 3 = credential testing
 
       for (const cmd of credCmds) {

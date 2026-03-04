@@ -466,6 +466,14 @@ CRITICAL DATA INTEGRITY RULES:
 - If passive recon found 50 subdomains, include ALL of them — do not truncate
 - If no passive recon data is available, generate max 10 conservative guesses (root domain + common patterns only)
 
+ASSET DEDUPLICATION & SCOPING RULES:
+- ONE ASSET PER UNIQUE HOSTNAME — do NOT create separate assets for different URL paths, query strings, or static files on the same host. For example, if rapidtalentgroup.com serves /_next/static/*, /_next/image, /api/*, etc., these are ALL part of the single "rapidtalentgroup.com" asset.
+- The "url" field should be the root URL of the hostname (e.g., https://subdomain.domain.com), NOT a specific path or resource URL.
+- Do NOT create assets for individual JavaScript files, CSS files, images, API endpoints, or static resources — these are resources served by a host, not separate assets.
+- Do NOT create assets for third-party SaaS provider hostnames that the organization does not own or operate. Examples: outlook.office365.com, login.microsoftonline.com, mail.google.com, accounts.google.com, *.salesforce.com, *.zendesk.com, *.cloudflare.com. Instead, note the SaaS dependency as a tag on the root domain asset (e.g., tags: ["uses_o365", "uses_cloudflare"]).
+- Do NOT create assets for DNS infrastructure (nameservers, SOA records). NS records like dns1.p02.nsone.net are third-party DNS providers, not target assets. Record DNS provider info as metadata on the root domain.
+- Do NOT create assets for MX record hostnames that point to third-party email providers (e.g., *.mail.protection.outlook.com, aspmx.l.google.com). Note the email provider as a tag on the root domain.
+
 Generate assets based on passive recon data. Be specific to the sector and client type. For ${org.clientType} clients, emphasize:
 ${org.clientType === "msp" ? "- Multi-tenant management portals, RMM tools, PSA platforms, client VPN endpoints, backup systems" : ""}
 ${org.clientType === "enterprise" ? "- Corporate SSO, Active Directory, Exchange/O365, ERP systems, internal wikis, VPN concentrators" : ""}
@@ -1688,6 +1696,149 @@ export async function runDomainIntelPipeline(
   await onProgress?.('discovering');
   const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined, passiveContext);
 
+  // Stage 1.1: Post-LLM Deduplication & Filtering
+  // Fix: LLM sometimes creates multiple assets for the same hostname (e.g., different URL paths)
+  // and includes third-party SaaS/infrastructure hostnames that aren't target-owned.
+  {
+    const beforeCount = rawAssets.length;
+
+    // --- 1. Hostname-based deduplication ---
+    // Normalize hostnames and merge assets sharing the same host, keeping the richest metadata.
+    const byHostname = new Map<string, typeof rawAssets[0]>();
+    const duplicateIds: Set<number> = new Set();
+    for (let i = 0; i < rawAssets.length; i++) {
+      const a = rawAssets[i];
+      // Normalize: extract hostname from URL if hostname field is missing, strip paths/queries
+      let hostname = (a.hostname || '').toLowerCase().replace(/\.$/, '');
+      if (!hostname && a.url) {
+        try {
+          hostname = new URL(a.url).hostname.toLowerCase();
+        } catch { /* skip */ }
+      }
+      // Normalize URL to root (strip paths, query strings, fragments)
+      if (a.url) {
+        try {
+          const u = new URL(a.url);
+          a.url = `${u.protocol}//${u.hostname}`;
+        } catch { /* keep original */ }
+      }
+      a.hostname = hostname;
+      if (!hostname) continue;
+
+      if (byHostname.has(hostname)) {
+        // Merge: keep the existing entry but enrich it with data from the duplicate
+        const existing = byHostname.get(hostname)!;
+        // Merge technologies
+        const existingTechs = new Set((existing.technologies || []).map((t: string) => t.toLowerCase()));
+        for (const tech of (a.technologies || [])) {
+          if (!existingTechs.has(tech.toLowerCase())) {
+            (existing.technologies as string[]).push(tech);
+          }
+        }
+        // Merge tags
+        const existingTags = new Set((existing.tags || []).map((t: string) => t.toLowerCase()));
+        for (const tag of (a.tags || [])) {
+          if (!existingTags.has(tag.toLowerCase())) {
+            (existing.tags as string[]).push(tag);
+          }
+        }
+        // Merge technologyVersions
+        if (a.technologyVersions) {
+          existing.technologyVersions = { ...(existing.technologyVersions || {}), ...a.technologyVersions };
+        }
+        // Prefer more specific assetType over 'other'
+        if (existing.assetType === 'other' && a.assetType !== 'other') {
+          existing.assetType = a.assetType;
+        }
+        // Prefer confirmed discovery method over inferred
+        if (existing.discoveryMethod === 'inferred' && a.discoveryMethod !== 'inferred') {
+          existing.discoveryMethod = a.discoveryMethod;
+          existing.discoveryEvidence = a.discoveryEvidence;
+        }
+        duplicateIds.add(i);
+      } else {
+        byHostname.set(hostname, a);
+      }
+    }
+    // Remove duplicates (iterate in reverse to preserve indices)
+    for (let i = rawAssets.length - 1; i >= 0; i--) {
+      if (duplicateIds.has(i)) rawAssets.splice(i, 1);
+    }
+
+    // --- 2. Third-party SaaS provider exclusion ---
+    const THIRD_PARTY_HOSTNAME_PATTERNS = [
+      // Microsoft
+      /\.office365\.com$/i, /\.outlook\.com$/i, /\.microsoftonline\.com$/i,
+      /\.microsoft\.com$/i, /\.live\.com$/i, /\.sharepoint\.com$/i,
+      /\.office\.com$/i, /\.onmicrosoft\.com$/i,
+      // Google
+      /\.google\.com$/i, /\.googleapis\.com$/i, /\.gstatic\.com$/i,
+      /\.gmail\.com$/i, /\.googlemail\.com$/i,
+      // Salesforce
+      /\.salesforce\.com$/i, /\.force\.com$/i,
+      // Cloudflare
+      /\.cloudflare\.com$/i, /\.cloudflare-dns\.com$/i,
+      // AWS infrastructure (not customer-owned)
+      /\.amazonaws\.com$/i, /\.cloudfront\.net$/i,
+      // Zendesk, Atlassian, etc.
+      /\.zendesk\.com$/i, /\.atlassian\.net$/i, /\.atlassian\.com$/i,
+      // DNS providers
+      /\.nsone\.net$/i, /\.cloudns\.net$/i, /\.awsdns-\d+/i,
+      /\.ultradns\.com$/i, /\.dynect\.net$/i, /\.domaincontrol\.com$/i,
+      /\.registrar-servers\.com$/i,
+      // CDN/hosting infra
+      /\.akamai\.net$/i, /\.akamaiedge\.net$/i, /\.fastly\.net$/i,
+      /\.edgekey\.net$/i,
+    ];
+
+    const thirdPartyRemoved: string[] = [];
+    for (let i = rawAssets.length - 1; i >= 0; i--) {
+      const hostname = (rawAssets[i].hostname || '').toLowerCase();
+      if (THIRD_PARTY_HOSTNAME_PATTERNS.some(pattern => pattern.test(hostname))) {
+        thirdPartyRemoved.push(hostname);
+        // Tag the root domain with the SaaS dependency before removing
+        const rootAsset = rawAssets.find(a =>
+          (a.hostname || '').toLowerCase() === org.primaryDomain.toLowerCase() ||
+          (a.assetClasses || []).includes('dns_root')
+        );
+        if (rootAsset) {
+          const depTag = `saas_dep:${hostname}`;
+          if (!(rootAsset.tags || []).includes(depTag)) {
+            (rootAsset.tags as string[]) = [...(rootAsset.tags || []), depTag];
+          }
+        }
+        rawAssets.splice(i, 1);
+      }
+    }
+
+    // --- 3. Filter NS/SOA/MX infrastructure records ---
+    // These are DNS metadata, not target-owned assets
+    const infraRemoved: string[] = [];
+    for (let i = rawAssets.length - 1; i >= 0; i--) {
+      const a = rawAssets[i];
+      const hostname = (a.hostname || '').toLowerCase();
+      const assetId = (a.assetId || '').toLowerCase();
+      // Detect malformed NS/SOA assets (hostname starts with "ns:" or "soa:")
+      const isMalformedDnsRecord = hostname.startsWith('ns:') || hostname.startsWith('soa:') ||
+        hostname.startsWith('mx:') || assetId.startsWith('passive-ns:') ||
+        assetId.startsWith('passive-soa:') || assetId.startsWith('passive-mx:');
+      // Detect DNS nameserver hostnames (e.g., dns1.p02.nsone.net)
+      const isDnsNameserver = /^(ns\d*|dns\d*)\./.test(hostname) &&
+        THIRD_PARTY_HOSTNAME_PATTERNS.some(p => p.test(hostname));
+      if (isMalformedDnsRecord || isDnsNameserver) {
+        infraRemoved.push(hostname);
+        rawAssets.splice(i, 1);
+      }
+    }
+
+    const totalRemoved = beforeCount - rawAssets.length;
+    if (totalRemoved > 0) {
+      console.log(`[DomainIntel] Stage 1.1 Dedup & Filter: Removed ${totalRemoved} assets (${duplicateIds.size} duplicates, ${thirdPartyRemoved.length} third-party SaaS, ${infraRemoved.length} DNS infrastructure). ${rawAssets.length} assets remain.`);
+      if (thirdPartyRemoved.length > 0) console.log(`[DomainIntel]   Third-party removed: ${thirdPartyRemoved.join(', ')}`);
+      if (infraRemoved.length > 0) console.log(`[DomainIntel]   Infrastructure removed: ${infraRemoved.join(', ')}`);
+    }
+  }
+
   // Stage 1.25: Merge passive recon subdomains into rawAssets
   // The LLM discovery stage only generates 15-30 assets. Passive recon may discover
   // many more subdomains (from crt.sh, SecurityTrails, Shodan, Censys, etc.) that the
@@ -1697,10 +1848,26 @@ export async function runDomainIntelPipeline(
     const existingHostnames = new Set(rawAssets.map(a => (a.hostname || '').toLowerCase()));
     const seenSubdomains = new Set<string>();
     const passiveSubdomainAssets: DiscoveredAssetRaw[] = [];
+    // Re-use the same third-party patterns from Stage 1.1
+    const THIRD_PARTY_PATTERNS_PASSIVE = [
+      /\.office365\.com$/i, /\.outlook\.com$/i, /\.microsoftonline\.com$/i,
+      /\.microsoft\.com$/i, /\.live\.com$/i, /\.sharepoint\.com$/i,
+      /\.office\.com$/i, /\.onmicrosoft\.com$/i,
+      /\.google\.com$/i, /\.googleapis\.com$/i, /\.gstatic\.com$/i,
+      /\.gmail\.com$/i, /\.salesforce\.com$/i, /\.force\.com$/i,
+      /\.cloudflare\.com$/i, /\.amazonaws\.com$/i, /\.cloudfront\.net$/i,
+      /\.zendesk\.com$/i, /\.atlassian\.net$/i, /\.nsone\.net$/i,
+      /\.cloudns\.net$/i, /\.ultradns\.com$/i, /\.domaincontrol\.com$/i,
+      /\.akamai\.net$/i, /\.fastly\.net$/i,
+    ];
     for (const obs of passiveRecon.allObservations) {
       if (obs.assetType !== 'subdomain' || !obs.name) continue;
       const hostname = obs.name.toLowerCase().replace(/\.$/, '');
       if (existingHostnames.has(hostname) || seenSubdomains.has(hostname)) continue;
+      // Skip third-party SaaS/infrastructure hostnames
+      if (THIRD_PARTY_PATTERNS_PASSIVE.some(p => p.test(hostname))) continue;
+      // Skip malformed NS/SOA/MX record hostnames
+      if (hostname.startsWith('ns:') || hostname.startsWith('soa:') || hostname.startsWith('mx:')) continue;
       seenSubdomains.add(hostname);
       // Build tags from observation evidence
       const tags: string[] = [...(obs.tags || [])];

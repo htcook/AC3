@@ -158,13 +158,14 @@ export const PHASE_DEFINITIONS: Record<KillChainPhase, PhaseDefinition> = {
   vulnerability_analysis: {
     id: "vulnerability_analysis",
     name: "Vulnerability Analysis",
-    description: "Active vulnerability scanning, web app testing, credential testing against prioritized targets.",
+    description: "Active vulnerability scanning, web app testing, vendor/OEM default credential testing, and generic credential testing against prioritized targets.",
     mitrePhases: ["TA0043"],
-    requiredModules: ["zap-scanner", "nuclei-scanner", "nmap", "credential-attack-engine", "web-crawler", "vuln-scanner-parser"],
+    requiredModules: ["zap-scanner", "nuclei-scanner", "nmap", "credential-attack-engine", "oem-default-creds", "web-crawler", "vuln-scanner-parser"],
     successCriteria: [
       "Vulnerability scan completed on all in-scope targets",
       "Web application vulnerabilities identified",
-      "Default/weak credentials tested",
+      "Vendor/OEM default credentials tested against all login services (SSH, FTP, RDP, web admin, databases)",
+      "Generic/common credential wordlists tested as fallback",
       "CVEs mapped to exploits",
     ],
     autoHandoffTriggers: [
@@ -289,6 +290,13 @@ DECISION FRAMEWORK:
 - Always consider OPSEC implications before recommending loud actions
 - Prioritize actions that yield the most intelligence with the least noise
 - If exploitation stalls, recommend returning to recon for additional attack surface
+
+CREDENTIAL TESTING REQUIREMENTS:
+- During vulnerability_analysis phase, ALWAYS test vendor/OEM default credentials before generic wordlists
+- Use the OEM default credential database to match detected technologies (from httpx, nmap version detection, banner grabs) against known vendor defaults
+- For every login service discovered (SSH, FTP, RDP, web admin panels, databases, SNMP, telnet), first attempt vendor-specific default credentials, then fall back to common wordlists
+- When recommending credential testing actions, explicitly include "OEM default credential test" as a high-priority action
+- Flag any successful default credential login as a CRITICAL finding — default credentials are among the highest-risk vulnerabilities
 
 OUTPUT FORMAT (JSON):
 {

@@ -7303,3 +7303,25 @@
 - [x] Root cause: useEffect on line 351 was after early returns (isLoading/error) — violated React hooks rules
 - [x] Fix: moved serverRefreshing computation and useEffect above early returns
 - [x] Verified all scan pages load correctly (vianova.ai, api.dev.vianova.ai, dashboard-dev.vianovahealth.com, 23.20.98.48)
+
+## Analyze Scan Duplicate Assets & Microsoft Outlook Issue
+- [x] Identify the most recent scan and extract all discovered assets (scan 1530067, 18 assets)
+- [x] Analyze duplicate asset entries — rapidtalentgroup.com appears 7 times (Next.js chunks as separate assets)
+- [x] Investigate Microsoft Outlook — LLM inferred OWA from MX records, no SaaS exclusion filter
+- [x] Provide root cause analysis and recommendations (5 fixes identified)
+
+## Fix Discovery Pipeline - Duplicate Assets & Third-Party Filtering
+- [x] Update LLM prompt to explicitly state one asset per unique hostname
+- [x] Add hostname-based deduplication pass after Stage 1 LLM discovery (Stage 1.1)
+- [x] Add SaaS/third-party exclusion filter for known provider hostnames (office365, nsone, google, etc.)
+- [x] Filter NS/SOA/MX infrastructure from being created as standalone assets
+- [x] Strip URL query strings and paths when determining asset identity
+- [x] Apply third-party filtering to passive recon merge step (Stage 1.25)
+- [x] Write vitest tests for deduplication and filtering logic (20 tests pass)
+- [x] Add vendor/OEM default credential testing to active scan phases:
+  - [x] Wire matchCredentialsForAsset into suggestToolCommands with static import
+  - [x] Build technology list from passiveRecon + port version info in engagement orchestrator
+  - [x] Update WORKFLOW_SYSTEM_PROMPT with CREDENTIAL TESTING REQUIREMENTS section
+  - [x] Update vulnerability_analysis phase success criteria to include OEM defaults
+  - [x] Write vitest tests for OEM credential integration (10 tests pass)
+- [x] Verify all 30 tests pass (dedup + credential testing)
