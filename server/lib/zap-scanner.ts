@@ -826,6 +826,20 @@ export async function startScan(params: {
     throw new Error(`Invalid target URL: ${params.targetUrl}`);
   }
 
+  // ── Deduplication guard: skip if an identical scan already exists ──
+  const effectiveScanName = params.scanName || `${params.scanMode === "passive" ? "[RECON]" : "[DAST]"} ${parsedUrl.hostname}`;
+  const [existingScan] = await db.select({ id: webAppScans.id, status: webAppScans.status })
+    .from(webAppScans)
+    .where(and(
+      eq(webAppScans.scanName, effectiveScanName),
+      eq(webAppScans.targetUrl, params.targetUrl)
+    ))
+    .limit(1);
+  if (existingScan) {
+    console.log(`[ZAP Dedup] Scan already exists: ${effectiveScanName} → id=${existingScan.id} (status=${existingScan.status}). Returning existing.`);
+    return { scanId: existingScan.id, status: existingScan.status, llmConfig: params.llmConfig, deduplicated: true } as any;
+  }
+
   // Generate LLM scan config if not provided — enhanced with tech-specific rule intelligence
   const llmConfig = params.llmConfig || await generateLLMScanConfig({
     targetUrl: params.targetUrl,

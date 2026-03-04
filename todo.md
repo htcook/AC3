@@ -7224,3 +7224,16 @@
 - [x] Updated KsiAutoCollector.tsx with Live API Collectors section (7 individual buttons + sweep)
 - [x] Write vitest tests for all new real collectors (14 tests, all passing)
 - [ ] Verify evidence is properly stored with SHA-256 integrity hashes (existing insertKsiEvidence already handles this)
+
+## Reset Vianova Engagement & Scan Deduplication
+- [x] Investigate all tables with Vianova engagement data (6 tables: scan_results, web_app_scans, web_app_findings, osint_findings, domain_recon, typosquat_domains)
+- [x] Write and execute reset script to clear all Vianova scan results, findings, stats (214 rows deleted)
+- [x] Keep the engagement record itself intact (just reset to start state)
+- [x] Audit all scan insertion paths for deduplication guards (8 critical paths identified)
+- [x] Add dedup guards to vuln scan imports/findings — rejects duplicate fileName+scannerType
+- [x] Add dedup guards to web app scans — ZAP startScan checks scanName+targetUrl; orchestrator uses Set<string>
+- [x] Add dedup guards to domain intel scans — blocks in-progress duplicates, allows re-scan of completed/error
+- [x] Add dedup guards to phishing drafts — 3 paths: engagement-pipeline, phishing-ops, campaign-mgmt
+- [x] Add dedup guards to scan results — insertScanResult upserts on engagementId+tool+target
+- [x] Write vitest tests for deduplication (19 tests, all passing)
+- [x] Verify re-running scans does not create duplicates (all 8 insertion paths now have guards)

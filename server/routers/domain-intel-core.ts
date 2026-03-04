@@ -25,6 +25,19 @@ export const domainIntelRouter = router({
         scopedAssets: z.array(z.string()).optional(), // RoE-restricted: only scan these exact hostnames/IPs
       }))
       .mutation(async ({ input, ctx }) => {
+        // ── Deduplication guard: check for existing scan with same engagement + domain ──
+        if (input.engagementId) {
+          const existingScans = await db.getDomainIntelScansByEngagement(input.engagementId);
+          const existing = existingScans.find(s => s.primaryDomain === input.primaryDomain);
+          if (existing) {
+            // If the existing scan is in a terminal state, allow re-scan; otherwise return existing
+            if (existing.status !== 'completed' && existing.status !== 'error') {
+              return { scanId: existing.id, deduplicated: true, message: `Scan already in progress for ${input.primaryDomain} (status: ${existing.status})` };
+            }
+            // For completed/error scans, allow a new scan (user explicitly wants to re-run)
+          }
+        }
+
         // Create scan record immediately
         const scanId = await db.createDomainIntelScan({
           primaryDomain: input.primaryDomain,

@@ -22,6 +22,19 @@ export const vulnScannerRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
+      // ── Deduplication guard: skip if same file was already imported ──
+      const { eq: eqCheck, and: andCheck } = await import("drizzle-orm");
+      const [existingImport] = await db.select({ id: vulnScanImports.id })
+        .from(vulnScanImports)
+        .where(andCheck(
+          eqCheck(vulnScanImports.fileName, input.fileName),
+          eqCheck(vulnScanImports.scannerType, input.scannerType)
+        ))
+        .limit(1);
+      if (existingImport) {
+        throw new TRPCError({ code: "CONFLICT", message: `Scan file "${input.fileName}" from ${input.scannerType} was already imported (import #${existingImport.id}). Delete the existing import first to re-import.` });
+      }
+
       const result = await parseVulnScan(input.scannerType, input.fileContent);
 
       const importResult = await db.insert(vulnScanImports).values({

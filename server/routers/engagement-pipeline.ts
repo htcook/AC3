@@ -279,6 +279,20 @@ Make the phishing content highly realistic and tailored to the target domain and
                   };
                 }
 
+                // Dedup guard: skip if a draft already exists for this scan + recommendation index
+                const [existingDraft] = await drizzleDb.select({ id: phishingDrafts.id })
+                  .from(phishingDrafts)
+                  .where(and(
+                    eq(phishingDrafts.scanId, latestScan.id),
+                    eq(phishingDrafts.campaignRecommendationIndex, i)
+                  ))
+                  .limit(1);
+                if (existingDraft) {
+                  console.log(`[Pipeline Dedup] Draft already exists for scan ${latestScan.id} rec ${i}: id=${existingDraft.id}`);
+                  materializedDraftIds.push(existingDraft.id);
+                  continue;
+                }
+
                 const [draftResult] = await drizzleDb.insert(phishingDrafts).values({
                   scanId: latestScan.id,
                   campaignRecommendationIndex: i,

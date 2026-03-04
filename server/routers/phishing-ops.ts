@@ -286,6 +286,24 @@ Make the phishing content highly realistic and tailored to the target domain and
       const landingPageName = `[Ace C3] ${campaignName} - Landing Page`;
       const targetGroupName = `[Ace C3] ${campaignName} - Targets`;
 
+      // Dedup guard: check if a draft already exists for this scan + recommendation index
+      const [existingDraft] = await db.select({ id: phishingDrafts.id })
+        .from(phishingDrafts)
+        .where(and(
+          eq(phishingDrafts.scanId, input.scanId),
+          eq(phishingDrafts.campaignRecommendationIndex, input.recommendationIndex)
+        ))
+        .limit(1);
+      if (existingDraft) {
+        return {
+          draftId: existingDraft.id,
+          campaignName: campaignName,
+          status: "draft",
+          message: "Draft already exists for this recommendation. Returning existing draft.",
+          deduplicated: true,
+        };
+      }
+
       // Insert the draft
       const draftData: InsertPhishingDraft = {
         scanId: input.scanId,

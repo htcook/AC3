@@ -2065,6 +2065,33 @@ import { scanResults, InsertScanResult, ScanResult } from "../drizzle/schema";
 export async function insertScanResult(data: InsertScanResult): Promise<ScanResult | null> {
   const db = await getDb();
   if (!db) return null;
+
+  // Dedup guard: check for existing result with same engagement + tool + target
+  const [existing] = await db.select({ id: scanResults.id })
+    .from(scanResults)
+    .where(and(
+      eq(scanResults.engagementId, data.engagementId),
+      eq(scanResults.tool, data.tool),
+      eq(scanResults.target, data.target)
+    ))
+    .limit(1);
+  if (existing) {
+    // Update the existing record with new data instead of creating a duplicate
+    await db.update(scanResults).set({
+      rawOutput: data.rawOutput,
+      rawStderr: data.rawStderr,
+      exitCode: data.exitCode,
+      durationMs: data.durationMs,
+      timedOut: data.timedOut,
+      findings: data.findings,
+      findingCount: data.findingCount,
+      severitySummary: data.severitySummary,
+      command: data.command,
+    }).where(eq(scanResults.id, existing.id));
+    const [result] = await db.select().from(scanResults).where(eq(scanResults.id, existing.id));
+    return result;
+  }
+
   const [row] = await db.insert(scanResults).values(data).$returningId();
   const [result] = await db.select().from(scanResults).where(eq(scanResults.id, row.id));
   return result;

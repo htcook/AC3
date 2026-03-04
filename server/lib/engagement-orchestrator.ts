@@ -2166,6 +2166,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     a.ports.some(p => ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port))
   );
 
+  // Dedup: track scanned target URLs to avoid duplicate scans for the same host+protocol
+  const scannedTargetUrls = new Set<string>();
+
   for (const webApp of webApps) {
     const webPorts = webApp.ports.filter(p =>
       ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)
@@ -2174,6 +2177,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     for (const wp of webPorts) {
       const protocol = wp.port === 443 || wp.port === 8443 || wp.service === "https" ? "https" : "http";
       const targetUrl = `${protocol}://${webApp.ip || webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
+
+      // Skip if we already scanned this exact URL in this run
+      if (scannedTargetUrls.has(targetUrl)) {
+        addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Dedup Skip: ${targetUrl}`, detail: "Already scanned in this engagement run" });
+        continue;
+      }
+      scannedTargetUrls.add(targetUrl);
 
       addLog(state, {
         phase: "vuln_detection",
