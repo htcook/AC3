@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Zap, Database, ArrowRight, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { getKsiLabel } from "@/lib/ksi-labels";
 
 const SOURCE_ICONS: Record<string, string> = {
   "vuln-scanner": "🔍",
@@ -201,8 +202,8 @@ export default function KsiAutoCollector() {
                   <div className="text-xs text-muted-foreground truncate">{m.description}</div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {m.ksiIds.map((id) => (
-                      <Badge key={id} variant="outline" className="text-[10px] px-1.5 py-0">
-                        {id}
+                      <Badge key={id} variant="outline" className="text-[10px] px-1.5 py-0" title={getKsiLabel(id)}>
+                        {id}: {getKsiLabel(id)}
                       </Badge>
                     ))}
                   </div>

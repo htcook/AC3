@@ -22,10 +22,10 @@ export default function KsiHub() {
     <AppShell activePath="/ksi-dashboard">
       <div className="flex items-center mb-4">
         <ShieldCheck className="w-6 h-6 mr-2" />
-        <h1 className="font-display tracking-wider text-xl">Key Security Indicators</h1>
+        <h1 className="font-display tracking-wider text-xl">Key Security Indicators (KSI)</h1>
       </div>
       <p className="text-muted-foreground mb-6">
-        Security indicators, evidence chains, threat mapping, and validation
+        FedRAMP Key Security Indicators (KSIs) — continuous monitoring of evidence chains, threat mapping, and validation across 13 security themes
       </p>
       <HubTabs tabs={tabs} storageKey="ksi-hub" />
     </AppShell>

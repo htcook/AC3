@@ -11,6 +11,7 @@ import {
   Shield, BarChart3
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { formatKsiId, getKsiLabel } from "@/lib/ksi-labels";
 
 export default function KsiDashboard() {
   
@@ -248,8 +249,8 @@ export default function KsiDashboard() {
                         {run.status === "warning" && <AlertTriangle className="h-4 w-4 text-amber-500" />}
                         {!["passed", "failed", "running", "warning"].includes(run.status) && <Activity className="h-4 w-4 text-muted-foreground" />}
                         <div>
-                          <div className="text-sm font-medium">{run.ksiId}</div>
-                          <div className="text-xs text-muted-foreground">{run.triggerType} · {run.validationType}</div>
+                          <div className="text-sm font-medium" title={formatKsiId(run.ksiId)}>{run.ksiId}</div>
+                          <div className="text-xs text-muted-foreground">{getKsiLabel(run.ksiId)} · {run.triggerType} · {run.validationType}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -351,9 +352,9 @@ export default function KsiDashboard() {
                   {valDash.failingKSIs.map((s: any) => (
                     <div key={s.scheduleId} className="flex items-center justify-between py-2 border-b last:border-0">
                       <div>
-                        <div className="text-sm font-medium">{s.ksiId}</div>
+                        <div className="text-sm font-medium" title={formatKsiId(s.ksiId)}>{s.ksiId}</div>
                         <div className="text-xs text-muted-foreground">
-                          {s.consecutiveFailures} consecutive failures (threshold: {s.alertThreshold})
+                          {getKsiLabel(s.ksiId)} · {s.consecutiveFailures} consecutive failures (threshold: {s.alertThreshold})
                         </div>
                       </div>
                       <Badge variant="destructive">ALERT</Badge>

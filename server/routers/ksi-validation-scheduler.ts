@@ -295,4 +295,184 @@ export const ksiValidationSchedulerRouter = router({
 
     return overdue;
   }),
+
+  /** Clean up stale "running" validation runs older than the given threshold */
+  cleanupStaleRuns: protectedProcedure
+    .input(z.object({ maxAgeHours: z.number().min(1).max(720).default(24) }).optional())
+    .mutation(async ({ input }) => {
+      const db = await getDbSafe();
+      const cutoff = new Date(Date.now() - (input?.maxAgeHours || 24) * 3600000);
+
+      const staleRuns = await db.select()
+        .from(ksiValidationRuns)
+        .where(and(
+          eq(ksiValidationRuns.status, "running"),
+          lte(ksiValidationRuns.startedAt, cutoff)
+        ));
+
+      let cleaned = 0;
+      for (const run of staleRuns) {
+        await db.update(ksiValidationRuns)
+          .set({
+            status: "error",
+            errorMessage: `Stale run auto-cleaned: started at ${run.startedAt?.toISOString()} and exceeded ${input?.maxAgeHours || 24}h timeout`,
+            completedAt: new Date(),
+          })
+          .where(eq(ksiValidationRuns.runId, run.runId));
+        cleaned++;
+      }
+
+      return { cleaned, cutoff: cutoff.toISOString() };
+    }),
+
+  /** Cancel a specific running validation */
+  cancelValidation: protectedProcedure
+    .input(z.object({ runId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbSafe();
+      const run = await db.select().from(ksiValidationRuns).where(eq(ksiValidationRuns.runId, input.runId));
+      if (!run[0]) throw new Error("Validation run not found");
+      if (run[0].status !== "running") throw new Error("Can only cancel running validations");
+
+      await db.update(ksiValidationRuns)
+        .set({
+          status: "error",
+          errorMessage: "Manually cancelled by user",
+          completedAt: new Date(),
+        })
+        .where(eq(ksiValidationRuns.runId, input.runId));
+
+      return { success: true };
+    }),
+
+  /** Auto-validate machine-type KSIs by checking evidence freshness and count */
+  autoValidateMachineKsis: protectedProcedure
+    .input(z.object({ engagementId: z.string().optional() }).optional())
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const { ksiEvidence } = await import("../../drizzle/schema");
+
+      // Get all machine-type KSI definitions
+      const machineDefs = await db.select().from(ksiDefinitions)
+        .where(eq(ksiDefinitions.validationType, "machine"));
+
+      const results: Array<{ ksiId: string; status: string; score: number; reason: string }> = [];
+
+      for (const def of machineDefs) {
+        const runId = generateId("VRN");
+
+        // Count total evidence for this KSI
+        const evidenceCount = await db.select({ count: sql<number>`count(*)` })
+          .from(ksiEvidence)
+          .where(eq(ksiEvidence.ksiId, def.ksiId));
+        const totalEvidence = evidenceCount[0]?.count || 0;
+
+        // Count fresh evidence (last 30 days)
+        const freshCutoff = new Date(Date.now() - 30 * 24 * 3600000);
+        const freshCount = await db.select({ count: sql<number>`count(*)` })
+          .from(ksiEvidence)
+          .where(and(
+            eq(ksiEvidence.ksiId, def.ksiId),
+            gte(ksiEvidence.createdAt, freshCutoff)
+          ));
+        const freshEvidence = freshCount[0]?.count || 0;
+
+        // Score calculation
+        let score = 0;
+        let maxScore = 100;
+        let reason = "";
+
+        // Has any evidence (30 points)
+        if (totalEvidence > 0) {
+          score += 30;
+          reason += `Has ${totalEvidence} evidence items. `;
+        } else {
+          reason += "No evidence collected. ";
+        }
+
+        // Has fresh evidence (30 points)
+        if (freshEvidence > 0) {
+          score += 30;
+          reason += `${freshEvidence} fresh (last 30d). `;
+        } else if (totalEvidence > 0) {
+          reason += "All evidence is stale (>30d). ";
+        }
+
+        // Evidence diversity — multiple source modules (20 points)
+        if (totalEvidence > 0) {
+          const sources = await db.select({ source: ksiEvidence.sourceModule })
+            .from(ksiEvidence)
+            .where(eq(ksiEvidence.ksiId, def.ksiId))
+            .groupBy(ksiEvidence.sourceModule);
+          if (sources.length >= 2) {
+            score += 20;
+            reason += `${sources.length} source modules. `;
+          } else {
+            score += 10;
+            reason += `Single source module. `;
+          }
+        }
+
+        // Coverage status bonus (20 points)
+        if (def.coverageStatus === "direct") {
+          score += 20;
+        } else if (def.coverageStatus === "supporting") {
+          score += 10;
+        }
+
+        const status = score >= 70 ? "passed" : score >= 40 ? "warning" : totalEvidence > 0 ? "failed" : "skipped";
+
+        // Create the validation run
+        await db.insert(ksiValidationRuns).values({
+          runId,
+          ksiId: def.ksiId,
+          engagementId: input?.engagementId,
+          validationType: "machine",
+          triggerType: "scheduled",
+          status,
+          score,
+          maxScore,
+          result: { totalEvidence, freshEvidence, reason },
+          startedAt: new Date(),
+          completedAt: new Date(),
+          runBy: ctx.user?.id,
+          runByName: ctx.user?.name || "Auto-Validator",
+          errorMessage: status === "skipped" ? "No evidence available for validation" : undefined,
+        });
+
+        // Update schedule
+        const schedules = await db.select()
+          .from(ksiValidationSchedules)
+          .where(eq(ksiValidationSchedules.ksiId, def.ksiId));
+
+        if (schedules[0]) {
+          const freq = schedules[0].frequencyHours;
+          const nextRun = new Date(Date.now() + freq * 3600000);
+          const consecutiveFailures = status === "failed" || status === "error"
+            ? schedules[0].consecutiveFailures + 1
+            : 0;
+
+          await db.update(ksiValidationSchedules)
+            .set({
+              lastRunId: runId,
+              lastRunStatus: status,
+              lastRunAt: new Date(),
+              nextRunAt: nextRun,
+              consecutiveFailures,
+            })
+            .where(eq(ksiValidationSchedules.scheduleId, schedules[0].scheduleId));
+        }
+
+        results.push({ ksiId: def.ksiId, status, score, reason: reason.trim() });
+      }
+
+      return {
+        validated: results.length,
+        passed: results.filter(r => r.status === "passed").length,
+        warning: results.filter(r => r.status === "warning").length,
+        failed: results.filter(r => r.status === "failed").length,
+        skipped: results.filter(r => r.status === "skipped").length,
+        results,
+      };
+    }),
 });

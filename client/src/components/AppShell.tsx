@@ -336,7 +336,7 @@ const NAV_GROUPS: NavGroup[] = [
         id: "ksi-core",
         label: "Indicators & Compliance",
         items: [
-          { href: "/ksi-dashboard", icon: BadgeCheck, label: "KSI DASHBOARD" },
+          { href: "/ksi-dashboard", icon: BadgeCheck, label: "KEY SECURITY INDICATORS" },
           { href: "/ksi-auto-collector", icon: RefreshCw, label: "AUTO COLLECTOR" },
           { href: "/ksi-evidence-chain", icon: GitBranch, label: "EVIDENCE CHAIN" },
           { href: "/ksi-threat-map", icon: Map, label: "THREAT MAP" },

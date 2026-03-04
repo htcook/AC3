@@ -99,6 +99,24 @@ export const KSI_CATALOG = [
   // Theme 11: Supply Chain Risk (SCR)
   { ksiId: "KSI-SCR-MIT", themeCode: "SCR", themeName: "Supply Chain Risk", title: "Mitigate Supply Chain Risks", validationType: "human" as const, frequency: "Persistent", coverageStatus: "supporting" as const, aceC3Module: "SBOM Analyzer, Supply Chain Risk Dashboard" },
   { ksiId: "KSI-SCR-MON", themeCode: "SCR", themeName: "Supply Chain Risk", title: "Monitor Third-Party Software Vulnerabilities", validationType: "machine" as const, frequency: "Continuous", coverageStatus: "direct" as const, aceC3Module: "Dependency Monitor, CVE Feed Integration" },
+  { ksiId: "KSI-SCR-SAT", themeCode: "SCR", themeName: "Supply Chain Risk", title: "Security Awareness Testing", validationType: "mixed" as const, frequency: "Persistent", coverageStatus: "direct" as const, aceC3Module: "Phishing Simulation, GoPhish Integration" },
+  { ksiId: "KSI-SCR-PEN", themeCode: "SCR", themeName: "Supply Chain Risk", title: "Penetration Testing", validationType: "mixed" as const, frequency: "Persistent", coverageStatus: "direct" as const, aceC3Module: "Unified Pentest Pipeline, Caldera" },
+  { ksiId: "KSI-SCR-APT", themeCode: "SCR", themeName: "Supply Chain Risk", title: "Advanced Persistent Threat Simulation", validationType: "machine" as const, frequency: "Persistent", coverageStatus: "direct" as const, aceC3Module: "Caldera, Atomic Red Team, Exploit Arsenal" },
+
+  // Theme 12: Secure Development (SDE) — Added by KSI audit
+  { ksiId: "KSI-SDE-SST", themeCode: "SDE", themeName: "Secure Development", title: "Secure Software Testing", validationType: "machine" as const, frequency: "Per Change", coverageStatus: "direct" as const, aceC3Module: "SAST/DAST Integration, Web App Scanner" },
+
+  // Theme 13: Policy & Procedure Management (PPM) — Added by KSI audit
+  { ksiId: "KSI-PPM-PPR", themeCode: "PPM", themeName: "Policy & Procedure Management", title: "Policy & Procedure Review", validationType: "human" as const, frequency: "Persistent", coverageStatus: "supporting" as const, aceC3Module: "Compliance Mapper, Evidence Chain" },
+  { ksiId: "KSI-PPM-PPI", themeCode: "PPM", themeName: "Policy & Procedure Management", title: "Policy & Procedure Implementation", validationType: "human" as const, frequency: "Persistent", coverageStatus: "supporting" as const, aceC3Module: "Compliance Mapper, Document Management" },
+
+  // Additional KSIs from source module mappings — Added by KSI audit
+  { ksiId: "KSI-SVC-VSR", themeCode: "SVC", themeName: "Service Configuration", title: "Vulnerability Scanning Results", validationType: "machine" as const, frequency: "Continuous", coverageStatus: "direct" as const, aceC3Module: "Vulnerability Scanner, ZAP Integration" },
+  { ksiId: "KSI-SVC-VRM", themeCode: "SVC", themeName: "Service Configuration", title: "Vulnerability Remediation Management", validationType: "machine" as const, frequency: "Ongoing", coverageStatus: "direct" as const, aceC3Module: "Vulnerability Tracker, Remediation Workflow" },
+  { ksiId: "KSI-CNA-HCI", themeCode: "CNA", themeName: "Cloud Native Architecture", title: "Harden Cloud Infrastructure", validationType: "machine" as const, frequency: "Continuous", coverageStatus: "direct" as const, aceC3Module: "Cloud Misconfiguration Scanner, CIS Benchmarks" },
+  { ksiId: "KSI-CNA-NSD", themeCode: "CNA", themeName: "Cloud Native Architecture", title: "Network Segmentation & Defense", validationType: "machine" as const, frequency: "Continuous", coverageStatus: "direct" as const, aceC3Module: "NGFW Validation, Network Flow Analysis" },
+  { ksiId: "KSI-MLA-ALE", themeCode: "MLA", themeName: "Monitoring, Logging, and Auditing", title: "Alert Engineering & Response", validationType: "machine" as const, frequency: "Continuous", coverageStatus: "direct" as const, aceC3Module: "SIEM Alerts, EDR Integration, Atomic Red Team" },
+  { ksiId: "KSI-IAM-PRA", themeCode: "IAM", themeName: "Identity and Access Management", title: "Privileged Access Reviews & Auditing", validationType: "mixed" as const, frequency: "Persistent", coverageStatus: "direct" as const, aceC3Module: "AD Attack Simulation, Privilege Audit" },
 ];
 
 // ─── Helper: SHA-256 hash ──────────────────────────────────────────────────────

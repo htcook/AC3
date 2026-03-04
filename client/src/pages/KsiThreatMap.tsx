@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Shield, Target, Crosshair, Users, Zap, AlertTriangle, ChevronRight, ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { getKsiLabel, getThemeLabel, formatKsiId } from "@/lib/ksi-labels";
 
 const TACTIC_COLORS: Record<string, string> = {
   "Reconnaissance": "bg-slate-500",
@@ -112,8 +113,8 @@ export default function KsiThreatMap() {
                 <div className="flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-xs">{item.ksiId}</Badge>
-                      <span className="font-medium truncate">{item.ksiTitle}</span>
+                      <Badge variant="outline" className="font-mono text-xs" title={formatKsiId(item.ksiId)}>{item.ksiId}</Badge>
+                      <span className="font-medium truncate">{item.ksiTitle || getKsiLabel(item.ksiId)}</span>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {item.techniques.map((t) => (
@@ -171,6 +172,7 @@ export default function KsiThreatMap() {
                           variant="outline"
                           className="text-[10px] cursor-pointer hover:bg-primary/10"
                           onClick={() => setSelectedKsi(id)}
+                          title={getKsiLabel(id)}
                         >
                           {id}
                         </Badge>
@@ -220,8 +222,8 @@ export default function KsiThreatMap() {
               ) : (
                 <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
               )}
-              <Badge variant="outline" className="font-mono text-xs shrink-0">{item.ksiId}</Badge>
-              <span className="flex-1 text-sm">{item.techniqueCount} techniques</span>
+              <Badge variant="outline" className="font-mono text-xs shrink-0" title={formatKsiId(item.ksiId)}>{item.ksiId}</Badge>
+              <span className="flex-1 text-sm truncate">{getKsiLabel(item.ksiId)} · {item.techniqueCount} techniques</span>
               <div className="flex items-center gap-4 shrink-0">
                 <div className="flex items-center gap-1">
                   <Crosshair className="h-3 w-3 text-red-500" />
@@ -276,7 +278,7 @@ export default function KsiThreatMap() {
             <div className="space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="font-mono">{ksiReport.ksiId}</Badge>
-                <Badge>{ksiReport.themeCode}</Badge>
+                <Badge title={getThemeLabel(ksiReport.themeCode)}>{ksiReport.themeCode}: {getThemeLabel(ksiReport.themeCode)}</Badge>
                 <Badge variant={ksiReport.coverageStatus === "direct" ? "default" : "secondary"}>
                   {ksiReport.coverageStatus}
                 </Badge>

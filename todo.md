@@ -7184,3 +7184,28 @@
 - [x] Add deduplication guards to createDomainRecon, createTyposquatDomain, createOsintFinding
 - [x] Add deduplication guards to bulkCreateTyposquatDomains, bulkCreateOsintFindings
 - [x] Written vitest tests for dedup guards (8 tests) and reports module (31 tests)
+
+## KSI Audit & Improvements
+- [x] Inventory all 58 KSI definitions, evidence chains, validation schedules, auto-collection mappings
+- [x] Audit backend capabilities — real vs simulated tracking
+- [x] Map KSI capabilities against compliance frameworks (FedRAMP, SOC 2, ISO 27001, NIST)
+- [x] Write comprehensive KSI audit report (KSI_AUDIT_REPORT.md)
+- [x] Fix 72 stuck "running" validation runs → marked as error
+- [x] Add 12 missing KSI definitions referenced in SOURCE_KSI_MAP (now 70 total)
+- [x] Seed 142 NIST SP 800-53 control mappings (ksi_control_mappings table was empty)
+- [x] Update sp800_53_controls JSON field in all ksi_definitions
+- [x] Create 12 new validation schedules for added KSIs
+- [x] Add KSI_CATALOG entries in ksi-evidence-chain.ts for 12 new KSIs
+- [x] Add cleanupStaleRuns procedure to validation scheduler
+- [x] Add cancelValidation procedure to validation scheduler
+- [x] Add autoValidateMachineKsis procedure with evidence-based scoring
+- [x] Spell out KSI abbreviations in all KSI UI pages (Dashboard, Evidence Chain, Validation, Auto-Collector, Threat Map)
+- [x] Created shared ksi-labels.ts utility with 70+ KSI title lookups and 13 theme labels
+- [x] Updated KsiDashboard.tsx — recent runs and failing KSIs now show full titles
+- [x] Updated KsiEvidenceChain.tsx — evidence items, chains, and definitions show full labels
+- [x] Updated KsiValidation.tsx — schedules and runs show full KSI titles
+- [x] Updated KsiAutoCollector.tsx — source-to-KSI mappings show full titles
+- [x] Updated KsiThreatMap.tsx — coverage matrix, threat groups, exploit coverage, and detail dialog show full labels
+- [x] Updated KsiHub.tsx — page title and description spell out 'Key Security Indicators'
+- [x] Updated AppShell sidebar — 'KSI DASHBOARD' → 'KEY SECURITY INDICATORS'
+- [x] Write vitest tests for KSI label utility and audit improvements (20 tests, all passing)

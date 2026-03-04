@@ -15,6 +15,7 @@ import {
   AlertTriangle, Shield, Loader2, RefreshCw, Hash, Eye
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { formatKsiId, getKsiLabel, getThemeLabel, getThemeFromKsiId } from "@/lib/ksi-labels";
 
 const EVIDENCE_TYPES = [
   "scan_result", "configuration_check", "log_entry", "screenshot",
@@ -275,8 +276,9 @@ export default function KsiEvidenceChain() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">{ev.ksiId}</Badge>
+                          <Badge variant="outline" className="text-xs" title={formatKsiId(ev.ksiId)}>{ev.ksiId}</Badge>
                           <span className="font-medium text-sm">{ev.title}</span>
+                          <span className="text-xs text-muted-foreground hidden md:inline">({getKsiLabel(ev.ksiId)})</span>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{ev.evidenceType?.replace(/_/g, " ")}</span>
@@ -342,7 +344,7 @@ export default function KsiEvidenceChain() {
                           <span className="font-medium">{chain.name}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          KSI: {chain.ksiId} · {chain.evidenceCount || 0} evidence items
+                          {formatKsiId(chain.ksiId)} · {chain.evidenceCount || 0} evidence items
                         </div>
                         {chain.chainHash && (
                           <div className="text-xs font-mono text-muted-foreground mt-1">
@@ -389,11 +391,11 @@ export default function KsiEvidenceChain() {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs font-mono">{def.ksiId}</Badge>
+                          <Badge variant="outline" className="text-xs font-mono" title={formatKsiId(def.ksiId)}>{def.ksiId}</Badge>
                           <span className="text-sm font-medium">{def.title}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          {def.themeName} · {def.validationType} validation · {def.frequency}
+                          {getThemeLabel(getThemeFromKsiId(def.ksiId))} · {def.validationType} validation · {def.frequency}
                         </div>
                         {def.aceC3Module && (
                           <div className="text-xs text-blue-400 mt-0.5">Module: {def.aceC3Module}</div>
