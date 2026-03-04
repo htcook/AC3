@@ -7209,3 +7209,18 @@
 - [x] Updated KsiHub.tsx — page title and description spell out 'Key Security Indicators'
 - [x] Updated AppShell sidebar — 'KSI DASHBOARD' → 'KEY SECURITY INDICATORS'
 - [x] Write vitest tests for KSI label utility and audit improvements (20 tests, all passing)
+
+## Replace Simulated KSI Collectors with Real API Integrations
+- [x] Audit all 7 simulated collectors and map to available API credentials
+- [x] Replace EDR Validation collector — Caldera operation chain detection coverage analysis
+- [x] Replace NGFW Validation collector — DigitalOcean Firewall rule validation & port probes
+- [x] Replace AD Attack Simulation collector — Caldera AD techniques (Kerberoasting, DCSync, PtH)
+- [x] Replace Cloud Misconfiguration collector — DigitalOcean droplets, firewalls, LBs, databases, domains
+- [x] Replace Atomic Red Team collector — Caldera ability executions mapped to MITRE ATT&CK
+- [x] Replace SIEM Connectors collector — Wazuh & Elasticsearch connectivity and alert counts
+- [x] Replace Threat Intel collector — abuse.ch URLhaus/ThreatFox, Shodan, SecurityTrails
+- [x] Created server/lib/ksi-live-collectors.ts with 7 real API collector functions
+- [x] Added 7 live tRPC mutation procedures + runLiveCollectionSweep to ksi-auto-collector router
+- [x] Updated KsiAutoCollector.tsx with Live API Collectors section (7 individual buttons + sweep)
+- [x] Write vitest tests for all new real collectors (14 tests, all passing)
+- [ ] Verify evidence is properly stored with SHA-256 integrity hashes (existing insertKsiEvidence already handles this)
