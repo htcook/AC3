@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import FedRAMPKSIMap from "@/components/FedRAMPKSIMap";
 import ThreatActorFeed from "@/components/ThreatActorFeed";
 import {
   Key, Terminal, Activity, Users, ExternalLink, ChevronRight, Zap, Cloud,
@@ -831,215 +830,52 @@ export default function Home() {
 
       <div className="w-full h-px bg-primary" />
 
-      {/* ─── FedRAMP 20x Explainer ────────────────────────────── */}
+      {/* ─── FedRAMP 20x Summary (full content moved to KSI Dashboard) ── */}
       <section id="fedramp-explainer" className="py-20">
         <div className="container">
           <div className="flex items-center gap-3 mb-4">
             <Landmark className="w-8 h-8 text-primary" />
-            <span className="font-display text-xs tracking-[0.3em] text-primary">UNDERSTANDING THE FRAMEWORK</span>
+            <span className="font-display text-xs tracking-[0.3em] text-primary">COMPLIANCE ENABLEMENT</span>
           </div>
-          <h2 className="text-4xl sm:text-5xl font-display mb-6">WHAT IS FEDRAMP 20x?</h2>
-          <div className="grid md:grid-cols-2 gap-12 mb-12">
-            <div>
-              <p className="text-lg text-muted-foreground leading-relaxed mb-6">
-                FedRAMP 20x is the modernized Federal Risk and Authorization Management Program, replacing the traditional
-                control-by-control audit approach with <strong className="text-foreground">outcome-based security validation</strong>.
-                Instead of documenting hundreds of individual controls in static spreadsheets, cloud service providers now
-                demonstrate security through measurable, continuously monitored indicators that prove their systems
-                actually work as intended.
-              </p>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                The shift is fundamental: FedRAMP 20x moves from <strong className="text-foreground">"describe what you plan to do"</strong> to
-                <strong className="text-foreground"> "prove what you actually do."</strong> This means automated evidence collection,
-                real penetration testing, and continuous monitoring replace the paper-heavy assessment process that
-                previously took 12-18 months and cost millions of dollars.
-              </p>
+          <h2 className="text-4xl sm:text-5xl font-display mb-6">FEDRAMP 20x READINESS</h2>
+          <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-3xl">
+            FedRAMP 20x replaces the traditional control-by-control audit with <strong className="text-foreground">outcome-based security validation</strong> across
+            75 Key Security Indicators in 13 themes. Ace C3 provides <strong className="text-foreground">88% KSI coverage</strong> — 34 with direct
+            automated validation and 32 with supporting evidence — through real penetration testing, adversary emulation, and continuous monitoring.
+          </p>
+
+          <div className="grid sm:grid-cols-3 gap-4 mb-8">
+            <div className="border-2 border-primary/30 bg-primary/5 p-5 text-center">
+              <div className="font-display text-4xl text-primary mb-1">75</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">KEY SECURITY INDICATORS</div>
             </div>
-            <div>
-              <div className="border-2 border-primary/30 bg-primary/5 p-6 mb-6">
-                <h3 className="font-display text-lg tracking-wider text-primary mb-4">KEY CHANGES IN 20x</h3>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-display text-sm tracking-wider mb-1">OUTCOME-BASED VALIDATION</div>
-                      <p className="text-xs text-muted-foreground">Security is measured by what systems actually do, not what documentation says they should do</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-display text-sm tracking-wider mb-1">CONTINUOUS MONITORING</div>
-                      <p className="text-xs text-muted-foreground">Ongoing automated evidence collection replaces point-in-time annual assessments</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-display text-sm tracking-wider mb-1">MACHINE-READABLE EVIDENCE</div>
-                      <p className="text-xs text-muted-foreground">OSCAL-formatted packages enable automated review instead of manual document analysis</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-display text-sm tracking-wider mb-1">FASTER AUTHORIZATION</div>
-                      <p className="text-xs text-muted-foreground">Target timeline reduced from 12-18 months to weeks through automation and standardized evidence</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="border-2 border-emerald-400/30 bg-emerald-400/5 p-5 text-center">
+              <div className="font-display text-4xl text-emerald-400 mb-1">88%</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">KSI COVERAGE</div>
+            </div>
+            <div className="border-2 border-amber-400/30 bg-amber-400/5 p-5 text-center">
+              <div className="font-display text-4xl text-amber-400 mb-1">13</div>
+              <div className="text-xs text-muted-foreground font-display tracking-wider">SECURITY THEMES</div>
             </div>
           </div>
 
-          {/* What Are KSIs */}
-          <div className="border-t border-border pt-12 mb-12">
-            <h3 className="text-3xl font-display mb-6">WHAT ARE KEY SECURITY INDICATORS?</h3>
-            <div className="grid md:grid-cols-3 gap-8 mb-8">
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Shield className="w-5 h-5 text-primary" />
-                  <span className="font-display text-sm tracking-wider">13 SECURITY THEMES</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Key Security Indicators (KSIs) are organized into 13 themes that cover the full spectrum of cloud security:
-                  from identity and access management to incident response, from vulnerability management to supply chain risk.
-                  Each theme contains specific, measurable indicators that CSPs must demonstrate.
-                </p>
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Target className="w-5 h-5 text-primary" />
-                  <span className="font-display text-sm tracking-wider">MEASURABLE OUTCOMES</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Unlike the old control baseline (800+ controls in NIST SP 800-53), KSIs focus on what matters:
-                  Can you detect an intrusion? Can you recover from a breach? Are your access controls actually enforced?
-                  Each KSI requires evidence that the security function works, not just that a policy document exists.
-                </p>
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 className="w-5 h-5 text-primary" />
-                  <span className="font-display text-sm tracking-wider">CONTINUOUS PROOF</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  KSIs are not one-time checkboxes. They require ongoing evidence that security controls remain effective.
-                  This means automated scanning, regular penetration testing, continuous vulnerability monitoring,
-                  and real-time incident detection — all producing machine-readable evidence for FedRAMP review.
-                </p>
-              </div>
-            </div>
-
-            {/* 13 Theme Quick Reference */}
-            <div className="p-6 border border-border bg-card/30">
-              <div className="font-display text-xs tracking-[0.2em] text-muted-foreground mb-4">THE 13 FEDRAMP 20x KSI THEMES</div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {[
-                  { code: "AFR", name: "Authorization by FedRAMP", desc: "Data sharing, security inbox, continuous reporting" },
-                  { code: "CMT", name: "Configuration Management", desc: "Baselines, change control, inventory" },
-                  { code: "CNA", name: "Cloud Native Architecture", desc: "Zero trust, microsegmentation, high availability" },
-                  { code: "CED", name: "Cybersecurity Education", desc: "Phishing resistance, security training" },
-                  { code: "IAM", name: "Identity & Access Management", desc: "MFA, privileged access, authentication" },
-                  { code: "INR", name: "Incident Response", desc: "Detection, containment, after-action analysis" },
-                  { code: "MLA", name: "Monitoring, Logging & Auditing", desc: "SIEM, log integrity, alerting" },
-                  { code: "PIY", name: "Plan, Policy & Procedure", desc: "Security plans, risk assessment, governance" },
-                  { code: "RPL", name: "Resilience Planning", desc: "Disaster recovery, backup, business continuity" },
-                  { code: "SVC", name: "Vulnerability & Config Scanning", desc: "Vuln management, patching, remediation" },
-                  { code: "SCR", name: "Supply Chain Risk", desc: "Third-party risk, software composition" },
-                  { code: "SDE", name: "Secure Development", desc: "Secure SDLC, code security testing" },
-                  { code: "PPM", name: "Policy & Procedure Management", desc: "Policy review, compliance tracking" },
-                ].map((t) => (
-                  <div key={t.code} className="p-3 border border-border/50 bg-background/30">
-                    <div className="font-display text-xs tracking-wider text-primary mb-1">{t.code}</div>
-                    <div className="text-xs font-medium mb-1">{t.name}</div>
-                    <div className="text-[10px] text-muted-foreground">{t.desc}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Ace C3's Role */}
-          <div className="border-t border-border pt-12">
-            <h3 className="text-3xl font-display mb-6">ACE C3'S ROLE IN FEDRAMP 20x</h3>
-            <div className="grid md:grid-cols-2 gap-8 mb-8">
-              <div>
-                <div className="border-2 border-emerald-400/30 bg-emerald-400/5 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    <span className="font-display text-sm tracking-wider text-emerald-400">WHAT ACE C3 DOES</span>
-                  </div>
-                  <ul className="space-y-3 text-sm text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Generates real evidence</strong> through penetration testing, adversary emulation, DAST scanning, and vulnerability assessment — not simulated results</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Validates security controls</strong> by running actual attacks against your infrastructure and measuring detection, prevention, and response capabilities</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Maps findings to NIST SP 800-53</strong> controls with 142 traceable control mappings across all 75 KSIs for FedRAMP traceability</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Provides continuous monitoring</strong> with automated evidence collection, scheduled validation, and SHA-256 hash-chained evidence for tamper resistance</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Tests all 6 mandatory attack vectors</strong> required by FedRAMP: external, internal, social engineering, cloud-specific, API, and supply chain</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div>
-                <div className="border-2 border-amber-400/30 bg-amber-400/5 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <AlertTriangle className="w-5 h-5 text-amber-400" />
-                    <span className="font-display text-sm tracking-wider text-amber-400">WHAT ACE C3 IS NOT</span>
-                  </div>
-                  <ul className="space-y-3 text-sm text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <X className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Not a compliance certifier</strong> — Ace C3 does not grant FedRAMP authorization. Authorization is issued by the FedRAMP PMO after review by a 3PAO</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <X className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Not a GRC platform</strong> — Ace C3 focuses on technical security validation, not governance documentation management or policy authoring</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <X className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Not a replacement for 3PAO assessment</strong> — Ace C3 produces the evidence that 3PAOs review; it does not replace the independent assessment requirement</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <X className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                      <span><strong className="text-foreground">Not a checkbox tool</strong> — Ace C3 runs real attacks and produces real evidence. If your controls fail, the platform reports failures honestly</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="mt-6 p-4 border border-primary/30 bg-primary/5">
-                  <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      <strong className="text-foreground">In practice:</strong> Ace C3 is the technical engine that generates the evidence your 3PAO needs to see.
-                      It runs the penetration tests, validates the controls, monitors for drift, and packages the results.
-                      Your 3PAO reviews this evidence as part of the FedRAMP authorization process.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/ksi-dashboard">
+              <Button className="font-display tracking-wider bg-primary hover:bg-primary/90">
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                VIEW FULL KSI DASHBOARD
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+            <a href="/FedRAMP_20x_Readiness_Guide.pdf" download>
+              <Button variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white">
+                <FileText className="w-4 h-4 mr-2" />
+                DOWNLOAD READINESS GUIDE
+              </Button>
+            </a>
           </div>
         </div>
       </section>
-
-      <div className="w-full h-px bg-primary" />
-
-         {/* ─── FedRAMP KSI Map ────────────────────────────── */}
-      <FedRAMPKSIMap />
 
       <div className="w-full h-px bg-primary" />
 

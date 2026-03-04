@@ -1,6 +1,6 @@
 import AppShell from "@/components/AppShell";
 import HubTabs from "@/components/HubTabs";
-import { BarChart3, CheckCircle2, Download, Globe2, Link, ShieldCheck } from "lucide-react";
+import { BarChart3, CheckCircle2, Download, Globe2, Landmark, Link, ShieldCheck } from "lucide-react";
 import React, { lazy } from "react";
 
 const KsiDashboard = lazy(() => import("./KsiDashboard"));
@@ -8,6 +8,7 @@ const KsiEvidenceChain = lazy(() => import("./KsiEvidenceChain"));
 const KsiAutoCollector = lazy(() => import("./KsiAutoCollector"));
 const KsiThreatMap = lazy(() => import("./KsiThreatMap"));
 const KsiValidation = lazy(() => import("./KsiValidation"));
+const FedRAMP20xReadiness = lazy(() => import("./FedRAMP20xReadiness"));
 
 const tabs = [
   { id: 'dashboard', label: 'Indicators', icon: BarChart3, component: KsiDashboard },
@@ -15,6 +16,7 @@ const tabs = [
   { id: 'collector', label: 'Auto-Collection', icon: Download, component: KsiAutoCollector },
   { id: 'threats', label: 'Threat Map', icon: Globe2, component: KsiThreatMap },
   { id: 'validation', label: 'Validation', icon: CheckCircle2, component: KsiValidation },
+  { id: 'fedramp', label: 'FedRAMP 20x', icon: Landmark, component: FedRAMP20xReadiness },
 ];
 
 export default function KsiHub() {

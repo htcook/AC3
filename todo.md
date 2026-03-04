@@ -7270,3 +7270,10 @@
 - [x] Added "ACE C3'S ROLE" section with clear "what it does" vs "what it is not" panels
 - [x] Updated nav link to point to the new explainer section
 - [x] Verify homepage compiles and renders correctly (HMR applied, no errors)
+
+## Move KSI Explainer to Dashboard
+- [x] Move FedRAMP 20x explainer section from homepage into the KSI dashboard area
+- [x] Replace homepage explainer with brief summary pointing users to the dashboard
+- [x] Add FedRAMP 20x tab to KSI Hub with collapsible sections (What Is FedRAMP 20x, What Are KSIs, Ace C3's Role)
+- [x] Embed FedRAMPKSIMap component inside the new tab with embedded prop
+- [x] Verify dashboard renders correctly with the new content

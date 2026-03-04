@@ -697,13 +697,12 @@ const COVERAGE_PCT = Math.round(((DIRECT + SUPPORTING) / TOTAL_KSIS) * 100);
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export default function FedRAMPKSIMap() {
+export default function FedRAMPKSIMap({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeView, setActiveView] = useState<"csp" | "agency">("csp");
   const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
 
-  return (
-    <section id="fedramp-20x" className="py-20">
-      <div className="container">
+  const content = (
+    <>
         {/* Header */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-4">
@@ -975,6 +974,15 @@ export default function FedRAMPKSIMap() {
           <span>•</span>
           <span>MITRE ATT&CK v15</span>
         </div>
+    </>
+  );
+
+  if (embedded) return <div>{content}</div>;
+
+  return (
+    <section id="fedramp-20x" className="py-20">
+      <div className="container">
+        {content}
       </div>
     </section>
   );
