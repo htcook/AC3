@@ -12,6 +12,7 @@ import {
   Briefcase, ShieldCheck, Shuffle
 } from "lucide-react";
 import ZeroDayFeed from "@/components/ZeroDayFeed";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import DashboardConfigPanel from "@/components/DashboardConfigPanel";
 import WhatsNew, { WhatsNewTrigger } from "@/components/WhatsNew";
 import { useState, useEffect, useMemo } from "react";
@@ -737,6 +738,7 @@ function DashboardInner() {
         {/* RECENT SCANS — Quick access to previous results                */}
         {/* ═══════════════════════════════════════════════════════════════ */}
         {(scansLoading || scansError || recentCompletedScans.length > 0) && (
+          <SectionErrorBoundary sectionName="Recent Scans">
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -804,6 +806,7 @@ function DashboardInner() {
               })}
             </div>
           </section>
+          </SectionErrorBoundary>
         )}
         </>)}
 
@@ -879,6 +882,7 @@ function DashboardInner() {
         {/* ═══════════════════════════════════════════════════════════════ */}
         {/* LIVE STATS — Emulation + Phishing at a glance                    */}
         {/* ═══════════════════════════════════════════════════════════════ */}
+        <SectionErrorBoundary sectionName="Live Stats" compact>
         <section>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             <MiniStat value={(calderaStats as any).totalThreatActors?.toString() || calderaStats.totalAdversaries.toString()} label="THREAT ACTORS" color="text-primary" href="/apt-library" />
@@ -891,6 +895,7 @@ function DashboardInner() {
             <MiniStat value={`${submitRate}%`} label="SUBMIT RATE" color="text-red-400" href="/phishing-ops" />
           </div>
         </section>
+        </SectionErrorBoundary>
         </>)}
 
         {isVisible('server-status') && (
@@ -911,6 +916,7 @@ function DashboardInner() {
             </div>
           }
         >
+          <SectionErrorBoundary sectionName="Server Status">
           <div className="grid md:grid-cols-2 gap-3">
             <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer" className="bg-card border border-border p-4 cursor-pointer hover:border-primary transition-colors group block">
               <div className="flex items-center gap-3 mb-3">
@@ -945,6 +951,7 @@ function DashboardInner() {
               </div>
             </a>
           </div>
+          </SectionErrorBoundary>
         </CollapsibleSection>
         </>)}
 
@@ -962,6 +969,7 @@ function DashboardInner() {
             <span className="text-xs text-muted-foreground">{gophish.emailMetrics.sent} sent · {openRate}% open · {clickRate}% click</span>
           }
         >
+          <SectionErrorBoundary sectionName="Phishing Metrics">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
             <MetricCard icon={<Send />} value={gophish.emailMetrics.sent} label="SENT" color="text-emerald-500" />
             <MetricCard icon={<Eye />} value={gophish.emailMetrics.opened} label="OPENED" subtext={`${openRate}%`} color="text-blue-400" />
@@ -1007,6 +1015,7 @@ function DashboardInner() {
               </table>
             </div>
           )}
+          </SectionErrorBoundary>
         </CollapsibleSection>
         </>)}
 
@@ -1022,6 +1031,7 @@ function DashboardInner() {
           icon={<ShieldAlert className="w-4 h-4 text-red-500" />}
           badge={<span className="text-xs text-muted-foreground">{threatStats?.totalActors ?? '...'} actors · {(iocCount / 1000).toFixed(1)}K IOCs</span>}
         >
+          <SectionErrorBoundary sectionName="Threat Awareness">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="bg-card border border-red-500/30 p-3 text-center">
               <div className="font-display text-2xl text-red-500">{threatStats?.totalActors ?? '...'}</div>
@@ -1207,6 +1217,7 @@ function DashboardInner() {
               </div>
             )}
           </div>
+          </SectionErrorBoundary>
         </CollapsibleSection>
         </>)}
 
@@ -1222,7 +1233,9 @@ function DashboardInner() {
           icon={<Flame className="w-4 h-4 text-red-500" />}
           badge={<span className="text-xs text-muted-foreground">Live CVE tracking from multiple authoritative sources</span>}
         >
-          <ZeroDayFeed />
+          <SectionErrorBoundary sectionName="Vulnerability Feed">
+            <ZeroDayFeed />
+          </SectionErrorBoundary>
         </CollapsibleSection>
         </>)}
 

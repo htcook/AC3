@@ -7126,3 +7126,28 @@
 - [x] Add navigation entry for telemetry page (sidebar + App.tsx route)
 - [x] Write vitest tests for telemetry recording and aggregation (15 tests passing)
 - [x] Verify build and save checkpoint
+
+## Feature: Per-Engagement LLM Cost Tracking
+- [x] Create db helpers for per-engagement token/cost aggregation (total tokens, cost estimate, caller breakdown)
+- [x] Add cost estimation constants (price per input/output token by model)
+- [x] Create tRPC procedures: engagementCost (single), engagementCostBreakdown (by caller), allEngagementCosts (ranked), engagementCostTimeSeries
+- [x] Add LLM Cost card to EngagementOps sidebar stats panel (Est. Cost, Total Tokens, LLM Calls + per-stage breakdown)
+- [x] Add cost breakdown section to EngagementOps sidebar (top 5 pipeline stages by cost)
+- [x] Add per-engagement cost ranking table to LLM Telemetry dashboard (top 25 engagements with link to ops page)
+- [x] Ensure engagementId is passed through all LLM calls in the engagement pipeline (already wired via _engagementId param)
+- [x] Write vitest tests for cost aggregation and estimation (18 tests passing)
+- [x] Verify build and save checkpoint
+
+## Bug Fix: Scan Results Page Load Error
+- [x] Investigate scan results page for undefined data access on initial render (works after refresh) — race condition in tRPC query cache
+- [x] Create SectionErrorBoundary component for inline section-level error recovery
+- [x] Wrap 6 crash-prone Dashboard sections: Recent Scans, Live Stats, Server Status, Phishing Metrics, Threat Awareness, Vulnerability Feed
+- [x] Write 8 vitest tests for SectionErrorBoundary (all passing)
+- [x] Verify build compiles cleanly
+
+## Audit: Key Security Indicators Module
+- [ ] Review all KSI tracked indicators and functions
+- [ ] Verify which indicators the platform can actually track end-to-end
+- [ ] Map KSI capabilities against CSP compliance frameworks (SOC 2, ISO 27001, NIST CSF, PCI DSS, FedRAMP, etc.)
+- [ ] Identify gaps between claimed capabilities and actual implementation
+- [ ] Deliver audit report with recommendations

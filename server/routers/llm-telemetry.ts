@@ -7,6 +7,10 @@ import {
   getLlmTelemetryRecentErrors,
   getLlmTelemetryLatencyDistribution,
   getLlmTelemetryModelUsage,
+  getEngagementLlmCost,
+  getEngagementLlmCostBreakdown,
+  getAllEngagementLlmCosts,
+  getEngagementLlmCostTimeSeries,
 } from "../db";
 
 export const llmTelemetryRouter = router({
@@ -75,5 +79,48 @@ export const llmTelemetryRouter = router({
     .query(async ({ input }) => {
       const hours = input?.windowHours ?? 24;
       return getLlmTelemetryModelUsage(hours);
+    }),
+
+  // ─── Per-Engagement Cost Tracking ─────────────────────────────────────────
+
+  /**
+   * Get LLM cost summary for a single engagement.
+   * Returns total calls, tokens, estimated USD cost.
+   */
+  engagementCost: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      return getEngagementLlmCost(input.engagementId);
+    }),
+
+  /**
+   * Get per-caller cost breakdown for a single engagement.
+   * Shows which pipeline stages consumed the most tokens.
+   */
+  engagementCostBreakdown: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      return getEngagementLlmCostBreakdown(input.engagementId);
+    }),
+
+  /**
+   * Get all engagements ranked by total LLM cost.
+   * Used in the telemetry dashboard for cross-engagement comparison.
+   */
+  allEngagementCosts: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(50) }).optional())
+    .query(async ({ input }) => {
+      const limit = input?.limit ?? 50;
+      return getAllEngagementLlmCosts(limit);
+    }),
+
+  /**
+   * Get hourly cost time series for a single engagement.
+   * Shows token consumption and cost accumulation over time.
+   */
+  engagementCostTimeSeries: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      return getEngagementLlmCostTimeSeries(input.engagementId);
     }),
 });

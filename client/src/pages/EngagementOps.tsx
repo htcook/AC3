@@ -35,7 +35,7 @@ import {
   Server, Database, MonitorSmartphone, AlertTriangle, CheckCircle2,
   XCircle, Clock, Loader2, ChevronRight, Eye, FileText,
   Zap, Lock, Unlock, Activity, Terminal, Network, Wifi,
-  Plus, Search, ArrowRight, Swords, RotateCcw,
+  Plus, Search, ArrowRight, Swords, RotateCcw, CircleDollarSign, Coins,
 } from "lucide-react";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
@@ -191,6 +191,12 @@ function getPhaseIndex(phase: string): number {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
@@ -331,6 +337,16 @@ export default function EngagementOps() {
   const scanProfilesQ = trpc.engagementOps.listScanProfiles.useQuery(
     undefined,
     { enabled: engagementId > 0 }
+  );
+
+  // LLM Cost tracking for this engagement
+  const llmCostQ = trpc.llmTelemetry.engagementCost.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 10000 : 60000 }
+  );
+  const llmCostBreakdownQ = trpc.llmTelemetry.engagementCostBreakdown.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 10000 : 60000 }
   );
 
   const activeScanMut = trpc.engagementOps.startActiveScan.useMutation({
@@ -2117,6 +2133,31 @@ export default function EngagementOps() {
             <StatCard icon={<Crosshair className="h-4 w-4 text-red-400" />} label="Exploits Tried" value={ops?.stats?.exploitsAttempted || 0} />
             <StatCard icon={<Skull className="h-4 w-4 text-red-500" />} label="Exploits OK" value={ops?.stats?.exploitsSucceeded || 0} />
             <StatCard icon={<Terminal className="h-4 w-4 text-green-400" />} label="Sessions" value={ops?.stats?.sessionsOpened || 0} />
+          </div>
+
+          <Separator />
+
+          {/* LLM Cost Tracking */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">LLM Cost</h3>
+            <div className="space-y-3">
+              <StatCard icon={<CircleDollarSign className="h-4 w-4 text-emerald-400" />} label="Est. Cost" value={`$${(Number(llmCostQ.data?.estimated_cost_usd) || 0).toFixed(4)}`} />
+              <StatCard icon={<Coins className="h-4 w-4 text-amber-400" />} label="Total Tokens" value={formatTokenCount(Number(llmCostQ.data?.total_tokens) || 0)} />
+              <StatCard icon={<Zap className="h-4 w-4 text-purple-400" />} label="LLM Calls" value={Number(llmCostQ.data?.total_calls) || 0} />
+            </div>
+            {llmCostBreakdownQ.data && llmCostBreakdownQ.data.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="text-[10px] text-muted-foreground font-medium">Cost by Pipeline Stage</p>
+                {llmCostBreakdownQ.data.slice(0, 5).map((item: any) => (
+                  <div key={item.caller} className="flex items-center justify-between text-[10px]">
+                    <span className="truncate text-muted-foreground max-w-[120px]" title={item.caller}>
+                      {item.caller?.split(':').pop() || item.caller}
+                    </span>
+                    <span className="text-emerald-400 font-mono">${(Number(item.estimated_cost_usd) || 0).toFixed(4)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <Separator />

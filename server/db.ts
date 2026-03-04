@@ -2324,3 +2324,149 @@ export async function getLlmTelemetryModelUsage(windowHours: number = 24) {
   `);
   return rows as any[];
 }
+
+
+// ─── Per-Engagement LLM Cost Tracking ─────────────────────────────────────────
+
+/**
+ * Pricing constants for cost estimation (per 1M tokens).
+ * Based on Gemini 2.5 Flash pricing as of March 2026.
+ * Update these when model pricing changes.
+ */
+const LLM_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
+  "gemini-2.5-flash": { inputPer1M: 0.15, outputPer1M: 0.60 },
+  "gemini-2.0-flash": { inputPer1M: 0.10, outputPer1M: 0.40 },
+  "gemini-1.5-pro": { inputPer1M: 3.50, outputPer1M: 10.50 },
+  // Fallback for unknown models
+  default: { inputPer1M: 0.15, outputPer1M: 0.60 },
+};
+
+function estimateCost(model: string, tokensIn: number, tokensOut: number): number {
+  const pricing = LLM_PRICING[model] || LLM_PRICING.default;
+  return (tokensIn / 1_000_000) * pricing.inputPer1M + (tokensOut / 1_000_000) * pricing.outputPer1M;
+}
+
+/**
+ * Get LLM cost summary for a single engagement.
+ */
+export async function getEngagementLlmCost(engagementId: number) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      COUNT(*) as total_calls,
+      SUM(CASE WHEN llm_status IN ('success', 'retried_success') THEN 1 ELSE 0 END) as success_count,
+      SUM(CASE WHEN llm_status IN ('error', 'timeout') THEN 1 ELSE 0 END) as failure_count,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      SUM(COALESCE(tokens_in, 0)) as total_tokens_in,
+      SUM(COALESCE(tokens_out, 0)) as total_tokens_out,
+      SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) as total_tokens,
+      ROUND(AVG(retry_count), 2) as avg_retries,
+      MIN(called_at) as first_call,
+      MAX(called_at) as last_call
+    FROM llm_telemetry
+    WHERE engagement_id = ${engagementId}
+  `);
+  const row = (rows as any[])[0] || {};
+  const tokensIn = Number(row.total_tokens_in) || 0;
+  const tokensOut = Number(row.total_tokens_out) || 0;
+  return {
+    ...row,
+    total_tokens_in: tokensIn,
+    total_tokens_out: tokensOut,
+    total_tokens: Number(row.total_tokens) || 0,
+    estimated_cost_usd: estimateCost("gemini-2.5-flash", tokensIn, tokensOut),
+  };
+}
+
+/**
+ * Get per-caller LLM cost breakdown for a single engagement.
+ */
+export async function getEngagementLlmCostBreakdown(engagementId: number) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      caller,
+      COUNT(*) as call_count,
+      SUM(CASE WHEN llm_status IN ('success', 'retried_success') THEN 1 ELSE 0 END) as success_count,
+      SUM(CASE WHEN llm_status IN ('error', 'timeout') THEN 1 ELSE 0 END) as failure_count,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      SUM(COALESCE(tokens_in, 0)) as tokens_in,
+      SUM(COALESCE(tokens_out, 0)) as tokens_out,
+      SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) as total_tokens
+    FROM llm_telemetry
+    WHERE engagement_id = ${engagementId}
+    GROUP BY caller
+    ORDER BY total_tokens DESC
+  `);
+  return (rows as any[]).map(r => ({
+    ...r,
+    tokens_in: Number(r.tokens_in) || 0,
+    tokens_out: Number(r.tokens_out) || 0,
+    total_tokens: Number(r.total_tokens) || 0,
+    estimated_cost_usd: estimateCost("gemini-2.5-flash", Number(r.tokens_in) || 0, Number(r.tokens_out) || 0),
+  }));
+}
+
+/**
+ * Get all engagements ranked by total LLM cost.
+ */
+export async function getAllEngagementLlmCosts(limit: number = 50) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      engagement_id,
+      COUNT(*) as total_calls,
+      SUM(CASE WHEN llm_status IN ('success', 'retried_success') THEN 1 ELSE 0 END) as success_count,
+      SUM(CASE WHEN llm_status IN ('error', 'timeout') THEN 1 ELSE 0 END) as failure_count,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms,
+      SUM(COALESCE(tokens_in, 0)) as tokens_in,
+      SUM(COALESCE(tokens_out, 0)) as tokens_out,
+      SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) as total_tokens,
+      MIN(called_at) as first_call,
+      MAX(called_at) as last_call
+    FROM llm_telemetry
+    WHERE engagement_id IS NOT NULL
+    GROUP BY engagement_id
+    ORDER BY total_tokens DESC
+    LIMIT ${limit}
+  `);
+  return (rows as any[]).map(r => ({
+    ...r,
+    engagement_id: Number(r.engagement_id),
+    tokens_in: Number(r.tokens_in) || 0,
+    tokens_out: Number(r.tokens_out) || 0,
+    total_tokens: Number(r.total_tokens) || 0,
+    estimated_cost_usd: estimateCost("gemini-2.5-flash", Number(r.tokens_in) || 0, Number(r.tokens_out) || 0),
+  }));
+}
+
+/**
+ * Get LLM cost time series for a single engagement (hourly buckets).
+ */
+export async function getEngagementLlmCostTimeSeries(engagementId: number) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      DATE_FORMAT(called_at, '%Y-%m-%d %H:00:00') as hour_bucket,
+      COUNT(*) as total_calls,
+      SUM(COALESCE(tokens_in, 0)) as tokens_in,
+      SUM(COALESCE(tokens_out, 0)) as tokens_out,
+      SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) as total_tokens,
+      ROUND(AVG(latency_ms), 0) as avg_latency_ms
+    FROM llm_telemetry
+    WHERE engagement_id = ${engagementId}
+    GROUP BY hour_bucket
+    ORDER BY hour_bucket ASC
+  `);
+  return (rows as any[]).map(r => ({
+    ...r,
+    tokens_in: Number(r.tokens_in) || 0,
+    tokens_out: Number(r.tokens_out) || 0,
+    total_tokens: Number(r.total_tokens) || 0,
+    estimated_cost_usd: estimateCost("gemini-2.5-flash", Number(r.tokens_in) || 0, Number(r.tokens_out) || 0),
+  }));
+}

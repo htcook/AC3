@@ -6,6 +6,7 @@
  * spot API degradation patterns before they impact engagements.
  */
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,8 @@ import {
   Timer,
   Hash,
   XCircle,
+  CircleDollarSign,
+  ExternalLink,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
@@ -247,6 +250,7 @@ export default function LlmTelemetry() {
   const recentErrorsQ = trpc.llmTelemetry.recentErrors.useQuery({ limit: 20 });
   const latencyDistQ = trpc.llmTelemetry.latencyDistribution.useQuery({ windowHours });
   const modelUsageQ = trpc.llmTelemetry.modelUsage.useQuery({ windowHours });
+  const engagementCostsQ = trpc.llmTelemetry.allEngagementCosts.useQuery({ limit: 25 });
 
   const summary = summaryQ.data || {} as any;
   const totalCalls = Number(summary.total_calls ?? 0);
@@ -578,6 +582,100 @@ export default function LlmTelemetry() {
                 </TableBody>
               </Table>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Per-Engagement LLM Cost Ranking */}
+      <div className="grid grid-cols-1 gap-4">
+        <Card className="border-border/30 bg-card/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <CircleDollarSign className="h-4 w-4 text-emerald-400" />
+              Per-Engagement LLM Cost
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border/20">
+                    <TableHead className="text-xs">Engagement</TableHead>
+                    <TableHead className="text-xs text-right">LLM Calls</TableHead>
+                    <TableHead className="text-xs text-right">Tokens In</TableHead>
+                    <TableHead className="text-xs text-right">Tokens Out</TableHead>
+                    <TableHead className="text-xs text-right">Total Tokens</TableHead>
+                    <TableHead className="text-xs text-right">Avg Latency</TableHead>
+                    <TableHead className="text-xs text-right">Success</TableHead>
+                    <TableHead className="text-xs text-right">Failures</TableHead>
+                    <TableHead className="text-xs text-right font-semibold text-emerald-400">Est. Cost</TableHead>
+                    <TableHead className="text-xs"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {engagementCostsQ.isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground text-xs py-8">
+                        Loading engagement costs...
+                      </TableCell>
+                    </TableRow>
+                  ) : !engagementCostsQ.data?.length ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground text-xs py-8">
+                        No engagement-linked LLM calls recorded yet. Run an engagement scan to see cost data.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    engagementCostsQ.data.map((eng: any) => (
+                      <TableRow key={eng.engagement_id} className="border-border/10 hover:bg-muted/20">
+                        <TableCell className="text-xs font-mono">
+                          #{eng.engagement_id}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {formatNumber(eng.total_calls)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-mono text-blue-400/80">
+                          {formatNumber(eng.tokens_in)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-mono text-purple-400/80">
+                          {formatNumber(eng.tokens_out)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-mono">
+                          {formatNumber(eng.total_tokens)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {formatMs(eng.avg_latency_ms)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-green-400">
+                          {formatNumber(eng.success_count)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-red-400">
+                          {formatNumber(eng.failure_count)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-mono font-semibold text-emerald-400">
+                          ${Number(eng.estimated_cost_usd || 0).toFixed(4)}
+                        </TableCell>
+                        <TableCell>
+                          <Link href={`/engagement-ops/${eng.engagement_id}`}>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            {engagementCostsQ.data && engagementCostsQ.data.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/20 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Total across all engagements</span>
+                <span className="font-mono font-semibold text-emerald-400">
+                  ${engagementCostsQ.data.reduce((sum: number, e: any) => sum + Number(e.estimated_cost_usd || 0), 0).toFixed(4)}
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
