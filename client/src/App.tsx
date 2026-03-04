@@ -355,6 +355,9 @@ function Router() {
         <Route path="/guide/caldera">
           <ProtectedRoute component={CalderaGuide} />
         </Route>
+        <Route path="/reports">
+          <Redirect to="/reports/generate" />
+        </Route>
         <Route path="/reports/security">
           <Redirect to="/reports/generate" />
         </Route>

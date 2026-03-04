@@ -59,6 +59,10 @@ export default function ReportGenerator() {
   const { data: engagements } = trpc.engagements.list.useQuery();
   const { data: existingReports, refetch: refetchReports } = trpc.reports.list.useQuery({});
   const generateReport = trpc.reports.generate.useMutation();
+  const deleteReportMut = trpc.reports.delete.useMutation({
+    onSuccess: () => { toast.success('Report deleted'); refetchReports(); },
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
+  });
 
   const selectedEng = useMemo(() => {
     if (!selectedEngagement || !engagements) return null;
@@ -389,6 +393,21 @@ export default function ReportGenerator() {
                             <Download className="w-3.5 h-3.5 mr-1" /> DOWNLOAD
                           </Button>
                         </a>
+                      )}
+                      {report.status === 'failed' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-[10px] font-display text-red-400 hover:text-red-300"
+                          onClick={() => {
+                            if (confirm('Delete this failed report?')) {
+                              deleteReportMut.mutate({ id: report.id });
+                            }
+                          }}
+                          disabled={deleteReportMut.isPending}
+                        >
+                          <XCircle className="w-3.5 h-3.5 mr-1" /> DELETE
+                        </Button>
                       )}
                       <Button
                         variant="ghost"

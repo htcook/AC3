@@ -355,6 +355,15 @@ Instructions: ${reportPrompt}`,
         if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
         return report;
       }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const report = await db.getReportById(input.id);
+        if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
+        await db.deleteReport(input.id);
+        return { success: true };
+      }),
   });
 
 export const templateGeneratorRouter = router({

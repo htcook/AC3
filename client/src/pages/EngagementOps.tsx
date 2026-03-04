@@ -11,7 +11,7 @@
  * 7. Red Team: C2 agent deploy → Caldera callback → pivot
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -36,6 +36,7 @@ import {
   XCircle, Clock, Loader2, ChevronRight, Eye, FileText,
   Zap, Lock, Unlock, Activity, Terminal, Network, Wifi,
   Plus, Search, ArrowRight, Swords, RotateCcw, CircleDollarSign, Coins,
+  Sparkles, ClipboardList,
 } from "lucide-react";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
@@ -276,6 +277,8 @@ export default function EngagementOps() {
   const engagementId = params?.id ? Number(params.id) : 0;
   const { user } = useAuth();
   const feedEndRef = useRef<HTMLDivElement>(null);
+  const feedScrollRef = useRef<HTMLDivElement>(null);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
   const [activeTab, setActiveTab] = useState("feed");
@@ -285,6 +288,8 @@ export default function EngagementOps() {
   // ── Target paste-in state ──
   const [targetInput, setTargetInput] = useState("");
   const [showTargetInput, setShowTargetInput] = useState(false);
+  const [, navigate] = useLocation();
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   // ── Data fetching ──
   const engagementsListQ = trpc.engagements.list.useQuery(
@@ -392,6 +397,19 @@ export default function EngagementOps() {
     onError: (e) => toast.error(e.message),
   });
 
+  // ── Report generation ──
+  const generateReportMut = trpc.reports.generate.useMutation({
+    onSuccess: (data) => {
+      setIsGeneratingReport(false);
+      toast.success('Report generated! Opening report viewer...');
+      navigate('/reports/generate');
+    },
+    onError: (e) => {
+      setIsGeneratingReport(false);
+      toast.error(`Report generation failed: ${e.message}`);
+    },
+  });
+
   // ── Elapsed timer (ticks every second while scan is running) ──
   const [elapsedNow, setElapsedNow] = useState(Date.now());
   useEffect(() => {
@@ -490,12 +508,28 @@ export default function EngagementOps() {
   }, [opsStateQ.data, wsLogBuffer]);
   const engagement = engagementQ.data;
 
-  // Auto-scroll feed
+  // Auto-scroll feed — scroll the viewport container, not the page
   useEffect(() => {
-    if (feedEndRef.current && activeTab === "feed") {
-      feedEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (!isAutoScroll || activeTab !== "feed") return;
+    const viewport = feedScrollRef.current;
+    if (viewport) {
+      requestAnimationFrame(() => {
+        viewport.scrollTop = viewport.scrollHeight;
+      });
     }
-  }, [ops?.log?.length, activeTab]);
+  }, [ops?.log?.length, activeTab, isAutoScroll]);
+
+  // Detect manual scroll-up to pause auto-scroll
+  useEffect(() => {
+    const viewport = feedScrollRef.current;
+    if (!viewport) return;
+    const handleScroll = () => {
+      const atBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 60;
+      setIsAutoScroll(atBottom);
+    };
+    viewport.addEventListener("scroll", handleScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Pending approvals
   const pendingApprovals = useMemo(
@@ -695,9 +729,30 @@ export default function EngagementOps() {
 
                 {/* Completed state */}
                 {ops?.phase === "completed" && (
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Completed
-                  </Badge>
+                  <>
+                    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Completed
+                    </Badge>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setIsGeneratingReport(true);
+                        generateReportMut.mutate({
+                          engagementId,
+                          reportType: 'full_engagement',
+                          clientType: 'enterprise',
+                          title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
+                          preparedFor: engagement?.customerName || undefined,
+                          preparedBy: user?.name || 'Ace C3',
+                        });
+                      }}
+                      disabled={isGeneratingReport}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500"
+                    >
+                      {isGeneratingReport ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                      Generate Report
+                    </Button>
+                  </>
                 )}
 
                 {/* Error state */}
@@ -1121,8 +1176,13 @@ export default function EngagementOps() {
 
             {/* ── Live Feed Tab ── */}
             <TabsContent value="feed" className="flex-1 overflow-hidden m-0 px-6 pb-4">
-              <ScrollArea className="h-full">
-                <div className="space-y-1 py-3">
+              <div className="relative h-full flex flex-col">
+              <div
+                ref={feedScrollRef}
+                className="flex-1 overflow-y-auto min-h-0 max-h-[calc(100vh-280px)] border border-border/30 rounded-lg bg-background/50"
+                style={{ scrollBehavior: "smooth" }}
+              >
+                <div className="space-y-1 p-3">
                   {(!ops || !ops.log || ops.log.length === 0) && (
                     <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                       <Crosshair className="h-12 w-12 mb-4 opacity-20" />
@@ -1177,7 +1237,26 @@ export default function EngagementOps() {
                   ))}
                   <div ref={feedEndRef} />
                 </div>
-              </ScrollArea>
+              </div>
+              {/* Scroll-to-bottom button */}
+              {!isAutoScroll && (ops?.log?.length || 0) > 5 && (
+                <button
+                  onClick={() => {
+                    setIsAutoScroll(true);
+                    const viewport = feedScrollRef.current;
+                    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+                  }}
+                  className="absolute bottom-6 right-8 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-display tracking-wider rounded-full shadow-lg hover:bg-primary/90 transition-all animate-in fade-in slide-in-from-bottom-2"
+                >
+                  <ArrowRight className="h-3 w-3 rotate-90" /> LATEST
+                </button>
+              )}
+              {/* Log count indicator */}
+              <div className="flex-none flex items-center justify-between pt-2 text-[10px] text-muted-foreground font-display tracking-wider">
+                <span>{ops?.log?.length || 0} log entries</span>
+                {isAutoScroll && <span className="flex items-center gap-1 text-green-400"><Activity className="h-3 w-3" /> AUTO-SCROLL</span>}
+              </div>
+              </div>
             </TabsContent>
 
             {/* ── Assets Tab ── */}
@@ -2158,6 +2237,44 @@ export default function EngagementOps() {
                 ))}
               </div>
             )}
+          </div>
+
+          <Separator />
+
+          {/* Report Generation */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Reports</h3>
+            <div className="space-y-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                onClick={() => {
+                  setIsGeneratingReport(true);
+                  generateReportMut.mutate({
+                    engagementId,
+                    reportType: 'full_engagement',
+                    clientType: 'enterprise',
+                    title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
+                    preparedFor: engagement?.customerName || undefined,
+                    preparedBy: user?.name || 'Ace C3',
+                  });
+                }}
+                disabled={isGeneratingReport || generateReportMut.isPending}
+              >
+                {isGeneratingReport ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                Generate Full Report
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                onClick={() => navigate('/reports/generate')}
+              >
+                <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
+                All Reports
+              </Button>
+            </div>
           </div>
 
           <Separator />

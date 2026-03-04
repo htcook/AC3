@@ -7151,3 +7151,36 @@
 - [ ] Map KSI capabilities against CSP compliance frameworks (SOC 2, ISO 27001, NIST CSF, PCI DSS, FedRAMP, etc.)
 - [ ] Identify gaps between claimed capabilities and actual implementation
 - [ ] Deliver audit report with recommendations
+
+## Bug Fix: Scan Page Errors & Live Feed Scrollability
+- [ ] Identify and fix errors on scan pages
+- [ ] Make Engagement Ops Live Feed log output scrollable in a fixed-height frame with auto-scroll to bottom
+- [ ] Keep all historical log data but constrain the visual height
+- [ ] Check for scan errors in the engagement ops page
+- [ ] Verify fixes and save checkpoint
+
+## Bug Fix: Reports Module Errors
+- [x] Investigate and fix errors in the Reports module
+- [x] Added /reports redirect to /reports/generate
+- [x] Added delete button for failed reports in Previous Reports section
+- [x] Added delete report tRPC procedure and db helper
+- [x] Cleaned up failed Vianova report record
+- [x] Verify report generation works correctly
+
+## Feature: Report Button in Engagement Ops
+- [x] Add a report generation button to the Engagement Ops dashboard header (appears when phase=completed)
+- [x] Add Generate Full Report button in the Engagement Ops sidebar Reports section
+- [x] Add All Reports navigation button in sidebar
+- [x] Wire button to trigger report generation for the current engagement
+- [x] Verify button works and navigates to the generated report
+
+## Deduplication: Vianova Engagement Findings & Stats
+- [x] Investigate duplicate findings and stats in the Vianova engagement
+- [x] Deduplicate OSINT findings (osint_findings table): 6 → 2
+- [x] Deduplicate domain recon records (domain_recon table): 3 → 1
+- [x] Deduplicate typosquat domains (typosquat_domains table): 600 → 185
+- [x] Deduplicate domain intel scan results if applicable (none found)
+- [x] Verify engagement ops stats reflect deduplicated data
+- [x] Add deduplication guards to createDomainRecon, createTyposquatDomain, createOsintFinding
+- [x] Add deduplication guards to bulkCreateTyposquatDomains, bulkCreateOsintFindings
+- [x] Written vitest tests for dedup guards (8 tests) and reports module (31 tests)

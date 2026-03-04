@@ -477,6 +477,13 @@ import { domainRecon, InsertDomainRecon, typosquatDomains, InsertTyposquatDomain
 
 export async function createDomainRecon(recon: InsertDomainRecon) {
   const db = await getDbRequired();
+  // Dedup guard: check if domain already exists for this engagement
+  if (recon.engagementId && recon.domain) {
+    const existing = await db.select({ id: domainRecon.id }).from(domainRecon)
+      .where(and(eq(domainRecon.engagementId, recon.engagementId), eq(domainRecon.domain, recon.domain)))
+      .limit(1);
+    if (existing.length > 0) return existing[0].id;
+  }
   const result = await db.insert(domainRecon).values(recon);
   return Number(result[0].insertId);
 }
@@ -506,6 +513,17 @@ export async function getDomainReconById(id: number) {
 
 export async function createTyposquatDomain(domain: InsertTyposquatDomain) {
   const db = await getDbRequired();
+  // Dedup guard: check if typosquat already exists for this engagement
+  if (domain.engagementId && domain.originalDomain && domain.permutedDomain) {
+    const existing = await db.select({ id: typosquatDomains.id }).from(typosquatDomains)
+      .where(and(
+        eq(typosquatDomains.engagementId, domain.engagementId),
+        eq(typosquatDomains.originalDomain, domain.originalDomain),
+        eq(typosquatDomains.permutedDomain, domain.permutedDomain)
+      ))
+      .limit(1);
+    if (existing.length > 0) return existing[0].id;
+  }
   const result = await db.insert(typosquatDomains).values(domain);
   return Number(result[0].insertId);
 }
@@ -513,6 +531,19 @@ export async function createTyposquatDomain(domain: InsertTyposquatDomain) {
 export async function bulkCreateTyposquatDomains(domains: InsertTyposquatDomain[]) {
   const db = await getDbRequired();
   if (domains.length === 0) return;
+  // Dedup guard: filter out domains that already exist for this engagement
+  const engId = domains[0]?.engagementId;
+  if (engId) {
+    const existing = await db.select({
+      originalDomain: typosquatDomains.originalDomain,
+      permutedDomain: typosquatDomains.permutedDomain,
+    }).from(typosquatDomains).where(eq(typosquatDomains.engagementId, engId));
+    const existingSet = new Set(existing.map(e => `${e.originalDomain}||${e.permutedDomain}`));
+    const newDomains = domains.filter(d => !existingSet.has(`${d.originalDomain}||${d.permutedDomain}`));
+    if (newDomains.length === 0) return;
+    await db.insert(typosquatDomains).values(newDomains);
+    return;
+  }
   await db.insert(typosquatDomains).values(domains);
 }
 
@@ -542,6 +573,17 @@ export async function getTyposquatsByEngagement(engagementId: number) {
 
 export async function createOsintFinding(finding: InsertOsintFinding) {
   const db = await getDbRequired();
+  // Dedup guard: check if finding already exists for this engagement
+  if (finding.engagementId && finding.category && finding.title) {
+    const existing = await db.select({ id: osintFindings.id }).from(osintFindings)
+      .where(and(
+        eq(osintFindings.engagementId, finding.engagementId),
+        eq(osintFindings.category, finding.category),
+        eq(osintFindings.title, finding.title)
+      ))
+      .limit(1);
+    if (existing.length > 0) return existing[0].id;
+  }
   const result = await db.insert(osintFindings).values(finding);
   return Number(result[0].insertId);
 }
@@ -549,6 +591,19 @@ export async function createOsintFinding(finding: InsertOsintFinding) {
 export async function bulkCreateOsintFindings(findings: InsertOsintFinding[]) {
   const db = await getDbRequired();
   if (findings.length === 0) return;
+  // Dedup guard: filter out findings that already exist for this engagement
+  const engId = findings[0]?.engagementId;
+  if (engId) {
+    const existing = await db.select({
+      category: osintFindings.category,
+      title: osintFindings.title,
+    }).from(osintFindings).where(eq(osintFindings.engagementId, engId));
+    const existingSet = new Set(existing.map(e => `${e.category}||${e.title}`));
+    const newFindings = findings.filter(f => !existingSet.has(`${f.category}||${f.title}`));
+    if (newFindings.length === 0) return;
+    await db.insert(osintFindings).values(newFindings);
+    return;
+  }
   await db.insert(osintFindings).values(findings);
 }
 
@@ -671,6 +726,11 @@ export async function getReportById(id: number) {
 export async function updateReport(id: number, updates: Partial<InsertEngagementReport>) {
   const db = await getDbRequired();
   await db.update(engagementReports).set(updates).where(eq(engagementReports.id, id));
+}
+
+export async function deleteReport(id: number) {
+  const db = await getDbRequired();
+  await db.delete(engagementReports).where(eq(engagementReports.id, id));
 }
 
 export async function getAllReports() {
