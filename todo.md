@@ -7237,3 +7237,8 @@
 - [x] Add dedup guards to scan results — insertScanResult upserts on engagementId+tool+target
 - [x] Write vitest tests for deduplication (19 tests, all passing)
 - [x] Verify re-running scans does not create duplicates (all 8 insertion paths now have guards)
+
+## Fix: Vianova Engagement Still Has Old Data
+- [x] Investigate all tables with Vianova engagement data (13 tables checked, found 174 scan_results rows remaining)
+- [x] Delete all scan results, findings, stats, reports, and related data (174 rows deleted from scan_results)
+- [x] Verify engagement is fully reset to start state (all 13 verification checks passed with 0 rows)
