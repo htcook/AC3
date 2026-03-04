@@ -315,6 +315,24 @@ export default function DomainIntelResults() {
     }
   }, [engagementPoll.data, engagementRunning]);
 
+  // Detect refresh-in-progress from scan status (handles race condition where
+  // getScan refetches before the mutation onSuccess sets refreshing=true)
+  // NOTE: These computations must be above the early returns so the useEffect below
+  // always runs on every render (React hooks rule: same number of hooks every render)
+  const _pipeline = data?.scan?.pipelineOutput as any;
+  const serverRefreshing = !!(_pipeline?.refreshing === true && (
+    data?.scan?.status === 'discovering' || data?.scan?.status === 'passive_recon' ||
+    data?.scan?.status === 'analyzing' || data?.scan?.status === 'scoring' || data?.scan?.status === 'recommending'
+  ));
+  const isRefreshInProgress = refreshing || serverRefreshing;
+
+  // Sync local refreshing state with server state
+  useEffect(() => {
+    if (serverRefreshing && !refreshing) {
+      setRefreshing(true);
+    }
+  }, [serverRefreshing]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -338,21 +356,6 @@ export default function DomainIntelResults() {
   const { scan, assets } = data;
   const pipeline = scan.pipelineOutput as any;
   const campaigns = (scan.campaignRecommendations || []) as any[];
-
-  // Detect refresh-in-progress from scan status (handles race condition where
-  // getScan refetches before the mutation onSuccess sets refreshing=true)
-  const serverRefreshing = pipeline?.refreshing === true && (
-    scan.status === 'discovering' || scan.status === 'passive_recon' ||
-    scan.status === 'analyzing' || scan.status === 'scoring' || scan.status === 'recommending'
-  );
-  const isRefreshInProgress = refreshing || serverRefreshing;
-
-  // Sync local refreshing state with server state
-  useEffect(() => {
-    if (serverRefreshing && !refreshing) {
-      setRefreshing(true);
-    }
-  }, [serverRefreshing]);
   const threatActorMatches = pipeline?.threatActorMatches as any;
   const llmThreatAnalysis = pipeline?.llmThreatActorAnalysis as any;
   const breachData = pipeline?.breachData as any;
@@ -2457,11 +2460,13 @@ export default function DomainIntelResults() {
                       const confirmedOnlyFindings = findings.filter((f: any) => f.corroborationTier === 'confirmed');
                       const probableOnlyFindings = findings.filter((f: any) => f.corroborationTier === 'probable');
                       const potentialOnlyFindings = findings.filter((f: any) => !f.corroborationTier || f.corroborationTier === 'potential');
+                      const informationalFindings = findings.filter((f: any) => f.corroborationTier === 'informational');
                       const renderFinding = (f: any, i: number) => {
                         const tierColor = f.corroborationTier === "confirmed" ? "text-emerald-400 bg-emerald-500/20 border-emerald-500/40"
                           : f.corroborationTier === "probable" ? "text-yellow-400 bg-yellow-500/20 border-yellow-500/40"
+                          : f.corroborationTier === "informational" ? "text-slate-400 bg-slate-500/20 border-slate-500/40"
                           : "text-purple-400 bg-purple-500/20 border-purple-500/40";
-                        const tierLabel = f.corroborationTier === "confirmed" ? "CONFIRMED" : f.corroborationTier === "probable" ? "PROBABLE" : "POTENTIAL";
+                        const tierLabel = f.corroborationTier === "confirmed" ? "CONFIRMED" : f.corroborationTier === "probable" ? "PROBABLE" : f.corroborationTier === "informational" ? "INFORMATIONAL" : "POTENTIAL";
                         return (
                           <div key={i} className={`p-2 rounded border ${f.kevListed ? "bg-red-500/5 border-red-500/30" : f.corroborationTier === "potential" ? "bg-muted/20 border-purple-500/20 opacity-75" : "bg-muted/30 border-border"}`}>
                             <div className="flex items-start justify-between gap-2">
@@ -2494,8 +2499,8 @@ export default function DomainIntelResults() {
                                 {f.kevListed && f.versionMatchConfirmed && <Badge className="text-[10px] bg-emerald-600/30 text-emerald-300 border-emerald-500/50">CONFIRMED</Badge>}
                                 {f.kevListed && !f.versionMatchConfirmed && <Badge className="text-[10px] bg-amber-600/30 text-amber-300 border-amber-500/50">POTENTIAL</Badge>}
                                 {f.exploitAvailable && !f.kevListed && <Badge className="text-[10px] bg-orange-600/30 text-orange-300 border-orange-500/50">Exploit</Badge>}
-                                {f.corroborationTier === 'potential' ? (
-                                  <Badge variant="outline" className="text-[10px] text-muted-foreground/60 border-muted-foreground/30">NOT RATED</Badge>
+                                {f.corroborationTier === 'potential' || f.corroborationTier === 'informational' ? (
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground/60 border-muted-foreground/30">{f.corroborationTier === 'informational' ? 'INFORMATIONAL' : 'NOT RATED'}</Badge>
                                 ) : (
                                   <>
                                     <Badge variant="outline" className="text-[10px]">Sev: {f.severity}/10{f.corroborationTier === "probable" ? " (cap)" : ""}</Badge>
@@ -4474,7 +4479,7 @@ export default function DomainIntelResults() {
               ((a.postureFindings || []) as any[]).map((f: any) => ({ ...f, assetHostname: f.assetHostname || a.asset?.hostname || a.hostname, assetRisk: a.hybridRiskScore }))
             ).sort((a: any, b: any) => {
               // Sort: Confirmed first, then probable, then potential; within each tier by severity
-              const tierOrder: Record<string, number> = { confirmed: 0, probable: 1, potential: 2 };
+              const tierOrder: Record<string, number> = { confirmed: 0, probable: 1, potential: 2, informational: 3 };
               const aTier = tierOrder[a.corroborationTier || "potential"] ?? 2;
               const bTier = tierOrder[b.corroborationTier || "potential"] ?? 2;
               if (aTier !== bTier) return aTier - bTier;
@@ -4499,17 +4504,19 @@ export default function DomainIntelResults() {
               confirmed: { label: "CONFIRMED", icon: "✅", color: "text-emerald-400 bg-emerald-500/20 border-emerald-500/40", desc: "Version detected and matched to CVE affected range" },
               probable: { label: "PROBABLE", icon: "⚠️", color: "text-yellow-400 bg-yellow-500/20 border-yellow-500/40", desc: "Product detected but version unconfirmed — CVE exists for this product family" },
               potential: { label: "POTENTIAL", icon: "❓", color: "text-purple-400 bg-purple-500/20 border-purple-500/40", desc: "LLM-inferred risk — no CVE evidence, advisory only" },
+              informational: { label: "INFORMATIONAL", icon: "ℹ️", color: "text-slate-400 bg-slate-500/20 border-slate-500/40", desc: "Out of scope or downgraded — informational only" },
             };
 
             // Summary counts by tier
             const confirmed = allFindings.filter((f: any) => f.corroborationTier === "confirmed");
             const probable = allFindings.filter((f: any) => f.corroborationTier === "probable");
             const potential = allFindings.filter((f: any) => !f.corroborationTier || f.corroborationTier === "potential");
+            const informational = allFindings.filter((f: any) => f.corroborationTier === "informational");
 
             return (
               <>
                 {/* Corroboration Summary */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="grid grid-cols-4 gap-3 mb-4">
                   <Card className="border-emerald-500/30">
                     <CardContent className="p-3 text-center">
                       <p className="text-2xl font-bold text-emerald-400">{confirmed.length}</p>
@@ -4529,6 +4536,13 @@ export default function DomainIntelResults() {
                       <p className="text-2xl font-bold text-purple-400">{potential.length}</p>
                       <p className="text-[10px] text-purple-400/80 font-semibold">POTENTIAL</p>
                       <p className="text-[9px] text-muted-foreground mt-0.5">LLM-inferred, advisory only</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-slate-500/30">
+                    <CardContent className="p-3 text-center">
+                      <p className="text-2xl font-bold text-slate-400">{informational.length}</p>
+                      <p className="text-[10px] text-slate-400/80 font-semibold">INFORMATIONAL</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Out of scope / downgraded</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -4696,6 +4710,8 @@ export default function DomainIntelResults() {
                                       ? "DNS Verification + HTTP Banner Analysis → Vulnerability Feed Match (version-confirmed CVE)"
                                       : f.corroborationTier === "probable"
                                       ? "DNS Verification + Product Detection → Vulnerability Feed Match (product-family, version unconfirmed)"
+                                      : f.corroborationTier === "informational"
+                                      ? "Technology fingerprint only — downgraded to informational (out of scope or not exploitable)"
                                       : "LLM Passive Reconnaissance → Risk Inference (no CVE evidence)"}
                                   </span>
                                 </div>
@@ -4741,6 +4757,8 @@ export default function DomainIntelResults() {
                                       ? "Low — version was detected and matched to CVE affected range. Server may have been patched without changing version string."
                                       : f.corroborationTier === "probable"
                                       ? "Medium — product was detected but version is unconfirmed. The running version may not be in the CVE's affected range."
+                                      : f.corroborationTier === "informational"
+                                      ? "N/A — this finding has been downgraded to informational. No exploitation expected."
                                       : "High — this risk was inferred by LLM analysis without specific CVE evidence. Treat as advisory only."}
                                   </span>
                                 </div>
@@ -5000,6 +5018,63 @@ export default function DomainIntelResults() {
                                   </Button>
                                 </div>
                               )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Informational — downgraded / out-of-scope findings */}
+                {informational.length > 0 && (
+                  <Collapsible className="mt-4">
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors cursor-pointer group">
+                      <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                      <span className="underline decoration-dotted underline-offset-4">Informational ({informational.length})</span>
+                      <span className="text-[10px] text-muted-foreground no-underline ml-1">Downgraded or out-of-scope — informational only</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-3 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm">{tierLabels.informational.icon}</span>
+                        <Badge className={`text-[10px] ${tierLabels.informational.color}`}>{tierLabels.informational.label}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{tierLabels.informational.desc}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">({informational.length} finding{informational.length !== 1 ? "s" : ""})</span>
+                      </div>
+                      {informational.map((f: any, i: number) => {
+                        const info = tierLabels.informational;
+                        return (
+                          <Card key={`informational-${i}`} className="border-slate-500/20 opacity-60">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <Badge className={`text-[9px] px-1.5 py-0 ${info.color}`}>{info.label}</Badge>
+                                    <p className="font-semibold text-sm text-muted-foreground">{f.title}</p>
+                                  </div>
+                                  {f.analystNote && (
+                                    <div className="mt-1 p-2 rounded bg-slate-500/10 border border-slate-500/20">
+                                      <p className="text-[10px] text-slate-400 italic">
+                                        <span className="font-semibold not-italic">Analyst Note:</span> {f.analystNote}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {f.evidenceDetail && (
+                                    <p className="text-[10px] text-muted-foreground/70 mt-1 italic">{f.evidenceDetail}</p>
+                                  )}
+                                </div>
+                                <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
+                                  <Badge variant="outline" className="text-[10px] text-slate-400/60 border-slate-500/30">INFORMATIONAL</Badge>
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground/50 border-muted-foreground/20">Sev: {f.severity || 1}/10</Badge>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px]">
+                                <div className="flex items-center gap-1">
+                                  <Server className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-muted-foreground">Asset:</span>
+                                  <span className="font-mono text-foreground bg-muted/50 px-1 rounded">{f.assetHostname || f.assetRef || 'N/A'}</span>
+                                </div>
+                              </div>
                             </CardContent>
                           </Card>
                         );
@@ -5778,6 +5853,7 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
   const confirmedFindings = allFindings.filter((f: any) => f.corroborationTier === 'confirmed');
   const probableFindings = allFindings.filter((f: any) => f.corroborationTier === 'probable');
   const potentialFindings = allFindings.filter((f: any) => !f.corroborationTier || f.corroborationTier === 'potential');
+  const informationalFindings = allFindings.filter((f: any) => f.corroborationTier === 'informational');
   const kevFindings = allFindings.filter((f: any) => f.kevListed);
 
   const METHODS = [
@@ -6162,11 +6238,12 @@ function ScanMethodsTab({ assets, scan }: { assets: any[]; scan: any }) {
           Every finding is assigned a corroboration tier that indicates how much evidence supports it.
           Severity scores are capped based on the tier to prevent inflated risk from unverified findings.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {[
             { tier: "CONFIRMED", count: confirmedFindings.length, color: "text-emerald-400 bg-emerald-500/20 border-emerald-500/40", desc: "Technology version detected AND matched to CVE affected range. Severity uncapped.", verify: "Check CVE affected version range against detected version." },
             { tier: "PROBABLE", count: probableFindings.length, color: "text-yellow-400 bg-yellow-500/20 border-yellow-500/40", desc: "Product detected but version unknown. CVE exists for product family. Severity capped at 6/10.", verify: "Confirm actual version to determine if it falls within CVE range." },
             { tier: "POTENTIAL", count: potentialFindings.length, color: "text-purple-400 bg-purple-500/20 border-purple-500/40", desc: "LLM-inferred risk with no CVE backing. Severity capped at 4/10. Advisory only.", verify: "Perform manual assessment or active scanning." },
+            { tier: "INFORMATIONAL", count: informationalFindings.length, color: "text-slate-400 bg-slate-500/20 border-slate-500/40", desc: "Downgraded or out-of-scope findings. No exploitation expected.", verify: "Review analyst notes for context." },
           ].map(t => (
             <Card key={t.tier} className={`border ${t.color.split(' ').filter(c => c.startsWith('border-')).join(' ')}`}>
               <CardContent className="p-3 space-y-2">

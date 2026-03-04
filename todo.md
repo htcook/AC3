@@ -7289,3 +7289,17 @@
 - [x] Investigate why CDN-hosted PDF downloads as blank (content-type was application/octet-stream instead of application/pdf)
 - [x] Re-uploaded via S3 storagePut with content-type application/pdf
 - [x] Verified PDF opens correctly in browser PDF viewer (30 pages, all content visible)
+
+## Update Vianova Engagement Findings
+- [x] Downgrade AWS S3 technology detection finding to Informational (risk 1/10)
+- [x] Downgrade CloudFront technology detection finding to Informational (risk 1/10)
+- [x] Strip out-of-scope PoC steps from both findings (S3 API calls, bucket enumeration, Cobalt Qube)
+- [x] Create separate low-risk finding for DEBUG HTTP verb test (severity 2, asset 1710101)
+- [x] Downgrade 76 AWS-matched findings across 7 assets to informational
+- [x] Verify changes in platform UI — all 4 scan pages load correctly
+
+## Fix Domain Intel Results Page Crash (Hooks Bug)
+- [x] Diagnose "Rendered more hooks than during the previous render" error on all domain intel results pages
+- [x] Root cause: useEffect on line 351 was after early returns (isLoading/error) — violated React hooks rules
+- [x] Fix: moved serverRefreshing computation and useEffect above early returns
+- [x] Verified all scan pages load correctly (vianova.ai, api.dev.vianova.ai, dashboard-dev.vianovahealth.com, 23.20.98.48)
