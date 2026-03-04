@@ -940,10 +940,17 @@ export const darkwebIntelRouter = router({
       return { matches, source: "local_database", fetchedAt: new Date().toISOString() };
     }),
 
-  /** Sync darkweb feeds — IABs + IO campaigns. */
+  /** Sync darkweb feeds — IABs + IO campaigns + Daily Dark Web. */
   syncDarkwebFeeds: protectedProcedure.mutation(async () => {
     const { syncAllDarkwebFeeds } = await import("../lib/darkweb-feeds");
     const result = await syncAllDarkwebFeeds();
+    return result;
+  }),
+
+  /** Sync Daily Dark Web feed only — threat actors, IOCs, events. */
+  syncDailyDarkWeb: protectedProcedure.mutation(async () => {
+    const { syncDailyDarkWebFeed } = await import("../lib/dailydarkweb-feed");
+    const result = await syncDailyDarkWebFeed();
     return result;
   }),
 
@@ -992,6 +999,7 @@ export const darkwebIntelRouter = router({
         { feed: "AlienVault OTX, OpenPhish, Tor Exit Nodes", interval: "Every 12 hours", nextApprox: "03:00 / 15:00 UTC" },
         { feed: "Blocklist.de, Spamhaus DROP, HIBP", interval: "Daily", nextApprox: "04:00 UTC" },
         { feed: "IAB + Influence Ops", interval: "Daily", nextApprox: "08:00 UTC" },
+        { feed: "Daily Dark Web (threat actors, IOCs, events)", interval: "Daily", nextApprox: "08:30 UTC" },
         { feed: "LLM Enrichment Batch", interval: "Daily", nextApprox: "09:00 UTC" },
       ],
     };

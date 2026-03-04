@@ -105,8 +105,10 @@ export default function DarkwebIntel() {
   const { data: iosCampaigns, isLoading: iosLoading, refetch: refetchIOs } = trpc.darkwebIntel.infoOpsCampaigns.useQuery({});
   const syncDarkwebFeeds = trpc.darkwebIntel.syncDarkwebFeeds.useMutation({
     onSuccess: (result) => {
+      const ddw = result.dailyDarkWeb;
+      const ddwMsg = ddw ? ` DDW: ${ddw.fulcrumsec.iocs} IOCs, ${ddw.fulcrumsec.events + ddw.actors.events} events, ${ddw.actors.actors} new actors.` : "";
       toast.success("Darkweb Feeds Synced", {
-        description: `IABs: ${result.accessBrokers.inserted} new / ${result.accessBrokers.updated} updated (${result.accessBrokers.total} total). IO Campaigns: ${result.infoOps.inserted} new / ${result.infoOps.updated} updated (${result.infoOps.total} total).`,
+        description: `IABs: ${result.accessBrokers.inserted} new / ${result.accessBrokers.updated} updated (${result.accessBrokers.total} total). IO Campaigns: ${result.infoOps.inserted} new / ${result.infoOps.updated} updated (${result.infoOps.total} total).${ddwMsg}`,
       });
       refetchIABs();
       refetchIOs();
@@ -167,7 +169,7 @@ export default function DarkwebIntel() {
               )}
             </div>
             <p className="text-muted-foreground text-sm">
-              Live darkweb intelligence from local threat database, event feed, MITRE ATT&CK coverage, and IOC corroboration
+              Live darkweb intelligence from local threat database, Daily Dark Web, event feed, MITRE ATT&CK coverage, and IOC corroboration
             </p>
           </div>
           <div className="flex gap-2">

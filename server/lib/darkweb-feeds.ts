@@ -843,13 +843,22 @@ export async function syncInfoOpsCampaigns(): Promise<{ inserted: number; update
 }
 
 /**
- * Run all darkweb feed syncs (IABs + IO campaigns).
+ * Run all darkweb feed syncs (IABs + IO campaigns + Daily Dark Web).
  */
 export async function syncAllDarkwebFeeds(): Promise<{
   accessBrokers: { inserted: number; updated: number; total: number };
   infoOps: { inserted: number; updated: number; total: number };
+  dailyDarkWeb?: { fulcrumsec: { actor: boolean; iocs: number; events: number }; actors: { actors: number; events: number } };
 }> {
   const accessBrokers = await syncAccessBrokers();
   const infoOps = await syncInfoOpsCampaigns();
-  return { accessBrokers, infoOps };
+  let dailyDarkWeb;
+  try {
+    const { syncDailyDarkWebFeed } = await import("./dailydarkweb-feed");
+    const result = await syncDailyDarkWebFeed();
+    dailyDarkWeb = { fulcrumsec: result.fulcrumsec, actors: result.actors };
+  } catch (err) {
+    console.error("[DarkwebFeeds] Daily Dark Web sync failed:", err);
+  }
+  return { accessBrokers, infoOps, dailyDarkWeb };
 }
