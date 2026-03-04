@@ -7257,3 +7257,16 @@
 - [x] Update FedRAMPKSIMap component: 13 themes, 75 KSIs (34 direct, 32 supporting, 9 planned = 88% coverage)
 - [x] Update homepage language: What's New, About, architecture, pillar cards, footer all updated to 75 KSIs / 13 themes
 - [x] Verify homepage changes compile and render correctly (HMR applied, 12 vitest tests passing)
+
+## FedRAMP 20x Readiness Guide & Homepage Explainer
+- [x] Write comprehensive FedRAMP 20x Readiness Guide (downloadable PDF)
+- [x] Clearly explain Ace C3's role (validation/evidence tool, not compliance certifier)
+- [x] Include SaaS vs PaaS coverage breakdowns with per-theme analysis
+- [x] Include full KSI-to-capability mapping tables (75 KSIs across 13 themes)
+- [x] Convert guide to PDF (FedRAMP_20x_Readiness_Guide_AceC3.pdf)
+- [x] Update homepage with FedRAMP 20x / KSI explainer section
+- [x] Added "WHAT IS FEDRAMP 20x?" section with key changes (outcome-based, continuous, machine-readable, faster)
+- [x] Added "WHAT ARE KEY SECURITY INDICATORS?" section with 13-theme quick reference grid
+- [x] Added "ACE C3'S ROLE" section with clear "what it does" vs "what it is not" panels
+- [x] Updated nav link to point to the new explainer section
+- [x] Verify homepage compiles and renders correctly (HMR applied, no errors)
