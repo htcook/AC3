@@ -213,30 +213,32 @@ export async function runPassiveRecon(
           const result = await connector.collect(domain, connectorConfigs.get(serviceName));
 
           // Track success/failure based on result errors
-          const hasAuthError = result.errors.some(e => e.includes("401") || e.includes("Unauthorized") || e.includes("invalid") || e.includes("not configured"));
+          const hasAuthError = result.errors.some(e => e.includes("401") || e.includes("Unauthorized") || e.includes("invalid") || e.includes("not configured") || e.includes("skipping"));
           const hasRateLimit = result.rateLimited;
+          const connDuration = Date.now() - connStart;
 
           if (hasAuthError) {
-            // Auth failures should open the circuit to avoid wasting quota
+            // Auth/config failures — report as skipped, open circuit to avoid wasting quota
             const classified = classifyError(new Error(result.errors[0]), serviceName);
             recordFailure(serviceName, classified, cbConfig);
             trackCall(serviceName, false);
+            await onConnectorProgress?.({ connector: serviceName, status: 'skipped', error: result.errors[0], durationMs: connDuration });
           } else if (hasRateLimit) {
-            // Rate limits are transient — record failure but don't count as hard failure
+            // Rate limits are transient — report as failed with rate limit info
             trackCall(serviceName, false);
+            await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: 'Rate limited', observations: result.observations.length, durationMs: connDuration });
           } else if (result.errors.length > 0 && result.observations.length === 0) {
-            // Complete failure with no data
+            // Complete failure with no data — report as failed
             const classified = classifyError(new Error(result.errors[0]), serviceName);
             recordFailure(serviceName, classified, cbConfig);
             trackCall(serviceName, false);
+            await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: result.errors[0], observations: 0, durationMs: connDuration });
           } else {
             // Success (even partial — some errors but also some observations)
             recordSuccess(serviceName);
             trackCall(serviceName, true);
-          }
-
-          const connDuration = Date.now() - connStart;
-          await onConnectorProgress?.({ connector: serviceName, status: 'completed', observations: result.observations.length, durationMs: connDuration });
+            await onConnectorProgress?.({ connector: serviceName, status: 'completed', observations: result.observations.length, durationMs: connDuration });
+          };
           return result;
         } catch (err: any) {
           const classified = classifyError(err, serviceName);

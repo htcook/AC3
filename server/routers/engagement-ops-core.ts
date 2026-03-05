@@ -392,14 +392,37 @@ export const engagementOpsRouter = router({
                       skipEngagement: false,
                       scopedAssets: allTargets,
                       onConnectorProgress: async (event) => {
-                        const statusIcon = event.status === 'started' ? '\u25b6' : event.status === 'completed' ? '\u2705' : event.status === 'failed' ? '\u274c' : '\u23ed';
-                        const detail = event.status === 'completed'
-                          ? `${event.observations || 0} observations in ${((event.durationMs || 0) / 1000).toFixed(1)}s`
-                          : event.status === 'failed'
-                          ? `Error: ${event.error || 'unknown'}`
-                          : event.status === 'skipped'
-                          ? `Skipped: ${event.error || 'circuit breaker'}`
-                          : 'Querying...';
+                        // Distinguish between: success with data, success but empty, skipped (no key), failed, circuit breaker
+                        let statusIcon: string;
+                        let detail: string;
+                        if (event.status === 'started') {
+                          statusIcon = '\u25b6';
+                          detail = 'Querying...';
+                        } else if (event.status === 'completed') {
+                          const obs = event.observations || 0;
+                          const dur = ((event.durationMs || 0) / 1000).toFixed(1);
+                          if (obs > 0) {
+                            statusIcon = '\u2705';
+                            detail = `${obs} observations in ${dur}s`;
+                          } else if ((event.durationMs || 0) < 50) {
+                            // Completed in <50ms with 0 observations = likely skipped (no API key configured)
+                            statusIcon = '\u23ed';
+                            detail = `No API key configured — skipped (${dur}s)`;
+                          } else {
+                            // Real API call returned empty results
+                            statusIcon = '\u2139\ufe0f';
+                            detail = `0 observations — no records found for this domain (${dur}s)`;
+                          }
+                        } else if (event.status === 'failed') {
+                          statusIcon = '\u274c';
+                          detail = `Error: ${event.error || 'unknown'}`;
+                        } else if (event.status === 'skipped') {
+                          statusIcon = '\u23ed';
+                          detail = `Skipped: ${event.error || 'circuit breaker'}`;
+                        } else {
+                          statusIcon = '\u2753';
+                          detail = `Unknown status: ${event.status}`;
+                        }
                         state!.currentAction = `${domain}: ${statusIcon} ${event.connector} ${event.status}`;
                         const connLog = {
                           id: `log-${Date.now()}-conn-${Math.random().toString(36).slice(2,6)}`,

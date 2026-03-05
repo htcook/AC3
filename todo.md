@@ -7608,4 +7608,10 @@
 - [x] Ensure LLM feedback loop receives tool result output previews for richer context
 - [x] Enrich vuln analysis agents with tool output context per finding
 - [x] Write 22 vitest tests for dedup, retry, summary, pool, and LLM enrichment
-- [ ] Restart Vianova engagement from the beginning for re-testing
+- [x] Restart Vianova engagement from the beginning for re-testing (cleared ops snapshot, scan results, audit log, reports; restarted server to clear in-memory state)
+- [x] Investigate binaryedge, securitytrails, dehashed, urlscan completing in 0s with 0 observations during passive recon
+  - BinaryEdge: BINARYEDGE_API_KEY not set — connector correctly skips but was reporting ✅ instead of ⏭
+  - SecurityTrails/DeHashed/URLScan: API keys set, APIs responding, but domain has no records (legitimate empty results)
+  - Fixed: connector progress now reports 'skipped' for auth/config errors instead of 'completed'
+  - Fixed: UI log now distinguishes ✅ (data found), ℹ️ (no records), ⏭ (skipped/no key), ❌ (error)
+  - Fixed: rate-limited connectors now report 'failed' instead of 'completed'
