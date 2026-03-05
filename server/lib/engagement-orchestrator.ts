@@ -3297,6 +3297,85 @@ export async function executeEngagement(
         await phaseCheckpoint('vuln_detection');
         if (!state.isRunning) return;
 
+        // Phase 3.4: Coalition ESS CVE Enrichment
+        // Enrich all CVE findings with CESS scores, EPSS, exploit availability, CISA KEV flags
+        if (state.stats.vulnsFound > 0) {
+          try {
+            const { batchEnrichCves, summarizeExploitIntelligence } = await import('./coalition-ess');
+            const allCves = state.assets.flatMap(a => a.vulns.map(v => v.cve).filter((c): c is string => !!c && /^CVE-\d{4}-\d{4,}$/.test(c)));
+            const uniqueCves = [...new Set(allCves)];
+            if (uniqueCves.length > 0) {
+              state.currentAction = `Enriching ${uniqueCves.length} CVEs with Coalition ESS intelligence...`;
+              addLog(state, {
+                phase: 'vuln_detection', type: 'info',
+                title: '\uD83D\uDD0D Coalition ESS CVE Enrichment',
+                detail: `Querying Coalition ESS API for ${uniqueCves.length} unique CVEs — CESS scores, EPSS, exploit availability, CISA KEV flags`,
+              });
+              broadcastOpsUpdate(state.engagementId, { type: 'action', action: 'ess_enrichment' });
+
+              const essResult = await batchEnrichCves(uniqueCves);
+              const intel = summarizeExploitIntelligence(essResult.enrichments);
+
+              // Attach ESS enrichment to each vuln on each asset
+              for (const asset of state.assets) {
+                for (const vuln of asset.vulns) {
+                  if (vuln.cve && essResult.enrichments.has(vuln.cve)) {
+                    const ess = essResult.enrichments.get(vuln.cve)!;
+                    (vuln as any).essEnrichment = {
+                      cessScore: ess.cess.probabilityExploitUsage,
+                      cvssBase: ess.cvss.baseScore,
+                      cvssVector: ess.cvss.vectorString,
+                      epssScore: ess.epss.score,
+                      exploitdbCount: ess.exploits.exploitdb.numExploits,
+                      metasploitCount: ess.exploits.metasploit.numExploits,
+                      cisaKev: ess.visibility.cisaKev,
+                      githubPocs: ess.social.github.numReposWithPocKeyword,
+                      riskTier: ess.riskTier,
+                      riskSummary: ess.riskSummary,
+                    };
+                    // Upgrade severity if ESS indicates higher risk
+                    if (ess.riskTier === 'critical' && vuln.severity !== 'critical') {
+                      vuln.severity = 'critical';
+                    }
+                  }
+                }
+              }
+
+              // Store ESS summary in state for UI and LLM context
+              (state as any).essIntelligence = {
+                totalCvesEnriched: essResult.enrichments.size,
+                cisaKevCount: intel.cisaKevCount,
+                metasploitCount: intel.metasploitCount,
+                exploitdbCount: intel.exploitdbCount,
+                highCessCount: intel.highCessCount,
+                criticalRiskCount: intel.criticalRiskCount,
+                highRiskCount: intel.highRiskCount,
+                topThreats: intel.topThreats.slice(0, 5),
+                cacheHits: essResult.cacheHits,
+                apiCalls: essResult.apiCalls,
+                durationMs: essResult.durationMs,
+                errors: essResult.errors.length,
+              };
+
+              const kevMsg = intel.cisaKevCount > 0 ? ` \u26A0\uFE0F ${intel.cisaKevCount} CISA KEV listed!` : '';
+              const msfMsg = intel.metasploitCount > 0 ? ` ${intel.metasploitCount} with Metasploit modules.` : '';
+              addLog(state, {
+                phase: 'vuln_detection', type: intel.cisaKevCount > 0 ? 'warning' : 'info',
+                title: '\u2705 ESS Enrichment Complete',
+                detail: `Enriched ${essResult.enrichments.size}/${uniqueCves.length} CVEs in ${(essResult.durationMs / 1000).toFixed(1)}s. ` +
+                  `${intel.criticalRiskCount} critical, ${intel.highRiskCount} high risk.${kevMsg}${msfMsg}`,
+              });
+              broadcastOpsUpdate(state.engagementId, { type: 'phase_complete', phase: 'ess_enrichment' });
+            }
+          } catch (err: any) {
+            addLog(state, {
+              phase: 'vuln_detection', type: 'warning',
+              title: '\u26A0\uFE0F ESS Enrichment Failed',
+              detail: `Coalition ESS enrichment error: ${err.message}. Continuing without enrichment.`,
+            });
+          }
+        }
+
         // Phase 3.5: Specialized Vulnerability Analysis (Shannon-inspired)
         // Run dedicated analysis agents per vulnerability class for deeper insights
         if (state.stats.vulnsFound > 0) {

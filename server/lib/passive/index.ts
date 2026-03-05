@@ -19,6 +19,7 @@ import { securitytrailsConnector } from "./securitytrails";
 import { dehashedConnector } from "./dehashed";
 import { shodanInternetDBConnector } from "./shodan-internetdb";
 import { binaryedgeConnector } from "./binaryedge";
+import { coalitionControlConnector } from "./coalition-control";
 import { greynoiseConnector } from "./greynoise";
 import { emailSecurityConnector } from "./email-security";
 import { httpSecurityConnector } from "./http-security";
@@ -55,7 +56,8 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   ripestatConnector,
   securitytrailsConnector,
   dehashedConnector,
-  binaryedgeConnector,        // Independent validation source
+  coalitionControlConnector,   // Coalition Control ASM — replaces BinaryEdge (shut down March 2025)
+  // binaryedgeConnector,     // DEPRECATED: BinaryEdge API shut down March 31, 2025 — replaced by Coalition Control
   greynoiseConnector,         // Threat pressure context
   emailSecurityConnector,     // Email security posture (DMARC/SPF/DKIM)
   httpSecurityConnector,      // HTTP security headers & WAF detection

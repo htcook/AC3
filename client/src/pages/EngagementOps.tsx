@@ -1404,16 +1404,58 @@ export default function EngagementOps() {
                         <div>
                           <h4 className="text-xs font-medium text-muted-foreground mb-1">Vulnerabilities ({(selectedAssetData.vulns || []).length})</h4>
                           <div className="space-y-0.5">
-                            {(selectedAssetData.vulns || []).map((v, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
-                                <Badge variant="outline" className={`text-[9px] ${
-                                  v.severity === "critical" ? "text-red-400 border-red-500/30" :
-                                  v.severity === "high" ? "text-orange-400 border-orange-500/30" :
-                                  v.severity === "medium" ? "text-yellow-400 border-yellow-500/30" :
-                                  "text-blue-400 border-blue-500/30"
-                                }`}>{v.severity}</Badge>
-                                <span className="text-foreground truncate">{v.title}</span>
-                                {v.cve && <span className="text-muted-foreground font-mono">{v.cve}</span>}
+                            {(selectedAssetData.vulns || []).map((v: any, i: number) => (
+                              <div key={i} className="text-xs px-2 py-1.5 bg-muted/10 rounded space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className={`text-[9px] ${
+                                    v.severity === "critical" ? "text-red-400 border-red-500/30" :
+                                    v.severity === "high" ? "text-orange-400 border-orange-500/30" :
+                                    v.severity === "medium" ? "text-yellow-400 border-yellow-500/30" :
+                                    "text-blue-400 border-blue-500/30"
+                                  }`}>{v.severity}</Badge>
+                                  <span className="text-foreground truncate flex-1">{v.title}</span>
+                                  {v.cve && <span className="text-muted-foreground font-mono text-[10px]">{v.cve}</span>}
+                                </div>
+                                {/* ESS Enrichment Badges */}
+                                {v.essEnrichment && (
+                                  <div className="flex items-center gap-1.5 flex-wrap ml-0.5">
+                                    {v.essEnrichment.cisaKev && (
+                                      <Badge variant="outline" className="text-[8px] bg-red-500/20 text-red-300 border-red-500/40 font-bold">CISA KEV</Badge>
+                                    )}
+                                    {v.essEnrichment.metasploitCount > 0 && (
+                                      <Badge variant="outline" className="text-[8px] bg-purple-500/20 text-purple-300 border-purple-500/40">
+                                        MSF:{v.essEnrichment.metasploitCount}
+                                      </Badge>
+                                    )}
+                                    {v.essEnrichment.exploitdbCount > 0 && (
+                                      <Badge variant="outline" className="text-[8px] bg-orange-500/20 text-orange-300 border-orange-500/40">
+                                        EDB:{v.essEnrichment.exploitdbCount}
+                                      </Badge>
+                                    )}
+                                    {v.essEnrichment.githubPocs > 0 && (
+                                      <Badge variant="outline" className="text-[8px] bg-green-500/20 text-green-300 border-green-500/40">
+                                        PoC:{v.essEnrichment.githubPocs}
+                                      </Badge>
+                                    )}
+                                    <span className="text-[9px] text-muted-foreground" title="CESS exploit probability">
+                                      CESS:{(v.essEnrichment.cessScore * 100).toFixed(0)}%
+                                    </span>
+                                    {v.essEnrichment.epssScore > 0 && (
+                                      <span className="text-[9px] text-muted-foreground" title="EPSS score">
+                                        EPSS:{(v.essEnrichment.epssScore * 100).toFixed(1)}%
+                                      </span>
+                                    )}
+                                    {v.essEnrichment.cvssBase > 0 && (
+                                      <span className={`text-[9px] font-mono ${
+                                        v.essEnrichment.cvssBase >= 9 ? 'text-red-400' :
+                                        v.essEnrichment.cvssBase >= 7 ? 'text-orange-400' :
+                                        v.essEnrichment.cvssBase >= 4 ? 'text-yellow-400' : 'text-blue-400'
+                                      }`} title={v.essEnrichment.cvssVector || 'CVSS base score'}>
+                                        CVSS:{v.essEnrichment.cvssBase}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -2107,6 +2149,27 @@ export default function EngagementOps() {
                             </div>
                             <p className="text-xs text-muted-foreground mb-2">Target: {match.asset}</p>
 
+                            {/* ESS Intelligence for this CVE */}
+                            {match.cve && (() => {
+                              // Find ESS enrichment from the asset's vulns
+                              const assetData = (ops?.assets || []).find((a: any) => a.hostname === match.asset);
+                              const vulnData = assetData?.vulns?.find((v: any) => v.cve === match.cve && v.essEnrichment);
+                              if (!vulnData?.essEnrichment) return null;
+                              const ess = vulnData.essEnrichment;
+                              return (
+                                <div className="flex items-center gap-1.5 flex-wrap mb-2 px-2 py-1.5 bg-cyan-500/5 rounded border border-cyan-500/10">
+                                  <span className="text-[9px] font-medium text-cyan-400 mr-1">ESS:</span>
+                                  {ess.cisaKev && <Badge variant="outline" className="text-[8px] bg-red-500/20 text-red-300 border-red-500/40 font-bold">CISA KEV</Badge>}
+                                  <span className="text-[9px] text-muted-foreground">CESS:{(ess.cessScore * 100).toFixed(0)}%</span>
+                                  {ess.epssScore > 0 && <span className="text-[9px] text-muted-foreground">EPSS:{(ess.epssScore * 100).toFixed(1)}%</span>}
+                                  {ess.cvssBase > 0 && <span className={`text-[9px] font-mono ${ess.cvssBase >= 9 ? 'text-red-400' : ess.cvssBase >= 7 ? 'text-orange-400' : 'text-yellow-400'}`}>CVSS:{ess.cvssBase}</span>}
+                                  {ess.metasploitCount > 0 && <Badge variant="outline" className="text-[8px] bg-purple-500/20 text-purple-300 border-purple-500/40">MSF:{ess.metasploitCount}</Badge>}
+                                  {ess.exploitdbCount > 0 && <Badge variant="outline" className="text-[8px] bg-orange-500/20 text-orange-300 border-orange-500/40">EDB:{ess.exploitdbCount}</Badge>}
+                                  {ess.githubPocs > 0 && <Badge variant="outline" className="text-[8px] bg-green-500/20 text-green-300 border-green-500/40">PoC:{ess.githubPocs}</Badge>}
+                                </div>
+                              );
+                            })()}
+
                             {/* Exploitation Bridge Modules (preferred source) */}
                             {match.exploitBridgeModules && match.exploitBridgeModules.length > 0 && (
                               <div className="mb-2">
@@ -2744,6 +2807,18 @@ export default function EngagementOps() {
                   <StatCard icon={<RefreshCw className="h-4 w-4 text-purple-400" />} label="Re-Scans" value={feedbackLoopQ.data?.totalScansExecuted || 0} />
                   {attackChainsQ.data?.summary && (
                     <StatCard icon={<Gauge className="h-4 w-4 text-red-500" />} label="Max Risk" value={`${attackChainsQ.data.summary.highestRisk}/10`} />
+                  )}
+                  {/* ESS Intelligence */}
+                  {(opsStateQ.data as any)?.essIntelligence && (
+                    <>
+                      <StatCard icon={<ShieldAlert className="h-4 w-4 text-cyan-400" />} label="CVEs Enriched" value={(opsStateQ.data as any).essIntelligence.totalCvesEnriched || 0} />
+                      {(opsStateQ.data as any).essIntelligence.cisaKevCount > 0 && (
+                        <StatCard icon={<AlertTriangle className="h-4 w-4 text-red-500" />} label="CISA KEV" value={(opsStateQ.data as any).essIntelligence.cisaKevCount} />
+                      )}
+                      {(opsStateQ.data as any).essIntelligence.metasploitCount > 0 && (
+                        <StatCard icon={<Crosshair className="h-4 w-4 text-purple-400" />} label="Metasploit" value={(opsStateQ.data as any).essIntelligence.metasploitCount} />
+                      )}
+                    </>
                   )}
                 </div>
               </div>

@@ -7615,3 +7615,21 @@
   - Fixed: connector progress now reports 'skipped' for auth/config errors instead of 'completed'
   - Fixed: UI log now distinguishes ✅ (data found), ℹ️ (no records), ⏭ (skipped/no key), ❌ (error)
   - Fixed: rate-limited connectors now report 'failed' instead of 'completed'
+
+## Coalition ESS API Integration (CVE Enrichment)
+- [ ] Build Coalition ESS client module (free API, no auth) with CVE lookup and batch enrichment
+- [ ] Add CESS score, CVSS, EPSS, exploit availability, CISA KEV flags to vulnerability findings
+- [ ] Integrate ESS enrichment into the vulnerability analysis pipeline (post-scan CVE enrichment)
+- [ ] Add ESS enrichment data to the UI (CESS scores, exploit badges, CISA KEV flags)
+- [ ] Write vitest tests for Coalition ESS client
+
+## BinaryEdge Replacement (Coalition Control ASM)
+- [ ] Remove/disable dead BinaryEdge connector (API shut down March 31, 2025)
+- [ ] Build Coalition Control ASM connector as replacement (requires Coalition Control account)
+- [ ] Request Coalition Control credentials (email + password) from user
+- [ ] Wire Coalition Control ASM connector into passive recon pipeline
+
+## Vianova Engagement Scan Investigation
+- [ ] Investigate Vianova engagement scan finding 0 vulns today vs 40+ yesterday
+- [ ] Review latest scan results in DB and compare with previous run
+- [ ] Fix root cause of missing vulnerability findings
