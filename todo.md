@@ -7617,20 +7617,35 @@
   - Fixed: rate-limited connectors now report 'failed' instead of 'completed'
 
 ## Coalition ESS API Integration (CVE Enrichment)
-- [ ] Build Coalition ESS client module (free API, no auth) with CVE lookup and batch enrichment
-- [ ] Add CESS score, CVSS, EPSS, exploit availability, CISA KEV flags to vulnerability findings
-- [ ] Integrate ESS enrichment into the vulnerability analysis pipeline (post-scan CVE enrichment)
-- [ ] Add ESS enrichment data to the UI (CESS scores, exploit badges, CISA KEV flags)
-- [ ] Write vitest tests for Coalition ESS client
+- [x] Build Coalition ESS client module (free API, no auth) with CVE lookup and batch enrichment
+- [x] Add CESS score, CVSS, EPSS, exploit availability, CISA KEV flags to vulnerability findings
+- [x] Integrate ESS enrichment into the vulnerability analysis pipeline (post-scan CVE enrichment)
+- [x] Add ESS enrichment data to the UI (CESS scores, exploit badges, CISA KEV flags)
+- [x] Write vitest tests for Coalition ESS client (40 tests passing)
 
 ## BinaryEdge Replacement (Coalition Control ASM)
-- [ ] Remove/disable dead BinaryEdge connector (API shut down March 31, 2025)
-- [ ] Build Coalition Control ASM connector as replacement (requires Coalition Control account)
-- [ ] Request Coalition Control credentials (email + password) from user
-- [ ] Wire Coalition Control ASM connector into passive recon pipeline
+- [x] Remove/disable dead BinaryEdge connector (API shut down March 31, 2025)
+- [x] Build Coalition Control ASM connector as replacement (requires Coalition Control account)
+- [ ] Request Coalition Control credentials (email + password) from user (deferred)
+- [x] Wire Coalition Control ASM connector into passive recon pipeline
 
 ## Vianova Engagement Scan Investigation
-- [ ] Investigate Vianova engagement scan finding 0 vulns today vs 40+ yesterday
-- [ ] Review latest scan results in DB and compare with previous run
-- [ ] Fix root cause of missing vulnerability findings
-- [ ] Compare domain intelligence discovery scans vs engagement-level passive scans and identify gaps
+- [x] Investigate Vianova engagement scan finding 0 vulns today vs 40+ yesterday
+  - Root cause: SSH key auth failure — code was falling back to old RSA key instead of using the ed25519 key
+  - All 6 scans (nmap + httpx x 3 targets) failed with exit code -1 and empty stdout
+- [x] Review latest scan results in DB — confirmed all had `exit_code: -1`, `raw_stderr: All configured authentication methods failed`
+- [x] Fix root cause: use ssh2.utils.parseKey() to validate OpenSSH ed25519 key instead of blindly falling back to RSA
+- [x] Add ssh-ed25519 to FIPS host key algorithms and curve25519-sha256 to KEX algorithms
+- [x] Fix createRequire workaround for ssh2 CJS utils export in ESM context
+- [x] Verified: SSH connects successfully, nmap runs, exit code 0
+- [x] Compare domain intelligence discovery scans vs engagement-level passive scans and identify gaps
+  - Gap found: STRICT_PASSIVE_CONNECTORS only had 9 connectors, but 23 are genuinely passive
+  - 14 third-party-only connectors were being blocked (virustotal, hibp, whoisxml, leakix, fullhunt, netlas, hunter, social-media, abuseipdb, passivetotal, github_leaks, github_recon, cloud_assets, coalition_control)
+  - Fixed: expanded STRICT_PASSIVE_CONNECTORS from 9 to 23 connectors
+  - Added ACTIVE_CONTACT_CONNECTORS set (http_security, container-discovery, cloud_bucket_recon)
+  - Added email_security and dns_deep to DNS_RESOLUTION_CONNECTORS
+  - Updated standard mode to block ACTIVE_CONTACT connectors
+  - Updated getScanModeDescription for all three modes
+  - Removed dead binaryedge from all sets
+  - Engagement passive scan still hardcoded to strict_passive (23 connectors now vs 9 before)
+  - Domain intel pipeline defaults to standard mode (27 connectors)

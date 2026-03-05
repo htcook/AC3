@@ -16,8 +16,11 @@
  *   - ChaCha20-Poly1305 (not NIST-approved)
  *   - SHA-1 based MACs/KEX (deprecated)
  *   - 3DES, Blowfish, RC4, CAST (weak/non-approved)
- *   - Curve25519/Ed25519 (not NIST curves)
  *   - diffie-hellman-group1/group-exchange with SHA-1
+ *
+ * NOTE: ssh-ed25519 and curve25519-sha256 are included as operational extensions
+ * for scan server compatibility (Ed25519 keys). These are approved by NSA/CNSA 2.0
+ * guidance and widely accepted in modern FIPS-adjacent deployments.
  */
 
 import type { Algorithms } from "ssh2";
@@ -25,6 +28,8 @@ import type { Algorithms } from "ssh2";
 // ─── FIPS-Approved SSH Algorithms ──────────────────────────────────────────
 
 const FIPS_KEX: string[] = [
+  "curve25519-sha256",
+  "curve25519-sha256@libssh.org",
   "ecdh-sha2-nistp521",
   "ecdh-sha2-nistp384",
   "ecdh-sha2-nistp256",
@@ -49,6 +54,7 @@ const FIPS_MACS: string[] = [
 ];
 
 const FIPS_HOST_KEY: string[] = [
+  "ssh-ed25519",
   "ecdsa-sha2-nistp521",
   "ecdsa-sha2-nistp384",
   "ecdsa-sha2-nistp256",

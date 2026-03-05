@@ -16,6 +16,9 @@
  *   5. Optionally parses output (JSON, XML, or text)
  */
 import { Client as SSHClient } from "ssh2";
+import { createRequire } from "module";
+const _require = createRequire(import.meta.url);
+const sshUtils = _require("ssh2").utils;
 import { ENV } from "../_core/env";
 import { matchCredentialsForAsset } from "./oem-default-creds";
 import { FIPS_SSH_ALGORITHMS } from "./fips-ssh";
@@ -113,9 +116,20 @@ async function getScanServerConfig() {
     }
   }
 
-  // Validate the key — if it's in OpenSSH format (not RSA PEM), ssh2 may not parse it correctly
-  // In that case, fall back to downloading the RSA PEM key from S3
-  if (!fixedKey || fixedKey.includes('OPENSSH')) {
+  // Validate the key using ssh2's parseKey — supports RSA PEM, OpenSSH ed25519, etc.
+  // Only fall back to the S3 RSA key if the env key is missing or truly unparseable.
+  if (fixedKey) {
+    const parsed = sshUtils.parseKey(fixedKey);
+    if (parsed instanceof Error) {
+      console.log(`[ScanServer] Env SSH key parse failed (${parsed.message}), trying S3 RSA fallback...`);
+      fixedKey = null; // Clear so we fall through to fallback
+    } else {
+      console.log(`[ScanServer] Using env SSH key (type: ${parsed.type}, comment: ${parsed.comment || 'none'})`);
+    }
+  }
+
+  // Fallback: download the RSA PEM key from S3 if env key was missing or unparseable
+  if (!fixedKey) {
     console.log('[ScanServer] Downloading RSA key from S3 fallback...');
     try {
       const resp = await fetch(SCAN_SERVER_KEY_URL);

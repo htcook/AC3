@@ -18,26 +18,54 @@ import type { ScanMode, PassivePolicyConfig, PassiveConnector } from "./types";
 
 // Connectors that only query third-party databases (never touch target infra)
 const STRICT_PASSIVE_CONNECTORS = new Set([
-  "crtsh",
-  "shodan",
-  "shodan_internetdb",  // Free fast-path — queries pre-scanned database only
-  "censys",
-  "wayback",
-  "urlscan",
-  "securitytrails",
-  "dehashed",
-  "binaryedge",         // Queries pre-scanned database only
+  // Original core connectors (query pre-scanned databases only)
+  "crtsh",               // Certificate Transparency logs
+  "shodan",              // Shodan pre-scanned database
+  "shodan_internetdb",   // Free fast-path — queries pre-scanned database only
+  "censys",              // Censys pre-scanned database
+  "wayback",             // Wayback Machine historical archive
+  "urlscan",             // URLScan.io community scan database
+  "securitytrails",      // SecurityTrails DNS intelligence API
+  "dehashed",            // DeHashed breach database
+  "coalition_control",   // Coalition Control ASM — replaces BinaryEdge (shut down March 2025)
+  // Third-party API connectors (never touch target infrastructure)
+  "virustotal",          // VirusTotal — file/URL/domain reputation database
+  "hibp",                // Have I Been Pwned — breach exposure database
+  "whoisxml",            // WhoisXML API — WHOIS records + subdomain enum (queries WhoisXML, not target WHOIS)
+  "leakix",              // LeakIX — exposed services & data leaks (pre-scanned database)
+  "fullhunt",            // FullHunt — attack surface discovery (pre-scanned database)
+  "netlas",              // Netlas.io — internet-wide host scanning (pre-scanned database)
+  "hunter",              // Hunter.io — email discovery (queries Hunter's database)
+  "social-media",        // Social media — GitHub org/user presence (queries GitHub API)
+  "abuseipdb",           // AbuseIPDB — IP abuse reputation (queries AbuseIPDB database)
+  "passivetotal",        // PassiveTotal — passive DNS, SSL history (queries RiskIQ database)
+  "github_leaks",        // GitHub code leak scanner (queries GitHub search API)
+  "github_recon",        // GitHub org/repo/CI-CD exposure (queries GitHub API)
+  "cloud_assets",        // Cloud storage enumeration (queries cloud provider APIs, not target)
+  // NOTE: binaryedge removed — API shut down March 31, 2025
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)
+// These are allowed in 'standard' mode but blocked in 'strict_passive'
 const DNS_RESOLUTION_CONNECTORS = new Set([
-  "ripestat",    // Resolves domain to IP before querying RIPEstat
-  "greynoise",   // Resolves domain to IP before querying GreyNoise
+  "ripestat",          // Resolves domain to IP before querying RIPEstat
+  "greynoise",         // Resolves domain to IP before querying GreyNoise
+  "email_security",    // DNS resolution for SPF/DKIM/DMARC records
+  "dns_deep",          // Comprehensive DNS record resolution (A/AAAA/MX/NS/TXT/SOA/CAA)
 ]);
 
-// Connectors that query registration databases (touch RDAP/WHOIS servers)
+// Connectors that query registration databases or make direct contact
+// These are allowed in 'standard' mode but blocked in 'strict_passive'
 const REGISTRATION_CONNECTORS = new Set([
-  "rdap",
+  "rdap",              // Queries RDAP/WHOIS servers directly
+]);
+
+// Connectors that make direct HTTP contact with target infrastructure
+// These are only allowed in 'active' mode
+const ACTIVE_CONTACT_CONNECTORS = new Set([
+  "http_security",       // Direct HTTPS to target (security headers, WAF detection)
+  "container-discovery", // Direct HTTP probes to target ports (Docker/K8s/registries)
+  "cloud_bucket_recon",  // Direct HTTP probes to cloud provider bucket URLs
 ]);
 
 /**
@@ -111,14 +139,20 @@ export function filterConnectors(
           blocked.push({ name: connector.name, reason: "Requires DNS resolution (not allowed in strict passive mode)" });
         } else if (REGISTRATION_CONNECTORS.has(connector.name)) {
           blocked.push({ name: connector.name, reason: "Queries registration databases directly (not allowed in strict passive mode)" });
+        } else if (ACTIVE_CONTACT_CONNECTORS.has(connector.name)) {
+          blocked.push({ name: connector.name, reason: "Makes direct HTTP contact with target infrastructure (not allowed in strict passive mode)" });
         } else {
           blocked.push({ name: connector.name, reason: "Not classified as strict passive connector" });
         }
         break;
 
       case "standard":
-        // Standard mode allows all passive connectors
-        allowed.push(connector);
+        // Standard mode allows passive + DNS resolution + registration, but blocks active contact
+        if (ACTIVE_CONTACT_CONNECTORS.has(connector.name)) {
+          blocked.push({ name: connector.name, reason: "Makes direct HTTP contact with target infrastructure (not allowed in standard mode)" });
+        } else {
+          allowed.push(connector);
+        }
         break;
 
       case "active":
@@ -144,54 +178,70 @@ export function getScanModeDescription(scanMode: ScanMode): {
     case "strict_passive":
       return {
         label: "Strict Passive",
-        description: "Only queries third-party databases. Never touches target infrastructure directly. Zero risk of detection.",
+        description: "Only queries third-party databases and pre-scanned indexes. Never touches target infrastructure directly. Zero risk of detection.",
         techniques: [
           "Certificate Transparency log search (crt.sh)",
-          "Shodan pre-scanned database lookup",
+          "Shodan pre-scanned database lookup + InternetDB fast-path CVE/port enrichment",
           "Censys internet-wide scan database query",
           "Wayback Machine historical URL archive search",
           "urlscan.io community scan database search",
           "SecurityTrails DNS intelligence API",
-          "Dehashed breach intelligence & domain mapping",
-          "Shodan InternetDB fast-path CVE/port enrichment",
-          "BinaryEdge internet-wide scan database query",
+          "DeHashed breach intelligence & domain mapping",
+          "Coalition Control ASM (replaces BinaryEdge)",
+          "VirusTotal domain/URL reputation & malware analysis",
+          "Have I Been Pwned breach exposure & credential leaks",
+          "WhoisXML WHOIS records & subdomain enumeration",
+          "LeakIX exposed services & data leaks",
+          "FullHunt attack surface discovery",
+          "Netlas.io internet-wide host scanning & DNS history",
+          "Hunter.io email discovery & org intelligence",
+          "Social media (GitHub org/user presence & code exposure)",
+          "AbuseIPDB IP abuse reputation scoring",
+          "PassiveTotal passive DNS, SSL history, host attributes",
+          "GitHub code leak scanner (secrets, env files, API keys)",
+          "GitHub org/repo/CI-CD exposure recon",
+          "Cloud storage enumeration (S3/Azure/GCP bucket discovery)",
         ],
         restrictions: [
           "No DNS resolution against target nameservers",
           "No direct HTTP/HTTPS connections to target",
           "No RDAP/WHOIS queries for target domain",
           "No banner grabbing or port probing",
+          "No cloud bucket permission probing",
         ],
       };
     case "standard":
       return {
         label: "Standard",
-        description: "Queries third-party databases plus DNS resolution and registration lookups. Minimal footprint on target infrastructure.",
+        description: "All passive techniques plus DNS resolution, registration lookups, and email security checks. Minimal footprint on target infrastructure.",
         techniques: [
-          "All strict passive techniques (including Dehashed, BinaryEdge, Shodan InternetDB)",
-          "DNS A/AAAA/MX/NS/TXT record resolution",
+          "All strict passive techniques (23 connectors)",
+          "DNS A/AAAA/MX/NS/TXT/SOA/CAA record resolution (deep DNS analysis)",
+          "Email security posture (SPF/DKIM/DMARC validation)",
           "RDAP domain registration lookup",
           "RIPEstat ASN and prefix analysis",
-          "Well-known endpoint checks (security.txt, robots.txt)",
           "GreyNoise threat pressure analysis (IP classification & active attack detection)",
         ],
         restrictions: [
+          "No direct HTTP/HTTPS connections to target",
           "No active port scanning",
-          "No banner grabbing beyond well-known endpoints",
-          "No vulnerability probing",
+          "No banner grabbing or service probing",
+          "No cloud bucket permission probing",
         ],
       };
     case "active":
       return {
         label: "Active",
-        description: "Full reconnaissance including direct connections to target infrastructure. Includes banner grabbing and service identification.",
+        description: "Full reconnaissance including direct connections to target infrastructure. Includes banner grabbing, service identification, and cloud bucket probing.",
         techniques: [
-          "All standard techniques",
+          "All standard techniques (27 connectors)",
+          "HTTP security header analysis & WAF detection",
+          "Container infrastructure discovery (Docker/K8s/registries)",
+          "Cloud bucket permission probing (S3/Azure/GCP depth scan)",
           "Direct HTTP/HTTPS banner grabbing",
           "Service version identification",
           "TLS certificate inspection",
           "LLM-powered asset discovery",
-          "GreyNoise full context (tags, CVEs, actor attribution)",
         ],
         restrictions: [
           "No destructive actions",
