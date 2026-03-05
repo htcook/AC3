@@ -134,29 +134,39 @@ export function initCertPinning(): void {
   const calderaUrl = process.env.CALDERA_BASE_URL || "";
   const gophishUrl = process.env.GOPHISH_BASE_URL || "";
 
-  // Parse Caldera URL
+  // ─── Caldera ──────────────────────────────────────────────────────
+  // Caldera currently runs on HTTP (not HTTPS), so TLS cert pinning
+  // is not applicable. When Caldera is upgraded to HTTPS, set
+  // CERT_PIN_CALDERA env var to enable enforce mode.
   if (calderaUrl) {
     try {
       const url = new URL(calderaUrl);
       const hostname = url.hostname;
       const port = parseInt(url.port) || (url.protocol === "https:" ? 443 : 8888);
+      const isHttps = url.protocol === "https:";
       const envPins = process.env.CERT_PIN_CALDERA || "";
 
-      registerPinConfig({
-        service: "Caldera",
-        hostname,
-        port,
-        mode: envPins ? "enforce" : "learn",
-        pins: parsePinEnv(envPins, "Caldera"),
-        backupPins: [],
-        allowSelfSigned: false,
-      });
+      if (isHttps) {
+        registerPinConfig({
+          service: "Caldera",
+          hostname,
+          port,
+          mode: envPins ? "enforce" : "learn",
+          pins: parsePinEnv(envPins, "Caldera"),
+          backupPins: [],
+          allowSelfSigned: false,
+        });
+      } else {
+        console.log(`[CertPin] Caldera is running on HTTP — cert pinning skipped (enable HTTPS to activate)`);
+      }
     } catch (err: any) {
       console.log(`[CertPin] Cannot parse Caldera URL: ${err.message}`);
     }
   }
 
-  // Parse GoPhish URL
+  // ─── GoPhish ──────────────────────────────────────────────────────
+  // GoPhish uses a self-signed TLS certificate. We have captured the
+  // SPKI pin and enforce it to prevent MITM attacks.
   if (gophishUrl) {
     try {
       const url = new URL(gophishUrl);
@@ -164,13 +174,39 @@ export function initCertPinning(): void {
       const port = parseInt(url.port) || (url.protocol === "https:" ? 443 : 3333);
       const envPins = process.env.CERT_PIN_GOPHISH || "";
 
+      // Use captured pins as hardcoded defaults when no env override
+      const CAPTURED_GOPHISH_PRIMARY = "AR9f8u5V/V79+uX66CqJJQXzy3RcHsqJmqB+ZpcKq7A=";
+      const CAPTURED_GOPHISH_BACKUP = "NBSn9zhwtJgPhs7wadWdNUv6/6f41HxuSoPNLZMQ7LQ=";
+
+      const pins: CertPin[] = envPins
+        ? parsePinEnv(envPins, "GoPhish")
+        : [
+            {
+              sha256: CAPTURED_GOPHISH_PRIMARY,
+              label: "GoPhish SPKI pin (captured 2026-03-04)",
+              recordedAt: "2026-03-04T21:15:00Z",
+              expiresAt: "2036-02-14T20:03:51Z",
+            },
+          ];
+
+      const backupPins: CertPin[] = envPins
+        ? []
+        : [
+            {
+              sha256: CAPTURED_GOPHISH_BACKUP,
+              label: "GoPhish raw cert pin (backup, captured 2026-03-04)",
+              recordedAt: "2026-03-04T21:15:00Z",
+              expiresAt: "2036-02-14T20:03:51Z",
+            },
+          ];
+
       registerPinConfig({
         service: "GoPhish",
         hostname,
         port,
-        mode: envPins ? "enforce" : "learn",
-        pins: parsePinEnv(envPins, "GoPhish"),
-        backupPins: [],
+        mode: "enforce",
+        pins,
+        backupPins,
         allowSelfSigned: true, // GoPhish uses self-signed certs
       });
     } catch (err: any) {

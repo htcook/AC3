@@ -7489,3 +7489,15 @@
 - [x] Certificate pinning for Caldera and GoPhish connections (cert-pinning.ts — learn/report/enforce modes)
 - [x] Write vitest tests for all 3 features (61 tests in fips-enhancements.test.ts — all passing)
 - [x] All 112 tests passing across 3 test suites (61 + 39 + 12)
+
+## FIPS 140-3 Enhancements (Phase 3)
+- [x] Capture live certificate SPKI fingerprints from Caldera and GoPhish servers
+- [x] Caldera: runs on HTTP (port 8888) — cert pinning skipped, documented upgrade path to HTTPS
+- [x] Promote GoPhish cert pinning to enforce mode with captured SPKI pin (AR9f8u5V...)
+- [x] Add backup pin for GoPhish (raw cert hash NBSn9zhw...) for certificate rotation resilience
+- [x] Create production deployment script (deploy/install-fips-node.sh) with --enable-fips
+- [x] Add FIPS-capable Node.js 22.x installation + OpenSSL FIPS provider setup for DigitalOcean
+- [x] Create ecosystem.config.cjs for PM2 with --enable-fips, OPENSSL_CONF, and CERT_PIN env vars
+- [x] fips-openssl-provider.ts already detects --enable-fips safely without breaking non-FIPS builds
+- [x] Write vitest tests for enforce mode and deployment config (29 tests in fips-phase3.test.ts)
+- [x] All 141 tests passing across 4 test suites (39 + 12 + 61 + 29)
