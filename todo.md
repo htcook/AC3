@@ -7501,3 +7501,17 @@
 - [x] fips-openssl-provider.ts already detects --enable-fips safely without breaking non-FIPS builds
 - [x] Write vitest tests for enforce mode and deployment config (29 tests in fips-phase3.test.ts)
 - [x] All 141 tests passing across 4 test suites (39 + 12 + 61 + 29)
+
+## Caldera HTTPS Enablement + DigitalOcean FIPS Deployment (Phase 4)
+- [x] Rebuilt caldera-scan-server droplet with fresh SSH key (new IP: 159.223.152.190)
+- [x] Updated SCAN_SERVER_HOST and SCAN_SERVER_SSH_KEY secrets
+- [x] Installed scan tools on new server (Nmap 7.80, Amass 3.19.2)
+- [x] SSH connection validated (5 tests passing in scan-server-ssh.test.ts)
+- [ ] Caldera HTTPS: Deferred — no SSH access to app server (134.199.213.248, sfo3 VPC)
+- [x] Created Caddy reverse proxy config (deploy/caldera-https/Caddyfile)
+- [x] Created HTTPS setup script (deploy/caldera-https/setup-https.sh)
+- [x] Created deployment README with step-by-step instructions
+- [x] Installed Node.js 22.22.0 on scan server — FIPS available: 1 confirmed
+- [x] Installed PM2 6.0.14 on scan server
+- [x] Created ecosystem.config.cjs for PM2 with --enable-fips
+- [x] All 146 tests passing across 5 test suites
