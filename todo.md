@@ -7566,3 +7566,32 @@
 - [x] Add testssl vulnerability parser
 - [x] Enhanced nmap parser (ports, CVEs, SMB signing, anonymous FTP)
 - [x] Write vitest tests for all new parsers (62 tests passing)
+
+## Attack Chain UI Panel
+- [x] Create tRPC endpoint for fetching generated attack chains per engagement (getAttackChains)
+- [x] Build AttackChainCard component with visual severity/feasibility/stealth scores
+- [x] Add MITRE ATT&CK TTP badges per chain stage with purple mono badges
+- [x] Add cloud exploit paths section with provider badges
+- [x] Add cloud risk assessment card with risk score and provider breakdown
+- [x] Add summary cards (highest risk, total steps, unique techniques, cloud chains)
+- [x] Integrate panel as "Attack Chains" tab in engagement ops view
+- [x] Write 17 vitest tests for endpoint logic and UI helpers
+
+## Cloud Misconfiguration UI Panel
+- [x] Create tRPC endpoint for cloud misconfiguration findings (getCloudMisconfigs)
+- [x] Build CloudFindingCard component showing S3/Azure/GCS findings with severity badges
+- [x] Display severity, provider, service, asset, description, and remediation
+- [x] Add severity stats row (critical/high/medium/low/providers)
+- [x] Add cloud-hosted assets section with provider badges
+- [x] Integrate panel as "Cloud" tab in engagement ops view
+
+## Live Feedback Loop Progress (Engagement Ops UI)
+- [x] Create tRPC endpoint for feedback loop state (getFeedbackLoopState)
+- [x] Build FeedbackScanCard component with collapsible output preview
+- [x] Show real-time iteration count, tools being run, and budget usage
+- [x] Display progress bar with scan budget usage
+- [x] Add LLM final analysis card
+- [x] Add tool color coding for all 23 tools in the inventory
+- [x] Wire WebSocket events (llm_feedback_progress, attack_chain_design, cloud_detection) to auto-invalidate queries
+- [x] Add AI Analysis stats to right sidebar (attack chains, cloud findings, re-scans, max risk)
+- [x] Integrate as "Feedback Loop" tab in engagement ops view

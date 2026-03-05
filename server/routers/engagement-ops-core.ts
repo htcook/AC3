@@ -975,4 +975,113 @@ export const engagementOpsRouter = router({
           };
         });
       }),
+
+    /** Get attack chains generated for an engagement */
+    getAttackChains: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId) as any;
+        if (!state) return { chains: [], summary: null, cloudRiskAssessment: null };
+        const chains = state.attackChains || [];
+        // Build summary from chains
+        const allTechniques = [...new Set(chains.flatMap((c: any) => c.mitreTechniques || []))];
+        const cloudChains = chains.filter((c: any) => (c.cloudExploitPaths || []).length > 0);
+        const sortedByFeasibility = [...chains].sort((a: any, b: any) => (b.feasibility || 0) - (a.feasibility || 0));
+        const sortedByStealth = [...chains].sort((a: any, b: any) => (b.stealthRating || 0) - (a.stealthRating || 0));
+        const summary = chains.length > 0 ? {
+          totalChains: chains.length,
+          totalSteps: chains.reduce((s: number, c: any) => s + (c.totalSteps || 0), 0),
+          uniqueTechniques: allTechniques.length,
+          highestRisk: Math.max(...chains.map((c: any) => c.overallRisk || 0), 0),
+          mostFeasible: sortedByFeasibility[0] ? { name: sortedByFeasibility[0].name, feasibility: sortedByFeasibility[0].feasibility } : null,
+          stealthiest: sortedByStealth[0] ? { name: sortedByStealth[0].name, stealthRating: sortedByStealth[0].stealthRating } : null,
+          cloudChainsCount: cloudChains.length,
+          criticalPaths: chains.filter((c: any) => (c.overallRisk || 0) >= 8).map((c: any) => `${c.name} (risk: ${c.overallRisk}/10)`),
+        } : null;
+        // Cloud risk assessment from cloud detection state
+        const cloudDetection = state.cloudDetection;
+        let cloudRiskAssessment = null;
+        if (cloudDetection && cloudDetection.findings && cloudDetection.findings.length > 0) {
+          const providers = [...new Set(cloudDetection.findings.map((f: any) => f.provider))];
+          const publicStorage = cloudDetection.findings.filter((f: any) =>
+            f.title?.toLowerCase().includes('public') || f.title?.toLowerCase().includes('open') || f.title?.toLowerCase().includes('anonymous')
+          );
+          const criticalCount = cloudDetection.findings.filter((f: any) => f.severity === 'critical').length;
+          const highCount = cloudDetection.findings.filter((f: any) => f.severity === 'high').length;
+          const riskScore = Math.min(100, criticalCount * 25 + highCount * 15 + publicStorage.length * 10);
+          cloudRiskAssessment = {
+            overallRisk: riskScore >= 75 ? 'critical' : riskScore >= 50 ? 'high' : riskScore >= 25 ? 'medium' : 'low',
+            riskScore,
+            exposedProviders: providers,
+            publicStorageCount: publicStorage.length,
+            totalFindings: cloudDetection.findings.length,
+            topFindings: cloudDetection.findings.slice(0, 10).map((f: any) => ({ title: f.title, severity: f.severity, provider: f.provider })),
+          };
+        }
+        return { chains, summary, cloudRiskAssessment };
+      }),
+
+    /** Get cloud misconfiguration findings for an engagement */
+    getCloudMisconfigs: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId) as any;
+        if (!state) return { findings: [], detection: null, stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0, providers: [] } };
+        const cloudDetection = state.cloudDetection || { assetsFound: 0, storageEndpoints: 0, findings: [] };
+        const findings = cloudDetection.findings || [];
+        // Also gather cloud info from individual assets
+        const assetCloudInfo = state.assets
+          .filter((a: any) => (a.cloudProviders?.length || 0) > 0)
+          .map((a: any) => ({
+            hostname: a.hostname,
+            ip: a.ip,
+            providers: a.cloudProviders || [],
+            services: a.cloudServices || [],
+          }));
+        const allProviders = [...new Set([
+          ...findings.map((f: any) => f.provider),
+          ...assetCloudInfo.flatMap((a: any) => a.providers),
+        ])];
+        const stats = {
+          total: findings.length,
+          critical: findings.filter((f: any) => f.severity === 'critical').length,
+          high: findings.filter((f: any) => f.severity === 'high').length,
+          medium: findings.filter((f: any) => f.severity === 'medium').length,
+          low: findings.filter((f: any) => f.severity === 'low' || f.severity === 'info').length,
+          providers: allProviders,
+        };
+        return { findings, detection: cloudDetection, assetCloudInfo, stats };
+      }),
+
+    /** Get LLM scan feedback loop state for an engagement */
+    getFeedbackLoopState: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const state = getOpsState(input.engagementId) as any;
+        if (!state || !state.scanFeedbackLoop) return null;
+        const fb = state.scanFeedbackLoop;
+        return {
+          iteration: fb.iteration,
+          totalScansExecuted: fb.totalScansExecuted,
+          budgetRemaining: fb.budgetRemaining,
+          satisfied: fb.satisfied,
+          finalAnalysis: fb.finalAnalysis,
+          history: (fb.history || []).map((h: any) => ({
+            tool: h.request.tool,
+            target: h.request.target,
+            args: h.request.args,
+            rationale: h.request.rationale,
+            depth: h.request.depth,
+            priority: h.request.priority,
+            exitCode: h.result.exitCode,
+            durationMs: h.result.durationMs,
+            outputPreview: (h.result.stdout || '').slice(0, 500),
+            stderrPreview: (h.result.stderr || '').slice(0, 200),
+            executedAt: h.executedAt,
+          })),
+        };
+      }),
   });

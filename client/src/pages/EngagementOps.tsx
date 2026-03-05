@@ -23,6 +23,8 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -37,6 +39,8 @@ import {
   Zap, Lock, Unlock, Activity, Terminal, Network, Wifi,
   Plus, Search, ArrowRight, Swords, RotateCcw, CircleDollarSign, Coins,
   Sparkles, ClipboardList, Key, KeyRound,
+  Cloud, CloudOff, Brain, GitBranch, Layers, RefreshCw, Gauge,
+  ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
 } from "lucide-react";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
@@ -344,6 +348,20 @@ export default function EngagementOps() {
     { enabled: engagementId > 0 }
   );
 
+  // Attack chains, cloud misconfigs, and feedback loop queries
+  const attackChainsQ = trpc.engagementOps.getAttackChains.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0 && (opsStateQ.data?.stats?.vulnsFound || 0) > 0, refetchInterval: isRunning ? 8000 : 30000 }
+  );
+  const cloudMisconfigsQ = trpc.engagementOps.getCloudMisconfigs.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 8000 : 30000 }
+  );
+  const feedbackLoopQ = trpc.engagementOps.getFeedbackLoopState.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 5000 : 30000 }
+  );
+
   // LLM Cost tracking for this engagement
   const llmCostQ = trpc.llmTelemetry.engagementCost.useQuery(
     { engagementId },
@@ -481,6 +499,26 @@ export default function EngagementOps() {
     // Stats update — refetch
     if (evtData.type === "stats_update") {
       utils.engagementOps.getState.invalidate({ engagementId });
+    }
+
+    // LLM feedback loop progress — refetch feedback state and switch to feedback tab
+    if (evtData.type === "action" && evtData.action === "llm_feedback_progress") {
+      utils.engagementOps.getFeedbackLoopState.invalidate({ engagementId });
+    }
+
+    // LLM scan feedback started — auto-switch to feedback tab
+    if (evtData.type === "action" && evtData.action === "llm_scan_feedback") {
+      utils.engagementOps.getFeedbackLoopState.invalidate({ engagementId });
+    }
+
+    // Attack chain design complete — refetch attack chains
+    if (evtData.type === "action" && evtData.action === "attack_chain_design") {
+      utils.engagementOps.getAttackChains.invalidate({ engagementId });
+    }
+
+    // Cloud detection events — refetch cloud misconfigs
+    if (evtData.type === "action" && (evtData.action === "cloud_detection" || evtData.action === "cloud_scan")) {
+      utils.engagementOps.getCloudMisconfigs.invalidate({ engagementId });
     }
   }, [wsLastEvent, engagementId, utils]);
 
@@ -1182,6 +1220,24 @@ export default function EngagementOps() {
                 </TabsTrigger>
                 <TabsTrigger value="scope" className="text-xs">
                   <Shield className="h-3.5 w-3.5 mr-1" /> RoE & Scope
+                </TabsTrigger>
+                <TabsTrigger value="attackchains" className="text-xs">
+                  <GitBranch className="h-3.5 w-3.5 mr-1" /> Attack Chains
+                  {(attackChainsQ.data?.chains?.length || 0) > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-red-500/20 text-red-400">{attackChainsQ.data!.chains.length}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="cloud" className="text-xs">
+                  <Cloud className="h-3.5 w-3.5 mr-1" /> Cloud
+                  {(cloudMisconfigsQ.data?.stats?.total || 0) > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-orange-500/20 text-orange-400">{cloudMisconfigsQ.data!.stats.total}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="feedback" className="text-xs">
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Feedback Loop
+                  {feedbackLoopQ.data && (
+                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-purple-500/20 text-purple-400">{feedbackLoopQ.data.totalScansExecuted}</Badge>
+                  )}
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -2409,6 +2465,253 @@ export default function EngagementOps() {
                 </div>
               </ScrollArea>
             </TabsContent>
+
+            {/* ── Attack Chains Tab ── */}
+            <TabsContent value="attackchains" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="space-y-4 py-3">
+                  {/* Summary Cards */}
+                  {attackChainsQ.data?.summary && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <Card className="bg-card/50 border-red-500/20">
+                        <CardContent className="p-3">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Highest Risk</div>
+                          <div className="text-2xl font-bold text-red-400 tabular-nums">{attackChainsQ.data.summary.highestRisk}<span className="text-xs text-muted-foreground">/10</span></div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50 border-cyan-500/20">
+                        <CardContent className="p-3">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Steps</div>
+                          <div className="text-2xl font-bold text-cyan-400 tabular-nums">{attackChainsQ.data.summary.totalSteps}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50 border-purple-500/20">
+                        <CardContent className="p-3">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">MITRE Techniques</div>
+                          <div className="text-2xl font-bold text-purple-400 tabular-nums">{attackChainsQ.data.summary.uniqueTechniques}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50 border-orange-500/20">
+                        <CardContent className="p-3">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Cloud Chains</div>
+                          <div className="text-2xl font-bold text-orange-400 tabular-nums">{attackChainsQ.data.summary.cloudChainsCount}</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Cloud Risk Assessment */}
+                  {attackChainsQ.data?.cloudRiskAssessment && (
+                    <Card className="bg-card/50 border-orange-500/30">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Cloud className="h-4 w-4 text-orange-400" />
+                          Cloud Risk Assessment
+                          <Badge variant="outline" className={`ml-auto text-[10px] ${
+                            attackChainsQ.data.cloudRiskAssessment.overallRisk === 'critical' ? 'border-red-500 text-red-400' :
+                            attackChainsQ.data.cloudRiskAssessment.overallRisk === 'high' ? 'border-orange-500 text-orange-400' :
+                            attackChainsQ.data.cloudRiskAssessment.overallRisk === 'medium' ? 'border-yellow-500 text-yellow-400' :
+                            'border-green-500 text-green-400'
+                          }`}>
+                            {attackChainsQ.data.cloudRiskAssessment.overallRisk.toUpperCase()} — Score: {attackChainsQ.data.cloudRiskAssessment.riskScore}/100
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-muted-foreground">Providers: <span className="text-foreground">{(attackChainsQ.data.cloudRiskAssessment.exposedProviders || []).join(', ') || 'None'}</span></span>
+                          <span className="text-muted-foreground">Public Storage: <span className="text-orange-400 font-semibold">{attackChainsQ.data.cloudRiskAssessment.publicStorageCount}</span></span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Individual Attack Chains */}
+                  {(attackChainsQ.data?.chains || []).map((chain: any, idx: number) => (
+                    <AttackChainCard key={chain.id || idx} chain={chain} index={idx} />
+                  ))}
+
+                  {(!attackChainsQ.data || attackChainsQ.data.chains.length === 0) && (
+                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                      <GitBranch className="h-12 w-12 mb-4 opacity-20" />
+                      <p className="text-sm">No attack chains generated yet</p>
+                      <p className="text-xs mt-1">Attack chains are designed after vulnerability detection completes</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Cloud Misconfigs Tab ── */}
+            <TabsContent value="cloud" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="space-y-4 py-3">
+                  {/* Stats Row */}
+                  {cloudMisconfigsQ.data && cloudMisconfigsQ.data.stats.total > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <Card className="bg-card/50 border-red-500/20">
+                        <CardContent className="p-3 text-center">
+                          <div className="text-[10px] text-muted-foreground uppercase">Critical</div>
+                          <div className="text-xl font-bold text-red-400">{cloudMisconfigsQ.data.stats.critical}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50 border-orange-500/20">
+                        <CardContent className="p-3 text-center">
+                          <div className="text-[10px] text-muted-foreground uppercase">High</div>
+                          <div className="text-xl font-bold text-orange-400">{cloudMisconfigsQ.data.stats.high}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50 border-yellow-500/20">
+                        <CardContent className="p-3 text-center">
+                          <div className="text-[10px] text-muted-foreground uppercase">Medium</div>
+                          <div className="text-xl font-bold text-yellow-400">{cloudMisconfigsQ.data.stats.medium}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50 border-blue-500/20">
+                        <CardContent className="p-3 text-center">
+                          <div className="text-[10px] text-muted-foreground uppercase">Low/Info</div>
+                          <div className="text-xl font-bold text-blue-400">{cloudMisconfigsQ.data.stats.low}</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50 border-purple-500/20">
+                        <CardContent className="p-3 text-center">
+                          <div className="text-[10px] text-muted-foreground uppercase">Providers</div>
+                          <div className="text-xl font-bold text-purple-400">{cloudMisconfigsQ.data.stats.providers.length}</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+
+                  {/* Cloud Assets */}
+                  {cloudMisconfigsQ.data?.assetCloudInfo && cloudMisconfigsQ.data.assetCloudInfo.length > 0 && (
+                    <Card className="bg-card/50 border-cyan-500/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Layers className="h-4 w-4 text-cyan-400" /> Cloud-Hosted Assets
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-1">
+                          {cloudMisconfigsQ.data.assetCloudInfo.map((asset: any, i: number) => (
+                            <div key={i} className="flex items-center gap-2 text-xs py-1 border-b border-border/20 last:border-0">
+                              <Server className="h-3 w-3 text-muted-foreground" />
+                              <span className="font-mono text-cyan-400">{asset.hostname}</span>
+                              {asset.ip && <span className="text-muted-foreground">({asset.ip})</span>}
+                              <div className="flex gap-1 ml-auto">
+                                {(asset.providers || []).map((p: string) => (
+                                  <Badge key={p} variant="outline" className={`text-[9px] px-1.5 ${
+                                    p.toLowerCase().includes('aws') ? 'border-orange-500/50 text-orange-400' :
+                                    p.toLowerCase().includes('azure') ? 'border-blue-500/50 text-blue-400' :
+                                    p.toLowerCase().includes('gcp') || p.toLowerCase().includes('google') ? 'border-red-500/50 text-red-400' :
+                                    'border-muted-foreground/50 text-muted-foreground'
+                                  }`}>{p}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Misconfiguration Findings */}
+                  {(cloudMisconfigsQ.data?.findings || []).map((finding: any, idx: number) => (
+                    <CloudFindingCard key={idx} finding={finding} />
+                  ))}
+
+                  {(!cloudMisconfigsQ.data || cloudMisconfigsQ.data.stats.total === 0) && (
+                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                      <Cloud className="h-12 w-12 mb-4 opacity-20" />
+                      <p className="text-sm">No cloud misconfigurations detected</p>
+                      <p className="text-xs mt-1">Cloud detection runs during the enumeration phase</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Feedback Loop Tab ── */}
+            <TabsContent value="feedback" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="space-y-4 py-3">
+                  {feedbackLoopQ.data ? (
+                    <>
+                      {/* Feedback Loop Summary */}
+                      <Card className="bg-card/50 border-purple-500/20">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <Brain className="h-4 w-4 text-purple-400" /> LLM Adaptive Re-Scanning
+                            <Badge variant="outline" className={`ml-auto text-[10px] ${
+                              feedbackLoopQ.data.satisfied ? 'border-green-500 text-green-400' : 'border-yellow-500 text-yellow-400'
+                            }`}>
+                              {feedbackLoopQ.data.satisfied ? 'Satisfied' : 'In Progress'}
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            The LLM analyzed findings and requested targeted re-scans to fill information gaps.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div className="text-center">
+                              <div className="text-[10px] text-muted-foreground uppercase">Iterations</div>
+                              <div className="text-lg font-bold text-purple-400">{feedbackLoopQ.data.iteration + 1}</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-[10px] text-muted-foreground uppercase">Scans Run</div>
+                              <div className="text-lg font-bold text-cyan-400">{feedbackLoopQ.data.totalScansExecuted}</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-[10px] text-muted-foreground uppercase">Budget Left</div>
+                              <div className="text-lg font-bold text-emerald-400">{feedbackLoopQ.data.budgetRemaining}</div>
+                            </div>
+                          </div>
+                          {/* Budget Progress Bar */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span>Scan Budget Usage</span>
+                              <span>{feedbackLoopQ.data.totalScansExecuted} / {feedbackLoopQ.data.totalScansExecuted + feedbackLoopQ.data.budgetRemaining}</span>
+                            </div>
+                            <Progress
+                              value={feedbackLoopQ.data.totalScansExecuted / Math.max(1, feedbackLoopQ.data.totalScansExecuted + feedbackLoopQ.data.budgetRemaining) * 100}
+                              className="h-2"
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Final Analysis */}
+                      {feedbackLoopQ.data.finalAnalysis && (
+                        <Card className="bg-card/50 border-cyan-500/20">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-cyan-400" /> LLM Final Analysis
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{feedbackLoopQ.data.finalAnalysis}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Scan History */}
+                      <div className="space-y-2">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Re-Scan History</h3>
+                        {(feedbackLoopQ.data.history || []).map((scan: any, idx: number) => (
+                          <FeedbackScanCard key={idx} scan={scan} index={idx} />
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                      <RefreshCw className="h-12 w-12 mb-4 opacity-20" />
+                      <p className="text-sm">No feedback loop data yet</p>
+                      <p className="text-xs mt-1">The LLM feedback loop runs after vulnerability detection to request targeted re-scans</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -2429,6 +2732,24 @@ export default function EngagementOps() {
           </div>
 
           <Separator />
+
+          {/* Attack Chain & Cloud Stats */}
+          {((attackChainsQ.data?.chains?.length || 0) > 0 || (cloudMisconfigsQ.data?.stats?.total || 0) > 0 || feedbackLoopQ.data) && (
+            <>
+              <div>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">AI Analysis</h3>
+                <div className="space-y-3">
+                  <StatCard icon={<GitBranch className="h-4 w-4 text-red-400" />} label="Attack Chains" value={attackChainsQ.data?.chains?.length || 0} />
+                  <StatCard icon={<Cloud className="h-4 w-4 text-orange-400" />} label="Cloud Findings" value={cloudMisconfigsQ.data?.stats?.total || 0} />
+                  <StatCard icon={<RefreshCw className="h-4 w-4 text-purple-400" />} label="Re-Scans" value={feedbackLoopQ.data?.totalScansExecuted || 0} />
+                  {attackChainsQ.data?.summary && (
+                    <StatCard icon={<Gauge className="h-4 w-4 text-red-500" />} label="Max Risk" value={`${attackChainsQ.data.summary.highestRisk}/10`} />
+                  )}
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
 
           {/* LLM Cost Tracking */}
           <div>
@@ -2570,7 +2891,7 @@ export default function EngagementOps() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
   return (
     <div className="flex items-center gap-2.5">
       {icon}
@@ -2579,5 +2900,326 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
         <span className="text-sm font-semibold text-foreground tabular-nums">{value}</span>
       </div>
     </div>
+  );
+}
+
+// ─── Attack Chain Card ────────────────────────────────────────────────────────
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "text-red-400 bg-red-500/10 border-red-500/30",
+  high: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+  medium: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  low: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+  info: "text-muted-foreground bg-muted/30 border-muted-foreground/30",
+};
+
+function getRiskColor(risk: number): string {
+  if (risk >= 9) return "text-red-500";
+  if (risk >= 7) return "text-red-400";
+  if (risk >= 5) return "text-orange-400";
+  if (risk >= 3) return "text-yellow-400";
+  return "text-green-400";
+}
+
+function AttackChainCard({ chain, index }: { chain: any; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Card className="bg-card/50 border-border/40 hover:border-border/60 transition-colors">
+      <Collapsible open={expanded} onOpenChange={setExpanded}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-2 cursor-pointer group">
+            <div className="flex items-start gap-3">
+              <div className={`flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold ${getRiskColor(chain.overallRisk)} bg-current/10 border border-current/20`}>
+                {chain.overallRisk}
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <span className="truncate">{chain.name}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5 line-clamp-2">{chain.description}</CardDescription>
+              </div>
+              <div className="flex gap-1.5 flex-shrink-0">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-[9px] border-red-500/40 text-red-400">
+                        <Gauge className="h-2.5 w-2.5 mr-0.5" /> {chain.overallRisk}/10
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent><p className="text-xs">Overall Risk Score</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-[9px] border-cyan-500/40 text-cyan-400">
+                        <Wrench className="h-2.5 w-2.5 mr-0.5" /> {chain.feasibility}/10
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent><p className="text-xs">Feasibility Score</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-[9px] border-purple-500/40 text-purple-400">
+                        <Eye className="h-2.5 w-2.5 mr-0.5" /> {chain.stealthRating}/10
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent><p className="text-xs">Stealth Rating</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <CardContent className="space-y-4 pt-0">
+            {/* MITRE Techniques */}
+            {chain.mitreTechniques && chain.mitreTechniques.length > 0 && (
+              <div>
+                <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">MITRE ATT&CK Techniques</h4>
+                <div className="flex flex-wrap gap-1">
+                  {chain.mitreTechniques.map((t: string, i: number) => (
+                    <Badge key={i} variant="outline" className="text-[9px] px-1.5 py-0 border-purple-500/30 text-purple-400 font-mono">
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Attack Steps */}
+            {chain.steps && chain.steps.length > 0 && (
+              <div>
+                <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Attack Steps ({chain.steps.length})</h4>
+                <div className="space-y-1.5">
+                  {chain.steps.map((step: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-xs">
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-muted/50 border border-border/50 flex items-center justify-center text-[9px] font-bold text-muted-foreground mt-0.5">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-foreground">{step.name || step.title}</span>
+                          {step.technique && (
+                            <Badge variant="outline" className="text-[8px] px-1 py-0 border-purple-500/20 text-purple-400 font-mono">{step.technique}</Badge>
+                          )}
+                        </div>
+                        {step.description && <p className="text-muted-foreground mt-0.5 line-clamp-2">{step.description}</p>}
+                        {step.tool && <span className="text-cyan-400 text-[10px] font-mono">Tool: {step.tool}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cloud Exploit Paths */}
+            {chain.cloudExploitPaths && chain.cloudExploitPaths.length > 0 && (
+              <div>
+                <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Cloud className="h-3 w-3 text-orange-400" /> Cloud Exploit Paths
+                </h4>
+                <div className="space-y-1">
+                  {chain.cloudExploitPaths.map((cp: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-orange-500/5 border border-orange-500/10">
+                      <Badge variant="outline" className={`text-[9px] px-1 ${
+                        cp.severity === 'critical' ? 'border-red-500/40 text-red-400' :
+                        cp.severity === 'high' ? 'border-orange-500/40 text-orange-400' :
+                        'border-yellow-500/40 text-yellow-400'
+                      }`}>{cp.severity || 'high'}</Badge>
+                      <span className="text-foreground">{cp.name || cp.title || cp.id}</span>
+                      {cp.provider && <Badge variant="secondary" className="text-[8px] px-1 ml-auto">{cp.provider}</Badge>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {chain.recommendations && chain.recommendations.length > 0 && (
+              <div>
+                <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Recommendations</h4>
+                <ul className="space-y-0.5">
+                  {chain.recommendations.map((rec: string, i: number) => (
+                    <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                      <ShieldCheck className="h-3 w-3 text-green-400 mt-0.5 flex-shrink-0" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
+// ─── Cloud Finding Card ───────────────────────────────────────────────────────
+
+function CloudFindingCard({ finding }: { finding: any }) {
+  const sevClass = SEVERITY_COLORS[finding.severity] || SEVERITY_COLORS.info;
+
+  return (
+    <Card className={`bg-card/50 border-l-2 ${sevClass.split(' ').pop()}`}>
+      <CardContent className="p-3">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 mt-0.5">
+            {finding.severity === 'critical' || finding.severity === 'high' ? (
+              <ShieldAlert className="h-4 w-4 text-red-400" />
+            ) : finding.severity === 'medium' ? (
+              <AlertTriangle className="h-4 w-4 text-yellow-400" />
+            ) : (
+              <Cloud className="h-4 w-4 text-blue-400" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">{finding.title}</span>
+              <Badge variant="outline" className={`text-[9px] px-1.5 ${
+                finding.severity === 'critical' ? 'border-red-500/40 text-red-400' :
+                finding.severity === 'high' ? 'border-orange-500/40 text-orange-400' :
+                finding.severity === 'medium' ? 'border-yellow-500/40 text-yellow-400' :
+                'border-blue-500/40 text-blue-400'
+              }`}>{finding.severity?.toUpperCase()}</Badge>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+              {finding.provider && (
+                <span className="flex items-center gap-1">
+                  <Cloud className="h-3 w-3" />
+                  {finding.provider}
+                </span>
+              )}
+              {finding.service && (
+                <span className="flex items-center gap-1">
+                  <Layers className="h-3 w-3" />
+                  {finding.service}
+                </span>
+              )}
+              {finding.asset && (
+                <span className="flex items-center gap-1 font-mono text-cyan-400">
+                  <Server className="h-3 w-3" />
+                  {finding.asset}
+                </span>
+              )}
+            </div>
+            {finding.description && (
+              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3">{finding.description}</p>
+            )}
+            {finding.remediation && (
+              <div className="mt-2 text-xs flex items-start gap-1.5 text-green-400/80">
+                <ShieldCheck className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                <span>{finding.remediation}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Feedback Scan Card ───────────────────────────────────────────────────────
+
+const TOOL_COLORS: Record<string, string> = {
+  nmap: "text-cyan-400 border-cyan-500/30",
+  nikto: "text-yellow-400 border-yellow-500/30",
+  nuclei: "text-purple-400 border-purple-500/30",
+  gobuster: "text-orange-400 border-orange-500/30",
+  ffuf: "text-orange-400 border-orange-500/30",
+  sslscan: "text-green-400 border-green-500/30",
+  testssl: "text-green-400 border-green-500/30",
+  whatweb: "text-blue-400 border-blue-500/30",
+  subfinder: "text-cyan-400 border-cyan-500/30",
+  httpx: "text-blue-400 border-blue-500/30",
+  curl: "text-muted-foreground border-muted-foreground/30",
+  wpscan: "text-indigo-400 border-indigo-500/30",
+  cloud_enum: "text-orange-400 border-orange-500/30",
+  s3scanner: "text-orange-400 border-orange-500/30",
+  trufflehog: "text-red-400 border-red-500/30",
+  aws: "text-orange-400 border-orange-500/30",
+  dig: "text-cyan-400 border-cyan-500/30",
+  whois: "text-muted-foreground border-muted-foreground/30",
+  katana: "text-red-400 border-red-500/30",
+  gospider: "text-blue-400 border-blue-500/30",
+  waybackurls: "text-amber-400 border-amber-500/30",
+  gau: "text-amber-400 border-amber-500/30",
+  naabu: "text-cyan-400 border-cyan-500/30",
+};
+
+function FeedbackScanCard({ scan, index }: { scan: any; index: number }) {
+  const [showOutput, setShowOutput] = useState(false);
+  const toolColor = TOOL_COLORS[scan.tool] || "text-muted-foreground border-muted-foreground/30";
+  const success = scan.exitCode === 0;
+
+  return (
+    <Card className={`bg-card/50 ${success ? 'border-green-500/10' : 'border-red-500/10'}`}>
+      <Collapsible open={showOutput} onOpenChange={setShowOutput}>
+        <CollapsibleTrigger asChild>
+          <CardContent className="p-3 cursor-pointer hover:bg-muted/10 transition-colors">
+            <div className="flex items-center gap-2">
+              <div className={`flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold ${success ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                {index + 1}
+              </div>
+              <Badge variant="outline" className={`text-[10px] font-mono px-1.5 ${toolColor}`}>
+                <Wrench className="h-2.5 w-2.5 mr-0.5" />
+                {scan.tool}
+              </Badge>
+              <span className="text-xs font-mono text-cyan-400 truncate">{scan.target}</span>
+              {scan.depth && (
+                <Badge variant="secondary" className="text-[9px] px-1">{scan.depth}</Badge>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                {scan.durationMs && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    <Timer className="h-2.5 w-2.5" />
+                    {(scan.durationMs / 1000).toFixed(1)}s
+                  </span>
+                )}
+                {success ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+                ) : (
+                  <XCircle className="h-3.5 w-3.5 text-red-400" />
+                )}
+                <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${showOutput ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+            {scan.rationale && (
+              <p className="text-[11px] text-muted-foreground mt-1.5 ml-8 line-clamp-2">
+                <Brain className="h-3 w-3 inline mr-1 text-purple-400" />
+                {scan.rationale}
+              </p>
+            )}
+          </CardContent>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="px-3 pb-3 space-y-2">
+            {scan.args && (
+              <div className="text-[10px]">
+                <span className="text-muted-foreground">Command args: </span>
+                <code className="text-cyan-400 font-mono bg-muted/30 px-1 py-0.5 rounded">{scan.args}</code>
+              </div>
+            )}
+            {scan.outputPreview && (
+              <div className="bg-black/30 rounded border border-border/20 p-2 max-h-48 overflow-y-auto">
+                <pre className="text-[10px] text-green-400/80 font-mono whitespace-pre-wrap break-all">{scan.outputPreview}</pre>
+              </div>
+            )}
+            {scan.stderrPreview && (
+              <div className="bg-red-500/5 rounded border border-red-500/10 p-2 max-h-24 overflow-y-auto">
+                <pre className="text-[10px] text-red-400/80 font-mono whitespace-pre-wrap break-all">{scan.stderrPreview}</pre>
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
   );
 }
