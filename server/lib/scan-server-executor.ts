@@ -18,6 +18,7 @@
 import { Client as SSHClient } from "ssh2";
 import { ENV } from "../_core/env";
 import { matchCredentialsForAsset } from "./oem-default-creds";
+import { FIPS_SSH_ALGORITHMS } from "./fips-ssh";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -181,6 +182,8 @@ async function executeSSH(
         privateKey: config.privateKey,
         readyTimeout: 15000,
         keepaliveInterval: 10000,
+        // FIPS 140-3: Restrict to NIST-approved SSH algorithms only
+        algorithms: FIPS_SSH_ALGORITHMS,
       });
   });
 }

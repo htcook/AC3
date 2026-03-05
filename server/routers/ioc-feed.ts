@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import { sum } from "drizzle-orm";
@@ -116,7 +116,7 @@ export const iocFeedRouter = router({
     }),
 
     // List IOC feed entries
-    list: publicProcedure
+    list: protectedProcedure
       .input(z.object({
         feedSource: z.string().optional(),
         severity: z.string().optional(),
@@ -128,7 +128,7 @@ export const iocFeedRouter = router({
         return db.listIocFeedEntries(input || {});
       }),
 
-    stats: publicProcedure.query(async () => {
+    stats: protectedProcedure.query(async () => {
       return db.getIocFeedStats();
     }),
 
@@ -216,19 +216,19 @@ export const iocFeedRouter = router({
     }),
 
     // Get sync history
-    syncHistory: publicProcedure
+    syncHistory: protectedProcedure
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ input }) => {
         return db.listIocSyncLogs(input?.limit || 20);
       }),
 
     // Get last successful sync
-    lastSync: publicProcedure.query(async () => {
+    lastSync: protectedProcedure.query(async () => {
       return db.getLastIocSync();
     }),
 
     // Check if sync is running
-    syncStatus: publicProcedure.query(async () => {
+    syncStatus: protectedProcedure.query(async () => {
       const { isSyncRunning } = await import("../lib/ioc-sync");
       return { running: isSyncRunning() };
     }),

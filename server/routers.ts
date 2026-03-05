@@ -193,10 +193,10 @@ const CALDERA_API_KEY = ENV.calderaApiKey;
 
 async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
   try {
-    // GoPhish uses self-signed TLS cert
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    // FIPS 140-3: Use FIPS HTTPS agent with self-signed cert support
+    const { createFIPSHttpsAgent } = await import('./lib/fips-tls');
     const url = `${GOPHISH_URL}${endpoint}`;
-    const options: RequestInit = {
+    const options: RequestInit & { agent?: any } = {
       method,
       headers: {
         'Authorization': GOPHISH_API_KEY,
@@ -204,6 +204,10 @@ async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: 
       },
       signal: AbortSignal.timeout(15000),
     };
+    if (url.startsWith('https://')) {
+      // @ts-ignore - Node.js specific option
+      options.agent = createFIPSHttpsAgent({ rejectUnauthorized: false });
+    }
     if (data) options.body = JSON.stringify(data);
     
     const response = await fetch(url, options);

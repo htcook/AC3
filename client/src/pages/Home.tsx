@@ -177,8 +177,9 @@ export default function Home() {
                 LOG IN
               </Button>
             </Link>
-            <Link href="/dashboard">
+            <Link href="/login?returnTo=%2Fdashboard">
               <Button className="font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
+                <Lock className="w-3.5 h-3.5 mr-1.5" />
                 COMMAND CENTER
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
@@ -221,8 +222,9 @@ export default function Home() {
             </p>
 
             <div className="flex flex-wrap justify-center gap-4 mb-12">
-              <Link href="/dashboard">
+              <Link href="/login?returnTo=%2Fdashboard">
                 <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6 text-base">
+                  <Lock className="w-4 h-4 mr-2" />
                   START TESTING YOUR DEFENSES
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
@@ -436,9 +438,10 @@ export default function Home() {
             Enter the Command Center to orchestrate your full offensive stack — exploits, emulation, DAST, validation, social engineering, and continuous threat intelligence enrichment from one interface.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/dashboard">
+            <Link href="/login?returnTo=%2Fdashboard">
               <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6">
-                ENTER COMMAND CENTER
+                <Lock className="w-4 h-4 mr-2" />
+                SIGN IN TO COMMAND CENTER
                 <ChevronRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>
@@ -860,10 +863,10 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link href="/ksi-dashboard">
+            <Link href="/login?returnTo=%2Fksi-dashboard">
               <Button className="font-display tracking-wider bg-primary hover:bg-primary/90">
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                VIEW FULL KSI DASHBOARD
+                <Lock className="w-4 h-4 mr-2" />
+                SIGN IN TO VIEW KSI DASHBOARD
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
@@ -914,9 +917,10 @@ export default function Home() {
                     <ExternalLink className="w-4 h-4 ml-2" />
                   </Button>
                 </a>
-                <Link href="/dashboard">
+                <Link href="/login?returnTo=%2Fdashboard">
                   <Button className="font-display tracking-wider bg-primary hover:bg-primary/90">
-                    ENTER COMMAND CENTER
+                    <Lock className="w-4 h-4 mr-2" />
+                    SIGN IN TO COMMAND CENTER
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </Link>

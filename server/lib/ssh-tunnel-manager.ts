@@ -14,6 +14,7 @@
  */
 
 import { Client as SshClient, type ConnectConfig } from "ssh2";
+import { FIPS_SSH_ALGORITHMS } from "./fips-ssh";
 import * as net from "net";
 import * as fs from "fs";
 import * as path from "path";
@@ -213,6 +214,8 @@ class SshTunnel extends EventEmitter {
         keepaliveInterval: KEEPALIVE_INTERVAL,
         keepaliveCountMax: MAX_KEEPALIVE_MISSES,
         readyTimeout: 30000,
+        // FIPS 140-3: Restrict to NIST-approved algorithms only
+        algorithms: FIPS_SSH_ALGORITHMS,
       };
 
       if (this.config.sshKeyPath && fs.existsSync(this.config.sshKeyPath)) {

@@ -21,6 +21,7 @@ export default function Login() {
   const params = new URLSearchParams(searchString);
   const redirectTarget = params.get("redirect") || "";
   const redirectInfo = REDIRECT_MAP[redirectTarget];
+  const returnTo = params.get("returnTo") || "";
 
   const [loginMode, setLoginMode] = useState<LoginMode>("email");
   const [loginStep, setLoginStep] = useState<LoginStep>("credentials");
@@ -39,11 +40,13 @@ export default function Login() {
     if (!sessionLoading && session?.authenticated) {
       if (redirectTarget && redirectInfo) {
         window.location.href = redirectInfo.url;
+      } else if (returnTo && returnTo.startsWith("/")) {
+        window.location.href = returnTo;
       } else {
         window.location.href = "/dashboard";
       }
     }
-  }, [sessionLoading, session, redirectTarget, redirectInfo]);
+  }, [sessionLoading, session, redirectTarget, redirectInfo, returnTo]);
 
   // Focus MFA input when step changes
   useEffect(() => {
@@ -53,7 +56,9 @@ export default function Login() {
   }, [loginStep]);
 
   const navigateAfterLogin = () => {
-    const target = (redirectTarget && redirectInfo) ? redirectInfo.url : "/dashboard";
+    const target = (redirectTarget && redirectInfo)
+      ? redirectInfo.url
+      : (returnTo && returnTo.startsWith("/")) ? returnTo : "/dashboard";
     setTimeout(() => { window.location.href = target; }, 300);
   };
 
@@ -183,6 +188,15 @@ export default function Login() {
               Sign in to access <span className="font-semibold">{redirectInfo.label}</span>
             </p>
             <p className="text-xs text-muted-foreground mt-1">One login for all platform services</p>
+          </div>
+        )}
+        {!redirectInfo && returnTo && (
+          <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg text-center">
+            <p className="text-sm text-primary">
+              <Lock className="w-3.5 h-3.5 inline mr-1" />
+              Authentication required to access this page
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">Sign in to continue</p>
           </div>
         )}
 

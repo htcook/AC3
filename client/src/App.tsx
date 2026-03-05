@@ -226,14 +226,15 @@ function PageLoader() {
 
 // Protected route wrapper that requires authentication
 function ProtectedRoute({ component: Component, pageName }: { component: React.ComponentType; pageName?: string }) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { data: session, isLoading } = trpc.calderaAuth.session.useQuery();
 
   useEffect(() => {
     if (!isLoading && !session?.authenticated) {
-      setLocation("/login");
+      const returnTo = encodeURIComponent(location);
+      setLocation(`/login?returnTo=${returnTo}`);
     }
-  }, [isLoading, session, setLocation]);
+  }, [isLoading, session, setLocation, location]);
 
   if (isLoading) {
     return (

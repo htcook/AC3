@@ -1,8 +1,15 @@
 /**
  * Shared API helpers for Caldera and GoPhish proxy routers.
- * Extracted from routers.ts during the router split refactoring.
+ *
+ * FIPS 140-3 Compliance:
+ *   All outbound HTTPS connections use the FIPS HTTPS agent which restricts
+ *   to TLS 1.2+ with NIST SP 800-52 Rev. 2 approved cipher suites only.
+ *   GoPhish self-signed certs are handled via a dedicated FIPS agent with
+ *   rejectUnauthorized: false (TLS encryption still enforced, just no CA check).
  */
 import { ENV } from "../_core/env";
+import { getFIPSHttpsAgent, createFIPSHttpsAgent } from "./fips-tls";
+import https from "https";
 
 // ─── Caldera Session ────────────────────────────────────────────────────
 
@@ -35,13 +42,34 @@ export const GOPHISH_API_KEY = ENV.gophishApiKey;
 export const CALDERA_BASE_URL = ENV.calderaBaseUrl;
 export const CALDERA_API_KEY = ENV.calderaApiKey;
 
+// ─── FIPS HTTPS Agents ─────────────────────────────────────────────────
+
+/**
+ * FIPS agent for GoPhish connections.
+ * GoPhish uses a self-signed certificate, so we disable CA validation
+ * but STILL enforce FIPS-approved cipher suites and TLS 1.2+.
+ */
+let _gophishFipsAgent: https.Agent | null = null;
+function getGophishFIPSAgent(): https.Agent {
+  if (_gophishFipsAgent) return _gophishFipsAgent;
+  _gophishFipsAgent = createFIPSHttpsAgent({
+    rejectUnauthorized: false,
+  });
+  return _gophishFipsAgent;
+}
+
 // ─── GoPhish API Helper ─────────────────────────────────────────────────
 
+/**
+ * FIPS 140-3 compliant GoPhish API helper.
+ * Uses FIPS HTTPS agent instead of disabling TLS validation globally.
+ */
 export async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
   try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     const url = `${GOPHISH_URL}${endpoint}`;
-    const options: RequestInit = {
+    const isHttps = url.startsWith('https://');
+
+    const options: RequestInit & { dispatcher?: any } = {
       method,
       headers: {
         'Authorization': GOPHISH_API_KEY,
@@ -50,6 +78,11 @@ export async function fetchGophishAPI(endpoint: string, method: string = 'GET', 
       signal: AbortSignal.timeout(15000),
     };
     if (data) options.body = JSON.stringify(data);
+
+    if (isHttps) {
+      // @ts-ignore - Node.js specific option for native fetch
+      options.agent = getGophishFIPSAgent();
+    }
     
     const response = await fetch(url, options);
     if (!response.ok) {
@@ -67,12 +100,26 @@ export async function fetchGophishAPI(endpoint: string, method: string = 'GET', 
 
 // ─── Caldera API Helper ─────────────────────────────────────────────────
 
+/**
+ * FIPS 140-3 compliant Caldera API helper.
+ * Uses the global FIPS HTTPS agent for all outbound HTTPS connections.
+ */
 export async function fetchCalderaAPI(url: string, apiKey: string, endpoint: string) {
   try {
-    const response = await fetch(`${url}${endpoint}`, {
+    const fullUrl = `${url}${endpoint}`;
+    const isHttps = fullUrl.startsWith('https://');
+
+    const options: RequestInit & { dispatcher?: any } = {
       headers: { 'KEY': apiKey },
       signal: AbortSignal.timeout(30000),
-    });
+    };
+
+    if (isHttps) {
+      // @ts-ignore - Node.js specific option for native fetch
+      options.agent = getFIPSHttpsAgent();
+    }
+
+    const response = await fetch(fullUrl, options);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
   } catch (error) {

@@ -10,6 +10,7 @@ import { eq, desc } from "drizzle-orm";
 import { Client as SSHClient } from "ssh2";
 import { createHash } from "crypto";
 import * as fs from "fs";
+import { FIPS_SSH_ALGORITHMS } from "../lib/fips-ssh";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -132,6 +133,8 @@ async function execSSHCommand(
         username: server.sshUser || "root",
         privateKey: fs.readFileSync(keyPath),
         readyTimeout: 10_000,
+        // FIPS 140-3: Restrict to NIST-approved SSH algorithms only
+        algorithms: FIPS_SSH_ALGORITHMS,
       });
   });
 }
@@ -194,6 +197,8 @@ async function downloadFileSSH(
         username: server.sshUser || "root",
         privateKey: fs.readFileSync(keyPath),
         readyTimeout: 10_000,
+        // FIPS 140-3: Restrict to NIST-approved SSH algorithms only
+        algorithms: FIPS_SSH_ALGORITHMS,
       });
   });
 }

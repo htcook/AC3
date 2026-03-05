@@ -28,6 +28,7 @@ import { Client as SSHClient } from "ssh2";
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
+import { FIPS_SSH_ALGORITHMS } from "./fips-ssh";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -304,6 +305,8 @@ function executeSSHCommand(
         privateKey,
         readyTimeout: 15000,
         keepaliveInterval: 10000,
+        // FIPS 140-3: Restrict to NIST-approved SSH algorithms only
+        algorithms: FIPS_SSH_ALGORITHMS,
       });
   });
 }

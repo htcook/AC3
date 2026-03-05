@@ -1,5 +1,5 @@
 import { fetchGophishAPI } from "../lib/api-helpers";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as schema from "../../drizzle/schema";
 
@@ -314,7 +314,7 @@ export const gophishProxyRouter = router({
       }),
 
     // Get GoPhish server status
-    getStatus: publicProcedure.query(async () => {
+    getStatus: protectedProcedure.query(async () => {
       try {
         const campaigns = await fetchGophishAPI('/api/campaigns/');
         const templates = await fetchGophishAPI('/api/templates/');
@@ -335,7 +335,7 @@ export const gophishProxyRouter = router({
     }),
 
     // Aggregated GoPhish stats for dashboard
-    getStats: publicProcedure.query(async () => {
+    getStats: protectedProcedure.query(async () => {
       try {
         const [campaigns, templates, pages, groups, smtp] = await Promise.all([
           fetchGophishAPI('/api/campaigns/'),

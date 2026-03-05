@@ -1,6 +1,6 @@
 import { fetchCalderaAPI, CALDERA_BASE_URL, CALDERA_API_KEY } from "../lib/api-helpers";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import { and, count, min, not, sql } from "drizzle-orm";
@@ -8,7 +8,7 @@ import * as schema from "../../drizzle/schema";
 
 export const calderaProxyRouter = router({
     // Direct stats from C2 server
-    getStats: publicProcedure.query(async () => {
+    getStats: protectedProcedure.query(async () => {
       const [adversaries, abilities, operations, agents] = await Promise.all([
         fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries'),
         fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities'),
@@ -26,26 +26,26 @@ export const calderaProxyRouter = router({
     }),
 
     // Get all adversaries from DigitalOcean Caldera
-    getAdversaries: publicProcedure.query(async () => {
+    getAdversaries: protectedProcedure.query(async () => {
       const adversaries = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries');
       return Array.isArray(adversaries) ? adversaries : [];
     }),
 
     // Get single adversary by ID
-    getAdversary: publicProcedure
+    getAdversary: protectedProcedure
       .input(z.object({ adversaryId: z.string() }))
       .query(async ({ input }) => {
         return fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, `/api/v2/adversaries/${input.adversaryId}`);
       }),
 
     // Get all abilities from DigitalOcean Caldera
-    getAbilities: publicProcedure.query(async () => {
+    getAbilities: protectedProcedure.query(async () => {
       const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
       return Array.isArray(abilities) ? abilities : [];
     }),
 
     // Get abilities by tactic
-    getAbilitiesByTactic: publicProcedure
+    getAbilitiesByTactic: protectedProcedure
       .input(z.object({ tactic: z.string() }))
       .query(async ({ input }) => {
         const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
@@ -54,7 +54,7 @@ export const calderaProxyRouter = router({
       }),
 
     // Get all tactics (derived from abilities)
-    getTactics: publicProcedure.query(async () => {
+    getTactics: protectedProcedure.query(async () => {
       const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
       if (!Array.isArray(abilities)) return [];
 
@@ -68,19 +68,19 @@ export const calderaProxyRouter = router({
     }),
 
     // Get all operations from DigitalOcean Caldera
-    getOperations: publicProcedure.query(async () => {
+    getOperations: protectedProcedure.query(async () => {
       const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
       return Array.isArray(operations) ? operations : [];
     }),
 
     // Get all agents from DigitalOcean Caldera
-    getAgents: publicProcedure.query(async () => {
+    getAgents: protectedProcedure.query(async () => {
       const agents = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents');
       return Array.isArray(agents) ? agents : [];
     }),
 
     // Get single agent by paw (agent ID)
-    getAgent: publicProcedure
+    getAgent: protectedProcedure
       .input(z.object({ paw: z.string() }))
       .query(async ({ input }) => {
         return fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, `/api/v2/agents/${input.paw}`);
@@ -121,13 +121,13 @@ export const calderaProxyRouter = router({
       }),
 
     // Get agent deployable commands
-    getDeployCommands: publicProcedure.query(async () => {
+    getDeployCommands: protectedProcedure.query(async () => {
       const deploy = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/deploy_commands');
       return deploy || {};
     }),
 
     // Check C2 server health
-    checkHealth: publicProcedure.query(async () => {
+    checkHealth: protectedProcedure.query(async () => {
       try {
         const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
           headers: { 'KEY': CALDERA_API_KEY },
@@ -324,7 +324,7 @@ export const calderaProxyRouter = router({
 
     // ─── Campaign Execution Dashboard Endpoints ───
     // Get detailed operation with chain analysis
-    getOperationDetail: publicProcedure
+    getOperationDetail: protectedProcedure
       .input(z.object({ operationId: z.string() }))
       .query(async ({ input }) => {
         const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
@@ -409,7 +409,7 @@ export const calderaProxyRouter = router({
       }),
 
     // Get all operations summary for dashboard
-    getOperationsSummary: publicProcedure.query(async () => {
+    getOperationsSummary: protectedProcedure.query(async () => {
       const [operations, agents] = await Promise.all([
         fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations'),
         fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents'),

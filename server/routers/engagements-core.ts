@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, publicProcedure, router, adminProcedure} from "../_core/trpc";
+import { protectedProcedure, router, adminProcedure} from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import { ENV } from "../_core/env";
@@ -298,7 +298,7 @@ export const engagementsRouter = router({
       }),
 
     // ── Engagement Templates ──────────────────────────────────────────────
-    listTemplates: publicProcedure.query(async () => {
+    listTemplates: protectedProcedure.query(async () => {
       const { ENGAGEMENT_TEMPLATES } = await import('../lib/engagement-templates');
       return ENGAGEMENT_TEMPLATES.map(t => ({
         id: t.id,
@@ -315,7 +315,7 @@ export const engagementsRouter = router({
       }));
     }),
 
-    getTemplate: publicProcedure
+    getTemplate: protectedProcedure
       .input(z.object({ id: z.string() }))
       .query(async ({ input }) => {
         const { getTemplateById } = await import('../lib/engagement-templates');

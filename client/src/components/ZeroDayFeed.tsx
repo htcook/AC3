@@ -4,12 +4,13 @@ import { Link } from "wouter";
 import {
   AlertTriangle, Shield, Bug, Zap, ExternalLink, ChevronRight,
   RefreshCw, Flame, Crosshair, Clock, TrendingUp, Eye, Pause, Play,
-  ChevronDown, ChevronUp, Filter,
+  ChevronDown, ChevronUp, Filter, Skull, Database, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import TrendingSparkline from "@/components/TrendingSparkline";
 import CveDetailModal from "@/components/CveDetailModal";
+import BreachEventDetailModal from "@/components/BreachEventDetailModal";
 
 type FeedTab = "zero_day" | "weaponized" | "kev";
 
@@ -60,6 +61,8 @@ export default function ZeroDayFeed() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [selectedCveId, setSelectedCveId] = useState<string | null>(null);
   const [cveModalOpen, setCveModalOpen] = useState(false);
+  const [selectedBreachEvent, setSelectedBreachEvent] = useState<{ id: number; type: "ransomware" | "data_leak" | "unauthorized_access" | "incident" } | null>(null);
+  const [breachModalOpen, setBreachModalOpen] = useState(false);
   const tickerRef = useRef<HTMLDivElement>(null);
 
   // Data queries
@@ -78,17 +81,34 @@ export default function ZeroDayFeed() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Ticker items — combine top critical items from all feeds
+  // Fetch breach events for the ticker
+  const { data: breachTickerData } = trpc.darkwebIntel.getBreachTickerItems.useQuery(undefined, {
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
+  });
+
+  // Ticker items — combine top critical items from all feeds + breach events
   const tickerItems = useMemo(() => {
-    const items: Array<{ cveId: string; severity: string; label: string; type: string }> = [];
-    (zeroDays || []).slice(0, 8).forEach(v => {
+    const items: Array<{ cveId?: string; breachId?: number; breachType?: string; severity: string; label: string; type: string; isBreach?: boolean }> = [];
+    (zeroDays || []).slice(0, 6).forEach(v => {
       items.push({ cveId: v.cveId, severity: v.severity, label: `${v.cveId} — ${v.vendor} ${v.product}`, type: "0-DAY" });
     });
-    (weaponized || []).slice(0, 5).forEach(v => {
+    (weaponized || []).slice(0, 4).forEach(v => {
       items.push({ cveId: v.cveId, severity: v.severity, label: `${v.cveId} — ${v.vendor} ${v.product}`, type: "EXPLOIT" });
     });
+    // Add breach events to the ticker
+    (breachTickerData || []).slice(0, 8).forEach(b => {
+      items.push({
+        breachId: b.id,
+        breachType: b.type,
+        severity: b.severity,
+        label: b.label,
+        type: b.tag,
+        isBreach: true,
+      });
+    });
     return items;
-  }, [zeroDays, weaponized]);
+  }, [zeroDays, weaponized, breachTickerData]);
 
   // Active feed data
   const activeFeed = useMemo(() => {
@@ -190,28 +210,55 @@ export default function ZeroDayFeed() {
           {tickerItems.length > 0 ? (
             [...tickerItems, ...tickerItems].map((item, i) => {
               const sev = SEVERITY_CONFIG[item.severity] || SEVERITY_CONFIG.unknown;
+              const BREACH_SEVERITY: Record<string, { color: string; bg: string; border: string }> = {
+                critical: { color: "text-red-400", bg: "bg-red-500/20", border: "border-red-500/40" },
+                high: { color: "text-orange-400", bg: "bg-orange-500/20", border: "border-orange-500/40" },
+                medium: { color: "text-yellow-400", bg: "bg-yellow-500/20", border: "border-yellow-500/40" },
+                low: { color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500/40" },
+              };
+              const breachSev = item.isBreach ? (BREACH_SEVERITY[item.severity] || BREACH_SEVERITY.medium!) : null;
+              const displaySev = breachSev || sev;
               return (
                 <span
-                  key={`${item.cveId}-${i}`}
+                  key={`${item.cveId || item.breachId}-${item.type}-${i}`}
                   className="flex items-center gap-2 text-xs shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedCveId(item.cveId);
-                    setCveModalOpen(true);
+                    if (item.isBreach && item.breachId) {
+                      setSelectedBreachEvent({ id: item.breachId, type: item.breachType as any });
+                      setBreachModalOpen(true);
+                    } else if (item.cveId) {
+                      setSelectedCveId(item.cveId);
+                      setCveModalOpen(true);
+                    }
                   }}
                   role="link"
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") { setSelectedCveId(item.cveId); setCveModalOpen(true); }
+                    if (e.key === "Enter") {
+                      if (item.isBreach && item.breachId) {
+                        setSelectedBreachEvent({ id: item.breachId, type: item.breachType as any });
+                        setBreachModalOpen(true);
+                      } else if (item.cveId) {
+                        setSelectedCveId(item.cveId);
+                        setCveModalOpen(true);
+                      }
+                    }
                   }}
-                  aria-label={`View details for ${item.cveId}`}
+                  aria-label={item.isBreach ? `View breach event: ${item.label}` : `View details for ${item.cveId}`}
                 >
-                  <span className={`px-1.5 py-0.5 text-[9px] font-display tracking-wider ${sev.bg} ${sev.color} ${sev.border} border`}>
+                  <span className={`px-1.5 py-0.5 text-[9px] font-display tracking-wider ${displaySev.bg} ${displaySev.color} ${displaySev.border} border`}>
                     {item.type}
                   </span>
-                  <span className={`font-mono ${sev.color}`}>{item.cveId}</span>
-                  <span className="text-muted-foreground">—</span>
-                  <span className="text-muted-foreground max-w-[200px] truncate">{item.label.split(" — ")[1]}</span>
+                  {item.isBreach ? (
+                    <span className={`${displaySev.color} max-w-[280px] truncate`}>{item.label}</span>
+                  ) : (
+                    <>
+                      <span className={`font-mono ${displaySev.color}`}>{item.cveId}</span>
+                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground max-w-[200px] truncate">{item.label.split(" — ")[1]}</span>
+                    </>
+                  )}
                 </span>
               );
             })
@@ -442,6 +489,14 @@ export default function ZeroDayFeed() {
         open={cveModalOpen}
         onOpenChange={setCveModalOpen}
         cveId={selectedCveId}
+      />
+
+      {/* ── Breach Event Detail Modal ── */}
+      <BreachEventDetailModal
+        open={breachModalOpen}
+        onOpenChange={setBreachModalOpen}
+        eventId={selectedBreachEvent?.id ?? null}
+        eventType={selectedBreachEvent?.type ?? null}
       />
 
       {/* ── View All Link ── */}

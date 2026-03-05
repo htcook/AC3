@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Bell, Shield, Search, RefreshCw, ExternalLink, Globe, Building2, Calendar, Filter, TrendingUp, Skull, FileWarning, Database } from "lucide-react";
+import { AlertTriangle, Bell, Shield, Search, RefreshCw, ExternalLink, Globe, Building2, Calendar, Filter, TrendingUp, Skull, FileWarning, Database, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import BreachEventDetailModal from "@/components/BreachEventDetailModal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,18 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diffD / 30)}mo ago`;
 }
 
+/** Map breach event type to the enum accepted by the detail endpoint */
+function toDetailType(type: string): "ransomware" | "data_leak" | "unauthorized_access" | "incident" {
+  switch (type) {
+    case "ransomware": return "ransomware";
+    case "data_breach":
+    case "data_leak": return "data_leak";
+    case "unauthorized_access": return "unauthorized_access";
+    case "incident": return "incident";
+    default: return "data_leak";
+  }
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function BreachEvents() {
@@ -82,6 +95,10 @@ export default function BreachEvents() {
   const [sectorFilter, setSectorFilter] = useState<string>("all");
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [tab, setTab] = useState("all");
+
+  // Detail modal state
+  const [selectedEvent, setSelectedEvent] = useState<{ id: number; type: "ransomware" | "data_leak" | "unauthorized_access" | "incident" } | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // Fetch breach events from all sources
   const breachEventsQ = trpc.darkwebIntel.getBreachEvents.useQuery(undefined, {
@@ -145,6 +162,11 @@ export default function BreachEvents() {
     const uniqueCountries = new Set(events.filter(e => e.country).map(e => e.country)).size;
     return { total: events.length, last24h, last7d, ransomwareCount, dataBreachCount, uniqueGroups, uniqueCountries };
   }, [events]);
+
+  const handleEventClick = (event: BreachEvent) => {
+    setSelectedEvent({ id: event.id, type: toDetailType(event.type) });
+    setDetailOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -281,14 +303,18 @@ export default function BreachEvents() {
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground mb-2">{filtered.length} events</p>
               {filtered.map((event) => (
-                <Card key={`${event.type}-${event.id}`} className="bg-zinc-900/50 border-zinc-800 hover:border-zinc-700 transition-colors cursor-pointer">
+                <Card
+                  key={`${event.type}-${event.id}`}
+                  className="bg-zinc-900/50 border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer group"
+                  onClick={() => handleEventClick(event)}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3 flex-1 min-w-0">
                         <div className="mt-1">{typeIcon(event.type)}</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-white truncate">{event.victimName}</span>
+                            <span className="font-semibold text-white truncate group-hover:text-primary transition-colors">{event.victimName}</span>
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-500/50 text-red-400">
                               {event.groupName}
                             </Badge>
@@ -335,8 +361,11 @@ export default function BreachEvents() {
                           </div>
                         </div>
                       </div>
-                      <div className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(event.publishedAt).toLocaleDateString()}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(event.publishedAt).toLocaleDateString()}
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </div>
                   </CardContent>
@@ -346,6 +375,14 @@ export default function BreachEvents() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Breach Event Detail Modal */}
+      <BreachEventDetailModal
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        eventId={selectedEvent?.id ?? null}
+        eventType={selectedEvent?.type ?? null}
+      />
     </div>
   );
 }

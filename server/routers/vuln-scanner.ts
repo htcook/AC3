@@ -194,16 +194,24 @@ export const vulnScannerRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const { sql } = await import("drizzle-orm");
-    const result = await db.select({
+    // FIPS / Dedup: Use COUNT DISTINCT on vulnScanFindings for accurate unique counts
+    // instead of SUM across imports (which inflates counts when scans overlap)
+    const { vulnScanFindings } = await import("../../drizzle/schema");
+    const importCount = await db.select({
       totalImports: sql<number>`count(*)`,
-      totalHosts: sql<number>`COALESCE(sum(${vulnScanImports.totalHosts}), 0)`,
-      totalVulns: sql<number>`COALESCE(sum(${vulnScanImports.totalVulns}), 0)`,
-      critical: sql<number>`COALESCE(sum(${vulnScanImports.criticalCount}), 0)`,
-      high: sql<number>`COALESCE(sum(${vulnScanImports.highCount}), 0)`,
-      medium: sql<number>`COALESCE(sum(${vulnScanImports.mediumCount}), 0)`,
-      low: sql<number>`COALESCE(sum(${vulnScanImports.lowCount}), 0)`,
     }).from(vulnScanImports);
-    return result[0];
+    const dedupStats = await db.select({
+      totalHosts: sql<number>`COUNT(DISTINCT ${vulnScanFindings.hostIp})`,
+      totalVulns: sql<number>`COUNT(DISTINCT ${vulnScanFindings.cveId})`,
+      critical: sql<number>`COUNT(DISTINCT CASE WHEN ${vulnScanFindings.severity} = 'critical' THEN ${vulnScanFindings.cveId} END)`,
+      high: sql<number>`COUNT(DISTINCT CASE WHEN ${vulnScanFindings.severity} = 'high' THEN ${vulnScanFindings.cveId} END)`,
+      medium: sql<number>`COUNT(DISTINCT CASE WHEN ${vulnScanFindings.severity} = 'medium' THEN ${vulnScanFindings.cveId} END)`,
+      low: sql<number>`COUNT(DISTINCT CASE WHEN ${vulnScanFindings.severity} = 'low' THEN ${vulnScanFindings.cveId} END)`,
+    }).from(vulnScanFindings);
+    return {
+      totalImports: importCount[0]?.totalImports ?? 0,
+      ...(dedupStats[0] ?? { totalHosts: 0, totalVulns: 0, critical: 0, high: 0, medium: 0, low: 0 }),
+    };
   }),
 
   deleteImport: protectedProcedure

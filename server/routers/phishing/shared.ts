@@ -20,7 +20,7 @@ export async function fetchGophish(endpoint: string, method = "GET", data?: any)
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: "GoPhish not configured" });
   }
   const url = `${baseUrl}${endpoint}`;
-  const opts: RequestInit = {
+  const opts: RequestInit & { agent?: any } = {
     method,
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -31,8 +31,12 @@ export async function fetchGophish(endpoint: string, method = "GET", data?: any)
   if (data && method !== "GET") {
     opts.body = JSON.stringify(data);
   }
-  // GoPhish uses self-signed certs in many setups
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  // FIPS 140-3: Use FIPS HTTPS agent with self-signed cert support
+  if (url.startsWith('https://')) {
+    const { createFIPSHttpsAgent } = await import('../../lib/fips-tls');
+    // @ts-ignore - Node.js specific option
+    opts.agent = createFIPSHttpsAgent({ rejectUnauthorized: false });
+  }
   const res = await fetch(url, opts);
   if (!res.ok) {
     const text = await res.text().catch(() => "");

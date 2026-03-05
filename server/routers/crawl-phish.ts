@@ -268,30 +268,31 @@ export const crawlPhishRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "GoPhish not configured" });
       }
 
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+      // FIPS 140-3: Use FIPS HTTPS agent for GoPhish self-signed certs
+      const { createFIPSHttpsAgent } = await import('../lib/fips-tls');
+      const gophishAgent = baseUrl.startsWith('https://') ? createFIPSHttpsAgent({ rejectUnauthorized: false }) : undefined;
+      const fetchOpts = (body: any): RequestInit & { agent?: any } => ({
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        // @ts-ignore - Node.js specific option
+        ...(gophishAgent ? { agent: gophishAgent } : {}),
+      });
 
       // Create email template
-      const templateRes = await fetch(`${baseUrl}/api/templates/`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: input.template.name,
-          subject: input.template.subject,
-          html: input.template.emailHtml,
-        }),
-      });
+      const templateRes = await fetch(`${baseUrl}/api/templates/`, fetchOpts({
+        name: input.template.name,
+        subject: input.template.subject,
+        html: input.template.emailHtml,
+      }));
 
       // Create landing page
-      const pageRes = await fetch(`${baseUrl}/api/pages/`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${input.template.name} — Landing Page`,
-          html: input.template.landingPageHtml,
-          capture_credentials: true,
-          capture_passwords: true,
-        }),
-      });
+      const pageRes = await fetch(`${baseUrl}/api/pages/`, fetchOpts({
+        name: `${input.template.name} — Landing Page`,
+        html: input.template.landingPageHtml,
+        capture_credentials: true,
+        capture_passwords: true,
+      }));
 
       const templateOk = templateRes.ok;
       const pageOk = pageRes.ok;

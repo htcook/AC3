@@ -7413,3 +7413,72 @@
 - [x] Wire Breach Events feed to display latest breaches AND ransomware notifications from all sources
 - [x] Aggregate ransomware_events + underground_intel_events (data_leak, ransomware, credential, exploit_kit) + incident_reports into unified Breach Events feed
 - [x] Write vitest tests for Breach Events (26/26 passed)
+
+## Clickable Breach Events & Live Ticker Integration
+- [ ] Make breach events clickable — open detail dialog with full info
+- [ ] Show threat actor profile (aliases, motivation, first seen, tools, sectors)
+- [ ] Show IOCs (domains, IPs, emails, TOR addresses) for the associated threat actor
+- [ ] Show MITRE ATT&CK techniques mapped to the threat actor
+- [ ] Show event timeline for the threat actor
+- [ ] Wire breach events into the home page live ticker
+- [ ] Add severity-based color highlighting (red=critical, amber=high, etc.)
+- [ ] Pause ticker on hover for readability
+- [ ] Make ticker items clickable to navigate to breach event detail
+- [ ] Keyboard navigation support (arrow keys + Enter)
+- [ ] Write tests for detail view and ticker integration
+
+## Breach Event Detail View & Ticker Integration
+- [ ] Add backend endpoint for breach event detail (threat actor profile, IOCs, MITRE techniques)
+- [ ] Create BreachEventDetailModal component with full threat actor profile
+- [ ] Wire breach events into ZeroDayFeed ticker with severity-based highlighting
+- [ ] Make breach event cards clickable in BreachEvents page to open detail modal
+- [ ] Write tests for breach event detail endpoint and ticker integration
+
+## Auth Audit — No Unauthenticated Access
+- [ ] Audit homepage for KSI dashboard button that bypasses auth
+- [ ] Audit App.tsx routing for any unprotected routes leading to platform
+- [ ] Remove or gate all bypass paths so login is required
+- [ ] Write tests verifying auth enforcement on all protected routes
+
+## DigitalOcean & Backend Security Audit
+- [ ] Audit DigitalOcean droplets/services for publicly exposed backend components (Caldera, GoPhish, ZAP, etc.)
+- [ ] Check DigitalOcean firewall rules for open ports
+- [ ] Audit tRPC caldera-proxy endpoints — many use publicProcedure instead of protectedProcedure
+- [ ] Audit tRPC gophish-proxy endpoints — some use publicProcedure
+- [ ] Audit tRPC ioc-feed endpoints — some use publicProcedure
+- [ ] Audit tRPC engagements-core templates endpoints — use publicProcedure
+- [ ] Fix all improperly public backend API endpoints
+- [ ] Verify DigitalOcean firewall rules block direct access to backend services
+- [ ] Document all findings in security audit report
+
+## Vianova Pentest Dashboard Stats Deduplication
+- [x] Investigate how hosts scanned count is calculated — was using SUM across imports
+- [x] Investigate how vuln counts are calculated — was using SUM across imports
+- [x] Fix host count to use COUNT DISTINCT hostIp on vulnScanFindings
+- [x] Fix vuln count to use COUNT DISTINCT cveId on vulnScanFindings
+- [x] Ensure re-running scans updates existing findings rather than creating duplicates
+
+## Security Audit: Auth Protection
+- [x] Convert all caldera-proxy.ts endpoints from publicProcedure to protectedProcedure
+- [x] Convert all gophish-proxy.ts endpoints from publicProcedure to protectedProcedure
+- [x] Convert all ioc-feed.ts endpoints from publicProcedure to protectedProcedure
+- [x] Convert all engagements-core.ts endpoints from publicProcedure to protectedProcedure
+- [x] Write security-audit.test.ts (12 tests passing)
+
+## FIPS 140-3 Internal Communications Compliance
+- [x] Audit all internal communication channels (API proxies, DB, SSH, inter-server)
+- [x] Create FIPS 140-3 SSH configuration module (server/lib/fips-ssh.ts)
+- [x] Enforce FIPS-approved SSH algorithms on ssh-tunnel-manager.ts
+- [x] Enforce FIPS-approved SSH algorithms on scan-server-executor.ts
+- [x] Enforce FIPS-approved SSH algorithms on amass-engine.ts
+- [x] Enforce FIPS-approved SSH algorithms on nmap-orchestrator.ts
+- [x] Enforce FIPS-approved SSH algorithms on payload-generator.ts (2 connect blocks)
+- [x] Remove NODE_TLS_REJECT_UNAUTHORIZED='0' from api-helpers.ts — replaced with FIPS HTTPS agent
+- [x] Remove NODE_TLS_REJECT_UNAUTHORIZED='0' from routers.ts — replaced with FIPS HTTPS agent
+- [x] Remove NODE_TLS_REJECT_UNAUTHORIZED='0' from phishing-ops.ts — replaced with FIPS HTTPS agent
+- [x] Remove NODE_TLS_REJECT_UNAUTHORIZED='0' from phishing/shared.ts — replaced with FIPS HTTPS agent
+- [x] Remove NODE_TLS_REJECT_UNAUTHORIZED='0' from crawl-phish.ts — replaced with FIPS HTTPS agent
+- [x] Verify FIPS TLS enforcement at server startup via enforceFIPSTLS()
+- [x] Verify FIPS SSL config on database connection (db.ts uses getFIPSDatabaseSSLConfig)
+- [x] Write fips-compliance.test.ts (39 tests passing)
+- [x] All 51 security + FIPS tests passing

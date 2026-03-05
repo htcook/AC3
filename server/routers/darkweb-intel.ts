@@ -1173,4 +1173,268 @@ export const darkwebIntelRouter = router({
 
     return allEvents;
   }),
+
+  /**
+   * Get breach event detail — full threat actor profile, IOCs, MITRE techniques.
+   * Accepts the breach event type + original DB ID to look up the correct table.
+   */
+  getBreachEventDetail: protectedProcedure
+    .input(z.object({
+      eventId: z.number(),
+      eventType: z.enum(["ransomware", "data_leak", "unauthorized_access", "incident"]),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const { ransomwareEvents, undergroundIntelEvents, incidentReports } = await import("../../drizzle/schema");
+
+      function safeParseJson(val: unknown): any[] {
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string') { try { return JSON.parse(val); } catch { return []; } }
+        if (val && typeof val === 'object') return [val];
+        return [];
+      }
+
+      let groupName = "Unknown";
+      let eventDetail: any = null;
+
+      // Determine source table from the ID offset used in getBreachEvents
+      if (input.eventId >= 200000) {
+        // Incident report
+        const realId = input.eventId - 200000;
+        const rows = await db.select().from(incidentReports).where(eq(incidentReports.id, realId)).limit(1);
+        if (rows[0]) {
+          const ir = rows[0] as any;
+          groupName = ir.actorsIdentified?.[0]?.name || "Unknown";
+          eventDetail = {
+            id: input.eventId,
+            type: "incident",
+            title: ir.title,
+            description: ir.summary || ir.fullContent?.slice(0, 500),
+            publishedAt: ir.publishedAt,
+            source: ir.source,
+            sourceUrl: ir.url,
+            severity: ir.severity,
+            incidentType: ir.incidentType,
+            attackSequence: safeParseJson(ir.attackSequence),
+            ttpsExtracted: safeParseJson(ir.ttpsExtracted),
+            iocsExtracted: safeParseJson(ir.iocsExtracted),
+            actorsIdentified: safeParseJson(ir.actorsIdentified),
+            malwareIdentified: safeParseJson(ir.malwareIdentified),
+            cvesMentioned: safeParseJson(ir.cvesMentioned),
+            targetSectors: safeParseJson(ir.targetSectors),
+            targetCountries: safeParseJson(ir.targetCountries),
+            attackNarrative: ir.attackNarrative,
+            lessonsLearned: ir.lessonsLearned,
+          };
+        }
+      } else if (input.eventId >= 100000) {
+        // Underground intel event
+        const realId = input.eventId - 100000;
+        const rows = await db.select().from(undergroundIntelEvents).where(eq(undergroundIntelEvents.id, realId)).limit(1);
+        if (rows[0]) {
+          const u = rows[0] as any;
+          groupName = u.actorName || u.source || "Unknown";
+          eventDetail = {
+            id: input.eventId,
+            type: u.category === "ransomware" ? "ransomware" : u.category === "credential" ? "unauthorized_access" : "data_leak",
+            title: u.title,
+            description: u.description,
+            publishedAt: u.eventDate || u.ingestedAt,
+            source: u.source,
+            sourceUrl: u.sourceUrl,
+            severity: u.severity,
+            actorName: u.actorName,
+            actorAliases: safeParseJson(u.actorAliases),
+            victimName: u.victimName,
+            victimSector: u.victimSector,
+            victimCountry: u.victimCountry,
+            mitreTechniques: safeParseJson(u.mitreTechniques),
+            iocType: u.iocType,
+            iocValue: u.iocValue,
+            tags: safeParseJson(u.tags),
+            enrichmentData: u.enrichmentData ? safeParseJson(u.enrichmentData) : null,
+          };
+        }
+      } else {
+        // Ransomware event
+        const rows = await db.select().from(ransomwareEvents).where(eq(ransomwareEvents.id, input.eventId)).limit(1);
+        if (rows[0]) {
+          const r = rows[0] as any;
+          groupName = r.groupName || "Unknown";
+          eventDetail = {
+            id: input.eventId,
+            type: "ransomware",
+            title: `${r.groupName} — ${r.victimName}`,
+            description: r.description,
+            publishedAt: r.publishedAt,
+            source: r.source,
+            sourceUrl: r.victimUrl,
+            severity: "high",
+            groupName: r.groupName,
+            victimName: r.victimName,
+            victimUrl: r.victimUrl,
+            country: r.country,
+            sector: r.sector,
+            verified: r.verified,
+          };
+        }
+      }
+
+      if (!eventDetail) return null;
+
+      // Look up threat actor profile by group name
+      let actor: any = null;
+      if (groupName && groupName !== "Unknown") {
+        const actors = await db.select().from(threatActors)
+          .where(sql`${threatActors.name} = ${groupName} OR ${threatActors.actorId} = ${groupName.toLowerCase().replace(/\s+/g, '_')} OR JSON_CONTAINS(${threatActors.aliases}, JSON_QUOTE(${groupName}))`)
+          .limit(1);
+        actor = actors[0] || null;
+      }
+
+      // Get IOCs from threat_actor_iocs table
+      let actorIocs: any[] = [];
+      if (actor) {
+        actorIocs = await db.select().from(threatActorIocs)
+          .where(eq(threatActorIocs.actorId, actor.actorId)).limit(30);
+      }
+
+      // Get ransomware group profile
+      let ransomwareProfile: any = null;
+      if (groupName && groupName !== "Unknown") {
+        const rwGroups = await db.select().from(ransomwareGroups)
+          .where(sql`${ransomwareGroups.groupName} = ${groupName}`)
+          .limit(1);
+        ransomwareProfile = rwGroups[0] || null;
+      }
+
+      // Get related threat group events
+      let relatedEvents: any[] = [];
+      if (actor) {
+        relatedEvents = await db
+          .select({
+            id: threatGroupEvents.id,
+            eventType: threatGroupEvents.eventType,
+            title: threatGroupEvents.title,
+            severity: threatGroupEvents.severity,
+            victimName: threatGroupEvents.victimName,
+            victimSector: threatGroupEvents.victimSector,
+            victimCountry: threatGroupEvents.victimCountry,
+            eventDate: threatGroupEvents.eventDate,
+            source: threatGroupEvents.source,
+            sourceUrl: threatGroupEvents.sourceUrl,
+            mitreTechniques: threatGroupEvents.mitreTechniques,
+            iocs: threatGroupEvents.iocs,
+          })
+          .from(threatGroupEvents)
+          .where(eq(threatGroupEvents.actorId, actor.actorId))
+          .orderBy(desc(threatGroupEvents.eventDate))
+          .limit(15);
+      }
+
+      return {
+        event: eventDetail,
+        actor: actor ? {
+          actorId: actor.actorId, name: actor.name, aliases: safeParseJson(actor.aliases),
+          type: actor.type, origin: actor.origin, description: actor.description,
+          motivation: actor.motivation, firstSeen: actor.firstSeen, lastActive: actor.lastActive,
+          threatLevel: actor.threatLevel, sophistication: actor.sophistication,
+          targetSectors: safeParseJson(actor.targetSectors), targetRegions: safeParseJson(actor.targetRegions),
+          techniques: safeParseJson(actor.techniques), tools: safeParseJson(actor.tools),
+          malware: safeParseJson(actor.malware), activityTimeline: safeParseJson(actor.activityTimeline),
+          confidence: actor.confidence, dataSource: actor.dataSource,
+        } : null,
+        actorIocs: actorIocs.map(ioc => ({
+          type: ioc.type, value: ioc.value, description: ioc.description,
+          firstSeen: ioc.firstSeen, lastSeen: ioc.lastSeen, confidence: ioc.confidence, source: ioc.source,
+        })),
+        ransomwareProfile: ransomwareProfile ? {
+          groupName: ransomwareProfile.groupName, activityScore: ransomwareProfile.activityScore,
+          trend: ransomwareProfile.trend, threatLevel: ransomwareProfile.threatLevel,
+          victims7d: ransomwareProfile.victims7d, victims30d: ransomwareProfile.victims30d,
+          totalVictims: ransomwareProfile.totalVictims,
+          topSectors: safeParseJson(ransomwareProfile.topSectors),
+          topCountries: safeParseJson(ransomwareProfile.topCountries),
+          ransomwareFamily: ransomwareProfile.ransomwareFamily,
+          extortionModel: ransomwareProfile.extortionModel,
+          mitreTechniques: safeParseJson(ransomwareProfile.mitreTechniques),
+          knownInfrastructure: safeParseJson(ransomwareProfile.knownInfrastructure),
+          notableAttacks: safeParseJson(ransomwareProfile.notableAttacks),
+        } : null,
+        relatedEvents: relatedEvents.map(e => ({
+          ...e,
+          mitreTechniques: safeParseJson(e.mitreTechniques),
+          iocs: safeParseJson(e.iocs),
+        })),
+      };
+    }),
+
+  /**
+   * Get recent breach events for the ticker — lightweight, returns only what the ticker needs.
+   */
+  getBreachTickerItems: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const { ransomwareEvents, undergroundIntelEvents, incidentReports } = await import("../../drizzle/schema");
+
+    // Get most recent 10 ransomware events
+    const rwEvents = await db.select({
+      id: ransomwareEvents.id,
+      groupName: ransomwareEvents.groupName,
+      victimName: ransomwareEvents.victimName,
+      publishedAt: ransomwareEvents.publishedAt,
+    }).from(ransomwareEvents).orderBy(desc(ransomwareEvents.publishedAt)).limit(10);
+
+    const rwMapped = rwEvents.map((r: any) => ({
+      id: r.id,
+      type: "ransomware" as const,
+      label: `${r.groupName} → ${r.victimName}`,
+      severity: "high" as const,
+      tag: "RANSOMWARE",
+      publishedAt: r.publishedAt ? new Date(r.publishedAt).toISOString() : new Date().toISOString(),
+    }));
+
+    // Get most recent 10 underground intel events (data leaks, ransomware, credentials)
+    const uieEvents = await db.select({
+      id: undergroundIntelEvents.id,
+      category: undergroundIntelEvents.category,
+      title: undergroundIntelEvents.title,
+      severity: undergroundIntelEvents.severity,
+      actorName: undergroundIntelEvents.actorName,
+      eventDate: undergroundIntelEvents.eventDate,
+    }).from(undergroundIntelEvents)
+      .where(sql`${undergroundIntelEvents.category} IN ('data_leak', 'ransomware', 'credential', 'exploit')`)
+      .orderBy(desc(undergroundIntelEvents.eventDate)).limit(10);
+
+    const uieMapped = uieEvents.map((u: any) => ({
+      id: u.id + 100000,
+      type: (u.category === "ransomware" ? "ransomware" : u.category === "credential" ? "unauthorized_access" : "data_leak") as any,
+      label: u.actorName ? `${u.actorName} — ${u.title?.slice(0, 60)}` : (u.title?.slice(0, 80) || "Unknown event"),
+      severity: (u.severity || "medium") as any,
+      tag: u.category === "ransomware" ? "RANSOMWARE" : u.category === "credential" ? "CREDENTIAL" : "DATA LEAK",
+      publishedAt: u.eventDate ? new Date(u.eventDate).toISOString() : new Date().toISOString(),
+    }));
+
+    // Get most recent 5 incident reports
+    const irEvents = await db.select({
+      id: incidentReports.id,
+      title: incidentReports.title,
+      severity: incidentReports.severity,
+      publishedAt: incidentReports.publishedAt,
+      source: incidentReports.source,
+    }).from(incidentReports).orderBy(desc(incidentReports.publishedAt)).limit(5);
+
+    const irMapped = irEvents.map((ir: any) => ({
+      id: ir.id + 200000,
+      type: "incident" as const,
+      label: ir.title?.slice(0, 80) || "Incident Report",
+      severity: (ir.severity || "medium") as any,
+      tag: "INCIDENT",
+      publishedAt: ir.publishedAt || new Date().toISOString(),
+    }));
+
+    return [...rwMapped, ...uieMapped, ...irMapped]
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+      .slice(0, 20);
+  }),
 });
