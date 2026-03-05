@@ -22,6 +22,7 @@ import {
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, LogOut, PanelLeft, Users, Crosshair, ChevronDown } from "lucide-react";
+import { FIPSIndicator } from "./FIPSIndicator";
 import { useEngagement } from "@/contexts/EngagementContext";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -206,6 +207,10 @@ function DashboardLayoutContent({
           </SidebarContent>
 
           <SidebarFooter className="p-3">
+            {/* FIPS 140-3 Compliance Status Indicator */}
+            <div className="mb-1">
+              <FIPSIndicator collapsed={isCollapsed} />
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">

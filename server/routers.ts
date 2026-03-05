@@ -143,6 +143,7 @@ import { iocFeedRouter } from "./routers/ioc-feed";
 import { engagementPipelineRouter } from "./routers/engagement-pipeline";
 import { ttpEngineRouter } from "./routers/ttp-engine";
 import { platformStatsRouter } from "./routers/platform-stats";
+import { fipsStatusRouter } from "./routers/fips-status";
 import { exploitCatalogRouter } from "./routers/exploit-catalog-core";
 import { validationRouter } from "./routers/validation-core";
 import { engagementOpsRouter } from "./routers/engagement-ops-core";
@@ -433,6 +434,9 @@ export const appRouter = router({
 
   // ─── Dynamic Platform Stats (public, for homepage) ──────────────────
   platformStats: platformStatsRouter,
+
+  // ─── FIPS 140-3 Compliance Status ──────────────────────────────────
+  fipsStatus: fipsStatusRouter,
 
   // ─── Exploit Catalog (browser + enrichment management) ─────────────
   exploitCatalog: exploitCatalogRouter,

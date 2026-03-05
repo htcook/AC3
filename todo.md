@@ -7482,3 +7482,10 @@
 - [x] Verify FIPS SSL config on database connection (db.ts uses getFIPSDatabaseSSLConfig)
 - [x] Write fips-compliance.test.ts (39 tests passing)
 - [x] All 51 security + FIPS tests passing
+
+## FIPS 140-3 Enhancements (Phase 2)
+- [x] Node.js OpenSSL FIPS provider configuration (fips-openssl-provider.ts — safe detection without breaking OpenSSL)
+- [x] FIPS compliance status indicator in dashboard sidebar (FIPSIndicator.tsx + fipsStatus.getStatus tRPC endpoint)
+- [x] Certificate pinning for Caldera and GoPhish connections (cert-pinning.ts — learn/report/enforce modes)
+- [x] Write vitest tests for all 3 features (61 tests in fips-enhancements.test.ts — all passing)
+- [x] All 112 tests passing across 3 test suites (61 + 39 + 12)

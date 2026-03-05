@@ -13,6 +13,8 @@ import { ENV } from "./env";
 import { serveStatic, setupVite } from "./vite";
 import { eventHub } from "../lib/ws-event-hub";
 import { enforceFIPSTLS } from "../lib/fips-tls-global";
+import { initFIPSProvider } from "../lib/fips-openssl-provider";
+import { initCertPinning } from "../lib/cert-pinning";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +38,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   // FIPS 140-3: Enforce FIPS-approved TLS globally before any connections
   enforceFIPSTLS();
+  // FIPS 140-3: Initialize OpenSSL FIPS provider (attempts --enable-fips activation)
+  initFIPSProvider();
+  // FIPS 140-3: Initialize certificate pinning for Caldera and GoPhish
+  initCertPinning();
 
   const app = express();
   const server = createServer(app);
