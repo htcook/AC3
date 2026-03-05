@@ -572,6 +572,11 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     { name: 'onesixtyone', desc: 'SNMP scanner', use: 'network devices with SNMP' },
     // naabu removed — raw socket issues on DigitalOcean; use nmap --top-ports for port discovery
     { name: 'subfinder', desc: 'Subdomain discovery (skip for scoped engagements — only use when doing broad domain discovery)', use: 'finding additional subdomains in unscoped/domain-intel mode' },
+    // Cloud storage & misconfiguration enumeration tools
+    { name: 'cloud_enum', desc: 'Multi-cloud resource enumerator — discovers S3 buckets, Azure Blobs, GCS buckets by keyword. Usage: cloud_enum -k <keyword> [--disable-aws] [--disable-azure] [--disable-gcp] -l /tmp/cloud_enum_<keyword>.txt', use: 'cloud resource discovery when cloud-hosted assets detected via CNAME/headers' },
+    { name: 's3scanner', desc: 'S3 bucket permission scanner — checks for public ACLs, listing, and read/write access. Usage: echo "<bucket_name>" | s3scanner scan --json', use: 'testing specific S3 bucket names for access misconfigurations' },
+    { name: 'trufflehog', desc: 'Secret scanner — finds exposed credentials in public buckets. Usage: trufflehog s3 --bucket <bucket_name> --json', use: 'post-discovery scanning of accessible buckets for leaked secrets' },
+    { name: 'aws', desc: 'AWS CLI for direct S3/cloud API interaction. Usage: aws s3 ls s3://<bucket> --no-sign-request', use: 'direct bucket enumeration without credentials (anonymous access testing)' },
   ];
 
   const response = await invokeLLM({
@@ -622,6 +627,26 @@ After discovery results are merged, select specific tools per asset based on the
 - SNMP → onesixtyone
 - Login services (SSH, FTP, RDP, MySQL) → hydra (only if approved)
 - Additional subdomains → subfinder (ONLY for domain intelligence / unscoped discovery — skip for scoped engagements where targets are already defined)
+- Cloud storage/apps → cloud_enum (keyword enumeration), s3scanner (bucket permission testing), aws CLI (anonymous S3 access), trufflehog (secret scanning in accessible buckets)
+- Nuclei cloud templates → nuclei with -tags cloud,s3,azure,gcp,firebase,bucket,storage,misconfig
+
+## CLOUD STORAGE & APP MISCONFIGURATION DETECTION
+When you detect cloud-hosted assets (via CNAME patterns, HTTP headers, or technology fingerprints), you MUST include cloud-specific tools in the activeTools list:
+
+### Cloud Provider Detection Signals:
+- AWS: CNAME to *.s3.amazonaws.com, *.cloudfront.net, *.elasticbeanstalk.com; Headers: x-amz-request-id, Server: AmazonS3
+- Azure: CNAME to *.blob.core.windows.net, *.azurewebsites.net; Headers: x-ms-request-id, x-ms-version
+- GCP: CNAME to *.storage.googleapis.com, *.appspot.com; Headers: x-goog-storage-class, Server: UploadServer
+- Firebase: CNAME to *.firebaseio.com, *.firebaseapp.com, *.web.app
+- DigitalOcean: CNAME to *.digitaloceanspaces.com
+
+### Cloud Scan Priority Rules:
+1. If passive recon shows cloud CNAME/headers → add cloud_enum with the domain keyword as a Phase B tool
+2. If S3/GCS/Blob endpoints found → add s3scanner or direct curl/aws CLI checks
+3. If Firebase detected → add bash curl checks for Firebase DB rules and public read access
+4. ALWAYS add nuclei with cloud tags (-tags cloud,s3,azure,gcp,firebase,bucket,storage,misconfig) when any cloud provider is detected
+5. For subdomain takeover candidates (NoSuchBucket, ContainerNotFound) → flag as HIGH severity
+6. Only run trufflehog AFTER confirming public access to a bucket (Priority 4 — last resort)
 
 Available tools on the scan server:
 ${availableTools.map(t => `- ${t.name}: ${t.desc}${(t as any).use ? ` (best for: ${(t as any).use})` : ''}`).join('\n')}
@@ -1210,6 +1235,296 @@ function parseToolOutput(
       }
       break;
     }
+    // ─── Cloud Storage & Misconfiguration Tool Parsers ─────────────────────
+    case "cloud_enum": {
+      // cloud_enum outputs discovered cloud resources line by line
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('[*]') || trimmed.startsWith('[-]')) continue;
+        // S3 bucket found
+        if (trimmed.includes('s3.amazonaws.com') || trimmed.includes('.s3.')) {
+          findings.push({ severity: "high", title: `[cloud_enum] S3 Bucket Discovered: ${trimmed.slice(0, 120)}` });
+        }
+        // Azure Blob found
+        else if (trimmed.includes('blob.core.windows.net')) {
+          findings.push({ severity: "high", title: `[cloud_enum] Azure Blob Container Discovered: ${trimmed.slice(0, 120)}` });
+        }
+        // GCS bucket found
+        else if (trimmed.includes('storage.googleapis.com')) {
+          findings.push({ severity: "high", title: `[cloud_enum] GCS Bucket Discovered: ${trimmed.slice(0, 120)}` });
+        }
+        // Firebase
+        else if (trimmed.includes('firebaseio.com') || trimmed.includes('firebaseapp.com')) {
+          findings.push({ severity: "high", title: `[cloud_enum] Firebase App Discovered: ${trimmed.slice(0, 120)}` });
+        }
+        // DigitalOcean Spaces
+        else if (trimmed.includes('digitaloceanspaces.com')) {
+          findings.push({ severity: "high", title: `[cloud_enum] DO Spaces Bucket Discovered: ${trimmed.slice(0, 120)}` });
+        }
+        // Generic open resource
+        else if (trimmed.includes('[OPEN]') || trimmed.includes('OPEN') || trimmed.includes('200')) {
+          findings.push({ severity: "critical", title: `[cloud_enum] Open Cloud Resource: ${trimmed.slice(0, 120)}` });
+        }
+      }
+      break;
+    }
+    case "s3scanner": {
+      // s3scanner JSON output: bucket permission results
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          const bucket = obj.bucket || obj.name || 'unknown';
+          if (obj.exists === false) continue; // bucket doesn't exist
+          if (obj.public_read || obj.AuthUsers_read) {
+            findings.push({ severity: "critical", title: `[s3scanner] PUBLIC READ: s3://${bucket} — data exposure risk` });
+          }
+          if (obj.public_write || obj.AuthUsers_write) {
+            findings.push({ severity: "critical", title: `[s3scanner] PUBLIC WRITE: s3://${bucket} — bucket takeover risk` });
+          }
+          if (obj.public_read_acp || obj.AuthUsers_read_acp) {
+            findings.push({ severity: "high", title: `[s3scanner] ACL Readable: s3://${bucket} — permission enumeration` });
+          }
+          if (obj.exists && !obj.public_read && !obj.public_write) {
+            findings.push({ severity: "info", title: `[s3scanner] Bucket exists (private): s3://${bucket}` });
+          }
+        } catch {
+          // Plain text output fallback
+          if (trimmed.includes('READ') || trimmed.includes('ListBucket')) {
+            findings.push({ severity: "critical", title: `[s3scanner] Public Access: ${trimmed.slice(0, 120)}` });
+          } else if (trimmed.includes('WRITE') || trimmed.includes('PutObject')) {
+            findings.push({ severity: "critical", title: `[s3scanner] Write Access: ${trimmed.slice(0, 120)}` });
+          } else if (trimmed.includes('exists') || trimmed.includes('bucket_exists')) {
+            findings.push({ severity: "info", title: `[s3scanner] ${trimmed.slice(0, 120)}` });
+          }
+        }
+      }
+      break;
+    }
+    case "trufflehog": {
+      // trufflehog JSON output: discovered secrets
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          if (obj.DetectorName || obj.detector_name) {
+            const detector = obj.DetectorName || obj.detector_name || 'Unknown';
+            const source = obj.SourceMetadata?.Data?.S3?.bucket || obj.source || 'unknown';
+            const verified = obj.Verified || obj.verified ? 'VERIFIED' : 'unverified';
+            findings.push({
+              severity: obj.Verified || obj.verified ? "critical" : "high",
+              title: `[trufflehog] ${verified} Secret (${detector}) in ${source}`,
+            });
+          }
+        } catch { /* not JSON */ }
+      }
+      break;
+    }
+    case "aws": {
+      // AWS CLI output: s3 ls results, bucket policy, etc.
+      if (stdout.includes('NoSuchBucket')) {
+        findings.push({ severity: "high", title: `[aws] Subdomain Takeover Candidate: NoSuchBucket response` });
+      } else if (stdout.includes('AccessDenied') || stdout.includes('Access Denied')) {
+        findings.push({ severity: "info", title: `[aws] Bucket exists but access denied (private)` });
+      } else if (stdout.includes('AllAccessDisabled')) {
+        findings.push({ severity: "info", title: `[aws] Bucket exists but all access disabled` });
+      } else {
+        // Successful listing — parse objects
+        const objectLines = stdout.split("\n").filter(l => l.trim() && !l.includes('PRE '));
+        if (objectLines.length > 0) {
+          findings.push({ severity: "critical", title: `[aws] PUBLIC S3 Bucket — ${objectLines.length} objects listed anonymously` });
+          // Sample first 5 objects
+          for (const line of objectLines.slice(0, 5)) {
+            const parts = line.trim().split(/\s+/);
+            const filename = parts[parts.length - 1];
+            if (filename && filename !== 'None') {
+              findings.push({ severity: "high", title: `[aws] Exposed file: ${filename}` });
+            }
+          }
+        }
+        // Check for directory prefixes (PRE)
+        const prefixes = stdout.split("\n").filter(l => l.includes('PRE '));
+        if (prefixes.length > 0) {
+          findings.push({ severity: "high", title: `[aws] Public bucket with ${prefixes.length} directories` });
+        }
+      }
+      break;
+    }
+    case "bash": {
+      // Bash commands used for Firebase, curl checks, etc.
+      // Firebase Realtime DB open check
+      if (stdout.includes('firebaseio.com')) {
+        try {
+          const obj = JSON.parse(stdout);
+          if (obj && Object.keys(obj).length > 0 && !obj.error) {
+            findings.push({ severity: "critical", title: `[Firebase] Database publicly readable — ${Object.keys(obj).length} top-level keys exposed` });
+          }
+        } catch {
+          if (!stdout.includes('Permission denied') && !stdout.includes('null') && stdout.length > 5) {
+            findings.push({ severity: "high", title: `[Firebase] Possible public database access` });
+          }
+        }
+      }
+      // Generic curl checks for cloud misconfigs
+      if (stdout.includes('ListBucketResult') || stdout.includes('<Contents>')) {
+        findings.push({ severity: "critical", title: `[curl] S3 Bucket Directory Listing Enabled` });
+      }
+      if (stdout.includes('BlobNotFound') || stdout.includes('ContainerNotFound')) {
+        findings.push({ severity: "high", title: `[curl] Azure Blob Subdomain Takeover Candidate` });
+      }
+      if (stdout.includes('NoSuchBucket')) {
+        findings.push({ severity: "high", title: `[curl] S3 Subdomain Takeover Candidate — NoSuchBucket` });
+      }
+      break;
+    }
+    case "ffuf": {
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          if (obj.results && Array.isArray(obj.results)) {
+            for (const r of obj.results) {
+              const status = r.status || r.StatusCode;
+              const url = r.url || r.Url || '';
+              if (status && [200, 301, 302, 401, 403, 500].includes(status)) {
+                findings.push({ severity: status === 500 ? "medium" : "info", title: `[ffuf] ${url} (${status}, ${r.length || '?'}B)` });
+              }
+            }
+          }
+        } catch {
+          const match = trimmed.match(/(https?:\/\/\S+)\s+\[Status:\s*(\d+)/);
+          if (match) findings.push({ severity: "info", title: `[ffuf] ${match[1]} (${match[2]})` });
+        }
+      }
+      break;
+    }
+    case "sslscan": {
+      if (stdout.includes('SSLv2') && !stdout.includes('SSLv2 disabled')) findings.push({ severity: "critical", title: "[sslscan] SSLv2 enabled" });
+      if (stdout.includes('SSLv3') && !stdout.includes('SSLv3 disabled')) findings.push({ severity: "high", title: "[sslscan] SSLv3 enabled (POODLE)" });
+      if (/TLSv1\.0.*enabled/i.test(stdout)) findings.push({ severity: "medium", title: "[sslscan] TLS 1.0 enabled" });
+      if (/Heartbleed.*vulnerable/i.test(stdout)) findings.push({ severity: "critical", title: "[sslscan] Heartbleed", cve: "CVE-2014-0160" });
+      if (/RC4|DES|NULL|EXPORT/i.test(stdout)) findings.push({ severity: "high", title: "[sslscan] Weak cipher suites accepted" });
+      if (/self.signed/i.test(stdout)) findings.push({ severity: "medium", title: "[sslscan] Self-signed certificate" });
+      if (/expired/i.test(stdout)) findings.push({ severity: "high", title: "[sslscan] Expired certificate" });
+      break;
+    }
+    case "whatweb": {
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('WhatWeb') || trimmed.startsWith('ERROR')) continue;
+        const urlMatch = trimmed.match(/^(https?:\/\/\S+)/);
+        const url = urlMatch ? urlMatch[1] : '';
+        const techMatches = trimmed.match(/\[([^\]]+)\]/g);
+        if (techMatches) {
+          for (const tech of techMatches) {
+            const techName = tech.slice(1, -1);
+            if (techName.length > 2 && !techName.match(/^\d{3}$/)) {
+              findings.push({ severity: "info", title: `[whatweb] ${techName}${url ? ` @ ${url}` : ''}` });
+            }
+          }
+        }
+      }
+      break;
+    }
+    case "subfinder": {
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && trimmed.includes('.') && !trimmed.startsWith('[')) {
+          findings.push({ severity: "info", title: `[subfinder] Subdomain: ${trimmed}` });
+        }
+      }
+      break;
+    }
+    case "katana": {
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && trimmed.startsWith('http')) {
+          const isInteresting = /admin|login|api|config|backup|upload|dashboard|\.env|\.git/i.test(trimmed);
+          if (isInteresting) findings.push({ severity: "medium", title: `[katana] Interesting URL: ${trimmed.slice(0, 150)}` });
+        }
+      }
+      break;
+    }
+    case "gospider": {
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.includes('[form]')) findings.push({ severity: "medium", title: `[gospider] Form: ${trimmed.slice(0, 150)}` });
+        else if ((trimmed.includes('[javascript]') || trimmed.includes('[linkfinder]')) && /api|token|key|secret|admin/i.test(trimmed)) {
+          findings.push({ severity: "medium", title: `[gospider] JS endpoint: ${trimmed.slice(0, 150)}` });
+        }
+      }
+      break;
+    }
+    case "waybackurls":
+    case "gau": {
+      const toolLabel = tool;
+      let totalUrls = 0;
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('http')) continue;
+        totalUrls++;
+        if (/admin|login|api|config|backup|\.env|\.git|\.sql|\.bak|\.zip|password|secret|token/i.test(trimmed)) {
+          findings.push({ severity: "medium", title: `[${toolLabel}] Interesting URL: ${trimmed.slice(0, 150)}` });
+        }
+      }
+      if (totalUrls > 0) findings.push({ severity: "info", title: `[${toolLabel}] ${totalUrls} historical URLs` });
+      break;
+    }
+    case "curl": {
+      if (stdout.includes('ListBucketResult') || stdout.includes('<Contents>')) findings.push({ severity: "critical", title: "[curl] S3 Bucket Directory Listing" });
+      if (stdout.includes('NoSuchBucket')) findings.push({ severity: "high", title: "[curl] S3 Subdomain Takeover Candidate" });
+      if (stdout.includes('BlobNotFound') || stdout.includes('ContainerNotFound')) findings.push({ severity: "high", title: "[curl] Azure Blob Takeover Candidate" });
+      const headerLines = stdout.split("\n");
+      const serverHeader = headerLines.find(l => /^server:/i.test(l.trim()));
+      if (serverHeader) findings.push({ severity: "info", title: `[curl] ${serverHeader.trim()}` });
+      break;
+    }
+    case "wpscan": {
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.includes('[!]') || trimmed.includes('[+]')) {
+          const cve = trimmed.match(/CVE-\d{4}-\d+/)?.[0];
+          if (cve || /vulnerability|outdated|insecure/i.test(trimmed)) {
+            findings.push({ severity: cve ? "high" : "medium", title: `[wpscan] ${trimmed.slice(0, 150)}`, cve });
+          }
+        }
+      }
+      break;
+    }
+    case "testssl": {
+      for (const line of stdout.split("\n")) {
+        if (/VULNERABLE/i.test(line)) {
+          const cve = line.match(/CVE-\d{4}-\d+/)?.[0];
+          findings.push({ severity: cve ? "critical" : "high", title: `[testssl] ${line.trim().slice(0, 150)}`, cve });
+        }
+      }
+      if (/NOT\s+ok/i.test(stdout)) findings.push({ severity: "medium", title: "[testssl] TLS configuration issues" });
+      break;
+    }
+    case "nmap": {
+      const portRegex = /^(\d+)\/tcp\s+(open|filtered)\s+(\S+)\s*(.*)/;
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        const portMatch = trimmed.match(portRegex);
+        if (portMatch && portMatch[2] === 'open') {
+          findings.push({ severity: "info", title: `[nmap] ${portMatch[1]}/tcp ${portMatch[3]}${portMatch[4] ? ' ' + portMatch[4].trim() : ''}` });
+        }
+        const cveMatch = trimmed.match(/CVE-\d{4}-\d+/g);
+        if (cveMatch) {
+          for (const cve of cveMatch) {
+            findings.push({ severity: "high", title: `[nmap] ${cve} — ${trimmed.slice(0, 120)}`, cve });
+          }
+        }
+        if (/VULNERABLE/i.test(trimmed)) findings.push({ severity: "high", title: `[nmap] ${trimmed.slice(0, 150)}` });
+        if (/message_signing.*disabled/i.test(trimmed)) findings.push({ severity: "medium", title: "[nmap] SMB signing disabled" });
+        if (/Anonymous FTP login allowed/i.test(trimmed)) findings.push({ severity: "high", title: "[nmap] Anonymous FTP login" });
+      }
+      break;
+    }
     default:
       break;
   }
@@ -1636,6 +1951,120 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     detail: `${state.stats.hostsScanned} hosts scanned, ${state.stats.portsFound} ports discovered. Enriched data now available for Phase B targeted tool deployment.`,
   });
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE A.5: Cloud Asset Detection & Storage Enumeration
+  // ═══════════════════════════════════════════════════════════════════════════
+  try {
+    const { detectCloudAsset, executeCloudStorageScan, getCloudDetectionPromptContext } = await import("./cloud-storage-scanner");
+    addLog(state, {
+      phase: "enumeration", type: "info",
+      title: "☁️ Cloud Asset Detection",
+      detail: "Analyzing discovery results for cloud-hosted infrastructure, storage endpoints, and misconfigured services",
+    });
+    let cloudAssetsFound = 0;
+    let cloudStorageEndpoints = 0;
+    let cloudFindings: Array<{ asset: string; provider: string; service: string; severity: string; title: string }> = [];
+    for (const asset of state.assets) {
+      const detection = detectCloudAsset({
+        hostname: asset.hostname,
+        ip: asset.ip,
+        dnsRecords: (asset as any).dnsRecords,
+        headers: (asset as any).headers,
+        technologies: (asset as any).technologies,
+        cnames: (asset as any).cnames,
+        toolResults: (asset as any).toolResults,
+      });
+      if (detection.isCloudHosted) {
+        cloudAssetsFound++;
+        // Tag the asset with cloud metadata
+        (asset as any).cloudProviders = detection.providers;
+        (asset as any).cloudServices = detection.signatures.map(s => `${s.provider}:${s.service}`);
+        addLog(state, {
+          phase: "enumeration", type: "finding",
+          title: `☁️ Cloud Asset: ${asset.hostname}`,
+          detail: `Providers: ${detection.providers.join(", ")}\nServices: ${detection.signatures.map(s => `${s.provider} ${s.service} (${s.confidence})`).join(", ")}\nStorage endpoints: ${detection.storageEndpoints.length}`,
+          data: { cloudDetection: detection },
+        });
+        // If storage endpoints found, run cloud storage scans
+        if (detection.storageEndpoints.length > 0 || detection.scanSuggestions.length > 0) {
+          cloudStorageEndpoints += detection.storageEndpoints.length;
+          addLog(state, {
+            phase: "enumeration", type: "scan_start",
+            title: `☁️ Cloud Storage Scan: ${asset.hostname}`,
+            detail: `Running ${detection.scanSuggestions.length} cloud-specific scans (${detection.storageEndpoints.join(", ")})`,
+          });
+          try {
+            const scanResult = await executeCloudStorageScan(
+              asset.hostname,
+              detection.scanSuggestions,
+              { maxScans: 5, timeoutSeconds: 120, engagementId: state.engagementId }
+            );
+            for (const finding of scanResult.findings) {
+              cloudFindings.push({
+                asset: asset.hostname,
+                provider: finding.provider,
+                service: finding.service || "storage",
+                severity: finding.severity,
+                title: finding.title,
+              });
+              // Add to asset vulns for downstream correlation
+              asset.vulns.push({
+                id: `cloud-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                severity: finding.severity,
+                title: `[Cloud] ${finding.title}`,
+                cve: finding.cve,
+                description: finding.description,
+              });
+              state.stats.vulnsFound++;
+            }
+            // Store raw results for the engagement log
+            for (const raw of scanResult.rawResults) {
+              addLog(state, {
+                phase: "enumeration", type: "scan_result",
+                title: `Cloud Scan Result: ${raw.tool}`,
+                detail: `Exit: ${raw.exitCode} | Duration: ${Math.round(raw.durationMs / 1000)}s\n${raw.stdout.slice(0, 500)}`,
+                data: raw,
+              });
+            }
+          } catch (cloudScanErr: any) {
+            addLog(state, {
+              phase: "enumeration", type: "error",
+              title: `Cloud Scan Error: ${asset.hostname}`,
+              detail: cloudScanErr.message,
+            });
+          }
+        }
+      }
+    }
+    // Store cloud detection summary in state for LLM attack planner
+    (state as any).cloudDetection = {
+      assetsFound: cloudAssetsFound,
+      storageEndpoints: cloudStorageEndpoints,
+      findings: cloudFindings,
+      promptContext: cloudAssetsFound > 0 ? getCloudDetectionPromptContext() : undefined,
+    };
+    const severity_counts = cloudFindings.reduce((acc, f) => {
+      acc[f.severity] = (acc[f.severity] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    addLog(state, {
+      phase: "enumeration", type: cloudAssetsFound > 0 ? "phase_complete" : "info",
+      title: cloudAssetsFound > 0
+        ? `☁️ Cloud Detection Complete — ${cloudAssetsFound} cloud assets, ${cloudFindings.length} findings`
+        : "☁️ Cloud Detection — No cloud assets detected",
+      detail: cloudAssetsFound > 0
+        ? `Providers: ${[...new Set(cloudFindings.map(f => f.provider))].join(", ")}\nFindings: ${JSON.stringify(severity_counts)}\nStorage endpoints scanned: ${cloudStorageEndpoints}`
+        : "No cloud-hosted infrastructure identified in discovery results. Proceeding to Phase B.",
+    });
+  } catch (cloudDetectErr: any) {
+    console.error("[CloudDetection] Error:", cloudDetectErr.message);
+    addLog(state, {
+      phase: "enumeration", type: "warning",
+      title: "⚠️ Cloud Detection Skipped",
+      detail: `Cloud asset detection encountered an error: ${cloudDetectErr.message}. Proceeding to Phase B.`,
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE B: Targeted Nmap + Tool Deployment (using enriched data)
@@ -2887,6 +3316,177 @@ export async function executeEngagement(
               detail: `Specialized analysis could not complete: ${analysisErr.message}. Proceeding with raw findings.`,
             });
           }
+        }
+      }
+
+      // Phase 3.7: LLM Scan Feedback Loop — adaptive re-scanning
+      // The LLM analyzes all findings so far and requests targeted re-scans
+      // to fill information gaps before attack planning.
+      if (state.stats.vulnsFound > 0 || state.assets.some(a => (a as any).cloudProviders?.length > 0)) {
+        try {
+          state.currentAction = 'Running LLM scan feedback loop — adaptive re-scanning...';
+          addLog(state, {
+            phase: 'vuln_detection', type: 'info',
+            title: '🔄 LLM Scan Feedback Loop',
+            detail: 'LLM is analyzing all findings to identify information gaps and request targeted re-scans with optimal tool selection.',
+          });
+          broadcastOpsUpdate(state.engagementId, { type: 'action', action: 'llm_scan_feedback' });
+
+          const { runFeedbackLoop, getFeedbackLoopSummary } = await import('./llm-scan-feedback');
+
+          // Collect all findings into a flat array for the LLM
+          const allFindingsForLLM = state.assets.flatMap(asset => [
+            ...asset.vulns.map(v => ({
+              type: 'vulnerability',
+              title: v.title,
+              severity: v.severity,
+              cve: v.cve,
+              target: asset.hostname,
+              host: asset.ip || asset.hostname,
+              port: (v as any).port,
+              service: (v as any).service,
+              details: (v as any).description || v.title,
+            })),
+            ...asset.ports.map(p => ({
+              type: 'service',
+              title: `${p.service || 'unknown'} on port ${p.port}`,
+              severity: 'info',
+              target: asset.hostname,
+              host: asset.ip || asset.hostname,
+              port: p.port,
+              service: p.service,
+              details: p.version ? `${p.service} ${p.version}` : p.service,
+            })),
+            ...(asset.zapFindings || []).map(z => ({
+              type: 'web_vuln',
+              title: z.alert || z.name,
+              severity: z.risk || 'info',
+              target: asset.hostname,
+              host: asset.ip || asset.hostname,
+              details: z.url || '',
+            })),
+          ]);
+
+          // Add cloud findings
+          const cloudDetection = (state as any).cloudDetection;
+          if (cloudDetection?.findings) {
+            for (const cf of cloudDetection.findings) {
+              allFindingsForLLM.push({
+                type: 'cloud_misconfiguration',
+                title: cf.title,
+                severity: cf.severity,
+                target: cf.asset,
+                host: cf.asset,
+                details: `${cf.provider} ${cf.service}: ${cf.title}`,
+              });
+            }
+          }
+
+          const scope = {
+            targets: state.assets.map(a => a.ip || a.hostname),
+            engagementName: engagement?.name || `Engagement #${state.engagementId}`,
+          };
+
+          const feedbackState = await runFeedbackLoop(allFindingsForLLM, scope, {
+            maxIterations: 3,
+            maxTotalScans: 8,
+            maxScansPerIteration: 3,
+            engagementId: state.engagementId,
+            onProgress: (fbState) => {
+              state.currentAction = `LLM feedback loop: iteration ${fbState.iteration + 1}, ${fbState.totalScansExecuted} scans executed`;
+              broadcastOpsUpdate(state.engagementId, {
+                type: 'action',
+                action: 'llm_feedback_progress',
+                data: { iteration: fbState.iteration, scans: fbState.totalScansExecuted },
+              });
+            },
+          });
+
+          // Ingest re-scan findings into asset vulns
+          let newFindingsCount = 0;
+          for (const h of feedbackState.history) {
+            if (h.result.exitCode === 0 && h.result.stdout.length > 10) {
+              const targetAsset = state.assets.find(
+                a => a.hostname === h.request.target || a.ip === h.request.target
+              );
+              if (targetAsset) {
+                const parsedFindings = parseToolOutput(h.request.tool, h.result.stdout, targetAsset);
+                for (const pf of parsedFindings) {
+                  targetAsset.vulns.push({
+                    id: `rescan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    severity: pf.severity,
+                    title: pf.title,
+                    cve: pf.cve,
+                  });
+                  state.stats.vulnsFound++;
+                  newFindingsCount++;
+                }
+              }
+              // Log each re-scan result
+              addLog(state, {
+                phase: 'vuln_detection', type: 'scan_result',
+                title: `🔄 Re-scan: ${h.request.tool} → ${h.request.target}`,
+                detail: `Rationale: ${h.request.rationale}\nExit: ${h.result.exitCode} | Duration: ${Math.round(h.result.durationMs / 1000)}s\nOutput preview: ${h.result.stdout.slice(0, 300)}`,
+                data: { request: h.request, exitCode: h.result.exitCode },
+              });
+            }
+          }
+
+          const summary = getFeedbackLoopSummary(feedbackState);
+          addLog(state, {
+            phase: 'vuln_detection', type: 'phase_complete',
+            title: `✅ LLM Feedback Loop Complete — ${feedbackState.totalScansExecuted} re-scans, ${newFindingsCount} new findings`,
+            detail: `Iterations: ${feedbackState.iteration + 1} | Satisfied: ${feedbackState.satisfied}\n${feedbackState.finalAnalysis?.slice(0, 500) || ''}`,
+            data: { feedbackState: { ...feedbackState, history: feedbackState.history.map(h => ({ tool: h.request.tool, target: h.request.target, exitCode: h.result.exitCode })) } },
+          });
+
+          // Store feedback loop state for attack chain designer
+          (state as any).scanFeedbackLoop = feedbackState;
+        } catch (feedbackErr: any) {
+          console.error('[ScanFeedback] Feedback loop failed:', feedbackErr.message);
+          addLog(state, {
+            phase: 'vuln_detection', type: 'warning',
+            title: '⚠️ LLM Feedback Loop Failed',
+            detail: `Adaptive re-scanning could not complete: ${feedbackErr.message}. Proceeding with existing findings.`,
+          });
+        }
+      }
+
+      // Phase 3.8: LLM Attack Chain Design
+      // Generate attack chains from all findings (including re-scan results)
+      if (state.stats.vulnsFound > 0) {
+        try {
+          state.currentAction = 'Designing attack chains with LLM...';
+          addLog(state, {
+            phase: 'vuln_detection', type: 'info',
+            title: '🧠 Attack Chain Design',
+            detail: 'LLM is designing multi-stage attack chains from all vulnerability, cloud, and re-scan findings.',
+          });
+          broadcastOpsUpdate(state.engagementId, { type: 'action', action: 'attack_chain_design' });
+
+          const { generateEngagementAttackChains } = await import('./cloud-attack-chain-designer');
+          const attackChains = await generateEngagementAttackChains(
+            state as any,
+            engagement?.targetDescription || state.assets.map(a => a.hostname).join(', '),
+          );
+
+          (state as any).attackChains = attackChains;
+
+          addLog(state, {
+            phase: 'vuln_detection', type: 'phase_complete',
+            title: `✅ Attack Chains Designed — ${attackChains.length} chains generated`,
+            detail: attackChains.map((c, i) =>
+              `Chain ${i + 1}: ${c.name} (risk: ${c.overallRisk}/10, feasibility: ${c.feasibility}/10, steps: ${c.totalSteps})`
+            ).join('\n'),
+            data: { chainCount: attackChains.length, chains: attackChains.map(c => ({ name: c.name, risk: c.overallRisk, feasibility: c.feasibility, steps: c.totalSteps })) },
+          });
+        } catch (chainErr: any) {
+          console.error('[AttackChainDesigner] Chain design failed:', chainErr.message);
+          addLog(state, {
+            phase: 'vuln_detection', type: 'warning',
+            title: '⚠️ Attack Chain Design Failed',
+            detail: `LLM attack chain generation could not complete: ${chainErr.message}. Proceeding to exploitation with raw findings.`,
+          });
         }
       }
 

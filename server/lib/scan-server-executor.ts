@@ -64,6 +64,10 @@ const ALLOWED_TOOLS = new Set([
   "enum4linux", "smbclient", "ldapsearch", "snmpwalk", "nbtscan",
   "onesixtyone", "dig", "whois", "sqlmap", "wfuzz", "crackmapexec",
   "masscan", "curl", "wget", "cat", "head", "tail", "grep",
+  // Web application & SSL scanning tools
+  "ffuf", "sslscan", "whatweb", "testssl", "wpscan",
+  // Cloud storage & misconfiguration enumeration tools
+  "cloud_enum", "s3scanner", "trufflehog", "aws",
   // Allow reading tool manifest and health check
   "bash", "sh",
 ]);

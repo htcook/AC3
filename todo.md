@@ -7515,3 +7515,54 @@
 - [x] Installed PM2 6.0.14 on scan server
 - [x] Created ecosystem.config.cjs for PM2 with --enable-fips
 - [x] All 146 tests passing across 5 test suites
+
+## Cloud Misconfiguration Detection Module
+- [ ] Research cloud misconfiguration detection techniques (S3, Azure Blob, GCS, exposed apps)
+- [ ] Design cloud misconfiguration detection engine with tool integrations
+- [ ] Build LLM knowledge base and system prompts for cloud misconfig analysis
+- [ ] Create cloud-recon library with S3 bucket enumeration, Azure Blob checks, GCS checks
+- [ ] Integrate with existing engagement orchestrator to auto-trigger on cloud asset discovery
+- [ ] Create tRPC endpoints for cloud misconfiguration scanning and results
+- [ ] Build database schema for cloud misconfiguration findings
+- [ ] Build cloud misconfiguration UI panel with findings display
+- [ ] Write vitest tests for the cloud misconfiguration module
+- [ ] Save checkpoint
+
+## LLM-Powered AI Attack Chain Designer
+- [x] Audit existing cloud-attack-paths and AI security validation modules
+- [x] Build LLM attack chain designer that ingests discovery + scan results
+- [x] Design attack trees with exploit chains, lateral movement, and privilege escalation paths
+- [x] Integrate with MITRE ATT&CK framework for TTP mapping
+- [x] Auto-correlate cloud misconfigs with known exploit paths (e.g., open S3 → data exfil → lateral movement)
+- [ ] Create tRPC endpoint for AI attack plan generation
+- [ ] Build UI panel showing attack chains with severity and feasibility scores
+- [x] Write vitest tests for attack chain designer
+
+## LLM Scan Feedback Loop (Adaptive Re-Scanning)
+- [x] Design LLM tool-use schema for requesting targeted re-scans (passive + active)
+- [x] Build scan request dispatcher that executes LLM-requested scans on the scan server
+- [x] Support passive re-scan types: banner grab, SSL cert check, HTTP header analysis, DNS enumeration, cloud storage probe
+- [x] Support active re-scan types: targeted nmap service scan, vuln-specific NSE scripts, directory brute-force, API endpoint fuzzing
+- [x] Implement scan budget/limits to prevent runaway scanning (max re-scans per engagement)
+- [x] Build iterative feedback loop: LLM analyzes → requests scan → receives results → refines attack plan
+- [x] Integrate feedback loop into engagement orchestrator between vuln_detection and exploitation phases
+- [x] Allow LLM to specify scan depth (quick/standard/deep) and scope (single host/service/port)
+- [x] Store re-scan results alongside original findings for audit trail
+- [x] Write vitest tests for the feedback loop (62 tests passing)
+- [x] Give LLM access to full tool inventory with capabilities/descriptions so it can pick the best tool per re-scan
+- [x] Support tool selection from: nmap, nikto, nuclei, gobuster, ffuf, cloud_enum, s3scanner, trufflehog, aws, curl, httpx, whatweb, wpscan, sslscan, testssl, subfinder, katana, gospider, waybackurls, gau, naabu, dig, whois
+- [x] LLM provides tool name + arguments + rationale for each re-scan request
+
+## Extended Tool Output Parsers (parseToolOutput)
+- [x] Add ffuf JSON/text output parser
+- [x] Add sslscan parser (SSLv2/v3, TLS 1.0, Heartbleed, weak ciphers, expired/self-signed certs)
+- [x] Add whatweb technology fingerprint parser
+- [x] Add subfinder subdomain parser
+- [x] Add katana interesting URL parser
+- [x] Add gospider form/JS endpoint parser
+- [x] Add waybackurls/gau historical URL parser
+- [x] Add curl security header and cloud misconfig parser
+- [x] Add wpscan WordPress vulnerability parser
+- [x] Add testssl vulnerability parser
+- [x] Enhanced nmap parser (ports, CVEs, SMB signing, anonymous FTP)
+- [x] Write vitest tests for all new parsers (62 tests passing)

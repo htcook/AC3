@@ -132,7 +132,7 @@ export function enableFIPSProvider(): boolean {
     if (detectFlagActivation()) {
       // Flag was passed but getFips() returned 0 — try to activate
       try {
-        crypto.setFips(1);
+        crypto.setFips(true);
         if (crypto.getFips() === 1) {
           console.log("[FIPS-OpenSSL] FIPS provider enabled via crypto.setFips(1)");
           return true;

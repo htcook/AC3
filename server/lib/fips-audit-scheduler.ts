@@ -137,14 +137,14 @@ export async function runScheduledFipsAudit(): Promise<ScheduledAuditResult> {
   }
 
   // 6. TLS cipher validation
-  const tlsCheck = report.tlsCiphers.length > 0;
+  const tlsCheck = !!(report.tlsCiphers.tls12 || report.tlsCiphers.tls13);
   checks.push({
     checkType: "tls_cipher",
     status: tlsCheck ? "compliant" : "warning",
     component: "tls-cipher-suites",
     details: {
-      cipherCount: report.tlsCiphers.length,
-      ciphers: report.tlsCiphers.slice(0, 5),
+      tls12: report.tlsCiphers.tls12,
+      tls13: report.tlsCiphers.tls13,
     },
   });
 
