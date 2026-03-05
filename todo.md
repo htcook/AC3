@@ -7633,3 +7633,4 @@
 - [ ] Investigate Vianova engagement scan finding 0 vulns today vs 40+ yesterday
 - [ ] Review latest scan results in DB and compare with previous run
 - [ ] Fix root cause of missing vulnerability findings
+- [ ] Compare domain intelligence discovery scans vs engagement-level passive scans and identify gaps
