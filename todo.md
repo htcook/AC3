@@ -7595,3 +7595,6 @@
 - [x] Wire WebSocket events (llm_feedback_progress, attack_chain_design, cloud_detection) to auto-invalidate queries
 - [x] Add AI Analysis stats to right sidebar (attack chains, cloud findings, re-scans, max risk)
 - [x] Integrate as "Feedback Loop" tab in engagement ops view
+
+## Bug Fixes
+- [x] Fix TypeError: Failed to fetch dynamically imported module for EngagementOps page (stale cache — build verified clean, user needs hard refresh / CDN purge)
