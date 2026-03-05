@@ -1,0 +1,31 @@
+KEY FINDINGS FROM DEBUG:
+
+1. The ops snapshot shows vulnsFound: 95 in stats
+2. Per-asset vulns in the snapshot:
+   - dashboard-dev.vianovahealth.com: 47 vulns, 9 tool results
+   - api.dev.vianova.ai: 48 vulns, 9 tool results  
+   - 23.20.98.48: 0 vulns, 7 tool results
+
+3. BUT all individual Nuclei scan log entries show "0 findings" with exit code -1
+4. All scan_results in DB have finding_count: 0 and raw_output is empty (0 bytes)
+5. The "Nuclei Scan Complete" summary says "Found 95 vulnerabilities across 2/3 targets"
+
+CONCLUSION: The 95 vulns in stats came from EARLIER phases (targeted_enum batch execution 
+with nikto, nuclei, httpx, gobuster), NOT from the Phase 3 vuln_detection Nuclei scans.
+
+The Phase 3 Nuclei scans all return exit code -1 (timeout/connection failure) with 0 findings.
+The scan server executor is returning empty stdout for Nuclei runs.
+
+The discrepancy: vulnsFound=95 was accumulated from earlier phases but the Phase 3 
+dedicated Nuclei scan is failing silently (exit -1, empty output, 0 findings).
+
+The user sees "Found 95 vulnerabilities across 2 targets" in the Nuclei Scan Complete 
+message but those 95 are actually from state.stats.vulnsFound which includes ALL tools, 
+not just nuclei. The message is misleading.
+
+BUGS:
+1. "Nuclei Scan Complete" message uses state.stats.vulnsFound (total from ALL tools) 
+   instead of counting only nuclei-specific findings
+2. Nuclei scans in Phase 3 are all timing out (exit -1) with empty output
+3. The per-asset vulns ARE in the snapshot (47+48=95) so they ARE being stored in memory,
+   but the scan_results DB table has 0 findings because the raw output was empty

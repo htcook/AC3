@@ -134,6 +134,110 @@ async function getScanServerConfig() {
   return { host, username: user, privateKey: fixedKey };
 }
 
+// ─── SSH Connection Pool ────────────────────────────────────────────────────
+// Reuse a persistent SSH connection across sequential scans to avoid
+// rapid connect/disconnect cycles that cause connection failures.
+let pooledConn: InstanceType<typeof SSHClient> | null = null;
+let pooledConnReady = false;
+let poolIdleTimer: NodeJS.Timeout | null = null;
+const POOL_IDLE_TIMEOUT = 60_000; // Close idle connection after 60s
+
+function resetPoolIdleTimer() {
+  if (poolIdleTimer) clearTimeout(poolIdleTimer);
+  poolIdleTimer = setTimeout(() => {
+    if (pooledConn) {
+      pooledConn.end();
+      pooledConn = null;
+      pooledConnReady = false;
+    }
+  }, POOL_IDLE_TIMEOUT);
+}
+
+async function getPooledConnection(): Promise<InstanceType<typeof SSHClient>> {
+  if (pooledConn && pooledConnReady) {
+    resetPoolIdleTimer();
+    return pooledConn;
+  }
+  // Close stale connection if exists
+  if (pooledConn) {
+    try { pooledConn.end(); } catch { /* ignore */ }
+    pooledConn = null;
+    pooledConnReady = false;
+  }
+  const config = await getScanServerConfig();
+  return new Promise((resolve, reject) => {
+    const conn = new SSHClient();
+    const readyTimer = setTimeout(() => {
+      conn.end();
+      reject(new Error('SSH pool connection timed out after 20s'));
+    }, 20000);
+    conn
+      .on('ready', () => {
+        clearTimeout(readyTimer);
+        pooledConn = conn;
+        pooledConnReady = true;
+        resetPoolIdleTimer();
+        resolve(conn);
+      })
+      .on('error', (err) => {
+        clearTimeout(readyTimer);
+        pooledConn = null;
+        pooledConnReady = false;
+        reject(new Error(`SSH pool connection error: ${err.message}`));
+      })
+      .on('close', () => {
+        pooledConn = null;
+        pooledConnReady = false;
+      })
+      .connect({
+        host: config.host,
+        port: 22,
+        username: config.username,
+        privateKey: config.privateKey,
+        readyTimeout: 20000,
+        keepaliveInterval: 10000,
+        algorithms: FIPS_SSH_ALGORITHMS,
+      });
+  });
+}
+
+/** Execute a command on a pooled SSH connection (reuses connection across calls) */
+async function executeSSHPooled(
+  command: string,
+  timeoutMs: number
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const conn = await getPooledConnection();
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      reject(new Error(`SSH command timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
+    conn.exec(command, (err, stream) => {
+      if (err) {
+        clearTimeout(timer);
+        return reject(err);
+      }
+      stream.on('close', (code: number) => {
+        clearTimeout(timer);
+        resetPoolIdleTimer();
+        if (!timedOut) {
+          resolve({ stdout, stderr, exitCode: code || 0 });
+        }
+      });
+      stream.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+      stream.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+    });
+  });
+}
+
+/** Execute a command with a fresh SSH connection (original behavior) */
 async function executeSSH(
   command: string,
   timeoutMs: number
@@ -221,13 +325,24 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
   const command = `${prefix}${tool} ${args} 2>&1`;
 
   try {
-    const { stdout, stderr, exitCode } = await executeSSH(command, timeoutSeconds * 1000);
+    // Use pooled SSH connection first, fall back to fresh connection on failure
+    let result: { stdout: string; stderr: string; exitCode: number };
+    try {
+      result = await executeSSHPooled(command, timeoutSeconds * 1000);
+    } catch (poolErr: any) {
+      // If pooled connection failed (not a timeout), try fresh connection
+      if (!poolErr.message.includes('timed out')) {
+        result = await executeSSH(command, timeoutSeconds * 1000);
+      } else {
+        throw poolErr;
+      }
+    }
     return {
       tool,
       command: `${tool} ${args}`,
-      stdout: stdout.slice(0, 500_000), // Cap at 500KB
-      stderr: stderr.slice(0, 50_000),
-      exitCode,
+      stdout: result.stdout.slice(0, 500_000), // Cap at 500KB
+      stderr: result.stderr.slice(0, 50_000),
+      exitCode: result.exitCode,
       durationMs: Date.now() - startTime,
       timedOut: false,
     };
@@ -256,13 +371,23 @@ export async function executeRawCommand(
 ): Promise<ToolExecResult> {
   const startTime = Date.now();
   try {
-    const { stdout, stderr, exitCode } = await executeSSH(command, timeoutSeconds * 1000);
+    // Use pooled SSH connection first, fall back to fresh connection on failure
+    let result: { stdout: string; stderr: string; exitCode: number };
+    try {
+      result = await executeSSHPooled(command, timeoutSeconds * 1000);
+    } catch (poolErr: any) {
+      if (!poolErr.message.includes('timed out')) {
+        result = await executeSSH(command, timeoutSeconds * 1000);
+      } else {
+        throw poolErr;
+      }
+    }
     return {
       tool: "raw",
       command,
-      stdout: stdout.slice(0, 500_000),
-      stderr: stderr.slice(0, 50_000),
-      exitCode,
+      stdout: result.stdout.slice(0, 500_000),
+      stderr: result.stderr.slice(0, 50_000),
+      exitCode: result.exitCode,
       durationMs: Date.now() - startTime,
       timedOut: false,
     };

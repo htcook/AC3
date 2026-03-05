@@ -2469,11 +2469,53 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
   // ── Nuclei scan on all assets via scan server ──
   const nucleiAssets = state.assets.filter(a => a.ports.length > 0);
+  let phase3NucleiFindings = 0; // Track only Phase 3 nuclei-specific findings
+  let phase3NucleiErrors = 0;
+  const vulnsBeforePhase3 = state.stats.vulnsFound; // Snapshot for accurate reporting
+
+  // Build a set of existing vuln titles per asset for deduplication
+  const existingVulnKeys = new Map<string, Set<string>>();
+  for (const asset of state.assets) {
+    const keys = new Set<string>();
+    for (const v of asset.vulns) {
+      keys.add(`${v.severity}::${v.title}::${v.cve || ''}`);
+    }
+    existingVulnKeys.set(asset.hostname, keys);
+  }
 
   if (nucleiAssets.length > 0) {
     addLog(state, { phase: "vuln_detection", type: "scan_start", title: "Nuclei Vulnerability Scan (Scan Server)", detail: `Scanning ${nucleiAssets.length} targets via remote nuclei` });
 
     const { executeTool } = await import("./scan-server-executor");
+
+    // Helper: execute nuclei with retry on SSH connection failures
+    async function executeNucleiWithRetry(
+      nucleiArgs: string, target: string, maxRetries = 2
+    ): Promise<{ stdout: string; stderr: string; exitCode: number; durationMs: number; timedOut: boolean; error?: string }> {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const result = await executeTool({
+          tool: "nuclei",
+          args: nucleiArgs,
+          target,
+          timeoutSeconds: 600,
+          engagementId: state.engagementId,
+        });
+        // If SSH connection failed (exit -1, empty stdout, short duration < 20s), retry
+        const isSSHFailure = result.exitCode === -1 && !result.stdout && result.durationMs < 20000;
+        if (isSSHFailure && attempt < maxRetries) {
+          addLog(state, {
+            phase: "vuln_detection", type: "warning",
+            title: `Nuclei SSH retry (attempt ${attempt + 2}/${maxRetries + 1})`,
+            detail: `SSH connection failed for ${target} (${result.error || result.stderr || 'empty output'}). Retrying after 3s cooldown...`,
+          });
+          await new Promise(r => setTimeout(r, 3000)); // Cooldown between retries
+          continue;
+        }
+        return result;
+      }
+      // Should not reach here, but return empty result as fallback
+      return { stdout: '', stderr: 'All retries exhausted', exitCode: -1, durationMs: 0, timedOut: false, error: 'All retries exhausted' };
+    }
 
     for (const asset of nucleiAssets) {
       const target = asset.ip || asset.hostname;
@@ -2511,6 +2553,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       if (techLower.some((t: string) => t.includes('cloudfront') || t.includes('aws'))) techTags.push('aws');
       if (techLower.some((t: string) => t.includes('react') || t.includes('next.js') || t.includes('node'))) techTags.push('nodejs');
 
+      const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
+
       for (const url of nucleiTargetUrls) {
         // Build nuclei args: use tech-specific tags if available, otherwise broad severity scan
         const tagArgs = techTags.length > 0 ? `-tags ${techTags.join(',')}` : '';
@@ -2523,20 +2567,33 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         });
 
         try {
-          const result = await executeTool({
-            tool: "nuclei",
-            args: nucleiArgs,
-            target,
-            timeoutSeconds: 600,
-            engagementId: state.engagementId,
-          });
+          const result = await executeNucleiWithRetry(nucleiArgs, target);
+
+          // Log SSH failures explicitly so they're visible in the UI
+          if (result.exitCode === -1 && !result.stdout) {
+            phase3NucleiErrors++;
+            addLog(state, {
+              phase: "vuln_detection", type: "warning",
+              title: `Nuclei Failed: ${url}`,
+              detail: `SSH connection failed after retries. Error: ${result.error || result.stderr || 'Connection timeout'}. Duration: ${result.durationMs}ms`,
+            });
+          }
 
           // Parse nuclei JSON output
           const findings = parseToolOutput("nuclei", result.stdout, asset);
+
+          // Deduplicate: only add findings not already discovered in targeted_enum
+          let newFindings = 0;
           for (const f of findings) {
-            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
-            state.stats.vulnsFound++;
+            const key = `${f.severity}::${f.title}::${f.cve || ''}`;
+            if (!assetVulnKeys.has(key)) {
+              asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
+              assetVulnKeys.add(key);
+              state.stats.vulnsFound++;
+              newFindings++;
+            }
           }
+          phase3NucleiFindings += newFindings;
 
           // Store as toolResult on asset
           const nucleiCmd = `nuclei ${nucleiArgs}`;
@@ -2553,11 +2610,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             phase: 'vuln_detection',
           });
 
+          const dupeNote = findings.length > newFindings ? ` (${findings.length - newFindings} duplicates from targeted_enum skipped)` : '';
           addLog(state, {
             phase: "vuln_detection",
             type: "scan_result",
             title: `Nuclei Complete: ${url}`,
-            detail: `${findings.length} findings, exit code ${result.exitCode}, ${result.durationMs}ms${result.timedOut ? " (TIMED OUT)" : ""}`,
+            detail: `${newFindings} new findings${dupeNote}, exit code ${result.exitCode}, ${result.durationMs}ms${result.timedOut ? " (TIMED OUT)" : ""}${result.error ? ` [Error: ${result.error}]` : ''}`,
             data: { findings, outputPreview: result.stdout.slice(0, 500) },
           });
 
@@ -2576,16 +2634,20 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             phase: "vuln_detection",
           });
         } catch (e: any) {
+          phase3NucleiErrors++;
           addLog(state, { phase: "vuln_detection", type: "error", title: `Nuclei Error: ${url}`, detail: e.message });
         }
       }
     }
 
+    // Accurate summary: report Phase 3 nuclei findings separately from total
+    const totalVulns = state.stats.vulnsFound;
+    const priorVulns = vulnsBeforePhase3;
     addLog(state, {
       phase: "vuln_detection",
       type: "scan_result",
       title: "Nuclei Scan Complete",
-      detail: `Found ${state.stats.vulnsFound} vulnerabilities across ${nucleiAssets.length} targets`,
+      detail: `Phase 3 nuclei found ${phase3NucleiFindings} new vulnerabilities across ${nucleiAssets.length} targets${phase3NucleiErrors > 0 ? ` (${phase3NucleiErrors} scans failed — SSH connection issues)` : ''}. Total vulns: ${totalVulns} (${priorVulns} from prior phases + ${phase3NucleiFindings} new)`,
     });
   }
 
@@ -3247,23 +3309,35 @@ export async function executeEngagement(
             });
             broadcastOpsUpdate(state.engagementId, { type: 'action', action: 'vuln_analysis_agents' });
 
-            const { batchAnalyzeFindings, generateAnalysisSummary, classifyVulnerability } = await import('./vuln-analysis-agents');
-
-            // Collect all findings from all assets
-            const allFindings = state.assets.flatMap(asset =>
-              asset.vulns.map((v, idx) => ({
-                id: `${asset.hostname}-${idx}`,
-                title: v.title || v.id || 'Unknown',
-                severity: v.severity || 'medium',
-                description: v.description,
-                cve: v.cve,
-                asset: asset.hostname,
-                port: v.port || (asset.ports.length > 0 ? asset.ports[0].port : undefined),
-                service: v.service || (asset.ports.length > 0 ? asset.ports[0].service : undefined),
-                rawOutput: v.rawOutput,
-                tool: v.tool,
-              }))
-            );
+             const { batchAnalyzeFindings, generateAnalysisSummary, classifyVulnerability } = await import('./vuln-analysis-agents');
+            // Collect all findings from all assets, enriched with tool result context
+            const allFindings = state.assets.flatMap(asset => {
+              // Build a lookup of tool outputs for this asset so findings get context
+              const toolOutputMap = new Map<string, string>();
+              for (const tr of (asset.toolResults || [])) {
+                if (tr.outputPreview && tr.findingCount > 0) {
+                  const existing = toolOutputMap.get(tr.tool) || '';
+                  toolOutputMap.set(tr.tool, (existing + '\n' + tr.outputPreview).slice(0, 2000));
+                }
+              }
+              return asset.vulns.map((v, idx) => {
+                // Try to find the tool that produced this finding from the title prefix
+                const toolMatch = v.title?.match(/^\[(\w+)\]/)?.[1]?.toLowerCase();
+                const toolOutput = toolMatch ? toolOutputMap.get(toolMatch) : undefined;
+                return {
+                  id: `${asset.hostname}-${idx}`,
+                  title: v.title || v.id || 'Unknown',
+                  severity: v.severity || 'medium',
+                  description: v.description,
+                  cve: v.cve,
+                  asset: asset.hostname,
+                  port: v.port || (asset.ports.length > 0 ? asset.ports[0].port : undefined),
+                  service: v.service || (asset.ports.length > 0 ? asset.ports[0].service : undefined),
+                  rawOutput: v.rawOutput || toolOutput,
+                  tool: v.tool || toolMatch,
+                };
+              });
+            });
 
             // Build services map for context
             const servicesMap: Record<string, string[]> = {};
@@ -3364,6 +3438,18 @@ export async function executeEngagement(
               target: asset.hostname,
               host: asset.ip || asset.hostname,
               details: z.url || '',
+            })),
+            // Include tool result summaries so the LLM can see what tools already ran
+            // and their output previews for richer context
+            ...(asset.toolResults || []).filter(tr => tr.findingCount > 0 || tr.outputPreview).map(tr => ({
+              type: 'tool_result',
+              title: `[${tr.tool}] ${tr.findingCount} findings (exit ${tr.exitCode}, ${tr.phase})`,
+              severity: tr.findingCount > 0 ? 'info' : 'low',
+              target: asset.hostname,
+              host: asset.ip || asset.hostname,
+              details: tr.outputPreview ? tr.outputPreview.slice(0, 500) : `${tr.tool} ran with ${tr.findingCount} findings`,
+              tool: tr.tool,
+              phase: tr.phase,
             })),
           ]);
 

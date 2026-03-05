@@ -7598,3 +7598,14 @@
 
 ## Bug Fixes
 - [x] Fix TypeError: Failed to fetch dynamically imported module for EngagementOps page (stale cache — build verified clean, user needs hard refresh / CDN purge)
+- [x] Fix Nuclei scan findings — misleading summary used total vulns instead of Phase 3-specific count
+- [x] Add deduplication to Phase 3 nuclei scans (skip vulns already found in targeted_enum)
+- [x] Add SSH retry logic with 3s cooldown for connection failures (exit -1, empty stdout, <20s)
+- [x] Add SSH connection pooling to scan-server-executor (reuse persistent connection, 60s idle timeout)
+- [x] Fix executeTool/executeRawCommand to use pooled SSH with fresh-connection fallback
+- [x] Accurate Phase 3 summary: reports new findings separately from prior phase totals
+- [x] Log SSH failures explicitly as warnings in the engagement ops UI
+- [x] Ensure LLM feedback loop receives tool result output previews for richer context
+- [x] Enrich vuln analysis agents with tool output context per finding
+- [x] Write 22 vitest tests for dedup, retry, summary, pool, and LLM enrichment
+- [ ] Restart Vianova engagement from the beginning for re-testing
