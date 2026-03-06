@@ -1621,6 +1621,8 @@ export async function runDomainIntelPipeline(
         dehashed: ENV.DEHASHED_API_KEY || undefined,
         binaryedge: ENV.BINARYEDGE_API_KEY || undefined,
         greynoise: ENV.GREYNOISE_API_KEY || undefined,
+        abuseipdb: ENV.ABUSEIPDB_API_KEY || undefined,
+        github: ENV.GITHUB_PAT || undefined,
       },
       timeout: 30000,
       maxConcurrent: 5,

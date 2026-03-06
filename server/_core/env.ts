@@ -63,6 +63,12 @@ export const ENV = {
   DEHASHED_API_KEY: process.env.DEHASHED_API_KEY ?? "",
   BINARYEDGE_API_KEY: process.env.BINARYEDGE_API_KEY ?? "",
   GREYNOISE_API_KEY: process.env.GREYNOISE_API_KEY ?? "",
+  // AbuseIPDB — IP abuse reputation
+  ABUSEIPDB_API_KEY: process.env.ABUSEIPDB_API_KEY ?? "",
+  // GitHub PAT — code recon dorks (fine-grained)
+  GITHUB_PAT: process.env.GITHUB_PAT ?? '',
+  // GitHub Classic Token — failover for rate-limited fine-grained PAT
+  GITHUB_CLASSIC_TOKEN: process.env.GITHUB_CLASSIC_TOKEN ?? '',
   // HackerOne Bug Bounty Intelligence
   HACKERONE_API_KEY: process.env.HACKERONE_API_KEY ?? "",
   // DigitalOcean — domain purchasing

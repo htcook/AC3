@@ -7751,9 +7751,9 @@
 
 ## Re-run Vianova Engagement (Enhanced)
 - [x] Reset Vianova engagement ops state (ID: 1350014 — cleared 1 ops snapshot, 6 scan results, reset to strict_passive)
-- [ ] Run passive scan with enhanced LLM knowledge
-- [ ] Run active scan with enhanced LLM knowledge
-- [ ] Compare before/after results (connector coverage, finding quality, scoring accuracy)
+- [x] Run passive scan with enhanced LLM knowledge (5 scan results: nmap + httpx on 3 RoE targets)
+- [x] Run active scan with enhanced LLM knowledge (nmap + httpx on all 3 targets, RoE scope enforced)
+- [ ] Compare before/after results (connector coverage, finding quality, scoring accuracy) — 42 info findings from httpx, 0 from nmap (cloud-filtered ports)
 
 ## ESM Fix
 - [x] Fix __dirname ESM issues in attack-chain-retriever.ts
@@ -7761,3 +7761,46 @@
 - [x] Fix __dirname ESM issues in training-corpus.ts
 - [x] Fix __dirname ESM issues in bugbounty-knowledge.ts (already done)
 - [x] Verify server starts cleanly with all knowledge modules loaded
+
+## Vianova Re-test Execution
+- [x] Run Vianova passive discovery via Engagement Ops API with enhanced LLM knowledge
+- [x] Monitor passive scan progress and verify LLM knowledge injection in logs
+- [x] Test Hunt Dashboard — created hunt session, generated 8 threat hypotheses with SIEM queries
+- [x] Escalate Vianova to active scan mode and run active discovery (nmap + httpx)
+- [x] Monitor active scan — 42 info findings, RoE scope guard enforced on all 3 targets
+
+## Module Analysis: LLM-Tool vs Human-Role Classification
+- [x] Inventory all server/lib modules and routers (291 lib, 37 passive, 5 knowledge, 147 routers = 438 total)
+- [x] Classify each module: Tier 1 LLM-Automated (273), Tier 2 LLM-Assisted (109), Tier 3 Human-Operated (56)
+- [x] Evaluate criteria: decision complexity, latency, data volume, judgment, compliance
+- [x] Write comprehensive analysis report (MODULE_ANALYSIS.md)
+
+## DigitalOcean Offloading Strategy
+- [x] Inventory current Manus-hosted backend workloads (CPU, memory, I/O intensive)
+- [x] Identify modules suitable for DigitalOcean migration (scan, OSINT, feeds, C2)
+- [x] Design architecture for split deployment (Manus UI/API + DO compute/scan workers)
+- [x] Write comprehensive offloading strategy report (DO_OFFLOADING_STRATEGY.md) — $107/mo for 95% CPU reduction
+
+## RoE Scope Enforcement
+- [x] Verify active scanning is restricted to only the 3 RoE-authorized assets (confirmed: only 3 targets scanned)
+- [x] Confirm engagement target list matches RoE (dashboard-dev.vianovahealth.com, api.dev.vianova.ai, 23.20.98.48)
+- [x] Ensure no out-of-scope assets are actively probed (verified: 0 out-of-scope scans)
+
+## CISA KEV Integration
+- [x] Check existing KEV data in vuln-feeds.ts or threat-intel modules
+- [x] Create KEV knowledge retriever (kev-service.ts, 679 lines)
+- [x] Inject KEV context into scoring-engine.ts classifyAssets and CARVER triggers
+- [x] Inject KEV context into engagement-orchestrator.ts vuln correlation LLM prompt
+- [x] Inject KEV context into hunt-engine.ts hypothesis generation
+- [x] Add KEV-aware scoring trigger (kev_match with ransomware boost)
+- [x] Write vitest for KEV integration (9 tests passing)
+
+## Cloud Security Training Bundle Integration
+- [x] Extract and analyze cloud security training bundle v3
+- [x] Build cloud-security-knowledge.ts knowledge module (6 misconfigs, 4 attack paths, 4 training examples, 4 detection rules)
+- [x] Inject cloud security context into scan plan generation LLM prompts
+- [x] Inject cloud security context into vuln correlation LLM prompts
+- [x] Inject cloud security context into hunt hypothesis generation
+- [x] Inject cloud security context into asset classification (scoring engine)
+- [x] Write vitest tests for cloud security knowledge module (26 tests passing)
+- [x] Verify cloud security knowledge enhances discovery of cloud misconfigurations

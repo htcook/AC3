@@ -101,6 +101,7 @@ export interface PassiveReconConfig {
     hunter?: string;
     abuseipdb?: string;
     passivetotal?: string;
+    github?: string;
   };
   timeout?: number;
   maxConcurrent?: number;
@@ -166,6 +167,8 @@ export async function runPassiveRecon(
       case "hunter": cfg.apiKey = apiKeys.hunter; break;
       case "abuseipdb": cfg.apiKey = apiKeys.abuseipdb; break;
       case "passivetotal": cfg.apiKey = apiKeys.passivetotal; break;
+      case "github_recon": cfg.apiKey = apiKeys.github; break;
+      case "github_leaks": cfg.apiKey = apiKeys.github; break;
     }
     connectorConfigs.set(connector.name, cfg);
   }

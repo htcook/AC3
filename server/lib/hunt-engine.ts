@@ -48,6 +48,21 @@ import {
   getCorpusForOwasp,
   getDemoSites,
 } from "./knowledge/training-corpus";
+import {
+  fetchKevCatalog,
+  matchCvesAgainstKev,
+  matchTechnologiesAgainstKev,
+  getKevStats,
+  type KevMatch,
+} from "./kev-service";
+import {
+  buildCloudSecurityContext,
+  buildGeneralCloudContext,
+  buildCloudHuntContext,
+  detectCloudProviders,
+  getCloudAttackPaths,
+  matchDetectionRules,
+} from "./knowledge/cloud-security-knowledge";
 
 // ═══════════════════════════════════════════════════════════════════════
 // §1 — TYPES
@@ -217,6 +232,29 @@ export async function generateHypotheses(
   // Get bug bounty triage context
   const triageContext = getTriageSystemPrompt();
 
+  // ── KEV enrichment: fetch CISA KEV catalog for actively exploited CVEs ──
+  let kevContext = '';
+  try {
+    const kevCatalog = await fetchKevCatalog();
+    const kevStats = getKevStats(kevCatalog);
+    // Match known asset technologies against KEV
+    const assetTechs = ctx.knownAssets?.flatMap(a => a.technologies || []) || [];
+    const kevTechMatches = assetTechs.length > 0 ? matchTechnologiesAgainstKev(assetTechs, kevCatalog) : [];
+    const ransomwareKevs = kevTechMatches.filter(m => m.knownRansomware);
+    if (kevTechMatches.length > 0 || kevStats.totalEntries > 0) {
+      kevContext = `\nCISA KNOWN EXPLOITED VULNERABILITIES (KEV) INTELLIGENCE:\n- Total KEV entries: ${kevStats.totalEntries} (${kevStats.addedLast90Days} added in last 90 days)\n- Ransomware-linked: ${kevStats.ransomwareLinked}\n- Overdue by CISA deadline: ${kevStats.overdueCount}`;
+      if (kevTechMatches.length > 0) {
+        kevContext += `\n\n⚠️ ${kevTechMatches.length} KEV MATCHES against target technology stack:\n${kevTechMatches.slice(0, 15).map(m => `- ${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? ' [RANSOMWARE]' : ''}`).join('\n')}`;
+      }
+      if (ransomwareKevs.length > 0) {
+        kevContext += `\n\n🔴 RANSOMWARE EXPOSURE: ${ransomwareKevs.length} KEV entries linked to active ransomware campaigns. Generate hypotheses that detect ransomware precursor activity.`;
+      }
+      kevContext += `\n\nYou MUST generate at least one hypothesis targeting KEV-listed vulnerabilities. These represent confirmed real-world exploitation vectors.`;
+    }
+  } catch (e: any) {
+    console.error('[KEV] Failed to fetch for hunt hypotheses:', e.message);
+  }
+
   // Build the hypothesis generation prompt
   const prompt = `You are an elite threat hunter operating under CISA methodology (Prepare → Execute → Act).
 Your task is to generate ${maxHypotheses} prioritized, testable hypotheses for a threat hunt.
@@ -260,7 +298,17 @@ ${triageContext ? `
 BUG BOUNTY TRIAGE KNOWLEDGE:
 ${triageContext}
 ` : ""}
-
+${kevContext}
+${(() => {
+  // Cloud security awareness for cloud-specific hunt hypotheses
+  const techStack = ctx.scope?.domains || [];
+  const cloudCtx = buildGeneralCloudContext();
+  const cloudPaths = getCloudAttackPaths();
+  const cloudRules = matchDetectionRules(['cloud', 'aws', 'azure', 'gcp', 's3', 'blob', 'iam']);
+  const cloudPathsStr = cloudPaths.slice(0, 3).map((p: any) => `- ${p.title} (${p.steps?.flatMap((s: any) => s.mitre).join(', ') || 'N/A'}): ${p.steps?.map((s: any) => s.action).join(' → ') || p.initial_condition}`).join('\n');
+  const cloudRulesStr = cloudRules.slice(0, 3).map((r: any) => `- ${r.name}: ${r.description} [confidence: ${r.confidence}]`).join('\n');
+  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n`;
+})()}
 HYPOTHESIS GENERATION RULES:
 1. Each hypothesis MUST be testable with the available data sources
 2. Each hypothesis MUST map to a specific MITRE ATT&CK technique

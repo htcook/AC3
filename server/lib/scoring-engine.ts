@@ -24,6 +24,8 @@
 import { invokeLLM } from "../_core/llm";
 import { formatOntologyForPrompt, inferAssetContext } from "./knowledge/asset-ontology";
 import { getChainsByVulnDescriptions, formatChainsForPrompt } from "./knowledge/attack-chain-retriever";
+import { fetchKevCatalog, matchCvesAgainstKev, calculateKevRiskBoost } from "./kev-service";
+import { detectCloudProviders, buildCloudSecurityContext } from "./knowledge/cloud-security-knowledge";
 
 // ═══════════════════════════════════════════════════════════════════════
 // §1 — CORE TYPES
@@ -1481,15 +1483,18 @@ export const DISCOVERY_PHASE_TRIGGERS: Record<string, {
   },
   kev_match: {
     description: "Asset vulnerability matches CISA Known Exploited Vulnerabilities catalog",
-    carverAdjustments: () => ({
+    carverAdjustments: (data: { ransomware?: boolean; overdueAction?: boolean }) => ({
       vulnerability: 10,
       recognizability: 8,
+      ...(data.ransomware ? { criticality: 9, effect: 9 } : {}),
+      ...(data.overdueAction ? { accessibility: 9 } : {}),
     }),
-    shockAdjustments: () => ({
-      scope: 7,
-      handling: 7,
+    shockAdjustments: (data: { ransomware?: boolean }) => ({
+      scope: data.ransomware ? 9 : 7,
+      handling: data.ransomware ? 9 : 7,
+      ...(data.ransomware ? { cascadingEffects: 9, operationalImpact: 9 } : {}),
     }),
-    likelihoodBoost: () => 0.3,
+    likelihoodBoost: (data: { ransomware?: boolean }) => data.ransomware ? 0.45 : 0.3,
   },
   darkweb_exposure: {
     description: "Asset credentials or data found on dark web marketplaces",

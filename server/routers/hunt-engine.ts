@@ -52,10 +52,10 @@ export const huntEngineRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDbSafe();
       const [result] = await db.insert(huntSessions).values({
-        name: input.name,
-        description: input.description || null,
+        huntName: input.name,
+        huntDescription: input.description || null,
         engagementId: input.engagementId || null,
-        phase: "prepare",
+        huntPhase: "prepare",
         huntType: input.huntType,
         siemPlatform: input.siemPlatform,
         dataSources: input.dataSources,
@@ -64,7 +64,7 @@ export const huntEngineRouter = router({
         threatActorName: input.threatActorName || null,
         mitreTechniques: input.mitreTechniques || null,
         scopeConstraints: input.scopeConstraints || null,
-        priority: input.priority,
+        huntPriority: input.priority,
         createdById: ctx.user.id,
         createdByName: ctx.user.name || ctx.user.openId,
       });
@@ -82,11 +82,11 @@ export const huntEngineRouter = router({
       const db = await getDbSafe();
       const conditions = [];
       if (input.engagementId) conditions.push(eq(huntSessions.engagementId, input.engagementId));
-      if (input.phase) conditions.push(eq(huntSessions.phase, input.phase));
+      if (input.phase) conditions.push(eq(huntSessions.huntPhase, input.phase));
 
       const rows = await db.select().from(huntSessions)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(huntSessions.createdAt))
+        .orderBy(desc(huntSessions.huntCreatedAt))
         .limit(input.limit);
       return rows;
     }),
@@ -101,7 +101,7 @@ export const huntEngineRouter = router({
 
       const hyps = await db.select().from(huntHypotheses)
         .where(eq(huntHypotheses.huntSessionId, input.id))
-        .orderBy(huntHypotheses.priority);
+        .orderBy(huntHypotheses.hypothesisPriority);
 
       return { ...session, hypotheses: hyps };
     }),
@@ -125,7 +125,7 @@ export const huntEngineRouter = router({
       const db = await getDbSafe();
       const [session] = await db.select().from(huntSessions).where(eq(huntSessions.id, input.sessionId));
       if (!session) throw new Error("Hunt session not found");
-      if (session.phase !== "prepare") throw new Error(`Cannot generate hypotheses in ${session.phase} phase`);
+      if (session.huntPhase !== "prepare") throw new Error(`Cannot generate hypotheses in ${session.huntPhase} phase`);
 
       const huntCtx: HuntContext = {
         sessionId: session.id,
@@ -141,7 +141,7 @@ export const huntEngineRouter = router({
         scope: (session.scopeConstraints as any) || undefined,
         knownAssets: input.knownAssets,
         huntType: session.huntType as any,
-        priority: session.priority as any,
+        priority: session.huntPriority as any,
       };
 
       const hypotheses = await generateHypotheses(huntCtx, input.maxHypotheses);
@@ -150,9 +150,9 @@ export const huntEngineRouter = router({
       for (const h of hypotheses) {
         await db.insert(huntHypotheses).values({
           huntSessionId: session.id,
-          statement: h.statement,
-          status: "pending",
-          confidence: h.confidence,
+          hypothesisStatement: h.statement,
+          hypothesisStatus: "pending",
+          hypothesisConfidence: h.confidence,
           mitreTechniqueId: h.mitreTechniqueId || null,
           mitreTechniqueName: h.mitreTechniqueName || null,
           mitreTactic: h.mitreTactic || null,
@@ -162,13 +162,13 @@ export const huntEngineRouter = router({
           kqlQuery: h.kqlQuery || null,
           attackChainRef: h.attackChainRef || null,
           bugBountyPatternRef: h.bugBountyPatternRef || null,
-          priority: h.priority,
+          hypothesisPriority: h.priority,
         });
       }
 
       // Update session
       await db.update(huntSessions)
-        .set({ hypothesisCount: hypotheses.length })
+        .set({ hypothesisCount: hypotheses.length } as any)
         .where(eq(huntSessions.id, session.id));
 
       return { generated: hypotheses.length, hypotheses };
@@ -181,10 +181,10 @@ export const huntEngineRouter = router({
       const db = await getDbSafe();
       const [session] = await db.select().from(huntSessions).where(eq(huntSessions.id, input.sessionId));
       if (!session) throw new Error("Hunt session not found");
-      if (session.phase !== "prepare") throw new Error(`Cannot advance from ${session.phase} to execute`);
+      if (session.huntPhase !== "prepare") throw new Error(`Cannot advance from ${session.huntPhase} to execute`);
 
       await db.update(huntSessions)
-        .set({ phase: "execute", startedAt: new Date() })
+        .set({ huntPhase: "execute", startedAt: new Date() } as any)
         .where(eq(huntSessions.id, input.sessionId));
 
       return { phase: "execute" };
@@ -205,7 +205,7 @@ export const huntEngineRouter = router({
       const db = await getDbSafe();
       const [session] = await db.select().from(huntSessions).where(eq(huntSessions.id, input.sessionId));
       if (!session) throw new Error("Hunt session not found");
-      if (session.phase !== "execute") throw new Error(`Cannot evaluate in ${session.phase} phase`);
+      if (session.huntPhase !== "execute") throw new Error(`Cannot evaluate in ${session.huntPhase} phase`);
 
       const [hypothesis] = await db.select().from(huntHypotheses).where(eq(huntHypotheses.id, input.hypothesisId));
       if (!hypothesis) throw new Error("Hypothesis not found");
@@ -217,11 +217,11 @@ export const huntEngineRouter = router({
         siemPlatform: (session.siemPlatform as any) || "splunk",
         dataSources: (session.dataSources as string[]) || [],
         huntType: session.huntType as any,
-        priority: session.priority as any,
+        priority: session.huntPriority as any,
       };
 
       const hypInput: HuntHypothesisType = {
-        statement: hypothesis.statement,
+        statement: hypothesis.hypothesisStatement,
         mitreTechniqueId: hypothesis.mitreTechniqueId || "",
         mitreTechniqueName: hypothesis.mitreTechniqueName || "",
         mitreTactic: hypothesis.mitreTactic || "",
@@ -229,8 +229,8 @@ export const huntEngineRouter = router({
         sigmaRule: hypothesis.sigmaRule || undefined,
         splQuery: hypothesis.splQuery || undefined,
         kqlQuery: hypothesis.kqlQuery || undefined,
-        confidence: hypothesis.confidence as any,
-        priority: hypothesis.priority,
+        confidence: hypothesis.hypothesisConfidence as any,
+        priority: hypothesis.hypothesisPriority,
         reasoning: "",
       };
 
@@ -244,8 +244,8 @@ export const huntEngineRouter = router({
       // Update hypothesis in DB
       await db.update(huntHypotheses)
         .set({
-          status: result.status,
-          confidence: result.confidence,
+          hypothesisStatus: result.status,
+          hypothesisConfidence: result.confidence,
           analysisNotes: result.analysisNotes,
           evidence: input.queryResults.slice(0, 50),
           detectionRule: result.detectionRule || null,
@@ -275,10 +275,10 @@ export const huntEngineRouter = router({
       const db = await getDbSafe();
       const [session] = await db.select().from(huntSessions).where(eq(huntSessions.id, input.sessionId));
       if (!session) throw new Error("Hunt session not found");
-      if (session.phase !== "execute") throw new Error(`Cannot advance from ${session.phase} to act`);
+      if (session.huntPhase !== "execute") throw new Error(`Cannot advance from ${session.huntPhase} to act`);
 
       await db.update(huntSessions)
-        .set({ phase: "act" })
+        .set({ huntPhase: "act" } as any)
         .where(eq(huntSessions.id, input.sessionId));
 
       return { phase: "act" };
@@ -294,7 +294,7 @@ export const huntEngineRouter = router({
       const db = await getDbSafe();
       const [session] = await db.select().from(huntSessions).where(eq(huntSessions.id, input.sessionId));
       if (!session) throw new Error("Hunt session not found");
-      if (session.phase !== "act") throw new Error(`Cannot generate deliverable in ${session.phase} phase`);
+      if (session.huntPhase !== "act") throw new Error(`Cannot generate deliverable in ${session.huntPhase} phase`);
 
       const hyps = await db.select().from(huntHypotheses)
         .where(eq(huntHypotheses.huntSessionId, input.sessionId));
@@ -310,16 +310,16 @@ export const huntEngineRouter = router({
           name: session.threatActorName || "",
         } : undefined,
         huntType: session.huntType as any,
-        priority: session.priority as any,
+        priority: session.huntPriority as any,
       };
 
       // Collect all findings from confirmed hypotheses
       const findings: HuntFinding[] = [];
-      for (const h of hyps.filter(h => h.status === "confirmed")) {
+      for (const h of hyps.filter(h => h.hypothesisStatus === "confirmed")) {
         findings.push({
-          title: `Confirmed: ${h.statement.slice(0, 80)}`,
-          description: h.analysisNotes || h.statement,
-          severity: h.confidence === "high" ? "high" : h.confidence === "medium" ? "medium" : "low",
+          title: `Confirmed: ${h.hypothesisStatement.slice(0, 80)}`,
+          description: h.analysisNotes || h.hypothesisStatement,
+          severity: h.hypothesisConfidence === "high" ? "high" : h.hypothesisConfidence === "medium" ? "medium" : "low",
           mitreTechniqueId: h.mitreTechniqueId || "",
           mitreTechniqueName: h.mitreTechniqueName || "",
           mitreTactic: h.mitreTactic || "",
@@ -327,22 +327,22 @@ export const huntEngineRouter = router({
           affectedAssets: [],
           detectionRule: h.detectionRule || undefined,
           remediation: h.remediation || "",
-          confidence: h.confidence as any,
+          confidence: h.hypothesisConfidence as any,
         });
       }
 
       const deliverable = await generateDeliverable(
         huntCtx,
         hyps.map(h => ({
-          statement: h.statement,
+          statement: h.hypothesisStatement,
           mitreTechniqueId: h.mitreTechniqueId || "",
           mitreTechniqueName: h.mitreTechniqueName || "",
           mitreTactic: h.mitreTactic || "",
           requiredDataSources: (h.requiredDataSources as string[]) || [],
-          confidence: h.confidence as any,
-          priority: h.priority,
+          confidence: h.hypothesisConfidence as any,
+          priority: h.hypothesisPriority,
           reasoning: "",
-          status: h.status,
+          status: h.hypothesisStatus,
           analysisNotes: h.analysisNotes || undefined,
         })),
         findings
@@ -351,10 +351,10 @@ export const huntEngineRouter = router({
       // Update session as completed
       await db.update(huntSessions)
         .set({
-          phase: "completed",
+          huntPhase: "completed",
           completedAt: new Date(),
           findingsSummary: deliverable.executiveSummary,
-        })
+        } as any)
         .where(eq(huntSessions.id, input.sessionId));
 
       return deliverable;
@@ -366,7 +366,7 @@ export const huntEngineRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDbSafe();
       await db.update(huntSessions)
-        .set({ phase: "cancelled", completedAt: new Date() })
+        .set({ huntPhase: "cancelled", completedAt: new Date() } as any)
         .where(eq(huntSessions.id, input.sessionId));
       return { cancelled: true };
     }),

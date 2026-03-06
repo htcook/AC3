@@ -188,37 +188,61 @@ interface GitHubCodeItem {
   }>;
 }
 
+// ═══ GitHub Token Failover (shared logic with github-recon.ts) ═══
+const _leaksTokenPool: { tokens: string[]; idx: number; rl: Map<string, number> } = { tokens: [], idx: 0, rl: new Map() };
+
+function getLeaksToken(primary?: string): string | undefined {
+  if (_leaksTokenPool.tokens.length === 0) {
+    _leaksTokenPool.tokens = [...new Set([primary, process.env.GITHUB_PAT, process.env.GITHUB_CLASSIC_TOKEN].filter((t): t is string => !!t && t.length > 5))];
+  }
+  const now = Date.now();
+  for (let i = 0; i < _leaksTokenPool.tokens.length; i++) {
+    const idx = (_leaksTokenPool.idx + i) % _leaksTokenPool.tokens.length;
+    const t = _leaksTokenPool.tokens[idx];
+    const rlUntil = _leaksTokenPool.rl.get(t);
+    if (!rlUntil || now > rlUntil) { _leaksTokenPool.idx = idx; return t; }
+  }
+  return primary || _leaksTokenPool.tokens[0];
+}
+
+function markLeaksTokenRL(token: string, resetEpoch?: number) {
+  _leaksTokenPool.rl.set(token, resetEpoch ? resetEpoch * 1000 : Date.now() + 60_000);
+  _leaksTokenPool.idx = (_leaksTokenPool.idx + 1) % Math.max(_leaksTokenPool.tokens.length, 1);
+}
+
 async function searchGitHubCode(
   query: string,
   token?: string,
   timeout = 10000
 ): Promise<GitHubSearchResult | null> {
+  const activeToken = getLeaksToken(token);
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.text-match+json",
     "User-Agent": "Caldera-Dashboard-OSINT/1.0",
   };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
+  if (activeToken) headers["Authorization"] = `Bearer ${activeToken}`;
 
   const url = `https://api.github.com/search/code?q=${encodeURIComponent(query)}&per_page=30&sort=indexed&order=desc`;
 
   try {
-    const response = await fetch(url, {
-      headers,
-      signal: AbortSignal.timeout(timeout),
-    });
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeout) });
 
-    if (response.status === 403) {
-      // Rate limited
+    if (response.status === 403 || response.status === 429) {
       const resetHeader = response.headers.get("X-RateLimit-Reset");
+      if (activeToken) markLeaksTokenRL(activeToken, resetHeader ? +resetHeader : undefined);
+      // Failover to next token
+      const fallback = getLeaksToken(token);
+      if (fallback && fallback !== activeToken) {
+        const h2 = { ...headers, Authorization: `Bearer ${fallback}` };
+        const res2 = await fetch(url, { headers: h2, signal: AbortSignal.timeout(timeout) });
+        if (res2.ok) return await res2.json();
+        if (res2.status === 403 || res2.status === 429) markLeaksTokenRL(fallback);
+      }
       const resetTime = resetHeader ? new Date(parseInt(resetHeader) * 1000).toISOString() : "unknown";
-      throw new Error(`GitHub rate limit exceeded. Resets at ${resetTime}`);
+      throw new Error(`GitHub rate limit exceeded (all tokens). Resets at ${resetTime}`);
     }
 
     if (response.status === 422) {
-      // Validation error (query too complex)
       return { total_count: 0, incomplete_results: false, items: [] };
     }
 

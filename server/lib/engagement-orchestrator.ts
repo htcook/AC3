@@ -37,6 +37,17 @@ import {
 import {
   getTriageCorpusContext,
 } from "./knowledge/training-corpus";
+import {
+  buildCloudSecurityContext,
+  buildGeneralCloudContext,
+  detectCloudProviders,
+} from "./knowledge/cloud-security-knowledge";
+import {
+  fetchKevCatalog,
+  matchCvesAgainstKev,
+  calculateKevRiskBoost,
+  type KevMatch,
+} from "./kev-service";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -199,6 +210,12 @@ export interface EngagementOpsState {
   passiveReconResults?: Record<string, any>;
   /** Selected scan profile for this engagement */
   scanProfile?: 'quick' | 'standard' | 'deep' | 'stealth';
+  /** ═══ RoE SCOPE GUARD ═══ Hard-enforced authorized target list from engagement RoE */
+  roeScopeGuard?: {
+    authorizedDomains: string[];  // exact domains from targetDomain
+    authorizedIps: string[];      // exact IPs/CIDRs from targetIpRange
+    roeStatus: string;            // signed, pending, etc.
+  };
   stats: {
     hostsScanned: number;
     portsFound: number;
@@ -246,6 +263,28 @@ export async function getOpsStateWithRecovery(engagementId: number): Promise<Eng
     console.error(`[OpsState] Failed to recover from DB:`, e.message);
   }
   return null;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * RoE SCOPE GUARD — Hard enforcement of Rules of Engagement target scope
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Every target MUST pass this check before any active scanning (nmap, nuclei,
+ * ZAP, etc.). Passive OSINT can discover assets outside scope, but they are
+ * tagged as "out_of_scope" and NEVER actively probed.
+ */
+export function isInRoeScope(state: EngagementOpsState, hostname: string, ip?: string): boolean {
+  const guard = state.roeScopeGuard;
+  if (!guard) return true; // No guard = legacy behavior (all assets in scope)
+  const normalizedHost = hostname.toLowerCase().trim();
+  const normalizedIp = (ip || "").trim();
+  // Check exact domain match
+  if (guard.authorizedDomains.some(d => d.toLowerCase().trim() === normalizedHost)) return true;
+  // Check exact IP match
+  if (normalizedIp && guard.authorizedIps.some(i => i.trim() === normalizedIp)) return true;
+  // Check if hostname is a subdomain of an authorized domain (e.g., sub.target.com matches target.com)
+  // DISABLED by default — only exact matches are in scope unless RoE explicitly allows subdomain discovery
+  return false;
 }
 
 export function initOpsState(engagementId: number, engagementType: string): EngagementOpsState {
@@ -767,9 +806,17 @@ You MUST respond with valid JSON matching this exact schema:
   const ontologyCtx = detectedTech.length > 0 ? formatOntologyForPrompt([...new Set(detectedTech)]) : '';
   const bbCtx = getTrainingExamplesForPrompt(2);
   const corpusCtx = getTriageCorpusContext(undefined, 2);
+  // Inject cloud security awareness for cloud asset detection
+  const allObs = state.assets.flatMap(a => [
+    ...(a.passiveRecon?.technologies || []),
+    ...(a.passiveRecon?.riskSignals?.map(r => r.rationale) || []),
+    a.passiveRecon?.cloudProvider || '',
+  ]).filter(Boolean);
+  const cloudCtx = allObs.length > 0 ? buildCloudSecurityContext(allObs) : buildGeneralCloudContext();
   return (ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx + '\n\n' : '') +
     (bbCtx ? '## Bug Bounty Methodology Context\n' + bbCtx + '\n\n' : '') +
-    (corpusCtx ? '## Tool Output Triage Examples\n' + corpusCtx + '\n\n' : '');
+    (corpusCtx ? '## Tool Output Triage Examples\n' + corpusCtx + '\n\n' : '') +
+    (cloudCtx ? cloudCtx + '\n\n' : '');
 })()}Generate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
       }
     ],
@@ -978,10 +1025,19 @@ ${(() => {
   const chains = vulnDescs.length > 0 ? getChainsByVulnDescriptions(vulnDescs, 3) : [];
   const chainCtx = chains.length > 0 ? formatChainsForPrompt(chains) : '';
   const corpusCtx = getTriageCorpusContext(undefined, 2);
+  // Cloud security context for cloud-aware decision making
+  const cloudObs = context.assets.flatMap(a => [
+    ...(a.passiveRecon?.technologies || []),
+    ...(a.passiveRecon?.riskSignals?.map(r => r.rationale) || []),
+    a.passiveRecon?.cloudProvider || '',
+    ...a.vulns.map(v => v.title),
+  ]).filter(Boolean);
+  const cloudCtx = cloudObs.length > 0 ? buildCloudSecurityContext(cloudObs) : '';
   return (chainCtx ? '\n\n## Known Attack Chains\n' + chainCtx : '') +
     ontology +
     (bbTraining ? '\n\n## Bug Bounty Reasoning Examples\n' + bbTraining : '') +
-    (corpusCtx ? '\n\n## Tool Output Triage Examples\n' + corpusCtx : '');
+    (corpusCtx ? '\n\n## Tool Output Triage Examples\n' + corpusCtx : '') +
+    (cloudCtx ? '\n\n' + cloudCtx : '');
 })()}`;
 
   try {
@@ -1041,8 +1097,21 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
   addLog(state, { phase: "recon", type: "info", title: "🔍 Phase 1: Recon & Discovery", detail: "Starting passive OSINT and domain intelligence scan" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "recon" });
 
-  const domains = (engagement.targetDomain || "").split(/[,;\s]+/).filter(Boolean);
+   const domains = (engagement.targetDomain || "").split(/[,;\s]+/).filter(Boolean);
   const ipRanges = (engagement.targetIpRange || "").split(/[,;\s]+/).filter(Boolean);
+
+  // ═══ INITIALIZE RoE SCOPE GUARD ═══
+  // Hard-lock the authorized targets from the engagement's RoE before any scanning begins
+  state.roeScopeGuard = {
+    authorizedDomains: [...domains],
+    authorizedIps: [...ipRanges],
+    roeStatus: engagement.roeStatus || engagement.roe_status || "signed",
+  };
+  addLog(state, {
+    phase: "recon", type: "info",
+    title: "🛡️ RoE Scope Guard Activated",
+    detail: `Authorized targets: ${domains.join(", ")}${ipRanges.length ? " | IPs: " + ipRanges.join(", ") : ""}\nOnly these targets will be actively scanned. Discovered assets outside scope will be tagged but NOT probed.`,
+  });
 
   // Initialize assets from scope
   for (const domain of domains) {
@@ -1091,8 +1160,9 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
         complianceFlags: [],
       });
 
-      // Extract discovered assets
+      // Extract discovered assets — RoE SCOPE GUARD enforced
       const discoveredAssets = (result as any).assets || [];
+      let outOfScopeCount = 0;
       for (const asset of discoveredAssets) {
         const hostname = asset.hostname || asset.domain || asset.ip;
         if (!hostname) continue;
@@ -1100,7 +1170,8 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
         if (existing) {
           existing.ip = asset.ip || existing.ip;
           existing.type = asset.assetType === "web_application" ? "web_app" : existing.type;
-        } else {
+        } else if (isInRoeScope(state, hostname, asset.ip)) {
+          // Asset is in RoE scope — add for active scanning
           state.assets.push({
             hostname,
             ip: asset.ip,
@@ -1112,7 +1183,22 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
             toolResults: [],
             status: "pending",
           });
+        } else {
+          // Asset discovered but OUT OF RoE SCOPE — log but do NOT add for active scanning
+          outOfScopeCount++;
+          addLog(state, {
+            phase: "recon", type: "warning",
+            title: `⚠️ Out-of-Scope Asset: ${hostname}`,
+            detail: `Discovered ${hostname}${asset.ip ? ` (${asset.ip})` : ''} via passive recon but it is NOT in the RoE authorized target list. Skipping active scanning.`,
+          });
         }
+      }
+      if (outOfScopeCount > 0) {
+        addLog(state, {
+          phase: "recon", type: "info",
+          title: `🛡️ Scope Guard: ${outOfScopeCount} out-of-scope assets filtered`,
+          detail: `${outOfScopeCount} assets discovered via passive recon were excluded from active scanning per RoE.`,
+        });
       }
 
       const findingsCount = (result as any).totalFindings || 0;
@@ -1712,7 +1798,17 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   addLog(state, { phase: "enumeration", type: "info", title: "🔎 Phase 2: Enumeration & Fingerprinting", detail: "Two-phase approach: Phase A discovery nmap with evasion → Phase B targeted tool deployment" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "enumeration" });
 
-  const targets = state.assets.map(a => a.ip || a.hostname);
+  // ═══ RoE SCOPE GUARD: Filter active scan targets to only authorized assets ═══
+  const scopedAssets = state.assets.filter(a => isInRoeScope(state, a.hostname, a.ip));
+  const skippedAssets = state.assets.filter(a => !isInRoeScope(state, a.hostname, a.ip));
+  if (skippedAssets.length > 0) {
+    addLog(state, {
+      phase: "enumeration", type: "warning",
+      title: `🛡️ Scope Guard: ${skippedAssets.length} assets excluded from active scanning`,
+      detail: `Excluded: ${skippedAssets.map(a => a.hostname).join(", ")}\nOnly RoE-authorized targets will be actively probed.`,
+    });
+  }
+  const targets = scopedAssets.map(a => a.ip || a.hostname);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE A: Discovery Nmap with Evasion Tactics
@@ -2254,8 +2350,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
   for (const asset of state.assets) {
     if (asset.ports.length === 0) continue;
-
-    // Classify asset type based on discovered ports
+    // ═══ RoE SCOPE GUARD: Skip out-of-scope assets in Phase B ═══
+    if (!isInRoeScope(state, asset.hostname, asset.ip)) {
+      addLog(state, { phase: "enumeration", type: "warning", title: `🛡️ Skipped: ${asset.hostname} (out of scope)`, detail: "Asset not in RoE authorized target list" });
+      continue;
+    }
+    // Classify asset type based on discovered portss
     const webPorts = asset.ports.filter(p =>
       ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
       [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
@@ -2641,8 +2741,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   addLog(state, { phase: "vuln_detection", type: "info", title: "🛡️ Phase 3: Vulnerability Detection", detail: "Running nuclei scans and ZAP web app scans" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "vuln_detection" });
 
-  // ── Nuclei scan on all assets via scan server ──
-  const nucleiAssets = state.assets.filter(a => a.ports.length > 0);
+  // ── Nuclei scan on all assets via scan server (RoE scope enforced) ──
+  const nucleiAssets = state.assets.filter(a => a.ports.length > 0 && isInRoeScope(state, a.hostname, a.ip));
   let phase3NucleiFindings = 0; // Track only Phase 3 nuclei-specific findings
   let phase3NucleiErrors = 0;
   const vulnsBeforePhase3 = state.stats.vulnsFound; // Snapshot for accurate reporting
@@ -2825,10 +2925,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     });
   }
 
-  // ── ZAP scan on web applications (WAF-aware) ──
+  // ── ZAP scan on web applications (WAF-aware, RoE scope enforced) ──
   const webApps = state.assets.filter(a =>
-    a.type === "web_app" ||
-    a.ports.some(p => ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port))
+    (a.type === "web_app" ||
+    a.ports.some(p => ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)))
+    && isInRoeScope(state, a.hostname, a.ip)
   );
 
   // Dedup: track scanned target URLs to avoid duplicate scans for the same host+protocol
@@ -2992,9 +3093,10 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   try {
     const { executeTool: execToolCred, suggestToolCommands: suggestCred } = await import("./scan-server-executor");
 
-    for (const asset of state.assets) {
+     for (const asset of state.assets) {
       if (asset.ports.length === 0) continue;
-
+      // ═══ RoE SCOPE GUARD: Skip out-of-scope assets in credential testing ═══
+      if (!isInRoeScope(state, asset.hostname, asset.ip)) continue;
       // Build technology list from passiveRecon for OEM default credential lookup
       const techList = (asset.passiveRecon?.technologies || []).map(t => {
         // Map technology strings to structured objects for matchCredentialsForAsset
@@ -3106,6 +3208,23 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   if (allVulns.length > 0) {
     addLog(state, { phase: "vuln_detection", type: "llm_decision", title: "LLM Correlation Analysis", detail: "Analyzing findings across all tools to identify attack vectors..." });
 
+    // ── KEV enrichment: match discovered CVEs against CISA KEV catalog ──
+    let kevContext = '';
+    const discoveredCves = allVulns.map(v => v.cve).filter(Boolean) as string[];
+    if (discoveredCves.length > 0) {
+      try {
+        const kevCatalog = await fetchKevCatalog();
+        const kevMatches = matchCvesAgainstKev(discoveredCves, kevCatalog);
+        if (kevMatches.length > 0) {
+          const kevBoost = calculateKevRiskBoost(kevMatches);
+          kevContext = `\n\n⚠️ CISA KNOWN EXPLOITED VULNERABILITIES (KEV) ALERT:\nThe following ${kevMatches.length} CVEs found in this engagement are on the CISA KEV catalog — these are ACTIVELY EXPLOITED in the wild:\n${kevMatches.map(m => `- ${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? ' [KNOWN RANSOMWARE VECTOR]' : ''} — Required action: ${m.requiredAction}`).join('\n')}\n${kevBoost.ransomwareExposure ? '\n🔴 RANSOMWARE EXPOSURE: Some KEV entries are linked to active ransomware campaigns. Prioritize these for immediate exploitation testing.' : ''}\nYou MUST prioritize KEV-listed vulnerabilities in your exploitation strategy. These represent confirmed real-world attack vectors with the highest likelihood of success.`;
+          addLog(state, { phase: 'vuln_detection', type: 'finding', title: `⚠️ ${kevMatches.length} CISA KEV Matches`, detail: kevBoost.summary });
+        }
+      } catch (e: any) {
+        console.error('[KEV] Failed to enrich correlation:', e.message);
+      }
+    }
+
     const correlationDecision = await llmDecide({
       phase: "vuln_detection",
       engagementType: state.engagementType,
@@ -3113,7 +3232,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       recentLog: state.log.slice(-20),
       question: `We've completed vulnerability scanning. Here are the findings:
 ${allVulns.map(v => `- ${v.title} (${v.severity})${v.cve ? ` [${v.cve}]` : ""}`).join("\n")}
-
+${kevContext}
 Correlate these findings and recommend the best exploitation strategy. For pentest: prioritize per-asset unauthorized access. For red team: identify the weakest entry point for C2 deployment.
 ${(() => {
   const vulnDescs = allVulns.map(v => v.title + (v.cve ? ` ${v.cve}` : ''));
@@ -3126,7 +3245,15 @@ ${(() => {
   const ontologyCtx = formatOntologyForPrompt([...new Set(detectedTech)]);
   const bugBountyCtx = getBugBountyContext(vulnDescs, 3);
   const triageCtx = getTriageCorpusContext(undefined, 3);
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx;
+  // Cloud security context for cloud-specific vuln correlation
+  const cloudObs = state.assets.flatMap(a => [
+    ...(a.passiveRecon?.technologies || []),
+    ...(a.passiveRecon?.riskSignals?.map(r => r.rationale) || []),
+    a.passiveRecon?.cloudProvider || '',
+    ...a.vulns.map(v => v.title),
+  ]).filter(Boolean);
+  const cloudSecCtx = buildCloudSecurityContext(cloudObs);
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '');
 })()}`,
     });
 

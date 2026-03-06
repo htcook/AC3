@@ -234,25 +234,79 @@ interface GitHubWorkflow {
   updated_at: string;
 }
 
+// ═══ GitHub Token Failover ═══════════════════════════════════════════
+// Maintains a token pool with automatic failover when rate-limited.
+// Primary: GITHUB_PAT (fine-grained), Fallback: GITHUB_CLASSIC_TOKEN
+const _tokenPool: { tokens: string[]; currentIdx: number; rateLimited: Map<string, number> } = {
+  tokens: [],
+  currentIdx: 0,
+  rateLimited: new Map(),
+};
+
+function getAvailableToken(primaryToken?: string): string | undefined {
+  // Build pool lazily on first call
+  if (_tokenPool.tokens.length === 0) {
+    const candidates = [
+      primaryToken,
+      process.env.GITHUB_PAT,
+      process.env.GITHUB_CLASSIC_TOKEN,
+    ].filter((t): t is string => !!t && t.length > 5);
+    // Deduplicate
+    _tokenPool.tokens = [...new Set(candidates)];
+  }
+  const now = Date.now();
+  // Find first non-rate-limited token
+  for (let i = 0; i < _tokenPool.tokens.length; i++) {
+    const idx = (_tokenPool.currentIdx + i) % _tokenPool.tokens.length;
+    const t = _tokenPool.tokens[idx];
+    const rlUntil = _tokenPool.rateLimited.get(t);
+    if (!rlUntil || now > rlUntil) {
+      _tokenPool.currentIdx = idx;
+      return t;
+    }
+  }
+  // All rate-limited — return the one that resets soonest
+  return primaryToken || _tokenPool.tokens[0];
+}
+
+function markTokenRateLimited(token: string, resetEpoch?: number) {
+  const resetMs = resetEpoch ? resetEpoch * 1000 : Date.now() + 60_000; // default 60s cooldown
+  _tokenPool.rateLimited.set(token, resetMs);
+  // Advance to next token
+  _tokenPool.currentIdx = (_tokenPool.currentIdx + 1) % Math.max(_tokenPool.tokens.length, 1);
+}
+
 async function githubFetch<T>(
   url: string,
   token?: string,
   timeout = 10000
 ): Promise<T | null> {
+  const activeToken = getAvailableToken(token);
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
     "User-Agent": "AceStrike-OSINT/2.0",
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (activeToken) headers["Authorization"] = `Bearer ${activeToken}`;
 
   try {
     const res = await fetch(url, {
       headers,
       signal: AbortSignal.timeout(timeout),
     });
-    if (res.status === 403) {
+    if (res.status === 403 || res.status === 429) {
       const reset = res.headers.get("X-RateLimit-Reset");
-      throw new Error(`GitHub rate limit. Resets: ${reset ? new Date(+reset * 1000).toISOString() : "unknown"}`);
+      if (activeToken) markTokenRateLimited(activeToken, reset ? +reset : undefined);
+      // Try failover with next available token
+      const fallback = getAvailableToken(token);
+      if (fallback && fallback !== activeToken) {
+        const h2: Record<string, string> = { ...headers, Authorization: `Bearer ${fallback}` };
+        const res2 = await fetch(url, { headers: h2, signal: AbortSignal.timeout(timeout) });
+        if (res2.ok) return await res2.json();
+        if (res2.status === 403 || res2.status === 429) {
+          markTokenRateLimited(fallback, res2.headers.get("X-RateLimit-Reset") ? +res2.headers.get("X-RateLimit-Reset")! : undefined);
+        }
+      }
+      throw new Error(`Rate limited (all tokens exhausted). Resets: ${reset ? new Date(+reset * 1000).toISOString() : "unknown"}`);
     }
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`GitHub ${res.status}: ${res.statusText}`);
@@ -270,16 +324,28 @@ async function searchGitHubCode(
   token?: string,
   timeout = 10000
 ): Promise<GitHubSearchResult | null> {
+  const activeToken = getAvailableToken(token);
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.text-match+json",
     "User-Agent": "AceStrike-OSINT/2.0",
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (activeToken) headers["Authorization"] = `Bearer ${activeToken}`;
 
   const url = `https://api.github.com/search/code?q=${encodeURIComponent(query)}&per_page=30&sort=indexed&order=desc`;
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeout) });
-    if (res.status === 403) throw new Error("GitHub rate limit exceeded");
+    if (res.status === 403 || res.status === 429) {
+      if (activeToken) markTokenRateLimited(activeToken);
+      // Try failover
+      const fallback = getAvailableToken(token);
+      if (fallback && fallback !== activeToken) {
+        const h2: Record<string, string> = { ...headers, Authorization: `Bearer ${fallback}` };
+        const res2 = await fetch(url, { headers: h2, signal: AbortSignal.timeout(timeout) });
+        if (res2.ok) return await res2.json();
+        if (res2.status === 403 || res2.status === 429) markTokenRateLimited(fallback);
+      }
+      throw new Error("GitHub rate limit exceeded (all tokens exhausted)");
+    }
     if (res.status === 422) return { total_count: 0, incomplete_results: false, items: [] };
     if (!res.ok) throw new Error(`GitHub ${res.status}`);
     return await res.json();
