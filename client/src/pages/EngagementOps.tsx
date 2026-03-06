@@ -1264,36 +1264,115 @@ export default function EngagementOps() {
             {pendingApprovals.length} Approval{pendingApprovals.length > 1 ? "s" : ""} Required
           </div>
           <div className="space-y-2">
-            {pendingApprovals.map(gate => (
-              <div key={gate.id} className="flex items-center justify-between bg-card/50 rounded-lg px-4 py-3 border border-orange-500/20">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {riskBadge(gate.riskTier)}
-                    <span className="text-sm font-medium text-foreground">{gate.title}</span>
+            {pendingApprovals.map(gate => {
+              const isExploitPlan = gate.title.startsWith("Exploit Plan Review");
+              const planActions = gate.detail?.actions as Array<{ target: string; port: string | number; cve?: string; module?: string; service?: string }> | undefined;
+
+              if (isExploitPlan && planActions && planActions.length > 0) {
+                // ── Rich Exploit Plan Review Card ──
+                return (
+                  <div key={gate.id} className="bg-card/60 rounded-xl border border-red-500/30 overflow-hidden">
+                    <div className="px-5 py-3 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Swords className="h-4 w-4 text-red-400" />
+                        {riskBadge(gate.riskTier)}
+                        <span className="text-sm font-semibold text-foreground">{gate.title}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{formatTime(gate.createdAt)}</span>
+                    </div>
+                    {/* LLM Reasoning */}
+                    {gate.detail?.reasoning && (
+                      <div className="px-5 py-3 border-b border-border/30">
+                        <div className="flex items-center gap-1.5 text-xs text-cyan-400 font-medium mb-1">
+                          <Brain className="h-3 w-3" /> LLM Reasoning
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{gate.detail.reasoning}</p>
+                      </div>
+                    )}
+                    {/* Exploit Actions Table */}
+                    <div className="px-5 py-3">
+                      <div className="text-xs text-muted-foreground font-medium mb-2">
+                        {planActions.length} exploit action{planActions.length !== 1 ? "s" : ""} selected:
+                      </div>
+                      <div className="space-y-1.5">
+                        {planActions.map((a, i) => (
+                          <div key={i} className="flex items-center gap-3 bg-background/50 rounded-lg px-3 py-2 border border-border/30">
+                            <span className="text-xs font-mono text-muted-foreground w-5">{i + 1}.</span>
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <Crosshair className="h-3 w-3 text-red-400 flex-none" />
+                              <span className="text-xs font-mono text-foreground truncate">{a.target}:{a.port}</span>
+                            </div>
+                            {(a.cve || a.module) && (
+                              <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-400 border-red-500/20 flex-none">
+                                {a.cve || a.module}
+                              </Badge>
+                            )}
+                            {a.service && (
+                              <span className="text-[10px] text-muted-foreground flex-none">{a.service}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Action Buttons */}
+                    <div className="px-5 py-3 bg-muted/20 border-t border-border/30 flex items-center justify-between">
+                      <p className="text-[10px] text-muted-foreground">Review the plan above. Approving will execute all listed exploits against in-scope targets.</p>
+                      <div className="flex items-center gap-2 ml-4 flex-none">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                          onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
+                          disabled={approveMut.isPending}
+                        >
+                          <XCircle className="h-3.5 w-3.5 mr-1" /> Reject Plan
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-red-600 hover:bg-red-500 text-white"
+                          onClick={() => approveMut.mutate({ gateId: gate.id, approved: true })}
+                          disabled={approveMut.isPending}
+                        >
+                          <Swords className="h-3.5 w-3.5 mr-1" /> Approve & Execute
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{gate.description}</p>
+                );
+              }
+
+              // ── Standard Approval Card (per-exploit or other gates) ──
+              return (
+                <div key={gate.id} className="flex items-center justify-between bg-card/50 rounded-lg px-4 py-3 border border-orange-500/20">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {riskBadge(gate.riskTier)}
+                      <span className="text-sm font-medium text-foreground">{gate.title}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{gate.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 flex-none">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
+                      disabled={approveMut.isPending}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1" /> Deny
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-500"
+                      onClick={() => approveMut.mutate({ gateId: gate.id, approved: true })}
+                      disabled={approveMut.isPending}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 ml-4 flex-none">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                    onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
-                    disabled={approveMut.isPending}
-                  >
-                    <XCircle className="h-3.5 w-3.5 mr-1" /> Deny
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-500"
-                    onClick={() => approveMut.mutate({ gateId: gate.id, approved: true })}
-                    disabled={approveMut.isPending}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

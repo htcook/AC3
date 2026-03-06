@@ -60,7 +60,7 @@ export interface OpsLogEntry {
   type: "info" | "scan_start" | "scan_result" | "finding" | "exploit_attempt" |
         "exploit_success" | "exploit_fail" | "approval_request" | "approval_response" |
         "c2_deploy" | "pivot" | "evidence" | "error" | "llm_decision" | "zap_scan" |
-        "waf_detected" | "phase_complete" | "tool_match" | "tool_exec";
+        "waf_detected" | "phase_complete" | "tool_match" | "tool_exec" | "warning";
   title: string;
   detail: string;
   data?: Record<string, any>;
@@ -2987,6 +2987,63 @@ Available vulns: ${state.assets.flatMap(a => a.vulns.map(v => `${a.hostname}:${v
     title: "Exploit Plan",
     detail: decision.decision,
     data: { reasoning: decision.reasoning },
+  });
+
+  // ── Pre-Exploitation Approval Gate ──
+  // Pause and show the full exploit plan to the operator before firing any exploits.
+  // This lets the operator review all selected targets, CVEs, and modules at once.
+  const exploitActions = decision.actions.filter((a: any) => a.type === "exploit_attempt");
+  const planSummary = exploitActions.map((a: any, i: number) => {
+    const p = a.params || {};
+    return `${i + 1}. ${p.target || "unknown"}:${p.port || "?"} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})`;
+  }).join("\n");
+
+  const exploitPlanApproved = await requestApproval(state, {
+    phase: "exploitation",
+    riskTier: "red",
+    title: `Exploit Plan Review — ${exploitActions.length} target${exploitActions.length !== 1 ? "s" : ""}`,
+    description: `The LLM has selected ${exploitActions.length} exploit action${exploitActions.length !== 1 ? "s" : ""}. Review the plan below before any exploits are executed.\n\n${planSummary}\n\nLLM Reasoning: ${decision.reasoning || decision.decision}`,
+    target: exploitActions.map((a: any) => `${a.params?.target}:${a.params?.port}`).join(", "),
+    module: exploitActions.map((a: any) => a.params?.cve || a.params?.module || "auto").join(", "),
+    detail: {
+      exploitCount: exploitActions.length,
+      actions: exploitActions.map((a: any) => ({
+        target: a.params?.target,
+        port: a.params?.port,
+        cve: a.params?.cve,
+        module: a.params?.module,
+        service: a.params?.service,
+      })),
+      reasoning: decision.reasoning,
+      decision: decision.decision,
+    },
+  });
+
+  if (!exploitPlanApproved) {
+    addLog(state, {
+      phase: "exploitation",
+      type: "info",
+      title: "⛔ Exploit Plan Rejected",
+      detail: "Operator rejected the exploit plan. No exploits will be executed. Engagement will proceed to reporting phase.",
+      riskTier: "red",
+    });
+    state.progress = 75;
+    addLog(state, {
+      phase: "exploitation",
+      type: "phase_complete",
+      title: "✅ Phase 4 Complete (Skipped)",
+      detail: "Exploitation phase skipped by operator. 0 exploits attempted.",
+    });
+    broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
+    return;
+  }
+
+  addLog(state, {
+    phase: "exploitation",
+    type: "info",
+    title: "✅ Exploit Plan Approved",
+    detail: `Operator approved the exploit plan. Proceeding with ${exploitActions.length} exploit action${exploitActions.length !== 1 ? "s" : ""}.`,
+    riskTier: "red",
   });
 
   for (const action of decision.actions) {

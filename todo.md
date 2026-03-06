@@ -7666,3 +7666,11 @@
 
 ## Bug Fixes
 - [x] Fix ReferenceError: Cannot access 'v' before initialization on /engagement-ops page (INC-MME5BHJL-YJQOOX)
+
+## Reset Vianova & Exploit Approval Gate
+- [x] Reset Vianova engagement ops state to idle (clear DB snapshot + in-memory state)
+- [x] Add exploit approval gate to backend orchestrator (pause before LLM exploit execution)
+- [x] Show selected exploits/attack plan to user before execution
+- [x] Add "Approve & Execute" / "Reject" buttons in the UI
+- [x] Wire approval gate into the active scan pipeline
+- [x] Write vitest tests for the approval gate flow (10 tests passing)
