@@ -257,8 +257,39 @@ export const engagementOpsRouter = router({
       }),
 
     /** Start passive discovery scan only (Phase 1: Recon) */
+    /** Update the scan mode for an engagement's passive recon */
+    updateScanMode: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        scanMode: z.enum(['strict_passive', 'standard', 'active']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        await db.updateEngagement(input.engagementId, { scanMode: input.scanMode } as any);
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'scan_mode_updated',
+          details: `Updated scan mode to ${input.scanMode} for engagement #${input.engagementId}`,
+        });
+        return { success: true, scanMode: input.scanMode };
+      }),
+
+    /** Get scan mode descriptions with connector counts */
+    getScanModes: protectedProcedure
+      .query(async () => {
+        const { getScanModeDescription } = await import('../lib/passive/passive-guard');
+        return {
+          modes: [
+            { value: 'strict_passive' as const, ...getScanModeDescription('strict_passive'), connectorCount: 23 },
+            { value: 'standard' as const, ...getScanModeDescription('standard'), connectorCount: 28 },
+            { value: 'active' as const, ...getScanModeDescription('active'), connectorCount: 31 },
+          ],
+        };
+      }),
+
     startPassiveScan: protectedProcedure
-      .input(z.object({ engagementId: z.number() }))
+      .input(z.object({ engagementId: z.number(), scanMode: z.enum(['strict_passive', 'standard', 'active']).optional() }))
       .mutation(async ({ input, ctx }) => {
         const engagement = await db.getEngagementById(input.engagementId);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
@@ -305,8 +336,15 @@ export const engagementOpsRouter = router({
         const { persistOpsStateNow } = await import('../lib/engagement-orchestrator');
         await persistOpsStateNow(input.engagementId);
 
-        state.log.push({ id: `log-${Date.now()}-mode`, timestamp: Date.now(), phase: 'recon', type: 'info', title: '\ud83d\udd12 Scan Mode: Strict Passive', detail: `Scanning ${allTargets.length} targets. Only querying third-party databases (crt.sh, Shodan, Censys, Wayback, urlscan, SecurityTrails, Dehashed, BinaryEdge). Zero direct contact with target infrastructure.` });
+        // Determine scan mode: input override > engagement DB setting > default strict_passive
+        const effectiveScanMode = input.scanMode || (engagement as any).scanMode || 'strict_passive';
+        const { getScanModeDescription } = await import('../lib/passive/passive-guard');
+        const modeInfo = getScanModeDescription(effectiveScanMode);
+        const modeIcons: Record<string, string> = { strict_passive: '\ud83d\udd12', standard: '\ud83d\udd0d', active: '\u26a1' };
+        state.log.push({ id: `log-${Date.now()}-mode`, timestamp: Date.now(), phase: 'recon', type: 'info', title: `${modeIcons[effectiveScanMode] || '\ud83d\udd12'} Scan Mode: ${modeInfo.label}`, detail: `${modeInfo.description} Scanning ${allTargets.length} targets.` });
         broadcastOpsUpdate(input.engagementId, { type: 'log', entry: state.log[state.log.length - 1] });
+        // Store scan mode on state for reference
+        (state as any).scanMode = effectiveScanMode;
 
         await db.logActivity({ userId: ctx.user.id, action: 'passive_scan_started', details: `Started passive discovery for engagement #${input.engagementId}` });
 
@@ -386,9 +424,9 @@ export const engagementOpsRouter = router({
                       state!.log.push(stageLog);
                       broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stageLog });
                     },
-                    // Options: strict_passive mode, scoped to engagement targets only, with per-connector progress
+                    // Options: use engagement scan mode, scoped to engagement targets only, with per-connector progress
                     {
-                      scanMode: 'strict_passive',
+                      scanMode: effectiveScanMode as any,
                       skipEngagement: false,
                       scopedAssets: allTargets,
                       onConnectorProgress: async (event) => {

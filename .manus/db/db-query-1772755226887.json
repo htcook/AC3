@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, engagement_id, phase, is_running, asset_count, created_at, updated_at FROM engagement_ops_snapshots WHERE engagement_id = 1350014 ORDER BY updated_at DESC LIMIT 1",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, engagement_id, phase, is_running, asset_count, created_at, updated_at FROM engagement_ops_snapshots WHERE engagement_id = 1350014 ORDER BY updated_at DESC LIMIT 1",
+  "rows": [
+    {
+      "id": "60001",
+      "engagement_id": "1350014",
+      "phase": "completed",
+      "is_running": "0",
+      "asset_count": "3",
+      "created_at": "2026-03-05 22:13:06",
+      "updated_at": "2026-03-05 22:57:06"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tengagement_id\tphase\tis_running\tasset_count\tcreated_at\tupdated_at\n60001\t1350014\tcompleted\t0\t3\t2026-03-05 22:13:06\t2026-03-05 22:57:06\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

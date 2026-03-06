@@ -250,6 +250,8 @@ export const engagements = mysqlTable("engagements", {
   roeSignerName: varchar("roe_signer_name", { length: 255 }),
   roeSignerEmail: varchar("roe_signer_email", { length: 320 }),
   roeDocumentId: int("roe_document_id"), // FK to roe_documents table
+  // Scan mode for passive recon phase
+  scanMode: mysqlEnum("scan_mode", ["strict_passive", "standard", "active"]).default("strict_passive"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

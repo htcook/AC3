@@ -41,7 +41,10 @@ import {
   Sparkles, ClipboardList, Key, KeyRound,
   Cloud, CloudOff, Brain, GitBranch, Layers, RefreshCw, Gauge,
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
+  ScanEye, ShieldOff, Bolt,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -382,6 +385,26 @@ export default function EngagementOps() {
   });
 
   const [showScanPlan, setShowScanPlan] = useState(false);
+  const [selectedScanMode, setSelectedScanMode] = useState<'strict_passive' | 'standard' | 'active'>(
+    (engagement as any)?.scanMode || 'strict_passive'
+  );
+  const [showScanModePopover, setShowScanModePopover] = useState(false);
+
+  // Sync scan mode from engagement data
+  useEffect(() => {
+    if ((engagement as any)?.scanMode) {
+      setSelectedScanMode((engagement as any).scanMode);
+    }
+  }, [(engagement as any)?.scanMode]);
+
+  const scanModesQ = trpc.engagementOps.getScanModes.useQuery(undefined, { enabled: engagementId > 0 });
+  const updateScanModeMut = trpc.engagementOps.updateScanMode.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Scan mode updated to ${data.scanMode.replace('_', ' ')}`);
+      engagementQ.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const generatePlanMut = trpc.engagementOps.generateScanPlan.useMutation({
     onSuccess: (data) => {
       toast.success(`Scan Plan Generated — ${data?.scanPlan?.assetPlans?.length || 0} assets analyzed`);
@@ -739,17 +762,116 @@ export default function EngagementOps() {
                   <Plus className="h-4 w-4 mr-1" /> Add Targets
                 </Button>
 
-                {/* Step 2: Passive Discovery */}
+                {/* Step 2: Scan Mode Selector + Passive Discovery */}
                 {canStartPassive && (
-                  <Button
-                    size="sm"
-                    onClick={() => passiveScanMut.mutate({ engagementId })}
-                    disabled={passiveScanMut.isPending}
-                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
-                  >
-                    {passiveScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
-                    Passive Discovery
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    {/* Scan Mode Selector */}
+                    <Popover open={showScanModePopover} onOpenChange={setShowScanModePopover}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`border-border/50 text-xs gap-1.5 ${
+                            selectedScanMode === 'strict_passive' ? 'text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10' :
+                            selectedScanMode === 'standard' ? 'text-blue-400 border-blue-500/30 hover:bg-blue-500/10' :
+                            'text-orange-400 border-orange-500/30 hover:bg-orange-500/10'
+                          }`}
+                        >
+                          {selectedScanMode === 'strict_passive' ? <Shield className="h-3.5 w-3.5" /> :
+                           selectedScanMode === 'standard' ? <ScanEye className="h-3.5 w-3.5" /> :
+                           <Bolt className="h-3.5 w-3.5" />}
+                          {selectedScanMode === 'strict_passive' ? 'Strict Passive' :
+                           selectedScanMode === 'standard' ? 'Standard' : 'Active'}
+                          <ChevronDown className="h-3 w-3 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[420px] p-0" align="start" side="bottom">
+                        <div className="p-3 border-b border-border/30">
+                          <h4 className="text-sm font-semibold text-foreground">Scan Mode</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5">Controls which passive recon connectors are activated</p>
+                        </div>
+                        <RadioGroup
+                          value={selectedScanMode}
+                          onValueChange={(val) => {
+                            const mode = val as 'strict_passive' | 'standard' | 'active';
+                            setSelectedScanMode(mode);
+                            updateScanModeMut.mutate({ engagementId, scanMode: mode });
+                            setShowScanModePopover(false);
+                          }}
+                          className="p-2 gap-1"
+                        >
+                          {(scanModesQ.data?.modes || [
+                            { value: 'strict_passive', label: 'Strict Passive', description: 'Only queries third-party databases. Zero target contact.', connectorCount: 23, techniques: [], restrictions: [] },
+                            { value: 'standard', label: 'Standard', description: 'Passive + DNS resolution + registration lookups.', connectorCount: 28, techniques: [], restrictions: [] },
+                            { value: 'active', label: 'Active', description: 'Full recon including direct target connections.', connectorCount: 31, techniques: [], restrictions: [] },
+                          ]).map((mode) => {
+                            const isSelected = selectedScanMode === mode.value;
+                            const modeColors = {
+                              strict_passive: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400', ring: 'ring-emerald-500/20' },
+                              standard: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', ring: 'ring-blue-500/20' },
+                              active: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-400', ring: 'ring-orange-500/20' },
+                            };
+                            const colors = modeColors[mode.value as keyof typeof modeColors];
+                            const modeIcons = {
+                              strict_passive: <Shield className="h-4 w-4" />,
+                              standard: <ScanEye className="h-4 w-4" />,
+                              active: <Bolt className="h-4 w-4" />,
+                            };
+                            return (
+                              <label
+                                key={mode.value}
+                                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
+                                  isSelected ? `${colors.bg} ${colors.border} ring-1 ${colors.ring}` : 'border-transparent hover:bg-muted/30'
+                                }`}
+                              >
+                                <RadioGroupItem value={mode.value} className="mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`${isSelected ? colors.text : 'text-muted-foreground'}`}>
+                                      {modeIcons[mode.value as keyof typeof modeIcons]}
+                                    </span>
+                                    <span className={`text-sm font-medium ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                      {mode.label}
+                                    </span>
+                                    <Badge variant="outline" className={`text-[9px] ${isSelected ? colors.text + ' ' + colors.border : 'text-muted-foreground'}`}>
+                                      {mode.connectorCount} connectors
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{mode.description}</p>
+                                  {mode.value === 'active' && (
+                                    <div className="flex items-center gap-1 mt-1.5">
+                                      <AlertTriangle className="h-3 w-3 text-orange-400" />
+                                      <span className="text-[10px] text-orange-400">Touches target infrastructure — requires RoE awareness</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </RadioGroup>
+                        {/* Connector breakdown */}
+                        <div className="p-3 border-t border-border/30 bg-muted/10">
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>Selected: <strong className="text-foreground">{selectedScanMode.replace('_', ' ')}</strong></span>
+                            <span className="font-mono">
+                              {selectedScanMode === 'strict_passive' ? '23' : selectedScanMode === 'standard' ? '28' : '31'} connectors active
+                            </span>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Passive Discovery Button */}
+                    <Button
+                      size="sm"
+                      onClick={() => passiveScanMut.mutate({ engagementId, scanMode: selectedScanMode })}
+                      disabled={passiveScanMut.isPending}
+                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
+                    >
+                      {passiveScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
+                      Passive Discovery
+                    </Button>
+                  </div>
                 )}
 
                 {/* Step 3: Start Active Scan (appears after passive complete) */}
@@ -911,7 +1033,7 @@ export default function EngagementOps() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => passiveScanMut.mutate({ engagementId })}
+                  onClick={() => passiveScanMut.mutate({ engagementId, scanMode: selectedScanMode })}
                   disabled={passiveScanMut.isPending}
                   className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
                 >
@@ -2780,6 +2902,31 @@ export default function EngagementOps() {
 
         {/* Right: Stats Panel */}
         <div className="w-64 flex-none border-l border-border/30 bg-card/30 overflow-y-auto p-4 space-y-4 hidden lg:block">
+          {/* Scan Mode Indicator */}
+          <div className={`rounded-lg p-3 border ${
+            selectedScanMode === 'strict_passive' ? 'bg-emerald-500/5 border-emerald-500/20' :
+            selectedScanMode === 'standard' ? 'bg-blue-500/5 border-blue-500/20' :
+            'bg-orange-500/5 border-orange-500/20'
+          }`}>
+            <div className="flex items-center gap-2">
+              {selectedScanMode === 'strict_passive' ? <Shield className="h-4 w-4 text-emerald-400" /> :
+               selectedScanMode === 'standard' ? <ScanEye className="h-4 w-4 text-blue-400" /> :
+               <Bolt className="h-4 w-4 text-orange-400" />}
+              <div>
+                <div className={`text-xs font-semibold ${
+                  selectedScanMode === 'strict_passive' ? 'text-emerald-400' :
+                  selectedScanMode === 'standard' ? 'text-blue-400' : 'text-orange-400'
+                }`}>
+                  {selectedScanMode === 'strict_passive' ? 'Strict Passive' :
+                   selectedScanMode === 'standard' ? 'Standard' : 'Active'}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {selectedScanMode === 'strict_passive' ? '23' : selectedScanMode === 'standard' ? '28' : '31'} connectors
+                </div>
+              </div>
+            </div>
+          </div>
+
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stats</h3>
 
           <div className="space-y-3">

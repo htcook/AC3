@@ -7649,3 +7649,17 @@
   - Removed dead binaryedge from all sets
   - Engagement passive scan still hardcoded to strict_passive (23 connectors now vs 9 before)
   - Domain intel pipeline defaults to standard mode (27 connectors)
+
+## Re-run Vianova Engagement
+- [x] Trigger Vianova engagement passive scan with fixed SSH and expanded 23 connectors
+- [x] Verify scan results show findings from all working connectors (22/23 connectors attempted, 0 blocked)
+- [ ] Confirm vulnerability scans execute successfully via SSH
+
+## Scan Mode Selector UI
+- [x] Add scan_mode column to engagements schema (strict_passive / standard / active)
+- [x] Create ScanModeSelector UI component with radio/select for three modes
+- [x] Add mode descriptions and connector counts to the selector UI
+- [x] Create tRPC endpoint to update engagement scan mode (getScanModes + updateScanMode)
+- [x] Integrate scan mode into engagement passive recon orchestrator (startPassiveScan accepts scanMode param)
+- [x] Display current scan mode in engagement ops view (right stats panel indicator)
+- [x] Write vitest tests for scan mode selector and orchestrator integration (10 tests passing)
