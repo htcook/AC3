@@ -7723,3 +7723,41 @@
 - [x] Extract and analyze ace_c3_bug_bounty_knowledge_training_bundle.zip
 - [x] Document how to integrate bug bounty knowledge into LLM for pentesting/red teaming
 - [x] Integrate bug bounty patterns into orchestrator LLM prompts (bugbounty-knowledge.ts)
+
+## Hunt Workflow Engine
+- [x] Create hunt_sessions and hunt_hypotheses DB tables with schema migration
+- [x] Build hunt state machine (Prepare → Execute → Act) in server/lib/hunt-engine.ts
+- [x] Add hypothesis generator using attack chains + asset ontology + bug bounty knowledge
+- [x] Add SIEM query builder (hypothesis → Sigma/SPL/KQL)
+- [x] Add hunt deliverable auto-generation (findings report, detection rules, remediation)
+- [x] Create tRPC endpoints for hunt CRUD and state transitions
+- [x] Build Hunt Dashboard UI page
+- [x] Add hunt queries tracking table (hunt_queries)
+- [x] Add hunt findings persistence table (hunt_findings)
+- [x] Add hunt deliverables persistence table (hunt_deliverables)
+
+## LLM Pentest Training Enhancement
+- [x] Enhance passive recon LLM prompts with attack chain context for smarter asset discovery
+- [x] Inject asset ontology into asset classification for automatic role inference during recon
+- [x] Enhance vulnerability correlation with bug bounty triage methodology
+- [x] Add training corpus tool output examples to improve scan result interpretation
+- [x] Enhance exploit selection with real-world attack chain reasoning and chain references
+
+## Hybrid CARVER+Shock/CVSS Scoring Enhancement
+- [x] Integrate attack chain severity/complexity into CVSS scoring context
+- [x] Use asset ontology roles to weight CARVER criticality scores
+- [x] Add architecture pivot path analysis to shock/cascading impact scoring
+- [x] Inject bug bounty exploitability data into CVSS temporal scoring
+
+## Re-run Vianova Engagement (Enhanced)
+- [ ] Reset Vianova engagement ops state
+- [ ] Run passive scan with enhanced LLM knowledge
+- [ ] Run active scan with enhanced LLM knowledge
+- [ ] Compare before/after results (connector coverage, finding quality, scoring accuracy)
+
+## ESM Fix
+- [x] Fix __dirname ESM issues in attack-chain-retriever.ts
+- [x] Fix __dirname ESM issues in asset-ontology.ts
+- [x] Fix __dirname ESM issues in training-corpus.ts
+- [x] Fix __dirname ESM issues in bugbounty-knowledge.ts (already done)
+- [x] Verify server starts cleanly with all knowledge modules loaded

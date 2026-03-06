@@ -758,7 +758,19 @@ You MUST respond with valid JSON matching this exact schema:
       },
       {
         role: 'user',
-        content: `## Passive OSINT Results\n\n### Per-Asset Intelligence:\n${JSON.stringify(assetSummaries, null, 2)}\n\n${domainReconSummary.length > 0 ? `### Domain-Level Intelligence Summary:\n${JSON.stringify(domainReconSummary, null, 2)}\n\n` : ''}Engagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\nGenerate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
+        content: `## Passive OSINT Results\n\n### Per-Asset Intelligence:\n${JSON.stringify(assetSummaries, null, 2)}\n\n${domainReconSummary.length > 0 ? `### Domain-Level Intelligence Summary:\n${JSON.stringify(domainReconSummary, null, 2)}\n\n` : ''}Engagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\n${(() => {
+  // Inject knowledge context for smarter scan planning
+  const detectedTech = state.assets.flatMap(a => [
+    ...(a.type !== 'unknown' ? [a.type] : []),
+    ...a.ports.map((p: any) => p.service).filter(Boolean),
+  ]);
+  const ontologyCtx = detectedTech.length > 0 ? formatOntologyForPrompt([...new Set(detectedTech)]) : '';
+  const bbCtx = getTrainingExamplesForPrompt(2);
+  const corpusCtx = getTriageCorpusContext(undefined, 2);
+  return (ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx + '\n\n' : '') +
+    (bbCtx ? '## Bug Bounty Methodology Context\n' + bbCtx + '\n\n' : '') +
+    (corpusCtx ? '## Tool Output Triage Examples\n' + corpusCtx + '\n\n' : '');
+})()}Generate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
       }
     ],
     response_format: {
@@ -961,7 +973,15 @@ ${(() => {
   ]);
   const ontology = detectedTech.length > 0 ? formatOntologyForPrompt([...new Set(detectedTech)]) : '';
   const bbTraining = getTrainingExamplesForPrompt(2);
-  return ontology + (bbTraining ? '\n\n## Bug Bounty Reasoning Examples\n' + bbTraining : '');
+  // Inject attack chain context based on known vulns
+  const vulnDescs = context.assets.flatMap(a => a.vulns.map((v: any) => v.title || v.description || '').filter(Boolean));
+  const chains = vulnDescs.length > 0 ? getChainsByVulnDescriptions(vulnDescs, 3) : [];
+  const chainCtx = chains.length > 0 ? formatChainsForPrompt(chains) : '';
+  const corpusCtx = getTriageCorpusContext(undefined, 2);
+  return (chainCtx ? '\n\n## Known Attack Chains\n' + chainCtx : '') +
+    ontology +
+    (bbTraining ? '\n\n## Bug Bounty Reasoning Examples\n' + bbTraining : '') +
+    (corpusCtx ? '\n\n## Tool Output Triage Examples\n' + corpusCtx : '');
 })()}`;
 
   try {

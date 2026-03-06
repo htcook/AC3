@@ -10,9 +10,10 @@
  */
 
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
-const KNOWLEDGE_DIR = __dirname;
+const KNOWLEDGE_DIR = dirname(fileURLToPath(import.meta.url));
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

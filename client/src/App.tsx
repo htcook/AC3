@@ -210,6 +210,7 @@ const CloudSecurityValidation = lazy(() => import("./pages/CloudSecurityValidati
 const SigmaRuleGenerator = lazy(() => import("./pages/SigmaRuleGenerator"));
 const ControlTesting = lazy(() => import("./pages/ControlTesting"));
 const LlmTelemetry = lazy(() => import("./pages/LlmTelemetry"));
+const HuntDashboard = lazy(() => import("./pages/HuntDashboard"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -840,6 +841,9 @@ function Router() {
         </Route>
         <Route path="/llm-telemetry">
           <ProtectedRoute component={LlmTelemetry} />
+        </Route>
+        <Route path="/hunt-ops">
+          <ProtectedRoute component={HuntDashboard} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

@@ -1,0 +1,16 @@
+{
+  "query": "SHOW TABLES LIKE 'hunt%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SHOW TABLES LIKE 'hunt%';",
+  "rows": [
+    {
+      "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (hunt%)": "hunt_hypotheses"
+    },
+    {
+      "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (hunt%)": "hunt_sessions"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (hunt%)\nhunt_hypotheses\nhunt_sessions\n",
+  "stderr": "",
+  "execution_time_ms": 233
+}

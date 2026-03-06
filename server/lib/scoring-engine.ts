@@ -22,6 +22,8 @@
  */
 
 import { invokeLLM } from "../_core/llm";
+import { formatOntologyForPrompt, inferAssetContext } from "./knowledge/asset-ontology";
+import { getChainsByVulnDescriptions, formatChainsForPrompt } from "./knowledge/attack-chain-retriever";
 
 // ═══════════════════════════════════════════════════════════════════════
 // §1 — CORE TYPES
@@ -1331,6 +1333,16 @@ ${JSON.stringify(assets.map(a => ({
   url: a.url,
 })), null, 2)}
 
+${(() => {
+  // Inject asset ontology knowledge for architecture-aware classification
+  const allTech = assets.flatMap(a => [
+    a.assetType,
+    ...(a.technologies || []).map((t: any) => typeof t === 'string' ? t : t.name || ''),
+  ].filter(Boolean));
+  const ontologyCtx = allTech.length > 0 ? formatOntologyForPrompt([...new Set(allTech)]) : '';
+  return ontologyCtx ? 'ASSET ARCHITECTURE KNOWLEDGE BASE:\n' + ontologyCtx : '';
+})()}
+
 For EACH asset, return:
 1. deviceType, platformType, missionFunction, essentialService
 2. assetPurpose: 1-2 sentence description of what this asset does for the organization
@@ -1501,6 +1513,31 @@ export const DISCOVERY_PHASE_TRIGGERS: Record<string, {
       knowledge: data.sophistication === "apt" ? 3 : 6,
     }),
     likelihoodBoost: (data: { sophistication?: string }) => data.sophistication === "apt" ? 0.2 : 0.1,
+  },
+  attack_chain_match: {
+    description: "Asset vulnerabilities match a known multi-step attack chain from the training corpus",
+    carverAdjustments: (data: { chainLength?: number; feasibility?: string }) => ({
+      vulnerability: data.feasibility === "high" ? 9 : data.feasibility === "medium" ? 7 : 5,
+      effect: (data.chainLength ?? 1) >= 3 ? 8 : 6,
+    }),
+    shockAdjustments: (data: { chainLength?: number }) => ({
+      cascadingEffects: (data.chainLength ?? 1) >= 3 ? 8 : 5,
+      scope: (data.chainLength ?? 1) >= 4 ? 7 : 5,
+    }),
+    likelihoodBoost: (data: { feasibility?: string }) =>
+      data.feasibility === "high" ? 0.25 : data.feasibility === "medium" ? 0.15 : 0.05,
+  },
+  bug_bounty_correlation: {
+    description: "Vulnerability pattern matches known bug bounty findings from training corpus",
+    carverAdjustments: (data: { bountyTier?: string }) => ({
+      vulnerability: data.bountyTier === "critical" ? 9 : data.bountyTier === "high" ? 7 : 5,
+      accessibility: 7,
+    }),
+    shockAdjustments: (data: { bountyTier?: string }) => ({
+      handling: data.bountyTier === "critical" ? 8 : 6,
+    }),
+    likelihoodBoost: (data: { bountyTier?: string }) =>
+      data.bountyTier === "critical" ? 0.3 : data.bountyTier === "high" ? 0.2 : 0.1,
   },
 };
 

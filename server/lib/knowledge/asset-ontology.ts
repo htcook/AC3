@@ -11,7 +11,10 @@
  */
 
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __esm_dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -50,7 +53,7 @@ let _rules: InferenceRule[] | null = null;
 function loadOntology(): AssetOntologyEntry[] {
   if (_ontology) return _ontology;
   try {
-    const raw = readFileSync(join(__dirname, "asset_role_ontology.json"), "utf-8");
+    const raw = readFileSync(join(__esm_dirname, "asset_role_ontology.json"), "utf-8");
     _ontology = JSON.parse(raw) as AssetOntologyEntry[];
     // Deduplicate by product_name (keep first occurrence)
     const seen = new Set<string>();
@@ -72,7 +75,7 @@ function loadOntology(): AssetOntologyEntry[] {
 function loadPatterns(): ArchitecturePattern[] {
   if (_patterns) return _patterns;
   try {
-    const raw = readFileSync(join(__dirname, "architecture_pattern_packs.json"), "utf-8");
+    const raw = readFileSync(join(__esm_dirname, "architecture_pattern_packs.json"), "utf-8");
     _patterns = JSON.parse(raw) as ArchitecturePattern[];
     return _patterns;
   } catch (e: any) {

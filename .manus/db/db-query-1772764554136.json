@@ -1,0 +1,202 @@
+{
+  "query": "DESCRIBE hunt_sessions;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DESCRIBE hunt_sessions;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "engagement_id",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "hunt_name",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "hunt_description",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "hunt_phase",
+      "Type": "enum('prepare','execute','act','completed','cancelled')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "prepare",
+      "Extra": ""
+    },
+    {
+      "Field": "hunt_type",
+      "Type": "enum('hypothesis_driven','baseline','model_assisted')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "hypothesis_driven",
+      "Extra": ""
+    },
+    {
+      "Field": "target_environment",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "siem_platform",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "data_sources",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "threat_actor_id",
+      "Type": "varchar(128)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "threat_actor_name",
+      "Type": "varchar(255)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "mitre_techniques",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "scope_constraints",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "findings_summary",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "hypothesis_count",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "confirmed_findings",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "detection_rules_generated",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "hunt_priority",
+      "Type": "enum('critical','high','medium','low')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "medium",
+      "Extra": ""
+    },
+    {
+      "Field": "created_by_id",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "created_by_name",
+      "Type": "varchar(255)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "started_at",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "completed_at",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "hunt_created_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "hunt_updated_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nengagement_id\tint\tYES\t\tNULL\t\nhunt_name\tvarchar(255)\tNO\t\tNULL\t\nhunt_description\ttext\tYES\t\tNULL\t\nhunt_phase\tenum('prepare','execute','act','completed','cancelled')\tNO\t\tprepare\t\nhunt_type\tenum('hypothesis_driven','baseline','model_assisted')\tNO\t\thypothesis_driven\t\ntarget_environment\ttext\tYES\t\tNULL\t\nsiem_platform\tvarchar(64)\tYES\t\tNULL\t\ndata_sources\tjson\tYES\t\tNULL\t\nthreat_actor_id\tvarchar(128)\tYES\t\tNULL\t\nthreat_actor_name\tvarchar(255)\tYES\t\tNULL\t\nmitre_techniques\tjson\tYES\t\tNULL\t\nscope_constraints\tjson\tYES\t\tNULL\t\nfindings_summary\ttext\tYES\t\tNULL\t\nhypothesis_count\tint\tNO\t\t0\t\nconfirmed_findings\tint\tNO\t\t0\t\ndetection_rules_generated\tint\tNO\t\t0\t\nhunt_priority\tenum('critical','high','medium','low')\tNO\t\tmedium\t\ncreated_by_id\tint\tYES\t\tNULL\t\ncreated_by_name\tvarchar(255)\tYES\t\tNULL\t\nstarted_at\ttimestamp\tYES\t\tNULL\t\ncompleted_at\ttimestamp\tYES\t\tNULL\t\nhunt_created_at\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nhunt_updated_at\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

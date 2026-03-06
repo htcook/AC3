@@ -148,6 +148,7 @@ import { exploitCatalogRouter } from "./routers/exploit-catalog-core";
 import { validationRouter } from "./routers/validation-core";
 import { engagementOpsRouter } from "./routers/engagement-ops-core";
 import { scanServerRouter } from "./routers/scan-server";
+import { huntEngineRouter } from "./routers/hunt-engine";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -452,6 +453,9 @@ export const appRouter = router({
 
   // ─── LLM Telemetry Dashboard ────────────────────────────────────────────
   llmTelemetry: llmTelemetryRouter,
+
+  // ─── Hunt Workflow Engine (DHS/GSA HACS-Compliant) ──────────────────────
+  huntEngine: huntEngineRouter,
 });
 export type AppRouter = typeof appRouter;
 

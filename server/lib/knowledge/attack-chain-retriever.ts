@@ -7,7 +7,10 @@
  */
 
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __esm_dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,7 +36,7 @@ let _chains: AttackChain[] | null = null;
 function loadChains(): AttackChain[] {
   if (_chains) return _chains;
   try {
-    const raw = readFileSync(join(__dirname, "attack_chains_300.json"), "utf-8");
+    const raw = readFileSync(join(__esm_dirname, "attack_chains_300.json"), "utf-8");
     _chains = JSON.parse(raw) as AttackChain[];
     console.log(`[AttackChainRetriever] Loaded ${_chains.length} attack chains`);
     return _chains;
