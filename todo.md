@@ -7902,3 +7902,28 @@
 - [x] Research NSE script evasion compatibility — documented per scan profile
 - [x] Compile NSE script catalog organized by technology and use case
 - [x] Build nmap-knowledge.ts module (600+ lines) — LLM test confirmed perfect NSE selection (20/20)
+
+## Force cloud_enum for AWS Targets
+- [x] Update scan plan LLM prompt to mandate cloud_enum and s3scanner for cloud targets — explicit MUST requirement added
+- [x] Update nmap-knowledge.ts cloud scan profile to include cloud_enum as required tool
+- [x] Verify LLM scan plan test scores improve — cloud tool selection now 4/5 (was 1/5), scan plan 91/100 (was 82/100)
+
+## OWASP Top 10 Knowledge Module
+- [x] Research OWASP Top 10:2025 categories — all 10 categories with CWEs, tools, nuclei tags
+- [x] Build owasp-knowledge.ts (500+ lines) with 10 categories, tool matrices, detection rules
+- [x] Map each OWASP category to nmap NSE scripts, nuclei templates, and other tools
+- [x] Add getOwaspScanPlanContext() — tech-specific tool recommendations per OWASP category
+- [x] Add getOwaspVulnCorrelationContext() — finding-to-category mapping with severity defaults
+- [x] Inject OWASP knowledge into engagement-orchestrator (3 injection points: scan plan, vuln correlation, exploitation)
+- [x] Inject OWASP knowledge into hunt-engine and scoring-engine
+- [x] Write 31 vitest tests — all passing (OWASP context, KEV OWASP classification, wiring verification)
+
+## Expand KEV Catalog to Full CISA Feed
+- [x] CISA KEV catalog already fetched live (~1,100 CVEs) with 1-hour caching
+- [x] Build KEV relevance filtering — filterKevForWebEngagement() with 50+ web-relevant vendors
+- [x] Expand TECH_TO_KEV_PATTERNS to 110+ technologies (cloud, container, CI/CD, API gateways, message queues, identity providers)
+- [x] Add cloud-specific MITRE technique mappings (T1610, T1611, T1078.004, T1195.002, T1556, T1550, T1072)
+- [x] Add classifyKevByOwasp() — maps KEV entries to OWASP Top 10:2025 categories
+- [x] Add getKevOwaspContext() — KEV-OWASP cross-reference for LLM prompts
+- [x] Write 31 vitest tests — all passing
+- [x] Re-run LLM test suite — overall 364.2/400 (91.1%) Grade A, scan plan up to 91/100

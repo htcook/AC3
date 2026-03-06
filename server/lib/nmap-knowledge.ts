@@ -606,13 +606,22 @@ Use case: ${p.useCase}`).join('\n\n')}`);
   if (targetInfo?.cloudProvider) {
     sections.push(`### Cloud-Specific Scanning Notes (${targetInfo.cloudProvider})
 
+**MANDATORY for cloud targets — you MUST include these tools in the scan plan:**
+- **cloud_enum** — REQUIRED for ALL cloud-hosted targets. Run: \`cloud_enum -k <domain_keyword>\` to discover S3 buckets, Azure Blobs, GCS buckets
+- **s3scanner** — REQUIRED when AWS detected. Run: \`echo "<bucket_name>" | s3scanner scan --json\` to check bucket permissions
+- **nuclei -tags cloud,s3,misconfig** — REQUIRED for cloud misconfiguration detection
+
+Additional cloud scanning rules:
 - Cloud security groups are **stateful** — ACK scans less effective
 - Use **-T2 with --max-rate 50** to avoid rate limiting
 - Check for **IMDS at 169.254.169.254** via SSRF if web app found
 - Look for **exposed storage** (S3 buckets, Blob containers, GCS buckets)
 - **SSL cert SANs** reveal infrastructure scope (use ssl-cert script)
 - Cloud WAFs may require **very slow timing** (-T1 or lower)
-- Check for **exposed .env, .git, /debug, /status** endpoints`);
+- Check for **exposed .env, .git, /debug, /status** endpoints
+- For AWS: check for exposed EC2 metadata, IAM role credentials, S3 bucket policies
+- For Azure: check for exposed Blob storage, Key Vault misconfigs, RBAC issues
+- For GCP: check for exposed GCS buckets, service account keys, Compute metadata`);
   }
 
   // NSE script selection rules

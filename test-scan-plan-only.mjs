@@ -52,8 +52,18 @@ Tech-specific NSE scripts:
 - OpenSSH: ssh2-enum-algos, ssh-auth-methods
 - All web: http-security-headers, ssl-enum-ciphers, http-git, http-cors
 
-Cloud targets: add cloud_enum, nuclei -tags cloud,s3,misconfig.
+Cloud targets: You MUST include cloud_enum and s3scanner in activeTools for any AWS/Azure/GCP target. Also add nuclei -tags cloud,s3,misconfig.
 KEV: CVE-2017-5638 (Struts), CVE-2015-1635 (HTTP.sys) are actively exploited.
+
+OWASP Top 10:2025 Coverage Rules:
+- A01 Broken Access Control: Test auth bypass, IDOR, path traversal (feroxbuster, nuclei -tags idor)
+- A03 Injection: Test SQLi, XSS, SSTI, command injection (sqlmap, nuclei -tags sqli,xss,ssti)
+- A05 Security Misconfiguration: Test default creds, debug endpoints, exposed admin (nuclei -tags misconfig,default-login)
+- A06 Vulnerable Components: Check versions against KEV catalog
+- A08 Integrity Failures: Test deserialization (ysoserial for Java targets)
+- A10 SSRF: Test IMDS access on cloud targets (nuclei -tags ssrf)
+
+For EVERY target, ensure at least 3 OWASP categories are covered by the selected tools.
 
 Respond with JSON.` },
     { role: 'user', content: `Plan scans for:

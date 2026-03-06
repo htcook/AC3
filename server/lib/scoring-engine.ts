@@ -1342,7 +1342,10 @@ ${(() => {
     ...(a.technologies || []).map((t: any) => typeof t === 'string' ? t : t.name || ''),
   ].filter(Boolean));
   const ontologyCtx = allTech.length > 0 ? formatOntologyForPrompt([...new Set(allTech)]) : '';
-  return ontologyCtx ? 'ASSET ARCHITECTURE KNOWLEDGE BASE:\n' + ontologyCtx : '';
+  // Inject OWASP risk classification context
+  const { getOwaspAssetClassificationContext } = require('./owasp-knowledge');
+  const owaspCtx = getOwaspAssetClassificationContext();
+  return (ontologyCtx ? 'ASSET ARCHITECTURE KNOWLEDGE BASE:\n' + ontologyCtx + '\n\n' : '') + owaspCtx;
 })()}
 
 For EACH asset, return:

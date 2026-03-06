@@ -44,6 +44,11 @@ import {
   detectCloudProviders,
 } from "./knowledge/cloud-security-knowledge";
 import {
+  getOwaspScanPlanContext,
+  getOwaspVulnCorrelationContext,
+  getOwaspAssetClassificationContext,
+} from "./owasp-knowledge";
+import {
   fetchKevCatalog,
   matchCvesAgainstKev,
   calculateKevRiskBoost,
@@ -745,13 +750,16 @@ When you detect cloud-hosted assets (via CNAME patterns, HTTP headers, or techno
 - Firebase: CNAME to *.firebaseio.com, *.firebaseapp.com, *.web.app
 - DigitalOcean: CNAME to *.digitaloceanspaces.com
 
-### Cloud Scan Priority Rules:
-1. If passive recon shows cloud CNAME/headers → add cloud_enum with the domain keyword as a Phase B tool
-2. If S3/GCS/Blob endpoints found → add s3scanner or direct curl/aws CLI checks
-3. If Firebase detected → add bash curl checks for Firebase DB rules and public read access
-4. ALWAYS add nuclei with cloud tags (-tags cloud,s3,azure,gcp,firebase,bucket,storage,misconfig) when any cloud provider is detected
-5. For subdomain takeover candidates (NoSuchBucket, ContainerNotFound) → flag as HIGH severity
-6. Only run trufflehog AFTER confirming public access to a bucket (Priority 4 — last resort)
+### Cloud Scan Priority Rules (MANDATORY — MUST follow for ALL cloud-hosted targets):
+1. **MUST add cloud_enum** for EVERY cloud-hosted target. Command: \`cloud_enum -k <domain_keyword>\`. This is NON-NEGOTIABLE.
+2. **MUST add s3scanner** when AWS is detected. Command: \`echo "<domain>" | s3scanner scan --json\`. This is NON-NEGOTIABLE.
+3. **MUST add nuclei -tags cloud,s3,misconfig** for ALL cloud targets. This is NON-NEGOTIABLE.
+4. If S3/GCS/Blob endpoints found → add s3scanner or direct curl/aws CLI checks
+5. If Firebase detected → add bash curl checks for Firebase DB rules and public read access
+6. For subdomain takeover candidates (NoSuchBucket, ContainerNotFound) → flag as HIGH severity
+7. Only run trufflehog AFTER confirming public access to a bucket (Priority 4 — last resort)
+
+**FAILURE TO INCLUDE cloud_enum AND s3scanner FOR CLOUD TARGETS IS A CRITICAL ERROR.**
 
 Available tools on the scan server:
 ${availableTools.map(t => `- ${t.name}: ${t.desc}${(t as any).use ? ` (best for: ${(t as any).use})` : ''}`).join('\n')}
@@ -828,11 +836,13 @@ You MUST respond with valid JSON matching this exact schema:
     hasIDS: state.engagementType === 'red_team',
     stealthRequired: state.engagementType === 'red_team',
   });
+  const owaspCtx = getOwaspScanPlanContext([...new Set(detectedTech)]);
   return (ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx + '\n\n' : '') +
     (bbCtx ? '## Bug Bounty Methodology Context\n' + bbCtx + '\n\n' : '') +
     (corpusCtx ? '## Tool Output Triage Examples\n' + corpusCtx + '\n\n' : '') +
     (cloudCtx ? cloudCtx + '\n\n' : '') +
-    (nmapCtx ? nmapCtx + '\n\n' : '');
+    (nmapCtx ? nmapCtx + '\n\n' : '') +
+    (owaspCtx ? owaspCtx + '\n\n' : '');
 })()}Generate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
       }
     ],
@@ -3281,7 +3291,8 @@ ${(() => {
   ]).filter(Boolean);
   const cloudSecCtx = buildCloudSecurityContext(cloudObs);
   const nmapVulnCtx = getNmapVulnCorrelationContext();
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx;
+  const owaspVulnCtx = getOwaspVulnCorrelationContext();
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx;
 })()}`,
     });
 
@@ -3335,7 +3346,8 @@ ${(() => {
   const bbContext = getBugBountyContext(vulnDescs, 3);
   const corpusContext = getTriageCorpusContext(undefined, 3);
   const nmapExploitCtx = getNmapVulnCorrelationContext();
-  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx;
+  const owaspExploitCtx = getOwaspVulnCorrelationContext();
+  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx;
 })()}`,
   });
 

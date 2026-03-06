@@ -295,6 +295,78 @@ const TECH_TO_KEV_PATTERNS: Record<string, { vendors: string[]; products: string
   "progress moveit": { vendors: ["progress"], products: ["moveit"] },
   "moveit": { vendors: ["progress"], products: ["moveit"] },
   "telerik": { vendors: ["progress"], products: ["telerik"] },
+  // Cloud & Container
+  "kubernetes": { vendors: ["kubernetes"], products: ["kubernetes"] },
+  "k8s": { vendors: ["kubernetes"], products: ["kubernetes"] },
+  "docker": { vendors: ["docker"], products: ["docker", "docker desktop"] },
+  "containerd": { vendors: ["containerd"], products: ["containerd"] },
+  "aws": { vendors: ["amazon"], products: ["aws", "ec2", "s3", "lambda", "cloudfront"] },
+  "amazon ec2": { vendors: ["amazon"], products: ["ec2"] },
+  "amazon s3": { vendors: ["amazon"], products: ["s3"] },
+  "google cloud": { vendors: ["google"], products: ["cloud platform", "gcp"] },
+  "terraform": { vendors: ["hashicorp"], products: ["terraform"] },
+  "vault": { vendors: ["hashicorp"], products: ["vault"] },
+  "consul": { vendors: ["hashicorp"], products: ["consul"] },
+  // CI/CD & DevOps
+  "github": { vendors: ["github"], products: ["enterprise server", "actions"] },
+  "bitbucket": { vendors: ["atlassian"], products: ["bitbucket"] },
+  "bamboo": { vendors: ["atlassian"], products: ["bamboo"] },
+  "teamcity": { vendors: ["jetbrains"], products: ["teamcity"] },
+  "argo cd": { vendors: ["argoproj"], products: ["argo cd"] },
+  "harbor": { vendors: ["harbor"], products: ["harbor"] },
+  "nexus": { vendors: ["sonatype"], products: ["nexus"] },
+  "artifactory": { vendors: ["jfrog"], products: ["artifactory"] },
+  // Modern Web Frameworks
+  "node.js": { vendors: ["nodejs"], products: ["node.js"] },
+  "nodejs": { vendors: ["nodejs"], products: ["node.js"] },
+  "express": { vendors: ["expressjs"], products: ["express"] },
+  "django": { vendors: ["django"], products: ["django"] },
+  "flask": { vendors: ["palletsprojects"], products: ["flask"] },
+  "ruby on rails": { vendors: ["rubyonrails"], products: ["rails"] },
+  "rails": { vendors: ["rubyonrails"], products: ["rails"] },
+  "laravel": { vendors: ["laravel"], products: ["laravel"] },
+  // API Gateways & Proxies
+  "kong": { vendors: ["kong"], products: ["kong gateway"] },
+  "envoy": { vendors: ["envoyproxy"], products: ["envoy"] },
+  "traefik": { vendors: ["traefik"], products: ["traefik"] },
+  "haproxy": { vendors: ["haproxy"], products: ["haproxy"] },
+  "caddy": { vendors: ["caddyserver"], products: ["caddy"] },
+  // Message Queues & Data
+  "redis": { vendors: ["redis"], products: ["redis"] },
+  "rabbitmq": { vendors: ["vmware", "pivotal"], products: ["rabbitmq"] },
+  "kafka": { vendors: ["apache"], products: ["kafka"] },
+  "elasticsearch": { vendors: ["elastic"], products: ["elasticsearch", "kibana"] },
+  "kibana": { vendors: ["elastic"], products: ["kibana"] },
+  "grafana": { vendors: ["grafana"], products: ["grafana"] },
+  "prometheus": { vendors: ["prometheus"], products: ["prometheus"] },
+  "mongodb": { vendors: ["mongodb"], products: ["mongodb"] },
+  "couchdb": { vendors: ["apache"], products: ["couchdb"] },
+  // Network Appliances (expanded)
+  "ivanti": { vendors: ["ivanti"], products: ["connect secure", "policy secure", "epmm", "avalanche"] },
+  "zyxel": { vendors: ["zyxel"], products: ["firewall", "vpn", "nas"] },
+  "netgear": { vendors: ["netgear"], products: ["prosafe", "readynas"] },
+  "qnap": { vendors: ["qnap"], products: ["qts", "photo station"] },
+  "synology": { vendors: ["synology"], products: ["diskstation", "dsm"] },
+  // Identity & Access (expanded)
+  "keycloak": { vendors: ["redhat"], products: ["keycloak"] },
+  "auth0": { vendors: ["auth0"], products: ["auth0"] },
+  "pingfederate": { vendors: ["ping identity"], products: ["pingfederate"] },
+  "adfs": { vendors: ["microsoft"], products: ["active directory federation services"] },
+  // Monitoring & Management
+  "nagios": { vendors: ["nagios"], products: ["nagios", "nagios xi"] },
+  "zabbix": { vendors: ["zabbix"], products: ["zabbix"] },
+  "splunk": { vendors: ["splunk"], products: ["splunk"] },
+  "manageengine": { vendors: ["zoho", "manageengine"], products: ["servicedesk", "adselfservice"] },
+  // File Transfer
+  "goanywhere": { vendors: ["fortra"], products: ["goanywhere"] },
+  "aspera": { vendors: ["ibm"], products: ["aspera"] },
+  "accellion": { vendors: ["accellion"], products: ["fta"] },
+  "globalscape": { vendors: ["globalscape"], products: ["eft"] },
+  // Collaboration
+  "mattermost": { vendors: ["mattermost"], products: ["mattermost"] },
+  "rocket.chat": { vendors: ["rocket.chat"], products: ["rocket.chat"] },
+  "nextcloud": { vendors: ["nextcloud"], products: ["nextcloud"] },
+  "owncloud": { vendors: ["owncloud"], products: ["owncloud"] },
 };
 
 /**
@@ -364,6 +436,36 @@ function mapKevToTechniques(kev: KevEntry): string[] {
   }
   if (product.includes("browser") || product.includes("chrome") || product.includes("firefox") || product.includes("edge")) {
     techniques.push("T1189"); // Drive-by Compromise
+  }
+
+  // Cloud & Container-specific techniques
+  if (product.includes("kubernetes") || product.includes("k8s")) {
+    techniques.push("T1610", "T1609"); // Deploy Container, Container Administration Command
+  }
+  if (product.includes("docker") || product.includes("containerd")) {
+    techniques.push("T1610", "T1611"); // Deploy Container, Escape to Host
+  }
+  if (product.includes("aws") || product.includes("ec2") || product.includes("s3") || product.includes("lambda")) {
+    techniques.push("T1078.004"); // Valid Accounts: Cloud Accounts
+  }
+  if (product.includes("terraform") || product.includes("vault") || product.includes("consul")) {
+    techniques.push("T1552", "T1078"); // Unsecured Credentials, Valid Accounts
+  }
+  // CI/CD pipeline compromise
+  if (product.includes("jenkins") || product.includes("teamcity") || product.includes("bamboo") || product.includes("github") || product.includes("gitlab")) {
+    techniques.push("T1195.002"); // Supply Chain: Compromise Software Supply Chain
+  }
+  // File transfer exploitation (common in ransomware)
+  if (product.includes("moveit") || product.includes("goanywhere") || product.includes("accellion") || product.includes("aspera")) {
+    techniques.push("T1190", "T1567"); // Exploit Public-Facing, Exfiltration Over Web Service
+  }
+  // Identity provider compromise
+  if (product.includes("okta") || product.includes("keycloak") || product.includes("adfs") || product.includes("pingfederate")) {
+    techniques.push("T1556", "T1550"); // Modify Authentication Process, Use Alternate Auth Material
+  }
+  // Monitoring tool compromise (used for lateral movement)
+  if (product.includes("solarwinds") || product.includes("nagios") || product.includes("zabbix") || product.includes("manageengine")) {
+    techniques.push("T1195.002", "T1072"); // Supply Chain, Software Deployment Tools
   }
 
   // Default: all KEV entries involve exploitation of public-facing apps
@@ -673,6 +775,127 @@ export function calculateKevRiskBoost(kevMatches: KevMatch[]): {
     potentialCount: potential.length,
     summary: parts.join(". ") + `. Risk score boosted by ${maxBoost} points.`,
   };
+}
+
+/**
+ * Classify KEV entries by OWASP Top 10:2025 category based on vulnerability description
+ */
+export function classifyKevByOwasp(kev: KevEntry): string[] {
+  const desc = (kev.shortDescription + " " + kev.vulnerabilityName).toLowerCase();
+  const categories: string[] = [];
+
+  // A01: Broken Access Control
+  if (desc.includes("authentication bypass") || desc.includes("authorization") ||
+      desc.includes("privilege escalation") || desc.includes("access control") ||
+      desc.includes("directory traversal") || desc.includes("path traversal") ||
+      desc.includes("idor") || desc.includes("insecure direct object")) {
+    categories.push("A01:2025-Broken_Access_Control");
+  }
+  // A02: Cryptographic Failures
+  if (desc.includes("cryptograph") || desc.includes("encryption") ||
+      desc.includes("certificate") || desc.includes("tls") || desc.includes("ssl") ||
+      desc.includes("key disclosure") || desc.includes("weak cipher")) {
+    categories.push("A02:2025-Cryptographic_Failures");
+  }
+  // A03: Injection
+  if (desc.includes("injection") || desc.includes("sql injection") ||
+      desc.includes("command injection") || desc.includes("code injection") ||
+      desc.includes("ldap injection") || desc.includes("xpath") ||
+      desc.includes("template injection") || desc.includes("expression language")) {
+    categories.push("A03:2025-Injection");
+  }
+  // A04: Insecure Design
+  if (desc.includes("insecure design") || desc.includes("logic flaw") ||
+      desc.includes("business logic") || desc.includes("race condition")) {
+    categories.push("A04:2025-Insecure_Design");
+  }
+  // A05: Security Misconfiguration
+  if (desc.includes("misconfigur") || desc.includes("default credential") ||
+      desc.includes("default password") || desc.includes("information disclosure") ||
+      desc.includes("debug") || desc.includes("stack trace") ||
+      desc.includes("unnecessary feature")) {
+    categories.push("A05:2025-Security_Misconfiguration");
+  }
+  // A06: Vulnerable and Outdated Components
+  if (desc.includes("outdated") || desc.includes("end-of-life") ||
+      desc.includes("unsupported") || desc.includes("known vulnerable")) {
+    categories.push("A06:2025-Vulnerable_Outdated_Components");
+  }
+  // A07: Identification and Authentication Failures
+  if (desc.includes("credential") || desc.includes("password") ||
+      desc.includes("brute force") || desc.includes("session") ||
+      desc.includes("token") || desc.includes("authentication failure")) {
+    categories.push("A07:2025-Auth_Failures");
+  }
+  // A08: Software and Data Integrity Failures
+  if (desc.includes("deserialization") || desc.includes("integrity") ||
+      desc.includes("supply chain") || desc.includes("ci/cd") ||
+      desc.includes("auto-update")) {
+    categories.push("A08:2025-Integrity_Failures");
+  }
+  // A09: Security Logging and Monitoring Failures
+  if (desc.includes("logging") || desc.includes("monitoring") ||
+      desc.includes("audit") || desc.includes("log injection")) {
+    categories.push("A09:2025-Logging_Monitoring_Failures");
+  }
+  // A10: Server-Side Request Forgery
+  if (desc.includes("ssrf") || desc.includes("server-side request forgery") ||
+      desc.includes("server side request")) {
+    categories.push("A10:2025-SSRF");
+  }
+
+  // All KEV entries are at least A06 (known vulnerable component)
+  if (!categories.includes("A06:2025-Vulnerable_Outdated_Components")) {
+    categories.push("A06:2025-Vulnerable_Outdated_Components");
+  }
+  return categories;
+}
+
+/**
+ * Filter KEV catalog for web-focused engagements — returns entries most relevant
+ * to web application testing, excluding OS-only and hardware-only entries
+ */
+export function filterKevForWebEngagement(catalog: KevCatalog): KevEntry[] {
+  const webRelevantVendors = new Set([
+    "apache", "nginx", "f5", "microsoft", "wordpress", "drupal", "joomla",
+    "atlassian", "gitlab", "jenkins", "php", "oracle", "vmware", "spring",
+    "nodejs", "django", "laravel", "progress", "citrix", "pulse secure",
+    "ivanti", "fortinet", "palo alto", "sonicwall", "barracuda", "zimbra",
+    "roundcube", "grafana", "elastic", "redis", "mongodb", "hashicorp",
+    "docker", "kubernetes", "harbor", "sonatype", "jfrog", "jetbrains",
+    "kong", "envoyproxy", "traefik", "haproxy", "keycloak", "auth0",
+    "fortra", "accellion", "mattermost", "nextcloud", "owncloud",
+    "solarwinds", "zoho", "manageengine", "connectwise", "kaseya",
+  ]);
+  const webRelevantKeywords = [
+    "web", "http", "api", "rest", "graphql", "sql", "xss", "csrf",
+    "ssrf", "injection", "deserialization", "upload", "traversal",
+    "authentication", "session", "cookie", "jwt", "oauth", "saml",
+    "remote code execution", "rce", "command injection",
+  ];
+  return (catalog.vulnerabilities || []).filter(v => {
+    const vendor = v.vendorProject?.toLowerCase() || "";
+    if (webRelevantVendors.has(vendor)) return true;
+    const desc = (v.shortDescription + " " + v.vulnerabilityName + " " + v.product).toLowerCase();
+    return webRelevantKeywords.some(kw => desc.includes(kw));
+  });
+}
+
+/**
+ * Get KEV context enriched with OWASP classification for LLM prompts
+ */
+export function getKevOwaspContext(kevMatches: KevMatch[], catalog: KevCatalog): string {
+  if (kevMatches.length === 0) return '';
+  const owaspCounts = new Map<string, number>();
+  kevMatches.forEach(m => {
+    const entry = (catalog.vulnerabilities || []).find(v => v.cveID === m.cveID);
+    if (entry) {
+      const cats = classifyKevByOwasp(entry);
+      cats.forEach(c => owaspCounts.set(c, (owaspCounts.get(c) || 0) + 1));
+    }
+  });
+  const sorted = Array.from(owaspCounts.entries()).sort((a, b) => b[1] - a[1]);
+  return `KEV-OWASP CROSS-REFERENCE:\n${sorted.map(([cat, count]) => `- ${cat}: ${count} KEV entries`).join('\n')}\nPrioritize testing for OWASP categories with the most KEV entries — these represent the most actively exploited vulnerability classes.`;
 }
 
 // Export for testing

@@ -310,7 +310,9 @@ ${(() => {
   // Inject nmap-based threat hunting context
   const { getNmapHuntContext: getNmapHunt } = require('./nmap-knowledge');
   const nmapHuntCtx = getNmapHunt();
-  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n\n${nmapHuntCtx}\n`;
+  const { getOwaspHuntContext: getOwaspHunt } = require('./owasp-knowledge');
+  const owaspHuntCtx = getOwaspHunt();
+  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n\n${nmapHuntCtx}\n\n${owaspHuntCtx}\n`;
 })()}
 HYPOTHESIS GENERATION RULES:
 1. Each hypothesis MUST be testable with the available data sources

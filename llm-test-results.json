@@ -12,10 +12,10 @@
   {
     "test": "Vuln Correlation",
     "scores": {
-      "severityAccuracy": 34.285714285714285,
+      "severityAccuracy": 25.714285714285715,
       "kevDetection": 30,
       "falsePositive": 30,
-      "total": 94.28571428571428
+      "total": 85.71428571428572
     },
     "maxScores": {
       "severityAccuracy": 40,
@@ -28,35 +28,35 @@
         {
           "target": "testphp.vulnweb.com",
           "finding": "http-sql-injection: Possible SQL injection in /search.php?q=test",
-          "assignedSeverity": "HIGH",
-          "cvssEstimate": 8.8,
+          "assignedSeverity": "MEDIUM",
+          "cvssEstimate": 6.5,
           "kevMatch": false,
           "isFalsePositive": true,
           "falsePositiveReason": "Nmap's http-sql-injection script has a high false positive rate and requires manual verification.",
-          "remediationPriority": 3,
-          "reasoning": "The Nmap guide explicitly states that http-sql-injection has a high false positive rate. While SQL injection is a severe vulnerability, this automated finding needs manual verification before assigning a higher priority. CVSS estimate is based on typical SQLi impact if confirmed."
+          "remediationPriority": 5,
+          "reasoning": "The Nmap guide explicitly states that http-sql-injection has a high false positive rate. While SQL injection is a critical vulnerability, the finding itself is unreliable without manual verification. Assigned Medium severity due to potential impact if true, but marked as likely false positive. Remediation priority is lower due to FP likelihood."
         },
         {
           "target": "testphp.vulnweb.com",
           "finding": "http-phpself-xss: Reflected XSS via PHP_SELF in /guestbook.php",
-          "assignedSeverity": "MEDIUM",
-          "cvssEstimate": 6.1,
+          "assignedSeverity": "HIGH",
+          "cvssEstimate": 7.5,
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 5,
-          "reasoning": "Reflected XSS can lead to session hijacking or defacement. It's a common web vulnerability, typically rated medium. CVSS estimate based on typical XSS impact."
+          "remediationPriority": 2,
+          "reasoning": "Reflected XSS can lead to session hijacking, defacement, or client-side attacks. While not explicitly listed in the guide, XSS is a well-known high-severity vulnerability. No KEV match. Remediation is high due to direct impact on user sessions/data."
         },
         {
           "target": "testphp.vulnweb.com",
           "finding": "http-enum: /phpmyadmin/ found",
-          "assignedSeverity": "LOW",
-          "cvssEstimate": 0,
+          "assignedSeverity": "MEDIUM",
+          "cvssEstimate": 5.3,
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 7,
-          "reasoning": "Exposure of phpMyAdmin is an information leak. While not a vulnerability itself, it increases the attack surface if phpMyAdmin is misconfigured or has known vulnerabilities. This is a common finding and often leads to further investigation, but by itself, it's low severity. CVSS is 0 as it's an informational finding."
+          "remediationPriority": 3,
+          "reasoning": "Exposure of phpMyAdmin indicates an information leak and a potential attack surface. If default credentials or known vulnerabilities exist in phpMyAdmin, it could lead to database compromise. Not a direct vulnerability but a significant misconfiguration/exposure. Remediation priority is medium to investigate and secure."
         },
         {
           "target": "testphp.vulnweb.com",
@@ -66,19 +66,19 @@
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 5,
-          "reasoning": "The Nmap guide categorizes 'http-git: .git exposed' as a Medium finding due to 'Source code disclosure'. This can lead to sensitive information exposure, including credentials or intellectual property. CVSS estimate based on information disclosure impact."
+          "remediationPriority": 3,
+          "reasoning": "The Nmap guide lists 'http-git: .git exposed' as a Medium finding leading to 'Source code disclosure'. This can expose sensitive information, API keys, or other credentials. Remediation priority is medium to remove or secure the exposed repository."
         },
         {
           "target": "testphp.vulnweb.com",
           "finding": "http-security-headers: Missing HSTS, CSP, X-Frame-Options",
           "assignedSeverity": "MEDIUM",
-          "cvssEstimate": 4.3,
+          "cvssEstimate": 4.5,
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 6,
-          "reasoning": "The Nmap guide lists 'http-security-headers: missing HSTS' as a Medium finding due to 'Downgrade attacks'. Missing CSP and X-Frame-Options also contribute to client-side attack vectors like XSS and clickjacking. CVSS estimate reflects impact of missing security controls."
+          "remediationPriority": 4,
+          "reasoning": "The Nmap guide lists 'http-security-headers: missing HSTS' as a Medium finding leading to 'Downgrade attacks'. Missing other headers like CSP and X-Frame-Options further weakens security against XSS, clickjacking, and content injection. These are security best practices. Remediation priority is medium to implement these headers."
         },
         {
           "target": "testphp.vulnweb.com",
@@ -88,8 +88,8 @@
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 4,
-          "reasoning": "The Nmap guide lists 'ssl-enum-ciphers: Grade F' as a High finding due to 'Weak ciphers. MITM possible'. Grade C with TLS 1.0 support and weak ciphers implies similar risks, though perhaps slightly less severe than an 'F'. This can lead to sensitive data interception. CVSS estimate reflects impact of weak encryption."
+          "remediationPriority": 2,
+          "reasoning": "The Nmap guide lists 'ssl-enum-ciphers: Grade F' as a High finding due to 'Weak ciphers. MITM possible'. Grade C with TLS 1.0 and weak ciphers indicates a similar risk, allowing attackers to potentially decrypt communications or perform downgrade attacks. Remediation priority is high to disable weak ciphers and old TLS versions."
         },
         {
           "target": "demo.testfire.net",
@@ -100,7 +100,7 @@
           "isFalsePositive": false,
           "falsePositiveReason": "",
           "remediationPriority": 1,
-          "reasoning": "The Nmap guide explicitly lists 'http-vuln-cve2017-5638: VULNERABLE' as a Critical finding leading to 'Struts RCE. Full server compromise'. Additionally, CVE-2017-5638 is listed in the CISA KEV as 'actively exploited', which mandates a Critical score and highest remediation priority."
+          "reasoning": "The Nmap guide lists 'http-vuln-cve2017-5638: VULNERABLE' as a Critical finding leading to 'Struts RCE. Full server compromise'. This CVE is also listed in CISA KEV as 'actively exploited'. Per the rule, any KEV match is CRITICAL. Remediation priority is immediate."
         },
         {
           "target": "demo.testfire.net",
@@ -110,19 +110,19 @@
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 2,
-          "reasoning": "Default credentials for an administrative interface like Tomcat manager allow for full control over the application, including deployment of malicious code, leading to RCE and full server compromise. This is a severe vulnerability, often used in initial access. CVSS estimate reflects RCE potential."
+          "remediationPriority": 1,
+          "reasoning": "Default credentials for a management interface like Tomcat Manager allow an attacker full control over the application, including deployment of malicious web applications, leading to RCE and full server compromise. This is a severe misconfiguration. Remediation priority is immediate."
         },
         {
           "target": "demo.testfire.net",
           "finding": "http-cookie-flags: JSESSIONID missing secure and httponly flags",
           "assignedSeverity": "MEDIUM",
-          "cvssEstimate": 5.7,
+          "cvssEstimate": 5.3,
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 6,
-          "reasoning": "Missing secure flag can lead to session cookies being transmitted over unencrypted HTTP, making them vulnerable to interception. Missing HttpOnly flag makes cookies accessible via client-side scripts (e.g., XSS), enabling session hijacking. These are important security hygiene issues. CVSS estimate reflects impact of session hijacking."
+          "remediationPriority": 3,
+          "reasoning": "Missing secure flag allows session cookies to be sent over unencrypted HTTP, making them vulnerable to eavesdropping. Missing HttpOnly flag makes cookies accessible via client-side scripts (e.g., XSS), enabling session hijacking. These are important security hardening measures. Remediation priority is medium."
         },
         {
           "target": "scanme.nmap.org",
@@ -132,8 +132,8 @@
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 4,
-          "reasoning": "Use of weak key exchange algorithms like diffie-hellman-group1-sha1 can make SSH traffic vulnerable to passive eavesdropping or active man-in-the-middle attacks, especially if precomputed tables are used, leading to credential disclosure. This is a significant cryptographic weakness. CVSS estimate reflects impact of weak encryption."
+          "remediationPriority": 2,
+          "reasoning": "Weak key exchange algorithms can make SSH connections vulnerable to passive eavesdropping or active man-in-the-middle attacks, especially if the server's long-term key is compromised or weak. This can lead to credential theft or command injection. Remediation priority is high to disable weak algorithms."
         },
         {
           "target": "scanme.nmap.org",
@@ -142,9 +142,9 @@
           "cvssEstimate": 3.7,
           "kevMatch": false,
           "isFalsePositive": true,
-          "falsePositiveReason": "The Nmap guide explicitly states that 'http-slowloris-check often reports vulnerable when target has connection limits'. This indicates a high false positive rate.",
-          "remediationPriority": 8,
-          "reasoning": "The Nmap guide indicates that `http-slowloris-check` has a high false positive rate, often triggered by connection limits rather than true vulnerability. While DoS is a concern, the unreliability of this specific finding reduces its immediate severity and priority without further verification. CVSS estimate for DoS if confirmed."
+          "falsePositiveReason": "The Nmap guide states 'http-slowloris-check often reports vulnerable when target has connection limits', indicating a high false positive rate.",
+          "remediationPriority": 5,
+          "reasoning": "The Nmap guide explicitly states that http-slowloris-check often reports false positives. While a DoS attack can be impactful, the reliability of this finding is low. Assigned Low severity and marked as likely false positive. Remediation priority is low, likely requiring manual verification before action."
         },
         {
           "target": "testasp.vulnweb.com",
@@ -154,19 +154,19 @@
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 5,
-          "reasoning": "ASP.NET debug mode can expose sensitive information like stack traces, file paths, and potentially application source code or configuration details, aiding attackers in further exploitation. It's an information leak that increases the attack surface. CVSS estimate reflects information disclosure."
+          "remediationPriority": 3,
+          "reasoning": "ASP.NET debug mode can expose sensitive information (e.g., stack traces, source code paths, internal configuration) and potentially allow for remote code execution if combined with other vulnerabilities (e.g., insecure deserialization). It's an information leak and a significant misconfiguration. Remediation priority is medium."
         },
         {
           "target": "testasp.vulnweb.com",
           "finding": "http-iis-webdav-vuln: WebDAV authentication bypass possible",
           "assignedSeverity": "HIGH",
-          "cvssEstimate": 7.5,
+          "cvssEstimate": 8.1,
           "kevMatch": false,
           "isFalsePositive": false,
           "falsePositiveReason": "",
-          "remediationPriority": 3,
-          "reasoning": "An authentication bypass in WebDAV can allow unauthorized access to files and potentially arbitrary file upload or execution, leading to significant compromise. This is a serious access control bypass. CVSS estimate reflects authentication bypass leading to potential RCE/data manipulation."
+          "remediationPriority": 2,
+          "reasoning": "An authentication bypass in WebDAV can allow unauthorized access to files and directories, potentially leading to information disclosure, arbitrary file upload, or even remote code execution if combined with other vulnerabilities or misconfigurations. Remediation priority is high."
         },
         {
           "target": "testasp.vulnweb.com",
@@ -177,7 +177,7 @@
           "isFalsePositive": false,
           "falsePositiveReason": "",
           "remediationPriority": 1,
-          "reasoning": "The Nmap guide explicitly lists 'http-vuln-cve2015-1635: VULNERABLE' as a Critical finding for 'IIS HTTP.sys RCE'. Additionally, CVE-2015-1635 is listed in the CISA KEV as 'actively exploited', which mandates a Critical score and highest remediation priority."
+          "reasoning": "The Nmap guide lists 'http-vuln-cve2015-1635: VULNERABLE' as a Critical finding leading to 'IIS HTTP.sys RCE'. This CVE is also listed in CISA KEV as 'actively exploited'. Per the rule, any KEV match is CRITICAL. Remediation priority is immediate."
         }
       ]
     }
@@ -199,64 +199,64 @@
     "hypotheses": {
       "hypotheses": [
         {
-          "statement": "An adversary may exploit the Struts RCE (CVE-2017-5638) on demo.testfire.net to achieve remote code execution, potentially leading to data exfiltration or further compromise.",
-          "mitreTechniqueId": "T1190",
-          "mitreTechniqueName": "Exploit Public-Facing Application",
-          "mitreTactic": "Initial Access",
-          "confidence": "High",
-          "priority": 1,
-          "splQuery": "index=* sourcetype=web_access_logs uri_path=\"*/struts/*\" http_method=\"POST\" (http_user_agent=\"*\" OR http_content_type=\"%{#context['com.opensymphony.xwork2.dispatcher.HttpServletRequest'].parameters.runme[0]}%\")",
-          "reasoning": "CVE-2017-5638 is a CISA KEV entry, indicating active exploitation. Its presence on a public-facing banking application makes it a critical threat for initial access and subsequent impact."
-        },
-        {
-          "statement": "An adversary may exploit the HTTP.sys RCE (CVE-2015-1635) on testasp.vulnweb.com to achieve remote code execution, potentially leading to system compromise or defacement.",
-          "mitreTechniqueId": "T1190",
-          "mitreTechniqueName": "Exploit Public-Facing Application",
-          "mitreTactic": "Initial Access",
-          "confidence": "High",
-          "priority": 1,
-          "splQuery": "index=* sourcetype=web_access_logs host=\"testasp.vulnweb.com\" http_method=\"GET\" http_header_range=\"bytes=0-\"",
-          "reasoning": "CVE-2015-1635 is a CISA KEV entry, indicating active exploitation. Its presence on a public-facing IIS server makes it a critical threat for initial access."
-        },
-        {
-          "statement": "An adversary may extract sensitive information, including credentials or intellectual property, from the exposed .git repository on testphp.vulnweb.com.",
+          "statement": "An adversary may be attempting to extract credentials or sensitive data from the exposed .git repository on testphp.vulnweb.com to gain unauthorized access or facilitate further attacks.",
           "mitreTechniqueId": "T1213",
           "mitreTechniqueName": "Data from Information Repositories",
           "mitreTactic": "Collection",
           "confidence": "High",
-          "priority": 2,
-          "splQuery": "index=* sourcetype=web_access_logs host=\"testphp.vulnweb.com\" uri_path=\"*/.git/*\" (http_method=\"GET\" OR http_method=\"HEAD\")",
-          "reasoning": "Exposed .git directories are a known vector for credential harvesting and source code disclosure, which can lead to further compromise. This is a direct finding."
+          "priority": 85,
+          "splQuery": "index=* sourcetype=web_access_logs host=\"testphp.vulnweb.com\" uri_path=\"*/.git/*\" | stats count by src_ip, uri_path, user_agent",
+          "reasoning": "The presence of an exposed .git directory is a direct indicator of potential data exposure. Adversaries commonly target these repositories to find credentials, source code, or internal documentation that can aid in lateral movement or privilege escalation. This aligns with T1213."
         },
         {
-          "statement": "An adversary may leverage default credentials on the Tomcat server at demo.testfire.net to gain unauthorized access, potentially leading to administrative control or deployment of malicious applications.",
+          "statement": "An adversary may be attempting to exploit the SQL injection vulnerability in /search.php on testphp.vulnweb.com to exfiltrate data from the underlying database or gain remote code execution.",
+          "mitreTechniqueId": "T1190",
+          "mitreTechniqueName": "Exploit Public-Facing Application",
+          "mitreTactic": "Initial Access",
+          "confidence": "High",
+          "priority": 90,
+          "splQuery": "index=* sourcetype=web_access_logs host=\"testphp.vulnweb.com\" uri_path=\"*/search.php*\" (uri_query=\"*%27*\" OR uri_query=\"*union+select*\" OR uri_query=\"*sleep(*\") | stats count by src_ip, uri_path, uri_query, http_method",
+          "reasoning": "A confirmed SQL injection vulnerability is a critical initial access vector. Adversaries will attempt to exploit this to gain access to sensitive data (T1537) or potentially achieve RCE (T1190). The query looks for common SQLi patterns in the URI."
+        },
+        {
+          "statement": "An adversary may be attempting to exploit the Apache Struts RCE (CVE-2017-5638) on demo.testfire.net to gain remote code execution and establish a foothold within the network.",
+          "mitreTechniqueId": "T1190",
+          "mitreTechniqueName": "Exploit Public-Facing Application",
+          "mitreTactic": "Initial Access",
+          "confidence": "Critical",
+          "priority": 100,
+          "splQuery": "index=* sourcetype=web_access_logs host=\"demo.testfire.net\" (http_method=\"POST\" OR http_method=\"GET\") headers.Content-Type=\"%{(#_='multipart/form-data')...\" OR headers.Content-Type=\"*ognl*\" | stats count by src_ip, http_method, uri_path, headers.Content-Type",
+          "reasoning": "CVE-2017-5638 (Struts RCE) is a CISA KEV entry, indicating active exploitation and high impact. This vulnerability allows for remote code execution, making it a critical initial access vector (T1190). The query targets specific headers associated with this exploit."
+        },
+        {
+          "statement": "An adversary may be attempting to exploit the HTTP.sys RCE (CVE-2015-1635) vulnerability on testasp.vulnweb.com to gain remote code execution and compromise the IIS server.",
+          "mitreTechniqueId": "T1190",
+          "mitreTechniqueName": "Exploit Public-Facing Application",
+          "mitreTactic": "Initial Access",
+          "confidence": "Critical",
+          "priority": 100,
+          "splQuery": "index=* sourcetype=web_access_logs host=\"testasp.vulnweb.com\" headers.Range=\"*bytes=0-18446744073709551615*\" | stats count by src_ip, http_method, uri_path, headers.Range",
+          "reasoning": "CVE-2015-1635 (HTTP.sys RCE) is a CISA KEV entry, indicating active exploitation and high impact. This vulnerability allows for remote code execution, making it a critical initial access vector (T1190). The query specifically looks for the malicious Range header pattern."
+        },
+        {
+          "statement": "An adversary may be attempting to exploit the outdated OpenSSH 6.6.1 and weak SSH algorithms on scanme.nmap.org to gain unauthorized access or intercept communications.",
+          "mitreTechniqueId": "T1190",
+          "mitreTechniqueName": "Exploit Public-Facing Application",
+          "mitreTactic": "Initial Access",
+          "confidence": "High",
+          "priority": 80,
+          "splQuery": "index=* sourcetype=sysmon OR sourcetype=windows_event_log EventID=4625 (TargetPort=22 OR TargetPort=31337) OR index=* sourcetype=network_flow (dest_port=22 OR dest_port=31337) | stats count by src_ip, dest_ip, dest_port, signature",
+          "reasoning": "Outdated SSH versions and weak algorithms can be vulnerable to known exploits or brute-force attacks (T1110). An adversary might attempt to gain initial access (T1190) or perform man-in-the-middle attacks (T1557) due to weak ciphers. The open port 31337 also indicates a potential custom service or backdoor."
+        },
+        {
+          "statement": "An adversary may be attempting to use default credentials for Tomcat on demo.testfire.net to gain unauthorized access and deploy malicious applications.",
           "mitreTechniqueId": "T1078",
           "mitreTechniqueName": "Valid Accounts",
           "mitreTactic": "Initial Access",
-          "confidence": "Medium",
-          "priority": 2,
-          "splQuery": "index=* sourcetype=web_access_logs host=\"demo.testfire.net\" uri_path=\"*/manager/*\" http_status=200 (user=\"tomcat\" OR user=\"admin\")",
-          "reasoning": "Default credentials are a common initial access vector. While not a KEV, it's a significant misconfiguration that provides an easy entry point. The banking app context increases the risk."
-        },
-        {
-          "statement": "An adversary may exploit the PHP debug mode on testasp.vulnweb.com to achieve remote code execution or information disclosure, leveraging the debug functionality.",
-          "mitreTechniqueId": "T1190",
-          "mitreTechniqueName": "Exploit Public-Facing Application",
-          "mitreTactic": "Initial Access",
-          "confidence": "Medium",
-          "priority": 3,
-          "splQuery": "index=* sourcetype=web_access_logs host=\"testasp.vulnweb.com\" (uri_path=\"*/debug*\" OR uri_path=\"*/status*\") http_status=200",
-          "reasoning": "PHP/ASP debug modes often expose sensitive information or allow arbitrary code execution. This is a known misconfiguration that can lead to RCE, as per the provided context."
-        },
-        {
-          "statement": "An adversary may exploit SQL injection vulnerabilities in /search.php on testphp.vulnweb.com to exfiltrate sensitive data from the underlying database or gain further access.",
-          "mitreTechniqueId": "T1190",
-          "mitreTechniqueName": "Exploit Public-Facing Application",
-          "mitreTactic": "Initial Access",
-          "confidence": "Medium",
-          "priority": 3,
-          "splQuery": "index=* sourcetype=web_access_logs host=\"testphp.vulnweb.com\" uri_path=\"*/search.php*\" (query=\"*union select*\" OR query=\"*concat*\" OR query=\"*sleep(*\")",
-          "reasoning": "SQL injection is a critical web vulnerability that can lead to full database compromise. The presence of a specific vulnerable endpoint makes this a high-likelihood threat."
+          "confidence": "High",
+          "priority": 90,
+          "splQuery": "index=* sourcetype=web_access_logs host=\"demo.testfire.net\" uri_path=\"*/manager/*\" (http_status=200 OR http_status=401) | stats count by src_ip, user, http_status, uri_path",
+          "reasoning": "The presence of default credentials for Tomcat is a direct path to initial access (T1078). Adversaries can use these to log into the manager interface, deploy malicious web applications (T1505.003), or gain further control over the server. This is a common and effective initial access technique."
         }
       ]
     }
@@ -287,19 +287,18 @@
             "recuperability": 5,
             "vulnerability": 9,
             "effect": 9,
-            "recognizability": 10
+            "recognizability": 9
           },
-          "totalCarverScore": 51,
-          "primaryAttackVector": "SQLi to SSRF/IMDS credential theft, or .git exposure for secrets",
+          "totalCarverScore": 50,
+          "primaryAttackVector": "SQL Injection leading to SSRF/IMDS credential theft and/or .git exposure for source code/credentials",
           "estimatedTimeToCompromise": "Minutes to hours",
           "cloudRiskFactors": [
-            "IMDSv1 without hop limit (potential SSRF → credential theft)",
-            "IAM role with S3 access (potential data exfiltration)",
-            "Exposed .git (potential hardcoded AWS credentials)",
-            "EC2 instance exposure to public internet"
+            "IMDS v1 without hop limit (SSRF → credential theft)",
+            "Exposed .git (source code → hardcoded secrets → lateral movement)",
+            "IAM role with excessive permissions attached to EC2"
           ],
           "kevExposure": [],
-          "reasoning": "This asset is highly critical due to potential SQLi leading to SSRF against IMDS, which could grant access to AWS credentials and allow lateral movement or data exfiltration from S3. The exposed .git repository is a direct path to source code and potentially hardcoded secrets. PHPMyAdmin exposure further increases the attack surface. Accessibility is maximum as it's publicly exposed. Vulnerability is high with confirmed SQLi and .git exposure. The effect could be severe, including data breach and AWS account compromise. Recognizability is high due to common misconfigurations. Recuperability is moderate, depending on the scope of AWS compromise."
+          "reasoning": "This asset is hosted on AWS EC2 with multiple critical vulnerabilities. SQL injection can lead to SSRF, potentially exploiting IMDSv1 for IAM credentials. The exposed .git repository is a direct path to source code and potentially hardcoded AWS credentials. The EOL PHP version adds to the vulnerability. phpMyAdmin exposure is also a significant risk. Accessibility is high due to public internet exposure. The effect could be full compromise of the EC2 instance, lateral movement within AWS, and data exfiltration. Recuperability is moderate as it's an EC2 instance, but the impact could be wide-ranging. Recognizability is high due to clear indicators like .git and phpMyAdmin. No specific KEVs are directly listed but the attack paths are severe."
         },
         {
           "hostname": "demo.testfire.net",
@@ -309,57 +308,55 @@
             "recuperability": 4,
             "vulnerability": 10,
             "effect": 10,
-            "recognizability": 10
+            "recognizability": 9
           },
-          "totalCarverScore": 53,
-          "primaryAttackVector": "Struts RCE (CVE-2017-5638)",
+          "totalCarverScore": 52,
+          "primaryAttackVector": "Struts RCE (CVE-2017-5638) or default Tomcat credentials",
           "estimatedTimeToCompromise": "Minutes",
           "cloudRiskFactors": [],
           "kevExposure": [
-            "CVE-2017-5638 (Struts RCE)"
+            "CVE-2017-5638"
           ],
-          "reasoning": "This asset is extremely critical due to the presence of a CISA KEV (CVE-2017-5638, Struts RCE), which mandates a CRITICAL classification. This vulnerability allows for full server compromise. The asset is publicly accessible, making it highly attractive. Default Tomcat credentials further simplify exploitation. Being a banking application, the effect of compromise (fund transfer manipulation, data breach) is maximal. Recuperability is low as a full compromise requires significant effort to restore trust and integrity. Recognizability is high due to known vulnerabilities and default configurations."
+          "reasoning": "This is an on-premise banking application with a critical Struts RCE (CVE-2017-5638), which is a CISA KEV entry, immediately making it a CRITICAL finding. Default Tomcat credentials provide an alternative, easy path to compromise. The application handles fund transfers, making the effect of compromise extremely high (financial fraud, data theft). Accessibility is direct via the internet. Vulnerability is maximal due to known RCE and default credentials. Recuperability is low due to the sensitive nature of the data and potential for immediate financial loss. Recognizability is high due to the clear vulnerability signatures. JSESSIONID without secure/httponly flags further degrades security."
         },
         {
           "hostname": "scanme.nmap.org",
           "carverScores": {
-            "criticality": 3,
+            "criticality": 2,
             "accessibility": 10,
             "recuperability": 8,
-            "vulnerability": 6,
-            "effect": 4,
+            "vulnerability": 4,
+            "effect": 3,
             "recognizability": 7
           },
-          "totalCarverScore": 38,
+          "totalCarverScore": 34,
           "primaryAttackVector": "Weak SSH algorithms / OpenSSH 6.6.1 vulnerabilities",
-          "estimatedTimeToCompromise": "Days to weeks (if exploit exists for specific OpenSSH version)",
+          "estimatedTimeToCompromise": "Days to weeks (if exploit exists and is found)",
           "cloudRiskFactors": [],
           "kevExposure": [],
-          "reasoning": "This asset is an authorized test host, which lowers its criticality and effect score for typical operations, but it still represents a potential entry point. It's fully accessible. The OpenSSH version is old (2014) and likely has known vulnerabilities, and weak SSH algorithms are present, increasing vulnerability. The impact of compromise is moderate, as it's a test host, but could still be used for further attacks. Recuperability is high as it's a test host and likely has good backup/rebuild procedures. Recognizability is moderate due to outdated software and weak configurations."
+          "reasoning": "This is an authorized test host with older software versions (OpenSSH 6.6.1, Apache 2.4.7) and weak SSH algorithms. While accessible and recognizable, its criticality is low as it's designed for testing. Vulnerability is moderate due to outdated software and weak crypto, but no immediate critical RCE is identified. The effect is low given its purpose. Recuperability is high as it's a test system. No specific KEVs are identified for the listed software versions that would warrant a CRITICAL score."
         },
         {
           "hostname": "testasp.vulnweb.com",
           "carverScores": {
-            "criticality": 9,
+            "criticality": 8,
             "accessibility": 10,
             "recuperability": 5,
             "vulnerability": 10,
             "effect": 9,
-            "recognizability": 10
+            "recognizability": 9
           },
-          "totalCarverScore": 53,
-          "primaryAttackVector": "HTTP.sys RCE (CVE-2015-1635)",
+          "totalCarverScore": 51,
+          "primaryAttackVector": "HTTP.sys RCE (CVE-2015-1635) or WebDAV bypass",
           "estimatedTimeToCompromise": "Minutes",
           "cloudRiskFactors": [
-            "IMDSv1 without hop limit (potential SSRF → credential theft)",
-            "IAM role with S3 access (potential data exfiltration)",
-            "EC2 instance exposure to public internet",
-            "Debug mode enabled (potential cloud config leak)"
+            "IMDS v1 without hop limit (SSRF → credential theft)",
+            "IAM role with excessive permissions attached to EC2"
           ],
           "kevExposure": [
-            "CVE-2015-1635 (HTTP.sys RCE)"
+            "CVE-2015-1635"
           ],
-          "reasoning": "This asset is critically vulnerable due to the presence of a CISA KEV (CVE-2015-1635, HTTP.sys RCE), which allows for immediate server compromise. It shares the same AWS EC2 instance as testphp.vulnweb.com, implying potential lateral movement post-compromise. Accessibility is maximum. Vulnerability is extremely high with a confirmed RCE and debug mode enabled. The effect is severe, leading to full server control and potential cloud resource access. Recuperability is moderate, depending on the extent of compromise on the shared EC2 instance. Recognizability is high due to the known RCE and debug mode."
+          "reasoning": "This asset is hosted on AWS EC2 and presents multiple severe risks. The HTTP.sys RCE (CVE-2015-1635) is a CISA KEV entry, making this a CRITICAL finding. This allows for full server compromise. Debug mode enabled could leak sensitive cloud configuration. WebDAV bypass offers another path to compromise. Accessibility is direct via the internet. Vulnerability is maximal due to the KEV RCE. The effect could be full compromise of the EC2 instance, lateral movement within AWS, and data exfiltration, similar to the testphp host given they share the same EC2. Recuperability is moderate. Recognizability is high due to the clear vulnerability signatures."
         }
       ]
     }
