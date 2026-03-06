@@ -7663,3 +7663,6 @@
 - [x] Integrate scan mode into engagement passive recon orchestrator (startPassiveScan accepts scanMode param)
 - [x] Display current scan mode in engagement ops view (right stats panel indicator)
 - [x] Write vitest tests for scan mode selector and orchestrator integration (10 tests passing)
+
+## Bug Fixes
+- [x] Fix ReferenceError: Cannot access 'v' before initialization on /engagement-ops page (INC-MME5BHJL-YJQOOX)

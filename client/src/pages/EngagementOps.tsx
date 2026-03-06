@@ -385,17 +385,15 @@ export default function EngagementOps() {
   });
 
   const [showScanPlan, setShowScanPlan] = useState(false);
-  const [selectedScanMode, setSelectedScanMode] = useState<'strict_passive' | 'standard' | 'active'>(
-    (engagement as any)?.scanMode || 'strict_passive'
-  );
+  const [selectedScanMode, setSelectedScanMode] = useState<'strict_passive' | 'standard' | 'active'>('strict_passive');
   const [showScanModePopover, setShowScanModePopover] = useState(false);
 
-  // Sync scan mode from engagement data
+  // Sync scan mode from engagement data once loaded
   useEffect(() => {
-    if ((engagement as any)?.scanMode) {
-      setSelectedScanMode((engagement as any).scanMode);
+    if ((engagementQ.data as any)?.scanMode) {
+      setSelectedScanMode((engagementQ.data as any).scanMode);
     }
-  }, [(engagement as any)?.scanMode]);
+  }, [(engagementQ.data as any)?.scanMode]);
 
   const scanModesQ = trpc.engagementOps.getScanModes.useQuery(undefined, { enabled: engagementId > 0 });
   const updateScanModeMut = trpc.engagementOps.updateScanMode.useMutation({
