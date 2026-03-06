@@ -7876,3 +7876,29 @@
 - [x] Add Redis health check — validates cluster status, VPC, TLS, firewall, FIPS compliance
 - [x] Add Redis connection pool config with FIPS-compliant TLS options
 - [x] Write 31 vitest tests — all passing (bridge, wiring, WS events, provisioner)
+
+## Test Full LLM Knowledge Stack Against Free Test Targets
+- [x] Build comprehensive test script with multiple target profiles (4 targets: PHP/AWS, Tomcat/on-prem, Apache/on-prem, IIS/AWS)
+- [x] Test 1: Scan Plan Generation — 82/100 ✅ PASS (perfect tech detection + evasion + NSE scripts)
+- [x] Test 2: Vuln Correlation — 94.3/100 ✅ PASS (perfect KEV + FP detection, strong severity accuracy)
+- [x] Test 3: Hunt Hypothesis Generation — 100/100 ✅ PASS (perfect MITRE + SPL queries + attack paths)
+- [x] Test 4: Asset Classification — 87.5/100 ✅ PASS (perfect CARVER + cloud risk identification)
+- [x] Verify LLM correctly identifies technologies — 100% detection across all 4 targets
+- [x] Verify LLM selects appropriate tools — nuclei, nikto, sqlmap selected; cloud_enum needs prompting
+- [x] Verify cloud security knowledge enhances cloud target analysis — cloud risk went from 0% to 100%
+- [x] Verify KEV knowledge flags known exploited vulns — CVE-2017-5638 + CVE-2015-1635 both flagged
+- [x] Verify bug bounty training corpus improves triage quality — correct FP flagging for slowloris + sqli
+- [x] Document all findings (LLM_KNOWLEDGE_TEST_RESULTS.md) — overall 363.8/400 (91%) Grade A
+
+## Nmap Evasion Technique Research
+- [x] Research current nmap evasion techniques — 8 categories: ACK, FIN/NULL/XMAS, timing, fragmentation, decoys, source port, DNS, MAC
+- [x] Research IDS/IPS bypass methods — Snort/Suricata evasion via timing T0-T2, fragmentation, source port 53
+- [x] Research cloud-specific evasion — AWS SGs drop fragmented/decoy packets, use -Pn -sV -sC only
+- [x] Research advanced nmap NSE script evasion — scripts compatible with -f and timing flags
+- [x] Compile 7 evasion profiles: stealth recon, web app, full vuln, cloud, SMB, database, quick
+- [x] Update engagement-orchestrator LLM prompt with nmap knowledge (4 injection points)
+- [x] Update scan plan generation with environment-aware evasion selection
+- [x] Research nmap NSE scripts — 70+ vuln scripts, 18 tech-specific selections from nmap.org catalog
+- [x] Research NSE script evasion compatibility — documented per scan profile
+- [x] Compile NSE script catalog organized by technology and use case
+- [x] Build nmap-knowledge.ts module (600+ lines) — LLM test confirmed perfect NSE selection (20/20)

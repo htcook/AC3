@@ -307,7 +307,10 @@ ${(() => {
   const cloudRules = matchDetectionRules(['cloud', 'aws', 'azure', 'gcp', 's3', 'blob', 'iam']);
   const cloudPathsStr = cloudPaths.slice(0, 3).map((p: any) => `- ${p.title} (${p.steps?.flatMap((s: any) => s.mitre).join(', ') || 'N/A'}): ${p.steps?.map((s: any) => s.action).join(' → ') || p.initial_condition}`).join('\n');
   const cloudRulesStr = cloudRules.slice(0, 3).map((r: any) => `- ${r.name}: ${r.description} [confidence: ${r.confidence}]`).join('\n');
-  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n`;
+  // Inject nmap-based threat hunting context
+  const { getNmapHuntContext: getNmapHunt } = require('./nmap-knowledge');
+  const nmapHuntCtx = getNmapHunt();
+  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n\n${nmapHuntCtx}\n`;
 })()}
 HYPOTHESIS GENERATION RULES:
 1. Each hypothesis MUST be testable with the available data sources

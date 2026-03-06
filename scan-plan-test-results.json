@@ -1,0 +1,157 @@
+{
+  "overallStrategy": "The overall strategy involves tailoring Nmap scans and additional tool usage based on the asset's deployment environment (cloud vs. on-premise) and detected technologies. Cloud assets will use less aggressive Nmap flags to avoid detection, while on-premise assets will utilize evasion techniques. Specific NSE scripts and external tools like Nuclei, Nikto, and cloud_enum will be employed to target known vulnerabilities and configurations for the identified technologies.",
+  "assetPlans": [
+    {
+      "hostname": "testphp.vulnweb.com",
+      "detectedTechnologies": [
+        "PHP",
+        "nginx",
+        "MySQL",
+        "Ubuntu"
+      ],
+      "discoveryNmapFlags": "-Pn -sV -sC -p 80,443",
+      "discoveryNmapRationale": "This is an AWS target, so '-Pn -sV -sC' is used for stealth. Specific ports 80 and 443 are targeted based on web services. '-sC' includes default scripts.",
+      "nmapScripts": [
+        "http-vuln-cve2012-1823",
+        "http-phpself-xss",
+        "http-sql-injection",
+        "http-enum",
+        "http-security-headers",
+        "ssl-enum-ciphers",
+        "http-git",
+        "http-cors",
+        "http-phpmyadmin-dir-traversal",
+        "http-phpmyadmin-version"
+      ],
+      "nmapScriptRationale": "PHP-specific scripts are included due to 'X-Powered-By: PHP/5.6.40'. General web scripts are added for comprehensive web security checks, including SSL/TLS, headers, and CORS. 'http-git' is specifically for the '.git exposed' finding. phpMyAdmin scripts are included due to 'phpMyAdmin found'.",
+      "activeTools": [
+        {
+          "tool": "nuclei",
+          "command": "nuclei -u testphp.vulnweb.com -tags php,sqli,git,misconfig,web,nginx,cve",
+          "rationale": "Nuclei is used to find known vulnerabilities related to PHP, SQL injection, exposed Git repositories, and general web misconfigurations, including specific CVEs. It is also used for general web and Nginx checks."
+        },
+        {
+          "tool": "nikto",
+          "command": "nikto -h testphp.vulnweb.com",
+          "rationale": "Nikto performs comprehensive web server scanning for known vulnerabilities, misconfigurations, and outdated software. It's a good general-purpose web scanner."
+        },
+        {
+          "tool": "sqlmap",
+          "command": "sqlmap -u \"http://testphp.vulnweb.com/search.php?test=query\" --batch --risk=3 --level=5",
+          "rationale": "Given the finding of 'SQL injection in /search.php', sqlmap is the primary tool for exploiting and further enumerating SQL injection vulnerabilities."
+        }
+      ],
+      "evasionProfile": "Cloud (AWS): No evasion flags allowed. Standard Nmap options for stealth in cloud environments.",
+      "riskNotes": "PHP 5.6.40 is end-of-life and highly vulnerable. SQL injection and exposed .git repository are critical findings. phpMyAdmin presence is a high-risk factor."
+    },
+    {
+      "hostname": "demo.testfire.net",
+      "detectedTechnologies": [
+        "Apache Tomcat",
+        "Java",
+        "JSP"
+      ],
+      "discoveryNmapFlags": "-Pn -sV -sC -f -D RND:3 --source-port 53 -T2 -p 80,443,8080",
+      "discoveryNmapRationale": "This is an on-premise target, allowing for evasion techniques like '-f' (fragment packets), '-D RND:3' (decoy scan), '--source-port 53' (spoof source port), and '-T2' (slow scan). '-Pn -sV -sC' are standard for service detection and default scripts. Common Tomcat ports 80, 443, and 8080 are specified.",
+      "nmapScripts": [
+        "http-vuln-cve2017-5638",
+        "http-default-accounts",
+        "http-security-headers",
+        "ssl-enum-ciphers",
+        "http-git",
+        "http-cors",
+        "http-enum"
+      ],
+      "nmapScriptRationale": "Apache Tomcat specific scripts are included, notably 'http-vuln-cve2017-5638' (Struts RCE) due to Tomcat/Java environment, and 'http-default-accounts' for the 'default creds suspected' finding. General web security scripts are also included.",
+      "activeTools": [
+        {
+          "tool": "nuclei",
+          "command": "nuclei -u demo.testfire.net -tags tomcat,java,misconfig,web,cve",
+          "rationale": "Nuclei is used to find known vulnerabilities and misconfigurations related to Apache Tomcat, Java applications, and general web issues. It will specifically check for CVE-2017-5638."
+        },
+        {
+          "tool": "nikto",
+          "command": "nikto -h demo.testfire.net",
+          "rationale": "Nikto provides a broad scan for common web server vulnerabilities, including those relevant to Tomcat and JSP applications."
+        },
+        {
+          "tool": "burpsuite_pro",
+          "command": "Manual testing via Burp Suite Pro for banking application logic flaws, authentication bypasses, and fund transfer vulnerabilities.",
+          "rationale": "Given it's a banking application with 'fund transfer' functionality and suspected 'default creds', manual testing with Burp Suite is essential for deeper logic and authentication flaws beyond automated tools."
+        }
+      ],
+      "evasionProfile": "On-premise: Aggressive evasion with packet fragmentation, decoy scans, source port spoofing, and slower timing.",
+      "riskNotes": "CVE-2017-5638 (Struts RCE) is a critical, actively exploited vulnerability. Default credentials and banking application logic flaws are high-risk findings requiring thorough manual investigation."
+    },
+    {
+      "hostname": "scanme.nmap.org",
+      "detectedTechnologies": [
+        "Apache",
+        "Ubuntu",
+        "OpenSSH"
+      ],
+      "discoveryNmapFlags": "-Pn -sV -sC -f -D RND:3 --source-port 53 -T2 -p 22,80,9929,31337",
+      "discoveryNmapRationale": "This is an on-premise target, allowing for evasion techniques like '-f', '-D RND:3', '--source-port 53', and '-T2'. '-Pn -sV -sC' are standard for service detection and default scripts. All known open ports are specified.",
+      "nmapScripts": [
+        "ssh2-enum-algos",
+        "ssh-auth-methods",
+        "http-security-headers",
+        "ssl-enum-ciphers",
+        "http-git",
+        "http-cors",
+        "http-enum"
+      ],
+      "nmapScriptRationale": "OpenSSH-specific scripts are included to enumerate algorithms and authentication methods. General web scripts are added for the Apache web server.",
+      "activeTools": [
+        {
+          "tool": "nuclei",
+          "command": "nuclei -u scanme.nmap.org -tags ssh,apache,misconfig,web,cve",
+          "rationale": "Nuclei will check for known vulnerabilities and misconfigurations in OpenSSH and Apache, as well as general web issues."
+        },
+        {
+          "tool": "nikto",
+          "command": "nikto -h scanme.nmap.org",
+          "rationale": "Nikto is used for a general web server scan against Apache to identify common vulnerabilities and misconfigurations."
+        }
+      ],
+      "evasionProfile": "On-premise: Aggressive evasion with packet fragmentation, decoy scans, source port spoofing, and slower timing.",
+      "riskNotes": "OpenSSH 6.6.1 is an older version and may have known vulnerabilities. Regular patching and secure configuration are important for SSH services."
+    },
+    {
+      "hostname": "testasp.vulnweb.com",
+      "detectedTechnologies": [
+        "IIS",
+        "ASP.NET",
+        "MSSQL",
+        "Windows Server"
+      ],
+      "discoveryNmapFlags": "-Pn -sV -sC -p 80,443",
+      "discoveryNmapRationale": "This is an AWS target, so '-Pn -sV -sC' is used for stealth. Specific ports 80 and 443 are targeted based on web services. '-sC' includes default scripts.",
+      "nmapScripts": [
+        "http-aspnet-debug",
+        "http-iis-webdav-vuln",
+        "http-vuln-cve2015-1635",
+        "http-security-headers",
+        "ssl-enum-ciphers",
+        "http-git",
+        "http-cors",
+        "http-enum"
+      ],
+      "nmapScriptRationale": "IIS/ASP.NET specific scripts are included due to the identified technologies. 'http-aspnet-debug' and 'http-iis-webdav-vuln' are directly related to the findings ('Debug mode enabled', 'WebDAV accessible'). 'http-vuln-cve2015-1635' is a critical, actively exploited vulnerability for HTTP.sys. General web scripts are also included.",
+      "activeTools": [
+        {
+          "tool": "nuclei",
+          "command": "nuclei -u testasp.vulnweb.com -tags iis,aspnet,webdav,misconfig,cve,web",
+          "rationale": "Nuclei is used to find known vulnerabilities and misconfigurations related to IIS, ASP.NET, WebDAV, and general web issues. It will specifically check for CVE-2015-1635."
+        },
+        {
+          "tool": "nikto",
+          "command": "nikto -h testasp.vulnweb.com",
+          "rationale": "Nikto performs comprehensive web server scanning for known vulnerabilities, misconfigurations, and outdated software, which is relevant for IIS/ASP.NET."
+        }
+      ],
+      "evasionProfile": "Cloud (AWS): No evasion flags allowed. Standard Nmap options for stealth in cloud environments.",
+      "riskNotes": "CVE-2015-1635 (HTTP.sys RCE) is a critical, actively exploited vulnerability. Debug mode enabled and accessible WebDAV are significant security risks, potentially leading to information disclosure or remote code execution."
+    }
+  ]
+}

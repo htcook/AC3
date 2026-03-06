@@ -16,6 +16,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
+import { getNmapScanPlanContext, getNmapVulnCorrelationContext, getNmapHuntContext } from "./nmap-knowledge";
 import {
   emitExploitFired, emitExploitResult, emitAgentDeployed,
   emitReconComplete, emitSystemNotification, emitSystemAlert,
@@ -819,10 +820,19 @@ You MUST respond with valid JSON matching this exact schema:
     a.passiveRecon?.cloudProvider || '',
   ]).filter(Boolean);
   const cloudCtx = allObs.length > 0 ? buildCloudSecurityContext(allObs) : buildGeneralCloudContext();
+  // Inject nmap expertise for scan plan generation
+  const nmapCtx = getNmapScanPlanContext({
+    detectedTech: [...new Set(detectedTech)],
+    cloudProvider: state.assets.find(a => a.passiveRecon?.cloudProvider)?.passiveRecon?.cloudProvider,
+    hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+    hasIDS: state.engagementType === 'red_team',
+    stealthRequired: state.engagementType === 'red_team',
+  });
   return (ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx + '\n\n' : '') +
     (bbCtx ? '## Bug Bounty Methodology Context\n' + bbCtx + '\n\n' : '') +
     (corpusCtx ? '## Tool Output Triage Examples\n' + corpusCtx + '\n\n' : '') +
-    (cloudCtx ? cloudCtx + '\n\n' : '');
+    (cloudCtx ? cloudCtx + '\n\n' : '') +
+    (nmapCtx ? nmapCtx + '\n\n' : '');
 })()}Generate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
       }
     ],
@@ -3270,7 +3280,8 @@ ${(() => {
     ...a.vulns.map(v => v.title),
   ]).filter(Boolean);
   const cloudSecCtx = buildCloudSecurityContext(cloudObs);
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '');
+  const nmapVulnCtx = getNmapVulnCorrelationContext();
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx;
 })()}`,
     });
 
@@ -3323,7 +3334,8 @@ ${(() => {
   const ontologyContext = formatOntologyForPrompt([...new Set(detectedTech)]);
   const bbContext = getBugBountyContext(vulnDescs, 3);
   const corpusContext = getTriageCorpusContext(undefined, 3);
-  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext;
+  const nmapExploitCtx = getNmapVulnCorrelationContext();
+  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx;
 })()}`,
   });
 
