@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, mysqlEnum, double, foreignKey, bigint, mediumtext, tinyint, boolean } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, mysqlEnum, double, foreignKey, bigint, mediumtext, tinyint, boolean, decimal } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const abilityGraphEdges = mysqlTable("ability_graph_edges", {
@@ -4939,3 +4939,53 @@ export const zapProxySessions = mysqlTable("zap_proxy_sessions", {
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+
+// ─── Review Queue (Tier 2 LLM-Assisted Approval Workflow) ─────────────────
+export const reviewQueueItems = mysqlTable("review_queue_items", {
+	id: int().autoincrement().notNull(),
+	engagementId: int("engagement_id"),
+	category: mysqlEnum("category", ["scan_plan", "vuln_triage", "detection_rule", "exploit_plan", "hunt_hypothesis", "risk_score", "report_draft", "c2_action"]).notNull(),
+	title: varchar({ length: 512 }).notNull(),
+	summary: text().notNull(),
+	llmRationale: text("llm_rationale"),
+	llmConfidence: decimal("llm_confidence", { precision: 5, scale: 2 }),
+	payloadJson: json("payload_json").notNull(),
+	riskLevel: mysqlEnum("risk_level", ["critical", "high", "medium", "low", "info"]).default("medium").notNull(),
+	rqStatus: mysqlEnum("rq_status", ["pending", "approved", "rejected", "deferred", "auto_approved", "expired"]).default("pending").notNull(),
+	reviewedBy: varchar("reviewed_by", { length: 255 }),
+	reviewedAt: bigint("reviewed_at", { mode: "number" }),
+	reviewNotes: text("review_notes"),
+	autoApproveEligible: tinyint("auto_approve_eligible").default(0),
+	expiresAt: bigint("expires_at", { mode: "number" }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+export type InsertReviewQueueItem = typeof reviewQueueItems.$inferInsert;
+export type SelectReviewQueueItem = typeof reviewQueueItems.$inferSelect;
+
+// ─── Job Queue Tracking ───────────────────────────────────────────────────
+export const jobQueueEntries = mysqlTable("job_queue_entries", {
+	id: int().autoincrement().notNull(),
+	jobId: varchar("job_id", { length: 128 }).notNull(),
+	engagementId: int("engagement_id"),
+	jobType: mysqlEnum("job_type", ["scan", "recon", "feed", "c2"]).notNull(),
+	jqPriority: mysqlEnum("jq_priority", ["critical", "high", "normal", "low"]).default("normal").notNull(),
+	jqStatus: mysqlEnum("jq_status", ["queued", "dispatched", "running", "completed", "failed", "timeout", "cancelled"]).default("queued").notNull(),
+	workerHost: varchar("worker_host", { length: 255 }),
+	workerRegion: varchar("worker_region", { length: 64 }),
+	payloadJson: json("payload_json"),
+	resultJson: json("result_json"),
+	fipsCompliant: tinyint("fips_compliant").default(1),
+	dispatchedBy: varchar("dispatched_by", { length: 255 }),
+	dispatchedAt: bigint("dispatched_at", { mode: "number" }),
+	completedAt: bigint("completed_at", { mode: "number" }),
+	durationMs: int("duration_ms"),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+export type InsertJobQueueEntry = typeof jobQueueEntries.$inferInsert;
+export type SelectJobQueueEntry = typeof jobQueueEntries.$inferSelect;

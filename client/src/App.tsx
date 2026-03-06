@@ -211,6 +211,8 @@ const SigmaRuleGenerator = lazy(() => import("./pages/SigmaRuleGenerator"));
 const ControlTesting = lazy(() => import("./pages/ControlTesting"));
 const LlmTelemetry = lazy(() => import("./pages/LlmTelemetry"));
 const HuntDashboard = lazy(() => import("./pages/HuntDashboard"));
+const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
+const JobQueueDashboard = lazy(() => import("./pages/JobQueueDashboard"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -844,6 +846,12 @@ function Router() {
         </Route>
         <Route path="/hunt-ops">
           <ProtectedRoute component={HuntDashboard} />
+        </Route>
+        <Route path="/review-queue">
+          <ProtectedRoute component={ReviewQueue} />
+        </Route>
+        <Route path="/job-queue">
+          <ProtectedRoute component={JobQueueDashboard} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

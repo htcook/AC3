@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "5",
-      "when": 1772471702756,
-      "tag": "0000_baseline_squashed",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1772492812902,
-      "tag": "0001_ordinary_jocasta",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1772493312856,
-      "tag": "0002_next_imperial_guard",
+      "when": 1772773984415,
+      "tag": "0000_chilly_toxin",
       "breakpoints": true
     }
   ]

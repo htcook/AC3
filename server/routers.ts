@@ -149,6 +149,8 @@ import { validationRouter } from "./routers/validation-core";
 import { engagementOpsRouter } from "./routers/engagement-ops-core";
 import { scanServerRouter } from "./routers/scan-server";
 import { huntEngineRouter } from "./routers/hunt-engine";
+import { reviewQueueRouter } from "./routers/review-queue";
+import { jobQueueRouter } from "./routers/job-queue";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -456,6 +458,10 @@ export const appRouter = router({
 
   // ─── Hunt Workflow Engine (DHS/GSA HACS-Compliant) ──────────────────────
   huntEngine: huntEngineRouter,
+  // ─── Review Queue (Tier 2 Approval Workflow) ─────────────────────────────
+  reviewQueue: reviewQueueRouter,
+  // ─── Job Queue (Redis-backed DO worker dispatch) ────────────────────────
+  jobQueue: jobQueueRouter,
 });
 export type AppRouter = typeof appRouter;
 

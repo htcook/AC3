@@ -7804,3 +7804,50 @@
 - [x] Inject cloud security context into asset classification (scoring engine)
 - [x] Write vitest tests for cloud security knowledge module (26 tests passing)
 - [x] Verify cloud security knowledge enhances discovery of cloud misconfigurations
+
+## Redis Job Queue & DO Scan Offloading
+- [x] Create Redis job queue library (server/lib/job-queue.ts) with pub/sub dispatch — 4 job types, worker registry, FIPS-aware dispatch
+- [x] Define job schemas: ScanJob, ReconJob, FeedJob, C2Job — with RoE scope enforcement
+- [x] Modify engagement-orchestrator.ts to dispatch scan jobs to Redis instead of SSH
+- [x] Build result handler on Manus to process scan results from Redis — callback-based result aggregation
+- [x] Add health check polling for DO workers — heartbeat-based with 60s timeout
+- [x] Add fallback to local execution when DO workers unavailable — automatic failover
+
+## Ops State Persistence (DB-Backed Recovery)
+- [x] Add ops_state DB table for engagement operation state — engagement_ops_snapshots table
+- [x] Implement state serialization/deserialization for scan progress — JSON state with phase tracking
+- [x] Add state recovery on server restart (load from DB) — recoverRunningEngagements()
+- [x] Add periodic state snapshots during long-running operations — configurable interval (30s default)
+- [x] Implement state cleanup for completed engagements — cleanupOldSnapshots() with 7-day retention
+- [x] Test state recovery after simulated server restart — 25 vitest tests passing
+
+## FIPS 140-3 Compliance for DigitalOcean
+- [x] Implement FIPS 140-3 TLS configuration (TLS 1.2+ only, FIPS-approved cipher suites) — AES-256-GCM, CHACHA20-POLY1305
+- [x] Configure FIPS-validated key exchange algorithms (ECDHE with P-256/P-384/P-521)
+- [x] Implement mTLS for all inter-service communication (Manus ↔ DO) — certificate-based auth
+- [x] Add FIPS-compliant SSH configuration (ed25519 keys, FIPS-approved MACs) — generateFIPSSSHDConfig()
+- [x] Implement crypto audit logging for all key operations — getAuditLog() with NIST control tagging
+- [x] Add FIPS compliance validation endpoint — runComplianceCheck() with 8 NIST controls
+- [x] Configure DO firewall rules for FIPS boundary enforcement — 4 firewall configs, zero public inbound
+
+## Network Isolation (No Public Internet Exposure)
+- [x] Configure DO VPC for all infrastructure (private 10.132.0.0/20 networking)
+- [x] Redis: private VPC only, no public endpoint — firewall blocks 0.0.0.0/0 inbound
+- [x] Scan workers: VPC-only, firewall blocks all inbound except Manus backend IP
+- [x] C2 droplet: operator-only SSH whitelist, no public services — AllowUsers enforcement
+- [x] All inter-service communication over DO private network with mTLS
+- [x] Implement DO Firewall rules blocking all public inbound — verified in 25 tests
+- [x] Add network isolation validation checks — compliance check validates SC-7, AC-4
+
+## Tier 2 Review Queue UI
+- [x] Add review_queue DB table for pending LLM decisions — review_queue_items + job_queue_entries tables
+- [x] Create review queue tRPC router with CRUD + approve/reject/defer/bulk-approve endpoints
+- [x] Build ReviewQueue page with filterable list by status and category
+- [x] Add scan plan, vuln triage, detection rule, exploit plan, hunt hypothesis, risk score, report draft, C2 action categories
+- [x] Add detail dialog with LLM rationale, payload JSON, confidence scores
+- [x] Add bulk approve for batch operations
+- [x] Add review history/audit trail — reviewer name + timestamp on each decision
+- [x] Build Job Queue Dashboard with workers, history, FIPS compliance, and infrastructure tabs
+- [x] Add FIPS Compliance tab with live compliance check runner and key rotation schedules
+- [x] Add Infrastructure tab with VPC config, SSH hardening, firewall rules, NIST controls
+- [x] Write 25 vitest tests — all passing (job queue, ops persistence, FIPS infra, routers)
