@@ -4,7 +4,8 @@
  * Operators review and approve/reject LLM-generated scan plans,
  * vulnerability triage, detection rules, exploit plans, and more.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useReviewQueueEvents } from "@/hooks/useWebSocket";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +105,15 @@ export default function ReviewQueue() {
   const [rejectReason, setRejectReason] = useState("");
 
   const utils = trpc.useUtils();
+
+  // Real-time WebSocket events — auto-refresh on new review items
+  const { events: wsEvents, lastEvent } = useReviewQueueEvents();
+  useEffect(() => {
+    if (lastEvent) {
+      utils.reviewQueue.list.invalidate();
+      utils.reviewQueue.stats.invalidate();
+    }
+  }, [lastEvent]);
 
   const { data: items, isLoading } = trpc.reviewQueue.list.useQuery({
     status: statusFilter as any,

@@ -7851,3 +7851,28 @@
 - [x] Add FIPS Compliance tab with live compliance check runner and key rotation schedules
 - [x] Add Infrastructure tab with VPC config, SSH hardening, firewall rules, NIST controls
 - [x] Write 25 vitest tests — all passing (job queue, ops persistence, FIPS infra, routers)
+
+## Wire Job Queue into Engagement Orchestrator
+- [x] Replace all 5 executeTool() SSH calls with executeToolViaQueue() bridge in engagement-orchestrator.ts
+- [x] Add job result callback handler — bridge polls job status and converts to ToolExecResult
+- [x] Add fallback logic: if no healthy DO workers, automatic SSH fallback (verified in tests)
+- [x] Update scan progress tracking — bridge returns durationMs and status
+- [x] Wire RoE scope enforcement into job dispatch payload — all 4 phases extract roeScope from state
+- [x] Add executeRawCommandViaQueue for httpx pipe commands
+
+## WebSocket Push for Review Queue
+- [x] Add 13 new WsEventType entries (6 review + 7 job) to server ws-event-hub.ts
+- [x] Add 11 emit helper functions (5 review + 6 job) to ws-event-hub.ts
+- [x] Wire emit calls into review-queue router (create, approve, reject, defer, bulkApprove)
+- [x] Add useReviewQueueEvents and useJobQueueEvents hooks to frontend
+- [x] Add toast notifications for review:item_created, job:completed, job:failed, job:worker_lost
+- [x] Wire WS auto-refresh into ReviewQueue and JobQueueDashboard pages
+
+## Deploy Managed Redis on DO (FIPS VPC)
+- [x] Create Redis provisioning module (redis-do-provisioner.ts) using DO API v2
+- [x] Configure managed Redis in caldera-fips-vpc (private 10.132.0.0/20 networking only)
+- [x] Add FIPS TLS configuration — TLS 1.2+, AES-256-GCM, ECDHE cipher suites
+- [x] Build REDIS_URL connection string builder (prefers private URI)
+- [x] Add Redis health check — validates cluster status, VPC, TLS, firewall, FIPS compliance
+- [x] Add Redis connection pool config with FIPS-compliant TLS options
+- [x] Write 31 vitest tests — all passing (bridge, wiring, WS events, provisioner)

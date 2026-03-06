@@ -48,6 +48,12 @@ import {
   calculateKevRiskBoost,
   type KevMatch,
 } from "./kev-service";
+import {
+  executeToolViaQueue,
+  executeRawCommandViaQueue,
+  executeToolBatchViaQueue,
+  getBridgeStatus,
+} from "./job-queue-bridge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1826,8 +1832,11 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     });
 
     try {
-      const { executeTool, getScanServerConfigForNmap } = await import("./scan-server-executor");
+      // Job Queue Bridge: route scan execution through Redis queue when DO workers are available
+      const { getScanServerConfigForNmap } = await import("./scan-server-executor");
       const { executeNmapScan } = await import("./nmap-orchestrator");
+      const roeScope = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
+      const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope });
       const serverConfig = await getScanServerConfigForNmap();
 
       for (const target of targets) {
@@ -2346,7 +2355,10 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   });
 
   const hasScanPlan = !!state.scanPlan?.assetPlans?.length;
-  const { executeTool, suggestToolCommands } = await import("./scan-server-executor");
+  // Job Queue Bridge: route Phase B tool execution through Redis queue
+  const { suggestToolCommands } = await import("./scan-server-executor");
+  const roeScope_B = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
+  const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_B });
 
   for (const asset of state.assets) {
     if (asset.ports.length === 0) continue;
@@ -2630,9 +2642,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
       // httpx pipe commands need executeRawCommand
       if (cmd.tool === 'httpx' && cmd.command.includes('echo ')) {
-        const { executeRawCommand } = await import("./scan-server-executor");
+        // Job Queue Bridge: raw commands still go through SSH (pipe commands need shell)
         const startTimeRaw = Date.now();
-        result = await executeRawCommand(cmd.command + ' 2>&1', toolTimeout);
+        result = await executeRawCommandViaQueue(cmd.command + ' 2>&1', toolTimeout, { engagementId: state.engagementId });
         result.durationMs = Date.now() - startTimeRaw;
       } else {
         const cmdArgs = cmd.command.startsWith(cmd.tool)
@@ -2760,7 +2772,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   if (nucleiAssets.length > 0) {
     addLog(state, { phase: "vuln_detection", type: "scan_start", title: "Nuclei Vulnerability Scan (Scan Server)", detail: `Scanning ${nucleiAssets.length} targets via remote nuclei` });
 
-    const { executeTool } = await import("./scan-server-executor");
+    // Job Queue Bridge: route nuclei execution through Redis queue
+    const roeScope_N = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
+    const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_N });
 
     // Helper: execute nuclei with retry on SSH connection failures
     async function executeNucleiWithRetry(
@@ -3091,7 +3105,10 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   addLog(state, { phase: "vuln_detection", type: "info", title: "🔑 Credential Testing", detail: "Testing vendor/OEM default credentials first, then common wordlists on discovered login services" });
 
   try {
-    const { executeTool: execToolCred, suggestToolCommands: suggestCred } = await import("./scan-server-executor");
+    // Job Queue Bridge: route credential testing through Redis queue
+    const { suggestToolCommands: suggestCred } = await import("./scan-server-executor");
+    const roeScope_C = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
+    const execToolCred = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_C });
 
      for (const asset of state.assets) {
       if (asset.ports.length === 0) continue;

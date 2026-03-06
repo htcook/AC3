@@ -8,6 +8,13 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { getDb } from "../db";
+import {
+  emitReviewItemCreated,
+  emitReviewItemApproved,
+  emitReviewItemRejected,
+  emitReviewItemDeferred,
+  emitReviewBulkApproved,
+} from "../lib/ws-event-hub";
 import { eq, desc, and, sql, or, inArray } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 
@@ -117,6 +124,18 @@ export const reviewQueueRouter = router({
       });
 
       const id = (result as any)[0]?.insertId;
+      // Broadcast WebSocket event for real-time UI updates
+      if (id) {
+        emitReviewItemCreated({
+          id,
+          category: input.category,
+          title: input.title,
+          riskLevel: input.riskLevel,
+          llmConfidence: input.llmConfidence,
+          engagementId: input.engagementId,
+          autoApproved: shouldAutoApprove,
+        });
+      }
       return { id, autoApproved: shouldAutoApprove };
     }),
 
@@ -151,9 +170,16 @@ export const reviewQueueRouter = router({
         })
         .where(eq(schema.reviewQueueItems.id, input.id));
 
+       // Broadcast approval event
+      emitReviewItemApproved({
+        id: input.id,
+        category: items[0].category,
+        title: items[0].title,
+        reviewedBy: ctx.user?.name || ctx.user?.openId || "operator",
+        engagementId: items[0].engagementId ?? undefined,
+      });
       return { success: true, id: input.id, status: "approved" };
     }),
-
   /** Reject a review queue item */
   reject: protectedProcedure
     .input(z.object({
@@ -182,9 +208,17 @@ export const reviewQueueRouter = router({
         })
         .where(eq(schema.reviewQueueItems.id, input.id));
 
+      // Broadcast rejection event
+      emitReviewItemRejected({
+        id: input.id,
+        category: items[0].category,
+        title: items[0].title,
+        reviewedBy: ctx.user?.name || ctx.user?.openId || "operator",
+        reason: input.notes,
+        engagementId: items[0].engagementId ?? undefined,
+      });
       return { success: true, id: input.id, status: "rejected" };
     }),
-
   /** Defer a review queue item for later review */
   defer: protectedProcedure
     .input(z.object({
@@ -203,9 +237,15 @@ export const reviewQueueRouter = router({
         })
         .where(eq(schema.reviewQueueItems.id, input.id));
 
+      // Broadcast defer event
+      emitReviewItemDeferred({
+        id: input.id,
+        category: "unknown",
+        title: "Deferred item",
+        reviewedBy: ctx.user?.name || ctx.user?.openId || "operator",
+      });
       return { success: true, id: input.id, status: "deferred" };
     }),
-
   /** Bulk approve multiple items */
   bulkApprove: protectedProcedure
     .input(z.object({
@@ -233,6 +273,12 @@ export const reviewQueueRouter = router({
           )
         );
 
+      // Broadcast bulk approval event
+      emitReviewBulkApproved({
+        ids: input.ids,
+        count: input.ids.length,
+        reviewedBy: ctx.user?.name || ctx.user?.openId || "operator",
+      });
       return { success: true, approvedCount: input.ids.length };
     }),
 

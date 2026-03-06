@@ -66,6 +66,21 @@ export type WsEventType =
   | "engagement:progress_update"
   // Campaign advisor events
   | "advisor:recommendation"
+  // Review queue events
+  | "review:item_created"
+  | "review:item_approved"
+  | "review:item_rejected"
+  | "review:item_deferred"
+  | "review:bulk_approved"
+  | "review:item_expired"
+  // Job queue events
+  | "job:enqueued"
+  | "job:dispatched"
+  | "job:completed"
+  | "job:failed"
+  | "job:cancelled"
+  | "job:worker_registered"
+  | "job:worker_lost"
   // System events
   | "system:notification"
   | "system:alert";
@@ -114,6 +129,12 @@ const TOAST_EVENT_TYPES: WsEventType[] = [
   "privesc:escalation_found",
   "engagement:phase_changed",
   "advisor:recommendation",
+  "review:item_created",
+  "review:item_approved",
+  "review:item_rejected",
+  "job:completed",
+  "job:failed",
+  "job:worker_lost",
 ];
 
 function getToastInfo(event: WsEvent): { title: string; description: string; variant?: "default" | "destructive" } | null {
@@ -156,6 +177,18 @@ function getToastInfo(event: WsEvent): { title: string; description: string; var
       return { title: "Phase Changed", description: `${event.data.previousPhase} → ${event.data.newPhase}` };
     case "advisor:recommendation":
       return { title: "Campaign Advisor", description: event.data.recommendation?.slice(0, 80) || "New recommendation available" };
+    case "review:item_created":
+      return { title: "Review Required", description: `${event.data.category}: ${event.data.title?.slice(0, 60) || "New item"}` };
+    case "review:item_approved":
+      return { title: "Item Approved", description: `${event.data.title?.slice(0, 60) || "Review item"} by ${event.data.reviewedBy || "operator"}` };
+    case "review:item_rejected":
+      return { title: "Item Rejected", description: `${event.data.title?.slice(0, 60) || "Review item"}`, variant: "destructive" };
+    case "job:completed":
+      return { title: "Job Completed", description: `${event.data.type || "scan"} on ${event.data.workerHost || "worker"} (${event.data.durationMs || 0}ms)` };
+    case "job:failed":
+      return { title: "Job Failed", description: `${event.data.type || "scan"}: ${event.data.error || "unknown error"}`, variant: "destructive" };
+    case "job:worker_lost":
+      return { title: "Worker Lost", description: `${event.data.workerHost || "worker"} (${event.data.workerType || "unknown"})`, variant: "destructive" };
     default:
       return null;
   }
@@ -486,4 +519,47 @@ export function useOperatorFeed(engagementId?: number) {
     []
   );
   return useWebSocket({ channels, filterTypes, maxEvents: 100 });
+}
+
+// ─── Review Queue hooks ────────────────────────────────────────────
+/** Hook for Review Queue page — real-time review item events */
+export function useReviewQueueEvents(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => [
+      "review:item_created",
+      "review:item_approved",
+      "review:item_rejected",
+      "review:item_deferred",
+      "review:bulk_approved",
+      "review:item_expired",
+    ],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 100, showToasts: true });
+}
+
+// ─── Job Queue hooks ───────────────────────────────────────────────
+/** Hook for Job Queue Dashboard — real-time job execution events */
+export function useJobQueueEvents(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => [
+      "job:enqueued",
+      "job:dispatched",
+      "job:completed",
+      "job:failed",
+      "job:cancelled",
+      "job:worker_registered",
+      "job:worker_lost",
+    ],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 200, showToasts: true });
 }

@@ -76,6 +76,21 @@ export type WsEventType =
   | "engagement:progress_update"
   // Campaign advisor events
   | "advisor:recommendation"
+  // Review queue events
+  | "review:item_created"
+  | "review:item_approved"
+  | "review:item_rejected"
+  | "review:item_deferred"
+  | "review:bulk_approved"
+  | "review:item_expired"
+  // Job queue events
+  | "job:enqueued"
+  | "job:dispatched"
+  | "job:completed"
+  | "job:failed"
+  | "job:cancelled"
+  | "job:worker_registered"
+  | "job:worker_lost"
   // System events
   | "system:notification"
   | "system:alert";
@@ -886,4 +901,199 @@ export function emitAdvisorRecommendation(data: {
   } else {
     eventHub.broadcastGlobal(event);
   }
+}
+
+// ─── Review Queue Event Emitters ────────────────────────────────────
+/** Emit when a new review queue item is created */
+export function emitReviewItemCreated(data: {
+  id: number;
+  category: string;
+  title: string;
+  riskLevel: string;
+  llmConfidence?: number;
+  engagementId?: number;
+  autoApproved?: boolean;
+}): void {
+  const event: WsEvent = {
+    type: data.autoApproved ? "review:item_approved" : "review:item_created",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when a review queue item is approved */
+export function emitReviewItemApproved(data: {
+  id: number;
+  category: string;
+  title: string;
+  reviewedBy: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "review:item_approved",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when a review queue item is rejected */
+export function emitReviewItemRejected(data: {
+  id: number;
+  category: string;
+  title: string;
+  reviewedBy: string;
+  reason?: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "review:item_rejected",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when a review queue item is deferred */
+export function emitReviewItemDeferred(data: {
+  id: number;
+  category: string;
+  title: string;
+  reviewedBy: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "review:item_deferred",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when multiple review queue items are bulk approved */
+export function emitReviewBulkApproved(data: {
+  ids: number[];
+  count: number;
+  reviewedBy: string;
+}): void {
+  eventHub.broadcastGlobal({
+    type: "review:bulk_approved",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+// ─── Job Queue Event Emitters ───────────────────────────────────────
+/** Emit when a job is enqueued */
+export function emitJobEnqueued(data: {
+  jobId: string;
+  type: string;
+  tool?: string;
+  engagementId?: number;
+  priority: string;
+}): void {
+  const event: WsEvent = {
+    type: "job:enqueued",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when a job is dispatched to a worker */
+export function emitJobDispatched(data: {
+  jobId: string;
+  type: string;
+  workerId: string;
+  workerHost: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "job:dispatched",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when a job completes successfully */
+export function emitJobCompleted(data: {
+  jobId: string;
+  type: string;
+  durationMs: number;
+  findingsCount?: number;
+  workerHost: string;
+  engagementId?: number;
+  fipsVerified?: boolean;
+}): void {
+  const event: WsEvent = {
+    type: "job:completed",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when a job fails */
+export function emitJobFailed(data: {
+  jobId: string;
+  type: string;
+  error: string;
+  workerHost?: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "job:failed",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+}
+
+/** Emit when a worker registers or is lost */
+export function emitJobWorkerEvent(data: {
+  workerId: string;
+  workerHost: string;
+  workerType: string;
+  event: "registered" | "lost";
+  region?: string;
+}): void {
+  eventHub.broadcastGlobal({
+    type: data.event === "registered" ? "job:worker_registered" : "job:worker_lost",
+    timestamp: Date.now(),
+    data,
+  });
 }

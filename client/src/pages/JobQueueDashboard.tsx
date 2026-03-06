@@ -4,7 +4,8 @@
  * Monitor job queue health, worker status, FIPS compliance,
  * and infrastructure security posture.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useJobQueueEvents } from "@/hooks/useWebSocket";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +82,16 @@ export default function JobQueueDashboard() {
   const [jobTypeFilter, setJobTypeFilter] = useState<string>("all");
 
   const utils = trpc.useUtils();
+
+  // Real-time WebSocket events — auto-refresh on job status changes
+  const { events: wsEvents, lastEvent } = useJobQueueEvents();
+  useEffect(() => {
+    if (lastEvent) {
+      utils.jobQueue.stats.invalidate();
+      utils.jobQueue.history.invalidate();
+      utils.jobQueue.infraStatus.invalidate();
+    }
+  }, [lastEvent]);
 
   const { data: queueStats, isLoading: statsLoading } = trpc.jobQueue.stats.useQuery();
   const { data: history, isLoading: historyLoading } = trpc.jobQueue.history.useQuery({
