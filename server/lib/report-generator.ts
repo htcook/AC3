@@ -176,6 +176,24 @@ export interface ReportData {
     actionsUnderROE: number;
     blockedActions: number;
   };
+  owaspCoverage?: {
+    overallScore: number;
+    grade: string;
+    totalCategories: number;
+    testedCategories: number;
+    partialCategories: number;
+    untestedCategories: number;
+    categories: Array<{
+      id: string;
+      name: string;
+      status: string;
+      score: number;
+      toolsUsed: string[];
+      findingsCount: number;
+      gapAnalysis: string;
+    }>;
+    recommendations: string[];
+  };
 }
 
 // ─── MITRE Tactic Order ─────────────────────────────────────────────────────
@@ -966,6 +984,49 @@ ${report.toolEvidence.map((te, idx) => `
   ${te.outputPreview ? `<details style="margin-top: 8px;"><summary style="font-size: 11px; color: #64748b; cursor: pointer;">Raw output preview</summary><pre style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; font-size: 10px; max-height: 200px; overflow: auto; margin-top: 4px;">${te.outputPreview}</pre></details>` : ''}
 </div>
 `).join('')}
+` : ''}
+
+<!-- OWASP Top 10 Coverage -->
+${report.owaspCoverage ? `
+<h2>OWASP Top 10:2025 Coverage Analysis</h2>
+<p>This section evaluates the engagement's testing coverage against the OWASP Top 10:2025 vulnerability categories. Each category is assessed based on the tools executed, findings discovered, and depth of testing performed.</p>
+
+<div class="metrics-grid">
+  <div class="metric-card"><div class="metric-value" style="color: ${report.owaspCoverage.overallScore >= 80 ? '#22c55e' : report.owaspCoverage.overallScore >= 60 ? '#eab308' : '#ef4444'};">${report.owaspCoverage.overallScore}%</div><div class="metric-label">Overall Score</div></div>
+  <div class="metric-card"><div class="metric-value" style="color: #22c55e;">${report.owaspCoverage.testedCategories}</div><div class="metric-label">Fully Tested</div></div>
+  <div class="metric-card"><div class="metric-value" style="color: #eab308;">${report.owaspCoverage.partialCategories}</div><div class="metric-label">Partially Tested</div></div>
+  <div class="metric-card"><div class="metric-value" style="color: #ef4444;">${report.owaspCoverage.untestedCategories}</div><div class="metric-label">Not Tested</div></div>
+</div>
+
+<div style="display: inline-block; padding: 6px 16px; border-radius: 8px; font-weight: 700; font-size: 18px; margin: 12px 0; background: ${report.owaspCoverage.grade === 'A' || report.owaspCoverage.grade === 'A+' ? '#dcfce7; color: #166534' : report.owaspCoverage.grade === 'B' ? '#fef9c3; color: #854d0e' : report.owaspCoverage.grade === 'C' ? '#fed7aa; color: #9a3412' : '#fecaca; color: #991b1b'};">
+  Grade: ${report.owaspCoverage.grade}
+</div>
+
+<table>
+<tr><th>Category</th><th>Status</th><th>Score</th><th>Tools Used</th><th>Findings</th></tr>
+${report.owaspCoverage.categories.map(c => `<tr>
+  <td><strong>${c.id}</strong><br><span style="font-size: 11px; color: #64748b;">${c.name}</span></td>
+  <td><span class="badge" style="background: ${c.status === 'tested' ? '#dcfce7; color: #166534' : c.status === 'partial' ? '#fef9c3; color: #854d0e' : c.status === 'not_applicable' ? '#f1f5f9; color: #64748b' : '#fecaca; color: #991b1b'};">${c.status === 'tested' ? 'Tested' : c.status === 'partial' ? 'Partial' : c.status === 'not_applicable' ? 'N/A' : 'Not Tested'}</span></td>
+  <td style="font-weight: 600; color: ${c.score >= 80 ? '#16a34a' : c.score >= 50 ? '#ca8a04' : '#dc2626'};">${c.score}%</td>
+  <td style="font-size: 11px;">${c.toolsUsed.length > 0 ? c.toolsUsed.join(', ') : '<span style="color: #dc2626;">None</span>'}</td>
+  <td>${c.findingsCount}</td>
+</tr>`).join('')}
+</table>
+
+${report.owaspCoverage.categories.filter(c => c.status === 'not_tested' && c.gapAnalysis).length > 0 ? `
+<h3>Coverage Gaps</h3>
+${report.owaspCoverage.categories.filter(c => c.status === 'not_tested' && c.gapAnalysis).map(c => `
+<div style="border-left: 3px solid #ef4444; padding: 8px 16px; margin: 8px 0; background: #fef2f2; border-radius: 0 4px 4px 0;">
+  <strong style="color: #991b1b;">${c.id}: ${c.name}</strong>
+  <p style="font-size: 12px; margin-top: 4px;">${c.gapAnalysis}</p>
+</div>`).join('')}
+` : ''}
+
+${report.owaspCoverage.recommendations.length > 0 ? `
+<h3>OWASP Coverage Recommendations</h3>
+<ol style="font-size: 13px;">
+${report.owaspCoverage.recommendations.map(r => `<li style="margin: 4px 0;">${r}</li>`).join('')}
+</ol>` : ''}
 ` : ''}
 
 <!-- Recommendations -->

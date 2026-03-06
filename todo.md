@@ -7927,3 +7927,24 @@
 - [x] Add getKevOwaspContext() — KEV-OWASP cross-reference for LLM prompts
 - [x] Write 31 vitest tests — all passing
 - [x] Re-run LLM test suite — overall 364.2/400 (91.1%) Grade A, scan plan up to 91/100
+
+## OWASP Coverage Tracking in Engagement Reports
+- [x] Build OWASP coverage tracker module (server/lib/owasp-coverage-tracker.ts) — 610 lines, full per-target category tracking
+- [x] Map scan findings to OWASP categories automatically — classifyFindingToOwasp() with tool-to-category mapping
+- [x] Track which OWASP categories were tested per target — OwaspCoverageTracker class with registerAssetTech/addFinding/addToolRun
+- [x] Highlight coverage gaps (untested OWASP categories) — criticalGaps with priority ranking and remediation recommendations
+- [x] Integrate OWASP coverage into engagement report generation — renderOwaspCoverageHTML() with score badge, per-asset matrix, gap table
+- [x] Add OWASP coverage summary to engagement report UI — generateOwaspReportSection() for ReportData inclusion
+- [x] Write vitest tests for OWASP coverage tracker — 17 tests covering core, engagement, bulk import, HTML, singleton
+
+## Threat Group Knowledge Module
+- [x] Research and catalog major APT groups with TTPs, tools, and target sectors — 10 APT groups (APT29, Volt Typhoon, APT41, Lazarus, Sandworm, APT28, Salt Typhoon, APT34, Mustang Panda, APT36)
+- [x] Research and catalog major ransomware groups with TTPs, tools, and IOCs — 5 ransomware groups (LockBit, BlackCat, Cl0p, Akira, Black Basta) + 2 cybercrime (Scattered Spider, FIN7)
+- [x] Build threat-group-knowledge.ts module with group profiles — 700+ lines, 17 groups total with full TTP chains
+- [x] Map each group to MITRE ATT&CK techniques — 100+ TTP mappings with frequency classification (primary/secondary/occasional)
+- [x] Map each group to preferred tools and infrastructure — 60+ tool entries with categories (malware, rat, c2, credential, lateral, etc.)
+- [x] Add getThreatGroupHuntContext() for hunt hypothesis injection — sector-aware, group-specific, includes SIEM queries
+- [x] Add getThreatGroupScanContext() and getThreatGroupVulnContext() for scan/vuln correlation — CVE-to-group mapping, severity boost rules
+- [x] Wire threat group knowledge into hunt-engine LLM prompts — injected into generateHypotheses() with sector context
+- [x] Wire threat group knowledge into engagement-orchestrator — 3 injection points: scan plan, vuln correlation, exploitation planning
+- [x] Write vitest tests for threat group knowledge module — 30 tests covering data integrity, lookups, summary, sector profiles, LLM context builders

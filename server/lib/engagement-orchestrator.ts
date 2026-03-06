@@ -48,6 +48,13 @@ import {
   getOwaspVulnCorrelationContext,
   getOwaspAssetClassificationContext,
 } from "./owasp-knowledge";
+import { getOwaspTracker, resetOwaspTracker } from "./owasp-coverage-tracker";
+import {
+  getThreatGroupScanContext,
+  getThreatGroupVulnContext,
+  getSectorThreatContext,
+  getGroupsByCVE,
+} from "./threat-group-knowledge";
 import {
   fetchKevCatalog,
   matchCvesAgainstKev,
@@ -837,12 +844,14 @@ You MUST respond with valid JSON matching this exact schema:
     stealthRequired: state.engagementType === 'red_team',
   });
   const owaspCtx = getOwaspScanPlanContext([...new Set(detectedTech)]);
+  const threatGroupCtx = getThreatGroupScanContext({ technologies: [...new Set(detectedTech)] });
   return (ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx + '\n\n' : '') +
     (bbCtx ? '## Bug Bounty Methodology Context\n' + bbCtx + '\n\n' : '') +
     (corpusCtx ? '## Tool Output Triage Examples\n' + corpusCtx + '\n\n' : '') +
     (cloudCtx ? cloudCtx + '\n\n' : '') +
     (nmapCtx ? nmapCtx + '\n\n' : '') +
-    (owaspCtx ? owaspCtx + '\n\n' : '');
+    (owaspCtx ? owaspCtx + '\n\n' : '') +
+    (threatGroupCtx ? threatGroupCtx + '\n\n' : '');
 })()}Generate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
       }
     ],
@@ -3292,7 +3301,8 @@ ${(() => {
   const cloudSecCtx = buildCloudSecurityContext(cloudObs);
   const nmapVulnCtx = getNmapVulnCorrelationContext();
   const owaspVulnCtx = getOwaspVulnCorrelationContext();
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx;
+  const threatVulnCtx = getThreatGroupVulnContext();
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx;
 })()}`,
     });
 
@@ -3347,7 +3357,8 @@ ${(() => {
   const corpusContext = getTriageCorpusContext(undefined, 3);
   const nmapExploitCtx = getNmapVulnCorrelationContext();
   const owaspExploitCtx = getOwaspVulnCorrelationContext();
-  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx;
+  const threatExploitCtx = getThreatGroupVulnContext();
+  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx;
 })()}`,
   });
 
@@ -3715,6 +3726,10 @@ export async function executeEngagement(
   if (!state.startedAt) state.startedAt = Date.now();
   state.phase = startPhase;
   if (options?.scanProfile) state.scanProfile = options.scanProfile;
+
+  // ═══ OWASP COVERAGE TRACKING ═══
+  // Reset tracker at engagement start, register asset tech as discovered
+  const owaspTracker = resetOwaspTracker();
 
   emitSystemNotification({
     title: options?.resume ? "Engagement Resumed" : "Engagement Execution Started",
@@ -4127,19 +4142,52 @@ export async function executeEngagement(
       addLog(state, { phase: "enumeration", type: "error", title: "⛔ Active Phases Blocked", detail: "RoE must be signed to proceed past recon. Please have the team lead sign the RoE." });
     }
 
+    // ═══ OWASP COVERAGE ANALYSIS ═══
+    // Populate tracker from final state and generate coverage report
+    try {
+      for (const asset of state.assets) {
+        // Register detected technologies
+        const tech = asset.passiveRecon?.technologies || [];
+        if (tech.length > 0) owaspTracker.registerAssetTech(asset.hostname, tech);
+        // Register all tool runs and findings
+        for (const tr of asset.toolResults) {
+          owaspTracker.addToolRun({ tool: tr.tool, target: asset.hostname, command: tr.command, exitCode: tr.exitCode });
+          for (const f of tr.findings) {
+            owaspTracker.addFinding({ title: f.title, severity: f.severity, tool: tr.tool, target: asset.hostname });
+          }
+        }
+        // Register vuln findings
+        for (const v of asset.vulns) {
+          owaspTracker.addFinding({ title: v.title, severity: v.severity, tool: 'nuclei', target: asset.hostname });
+        }
+        // Register ZAP findings
+        for (const z of asset.zapFindings) {
+          owaspTracker.addFinding({ title: z.alert, severity: z.risk, tool: 'zap', target: asset.hostname });
+        }
+      }
+      const owaspCoverage = owaspTracker.getEngagementCoverage(String(engagementId));
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: `🛡️ OWASP Top 10:2025 Coverage: ${owaspCoverage.overallScore}%`,
+        detail: `${owaspCoverage.totalTested} tested, ${owaspCoverage.totalPartial} partial, ${owaspCoverage.totalGaps} gaps, ${owaspCoverage.criticalGaps.length} critical gaps`,
+        data: { owaspCoverage },
+      });
+    } catch (e: any) {
+      console.error('[OWASP Coverage] Failed to generate coverage:', e.message);
+    }
+
     // Complete
     state.phase = "completed";
     state.progress = 100;
     state.isRunning = false;
     state.completedAt = Date.now();
     state.currentAction = undefined;
-
     addLog(state, {
       phase: "completed",
       type: "phase_complete",
       title: "🏁 Engagement Execution Complete",
       detail: `${state.stats.hostsScanned} hosts, ${state.stats.vulnsFound} vulns, ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits, ${state.stats.zapScansRun} ZAP scans`,
-    });
+    });;
 
     // Final checkpoint
     await phaseCheckpoint('completed');

@@ -63,6 +63,16 @@ import {
   getCloudAttackPaths,
   matchDetectionRules,
 } from "./knowledge/cloud-security-knowledge";
+import {
+  getThreatGroupHuntContext,
+  getThreatGroupScanContext,
+  getThreatGroupVulnContext,
+  getSectorThreatContext,
+  getGroupsByTechnique,
+  getGroupsByCVE,
+  getGroupsBySector,
+  getThreatGroupSummary,
+} from "./threat-group-knowledge";
 
 // ═══════════════════════════════════════════════════════════════════════
 // §1 — TYPES
@@ -312,7 +322,10 @@ ${(() => {
   const nmapHuntCtx = getNmapHunt();
   const { getOwaspHuntContext: getOwaspHunt } = require('./owasp-knowledge');
   const owaspHuntCtx = getOwaspHunt();
-  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n\n${nmapHuntCtx}\n\n${owaspHuntCtx}\n`;
+  // Inject threat group intelligence based on sector
+  const threatGroupCtx = getThreatGroupHuntContext({ sector: ctx.orgSector });
+  const sectorCtx = getSectorThreatContext(ctx.orgSector);
+  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n\n${nmapHuntCtx}\n\n${owaspHuntCtx}\n\n${threatGroupCtx}\n${sectorCtx}\n`;
 })()}
 HYPOTHESIS GENERATION RULES:
 1. Each hypothesis MUST be testable with the available data sources
@@ -325,6 +338,9 @@ HYPOTHESIS GENERATION RULES:
 8. Reference attack chain IDs where applicable for traceability
 9. Consider the asset ontology pivot paths for lateral movement hypotheses
 10. Flag any data source gaps that would prevent testing a high-priority hypothesis
+11. Reference specific threat groups by name when generating hypotheses based on their TTPs
+12. Include SIEM queries from the threat group detection recommendations when applicable
+13. For sector-specific hunts, prioritize TTPs from the top threat groups targeting that sector
 
 Return JSON:
 {
