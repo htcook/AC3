@@ -433,6 +433,22 @@ export function resolveApproval(gateId: string, approved: boolean, resolvedBy?: 
   return true;
 }
 
+/**
+ * Get the full detail of an approval gate by ID (for plan history persistence).
+ * Returns the gate object with its detail, title, etc. or null if not found.
+ */
+export function getApprovalGateDetail(gateId: string): (typeof opsStates extends Map<any, infer S> ? S extends { approvalGates: (infer G)[] } ? G & { _engagementId?: number } : any : any) | null {
+  for (const [engId, state] of opsStates) {
+    const gate = state.approvalGates.find(g => g.id === gateId);
+    if (gate) {
+      // Attach engagement ID for convenience
+      (gate as any)._engagementId = engId;
+      return gate as any;
+    }
+  }
+  return null;
+}
+
 // ─── Audit Logging ──────────────────────────────────────────────────────────
 
 async function auditLog(params: {
@@ -3038,15 +3054,42 @@ Available vulns: ${state.assets.flatMap(a => a.vulns.map(v => `${a.hostname}:${v
     return;
   }
 
-  addLog(state, {
-    phase: "exploitation",
-    type: "info",
-    title: "✅ Exploit Plan Approved",
-    detail: `Operator approved the exploit plan. Proceeding with ${exploitActions.length} exploit action${exploitActions.length !== 1 ? "s" : ""}.`,
-    riskTier: "red",
-  });
+  // Check if the operator modified the plan (removed some targets)
+  const planGate = state.approvalGates.find(g => g.title.startsWith('Exploit Plan Review') && g.status === 'approved');
+  const modifiedPlan = planGate?.detail?._modifiedPlan;
+  const removedIndices = planGate?.detail?._removedIndices ? new Set(planGate.detail._removedIndices as number[]) : null;
+  const isModified = removedIndices && removedIndices.size > 0;
 
-  for (const action of decision.actions) {
+  // Determine which actions to execute
+  let actionsToExecute = decision.actions;
+  if (isModified) {
+    // Filter exploit_attempt actions: only keep those whose index (among exploit actions) is NOT in removedIndices
+    let exploitIdx = 0;
+    actionsToExecute = decision.actions.filter((a: any) => {
+      if (a.type !== 'exploit_attempt') return true; // keep non-exploit actions
+      const keep = !removedIndices.has(exploitIdx);
+      exploitIdx++;
+      return keep;
+    });
+    const removedCount = exploitActions.length - actionsToExecute.filter((a: any) => a.type === 'exploit_attempt').length;
+    addLog(state, {
+      phase: "exploitation",
+      type: "info",
+      title: "✅ Modified Exploit Plan Approved",
+      detail: `Operator approved a modified plan: ${removedCount} target${removedCount !== 1 ? 's' : ''} removed, proceeding with ${actionsToExecute.filter((a: any) => a.type === 'exploit_attempt').length} exploit action${actionsToExecute.filter((a: any) => a.type === 'exploit_attempt').length !== 1 ? 's' : ''}.`,
+      riskTier: "red",
+    });
+  } else {
+    addLog(state, {
+      phase: "exploitation",
+      type: "info",
+      title: "✅ Exploit Plan Approved",
+      detail: `Operator approved the exploit plan. Proceeding with ${exploitActions.length} exploit action${exploitActions.length !== 1 ? "s" : ""}.`,
+      riskTier: "red",
+    });
+  }
+
+  for (const action of actionsToExecute) {
     if (action.type === "exploit_attempt") {
       const { target, port, cve, service, module } = action.params as any;
       const asset = state.assets.find(a => a.hostname === target || a.ip === target);

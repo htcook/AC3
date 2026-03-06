@@ -7,7 +7,8 @@ import {
   activityLogs, InsertActivityLog,
   calderaStats, InsertCalderaStats, CalderaStats,
   engagementOpsSnapshots,
-  llmTelemetry, InsertLlmTelemetry, LlmTelemetry
+  llmTelemetry, InsertLlmTelemetry, LlmTelemetry,
+  exploitPlanHistory, InsertExploitPlanHistory, ExploitPlanHistory
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -2556,4 +2557,81 @@ export async function getEngagementLlmCostTimeSeries(engagementId: number) {
     total_tokens: Number(r.total_tokens) || 0,
     estimated_cost_usd: estimateCost("gemini-2.5-flash", Number(r.tokens_in) || 0, Number(r.tokens_out) || 0),
   }));
+}
+
+
+// ─── Exploit Plan History ────────────────────────────────────────────────────
+
+/**
+ * Insert a new exploit plan history record.
+ */
+export async function insertExploitPlanHistory(data: InsertExploitPlanHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(exploitPlanHistory).values(data).$returningId();
+  return result;
+}
+
+/**
+ * Get all exploit plan history records for an engagement, newest first.
+ */
+export async function getExploitPlanHistoryByEngagement(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(exploitPlanHistory)
+    .where(eq(exploitPlanHistory.engagementId, engagementId))
+    .orderBy(desc(exploitPlanHistory.createdAt));
+}
+
+/**
+ * Get a single exploit plan history record by ID.
+ */
+export async function getExploitPlanHistoryById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(exploitPlanHistory)
+    .where(eq(exploitPlanHistory.id, id))
+    .limit(1);
+  return rows[0] || null;
+}
+
+/**
+ * Get exploit plan history by gate ID.
+ */
+export async function getExploitPlanHistoryByGateId(gateId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(exploitPlanHistory)
+    .where(eq(exploitPlanHistory.gateId, gateId))
+    .limit(1);
+  return rows[0] || null;
+}
+
+/**
+ * Get summary stats for exploit plan history across all engagements.
+ */
+export async function getExploitPlanStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, approved: 0, rejected: 0, modified: 0 };
+  const [rows] = await db.execute(sql`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN plan_status = 'approved' THEN 1 ELSE 0 END) as approved,
+      SUM(CASE WHEN plan_status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+      SUM(CASE WHEN plan_status = 'modified' THEN 1 ELSE 0 END) as modified
+    FROM exploit_plan_history
+  `);
+  const r = (rows as any[])[0] || {};
+  return {
+    total: Number(r.total) || 0,
+    approved: Number(r.approved) || 0,
+    rejected: Number(r.rejected) || 0,
+    modified: Number(r.modified) || 0,
+  };
 }

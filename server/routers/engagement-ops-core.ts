@@ -188,24 +188,88 @@ export const engagementOpsRouter = router({
         return { reset: true, phase: state.phase, assetsPreserved: state.assets.length };
       }),
 
-    /** Resolve an approval gate */
+    /** Resolve an approval gate (supports modified plans with removedTargetIndices) */
     resolveApproval: protectedProcedure
       .input(z.object({
         gateId: z.string(),
         approved: z.boolean(),
+        /** Indices of targets to REMOVE from the plan (for "Modify Plan" flow) */
+        removedTargetIndices: z.array(z.number()).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { resolveApproval } = await import('../lib/engagement-orchestrator');
+        const { resolveApproval, getApprovalGateDetail } = await import('../lib/engagement-orchestrator');
+
+        // Get gate detail before resolving (for plan history persistence)
+        const gateDetail = getApprovalGateDetail(input.gateId);
+        const isExploitPlan = gateDetail?.title?.startsWith('Exploit Plan Review');
+        const hasModifications = input.removedTargetIndices && input.removedTargetIndices.length > 0;
+
+        // If this is a modified plan, update the gate's detail with the modification info
+        if (isExploitPlan && hasModifications && gateDetail?.detail) {
+          const originalActions = gateDetail.detail.actions || [];
+          const removedIndices = new Set(input.removedTargetIndices);
+          const keptActions = originalActions.filter((_: any, i: number) => !removedIndices.has(i));
+          const removedActions = originalActions.filter((_: any, i: number) => removedIndices.has(i));
+
+          // Store modification metadata on the gate for the orchestrator to use
+          gateDetail.detail._modifiedPlan = keptActions;
+          gateDetail.detail._removedTargets = removedActions;
+          gateDetail.detail._removedIndices = input.removedTargetIndices;
+        }
+
         const resolved = resolveApproval(input.gateId, input.approved, ctx.user.name || String(ctx.user.id));
         if (!resolved) throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found or already resolved' });
+
+        // Persist exploit plan to history
+        if (isExploitPlan && gateDetail) {
+          try {
+            const originalActions = gateDetail.detail?.actions || [];
+            let planStatus: 'approved' | 'rejected' | 'modified' = input.approved ? 'approved' : 'rejected';
+            let modifiedPlan = null;
+            let removedTargets = null;
+            let finalCount = input.approved ? originalActions.length : 0;
+
+            if (input.approved && hasModifications) {
+              planStatus = 'modified';
+              const removedIndices = new Set(input.removedTargetIndices);
+              modifiedPlan = originalActions.filter((_: any, i: number) => !removedIndices.has(i));
+              removedTargets = originalActions.filter((_: any, i: number) => removedIndices.has(i));
+              finalCount = modifiedPlan.length;
+            }
+
+            // Find the engagement ID from the gate
+            const engagementId = gateDetail.detail?.engagementId || gateDetail._engagementId;
+
+            if (engagementId) {
+              await db.insertExploitPlanHistory({
+                engagementId,
+                gateId: input.gateId,
+                status: planStatus,
+                operatorId: ctx.user.id,
+                operatorName: ctx.user.name || String(ctx.user.id),
+                originalPlan: originalActions,
+                modifiedPlan,
+                llmReasoning: gateDetail.detail?.reasoning || null,
+                llmDecision: gateDetail.detail?.decision || null,
+                originalTargetCount: originalActions.length,
+                finalTargetCount: finalCount,
+                removedTargets,
+                reviewDurationMs: gateDetail.createdAt ? Date.now() - gateDetail.createdAt : null,
+                resolvedAt: new Date(),
+              });
+            }
+          } catch (err: any) {
+            console.error('[ExploitPlanHistory] Failed to persist plan:', err.message);
+          }
+        }
 
         await db.logActivity({
           userId: ctx.user.id,
           action: input.approved ? 'ops_approval_granted' : 'ops_approval_denied',
-          details: `${input.approved ? 'Approved' : 'Denied'} gate ${input.gateId}`,
+          details: `${input.approved ? 'Approved' : 'Denied'} gate ${input.gateId}${hasModifications ? ` (modified: removed ${input.removedTargetIndices!.length} targets)` : ''}`,
         });
 
-        return { resolved: true };
+        return { resolved: true, modified: hasModifications || false };
       }),
 
     /** Add targets to an engagement (paste-in from operator) */
@@ -1144,5 +1208,36 @@ export const engagementOpsRouter = router({
             executedAt: h.executedAt,
           })),
         };
+      }),
+
+    /** Get exploit plan history for an engagement */
+    getExploitPlanHistory: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const history = await db.getExploitPlanHistoryByEngagement(input.engagementId);
+        return history.map((h: any) => ({
+          id: h.id,
+          engagementId: h.engagementId,
+          gateId: h.gateId,
+          status: h.status,
+          operatorId: h.operatorId,
+          operatorName: h.operatorName,
+          originalPlan: h.originalPlan,
+          modifiedPlan: h.modifiedPlan,
+          llmReasoning: h.llmReasoning,
+          llmDecision: h.llmDecision,
+          originalTargetCount: h.originalTargetCount,
+          finalTargetCount: h.finalTargetCount,
+          removedTargets: h.removedTargets,
+          reviewDurationMs: h.reviewDurationMs,
+          resolvedAt: h.resolvedAt,
+          createdAt: h.createdAt,
+        }));
+      }),
+
+    /** Get exploit plan stats across all engagements */
+    getExploitPlanStats: protectedProcedure
+      .query(async () => {
+        return db.getExploitPlanStats();
       }),
   });

@@ -7674,3 +7674,24 @@
 - [x] Add "Approve & Execute" / "Reject" buttons in the UI
 - [x] Wire approval gate into the active scan pipeline
 - [x] Write vitest tests for the approval gate flow (10 tests passing)
+
+## Modify Plan & Exploit Plan History
+- [x] Add exploit_plan_history table to schema (engagement_id, plan_json, status, operator, timestamps)
+- [x] Push schema migration for exploit_plan_history
+- [x] Add DB helpers for inserting/querying plan history
+- [x] Add tRPC endpoints: resolveApproval updated with removedTargetIndices + plan persistence
+- [x] Update orchestrator to persist approved/rejected/modified plans to DB
+- [x] Support modified plans: orchestrator filters out removed targets from execution loop
+- [x] Build Modify Plan UI: checkboxes per target in the exploit plan review card
+- [x] Show "Approve Selected" button with count of enabled targets
+- [x] Build exploit plan history view/tab in EngagementOps
+- [x] Show plan history with status badges (approved/rejected/modified), timestamps, operator name
+- [x] Write vitest tests for plan history persistence and modify plan flow (12 tests passing)
+
+## LLM Toolkit Expansion Research
+- [x] Research additional scanning/exploitation tools to add to the LLM's toolkit
+- [x] Document recommended tools with integration notes (16 new tools identified)
+
+## Pentest Training Bundle Analysis
+- [x] Deep analysis of ace_c3_pentest_training_bundle_v2.zip for LLM integration
+- [x] Document how to use training data to improve pentesting/red team/vuln verification skills

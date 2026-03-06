@@ -6309,3 +6309,40 @@ export const llmTelemetry = mysqlTable("llm_telemetry", {
 });
 export type LlmTelemetry = typeof llmTelemetry.$inferSelect;
 export type InsertLlmTelemetry = typeof llmTelemetry.$inferInsert;
+
+
+/**
+ * Exploit plan history — audit trail for LLM-generated exploit plans.
+ * Records every plan the LLM proposes, whether the operator approved, rejected, or modified it,
+ * and which specific targets were included/excluded.
+ */
+export const exploitPlanHistory = mysqlTable("exploit_plan_history", {
+  id: int("id").autoincrement().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  /** The approval gate ID that triggered this plan */
+  gateId: varchar("gate_id", { length: 64 }).notNull(),
+  /** approved | rejected | modified (approved with some targets removed) */
+  status: mysqlEnum("plan_status", ["approved", "rejected", "modified"]).notNull(),
+  /** Operator who resolved the plan */
+  operatorId: int("operator_id"),
+  operatorName: varchar("operator_name", { length: 255 }),
+  /** The full LLM-generated exploit plan as proposed */
+  originalPlan: json("original_plan").notNull(),
+  /** The modified plan (only targets the operator kept) — null if approved as-is or rejected */
+  modifiedPlan: json("modified_plan"),
+  /** LLM reasoning / decision text */
+  llmReasoning: text("llm_reasoning"),
+  llmDecision: text("llm_decision"),
+  /** Number of targets in original plan */
+  originalTargetCount: int("original_target_count").default(0).notNull(),
+  /** Number of targets after modification (same as original if approved, 0 if rejected) */
+  finalTargetCount: int("final_target_count").default(0).notNull(),
+  /** Targets that were removed by the operator (for modified plans) */
+  removedTargets: json("removed_targets"),
+  /** Duration in ms the operator spent reviewing the plan */
+  reviewDurationMs: int("review_duration_ms"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+export type ExploitPlanHistory = typeof exploitPlanHistory.$inferSelect;
+export type InsertExploitPlanHistory = typeof exploitPlanHistory.$inferInsert;

@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -277,6 +278,215 @@ function assetStatusBadge(status: string) {
   return <Badge variant="outline" className={`text-[10px] ${cfg.className}`}>{cfg.label}</Badge>;
 }
 
+// ─── Exploit Plan Review Card (with Modify Plan) ─────────────────────────────
+
+function ExploitPlanReviewCard({
+  gate,
+  planActions,
+  approveMut,
+}: {
+  gate: any;
+  planActions: Array<{ target: string; port: string | number; cve?: string; module?: string; service?: string }>;
+  approveMut: any;
+}) {
+  const [isModifying, setIsModifying] = useState(false);
+  const [enabledTargets, setEnabledTargets] = useState<boolean[]>(() => planActions.map(() => true));
+
+  const enabledCount = enabledTargets.filter(Boolean).length;
+  const removedCount = planActions.length - enabledCount;
+  const allEnabled = enabledCount === planActions.length;
+  const noneEnabled = enabledCount === 0;
+
+  const toggleTarget = (index: number) => {
+    setEnabledTargets(prev => {
+      const next = [...prev];
+      next[index] = !next[index];
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allEnabled) {
+      setEnabledTargets(planActions.map(() => false));
+    } else {
+      setEnabledTargets(planActions.map(() => true));
+    }
+  };
+
+  const handleApproveSelected = () => {
+    const removedIndices = enabledTargets
+      .map((enabled, i) => (!enabled ? i : -1))
+      .filter(i => i !== -1);
+    approveMut.mutate({
+      gateId: gate.id,
+      approved: true,
+      removedTargetIndices: removedIndices.length > 0 ? removedIndices : undefined,
+    });
+  };
+
+  return (
+    <div className="bg-card/60 rounded-xl border border-red-500/30 overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-3 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Swords className="h-4 w-4 text-red-400" />
+          {riskBadge(gate.riskTier)}
+          <span className="text-sm font-semibold text-foreground">{gate.title}</span>
+        </div>
+        <span className="text-xs text-muted-foreground">{formatTime(gate.createdAt)}</span>
+      </div>
+
+      {/* LLM Reasoning */}
+      {gate.detail?.reasoning && (
+        <div className="px-5 py-3 border-b border-border/30">
+          <div className="flex items-center gap-1.5 text-xs text-cyan-400 font-medium mb-1">
+            <Brain className="h-3 w-3" /> LLM Reasoning
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">{gate.detail.reasoning}</p>
+        </div>
+      )}
+
+      {/* Exploit Actions Table */}
+      <div className="px-5 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-muted-foreground font-medium">
+            {isModifying ? (
+              <span>
+                <span className="text-green-400">{enabledCount}</span> of {planActions.length} targets selected
+                {removedCount > 0 && <span className="text-red-400 ml-1">({removedCount} removed)</span>}
+              </span>
+            ) : (
+              <span>{planActions.length} exploit action{planActions.length !== 1 ? "s" : ""} selected:</span>
+            )}
+          </div>
+          {isModifying && (
+            <button
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 underline"
+              onClick={toggleAll}
+            >
+              {allEnabled ? "Deselect All" : "Select All"}
+            </button>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          {planActions.map((a, i) => {
+            const isEnabled = enabledTargets[i];
+            return (
+              <div
+                key={i}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-all ${
+                  isModifying
+                    ? isEnabled
+                      ? "bg-background/50 border-border/30 cursor-pointer hover:border-green-500/30"
+                      : "bg-red-500/5 border-red-500/20 opacity-60 cursor-pointer hover:border-red-500/40"
+                    : "bg-background/50 border-border/30"
+                }`}
+                onClick={isModifying ? () => toggleTarget(i) : undefined}
+              >
+                {isModifying && (
+                  <Checkbox
+                    checked={isEnabled}
+                    onCheckedChange={() => toggleTarget(i)}
+                    className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                  />
+                )}
+                <span className="text-xs font-mono text-muted-foreground w-5">{i + 1}.</span>
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <Crosshair className={`h-3 w-3 flex-none ${isModifying && !isEnabled ? 'text-red-400/50' : 'text-red-400'}`} />
+                  <span className={`text-xs font-mono truncate ${isModifying && !isEnabled ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                    {a.target}:{a.port}
+                  </span>
+                </div>
+                {(a.cve || a.module) && (
+                  <Badge variant="outline" className={`text-[10px] flex-none ${isModifying && !isEnabled ? 'bg-gray-500/10 text-gray-500 border-gray-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                    {a.cve || a.module}
+                  </Badge>
+                )}
+                {a.service && (
+                  <span className={`text-[10px] flex-none ${isModifying && !isEnabled ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>{a.service}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="px-5 py-3 bg-muted/20 border-t border-border/30">
+        {isModifying ? (
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">
+              Toggle targets on/off. Disabled targets will be skipped during exploitation.
+            </p>
+            <div className="flex items-center gap-2 ml-4 flex-none">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-border/50 text-muted-foreground hover:bg-muted/30"
+                onClick={() => {
+                  setIsModifying(false);
+                  setEnabledTargets(planActions.map(() => true));
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
+                disabled={approveMut.isPending}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1" /> Reject All
+              </Button>
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-500 text-white"
+                onClick={handleApproveSelected}
+                disabled={approveMut.isPending || noneEnabled}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                {allEnabled ? "Approve All" : `Approve ${enabledCount} Target${enabledCount !== 1 ? 's' : ''}`}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">Review the plan above. Approving will execute all listed exploits against in-scope targets.</p>
+            <div className="flex items-center gap-2 ml-4 flex-none">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
+                disabled={approveMut.isPending}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1" /> Reject Plan
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                onClick={() => setIsModifying(true)}
+              >
+                <Wrench className="h-3.5 w-3.5 mr-1" /> Modify Plan
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-500 text-white"
+                onClick={() => approveMut.mutate({ gateId: gate.id, approved: true })}
+                disabled={approveMut.isPending}
+              >
+                <Swords className="h-3.5 w-3.5 mr-1" /> Approve & Execute
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function EngagementOps() {
@@ -396,6 +606,7 @@ export default function EngagementOps() {
   }, [(engagementQ.data as any)?.scanMode]);
 
   const scanModesQ = trpc.engagementOps.getScanModes.useQuery(undefined, { enabled: engagementId > 0 });
+  const planHistoryQ = trpc.engagementOps.getExploitPlanHistory.useQuery({ engagementId }, { enabled: engagementId > 0 });
   const updateScanModeMut = trpc.engagementOps.updateScanMode.useMutation({
     onSuccess: (data) => {
       toast.success(`Scan mode updated to ${data.scanMode.replace('_', ' ')}`);
@@ -1269,76 +1480,8 @@ export default function EngagementOps() {
               const planActions = gate.detail?.actions as Array<{ target: string; port: string | number; cve?: string; module?: string; service?: string }> | undefined;
 
               if (isExploitPlan && planActions && planActions.length > 0) {
-                // ── Rich Exploit Plan Review Card ──
-                return (
-                  <div key={gate.id} className="bg-card/60 rounded-xl border border-red-500/30 overflow-hidden">
-                    <div className="px-5 py-3 bg-red-500/10 border-b border-red-500/20 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Swords className="h-4 w-4 text-red-400" />
-                        {riskBadge(gate.riskTier)}
-                        <span className="text-sm font-semibold text-foreground">{gate.title}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{formatTime(gate.createdAt)}</span>
-                    </div>
-                    {/* LLM Reasoning */}
-                    {gate.detail?.reasoning && (
-                      <div className="px-5 py-3 border-b border-border/30">
-                        <div className="flex items-center gap-1.5 text-xs text-cyan-400 font-medium mb-1">
-                          <Brain className="h-3 w-3" /> LLM Reasoning
-                        </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">{gate.detail.reasoning}</p>
-                      </div>
-                    )}
-                    {/* Exploit Actions Table */}
-                    <div className="px-5 py-3">
-                      <div className="text-xs text-muted-foreground font-medium mb-2">
-                        {planActions.length} exploit action{planActions.length !== 1 ? "s" : ""} selected:
-                      </div>
-                      <div className="space-y-1.5">
-                        {planActions.map((a, i) => (
-                          <div key={i} className="flex items-center gap-3 bg-background/50 rounded-lg px-3 py-2 border border-border/30">
-                            <span className="text-xs font-mono text-muted-foreground w-5">{i + 1}.</span>
-                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                              <Crosshair className="h-3 w-3 text-red-400 flex-none" />
-                              <span className="text-xs font-mono text-foreground truncate">{a.target}:{a.port}</span>
-                            </div>
-                            {(a.cve || a.module) && (
-                              <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-400 border-red-500/20 flex-none">
-                                {a.cve || a.module}
-                              </Badge>
-                            )}
-                            {a.service && (
-                              <span className="text-[10px] text-muted-foreground flex-none">{a.service}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Action Buttons */}
-                    <div className="px-5 py-3 bg-muted/20 border-t border-border/30 flex items-center justify-between">
-                      <p className="text-[10px] text-muted-foreground">Review the plan above. Approving will execute all listed exploits against in-scope targets.</p>
-                      <div className="flex items-center gap-2 ml-4 flex-none">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                          onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
-                          disabled={approveMut.isPending}
-                        >
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Reject Plan
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="bg-red-600 hover:bg-red-500 text-white"
-                          onClick={() => approveMut.mutate({ gateId: gate.id, approved: true })}
-                          disabled={approveMut.isPending}
-                        >
-                          <Swords className="h-3.5 w-3.5 mr-1" /> Approve & Execute
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
+                // ── Rich Exploit Plan Review Card with Modify Plan ──
+                return <ExploitPlanReviewCard key={gate.id} gate={gate} planActions={planActions} approveMut={approveMut} />;
               }
 
               // ── Standard Approval Card (per-exploit or other gates) ──
@@ -1437,6 +1580,9 @@ export default function EngagementOps() {
                   {feedbackLoopQ.data && (
                     <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-purple-500/20 text-purple-400">{feedbackLoopQ.data.totalScansExecuted}</Badge>
                   )}
+                </TabsTrigger>
+                <TabsTrigger value="planhistory" className="text-xs">
+                  <ClipboardList className="h-3.5 w-3.5 mr-1" /> Plan History
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -2969,6 +3115,111 @@ export default function EngagementOps() {
                       <RefreshCw className="h-12 w-12 mb-4 opacity-20" />
                       <p className="text-sm">No feedback loop data yet</p>
                       <p className="text-xs mt-1">The LLM feedback loop runs after vulnerability detection to request targeted re-scans</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Plan History Tab ── */}
+            <TabsContent value="planhistory" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="space-y-4 py-4">
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Audit trail of all exploit plans generated by the LLM, including operator decisions and modifications.
+                  </div>
+                  {planHistoryQ.isLoading && (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-sm text-muted-foreground">Loading plan history...</span>
+                    </div>
+                  )}
+                  {planHistoryQ.data && planHistoryQ.data.length === 0 && (
+                    <div className="text-center py-12">
+                      <ClipboardList className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">No exploit plans have been reviewed yet.</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Plans will appear here after the LLM generates an exploit strategy and you approve or reject it.</p>
+                    </div>
+                  )}
+                  {planHistoryQ.data && planHistoryQ.data.length > 0 && (
+                    <div className="space-y-3">
+                      {planHistoryQ.data.map((plan: any) => {
+                        const statusConfig: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
+                          approved: { label: "Approved", className: "bg-green-500/20 text-green-400 border-green-500/20", icon: <CheckCircle2 className="h-3 w-3" /> },
+                          rejected: { label: "Rejected", className: "bg-red-500/20 text-red-400 border-red-500/20", icon: <XCircle className="h-3 w-3" /> },
+                          modified: { label: "Modified", className: "bg-amber-500/20 text-amber-400 border-amber-500/20", icon: <Wrench className="h-3 w-3" /> },
+                        };
+                        const sc = statusConfig[plan.status] || statusConfig.approved;
+                        const actions = (plan.modifiedPlan || plan.originalPlan || []) as Array<{ target: string; port: string | number; cve?: string; module?: string; service?: string }>;
+                        const removedTargets = (plan.removedTargets || []) as Array<{ target: string; port: string | number; cve?: string; module?: string; service?: string }>;
+                        const reviewSecs = plan.reviewDurationMs ? Math.round(plan.reviewDurationMs / 1000) : null;
+
+                        return (
+                          <div key={plan.id} className="bg-card/60 rounded-xl border border-border/30 overflow-hidden">
+                            {/* Plan Header */}
+                            <div className="px-4 py-3 border-b border-border/20 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className={`text-[10px] ${sc.className} flex items-center gap-1`}>
+                                  {sc.icon} {sc.label}
+                                </Badge>
+                                <span className="text-xs text-foreground font-medium">
+                                  {plan.originalTargetCount} target{plan.originalTargetCount !== 1 ? 's' : ''}
+                                  {plan.status === 'modified' && (
+                                    <span className="text-amber-400"> → {plan.finalTargetCount} kept</span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                {reviewSecs !== null && (
+                                  <span className="flex items-center gap-1"><Timer className="h-3 w-3" /> {reviewSecs}s review</span>
+                                )}
+                                <span>{plan.operatorName || 'Unknown'}</span>
+                                <span>{plan.resolvedAt ? formatTime(new Date(plan.resolvedAt).getTime()) : formatTime(new Date(plan.createdAt).getTime())}</span>
+                              </div>
+                            </div>
+
+                            {/* LLM Reasoning */}
+                            {plan.llmReasoning && (
+                              <div className="px-4 py-2 border-b border-border/10">
+                                <div className="flex items-center gap-1.5 text-[10px] text-cyan-400 font-medium mb-1">
+                                  <Brain className="h-3 w-3" /> LLM Reasoning
+                                </div>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed">{plan.llmReasoning}</p>
+                              </div>
+                            )}
+
+                            {/* Target List */}
+                            <div className="px-4 py-2">
+                              <div className="space-y-1">
+                                {actions.map((a: any, i: number) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <Crosshair className="h-3 w-3 text-green-400 flex-none" />
+                                    <span className="font-mono text-foreground">{a.target}:{a.port}</span>
+                                    {(a.cve || a.module) && (
+                                      <Badge variant="outline" className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">{a.cve || a.module}</Badge>
+                                    )}
+                                    {a.service && <span className="text-[10px] text-muted-foreground">{a.service}</span>}
+                                  </div>
+                                ))}
+                                {removedTargets.length > 0 && (
+                                  <>
+                                    <div className="text-[10px] text-red-400/70 font-medium mt-2 mb-1">Removed by operator:</div>
+                                    {removedTargets.map((a: any, i: number) => (
+                                      <div key={`rm-${i}`} className="flex items-center gap-2 text-xs opacity-50">
+                                        <XCircle className="h-3 w-3 text-red-400 flex-none" />
+                                        <span className="font-mono text-muted-foreground line-through">{a.target}:{a.port}</span>
+                                        {(a.cve || a.module) && (
+                                          <Badge variant="outline" className="text-[9px] bg-gray-500/10 text-gray-500 border-gray-500/20">{a.cve || a.module}</Badge>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
