@@ -7750,7 +7750,7 @@
 - [x] Inject bug bounty exploitability data into CVSS temporal scoring
 
 ## Re-run Vianova Engagement (Enhanced)
-- [ ] Reset Vianova engagement ops state
+- [x] Reset Vianova engagement ops state (ID: 1350014 — cleared 1 ops snapshot, 6 scan results, reset to strict_passive)
 - [ ] Run passive scan with enhanced LLM knowledge
 - [ ] Run active scan with enhanced LLM knowledge
 - [ ] Compare before/after results (connector coverage, finding quality, scoring accuracy)
