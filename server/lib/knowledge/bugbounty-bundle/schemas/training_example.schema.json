@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PentestReasoningTrainingExample",
+  "type": "object",
+  "required": [
+    "input",
+    "output"
+  ],
+  "properties": {
+    "input": {
+      "type": "object",
+      "required": [
+        "observations",
+        "scope_statement"
+      ],
+      "properties": {
+        "observations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope_statement": {
+          "type": "string"
+        },
+        "tech_context": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": [
+        "hypotheses",
+        "next_tests",
+        "impact_summary",
+        "remediation"
+      ],
+      "properties": {
+        "hypotheses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_tests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "impact_summary": {
+          "type": "string"
+        },
+        "remediation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "owasp": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

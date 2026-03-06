@@ -21,6 +21,22 @@ import {
   emitReconComplete, emitSystemNotification, emitSystemAlert,
   eventHub,
 } from "./ws-event-hub";
+import {
+  getChainsByVulnDescriptions,
+  formatChainsForPrompt,
+} from "./knowledge/attack-chain-retriever";
+import {
+  inferAssetContext,
+  formatOntologyForPrompt,
+} from "./knowledge/asset-ontology";
+import {
+  getBugBountyContext,
+  getTriageSystemPrompt,
+  getTrainingExamplesForPrompt,
+} from "./knowledge/bugbounty-knowledge";
+import {
+  getTriageCorpusContext,
+} from "./knowledge/training-corpus";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -593,6 +609,19 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     { name: 's3scanner', desc: 'S3 bucket permission scanner — checks for public ACLs, listing, and read/write access. Usage: echo "<bucket_name>" | s3scanner scan --json', use: 'testing specific S3 bucket names for access misconfigurations' },
     { name: 'trufflehog', desc: 'Secret scanner — finds exposed credentials in public buckets. Usage: trufflehog s3 --bucket <bucket_name> --json', use: 'post-discovery scanning of accessible buckets for leaked secrets' },
     { name: 'aws', desc: 'AWS CLI for direct S3/cloud API interaction. Usage: aws s3 ls s3://<bucket> --no-sign-request', use: 'direct bucket enumeration without credentials (anonymous access testing)' },
+    // Web application fuzzing & content discovery tools
+    { name: 'ffuf', desc: 'Fast web fuzzer for directory/file discovery, parameter fuzzing, and vhost enumeration. Usage: ffuf -u https://target/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302,403 -o /tmp/ffuf_<target>.json -of json -t 50 -timeout 10', use: 'web content discovery, hidden endpoint fuzzing, parameter brute-forcing — faster than gobuster for large wordlists' },
+    { name: 'feroxbuster', desc: 'Recursive content discovery tool with auto-filtering and smart recursion. Usage: feroxbuster -u https://target -w /usr/share/wordlists/dirb/common.txt -o /tmp/ferox_<target>.txt --json -t 50 -d 3 --smart --auto-tune', use: 'deep recursive directory discovery — better than gobuster for finding nested paths and auto-filtering false positives' },
+    // SQL injection & database exploitation
+    { name: 'sqlmap', desc: 'Automatic SQL injection detection and exploitation tool. Usage: sqlmap -u "https://target/page?id=1" --batch --level 3 --risk 2 --random-agent --output-dir /tmp/sqlmap_<target> --forms --crawl=2. CRITICAL: only use against confirmed injectable parameters or after nuclei/ZAP identifies SQLi. Never run blindly.', use: 'SQL injection exploitation on web apps with confirmed or suspected SQLi vulnerabilities' },
+    // TLS/SSL analysis
+    { name: 'testssl', desc: 'TLS/SSL cipher and vulnerability scanner. Usage: testssl.sh --jsonfile /tmp/testssl_<target>.json --severity HIGH --sneaky <target>:443. Tests for Heartbleed, POODLE, BEAST, ROBOT, DROWN, CRIME, BREACH, FREAK, Logjam, and weak ciphers.', use: 'TLS/SSL security assessment — run on all HTTPS services to check for protocol vulnerabilities and weak cipher suites' },
+    // Web technology fingerprinting
+    { name: 'whatweb', desc: 'Web technology identifier — detects CMS, frameworks, server software, analytics, JavaScript libraries. Usage: whatweb -a 3 --log-json /tmp/whatweb_<target>.json https://target', use: 'technology stack fingerprinting — complements httpx with deeper CMS/framework detection (WordPress, Drupal, Joomla, etc.)' },
+    // WordPress-specific scanning
+    { name: 'wpscan', desc: 'WordPress vulnerability scanner — enumerates users, plugins, themes, and checks for known CVEs. Usage: wpscan --url https://target --enumerate u,vp,vt,dbe --format json -o /tmp/wpscan_<target>.json --random-user-agent. CRITICAL: only use when WordPress is detected by httpx/whatweb.', use: 'WordPress-specific vulnerability scanning — plugin/theme CVEs, user enumeration, xmlrpc abuse' },
+    // Advanced subdomain & infrastructure discovery
+    { name: 'amass', desc: 'In-depth attack surface mapping and external asset discovery. Usage: amass enum -d <domain> -o /tmp/amass_<domain>.txt -timeout 15 -passive. Combines DNS brute-force, certificate transparency, web archives, and API sources.', use: 'comprehensive subdomain and infrastructure discovery — use for broad attack surface mapping when scope allows domain-wide discovery' },
   ];
 
   const response = await invokeLLM({
@@ -636,15 +665,29 @@ The discovery scan ENRICHES the passive recon data — both tools' results will 
 
 ## PHASE B: Targeted Tool Deployment
 After discovery results are merged, select specific tools per asset based on the COMBINED passive recon + discovery data:
-- Web services → nuclei, nikto, gobuster, httpx
+- Web services → nuclei, nikto, gobuster, httpx, ffuf (fast fuzzing), feroxbuster (recursive discovery)
+- Web tech fingerprinting → whatweb (deep CMS/framework detection, complements httpx)
+- WordPress sites → wpscan (ONLY when WordPress detected by httpx/whatweb)
+- SQL injection → sqlmap (ONLY against confirmed or suspected injectable parameters from nuclei/ZAP findings)
+- TLS/SSL analysis → testssl (run on all HTTPS services to check for protocol vulnerabilities)
 - SMB/NetBIOS → enum4linux, smbclient
 - LDAP/AD → ldapsearch
 - DNS → dig (zone transfer attempts)
 - SNMP → onesixtyone
 - Login services (SSH, FTP, RDP, MySQL) → hydra (only if approved)
-- Additional subdomains → subfinder (ONLY for domain intelligence / unscoped discovery — skip for scoped engagements where targets are already defined)
+- Additional subdomains → subfinder or amass (ONLY for domain intelligence / unscoped discovery — skip for scoped engagements where targets are already defined)
+- Attack surface mapping → amass (comprehensive subdomain + infrastructure discovery when scope allows)
 - Cloud storage/apps → cloud_enum (keyword enumeration), s3scanner (bucket permission testing), aws CLI (anonymous S3 access), trufflehog (secret scanning in accessible buckets)
 - Nuclei cloud templates → nuclei with -tags cloud,s3,azure,gcp,firebase,bucket,storage,misconfig
+
+### Tool Selection Priority Rules:
+1. ALWAYS run whatweb on web services for deep tech fingerprinting before selecting specialized tools
+2. If WordPress detected → add wpscan to the tool list
+3. If SQLi suspected (from nuclei/ZAP) → add sqlmap targeting the specific parameter
+4. Use ffuf over gobuster when you need parameter fuzzing or vhost enumeration
+5. Use feroxbuster over gobuster when you need recursive depth-first directory discovery
+6. Run testssl on all HTTPS services — TLS vulnerabilities are often overlooked
+7. Use amass instead of subfinder when you need comprehensive infrastructure mapping (DNS + CT + web archives)
 
 ## CLOUD STORAGE & APP MISCONFIGURATION DETECTION
 When you detect cloud-hosted assets (via CNAME patterns, HTTP headers, or technology fingerprints), you MUST include cloud-specific tools in the activeTools list:
@@ -909,7 +952,17 @@ Rules:
 - Be WAF-aware: if WAF is detected, adjust scan parameters (lower rate, use evasion)
 - Correlate findings across tools (nmap services → nuclei templates → ZAP findings → exploit selection)
 - High-risk actions (exploits, C2 deployment) require operator approval — flag them
-- Never scan out-of-scope targets`;
+- Never scan out-of-scope targets
+${(() => {
+  // Inject asset ontology context for architecture-aware decisions
+  const detectedTech = context.assets.flatMap(a => [
+    ...(a.type !== 'unknown' ? [a.type] : []),
+    ...a.ports.map((p: any) => p.service).filter(Boolean),
+  ]);
+  const ontology = detectedTech.length > 0 ? formatOntologyForPrompt([...new Set(detectedTech)]) : '';
+  const bbTraining = getTrainingExamplesForPrompt(2);
+  return ontology + (bbTraining ? '\n\n## Bug Bounty Reasoning Examples\n' + bbTraining : '');
+})()}`;
 
   try {
     const response = await invokeLLM({
@@ -1450,6 +1503,91 @@ function parseToolOutput(
         const trimmed = line.trim();
         if (trimmed && trimmed.includes('.') && !trimmed.startsWith('[')) {
           findings.push({ severity: "info", title: `[subfinder] Subdomain: ${trimmed}` });
+        }
+      }
+      break;
+    }
+    case "feroxbuster": {
+      // feroxbuster JSON output: recursive directory discovery results
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          const status = obj.status || obj.status_code;
+          const url = obj.url || obj.original_url || '';
+          const length = obj.content_length || obj.length || '?';
+          if (status && [200, 301, 302, 401, 403, 500].includes(status)) {
+            let severity = "info";
+            if (status === 500) severity = "medium";
+            else if (status === 401 || status === 403) severity = "low";
+            else if (/admin|config|backup|\.env|\.git|\.sql|\.bak|upload|dashboard|secret|password/i.test(url)) severity = "medium";
+            findings.push({ severity, title: `[feroxbuster] ${url} (${status}, ${length}B)` });
+          }
+        } catch {
+          // Plain text output fallback: "STATUS  LINES  WORDS  CHARS  URL"
+          const match = trimmed.match(/(\d{3})\s+\d+\w?\s+\d+\w?\s+\d+\w?\s+(\S+)/);
+          if (match) {
+            const [, status, url] = match;
+            findings.push({ severity: "info", title: `[feroxbuster] ${url} (${status})` });
+          }
+        }
+      }
+      break;
+    }
+    case "sqlmap": {
+      // sqlmap output: SQL injection detection and exploitation results
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        // Injection point found
+        if (/Parameter.*is vulnerable/i.test(trimmed) || /injectable/i.test(trimmed)) {
+          findings.push({ severity: "critical", title: `[sqlmap] SQL Injection Confirmed: ${trimmed.slice(0, 150)}` });
+        }
+        // Database type identified
+        else if (/back-end DBMS/i.test(trimmed)) {
+          findings.push({ severity: "high", title: `[sqlmap] ${trimmed.slice(0, 150)}` });
+        }
+        // Data extracted
+        else if (/available databases/i.test(trimmed) || /Database:/i.test(trimmed)) {
+          findings.push({ severity: "critical", title: `[sqlmap] Database Enumerated: ${trimmed.slice(0, 150)}` });
+        }
+        // Tables/columns dumped
+        else if (/Table:/i.test(trimmed) || /\d+ entries/i.test(trimmed)) {
+          findings.push({ severity: "critical", title: `[sqlmap] Data Extracted: ${trimmed.slice(0, 150)}` });
+        }
+        // OS shell or file access
+        else if (/os-shell|file-read|file-write/i.test(trimmed)) {
+          findings.push({ severity: "critical", title: `[sqlmap] OS-level Access: ${trimmed.slice(0, 150)}` });
+        }
+        // Injection type info
+        else if (/Type:\s*(boolean|time|error|UNION|stacked)/i.test(trimmed)) {
+          findings.push({ severity: "high", title: `[sqlmap] Injection Type: ${trimmed.slice(0, 150)}` });
+        }
+      }
+      break;
+    }
+    case "amass": {
+      // amass output: subdomain and infrastructure discovery
+      for (const line of stdout.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('Querying') || trimmed.startsWith('OWASP') || trimmed.startsWith('The enumeration')) continue;
+        // JSON output mode
+        try {
+          const obj = JSON.parse(trimmed);
+          if (obj.name) {
+            const sources = obj.sources?.join(', ') || '';
+            findings.push({ severity: "info", title: `[amass] ${obj.name}${obj.addresses ? ` → ${obj.addresses.map((a: any) => a.ip).join(', ')}` : ''}${sources ? ` (${sources})` : ''}` });
+          }
+          continue;
+        } catch { /* plain text mode */ }
+        // Plain text: one subdomain per line
+        if (trimmed.includes('.') && !trimmed.includes(' ')) {
+          findings.push({ severity: "info", title: `[amass] Subdomain: ${trimmed}` });
+        }
+        // CIDR/ASN info
+        else if (/ASN|CIDR|Netblock/i.test(trimmed)) {
+          findings.push({ severity: "info", title: `[amass] Infrastructure: ${trimmed.slice(0, 150)}` });
         }
       }
       break;
@@ -2956,7 +3094,20 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       question: `We've completed vulnerability scanning. Here are the findings:
 ${allVulns.map(v => `- ${v.title} (${v.severity})${v.cve ? ` [${v.cve}]` : ""}`).join("\n")}
 
-Correlate these findings and recommend the best exploitation strategy. For pentest: prioritize per-asset unauthorized access. For red team: identify the weakest entry point for C2 deployment.`,
+Correlate these findings and recommend the best exploitation strategy. For pentest: prioritize per-asset unauthorized access. For red team: identify the weakest entry point for C2 deployment.
+${(() => {
+  const vulnDescs = allVulns.map(v => v.title + (v.cve ? ` ${v.cve}` : ''));
+  const chains = getChainsByVulnDescriptions(vulnDescs, 3);
+  const chainCtx = formatChainsForPrompt(chains);
+  const detectedTech = state.assets.flatMap(a => [
+    ...(a.type !== 'unknown' ? [a.type] : []),
+    ...a.ports.map((p: any) => p.service).filter(Boolean),
+  ]);
+  const ontologyCtx = formatOntologyForPrompt([...new Set(detectedTech)]);
+  const bugBountyCtx = getBugBountyContext(vulnDescs, 3);
+  const triageCtx = getTriageCorpusContext(undefined, 3);
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx;
+})()}`,
     });
 
     state.llmPlan = correlationDecision.decision;
@@ -2994,7 +3145,22 @@ async function executeExploitation(state: EngagementOpsState, engagement: any, o
     question: `It's time to exploit. Which assets should we target first and with what techniques? Remember:
 - Pentest: try each asset for unauthorized access to data or privileged functions
 - Red Team: find the easiest path to a shell for C2 deployment
-Available vulns: ${state.assets.flatMap(a => a.vulns.map(v => `${a.hostname}:${v.title}${v.cve ? ` [${v.cve}]` : ""}`)).join(", ")}`,
+Available vulns: ${state.assets.flatMap(a => a.vulns.map(v => `${a.hostname}:${v.title}${v.cve ? ` [${v.cve}]` : ""}`)).join(", ")}
+${(() => {
+  // Inject attack chain few-shot examples based on detected vuln types
+  const vulnDescs = state.assets.flatMap(a => a.vulns.map(v => v.title + (v.cve ? ` ${v.cve}` : '')));
+  const chains = getChainsByVulnDescriptions(vulnDescs, 3);
+  const chainContext = formatChainsForPrompt(chains);
+  // Inject asset ontology context based on detected technologies
+  const detectedTech = state.assets.flatMap(a => [
+    ...(a.type !== 'unknown' ? [a.type] : []),
+    ...a.ports.map((p: any) => p.service).filter(Boolean),
+  ]);
+  const ontologyContext = formatOntologyForPrompt([...new Set(detectedTech)]);
+  const bbContext = getBugBountyContext(vulnDescs, 3);
+  const corpusContext = getTriageCorpusContext(undefined, 3);
+  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext;
+})()}`,
   });
 
   addLog(state, {

@@ -7695,3 +7695,31 @@
 ## Pentest Training Bundle Analysis
 - [x] Deep analysis of ace_c3_pentest_training_bundle_v2.zip for LLM integration
 - [x] Document how to use training data to improve pentesting/red team/vuln verification skills
+
+## Attack Chain Integration
+- [x] Load 300 attack chains into a server-side module for retrieval by OWASP category
+- [x] Create chain retrieval function that filters by detected vulnerability type
+- [x] Integrate filtered chains as few-shot examples in the orchestrator's LLM exploitation planning + correlation prompts
+- [x] Add chain reference IDs to exploit plan logs for traceability
+
+## New Tool Registration
+- [x] Create tool definition entries for ffuf, feroxbuster, sqlmap, testssl.sh, whatweb, wpscan, amass
+- [x] Add SSH command templates for each new tool (with usage examples in tool definitions)
+- [x] Register tools in the orchestrator's available tool list with descriptions and usage patterns
+- [x] Add output parsers for feroxbuster, sqlmap, amass (ffuf, whatweb, wpscan, testssl already existed)
+
+## Tool Output Training Corpus
+- [x] Build training corpus with 8 annotated tool output examples across 7 tools
+- [x] Create annotated tool output examples with expected LLM triage responses
+- [x] Store corpus as structured TypeScript module (training-corpus.ts) for RAG integration
+- [x] Add corpus loading into the orchestrator's scan triage prompt context
+
+## Asset Ontology Bundle Analysis
+- [x] Extract and analyze ace_c3_asset_ontology_bundle.zip
+- [x] Document how to enhance LLM knowledge about IT architecture and assets
+- [x] Integrate asset ontology into orchestrator LLM prompts (all phases + exploitation planning)
+
+## Bug Bounty Knowledge Training Bundle Analysis
+- [x] Extract and analyze ace_c3_bug_bounty_knowledge_training_bundle.zip
+- [x] Document how to integrate bug bounty knowledge into LLM for pentesting/red teaming
+- [x] Integrate bug bounty patterns into orchestrator LLM prompts (bugbounty-knowledge.ts)
