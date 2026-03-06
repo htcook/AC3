@@ -3741,6 +3741,45 @@ export async function executeEngagement(
   async function phaseCheckpoint(completedPhase: string) {
     await persistOpsStateNow(engagementId);
     console.log(`[OpsState] Phase checkpoint saved: ${completedPhase} for engagement #${engagementId}`);
+    // ═══ REAL-TIME OWASP COVERAGE UPDATE ═══
+    try {
+      // Re-populate tracker from current state after each phase
+      const phaseTracker = resetOwaspTracker();
+      for (const asset of state.assets) {
+        const tech = asset.passiveRecon?.technologies || [];
+        if (tech.length > 0) phaseTracker.registerAssetTech(asset.hostname, tech);
+        for (const tr of asset.toolResults) {
+          phaseTracker.addToolRun({ tool: tr.tool, target: asset.hostname, command: tr.command, exitCode: tr.exitCode });
+          for (const f of tr.findings) {
+            phaseTracker.addFinding({ title: f.title, severity: f.severity, tool: tr.tool, target: asset.hostname });
+          }
+        }
+        for (const v of asset.vulns) {
+          phaseTracker.addFinding({ title: v.title, severity: v.severity, tool: 'nuclei', target: asset.hostname });
+        }
+        for (const z of asset.zapFindings) {
+          phaseTracker.addFinding({ title: z.alert, severity: z.risk, tool: 'zap', target: asset.hostname });
+        }
+      }
+      const liveCoverage = phaseTracker.getEngagementCoverage(String(engagementId));
+      broadcastOpsUpdate(engagementId, {
+        type: 'owasp_coverage_update',
+        phase: completedPhase,
+        owaspCoverage: {
+          overallScore: liveCoverage.overallScore,
+          grade: liveCoverage.grade,
+          totalTested: liveCoverage.totalTested,
+          totalPartial: liveCoverage.totalPartial,
+          totalGaps: liveCoverage.totalGaps,
+          criticalGaps: liveCoverage.criticalGaps.length,
+          categories: liveCoverage.categories.map(c => ({
+            id: c.id, name: c.name, status: c.status, score: c.score, findingsCount: c.findingsCount,
+          })),
+        },
+      });
+    } catch (e: any) {
+      console.error(`[OWASP Coverage] Real-time update failed after ${completedPhase}:`, e.message);
+    }
   }
 
   try {

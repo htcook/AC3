@@ -59,6 +59,7 @@ const ThreatActorCatalogDetail = lazy(() => import("./pages/ThreatActorCatalogDe
 const DarkwebIntel = lazy(() => import("./pages/DarkwebIntel"));
 const BreachEvents = lazy(() => import("./pages/BreachEvents"));
 const ThreatIntelHub = lazy(() => import("./pages/ThreatIntelHub"));
+const ThreatGroupBrowser = lazy(() => import("./pages/ThreatGroupBrowser"));
 const CampaignArchetypes = lazy(() => import("./pages/CampaignArchetypes"));
 const ExploitArsenal = lazy(() => import("./pages/ExploitArsenal"));
 const MsfServers = lazy(() => import("./pages/MsfServers"));
@@ -455,6 +456,9 @@ function Router() {
         </Route>
         <Route path="/threat-intel-hub">
           <ProtectedRoute component={ThreatIntelHub} />
+        </Route>
+        <Route path="/threat-group-browser">
+          <ProtectedRoute component={ThreatGroupBrowser} />
         </Route>
         <Route path="/threat-catalog">
           <ProtectedRoute component={ThreatCatalog} />

@@ -7948,3 +7948,23 @@
 - [x] Wire threat group knowledge into hunt-engine LLM prompts — injected into generateHypotheses() with sector context
 - [x] Wire threat group knowledge into engagement-orchestrator — 3 injection points: scan plan, vuln correlation, exploitation planning
 - [x] Write vitest tests for threat group knowledge module — 30 tests covering data integrity, lookups, summary, sector profiles, LLM context builders
+
+## Threat Group Browser Page
+- [x] Create ThreatGroupBrowser.tsx page with search/filter by sector, TTP, CVE, group type — full page with expandable group cards
+- [x] Add tRPC endpoints for threat group listing, filtering, and detail views — threatGroupKnowledge router with list, getById, summary, filterOptions, huntContext, scanContext, vulnContext, sectorContext
+- [x] Display group profiles with TTPs, tools, CVEs, defense recommendations — expandable cards with TTP chain, tools grid, CVE list, defense recommendations
+- [x] Add sector filter dropdown and MITRE technique search — type/sector/TTP/tool filters + free text search
+- [x] Register route in App.tsx and add to sidebar navigation — /threat-group-browser route, Swords icon in Intelligence section
+- [x] Include page purpose description at top per UX requirement — header with description and summary stats
+
+## Real-Time OWASP Coverage in Live Engagement Feed
+- [x] Wire OwaspCoverageTracker into engagement-orchestrator live ops loop — resetOwaspTracker() called in phaseCheckpoint()
+- [x] Emit OWASP coverage updates via WebSocket during scans — broadcastOpsUpdate with owasp_coverage_update type after each phase
+- [x] Update engagement detail UI to show live OWASP coverage score — OWASP Coverage widget in stats panel with score, grade, progress bar
+- [x] Show per-target coverage matrix updating in real-time as tools complete — tested/partial/gaps counters with critical gap alerts
+
+## OWASP Coverage Export Button
+- [x] Add "Export OWASP Coverage" buttons to engagement results UI — OwaspExportButtons component with CSV and HTML export
+- [x] Create tRPC endpoint to generate OWASP coverage CSV export — owaspCoverage.exportCsv mutation
+- [x] Create tRPC endpoint to generate OWASP coverage HTML report — owaspCoverage.exportHtml mutation
+- [x] Wire export buttons to download CSV/HTML of per-target coverage grid — Blob download with auto-generated filenames

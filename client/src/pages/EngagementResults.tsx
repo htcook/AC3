@@ -7,7 +7,7 @@ import {
   Shield, Globe2, LogOut, Menu, X, Briefcase, ChevronLeft, Send,
   Mail, Eye, MousePointer, ShieldAlert, BarChart3, Clock, Fish,
   ExternalLink, Download, Rocket, CheckCircle, AlertTriangle,
-  TrendingUp, UserCheck, Lock
+  TrendingUp, UserCheck, Lock, Loader2
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -36,6 +36,55 @@ function ProgressBar({ value, max, color, label }: { value: number; max: number;
       <div className="w-full h-2 bg-background border border-border">
         <div className={`h-full bg-${color}-500 transition-all`} style={{ width: `${pct}%` }} />
       </div>
+    </div>
+  );
+}
+
+function OwaspExportButtons({ engagementId }: { engagementId: number }) {
+  const exportCsvMutation = trpc.owaspCoverage.exportCsv.useMutation({
+    onSuccess: (data) => {
+      if (!data.csv) { toast.error('No OWASP coverage data available for this engagement'); return; }
+      const blob = new Blob([data.csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = data.filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success('OWASP Coverage CSV exported');
+    },
+    onError: (err) => toast.error(`CSV export failed: ${err.message}`),
+  });
+  const exportHtmlMutation = trpc.owaspCoverage.exportHtml.useMutation({
+    onSuccess: (data) => {
+      if (!data.html) { toast.error('No OWASP coverage data available for this engagement'); return; }
+      const blob = new Blob([data.html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = data.filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success('OWASP Coverage HTML report exported');
+    },
+    onError: (err) => toast.error(`HTML export failed: ${err.message}`),
+  });
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        variant="outline" size="sm"
+        className="font-display tracking-wider"
+        onClick={() => exportCsvMutation.mutate({ engagementId })}
+        disabled={exportCsvMutation.isPending}
+      >
+        {exportCsvMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+        OWASP CSV
+      </Button>
+      <Button
+        variant="outline" size="sm"
+        className="font-display tracking-wider"
+        onClick={() => exportHtmlMutation.mutate({ engagementId })}
+        disabled={exportHtmlMutation.isPending}
+      >
+        {exportHtmlMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
+        OWASP REPORT
+      </Button>
     </div>
   );
 }
@@ -141,6 +190,9 @@ export default function EngagementResults() {
                   <FileText className="w-4 h-4 mr-2" />GENERATE REPORT
                 </Button>
               </Link>
+              {engagementId && (
+                <OwaspExportButtons engagementId={engagementId} />
+              )}
               <Link href={`/campaign-wizard`}>
                 <Button size="sm" className="font-display tracking-wider bg-red-600 hover:bg-red-700 text-white">
                   <Rocket className="w-4 h-4 mr-2" />ADD CAMPAIGN

@@ -126,6 +126,8 @@ import { authAssessmentRouter } from "./routers/auth-assessment";
 import { cloudSecurityValidationRouter } from "./routers/cloud-security-validation";
 import { sigmaRulesRouter } from "./routers/sigma-rules";
 import { c2ActorOrchestrationRouter } from "./routers/c2-actor-orchestration";
+import { threatGroupKnowledgeRouter } from "./routers/threat-group-knowledge";
+import { owaspCoverageRouter } from "./routers/owasp-coverage";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -462,6 +464,10 @@ export const appRouter = router({
   reviewQueue: reviewQueueRouter,
   // ─── Job Queue (Redis-backed DO worker dispatch) ────────────────────────
   jobQueue: jobQueueRouter,
+  // ─── Threat Group Knowledge Base ────────────────────────────────────────
+  threatGroupKnowledge: threatGroupKnowledgeRouter,
+  // ─── OWASP Coverage Tracking & Export ───────────────────────────────────
+  owaspCoverage: owaspCoverageRouter,
 });
 export type AppRouter = typeof appRouter;
 

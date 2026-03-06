@@ -700,6 +700,7 @@ export default function EngagementOps() {
 
   // ── Merge WS events into ops state for instant feed updates ──
   const [wsLogBuffer, setWsLogBuffer] = useState<OpsLogEntry[]>([]);
+  const [liveOwaspCoverage, setLiveOwaspCoverage] = useState<any>(null);
   const lastProcessedWsRef = useRef<number>(0);
 
   // Process incoming WS events and extract log entries
@@ -751,6 +752,11 @@ export default function EngagementOps() {
     // Cloud detection events — refetch cloud misconfigs
     if (evtData.type === "action" && (evtData.action === "cloud_detection" || evtData.action === "cloud_scan")) {
       utils.engagementOps.getCloudMisconfigs.invalidate({ engagementId });
+    }
+
+    // OWASP coverage real-time update
+    if (evtData.type === "owasp_coverage_update" && evtData.owaspCoverage) {
+      setLiveOwaspCoverage(evtData.owaspCoverage);
     }
   }, [wsLastEvent, engagementId, utils]);
 
@@ -3294,6 +3300,58 @@ export default function EngagementOps() {
                         <StatCard icon={<Crosshair className="h-4 w-4 text-purple-400" />} label="Metasploit" value={(opsStateQ.data as any).essIntelligence.metasploitCount} />
                       )}
                     </>
+                  )}
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
+
+          {/* OWASP Coverage (live) */}
+          {liveOwaspCoverage && (
+            <>
+              <div>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">OWASP Coverage</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Score</span>
+                    <Badge variant="outline" className={`text-xs font-mono ${
+                      liveOwaspCoverage.overallScore >= 70 ? 'text-green-400 border-green-500/30' :
+                      liveOwaspCoverage.overallScore >= 40 ? 'text-yellow-400 border-yellow-500/30' :
+                      'text-red-400 border-red-500/30'
+                    }`}>
+                      {liveOwaspCoverage.overallScore}% ({liveOwaspCoverage.grade})
+                    </Badge>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5">
+                    <div
+                      className={`h-1.5 rounded-full transition-all duration-500 ${
+                        liveOwaspCoverage.overallScore >= 70 ? 'bg-green-500' :
+                        liveOwaspCoverage.overallScore >= 40 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${liveOwaspCoverage.overallScore}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-center">
+                    <div className="p-1 rounded bg-green-500/10">
+                      <div className="text-xs font-bold text-green-400">{liveOwaspCoverage.totalTested}</div>
+                      <div className="text-[9px] text-muted-foreground">Tested</div>
+                    </div>
+                    <div className="p-1 rounded bg-yellow-500/10">
+                      <div className="text-xs font-bold text-yellow-400">{liveOwaspCoverage.totalPartial}</div>
+                      <div className="text-[9px] text-muted-foreground">Partial</div>
+                    </div>
+                    <div className="p-1 rounded bg-red-500/10">
+                      <div className="text-xs font-bold text-red-400">{liveOwaspCoverage.totalGaps}</div>
+                      <div className="text-[9px] text-muted-foreground">Gaps</div>
+                    </div>
+                  </div>
+                  {liveOwaspCoverage.criticalGaps > 0 && (
+                    <div className="text-[10px] text-red-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {liveOwaspCoverage.criticalGaps} critical gap{liveOwaspCoverage.criticalGaps > 1 ? 's' : ''}
+                    </div>
                   )}
                 </div>
               </div>
