@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `vuln_trend_entries` (\n  `id` int AUTO_INCREMENT NOT NULL PRIMARY KEY,\n  `snapshot_id` int NOT NULL,\n  `engagement_id` int NOT NULL,\n  `hostname` varchar(255) NOT NULL,\n  `vuln_title` varchar(512) NOT NULL,\n  `severity` varchar(32) NOT NULL,\n  `category` varchar(128),\n  `confidence` int,\n  `cve` varchar(64),\n  `tool` varchar(64),\n  `status` enum('new','existing','resolved','regressed') NOT NULL DEFAULT 'new',\n  `first_seen_snapshot_id` int,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  INDEX `vuln_trend_engagement_idx` (`engagement_id`),\n  INDEX `vuln_trend_snapshot_idx` (`snapshot_id`),\n  INDEX `vuln_trend_hostname_idx` (`hostname`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `vuln_trend_entries` (\n  `id` int AUTO_INCREMENT NOT NULL PRIMARY KEY,\n  `snapshot_id` int NOT NULL,\n  `engagement_id` int NOT NULL,\n  `hostname` varchar(255) NOT NULL,\n  `vuln_title` varchar(512) NOT NULL,\n  `severity` varchar(32) NOT NULL,\n  `category` varchar(128),\n  `confidence` int,\n  `cve` varchar(64),\n  `tool` varchar(64),\n  `status` enum('new','existing','resolved','regressed') NOT NULL DEFAULT 'new',\n  `first_seen_snapshot_id` int,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  INDEX `vuln_trend_engagement_idx` (`engagement_id`),\n  INDEX `vuln_trend_snapshot_idx` (`snapshot_id`),\n  INDEX `vuln_trend_hostname_idx` (`hostname`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 121
+}

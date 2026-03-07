@@ -5038,3 +5038,56 @@ export type InsertTrainingLabSession = typeof trainingLabSessions.$inferInsert;
 export type SelectTrainingLabSession = typeof trainingLabSessions.$inferSelect;
 export type InsertTrainingLabFeedback = typeof trainingLabFeedback.$inferInsert;
 export type SelectTrainingLabFeedback = typeof trainingLabFeedback.$inferSelect;
+
+
+// ── Vulnerability Trend Tracking ──
+export const vulnScanSnapshots = mysqlTable("vuln_scan_snapshots", {
+	id: int().autoincrement().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	snapshotType: mysqlEnum("snapshot_type", ['passive', 'active', 'llm_synthesis', 'full_pipeline', 'resynthesis']).notNull(),
+	totalAssets: int("total_assets").default(0).notNull(),
+	totalVulns: int("total_vulns").default(0).notNull(),
+	criticalCount: int("critical_count").default(0).notNull(),
+	highCount: int("high_count").default(0).notNull(),
+	mediumCount: int("medium_count").default(0).notNull(),
+	lowCount: int("low_count").default(0).notNull(),
+	totalPorts: int("total_ports").default(0).notNull(),
+	totalExploits: int("total_exploits").default(0).notNull(),
+	avgConfidence: int("avg_confidence").default(0),
+	newVulnsFound: int("new_vulns_found").default(0),
+	resolvedVulns: int("resolved_vulns").default(0),
+	categories: json(),  // { [category: string]: number }
+	assetBreakdown: json("asset_breakdown"),  // [{ hostname, vulnCount, portCount, riskSignals }]
+	metadata: json(),  // arbitrary metadata (pipeline duration, scan tools used, etc.)
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("vuln_snap_engagement_idx").on(table.engagementId),
+	index("vuln_snap_created_idx").on(table.createdAt),
+]);
+
+export const vulnTrendEntries = mysqlTable("vuln_trend_entries", {
+	id: int().autoincrement().notNull(),
+	snapshotId: int("snapshot_id").notNull(),
+	engagementId: int("engagement_id").notNull(),
+	hostname: varchar({ length: 255 }).notNull(),
+	vulnTitle: varchar("vuln_title", { length: 512 }).notNull(),
+	severity: varchar({ length: 32 }).notNull(),
+	category: varchar({ length: 128 }),
+	confidence: int(),
+	cve: varchar({ length: 64 }),
+	tool: varchar({ length: 64 }),
+	status: mysqlEnum(['new', 'existing', 'resolved', 'regressed']).default('new').notNull(),
+	firstSeenSnapshotId: int("first_seen_snapshot_id"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("vuln_trend_engagement_idx").on(table.engagementId),
+	index("vuln_trend_snapshot_idx").on(table.snapshotId),
+	index("vuln_trend_hostname_idx").on(table.hostname),
+]);
+
+export type InsertVulnScanSnapshot = typeof vulnScanSnapshots.$inferInsert;
+export type SelectVulnScanSnapshot = typeof vulnScanSnapshots.$inferSelect;
+export type InsertVulnTrendEntry = typeof vulnTrendEntries.$inferInsert;
+export type SelectVulnTrendEntry = typeof vulnTrendEntries.$inferSelect;

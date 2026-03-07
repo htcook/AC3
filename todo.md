@@ -8151,3 +8151,30 @@
 - [x] Wire up tRPC mutation with success/error toast notifications
 - [x] Write 17 vitest tests for all new features (all passing)
 - [x] All 63 tests pass (17 new + 46 existing regression tests)
+
+## Nuclei DAST Mode with Crawling
+- [x] Add nuclei DAST mode (-dast flag) to active scanning pipeline
+- [x] Configure URL crawling with -timeout 300 and -system-resolvers
+- [x] Parse DAST JSONL findings and merge with LLM-synthesized vulns
+- [x] Add "confirmed by active scan" badge for vulns validated by nuclei DAST
+- [x] Add curl-based security header probing as additional fallback
+
+## Exploit Execution Sandbox
+- [x] Add backend exploit-sandbox.ts module with SSH-based execution
+- [x] Execute exploits via scan server with process isolation (timeout, ulimit)
+- [x] Support dry-run mode (default) and live execution with operator confirmation
+- [x] Capture stdout/stderr output with 50KB max output limit
+- [x] Build frontend execution dialog with CodeViewer output, dry-run toggle
+- [x] Add execution history tracking per engagement
+- [x] Add exploit syntax validation endpoint
+- [x] Support Python, Bash, Ruby, PowerShell languages
+
+## Vulnerability Trend Tracking
+- [x] Add vuln_scan_snapshots and vuln_trend_entries DB tables
+- [x] Auto-record snapshot on pipeline completion with severity breakdown
+- [x] Add getVulnTrend, getVulnDiff, recordScanSnapshot tRPC endpoints
+- [x] Build VulnTrendChart component with recharts (stacked area chart)
+- [x] Add Trends tab with snapshot history, per-asset breakdown, new/resolved counts
+- [x] Add manual "Record Snapshot" button for on-demand tracking
+- [x] Write 20 vitest tests for all new features (all passing)
+- [x] All 66 tests pass (20 new + 46 existing regression tests)

@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
 import { CodeViewer } from "@/components/CodeViewer";
+import { VulnTrendChart } from "@/components/VulnTrendChart";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -42,7 +43,7 @@ import {
   Sparkles, ClipboardList, Key, KeyRound,
   Cloud, CloudOff, Brain, GitBranch, Layers, RefreshCw, Gauge,
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
-  ScanEye, ShieldOff, Bolt,
+  ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -743,6 +744,14 @@ export default function EngagementOps() {
 
   // ── Targeted Re-Synthesis ──
   const [resynthTarget, setResynthTarget] = useState<string | null>(null);
+  const [execExploitIdx, setExecExploitIdx] = useState<number | null>(null);
+  const [execDryRun, setExecDryRun] = useState(true);
+  const [execResult, setExecResult] = useState<any>(null);
+  const executeExploitMut = trpc.engagementOps.executeExploit.useMutation({
+    onSuccess: (data) => { setExecResult(data); toast({ title: data.status === 'success' ? 'Exploit executed successfully' : `Execution ${data.status}`, description: `Exit code: ${data.exitCode} | Duration: ${data.durationMs}ms${data.dryRun ? ' (dry run)' : ''}` }); },
+    onError: (err) => toast({ title: 'Execution failed', description: err.message, variant: 'destructive' }),
+  });
+  const execHistoryQ = trpc.engagementOps.getExploitExecutionHistory.useQuery({ engagementId }, { enabled: !!engagementId });
   const [resynthCategories, setResynthCategories] = useState<string[]>([]);
   const [resynthReplace, setResynthReplace] = useState(false);
   const resynthMut = trpc.engagementOps.resynthesizeAssetVulns.useMutation({
@@ -753,6 +762,19 @@ export default function EngagementOps() {
       setResynthCategories([]);
     },
     onError: (e) => toast.error(`Re-synthesis failed: ${e.message}`),
+  });
+
+  // ── Vulnerability Trend Tracking ──
+  const vulnTrendQ = trpc.engagementOps.getVulnTrend.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0, refetchInterval: 30000 }
+  );
+  const recordSnapshotMut = trpc.engagementOps.recordScanSnapshot.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Snapshot recorded: ${data.totalVulns} vulns (${data.newVulnsFound} new, ${data.resolvedVulns} resolved)`);
+      vulnTrendQ.refetch();
+    },
+    onError: (e) => toast.error(`Snapshot failed: ${e.message}`),
   });
 
   // ── WebSocket live feed ──
@@ -1666,6 +1688,9 @@ export default function EngagementOps() {
                   {(generatedExploitsQ.data?.length || 0) > 0 && (
                     <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-red-500/20 text-red-400">{generatedExploitsQ.data!.length}</Badge>
                   )}
+                </TabsTrigger>
+                <TabsTrigger value="trends" className="text-xs">
+                  <TrendingUp className="h-3.5 w-3.5 mr-1" /> Trends
                 </TabsTrigger>
                 <TabsTrigger value="planhistory" className="text-xs">
                   <ClipboardList className="h-3.5 w-3.5 mr-1" /> Plan History
@@ -3322,6 +3347,9 @@ export default function EngagementOps() {
                                   }`}>{v.confidence}% conf</Badge>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  {v.confirmedByActiveScan && (
+                                    <Badge variant="outline" className="text-[8px] text-green-300 border-green-500/30 bg-green-500/10">✓ confirmed</Badge>
+                                  )}
                                   {v.category && (
                                     <Badge variant="outline" className="text-[8px] text-cyan-300 border-cyan-500/20">{v.category.replace(/_/g, ' ')}</Badge>
                                   )}
@@ -3409,6 +3437,11 @@ export default function EngagementOps() {
                                 <Button size="sm" variant="outline" className="h-6 text-[10px] border-border/30" onClick={() => setViewingExploitIdx(idx)}>
                                   <Eye className="h-3 w-3 mr-1" /> View Code
                                 </Button>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] border-green-500/30 text-green-400 hover:bg-green-500/10"
+                                  onClick={() => { setExecExploitIdx(idx); setExecDryRun(true); setExecResult(null); }}
+                                >
+                                  <Play className="h-3 w-3 mr-1" /> Execute
+                                </Button>
                                 <Button size="sm" variant="outline" className="h-6 text-[10px] border-border/30"
                                   onClick={() => validateExploitMut.mutate({ engagementId, exploitIndex: idx })}
                                   disabled={validateExploitMut.isPending}
@@ -3447,6 +3480,103 @@ export default function EngagementOps() {
                       <Bolt className="h-12 w-12 mb-4 opacity-20" />
                       <p className="text-sm">No exploit code generated yet</p>
                       <p className="text-xs mt-1">Run the full pipeline with Exploit Generation enabled, or use the Exploit Generator in the sidebar</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Vulnerability Trends Tab ── */}
+            <TabsContent value="trends" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-cyan-400" /> Vulnerability Trend Tracking
+                      </h3>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Track how vulnerabilities change across scan runs. Snapshots are recorded automatically after each pipeline completion.</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs"
+                      onClick={() => recordSnapshotMut.mutate({ engagementId })}
+                      disabled={recordSnapshotMut.isPending}
+                    >
+                      {recordSnapshotMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <BarChart3 className="h-3 w-3 mr-1" />}
+                      Record Snapshot
+                    </Button>
+                  </div>
+
+                  {/* Trend Chart */}
+                  {vulnTrendQ.data && vulnTrendQ.data.length > 0 ? (
+                    <Card className="bg-card/50 border-border/30">
+                      <CardContent className="p-4">
+                        <div className="h-[250px]">
+                          <VulnTrendChart data={vulnTrendQ.data} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card className="bg-card/50 border-border/30">
+                      <CardContent className="p-8 text-center">
+                        <BarChart3 className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">No trend data yet. Run the pipeline to generate the first snapshot.</p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Snapshot History */}
+                  {vulnTrendQ.data && vulnTrendQ.data.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase">Snapshot History</h4>
+                      {vulnTrendQ.data.slice().reverse().map((snap: any, i: number) => (
+                        <Card key={snap.id} className="bg-card/30 border-border/20">
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-[9px]">{snap.type.replace('_', ' ')}</Badge>
+                                <span className="text-[10px] text-muted-foreground">{new Date(snap.date).toLocaleString()}</span>
+                              </div>
+                              <div className="flex items-center gap-3 text-[10px]">
+                                <span className="text-foreground font-medium">{snap.totalVulns} vulns</span>
+                                {snap.newFound > 0 && <span className="text-green-400">+{snap.newFound} new</span>}
+                                {snap.resolved > 0 && <span className="text-blue-400">-{snap.resolved} resolved</span>}
+                              </div>
+                            </div>
+                            <div className="flex gap-3 mt-2">
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-red-500" />
+                                <span className="text-[9px] text-muted-foreground">Critical: {snap.critical}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-orange-500" />
+                                <span className="text-[9px] text-muted-foreground">High: {snap.high}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                                <span className="text-[9px] text-muted-foreground">Medium: {snap.medium}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                <span className="text-[9px] text-muted-foreground">Low: {snap.low}</span>
+                              </div>
+                              <span className="text-[9px] text-muted-foreground ml-auto">{snap.ports} ports | {snap.exploits} exploits | {snap.assets} assets</span>
+                            </div>
+                            {/* Asset breakdown */}
+                            {snap.assetBreakdown && Array.isArray(snap.assetBreakdown) && (
+                              <div className="mt-2 grid grid-cols-3 gap-1">
+                                {(snap.assetBreakdown as any[]).slice(0, 6).map((ab: any, j: number) => (
+                                  <div key={j} className="text-[9px] bg-muted/20 rounded px-1.5 py-0.5 truncate">
+                                    <span className="text-muted-foreground">{ab.hostname}:</span> {ab.vulnCount}v {ab.portCount}p
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -4027,6 +4157,103 @@ export default function EngagementOps() {
               {rerunMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
               Start Re-Run
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Exploit Execution Sandbox Dialog ── */}
+      <AlertDialog open={execExploitIdx !== null} onOpenChange={(open) => { if (!open) { setExecExploitIdx(null); setExecResult(null); } }}>
+        <AlertDialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Terminal className="h-5 w-5 text-green-400" />
+              Exploit Execution Sandbox
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Execute exploit scripts in a sandboxed environment on the scan server with resource limits and isolation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex-1 overflow-auto space-y-4 py-2">
+            {execExploitIdx !== null && generatedExploitsQ.data?.[execExploitIdx] && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground uppercase">Target</label>
+                    <div className="text-sm font-mono text-foreground bg-muted/30 rounded px-2 py-1">{generatedExploitsQ.data[execExploitIdx].asset}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground uppercase">Language</label>
+                    <div className="text-sm font-mono text-foreground bg-muted/30 rounded px-2 py-1">{generatedExploitsQ.data[execExploitIdx].language}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={execDryRun} onChange={(e) => setExecDryRun(e.target.checked)} className="rounded" />
+                    <span className="text-xs">Dry Run</span>
+                    <span className="text-[10px] text-muted-foreground">(validate syntax only, no network connections)</span>
+                  </label>
+                </div>
+                {!execDryRun && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-red-400 text-xs font-medium">
+                      <ShieldAlert className="h-4 w-4" /> Live Execution Warning
+                    </div>
+                    <p className="text-[10px] text-red-300/80 mt-1">This will execute the exploit against the real target. Ensure you have authorization and the target is in scope.</p>
+                  </div>
+                )}
+              </>
+            )}
+            {execResult && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`text-[10px] ${
+                    execResult.status === 'success' ? 'text-green-400 border-green-500/30' :
+                    execResult.status === 'timeout' ? 'text-yellow-400 border-yellow-500/30' :
+                    'text-red-400 border-red-500/30'
+                  }`}>{execResult.status.toUpperCase()}</Badge>
+                  <span className="text-[10px] text-muted-foreground">Exit: {execResult.exitCode} | {execResult.durationMs}ms{execResult.dryRun ? ' | Dry Run' : ''}</span>
+                </div>
+                <div className="bg-black/40 rounded-lg p-3 font-mono text-[11px] max-h-[300px] overflow-auto">
+                  <div className="text-[9px] text-muted-foreground uppercase mb-1">Output</div>
+                  <pre className="text-green-300 whitespace-pre-wrap">{execResult.stdout || '(no output)'}</pre>
+                  {execResult.stderr && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground uppercase mt-2 mb-1">Stderr</div>
+                      <pre className="text-red-300 whitespace-pre-wrap">{execResult.stderr}</pre>
+                    </>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  Sandbox: {execResult.sandboxInfo?.memoryLimitMb}MB RAM | {execResult.sandboxInfo?.cpuTimeLimitSec}s CPU | {execResult.sandboxInfo?.timeoutSec}s timeout
+                </div>
+              </div>
+            )}
+            {(execHistoryQ.data?.length || 0) > 0 && !execResult && (
+              <div className="space-y-2">
+                <div className="text-[10px] text-muted-foreground uppercase">Recent Executions</div>
+                {(execHistoryQ.data || []).slice(-5).reverse().map((h: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px] bg-muted/20 rounded px-2 py-1">
+                    <Badge variant="outline" className={`text-[8px] ${
+                      h.status === 'success' ? 'text-green-400 border-green-500/30' : 'text-red-400 border-red-500/30'
+                    }`}>{h.status}</Badge>
+                    <span className="font-mono">{h.exploitId}</span>
+                    <span className="text-muted-foreground">{h.durationMs}ms</span>
+                    <span className="text-muted-foreground ml-auto">{new Date(h.executedAt).toLocaleTimeString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+            <Button
+              onClick={() => execExploitIdx !== null && executeExploitMut.mutate({ engagementId, exploitIndex: execExploitIdx, dryRun: execDryRun })}
+              disabled={executeExploitMut.isPending || execExploitIdx === null}
+              className={execDryRun ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+            >
+              {executeExploitMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              {execDryRun ? 'Run Dry Test' : 'Execute Live'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1480,6 +1480,48 @@ export const engagementOpsRouter = router({
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Nuclei failed: ${asset.hostname}`, detail: err.message });
                   }
 
+                  // Nuclei DAST mode with crawling for active vuln confirmation
+                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f578}\ufe0f DAST: ${asset.hostname}`, detail: 'Crawling & fuzzing for injection points...' });
+                  try {
+                    const dastResult = await executeRawCommand(
+                      `echo "http://${asset.hostname}" | nuclei -dast -headless -crawl-depth 3 -crawl-duration 60 -severity critical,high,medium -jsonl -nc -duc -ni -timeout 30 -rate-limit 50 -system-resolvers 2>&1`,
+                      180
+                    );
+                    const dastFindings = dastResult.stdout.split('\n').filter(Boolean).map((line: string) => {
+                      try { return JSON.parse(line); } catch { return null; }
+                    }).filter(Boolean);
+                    for (const f of dastFindings) {
+                      const vulnTitle = f.info?.name || f['template-id'] || 'Unknown';
+                      // Check if this vuln was already found by standard nuclei or LLM synthesis
+                      const isDuplicate = asset.vulns.some((v: any) =>
+                        v.title.toLowerCase().includes(vulnTitle.toLowerCase().split(' ')[0]) ||
+                        vulnTitle.toLowerCase().includes(v.title.toLowerCase().split(' ')[0])
+                      );
+                      if (isDuplicate) {
+                        // Mark existing vuln as confirmed by active scan
+                        const existing = asset.vulns.find((v: any) =>
+                          v.title.toLowerCase().includes(vulnTitle.toLowerCase().split(' ')[0]) ||
+                          vulnTitle.toLowerCase().includes(v.title.toLowerCase().split(' ')[0])
+                        );
+                        if (existing) (existing as any).confirmedByActiveScan = true;
+                      } else {
+                        asset.vulns.push({
+                          title: vulnTitle,
+                          severity: f.info?.severity || 'medium',
+                          cve: f.info?.classification?.['cve-id']?.[0] || '',
+                          description: f.info?.description || `DAST finding: ${f['matched-at'] || ''}`,
+                          tool: 'nuclei-dast',
+                          port: f.port || 0,
+                          confirmedByActiveScan: true,
+                          rawOutput: JSON.stringify(f).slice(0, 500),
+                        } as any);
+                      }
+                    }
+                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 DAST: ${asset.hostname}`, detail: `${dastFindings.length} findings (${dastFindings.filter((f: any) => f.info?.severity === 'critical' || f.info?.severity === 'high').length} critical/high)` });
+                  } catch (err: any) {
+                    addLog(state!, { phase: 'scanning', type: 'info', title: `\u26a0\ufe0f DAST skipped: ${asset.hostname}`, detail: err.message?.slice(0, 100) || 'Timeout or unavailable' });
+                  }
+
                   // Curl-based header probing fallback (always runs to supplement nuclei)
                   try {
                     const curlResult = await executeTool({ tool: 'curl', args: `-sI -L --max-time 15 http://${asset.hostname}`, timeoutSeconds: 20 });
@@ -1734,6 +1776,28 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
             state!.currentAction = undefined;
             addLog(state!, { phase: 'complete', type: 'success', title: '\u{1f3c1} Pipeline Complete', detail: `${state!.assets.length} assets, ${state!.assets.reduce((s, a) => s + a.vulns.length, 0)} vulns, ${(state as any).generatedExploits?.length || 0} exploits` });
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'complete' });
+
+            // Record vulnerability trend snapshot
+            try {
+              const { recordScanSnapshot } = await import('../lib/vuln-trend-tracker');
+              const snapshotAssets = state!.assets.map(a => ({
+                hostname: a.hostname || (a as any).ip || 'unknown',
+                vulns: a.vulns || [],
+                ports: a.ports || [],
+                passiveRecon: a.passiveRecon,
+              }));
+              const snap = await recordScanSnapshot({
+                engagementId: input.engagementId,
+                snapshotType: 'full_pipeline',
+                assets: snapshotAssets,
+                exploitCount: (state as any).generatedExploits?.length || 0,
+                metadata: { phases: input.phases, duration: Date.now() - (state!.logs?.[0]?.timestamp || Date.now()) },
+              });
+              addLog(state!, { phase: 'complete', type: 'info', title: '\ud83d\udcca Trend Snapshot Recorded', detail: `Snapshot #${snap.snapshotId}: ${snap.totalVulns} vulns (${snap.newVulnsFound} new, ${snap.resolvedVulns} resolved)` });
+            } catch (snapErr: any) {
+              console.error('[TrendTracker] Failed to record snapshot:', snapErr.message);
+            }
+
             await persistOpsStateNow(input.engagementId).catch(() => {});
           } catch (err: any) {
             state!.isRunning = false;
@@ -2000,5 +2064,97 @@ Return ONLY a JSON object with vulnerabilities array.`;
           addLog(state, { phase: 'scanning', type: 'error', title: `\u274c Re-synthesis failed: ${asset.hostname}`, detail: err.message });
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Re-synthesis failed: ${err.message}` });
         }
+      }),
+
+    /** Execute an exploit script in a sandboxed environment on the scan server */
+    executeExploit: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        exploitIndex: z.number(),
+        targetHost: z.string().optional(),
+        targetPort: z.number().optional(),
+        timeoutSeconds: z.number().min(5).max(120).default(60),
+        dryRun: z.boolean().default(true),
+      }))
+      .mutation(async ({ input }) => {
+        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const { executeExploit } = await import('../lib/exploit-sandbox');
+        const state = getOpsState(input.engagementId);
+        const exploits = (state as any)?.generatedExploits;
+        if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
+        const entry = exploits[input.exploitIndex];
+        return executeExploit(input.engagementId, {
+          exploitId: `${input.engagementId}_${input.exploitIndex}`,
+          code: entry.exploit.code,
+          language: entry.exploit.language || 'python',
+          targetHost: input.targetHost || entry.asset,
+          targetPort: input.targetPort,
+          timeoutSeconds: input.timeoutSeconds,
+          dryRun: input.dryRun,
+        });
+      }),
+
+    /** Get exploit execution history for an engagement */
+    getExploitExecutionHistory: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getExecutionHistory } = await import('../lib/exploit-sandbox');
+        return getExecutionHistory(input.engagementId);
+      }),
+
+    /** Validate exploit code syntax without execution */
+    validateExploitSyntax: protectedProcedure
+      .input(z.object({
+        code: z.string(),
+        language: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const { validateExploitSyntax } = await import('../lib/exploit-sandbox');
+        return validateExploitSyntax(input.code, input.language);
+      }),
+
+    // ── Vulnerability Trend Tracking ──
+
+    /** Get vulnerability trend data for an engagement */
+    getVulnTrend: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getVulnTrend } = await import('../lib/vuln-trend-tracker');
+        return getVulnTrend(input.engagementId);
+      }),
+
+    /** Get vulnerability diff between two snapshots */
+    getVulnDiff: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        fromSnapshotId: z.number(),
+        toSnapshotId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const { getVulnDiff } = await import('../lib/vuln-trend-tracker');
+        return getVulnDiff(input.engagementId, input.fromSnapshotId, input.toSnapshotId);
+      }),
+
+    /** Manually record a scan snapshot for trend tracking */
+    recordScanSnapshot: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { recordScanSnapshot } = await import('../lib/vuln-trend-tracker');
+        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const state = getOpsState(String(input.engagementId));
+        if (!state) throw new Error('No engagement state found');
+        const assets = (state.assets || []).map((a: any) => ({
+          hostname: a.hostname || a.ip || 'unknown',
+          vulns: a.vulns || [],
+          ports: a.ports || [],
+          passiveRecon: a.passiveRecon,
+        }));
+        return recordScanSnapshot({
+          engagementId: input.engagementId,
+          snapshotType: 'full_pipeline',
+          assets,
+          exploitCount: (state as any).generatedExploits?.length || 0,
+          metadata: { phase: state.phase, recordedManually: true },
+        });
       }),
   });
