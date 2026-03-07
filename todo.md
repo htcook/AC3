@@ -7975,3 +7975,10 @@
 - [x] Update page titles, headers, sidebar branding, and meta tags to "Ace C3" — CALDERA ABILITY→C2 ABILITY, Caldera C2→Ace C3 Emulation, Cyber Campaign Command→Ace C3, caldera.aceofcloud.io→emulation.aceofcloud.io
 - [ ] Update VITE_APP_TITLE to "Ace C3" — requires manual update in Settings > General
 - [x] Verify no broken references after rename — all technical caldera C2 refs preserved
+
+## LLM Error Investigation in Engagement Ops & Scans
+- [ ] Check database for recent engagement ops logs and scan results
+- [ ] Identify LLM-related errors in vulnerability correlation and scan analysis
+- [ ] Review LLM prompt construction in engagement-orchestrator for issues
+- [ ] Fix any identified LLM integration bugs
+- [ ] Test fixes
