@@ -402,7 +402,7 @@ export default function CveDetailModal({ open, onOpenChange, cveId }: CveDetailM
                   {exploitMatches.calderaAbility && (
                     <div className="bg-primary/5 border border-primary/20 p-4">
                       <h4 className="text-[10px] font-display tracking-widest text-primary mb-2 flex items-center gap-2">
-                        <Crosshair className="w-3.5 h-3.5" /> CALDERA ABILITY
+                        <Crosshair className="w-3.5 h-3.5" /> C2 ABILITY
                       </h4>
                       <div className="text-xs font-mono text-foreground">{exploitMatches.calderaAbility.name}</div>
                       <div className="text-[10px] text-muted-foreground mt-1">{exploitMatches.calderaAbility.description}</div>

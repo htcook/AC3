@@ -357,7 +357,7 @@ export const gophishFAQItems: FAQItem[] = [
 
 4. **Current credentials for this deployment**:
    Username: admin
-   Password: Check the Credentials page in Cyber Campaign Command dashboard`,
+   Password: Check the Credentials page in Ace C3 dashboard`,
     category: 'Server',
     tags: ['password', 'reset', 'admin', 'login'],
     severity: 'medium',

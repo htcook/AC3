@@ -596,7 +596,7 @@ const KSI_THEMES: KSITheme[] = [
     directCoverage: 4,
     supportingCoverage: 1,
     description: "Penetration testing, APT simulation, security awareness testing, third-party vulnerability monitoring, and supply chain risk mitigation.",
-    cspValue: "Full penetration testing pipeline across all 6 FedRAMP attack vectors. Caldera C2 + MITRE ATT&CK technique execution for APT simulation. Phishing Ops for security awareness testing. NVD/KEV integration for third-party vulnerability monitoring.",
+    cspValue: "Full penetration testing pipeline across all 6 FedRAMP attack vectors. Ace C3 Emulation Engine + MITRE ATT&CK technique execution for APT simulation. Phishing Ops for security awareness testing. NVD/KEV integration for third-party vulnerability monitoring.",
     agencyValue: "Agencies review CSP-submitted penetration test reports, APT simulation results, phishing campaign data, and third-party vulnerability monitoring evidence.",
     ksis: [
       {
@@ -607,8 +607,8 @@ const KSI_THEMES: KSITheme[] = [
       },
       {
         id: "KSI-SCR-APT", name: "Advanced Persistent Threat Simulation", status: "direct",
-        aceModules: ["Caldera C2", "Emulation Playbooks", "Threat Actor Matcher"],
-        cspDetail: "Caldera C2 provides full adversary emulation with MITRE ATT&CK technique execution. Emulation Playbooks define repeatable APT scenarios. Threat Actor Matcher correlates findings with known threat actor TTPs.",
+        aceModules: ["Ace C3 Emulation", "Emulation Playbooks", "Threat Actor Matcher"],
+        cspDetail: "Ace C3 Emulation provides full adversary emulation with MITRE ATT&CK technique execution. Emulation Playbooks define repeatable APT scenarios. Threat Actor Matcher correlates findings with known threat actor TTPs.",
         agencyDetail: "Review CSP-submitted APT simulation results showing MITRE ATT&CK technique coverage, detection rates, and threat actor TTP correlation."
       },
       {

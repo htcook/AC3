@@ -7968,3 +7968,10 @@
 - [x] Create tRPC endpoint to generate OWASP coverage CSV export — owaspCoverage.exportCsv mutation
 - [x] Create tRPC endpoint to generate OWASP coverage HTML report — owaspCoverage.exportHtml mutation
 - [x] Wire export buttons to download CSV/HTML of per-target coverage grid — Blob download with auto-generated filenames
+
+## Platform Rename: Caldera Dashboard → Ace C3
+- [x] Audit all frontend files for "Caldera Dashboard" or "Caldera" branding references — 77 matches in 10 files audited
+- [x] Audit all server/backend files for "Caldera Dashboard" branding references — no user-facing branding found (all technical C2 refs)
+- [x] Update page titles, headers, sidebar branding, and meta tags to "Ace C3" — CALDERA ABILITY→C2 ABILITY, Caldera C2→Ace C3 Emulation, Cyber Campaign Command→Ace C3, caldera.aceofcloud.io→emulation.aceofcloud.io
+- [ ] Update VITE_APP_TITLE to "Ace C3" — requires manual update in Settings > General
+- [x] Verify no broken references after rename — all technical caldera C2 refs preserved
