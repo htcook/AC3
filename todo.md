@@ -8057,3 +8057,12 @@
 - [x] Add connection testing endpoint for each SIEM backend
 - [x] Update SOC Integration Hub frontend with SIEM config forms and real push UI
 - [x] Write vitest tests for SIEM push endpoints
+
+## SIEM Query Templates
+- [x] Add query template storage to SIEM connections (already has siemQueryTemplate column)
+- [x] Build SIEM query execution endpoints for Splunk (SPL), Elastic (KQL/Lucene), Sentinel (KQL), QRadar (AQL)
+- [x] Add default query templates per provider for common alert searches
+- [x] Build query template editor UI with syntax highlighting hints
+- [x] Build SIEM query runner with results display and alert normalization
+- [x] Add "Pull Alerts" flow that queries SIEM and feeds results into gap analysis
+- [x] Write vitest tests for SIEM query execution

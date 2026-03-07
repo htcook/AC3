@@ -16,6 +16,15 @@ import {
   type ExportedAlert,
 } from "../lib/soc-integration-hub";
 import type { NormalizedSiemAlert } from "../lib/siem-connectors";
+import {
+  executeSiemQuery,
+  getDefaultTemplates,
+  getQueryLanguage,
+  getQuerySyntaxHint,
+  substituteQueryVariables,
+  extractQueryVariables,
+  type SiemProvider,
+} from "../lib/siem-query-engine";
 import { getDb } from "../db";
 import { siemIntegrations } from "../../drizzle/schema";
 
@@ -445,6 +454,152 @@ export const socIntegrationHubRouter = router({
         input.gaps as DetectionGap[],
         input.platforms,
       );
+    }),
+
+  /* ═══════════════════════════════════════════════════════════
+   * SIEM QUERY TEMPLATES & EXECUTION
+   * ═══════════════════════════════════════════════════════════ */
+
+  /** Get default query templates, optionally filtered by provider */
+  getQueryTemplates: protectedProcedure
+    .input(z.object({ provider: siemProviderEnum.optional() }).optional())
+    .query(({ input }) => {
+      const templates = getDefaultTemplates(input?.provider as SiemProvider | undefined);
+      return templates;
+    }),
+
+  /** Get query language info for a provider */
+  getQueryLanguageInfo: protectedProcedure
+    .input(z.object({ provider: siemProviderEnum }))
+    .query(({ input }) => {
+      return {
+        language: getQueryLanguage(input.provider as SiemProvider),
+        syntaxHint: getQuerySyntaxHint(input.provider as SiemProvider),
+      };
+    }),
+
+  /** Substitute variables in a query template */
+  previewQuery: protectedProcedure
+    .input(z.object({
+      query: z.string(),
+      variables: z.record(z.string()),
+    }))
+    .mutation(({ input }) => {
+      const result = substituteQueryVariables(input.query, input.variables);
+      const remaining = extractQueryVariables(result);
+      return { query: result, unresolvedVariables: remaining };
+    }),
+
+  /** Execute a query against a SIEM (ad-hoc, no saved connection) */
+  executeQuery: protectedProcedure
+    .input(z.object({
+      provider: siemProviderEnum,
+      baseUrl: z.string(),
+      apiKey: z.string().optional(),
+      query: z.string().min(1),
+      timeRangeHours: z.number().min(1).max(720).optional(),
+      maxResults: z.number().min(1).max(1000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return await executeSiemQuery({
+        provider: input.provider as SiemProvider,
+        baseUrl: input.baseUrl,
+        apiKey: input.apiKey,
+        query: input.query,
+        timeRangeHours: input.timeRangeHours,
+        maxResults: input.maxResults,
+      });
+    }),
+
+  /** Execute a query using a saved SIEM connection (uses its stored query template or a custom query) */
+  queryConnection: protectedProcedure
+    .input(z.object({
+      connectionId: z.number(),
+      query: z.string().optional(),
+      variables: z.record(z.string()).optional(),
+      timeRangeHours: z.number().min(1).max(720).optional(),
+      maxResults: z.number().min(1).max(1000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const [conn] = await db.select()
+        .from(siemIntegrations)
+        .where(eq(siemIntegrations.id, input.connectionId));
+      if (!conn) throw new Error("SIEM connection not found");
+      if (!conn.siemIsActive) throw new Error("SIEM connection is disabled");
+
+      // Use provided query, or fall back to saved query template
+      let queryStr = input.query || conn.siemQueryTemplate || "";
+      if (!queryStr) throw new Error("No query provided and no saved query template on this connection");
+
+      // Substitute variables if provided
+      if (input.variables) {
+        queryStr = substituteQueryVariables(queryStr, input.variables);
+      }
+
+      return await executeSiemQuery({
+        provider: conn.siemProvider as SiemProvider,
+        baseUrl: conn.siemBaseUrl,
+        apiKey: conn.siemApiKeyEnc || undefined,
+        query: queryStr,
+        timeRangeHours: input.timeRangeHours,
+        maxResults: input.maxResults,
+      });
+    }),
+
+  /** Pull alerts from a saved SIEM connection and feed them into gap analysis */
+  pullAndAnalyzeGaps: protectedProcedure
+    .input(z.object({
+      connectionId: z.number(),
+      query: z.string().optional(),
+      variables: z.record(z.string()).optional(),
+      attacks: z.array(attackActionSchema),
+      timeRangeHours: z.number().min(1).max(720).optional(),
+      timeWindowMs: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const [conn] = await db.select()
+        .from(siemIntegrations)
+        .where(eq(siemIntegrations.id, input.connectionId));
+      if (!conn) throw new Error("SIEM connection not found");
+
+      let queryStr = input.query || conn.siemQueryTemplate || "";
+      if (!queryStr) throw new Error("No query provided and no saved query template");
+
+      if (input.variables) {
+        queryStr = substituteQueryVariables(queryStr, input.variables);
+      }
+
+      // 1. Pull alerts from SIEM
+      const queryResult = await executeSiemQuery({
+        provider: conn.siemProvider as SiemProvider,
+        baseUrl: conn.siemBaseUrl,
+        apiKey: conn.siemApiKeyEnc || undefined,
+        query: queryStr,
+        timeRangeHours: input.timeRangeHours,
+        maxResults: 500,
+      });
+
+      if (!queryResult.success) {
+        return {
+          queryResult,
+          gapAnalysis: null,
+          error: queryResult.error,
+        };
+      }
+
+      // 2. Run gap analysis with pulled alerts
+      const gapAnalysis = analyzeDetectionGaps(
+        input.attacks as AttackAction[],
+        queryResult.alerts as NormalizedSiemAlert[],
+        input.timeWindowMs,
+      );
+
+      return {
+        queryResult,
+        gapAnalysis,
+      };
     }),
 
   /** Get sample demo data for the frontend */
