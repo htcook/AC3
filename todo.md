@@ -8101,3 +8101,29 @@
 - [x] Achieve 100% accuracy on all 3 training targets (13/13 vulns detected)
 - [x] Generate 18 exploit scripts across 6 assets with 70-95% confidence
 - [x] All 154 vitest tests pass with no regressions
+
+## Active Scanning Improvements
+- [x] Update nuclei templates on scan server to latest version (already up to date, 12,669 templates)
+- [x] Increase per-target nuclei timeout from 120s to 300s
+- [x] Add nmap service version detection flags (-sC script scanning, top-1000 ports)
+- [x] Add curl-based header probing fallback for security header misconfig detection
+- [x] Add nuclei tags for crlf and traversal detection
+- [ ] Investigate nuclei 0-finding issue on scan server (templates load but produce no output)
+
+## Pipeline Accuracy Regression Tests
+- [x] Create vitest suite with mocked LLM responses for testphp.vulnweb.com
+- [x] Create vitest suite with mocked LLM responses for demo.testfire.net
+- [x] Create vitest suite with mocked LLM responses for demo.owasp-juice.shop
+- [x] Add accuracy threshold assertions (must detect all expected vuln categories)
+- [x] Add exploit generation assertions (must produce scripts for critical/high vulns)
+
+## Frontend: LLM Analysis, Retest Triggers, and Exploit Generation UI
+- [x] Audit existing engagement detail page to understand current layout
+- [x] Add LLM Vulnerability Synthesis tab (per-asset synthesized vulns with confidence, category, severity)
+- [x] Add LLM Attack Path Analysis panel (attack paths and blind spots in LLM Synthesis tab)
+- [x] Add Re-Synthesize button per asset (triggers passive + LLM analysis re-run)
+- [x] Add Generated Exploit Code tab (summary stats, exploit cards with View/Validate/Improve)
+- [x] Add MITRE ATT&CK technique badges on exploit cards
+- [x] Wire up existing tRPC calls (generatedExploitsQ, validateExploitMut, improveExploitMut, rerunMut)
+- [x] Write 28 vitest tests for new frontend tabs (all passing)
+- [x] Pipeline Progress already exists in Live Feed tab (no additional work needed)

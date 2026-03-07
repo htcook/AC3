@@ -1443,7 +1443,7 @@ export const engagementOpsRouter = router({
                 for (const asset of state!.assets) {
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nmap: ${asset.hostname}`, detail: 'Service detection and version scan...' });
                   try {
-                    const nmapResult = await executeTool({ tool: 'nmap', args: `-sV -T4 --top-ports 100 ${asset.hostname}`, timeoutSeconds: 120 });
+                    const nmapResult = await executeTool({ tool: 'nmap', args: `-sV -sC -T4 --top-ports 1000 ${asset.hostname}`, timeoutSeconds: 300 });
                     const portRegex = /(\d+)\/tcp\s+open\s+(\S+)\s*(.*)/g;
                     let match;
                     while ((match = portRegex.exec(nmapResult.stdout)) !== null) {
@@ -1459,7 +1459,7 @@ export const engagementOpsRouter = router({
 
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: 'Vulnerability templates...' });
                   try {
-                    const nucleiResult = await executeTool({ tool: 'nuclei', args: `-u http://${asset.hostname} -severity critical,high,medium -jsonl -nc -duc -ni -timeout 10 -retries 1 -tags cve,sqli,xss,lfi,rce,ssrf,ssti`, timeoutSeconds: 120 });
+                    const nucleiResult = await executeTool({ tool: 'nuclei', args: `-u http://${asset.hostname} -severity critical,high,medium -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit 100 -tags cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal`, timeoutSeconds: 300 });
                     const findings = nucleiResult.stdout.split('\n').filter(Boolean).map((line: string) => {
                       try { return JSON.parse(line); } catch { return null; }
                     }).filter(Boolean);
@@ -1477,6 +1477,41 @@ export const engagementOpsRouter = router({
                     addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Nuclei: ${asset.hostname}`, detail: `${findings.length} vulnerabilities` });
                   } catch (err: any) {
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Nuclei failed: ${asset.hostname}`, detail: err.message });
+                  }
+
+                  // Curl-based header probing fallback (always runs to supplement nuclei)
+                  try {
+                    const curlResult = await executeTool({ tool: 'curl', args: `-sI -L --max-time 15 http://${asset.hostname}`, timeoutSeconds: 20 });
+                    const headers = curlResult.stdout || '';
+                    // Extract server info from headers
+                    const serverMatch = headers.match(/^Server:\s*(.+)$/mi);
+                    if (serverMatch) {
+                      const serverInfo = serverMatch[1].trim();
+                      if (!asset.technologies?.includes(serverInfo)) {
+                        asset.technologies = [...(asset.technologies || []), serverInfo];
+                      }
+                    }
+                    // Check for security header misconfigs
+                    const missingHeaders: string[] = [];
+                    if (!headers.match(/X-Frame-Options/i)) missingHeaders.push('X-Frame-Options');
+                    if (!headers.match(/X-Content-Type-Options/i)) missingHeaders.push('X-Content-Type-Options');
+                    if (!headers.match(/Strict-Transport-Security/i)) missingHeaders.push('HSTS');
+                    if (!headers.match(/Content-Security-Policy/i)) missingHeaders.push('CSP');
+                    if (missingHeaders.length > 0) {
+                      asset.vulns.push({
+                        title: `Missing Security Headers: ${missingHeaders.join(', ')}`,
+                        severity: 'medium',
+                        cve: '',
+                        description: `The following security headers are missing: ${missingHeaders.join(', ')}. This may allow clickjacking, MIME sniffing, or other attacks.`,
+                        tool: 'curl-probe',
+                        confidence: 90,
+                        category: 'misconfig',
+                      } as any);
+                    }
+                    addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Header probe: ${asset.hostname}`, detail: `${missingHeaders.length} missing security headers` });
+                  } catch (err: any) {
+                    // Header probe is non-critical, just log
+                    addLog(state!, { phase: 'scanning', type: 'info', title: `Header probe skipped: ${asset.hostname}`, detail: err.message });
                   }
                 }
               } catch (err: any) {

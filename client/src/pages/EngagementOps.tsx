@@ -1639,6 +1639,19 @@ export default function EngagementOps() {
                     <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-purple-500/20 text-purple-400">{feedbackLoopQ.data.totalScansExecuted}</Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="llmsynthesis" className="text-xs">
+                  <Brain className="h-3.5 w-3.5 mr-1" /> LLM Synthesis
+                  {(() => {
+                    const synthCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.tool === 'llm-synthesis').length, 0);
+                    return synthCount > 0 ? <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-emerald-500/20 text-emerald-400">{synthCount}</Badge> : null;
+                  })()}
+                </TabsTrigger>
+                <TabsTrigger value="genexploits" className="text-xs">
+                  <Bolt className="h-3.5 w-3.5 mr-1" /> Exploit Code
+                  {(generatedExploitsQ.data?.length || 0) > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-red-500/20 text-red-400">{generatedExploitsQ.data!.length}</Badge>
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="planhistory" className="text-xs">
                   <ClipboardList className="h-3.5 w-3.5 mr-1" /> Plan History
                 </TabsTrigger>
@@ -3173,6 +3186,254 @@ export default function EngagementOps() {
                       <RefreshCw className="h-12 w-12 mb-4 opacity-20" />
                       <p className="text-sm">No feedback loop data yet</p>
                       <p className="text-xs mt-1">The LLM feedback loop runs after vulnerability detection to request targeted re-scans</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Plan History Tab ── */}
+            {/* ── LLM Vulnerability Synthesis Tab ── */}
+            <TabsContent value="llmsynthesis" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="space-y-4 py-3">
+                  <p className="text-xs text-muted-foreground">
+                    AI-synthesized vulnerabilities derived from passive reconnaissance risk signals, port/service data, and technology fingerprints. Each vulnerability is assigned a confidence score and OWASP category.
+                  </p>
+
+                  {/* LLM Analysis Summary (attack paths + blind spots) */}
+                  {(ops as any)?.llmAnalysis && (
+                    <Card className="bg-card/50 border-cyan-500/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-cyan-400" /> LLM Post-Enrichment Analysis
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          AI-identified attack paths and coverage blind spots from the combined scan data.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {((ops as any).llmAnalysis.attackPaths || []).length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1">Attack Paths ({(ops as any).llmAnalysis.attackPaths.length})</h4>
+                            <div className="space-y-1">
+                              {((ops as any).llmAnalysis.attackPaths || []).map((ap: any, i: number) => (
+                                <div key={i} className="text-xs px-3 py-2 bg-red-500/5 rounded border border-red-500/10">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="outline" className={`text-[8px] ${
+                                      ap.riskLevel === 'critical' ? 'text-red-400 border-red-500/30' :
+                                      ap.riskLevel === 'high' ? 'text-orange-400 border-orange-500/30' :
+                                      'text-yellow-400 border-yellow-500/30'
+                                    }`}>{ap.riskLevel}</Badge>
+                                    <span className="font-medium text-foreground">{ap.name || ap.title || `Attack Path ${i+1}`}</span>
+                                  </div>
+                                  <p className="text-muted-foreground text-[10px]">{ap.description || ap.steps?.join(' → ') || ''}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {((ops as any).llmAnalysis.blindSpots || []).length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wider mb-1">Coverage Blind Spots ({(ops as any).llmAnalysis.blindSpots.length})</h4>
+                            <div className="space-y-1">
+                              {((ops as any).llmAnalysis.blindSpots || []).map((bs: any, i: number) => (
+                                <div key={i} className="flex items-center gap-2 text-xs px-3 py-1.5 bg-yellow-500/5 rounded border border-yellow-500/10">
+                                  <AlertTriangle className="h-3 w-3 text-yellow-400 flex-none" />
+                                  <span className="text-foreground">{typeof bs === 'string' ? bs : bs.description || bs.area || JSON.stringify(bs)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Per-Asset Synthesized Vulnerabilities */}
+                  {(ops?.assets || []).map((asset: any) => {
+                    const synthVulns = (asset.vulns || []).filter((v: any) => v.tool === 'llm-synthesis');
+                    if (synthVulns.length === 0) return null;
+                    return (
+                      <Card key={asset.hostname} className="bg-card/50 border-emerald-500/20">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              {assetIcon(asset.type)}
+                              <span>{asset.hostname}</span>
+                              <Badge variant="secondary" className="text-[9px] bg-emerald-500/20 text-emerald-400">
+                                {synthVulns.length} synthesized
+                              </Badge>
+                            </CardTitle>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                              onClick={() => {
+                                rerunMut.mutate({
+                                  engagementId,
+                                  phases: { passive: true, active: false, llmAnalysis: true, exploitGeneration: false },
+                                });
+                              }}
+                              disabled={rerunMut.isPending}
+                            >
+                              {rerunMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                              Re-Synthesize
+                            </Button>
+                          </div>
+                          <CardDescription className="text-xs">
+                            {(asset.passiveRecon?.riskSignals || []).length} risk signals analyzed, {(asset.ports || []).length} ports, {(asset.passiveRecon?.technologies || []).length} technologies
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-1.5">
+                            {synthVulns.sort((a: any, b: any) => {
+                              const sev: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+                              return (sev[b.severity] || 0) - (sev[a.severity] || 0);
+                            }).map((v: any, i: number) => (
+                              <div key={i} className="text-xs px-3 py-2 bg-muted/10 rounded border border-border/20 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className={`text-[9px] ${
+                                    v.severity === 'critical' ? 'text-red-400 border-red-500/30' :
+                                    v.severity === 'high' ? 'text-orange-400 border-orange-500/30' :
+                                    v.severity === 'medium' ? 'text-yellow-400 border-yellow-500/30' :
+                                    'text-blue-400 border-blue-500/30'
+                                  }`}>{v.severity}</Badge>
+                                  <span className="font-medium text-foreground flex-1">{v.title}</span>
+                                  {v.cve && <span className="text-muted-foreground font-mono text-[10px]">{v.cve}</span>}
+                                  <Badge variant="outline" className={`text-[8px] ${
+                                    v.confidence >= 90 ? 'text-green-400 border-green-500/30' :
+                                    v.confidence >= 70 ? 'text-emerald-400 border-emerald-500/30' :
+                                    v.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
+                                    'text-orange-400 border-orange-500/30'
+                                  }`}>{v.confidence}% conf</Badge>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {v.category && (
+                                    <Badge variant="outline" className="text-[8px] text-cyan-300 border-cyan-500/20">{v.category.replace(/_/g, ' ')}</Badge>
+                                  )}
+                                  <span className="text-[10px] text-muted-foreground">{v.description?.slice(0, 120)}{v.description?.length > 120 ? '...' : ''}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+
+                  {/* Empty state */}
+                  {(ops?.assets || []).every((a: any) => (a.vulns || []).filter((v: any) => v.tool === 'llm-synthesis').length === 0) && (
+                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                      <Brain className="h-12 w-12 mb-4 opacity-20" />
+                      <p className="text-sm">No LLM-synthesized vulnerabilities yet</p>
+                      <p className="text-xs mt-1">Run the full pipeline with LLM Analysis enabled to synthesize vulnerabilities from passive recon data</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Generated Exploit Code Tab ── */}
+            <TabsContent value="genexploits" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="space-y-4 py-3">
+                  <p className="text-xs text-muted-foreground">
+                    LLM-generated functional exploit scripts targeting discovered vulnerabilities. Each exploit includes confidence scoring, MITRE ATT&CK technique mapping, and can be validated or improved.
+                  </p>
+
+                  {(generatedExploitsQ.data?.length || 0) > 0 ? (
+                    <>
+                      {/* Summary Stats */}
+                      <div className="grid grid-cols-4 gap-3">
+                        <Card className="bg-card/50 border-border/30">
+                          <CardContent className="p-3 text-center">
+                            <div className="text-[10px] text-muted-foreground uppercase">Total Exploits</div>
+                            <div className="text-lg font-bold text-red-400">{generatedExploitsQ.data!.length}</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-card/50 border-border/30">
+                          <CardContent className="p-3 text-center">
+                            <div className="text-[10px] text-muted-foreground uppercase">Avg Confidence</div>
+                            <div className="text-lg font-bold text-emerald-400">
+                              {Math.round(generatedExploitsQ.data!.reduce((s: number, e: any) => s + (e.confidence || 0), 0) / generatedExploitsQ.data!.length)}%
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-card/50 border-border/30">
+                          <CardContent className="p-3 text-center">
+                            <div className="text-[10px] text-muted-foreground uppercase">Assets Covered</div>
+                            <div className="text-lg font-bold text-cyan-400">
+                              {new Set(generatedExploitsQ.data!.map((e: any) => e.asset)).size}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-card/50 border-border/30">
+                          <CardContent className="p-3 text-center">
+                            <div className="text-[10px] text-muted-foreground uppercase">Languages</div>
+                            <div className="text-lg font-bold text-purple-400">
+                              {new Set(generatedExploitsQ.data!.map((e: any) => e.language)).size}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Exploit Cards */}
+                      {generatedExploitsQ.data!.map((exploit: any, idx: number) => (
+                        <Card key={idx} className="bg-card/50 border-red-500/10 hover:border-red-500/20 transition-colors">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Skull className="h-4 w-4 text-red-400" />
+                                <span className="text-sm font-medium text-foreground">{exploit.filename}</span>
+                                <Badge variant="outline" className={`text-[9px] ${
+                                  exploit.confidence >= 80 ? 'text-green-400 border-green-500/30' :
+                                  exploit.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
+                                  'text-red-400 border-red-500/30'
+                                }`}>{exploit.confidence}%</Badge>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] border-border/30" onClick={() => setViewingExploitIdx(idx)}>
+                                  <Eye className="h-3 w-3 mr-1" /> View Code
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] border-border/30"
+                                  onClick={() => validateExploitMut.mutate({ engagementId, exploitIndex: idx })}
+                                  disabled={validateExploitMut.isPending}
+                                >
+                                  <Shield className="h-3 w-3 mr-1" /> Validate
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] border-border/30"
+                                  onClick={() => improveExploitMut.mutate({ engagementId, exploitIndex: idx, feedback: 'Improve reliability and add better error handling' })}
+                                  disabled={improveExploitMut.isPending}
+                                >
+                                  <Wrench className="h-3 w-3 mr-1" /> Improve
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mb-2">
+                              <span>Target: <span className="text-foreground">{exploit.asset}</span></span>
+                              <span>|</span>
+                              <span>Language: <span className="text-foreground">{exploit.language}</span></span>
+                              {exploit.isChained && <Badge variant="outline" className="text-[8px] text-purple-400 border-purple-500/30">Chained</Badge>}
+                              {exploit.generatedAt && <span className="ml-auto">{new Date(exploit.generatedAt).toLocaleString()}</span>}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{exploit.description}</p>
+                            {(exploit.mitreTechniques || []).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {(exploit.mitreTechniques || []).map((t: string, i: number) => (
+                                  <Badge key={i} variant="outline" className="text-[8px] text-orange-300 border-orange-500/20">{t}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                      <Bolt className="h-12 w-12 mb-4 opacity-20" />
+                      <p className="text-sm">No exploit code generated yet</p>
+                      <p className="text-xs mt-1">Run the full pipeline with Exploit Generation enabled, or use the Exploit Generator in the sidebar</p>
                     </div>
                   )}
                 </div>
