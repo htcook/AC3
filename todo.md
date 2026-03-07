@@ -8005,3 +8005,45 @@
 - [x] Wire learning context into Training Lab LLM analysis prompts — buildLearningContext() called before every analyzeWithLlm and rerunAnalysis
 - [x] Add accuracy dashboard to Training Lab frontend — Learning Dashboard tab with accuracy trend chart, feedback stats, per-target breakdown
 - [x] Add ground truth comparison view to session results — auto-scoring after every analysis with matched/missed/FP breakdown
+
+## Roadmap: SOC/SIEM Integration Hub (HIGH)
+- [x] Build unified SOC Integration Hub page tying SIEM connectors, feedback, and mutation engine together
+- [x] Add auto-export of engagement findings to SIEM as structured alerts (CEF/LEEF format)
+- [x] Build real-time detection gap analysis (attack executed → was it detected by SIEM?)
+- [x] Add SIEM health dashboard showing connector status, alert volume, detection rates
+- [x] Write vitest tests for SOC integration hub
+
+## Roadmap: Cloud Workload Testing Dashboard (HIGH)
+- [x] Build unified Cloud Workload Testing dashboard combining existing cloud modules
+- [x] Add container/Kubernetes security scanning module
+- [x] Add serverless function security testing
+- [x] Add multi-cloud comparison view with risk scoring
+- [x] Write vitest tests for cloud workload testing
+
+## Roadmap: LLM Reliability Hardening (HIGH)
+- [x] Add circuit breaker pattern to invokeLLM (trip after N consecutive failures, auto-reset after cooldown)
+- [x] Add prompt caching/deduplication to avoid redundant LLM calls
+- [x] Add fallback prompt simplification (complex prompt fails → try simpler version)
+- [x] Build LLM health dashboard showing success rates, latency percentiles, error patterns, cost tracking
+- [x] Write vitest tests for circuit breaker and prompt cache
+
+## Roadmap: Agent-Based Deployment Enhancements (MEDIUM)
+- [x] Build agent installer generator (one-liner scripts for Windows/Linux/macOS)
+- [x] Add agent capability negotiation (discover available tools on target)
+- [x] Add agent auto-update mechanism
+- [x] Add agent-to-agent lateral movement coordination
+- [x] Write vitest tests for agent installer generator
+
+## Roadmap: MSSP Multi-Tenant Mode (MEDIUM)
+- [x] Add tenant-scoped data isolation for engagements, scans, findings
+- [x] Build MSSP dashboard with cross-tenant analytics and risk comparison
+- [x] Add tenant billing/usage tracking
+- [x] Add white-label report generation per tenant
+- [x] Write vitest tests for multi-tenant isolation
+
+## Roadmap: Data Exfiltration Simulation (MEDIUM)
+- [x] Build data exfiltration simulation engine with multiple channels (DNS, HTTP, ICMP, steganography)
+- [x] Add DLP bypass testing module
+- [x] Add exfiltration detection validation against SIEM
+- [x] Build exfiltration path visualization
+- [x] Write vitest tests for exfiltration simulation

@@ -7,7 +7,7 @@ CREATE TABLE `training_lab_feedback` (
 	`expected_severity` varchar(32),
 	`expected_category` varchar(128),
 	`operator_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 --> statement-breakpoint
 CREATE TABLE `training_lab_sessions` (
@@ -32,7 +32,7 @@ CREATE TABLE `training_lab_sessions` (
 	`completed_at` bigint,
 	`duration_ms` int,
 	`error_message` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
 );
 --> statement-breakpoint

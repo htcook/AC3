@@ -215,6 +215,12 @@ const LlmTelemetry = lazy(() => import("./pages/LlmTelemetry"));
 const HuntDashboard = lazy(() => import("./pages/HuntDashboard"));
 const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
 const JobQueueDashboard = lazy(() => import("./pages/JobQueueDashboard"));
+const SocIntegrationHub = lazy(() => import("./pages/SocIntegrationHub"));
+const CloudWorkloadTesting = lazy(() => import("./pages/CloudWorkloadTesting"));
+const LlmReliabilityDashboard = lazy(() => import("./pages/LlmReliabilityDashboard"));
+const AgentInstallerGenerator = lazy(() => import("./pages/AgentInstallerGenerator"));
+const MsspAnalyticsDashboard = lazy(() => import("./pages/MsspAnalyticsDashboard"));
+const DataExfilSimulation = lazy(() => import("./pages/DataExfilSimulation"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -860,6 +866,24 @@ function Router() {
         </Route>
         <Route path="/job-queue">
           <ProtectedRoute component={JobQueueDashboard} />
+        </Route>
+        <Route path="/soc-integration-hub">
+          <ProtectedRoute component={SocIntegrationHub} />
+        </Route>
+        <Route path="/cloud-workload-testing">
+          <ProtectedRoute component={CloudWorkloadTesting} />
+        </Route>
+        <Route path="/llm-reliability">
+          <ProtectedRoute component={LlmReliabilityDashboard} />
+        </Route>
+        <Route path="/agent-installer">
+          <ProtectedRoute component={AgentInstallerGenerator} />
+        </Route>
+        <Route path="/mssp-analytics">
+          <ProtectedRoute component={MsspAnalyticsDashboard} />
+        </Route>
+        <Route path="/data-exfil-simulation">
+          <ProtectedRoute component={DataExfilSimulation} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

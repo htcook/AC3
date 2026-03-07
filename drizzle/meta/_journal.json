@@ -15,6 +15,13 @@
       "when": 1772897660588,
       "tag": "0001_kind_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1772904207502,
+      "tag": "0002_lumpy_paladin",
+      "breakpoints": true
     }
   ]
 }

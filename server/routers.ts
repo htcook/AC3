@@ -129,6 +129,12 @@ import { c2ActorOrchestrationRouter } from "./routers/c2-actor-orchestration";
 import { threatGroupKnowledgeRouter } from "./routers/threat-group-knowledge";
 import { owaspCoverageRouter } from "./routers/owasp-coverage";
 import { trainingLabRouter } from "./routers/training-lab";
+import { socIntegrationHubRouter } from "./routers/soc-integration-hub";
+import { cloudWorkloadTestingRouter } from "./routers/cloud-workload-testing";
+import { llmReliabilityRouter } from "./routers/llm-reliability";
+import { agentInstallerRouter } from "./routers/agent-installer";
+import { msspAnalyticsRouter } from "./routers/mssp-analytics";
+import { dataExfilSimulationRouter } from "./routers/data-exfil-simulation";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -470,6 +476,12 @@ export const appRouter = router({
   // ─── OWASP Coverage Tracking & Export ───────────────────────────────────
   owaspCoverage: owaspCoverageRouter,
   trainingLab: trainingLabRouter,
+  socIntegrationHub: socIntegrationHubRouter,
+  cloudWorkloadTesting: cloudWorkloadTestingRouter,
+  llmReliability: llmReliabilityRouter,
+  agentInstaller: agentInstallerRouter,
+  msspAnalytics: msspAnalyticsRouter,
+  dataExfilSimulation: dataExfilSimulationRouter,
 });
 export type AppRouter = typeof appRouter;
 
