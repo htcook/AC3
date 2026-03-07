@@ -8178,3 +8178,63 @@
 - [x] Add manual "Record Snapshot" button for on-demand tracking
 - [x] Write 20 vitest tests for all new features (all passing)
 - [x] All 66 tests pass (20 new + 46 existing regression tests)
+
+## DAST Crawling Depth Configuration
+- [ ] Add DAST config fields to engagement state (crawlDepth, scope, templateCategories, timeout)
+- [ ] Add updateDastConfig tRPC endpoint to save DAST settings per engagement
+- [ ] Add getDastConfig tRPC endpoint to retrieve current settings
+- [ ] Build DAST Configuration panel in engagement settings UI
+- [ ] Wire DAST config into the active scanning pipeline (use saved settings instead of hardcoded)
+- [ ] Write tests for DAST config endpoints
+
+## Exploit Template Library
+- [ ] Create curated exploit templates for common vuln types (SQLi, XSS, Auth Bypass, LFI, SSRF, etc.)
+- [ ] Add exploit_templates table to DB schema for persistent storage
+- [ ] Add CRUD tRPC endpoints for template management (list, get, create, update, delete)
+- [ ] Build Exploit Template Library UI page/tab with search, filter, and preview
+- [ ] Add "Use Template" button to pre-fill exploit generator with template code
+- [ ] Add template categories and tags for organization
+- [ ] Write tests for template library endpoints
+
+## Monday Pentest Readiness - End-to-End Validation
+- [ ] Run full pipeline against testphp.vulnweb.com - verify 100% (5/5 vulns)
+- [ ] Run full pipeline against demo.testfire.net - verify 100% (4/4 vulns)
+- [ ] Run full pipeline against demo.owasp-juice.shop - verify 100% (4/4 vulns)
+- [ ] Verify exploit generation produces functional scripts for all critical/high vulns
+- [ ] Verify trend tracking auto-records snapshots on pipeline completion
+- [ ] Verify DAST config is read and applied during active scanning
+- [ ] Confirm all 13/13 expected vulns detected across all training targets
+- [ ] Run full vitest suite - all tests must pass
+
+## Knowledge Module Wiring (Thursday Training Packs Audit)
+- [x] Audit all 11 knowledge modules (6,804 lines total)
+- [x] Verify 8 modules already wired: nmap, owasp, threat-group, bugbounty, cloud-security, attack-chain, asset-ontology, training-corpus
+- [x] Wire pentest-knowledge-base.ts into vuln synthesis prompt (engagement-ops-core.ts)
+- [x] Wire auth-testing-knowledge.ts into vuln synthesis prompt
+- [x] Wire owasp-knowledge.ts into vuln synthesis prompt
+- [x] Wire nmap-knowledge.ts into vuln synthesis prompt
+- [x] Wire threat-group-knowledge.ts into vuln synthesis prompt
+- [x] Wire pentest-knowledge-base.ts into functional-exploit-generator.ts
+- [x] Wire owasp-knowledge.ts into functional-exploit-generator.ts
+- [x] Wire auth-testing-knowledge.ts into functional-exploit-generator.ts
+- [x] Wire threat-group-knowledge.ts into llm-post-enrichment-analysis.ts
+- [x] Wire auth-testing-knowledge.ts into llm-post-enrichment-analysis.ts
+- [x] Wire pentest-knowledge-base.ts into llm-post-enrichment-analysis.ts
+- [x] Wire owasp-knowledge.ts into llm-post-enrichment-analysis.ts
+- [ ] Fix AgentWatchdog sweep error (TypeError: Cannot convert undefined or null to object)
+- [x] Fix agentDeployments.status → agentDeployments.agentStatus bug (6 occurrences across 3 files)
+- [x] Fix agentTasks.status → agentTasks.taskStatus bug (3 occurrences across 2 files)
+- [x] Fix task.status → task.taskStatus in cancel task handler
+
+## Training Target Research
+- [x] Research legal pentesting training targets online
+- [x] Verify reachability of all candidate targets (15 new reachable found)
+- [x] Add 12 new reachable targets to TRAINING_TARGETS catalog (training-lab.ts)
+- [x] Add ground truth vulnerability libraries for all new targets (llm-self-learning.ts)
+- [x] Update LLM known-site hints in vuln synthesis prompts (engagement-ops-core.ts)
+- [x] Build/update Training Lab UI with target cards, difficulty badges, and category filters
+- [x] Add scan launch flow so pentesters can select target and run pipeline (already existed, enhanced with filters)
+- [x] Write vitest tests for new ground truth scoring (37/37 passing)
+- [x] Restart server and verify all 20 targets visible in UI (API returns 20 targets, 19 ground truth sets)
+- [x] Fix require() → dynamic import() in training-lab.ts for ESM compatibility
+- [x] Fix async addLabLog function for await import support

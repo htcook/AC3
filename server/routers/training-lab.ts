@@ -123,6 +123,138 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     tags: ["general", "scanner-test"],
   },
   {
+    id: "broken-crystals",
+    name: "Broken Crystals",
+    url: "https://brokencrystals.com",
+    description: "Modern Node.js/React benchmark app with 30+ vulns including JWT bypass, prototype pollution, GraphQL introspection, SSTI, SSRF, and LDAP injection.",
+    difficulty: "advanced",
+    category: "Web Application",
+    knownVulns: ["JWT Bypass", "SQL Injection", "XSS", "SSRF", "SSTI", "CSRF", "IDOR", "XXE", "LDAP Injection", "OS Command Injection", "Prototype Pollution", "Brute Force", "Cookie Security", "Common Files", "Open Database", "Default Login", "Email Header Injection", "File Upload", "Full Path Disclosure", "Header Security", "HTML Injection", "HTTP Method Tampering", "Mass Assignment", "Secret Tokens", "Unvalidated Redirect", "Version Control", "GraphQL Introspection", "Business Constraint Bypass", "Date Manipulation", "ID Enumeration"],
+    owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025", "A06:2025", "A07:2025", "A08:2025", "A10:2025"],
+    tags: ["nodejs", "react", "graphql", "jwt", "modern"],
+  },
+  {
+    id: "gin-juice-shop",
+    name: "Gin & Juice Shop (PortSwigger)",
+    url: "https://ginandjuice.shop",
+    description: "PortSwigger's DAST benchmark application. Features 20+ vulnerability classes including HTTP request smuggling, deserialization, and DOM-based attacks.",
+    difficulty: "advanced",
+    category: "Web Application",
+    knownVulns: ["XSS", "SQL Injection", "SSRF", "SSTI", "XXE", "CORS Misconfiguration", "Clickjacking", "DOM-based XSS", "HTTP Request Smuggling", "WebSocket Vulns", "Deserialization", "Path Traversal", "Authentication Bypass", "Access Control", "Information Disclosure"],
+    owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A05:2025", "A08:2025", "A10:2025"],
+    tags: ["portswigger", "dast-benchmark", "modern", "aws"],
+  },
+  {
+    id: "google-gruyere",
+    name: "Google Gruyere",
+    url: "http://google-gruyere.appspot.com/start",
+    description: "Google's 'cheesy' vulnerable web app. Built in Python on GAE, features XSS, CSRF, RCE, DoS, and information disclosure vulnerabilities.",
+    difficulty: "beginner",
+    category: "Web Application",
+    knownVulns: ["XSS", "CSRF", "Remote Code Execution", "DoS", "Information Disclosure"],
+    owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
+    tags: ["python", "gae", "beginner-friendly"],
+  },
+  {
+    id: "firing-range",
+    name: "Google Firing Range",
+    url: "https://public-firing-range.appspot.com",
+    description: "Google's XSS testbed with 50+ DOM and reflected XSS variants, CORS misconfigurations, reverse clickjacking, and mixed content issues.",
+    difficulty: "intermediate",
+    category: "XSS Testbed",
+    knownVulns: ["DOM XSS", "Reflected XSS", "CORS Misconfiguration", "Reverse Clickjacking", "Mixed Content", "Flash Injection", "Remote Inclusion"],
+    owaspCategories: ["A03:2025", "A05:2025"],
+    tags: ["google", "xss", "dom", "gae"],
+  },
+  {
+    id: "vulnweb-aspnet",
+    name: "Acunetix Vulnweb (ASP.NET)",
+    url: "http://testaspnet.vulnweb.com",
+    description: "ASP.NET blog application with SQL injection, XSS, and .NET-specific vulnerabilities on IIS/MSSQL stack.",
+    difficulty: "intermediate",
+    category: "Web Application",
+    knownVulns: ["SQL Injection", "XSS", "ASP.NET Misconfigurations", "Information Disclosure"],
+    owaspCategories: ["A03:2025", "A05:2025"],
+    tags: ["asp.net", "iis", "mssql"],
+  },
+  {
+    id: "vulnweb-html5",
+    name: "Acunetix SecurityTweets (HTML5)",
+    url: "http://testhtml5.vulnweb.com",
+    description: "HTML5 vulnerable application built with Flask and CouchDB. Tests HTML5-specific vulnerabilities and NoSQL injection.",
+    difficulty: "intermediate",
+    category: "Web Application",
+    knownVulns: ["NoSQL Injection", "XSS", "HTML5 Security Issues", "CORS Misconfiguration"],
+    owaspCategories: ["A03:2025", "A05:2025"],
+    tags: ["html5", "flask", "couchdb", "nosql"],
+  },
+  {
+    id: "hack-yourself-first",
+    name: "Hack Yourself First (Troy Hunt)",
+    url: "http://hack-yourself-first.com",
+    description: "Troy Hunt's training site for developers. ASP.NET app with SQL injection, XSS, CSRF, and insecure direct object references.",
+    difficulty: "beginner",
+    category: "Web Application",
+    knownVulns: ["SQL Injection", "XSS", "CSRF", "IDOR", "Information Disclosure", "Insecure Transport"],
+    owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
+    tags: ["asp.net", "iis", "developer-training"],
+  },
+  {
+    id: "testsparker-aspnet",
+    name: "Testsparker (ASP.NET)",
+    url: "http://aspnet.testsparker.com",
+    description: "Invicti/Netsparker test site for ASP.NET. Features SQL injection, XSS, and IIS-specific vulnerabilities.",
+    difficulty: "intermediate",
+    category: "Web Application",
+    knownVulns: ["SQL Injection", "XSS", "Path Traversal", "Information Disclosure", "Authentication Bypass"],
+    owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
+    tags: ["asp.net", "iis", "mssql", "netsparker"],
+  },
+  {
+    id: "testsparker-php",
+    name: "Testsparker (PHP)",
+    url: "http://php.testsparker.com",
+    description: "Invicti/Netsparker test site for PHP. Features SQL injection, XSS, file inclusion, and MySQL-specific vulnerabilities.",
+    difficulty: "intermediate",
+    category: "Web Application",
+    knownVulns: ["SQL Injection", "XSS", "File Inclusion", "Command Injection", "Information Disclosure"],
+    owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
+    tags: ["php", "mysql", "netsparker"],
+  },
+  {
+    id: "testsparker-angular",
+    name: "Testsparker (Angular SPA)",
+    url: "http://angular.testsparker.com",
+    description: "Invicti/Netsparker test site for Angular single-page applications. Tests SPA-specific vulnerabilities.",
+    difficulty: "advanced",
+    category: "SPA",
+    knownVulns: ["DOM XSS", "Template Injection", "CORS Misconfiguration", "API Security Issues"],
+    owaspCategories: ["A03:2025", "A05:2025"],
+    tags: ["angular", "spa", "php", "mysql", "netsparker"],
+  },
+  {
+    id: "pentest-ground",
+    name: "Pentest-Ground",
+    url: "https://pentest-ground.com",
+    description: "Free playground with deliberately vulnerable web applications and network services for scanner testing.",
+    difficulty: "intermediate",
+    category: "Multi-App Platform",
+    knownVulns: ["SQL Injection", "XSS", "Command Injection", "File Upload", "Authentication Bypass"],
+    owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
+    tags: ["multi-app", "apache", "nginx", "redis"],
+  },
+  {
+    id: "scanme-nmap",
+    name: "Nmap ScanMe",
+    url: "http://scanme.nmap.org",
+    description: "Official Nmap authorized scanning target. Ideal for network reconnaissance and port scanning validation.",
+    difficulty: "beginner",
+    category: "Network",
+    knownVulns: ["Open Ports", "Service Detection", "OS Detection"],
+    owaspCategories: [],
+    tags: ["network", "nmap", "recon"],
+  },
+  {
     id: "custom",
     name: "Custom Target",
     url: "",
@@ -155,12 +287,12 @@ interface LabScanState {
 
 const labStates = new Map<string, LabScanState>();
 
-function addLabLog(state: LabScanState, entry: { phase: string; type: string; title: string; detail: string }) {
+async function addLabLog(state: LabScanState, entry: { phase: string; type: string; title: string; detail: string }) {
   state.log.push({ ts: Date.now(), ...entry });
   if (state.log.length > 300) state.log = state.log.slice(-300);
   // Broadcast via WebSocket
   try {
-    const { eventHub } = require("../lib/ws-event-hub");
+    const { eventHub } = await import("../lib/ws-event-hub");
     eventHub.broadcast({
       type: "training_lab:progress",
       sessionId: state.sessionId,
@@ -994,14 +1126,14 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
   /** Get ground truth for a target */
   groundTruth: publicProcedure
     .input(z.object({ targetPreset: z.string() }))
-    .query(({ input }) => {
-      const { GROUND_TRUTH_LIBRARY } = require("../lib/llm-self-learning");
+    .query(async ({ input }) => {
+      const { GROUND_TRUTH_LIBRARY } = await import("../lib/llm-self-learning");
       return GROUND_TRUTH_LIBRARY[input.targetPreset] || [];
     }),
 
   /** Get all available ground truth targets */
-  groundTruthTargets: publicProcedure.query(() => {
-    const { GROUND_TRUTH_LIBRARY } = require("../lib/llm-self-learning");
+  groundTruthTargets: publicProcedure.query(async () => {
+    const { GROUND_TRUTH_LIBRARY } = await import("../lib/llm-self-learning");
     return Object.entries(GROUND_TRUTH_LIBRARY).map(([key, vulns]: [string, any]) => ({
       targetPreset: key,
       vulnCount: vulns.length,
@@ -1052,7 +1184,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
   sessionAccuracy: publicProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
-      const mysql = require("mysql2/promise");
+      const mysql = await import("mysql2/promise");
       const conn = await mysql.createConnection(process.env.DATABASE_URL);
       try {
         const [rows] = await conn.execute(

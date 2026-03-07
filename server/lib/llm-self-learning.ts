@@ -115,6 +115,122 @@ export const GROUND_TRUTH_LIBRARY: Record<string, GroundTruthVuln[]> = {
     { title: "Open Redirect", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "URL redirect parameter can be manipulated.", detectionHint: "Test redirect parameters" },
     { title: "Information Disclosure", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "Server version and configuration exposed.", detectionHint: "Check response headers and error pages" },
   ],
+
+  // ─── New Training Targets (March 2026) ─────────────────────────────────────
+
+  "broken-crystals": [
+    { title: "JWT None Algorithm Bypass", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "critical", description: "JWT tokens accept 'none' algorithm, allowing forged tokens to bypass authentication entirely.", detectionHint: "Decode JWT, change alg to none, remove signature" },
+    { title: "SQL Injection in Login", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Login endpoint vulnerable to SQL injection via username/password fields.", detectionHint: "Test login with ' OR 1=1--" },
+    { title: "Reflected XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Multiple endpoints reflect user input without sanitization.", detectionHint: "Test input fields with <script>alert(1)</script>" },
+    { title: "Server-Side Request Forgery (SSRF)", category: "Server-Side Request Forgery", owaspCategory: "A10:2025", severity: "high", description: "URL fetch functionality allows SSRF to internal services.", detectionHint: "Test URL parameters with http://localhost or internal IPs" },
+    { title: "Server-Side Template Injection (SSTI)", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Template engine processes user input, allowing code execution via template syntax.", detectionHint: "Test with {{7*7}} or ${7*7} in input fields" },
+    { title: "XML External Entity (XXE)", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "XML parser processes external entities, allowing file read and SSRF.", detectionHint: "Submit XML with <!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]>" },
+    { title: "LDAP Injection", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "LDAP query constructed from user input without sanitization.", detectionHint: "Test with *)(&) in LDAP-related fields" },
+    { title: "OS Command Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "System command execution via user-controlled input.", detectionHint: "Test with ; id or | whoami in input fields" },
+    { title: "Prototype Pollution", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "JavaScript prototype chain can be polluted via __proto__ or constructor.prototype.", detectionHint: "Send JSON with __proto__ key" },
+    { title: "IDOR - Insecure Direct Object Reference", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "API endpoints allow accessing other users' data by changing IDs.", detectionHint: "Modify user/object IDs in API requests" },
+    { title: "CSRF - Missing Token Validation", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "medium", description: "State-changing operations lack CSRF token validation.", detectionHint: "Check forms for CSRF tokens" },
+    { title: "Default Login Credentials", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "high", description: "Application ships with default admin:admin credentials.", detectionHint: "Try admin:admin at login" },
+    { title: "GraphQL Introspection Enabled", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "GraphQL introspection query exposes entire API schema.", detectionHint: "Send __schema introspection query to /graphql" },
+    { title: "Mass Assignment", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "API accepts and processes extra fields allowing privilege escalation.", detectionHint: "Add role:admin to registration/update requests" },
+    { title: "Unvalidated Redirect", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Redirect parameter accepts arbitrary URLs for phishing.", detectionHint: "Test redirect params with external URLs" },
+    { title: "File Upload Vulnerability", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "File upload allows malicious file types without validation.", detectionHint: "Upload .php/.jsp files with modified content-type" },
+    { title: "Version Control Exposure", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: ".git directory accessible, exposing source code.", detectionHint: "Check for /.git/HEAD" },
+    { title: "Missing Security Headers", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "Missing CSP, X-Frame-Options, HSTS headers.", detectionHint: "Check HTTP response headers" },
+  ],
+
+  "gin-juice-shop": [
+    { title: "Reflected XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Multiple reflected XSS vectors across the application.", detectionHint: "Test search and input fields with XSS payloads" },
+    { title: "DOM-based XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Client-side JavaScript processes URL fragments unsafely.", detectionHint: "Test URL hash/fragment with XSS payloads" },
+    { title: "SQL Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Database queries constructed from user input without parameterization.", detectionHint: "Test with ' UNION SELECT in input fields" },
+    { title: "Server-Side Request Forgery (SSRF)", category: "Server-Side Request Forgery", owaspCategory: "A10:2025", severity: "high", description: "URL fetch functionality allows SSRF to internal AWS metadata.", detectionHint: "Test with http://169.254.169.254/" },
+    { title: "Server-Side Template Injection (SSTI)", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Template engine processes user input allowing code execution.", detectionHint: "Test with {{7*7}} in input fields" },
+    { title: "XML External Entity (XXE)", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "XML parser processes external entities.", detectionHint: "Submit crafted XML with external entity declarations" },
+    { title: "CORS Misconfiguration", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "high", description: "Overly permissive CORS policy reflects arbitrary origins.", detectionHint: "Send request with Origin: evil.com header" },
+    { title: "Clickjacking", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Missing X-Frame-Options allows framing for clickjacking.", detectionHint: "Check for X-Frame-Options header" },
+    { title: "HTTP Request Smuggling", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Discrepancies in Content-Length/Transfer-Encoding handling allow request smuggling.", detectionHint: "Send ambiguous CL/TE headers" },
+    { title: "Insecure Deserialization", category: "Insecure Deserialization", owaspCategory: "A08:2025", severity: "critical", description: "Application deserializes untrusted data allowing RCE.", detectionHint: "Check for serialized objects in cookies/requests" },
+    { title: "Path Traversal", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "File serving allows path traversal to read arbitrary files.", detectionHint: "Test with ../../etc/passwd in file parameters" },
+    { title: "Authentication Bypass", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "critical", description: "Authentication mechanism can be bypassed.", detectionHint: "Test token manipulation and auth header bypass" },
+    { title: "Broken Access Control", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Horizontal and vertical privilege escalation possible.", detectionHint: "Access admin endpoints with regular user tokens" },
+    { title: "Information Disclosure", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Verbose error messages and debug information exposed.", detectionHint: "Trigger errors and check responses" },
+  ],
+
+  "google-gruyere": [
+    { title: "Stored XSS in Snippets", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "User-created snippets allow stored XSS that executes for all visitors.", detectionHint: "Create snippet with <script> tags" },
+    { title: "Reflected XSS in Error Pages", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Error pages reflect user input without encoding.", detectionHint: "Trigger errors with XSS payloads in URL" },
+    { title: "CSRF on State-Changing Operations", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "high", description: "No CSRF protection on snippet creation and account operations.", detectionHint: "Check for CSRF tokens in forms" },
+    { title: "Remote Code Execution via Template", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Template system allows code execution through crafted input.", detectionHint: "Test template syntax in user-controlled fields" },
+    { title: "Information Disclosure - Source Code", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Application source code accessible through specific URLs.", detectionHint: "Check for source code disclosure paths" },
+    { title: "Path Traversal", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "File serving allows reading files outside intended directory.", detectionHint: "Test with ../ in file paths" },
+    { title: "Denial of Service", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Resource exhaustion possible through crafted requests.", detectionHint: "Test with large payloads or recursive structures" },
+  ],
+
+  "firing-range": [
+    { title: "DOM XSS - Multiple Vectors", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "50+ DOM-based XSS variants through various sinks (innerHTML, document.write, eval, etc.).", detectionHint: "Test each DOM sink with appropriate XSS payloads" },
+    { title: "Reflected XSS - Multiple Vectors", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Multiple reflected XSS through URL parameters, headers, and POST data.", detectionHint: "Test URL parameters with XSS payloads" },
+    { title: "CORS Misconfiguration", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "high", description: "Overly permissive CORS policy allows cross-origin data theft.", detectionHint: "Test with arbitrary Origin headers" },
+    { title: "Reverse Clickjacking", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Application can be tricked into framing attacker-controlled content.", detectionHint: "Check for frame-busting bypass" },
+    { title: "Mixed Content", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "medium", description: "HTTPS pages load resources over HTTP, allowing MitM.", detectionHint: "Check for HTTP resources on HTTPS pages" },
+    { title: "Remote Inclusion", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "Application includes remote resources based on user input.", detectionHint: "Test include parameters with external URLs" },
+  ],
+
+  "vulnweb-aspnet": [
+    { title: "SQL Injection in Login", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "ASP.NET login form vulnerable to SQL injection via username field.", detectionHint: "Test with ' OR 1=1--" },
+    { title: "Reflected XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Blog post and comment fields reflect input without encoding.", detectionHint: "Test input fields with XSS payloads" },
+    { title: "ASP.NET Misconfiguration - Trace Enabled", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "ASP.NET trace.axd accessible, exposing request details and session data.", detectionHint: "Check for /trace.axd" },
+    { title: "Information Disclosure - IIS Version", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "IIS server version exposed in HTTP headers.", detectionHint: "Check Server header in responses" },
+    { title: "ViewState Tampering", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "medium", description: "ASP.NET ViewState not MAC-protected, allowing tampering.", detectionHint: "Decode and modify ViewState" },
+  ],
+
+  "vulnweb-html5": [
+    { title: "NoSQL Injection in Login", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "CouchDB login vulnerable to NoSQL injection via JSON operators.", detectionHint: "Test with {\"$gt\": \"\"} in password field" },
+    { title: "Reflected XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Tweet and search fields reflect input without sanitization.", detectionHint: "Test with <script> in tweet/search" },
+    { title: "HTML5 Web Storage Exposure", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Sensitive data stored in HTML5 localStorage accessible via XSS.", detectionHint: "Check localStorage via browser console" },
+    { title: "CORS Misconfiguration", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "high", description: "Overly permissive CORS allows cross-origin data access.", detectionHint: "Test with arbitrary Origin header" },
+    { title: "Missing Security Headers", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "Missing CSP, X-Frame-Options, and HSTS headers.", detectionHint: "Check HTTP response headers" },
+  ],
+
+  "hack-yourself-first": [
+    { title: "SQL Injection in Search", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Vehicle search vulnerable to SQL injection via make/model parameters.", detectionHint: "Test search with ' UNION SELECT" },
+    { title: "Reflected XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Search results reflect input without encoding.", detectionHint: "Test search with XSS payloads" },
+    { title: "CSRF on Account Operations", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "high", description: "Account update operations lack CSRF protection.", detectionHint: "Check forms for anti-CSRF tokens" },
+    { title: "IDOR - User Data Access", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "User profile data accessible by changing user IDs.", detectionHint: "Modify user ID in API requests" },
+    { title: "Information Disclosure - Stack Traces", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Verbose ASP.NET error pages expose stack traces and paths.", detectionHint: "Trigger errors and check response" },
+    { title: "Insecure Transport - Mixed Content", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "medium", description: "Application serves content over HTTP without HSTS.", detectionHint: "Check for HSTS header and HTTP access" },
+  ],
+
+  "testsparker-aspnet": [
+    { title: "SQL Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Multiple SQL injection points in login and search forms.", detectionHint: "Test with ' OR 1=1-- in login fields" },
+    { title: "Reflected XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Input reflected without encoding across multiple pages.", detectionHint: "Test with <script>alert(1)</script>" },
+    { title: "Path Traversal", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "File download allows path traversal on IIS.", detectionHint: "Test with ..\\..\\web.config" },
+    { title: "Authentication Bypass", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "critical", description: "Authentication mechanism can be bypassed via SQL injection.", detectionHint: "Use SQLi in login to bypass auth" },
+    { title: "Information Disclosure - Server Version", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "IIS and ASP.NET version exposed in headers.", detectionHint: "Check Server and X-Powered-By headers" },
+  ],
+
+  "testsparker-php": [
+    { title: "SQL Injection in Login", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Login form vulnerable to SQL injection authentication bypass.", detectionHint: "Test with admin'-- in username" },
+    { title: "Reflected XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Search and input fields reflect user input without sanitization.", detectionHint: "Test with XSS payloads in search" },
+    { title: "Local File Inclusion (LFI)", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "PHP include via URL parameter allows reading arbitrary files.", detectionHint: "Test with ?page=../../../../etc/passwd" },
+    { title: "Command Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "System command execution via user-controlled input.", detectionHint: "Test with ; id or | whoami" },
+    { title: "Information Disclosure - PHP Info", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "phpinfo() page accessible revealing server configuration.", detectionHint: "Check for /phpinfo.php" },
+  ],
+
+  "testsparker-angular": [
+    { title: "DOM-based XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Angular template injection and DOM manipulation vulnerabilities.", detectionHint: "Test with {{constructor.constructor('alert(1)')()}}" },
+    { title: "Angular Template Injection", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "User input processed as Angular template expressions.", detectionHint: "Test with {{7*7}} in input fields" },
+    { title: "CORS Misconfiguration", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "high", description: "API CORS policy overly permissive for SPA.", detectionHint: "Test with arbitrary Origin header" },
+    { title: "API Security - Broken Auth", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "SPA API endpoints have weak authentication.", detectionHint: "Test API calls without/with modified tokens" },
+    { title: "Information Disclosure - Source Maps", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Angular source maps accessible, exposing application logic.", detectionHint: "Check for .js.map files" },
+  ],
+
+  "pentest-ground": [
+    { title: "SQL Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Multiple SQL injection points across vulnerable applications.", detectionHint: "Test login and search forms with SQL payloads" },
+    { title: "XSS - Multiple Types", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Reflected and stored XSS across multiple apps.", detectionHint: "Test input fields with XSS payloads" },
+    { title: "Command Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "OS command injection via user input fields.", detectionHint: "Test with ; id or | whoami" },
+    { title: "File Upload Vulnerability", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "Unrestricted file upload allows malicious file execution.", detectionHint: "Upload PHP/JSP webshell" },
+    { title: "Authentication Bypass", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "critical", description: "Authentication mechanisms can be bypassed.", detectionHint: "Test with SQLi and default credentials" },
+  ],
 };
 
 // ─── Feedback Knowledge Base ───────────────────────────────────────────────

@@ -235,6 +235,18 @@ export interface EngagementOpsState {
     authorizedIps: string[];      // exact IPs/CIDRs from targetIpRange
     roeStatus: string;            // signed, pending, etc.
   };
+  /** DAST scanning configuration */
+  dastConfig?: {
+    enabled: boolean;
+    crawlDepth: number;       // 1-5, how deep to crawl from root URL
+    crawlScope: 'strict' | 'subdomain' | 'domain'; // strict=same path, subdomain=*.target, domain=all subdomains
+    templateCategories: string[]; // e.g. ['sqli', 'xss', 'lfi', 'rfi', 'ssrf', 'rce', 'auth-bypass']
+    timeout: number;          // per-target timeout in seconds
+    maxRequests: number;      // max HTTP requests per target
+    rateLimit: number;        // requests per second
+    headless: boolean;        // use headless browser for JS-rendered pages
+    customHeaders?: Record<string, string>; // custom headers for authenticated scanning
+  };
   stats: {
     hostsScanned: number;
     portsFound: number;

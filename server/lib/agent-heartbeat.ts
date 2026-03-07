@@ -244,14 +244,14 @@ export async function runWatchdogSweep(): Promise<WatchdogResult> {
   const activeAgents = await db
     .select({
       id: agentDeployments.id,
-      status: agentDeployments.status,
+      status: agentDeployments.agentStatus,
       lastHeartbeat: agentDeployments.lastHeartbeat,
       watchdogSeconds: agentDeployments.watchdogSeconds,
       deployedAt: agentDeployments.deployedAt,
     })
     .from(agentDeployments)
     .where(
-      inArray(agentDeployments.status, ["active", "paused"])
+      inArray(agentDeployments.agentStatus, ["active", "paused"])
     );
 
   const lostAgentIds: string[] = [];
@@ -264,7 +264,7 @@ export async function runWatchdogSweep(): Promise<WatchdogResult> {
       // Mark as lost
       await db
         .update(agentDeployments)
-        .set({ status: "lost", updatedAt: now })
+        .set({ agentStatus: "lost", updatedAt: now })
         .where(eq(agentDeployments.id, agent.id));
 
       await logHeartbeatEvent(agent.id, "lost", "system", {

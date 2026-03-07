@@ -85,6 +85,16 @@ export async function runPostEnrichmentAnalysis(
 ): Promise<PostEnrichmentAnalysis> {
   try {
     const { invokeLLM } = await import("../_core/llm");
+    // Wire knowledge modules for enriched post-enrichment analysis
+    const { getThreatGroupVulnContext, getSectorThreatContext } = await import("./threat-group-knowledge");
+    const { buildAuthKnowledgeContext } = await import("./auth-testing-knowledge");
+    const { buildKnowledgeContextForLLM } = await import("./pentest-knowledge-base");
+    const { getOwaspVulnCorrelationContext } = await import("./owasp-knowledge");
+    const threatCtx = getThreatGroupVulnContext();
+    const sectorCtx = org.sector ? getSectorThreatContext(org.sector) : '';
+    const authCtx = buildAuthKnowledgeContext();
+    const pentestCtx = buildKnowledgeContextForLLM('analyst', 1500);
+    const owaspCtx = getOwaspVulnCorrelationContext();
 
     // Build a concise summary of all enriched data for the LLM
     const confirmedFindings = analyses.flatMap(a =>
@@ -141,7 +151,18 @@ Analyze this data and provide:
 5. Threat actor mapping (which groups would target this surface)
 6. Overall assessment and confidence statement
 
-Return valid JSON matching the schema.`;
+Return valid JSON matching the schema.
+
+=== KNOWLEDGE BASE CONTEXT ===
+${threatCtx.slice(0, 1000)}
+
+${sectorCtx.slice(0, 800)}
+
+${authCtx.slice(0, 600)}
+
+${pentestCtx.slice(0, 1000)}
+
+${owaspCtx.slice(0, 800)}`;
 
     const response = await invokeLLM({
       messages: [

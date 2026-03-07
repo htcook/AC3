@@ -190,7 +190,7 @@ export const c2LifecycleRouter = router({
 
       const conditions: any[] = [];
       if (input.status) {
-        conditions.push(eq(agentDeployments.status, input.status));
+        conditions.push(eq(agentDeployments.agentStatus, input.status));
       }
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -292,7 +292,7 @@ export const c2LifecycleRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await db.update(agentDeployments).set({ status: "paused", updatedAt: Date.now() }).where(eq(agentDeployments.id, input.id));
+      await db.update(agentDeployments).set({ agentStatus: "paused", updatedAt: Date.now() }).where(eq(agentDeployments.id, input.id));
       await logAgentEvent(input.id, "paused", ctx.user?.id ?? 1, "operator");
       return { success: true };
     }),
@@ -302,7 +302,7 @@ export const c2LifecycleRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await db.update(agentDeployments).set({ status: "active", updatedAt: Date.now() }).where(eq(agentDeployments.id, input.id));
+      await db.update(agentDeployments).set({ agentStatus: "active", updatedAt: Date.now() }).where(eq(agentDeployments.id, input.id));
       await logAgentEvent(input.id, "resumed", ctx.user?.id ?? 1, "operator");
       return { success: true };
     }),
@@ -313,7 +313,7 @@ export const c2LifecycleRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await db.update(agentDeployments).set({
-        status: "terminated", terminatedAt: Date.now(), updatedAt: Date.now(),
+        agentStatus: "terminated", terminatedAt: Date.now(), updatedAt: Date.now(),
       }).where(eq(agentDeployments.id, input.id));
       await logAgentEvent(input.id, "terminated", ctx.user?.id ?? 1, "operator", { reason: input.reason ?? "Manual termination" });
       return { success: true };
@@ -340,7 +340,7 @@ export const c2LifecycleRouter = router({
       executor: input.executor,
       timeoutSeconds: input.timeoutSeconds,
       payloadName: input.payloadName ?? null,
-      status: "queued",
+      taskStatus: "queued",
       queuedAt: now,
       assignedBy: ctx.user?.id ?? 1,
       roeVerified: false,
@@ -363,7 +363,7 @@ export const c2LifecycleRouter = router({
       const db = await getDb();
       if (!db) return [];
       const conditions: any[] = [eq(agentTasks.agentId, input.agentId)];
-      if (input.status) conditions.push(eq(agentTasks.status, input.status));
+      if (input.status) conditions.push(eq(agentTasks.taskStatus, input.status));
       return db.select().from(agentTasks).where(and(...conditions)).orderBy(desc(agentTasks.queuedAt)).limit(input.limit);
     }),
 
@@ -374,8 +374,8 @@ export const c2LifecycleRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const [task] = await db.select().from(agentTasks).where(eq(agentTasks.id, input.taskId));
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
-      if (task.status !== "queued") throw new TRPCError({ code: "BAD_REQUEST", message: "Can only cancel queued tasks" });
-      await db.update(agentTasks).set({ status: "cancelled", completedAt: Date.now() }).where(eq(agentTasks.id, input.taskId));
+      if (task.taskStatus !== "queued") throw new TRPCError({ code: "BAD_REQUEST", message: "Can only cancel queued tasks" });
+      await db.update(agentTasks).set({ taskStatus: "cancelled", completedAt: Date.now() }).where(eq(agentTasks.id, input.taskId));
       return { success: true };
     }),
 

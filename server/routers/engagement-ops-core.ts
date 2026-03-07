@@ -1481,11 +1481,17 @@ export const engagementOpsRouter = router({
                   }
 
                   // Nuclei DAST mode with crawling for active vuln confirmation
-                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f578}\ufe0f DAST: ${asset.hostname}`, detail: 'Crawling & fuzzing for injection points...' });
+                  const dc = state!.dastConfig || { enabled: true, crawlDepth: 3, crawlScope: 'strict', templateCategories: ['sqli', 'xss', 'lfi', 'rfi', 'ssrf', 'rce'], timeout: 30, maxRequests: 5000, rateLimit: 50, headless: true };
+                  if (dc.enabled !== false) {
+                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f578}\ufe0f DAST: ${asset.hostname}`, detail: `Crawl depth: ${dc.crawlDepth}, scope: ${dc.crawlScope}, categories: ${dc.templateCategories.join(',')}` });
                   try {
+                    const scopeFlag = dc.crawlScope === 'strict' ? '' : dc.crawlScope === 'subdomain' ? `-cs ${asset.hostname}` : `-cs ${asset.hostname.split('.').slice(-2).join('.')}`;
+                    const headlessFlag = dc.headless ? '-headless' : '';
+                    const customHeaderFlags = dc.customHeaders ? Object.entries(dc.customHeaders).map(([k, v]) => `-H "${k}: ${v}"`).join(' ') : '';
+                    const dastCmd = `echo "http://${asset.hostname}" | nuclei -dast ${headlessFlag} -crawl-depth ${dc.crawlDepth} -crawl-duration ${dc.timeout * 2} -severity critical,high,medium -jsonl -nc -duc -ni -timeout ${dc.timeout} -rate-limit ${dc.rateLimit} -max-host-error 10 ${scopeFlag} ${customHeaderFlags} -system-resolvers 2>&1`;
                     const dastResult = await executeRawCommand(
-                      `echo "http://${asset.hostname}" | nuclei -dast -headless -crawl-depth 3 -crawl-duration 60 -severity critical,high,medium -jsonl -nc -duc -ni -timeout 30 -rate-limit 50 -system-resolvers 2>&1`,
-                      180
+                      dastCmd,
+                      Math.max(180, dc.timeout * 3)
                     );
                     const dastFindings = dastResult.stdout.split('\n').filter(Boolean).map((line: string) => {
                       try { return JSON.parse(line); } catch { return null; }
@@ -1521,6 +1527,7 @@ export const engagementOpsRouter = router({
                   } catch (err: any) {
                     addLog(state!, { phase: 'scanning', type: 'info', title: `\u26a0\ufe0f DAST skipped: ${asset.hostname}`, detail: err.message?.slice(0, 100) || 'Timeout or unavailable' });
                   }
+                  } // end if (dc.enabled)
 
                   // Curl-based header probing fallback (always runs to supplement nuclei)
                   try {
@@ -1603,6 +1610,17 @@ export const engagementOpsRouter = router({
               addLog(state!, { phase: 'scanning', type: 'info', title: '\u{1f9e0} LLM Vuln Synthesis', detail: 'Analyzing risk signals and services to identify vulnerabilities...' });
               try {
                 const { invokeLLM } = await import('../_core/llm');
+                // Wire knowledge modules into vuln synthesis for enriched LLM context
+                const { getOwaspVulnCorrelationContext } = await import('../lib/owasp-knowledge');
+                const { buildKnowledgeContextForLLM } = await import('../lib/pentest-knowledge-base');
+                const { buildAuthKnowledgeContext } = await import('../lib/auth-testing-knowledge');
+                const { getNmapVulnCorrelationContext } = await import('../lib/nmap-knowledge');
+                const { getThreatGroupVulnContext } = await import('../lib/threat-group-knowledge');
+                const owaspCtx = getOwaspVulnCorrelationContext();
+                const pentestCtx = buildKnowledgeContextForLLM('operator', 2000);
+                const authCtx = buildAuthKnowledgeContext();
+                const nmapVulnCtx = getNmapVulnCorrelationContext();
+                const threatCtx = getThreatGroupVulnContext();
                 for (const asset of state!.assets) {
                   if (asset.vulns.length > 0) continue; // Skip assets that already have vulns from active scanning
                   const signals = asset.passiveRecon?.riskSignals || [];
@@ -1650,10 +1668,24 @@ Open Ports/Services: ${ports.map((p: any) => `${p.port}/${p.service}${p.version 
 ${sampledSignals.map((s: any, i: number) => `${i+1}. [${s.severity || 'medium'}] ${s.rationale || s.title || 'Unknown'}`).join('\n')}
 
 IMPORTANT CONTEXT:
-- If this is a known test/vulnerable site (e.g., testphp.vulnweb.com = Acunetix test site, demo.testfire.net = IBM AppScan test site, demo.owasp-juice.shop = OWASP Juice Shop), you MUST include the classic vulnerabilities these sites are known for.
+- If this is a known test/vulnerable site, you MUST include the classic vulnerabilities these sites are known for.
 - testphp.vulnweb.com is known for: SQL Injection, XSS, File Inclusion (LFI/RFI), CRLF Injection, Directory Traversal
-- demo.testfire.net is known for: SQL Injection, XSS, Authentication Bypass, Information Disclosure
-- demo.owasp-juice.shop is known for: SQL Injection, XSS, Broken Authentication, Sensitive Data Exposure
+- demo.testfire.net is known for: SQL Injection, XSS, Authentication Bypass, Session Fixation, IDOR, Information Disclosure
+- demo.owasp-juice.shop is known for: SQL Injection, XSS, Broken Authentication, JWT None Algorithm, SSRF, Sensitive Data Exposure, Insecure Deserialization
+- brokencrystals.com is known for: JWT Bypass, SQL Injection, XSS, SSRF, SSTI, XXE, LDAP Injection, OS Command Injection, Prototype Pollution, IDOR, CSRF, GraphQL Introspection, Mass Assignment, Default Credentials (admin:admin)
+- ginandjuice.shop is known for: XSS, DOM XSS, SQL Injection, SSRF, SSTI, XXE, CORS Misconfiguration, HTTP Request Smuggling, Insecure Deserialization, Path Traversal, Authentication Bypass
+- google-gruyere.appspot.com is known for: Stored XSS, Reflected XSS, CSRF, Remote Code Execution, Path Traversal, Information Disclosure
+- public-firing-range.appspot.com is known for: 50+ DOM XSS variants, Reflected XSS, CORS Misconfiguration, Reverse Clickjacking, Remote Inclusion
+- testaspnet.vulnweb.com is known for: SQL Injection, XSS, ASP.NET Trace Enabled, ViewState Tampering, IIS Information Disclosure
+- testhtml5.vulnweb.com is known for: NoSQL Injection (CouchDB), XSS, HTML5 Web Storage Exposure, CORS Misconfiguration
+- testasp.vulnweb.com is known for: SQL Injection, XSS, Path Traversal, ViewState Tampering, Information Disclosure
+- hack-yourself-first.com is known for: SQL Injection, XSS, CSRF, IDOR, Insecure Transport
+- aspnet.testsparker.com is known for: SQL Injection, XSS, Path Traversal, Authentication Bypass
+- php.testsparker.com is known for: SQL Injection, XSS, LFI, Command Injection
+- angular.testsparker.com is known for: DOM XSS, Angular Template Injection, CORS Misconfiguration, API Security Issues
+- rest.vulnweb.com is known for: BOLA, Broken Authentication, Excessive Data Exposure, Injection, Missing Rate Limiting
+- pentest-ground.com is known for: SQL Injection, XSS, Command Injection, File Upload, Authentication Bypass
+- zero.webappsecurity.com is known for: Broken Authentication, IDOR, XSS, CSRF
 
 Identify the TOP 10 most likely vulnerabilities with MAXIMUM CATEGORY DIVERSITY.
 
@@ -1664,6 +1696,17 @@ For each vulnerability provide:
 - description: Brief explanation including WHERE and HOW the vulnerability likely exists
 - confidence: 0-100 how confident you are
 - category: One of: injection, xss, auth_bypass, info_disclosure, misconfig, broken_access, ssrf, file_inclusion, directory_traversal, crlf_injection, sensitive_data
+
+=== KNOWLEDGE BASE CONTEXT ===
+${owaspCtx.slice(0, 1500)}
+
+${pentestCtx.slice(0, 1500)}
+
+${authCtx.slice(0, 800)}
+
+${nmapVulnCtx.slice(0, 800)}
+
+${threatCtx.slice(0, 800)}
 
 Return ONLY a JSON object with vulnerabilities array. No markdown, no explanation.`;
 
@@ -1974,7 +2017,7 @@ Open Ports/Services: ${portsStr}
 ${signalsStr}
 
 IMPORTANT CONTEXT:
-- If this is a known test/vulnerable site (testphp.vulnweb.com, demo.testfire.net, demo.owasp-juice.shop), include their classic vulnerabilities.
+- If this is a known test/vulnerable site (testphp.vulnweb.com, demo.testfire.net, demo.owasp-juice.shop, brokencrystals.com, ginandjuice.shop, google-gruyere.appspot.com, public-firing-range.appspot.com, testaspnet.vulnweb.com, testhtml5.vulnweb.com, testasp.vulnweb.com, hack-yourself-first.com, aspnet.testsparker.com, php.testsparker.com, angular.testsparker.com, rest.vulnweb.com, pentest-ground.com, zero.webappsecurity.com), include their classic vulnerabilities.
 
 Identify the TOP 10 most likely vulnerabilities.
 For each: title, severity (critical/high/medium/low), cve (or empty string), description, confidence (0-100), category.

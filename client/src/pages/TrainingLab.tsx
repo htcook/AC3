@@ -139,6 +139,9 @@ export default function TrainingLab() {
   const [customUrl, setCustomUrl] = useState("");
   const [scanProfile, setScanProfile] = useState<string>("standard");
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [targetSearch, setTargetSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [difficultyFilter, setDifficultyFilter] = useState<string>("all");
 
   // Data queries
   const { data: targets } = trpc.trainingLab.targets.useQuery();
@@ -280,9 +283,64 @@ export default function TrainingLab() {
                 <div className="lg:col-span-2 space-y-4">
                   <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <Target className="w-5 h-5 text-primary" /> Select Training Target
+                    <Badge variant="outline" className="text-[10px] ml-auto">
+                      {targets?.length || 0} targets
+                    </Badge>
                   </h2>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {targets?.map((t: TrainingTarget) => (
+
+                  {/* Search & Filters */}
+                  <div className="flex flex-wrap gap-2">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Search targets by name, tech, or vuln type..."
+                        value={targetSearch}
+                        onChange={(e) => setTargetSearch(e.target.value)}
+                        className="pl-8 text-xs h-8"
+                      />
+                    </div>
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                      <SelectTrigger className="w-[150px] text-xs h-8">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {[...new Set(targets?.map((t: TrainingTarget) => t.category) || [])].sort().map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
+                      <SelectTrigger className="w-[140px] text-xs h-8">
+                        <SelectValue placeholder="Difficulty" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Levels</SelectItem>
+                        <SelectItem value="beginner">Beginner</SelectItem>
+                        <SelectItem value="intermediate">Intermediate</SelectItem>
+                        <SelectItem value="advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(targetSearch || categoryFilter !== "all" || difficultyFilter !== "all") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => { setTargetSearch(""); setCategoryFilter("all"); setDifficultyFilter("all"); }}
+                      >
+                        <XCircle className="w-3 h-3 mr-1" /> Clear
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
+                    {targets?.filter((t: TrainingTarget) => {
+                      const q = targetSearch.toLowerCase();
+                      const matchesSearch = !q || t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.tags.some(tag => tag.toLowerCase().includes(q)) || t.knownVulns.some(v => v.toLowerCase().includes(q)) || t.category.toLowerCase().includes(q);
+                      const matchesCategory = categoryFilter === "all" || t.category === categoryFilter;
+                      const matchesDifficulty = difficultyFilter === "all" || t.difficulty === difficultyFilter;
+                      return matchesSearch && matchesCategory && matchesDifficulty;
+                    }).map((t: TrainingTarget) => (
                       <Card
                         key={t.id}
                         className={`cursor-pointer transition-all hover:border-primary/50 ${
@@ -308,6 +366,7 @@ export default function TrainingLab() {
                               {t.difficulty}
                             </Badge>
                           </div>
+                          <p className="text-[10px] text-primary/60 font-mono truncate">{t.url}</p>
                           <p className="text-xs text-muted-dim leading-relaxed line-clamp-2">
                             {t.description}
                           </p>
@@ -318,10 +377,17 @@ export default function TrainingLab() {
                               </Badge>
                             ))}
                             {t.knownVulns.length > 4 && (
-                              <Badge variant="outline" className="text-[9px] border-border">
-                                +{t.knownVulns.length - 4}
+                              <Badge variant="outline" className="text-[9px] border-border text-primary/70">
+                                +{t.knownVulns.length - 4} more
                               </Badge>
                             )}
+                          </div>
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {t.tags.slice(0, 5).map((tag) => (
+                              <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                                {tag}
+                              </span>
+                            ))}
                           </div>
                         </CardContent>
                       </Card>
