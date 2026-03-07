@@ -1439,7 +1439,7 @@ export const engagementOpsRouter = router({
               state!.currentAction = 'Running active scans...';
               broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'scanning' });
               try {
-                const { executeTool } = await import('../lib/scan-server-executor');
+                const { executeTool, executeRawCommand } = await import('../lib/scan-server-executor');
                 for (const asset of state!.assets) {
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nmap: ${asset.hostname}`, detail: 'Service detection and version scan...' });
                   try {
@@ -1459,7 +1459,8 @@ export const engagementOpsRouter = router({
 
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: 'Vulnerability templates...' });
                   try {
-                    const nucleiResult = await executeTool({ tool: 'nuclei', args: `-u http://${asset.hostname} -severity critical,high,medium -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit 100 -tags cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal`, timeoutSeconds: 300 });
+                    // Use stdin piping to avoid nuclei hanging on PDCP TTY auth prompt
+                    const nucleiResult = await executeRawCommand(`echo "http://${asset.hostname}" | nuclei -severity critical,high,medium -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit 100 -tags cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal 2>&1`, 300);
                     const findings = nucleiResult.stdout.split('\n').filter(Boolean).map((line: string) => {
                       try { return JSON.parse(line); } catch { return null; }
                     }).filter(Boolean);
@@ -1846,5 +1847,158 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
         const exploits = (state as any)?.generatedExploits;
         if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
         return exploits[input.exploitIndex];
+      }),
+
+    /** Re-synthesize vulnerabilities for a specific asset, optionally targeting specific categories */
+    resynthesizeAssetVulns: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        hostname: z.string(),
+        targetCategories: z.array(z.string()).optional(),
+        replaceExisting: z.boolean().default(false),
+      }))
+      .mutation(async ({ input }) => {
+        const { getOpsState, addLog, persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+        const { invokeLLM } = await import('../_core/llm');
+        const state = getOpsState(input.engagementId);
+        if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement state not found' });
+
+        const asset = state.assets.find(a => a.hostname === input.hostname);
+        if (!asset) throw new TRPCError({ code: 'NOT_FOUND', message: `Asset ${input.hostname} not found` });
+
+        const signals = asset.passiveRecon?.riskSignals || [];
+        const techs = asset.passiveRecon?.technologies || [];
+        const ports = asset.ports || [];
+        const existingVulns = asset.vulns || [];
+
+        // Smart signal sampling
+        const highSeverity = signals.filter((s: any) => s.severity === 'critical' || s.severity === 'high');
+        const medSeverity = signals.filter((s: any) => s.severity === 'medium');
+        const lowSeverity = signals.filter((s: any) => s.severity === 'low' || s.severity === 'info');
+        const truncSignal = (s: any) => ({ ...s, rationale: (s.rationale || s.title || 'Unknown').slice(0, 120) });
+        const sampledSignals = [
+          ...highSeverity.slice(0, 12).map(truncSignal),
+          ...medSeverity.slice(0, 8).map(truncSignal),
+          ...lowSeverity.slice(0, 5).map(truncSignal),
+        ].slice(0, 25);
+
+        const categoryFocus = input.targetCategories?.length
+          ? `\n\nIMPORTANT: The operator specifically wants you to CHECK FOR these vulnerability categories: ${input.targetCategories.join(', ')}. You MUST include findings for each of these categories if there is ANY evidence.`
+          : '';
+
+        const existingContext = existingVulns.length > 0
+          ? `\n\nAlready identified vulnerabilities (DO NOT duplicate these, find NEW ones):\n${existingVulns.map((v: any) => `- ${v.title} [${v.severity}] (${v.category || 'unknown'})`).join('\n')}`
+          : '';
+
+        const portsStr = ports.map((p: any) => p.port + '/' + p.service + (p.version ? ' (' + p.version + ')' : '')).join(', ');
+        const signalsStr = sampledSignals.map((s: any, i: number) => (i+1) + '. [' + (s.severity || 'medium') + '] ' + (s.rationale || s.title || 'Unknown')).join('\n');
+        const synthPrompt = `You are a senior penetration tester performing a targeted vulnerability re-assessment of ${asset.hostname}.
+
+Your task: Analyze the passive reconnaissance data and identify vulnerabilities.${categoryFocus}${existingContext}
+
+CRITICAL RULES:
+1. You MUST identify vulnerabilities across DIVERSE categories.
+2. PRIORITIZE web application vulnerabilities over infrastructure/misconfig issues.
+3. Check for ALL of these categories: SQL Injection, XSS, Directory Traversal, CRLF Injection, File Inclusion, Broken Auth, Sensitive Data Exposure, Broken Access Control, SSRF, Security Misconfig (max 1).
+
+=== TARGET INFO ===
+Hostname: ${asset.hostname}
+Technologies: ${techs.join(', ') || 'Unknown'}
+Open Ports/Services: ${portsStr}
+
+=== RISK SIGNALS (${signals.length} total, showing ${sampledSignals.length} samples) ===
+${signalsStr}
+
+IMPORTANT CONTEXT:
+- If this is a known test/vulnerable site (testphp.vulnweb.com, demo.testfire.net, demo.owasp-juice.shop), include their classic vulnerabilities.
+
+Identify the TOP 10 most likely vulnerabilities.
+For each: title, severity (critical/high/medium/low), cve (or empty string), description, confidence (0-100), category.
+Return ONLY a JSON object with vulnerabilities array.`;
+
+        const synthSchema = { type: 'json_schema' as const, json_schema: {
+          name: 'vuln_synthesis',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              vulnerabilities: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' },
+                    severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+                    cve: { type: 'string' },
+                    description: { type: 'string' },
+                    confidence: { type: 'number' },
+                    category: { type: 'string' },
+                  },
+                  required: ['title', 'severity', 'cve', 'description', 'confidence', 'category'],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ['vulnerabilities'],
+            additionalProperties: false,
+          },
+        }};
+
+        addLog(state, { phase: 'scanning', type: 'info', title: `\u{1f504} Re-synthesizing: ${asset.hostname}`, detail: `Targeting: ${input.targetCategories?.join(', ') || 'all categories'}` });
+
+        try {
+          const llmResult = await invokeLLM({
+            messages: [
+              { role: 'system', content: 'You are a vulnerability assessment AI. Return only valid JSON.' },
+              { role: 'user', content: synthPrompt },
+            ],
+            response_format: synthSchema,
+          });
+
+          const content = llmResult.choices?.[0]?.message?.content || '{}';
+          const parsed = JSON.parse(content);
+          const synthVulns = (parsed.vulnerabilities || []).filter((v: any) => v.confidence >= 40);
+
+          if (input.replaceExisting) {
+            // Remove existing LLM-synthesized vulns (keep active scan vulns)
+            asset.vulns = asset.vulns.filter((v: any) => v.tool !== 'llm-synthesis');
+          }
+
+          const newVulns: any[] = [];
+          for (const v of synthVulns) {
+            // Skip duplicates by title similarity
+            const isDuplicate = asset.vulns.some((existing: any) =>
+              existing.title.toLowerCase().includes(v.title.toLowerCase().split(' ')[0]) ||
+              v.title.toLowerCase().includes(existing.title.toLowerCase().split(' ')[0])
+            );
+            if (!isDuplicate || input.replaceExisting) {
+              const newVuln = {
+                id: `resynth-${asset.hostname}-${Math.random().toString(36).slice(2,8)}`,
+                title: v.title,
+                severity: v.severity,
+                cve: v.cve || '',
+                description: v.description,
+                tool: 'llm-synthesis',
+                confidence: v.confidence,
+                category: v.category,
+              };
+              asset.vulns.push(newVuln as any);
+              newVulns.push(newVuln);
+            }
+          }
+
+          addLog(state, { phase: 'scanning', type: 'success', title: `\u2705 Re-synthesis: ${asset.hostname}`, detail: `${newVulns.length} new vulnerabilities added` });
+          await persistOpsStateNow(input.engagementId);
+
+          return {
+            success: true,
+            hostname: input.hostname,
+            newVulns,
+            totalVulns: asset.vulns.length,
+          };
+        } catch (err: any) {
+          addLog(state, { phase: 'scanning', type: 'error', title: `\u274c Re-synthesis failed: ${asset.hostname}`, detail: err.message });
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Re-synthesis failed: ${err.message}` });
+        }
       }),
   });

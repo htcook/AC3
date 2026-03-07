@@ -8127,3 +8127,27 @@
 - [x] Wire up existing tRPC calls (generatedExploitsQ, validateExploitMut, improveExploitMut, rerunMut)
 - [x] Write 28 vitest tests for new frontend tabs (all passing)
 - [x] Pipeline Progress already exists in Live Feed tab (no additional work needed)
+
+## Nuclei Scan Server Debugging
+- [x] Investigate nuclei Go runtime / DNS resolution on scan server
+- [x] Root cause: PDCP (ProjectDiscovery Cloud Platform) auth prompt hangs with no TTY
+- [x] Fix: Use stdin piping (echo target | nuclei) instead of -u flag
+- [x] Upgraded nuclei to v3.6.2 on scan server
+- [x] Added -system-resolvers flag for DNS reliability
+- [x] Nuclei now loads 9,861 templates successfully (was hanging before)
+- [ ] Note: nuclei template-based detection still returns 0 for generic web app vulns (needs DAST mode with crawling for SQLi/XSS)
+
+## Exploit Code Syntax Highlighting
+- [x] Install prism-react-renderer for lightweight syntax highlighting
+- [x] Create reusable CodeViewer component with language detection, line numbers, copy button
+- [x] Integrate CodeViewer into Exploit Code tab's View Code dialog
+- [x] Support Python, Ruby, Bash, PowerShell, JavaScript exploit languages
+- [x] Dark theme (vsDark) matching the dashboard aesthetic
+
+## Per-Asset Targeted Vuln Category Re-Synthesis
+- [x] Add resynthesizeAssetVulns backend endpoint (specific asset + categories)
+- [x] Add AlertDialog with 10 OWASP category checkboxes for targeted re-synthesis
+- [x] Add replace mode toggle (replace existing LLM vulns vs append new ones)
+- [x] Wire up tRPC mutation with success/error toast notifications
+- [x] Write 17 vitest tests for all new features (all passing)
+- [x] All 63 tests pass (17 new + 46 existing regression tests)

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
+import { CodeViewer } from "@/components/CodeViewer";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -739,6 +740,20 @@ export default function EngagementOps() {
     { engagementId, exploitIndex: viewingExploitIdx ?? 0 },
     { enabled: viewingExploitIdx !== null }
   );
+
+  // ── Targeted Re-Synthesis ──
+  const [resynthTarget, setResynthTarget] = useState<string | null>(null);
+  const [resynthCategories, setResynthCategories] = useState<string[]>([]);
+  const [resynthReplace, setResynthReplace] = useState(false);
+  const resynthMut = trpc.engagementOps.resynthesizeAssetVulns.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Re-synthesis complete: ${data.newVulns.length} new vulns for ${data.hostname} (${data.totalVulns} total)`);
+      opsQ.refetch();
+      setResynthTarget(null);
+      setResynthCategories([]);
+    },
+    onError: (e) => toast.error(`Re-synthesis failed: ${e.message}`),
+  });
 
   // ── WebSocket live feed ──
   const wsChannels = useMemo(
@@ -3270,14 +3285,12 @@ export default function EngagementOps() {
                               variant="outline"
                               className="h-7 text-[10px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
                               onClick={() => {
-                                rerunMut.mutate({
-                                  engagementId,
-                                  phases: { passive: true, active: false, llmAnalysis: true, exploitGeneration: false },
-                                });
+                                setResynthTarget(asset.hostname);
+                                setResynthCategories([]);
+                                setResynthReplace(false);
                               }}
-                              disabled={rerunMut.isPending}
                             >
-                              {rerunMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                              <Target className="h-3 w-3 mr-1" />
                               Re-Synthesize
                             </Button>
                           </div>
@@ -4051,15 +4064,22 @@ export default function EngagementOps() {
                 {exploitDetailQ.data.description && (
                   <p className="text-xs text-muted-foreground bg-muted/30 p-3 rounded">{exploitDetailQ.data.description}</p>
                 )}
-                <pre className="text-xs font-mono bg-zinc-950 text-green-400 p-4 rounded-lg overflow-auto max-h-[400px] border border-zinc-800">
-                  <code>{exploitDetailQ.data.code}</code>
-                </pre>
+                <CodeViewer
+                  code={exploitDetailQ.data.code}
+                  title={exploitDetailQ.data.title || 'Exploit Code'}
+                  filename={exploitDetailQ.data.filename}
+                  maxHeight="400px"
+                />
                 {exploitDetailQ.data.usage && (
                   <div>
                     <h4 className="text-xs font-semibold text-muted-foreground mb-1">Usage</h4>
-                    <pre className="text-xs font-mono bg-zinc-950 text-cyan-400 p-3 rounded border border-zinc-800">
-                      <code>{exploitDetailQ.data.usage}</code>
-                    </pre>
+                    <CodeViewer
+                      code={exploitDetailQ.data.usage}
+                      language="bash"
+                      title="Usage Instructions"
+                      showLineNumbers={false}
+                      maxHeight="150px"
+                    />
                   </div>
                 )}
                 {exploitDetailQ.data.mitigations && exploitDetailQ.data.mitigations.length > 0 && (
@@ -4113,6 +4133,78 @@ export default function EngagementOps() {
               <div className="flex-1" />
               <AlertDialogCancel>Close</AlertDialogCancel>
             </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Targeted Re-Synthesis Dialog ── */}
+      <AlertDialog open={resynthTarget !== null} onOpenChange={(open) => { if (!open) { setResynthTarget(null); setResynthCategories([]); } }}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-emerald-400" />
+              Re-Synthesize Vulnerabilities
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Target specific vulnerability categories for <span className="font-medium text-foreground">{resynthTarget}</span>. Select categories to focus on, or leave all unchecked to scan all categories.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'injection', label: 'SQL Injection' },
+                { id: 'xss', label: 'Cross-Site Scripting (XSS)' },
+                { id: 'directory_traversal', label: 'Directory Traversal' },
+                { id: 'crlf_injection', label: 'CRLF Injection' },
+                { id: 'file_inclusion', label: 'File Inclusion (LFI/RFI)' },
+                { id: 'auth_bypass', label: 'Broken Authentication' },
+                { id: 'sensitive_data', label: 'Sensitive Data Exposure' },
+                { id: 'broken_access', label: 'Broken Access Control' },
+                { id: 'ssrf', label: 'SSRF' },
+                { id: 'misconfig', label: 'Security Misconfiguration' },
+              ].map(cat => (
+                <label key={cat.id} className="flex items-center gap-2 text-xs p-2 rounded border border-border/30 hover:bg-muted/20 cursor-pointer">
+                  <Checkbox
+                    checked={resynthCategories.includes(cat.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setResynthCategories(prev => [...prev, cat.id]);
+                      } else {
+                        setResynthCategories(prev => prev.filter(c => c !== cat.id));
+                      }
+                    }}
+                  />
+                  <span>{cat.label}</span>
+                </label>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-xs p-2 rounded border border-yellow-500/20 bg-yellow-500/5">
+              <Checkbox
+                checked={resynthReplace}
+                onCheckedChange={(checked) => setResynthReplace(!!checked)}
+              />
+              <span className="text-yellow-400">Replace existing LLM-synthesized vulns (keep active scan findings)</span>
+            </label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              onClick={() => {
+                if (resynthTarget) {
+                  resynthMut.mutate({
+                    engagementId,
+                    hostname: resynthTarget,
+                    targetCategories: resynthCategories.length > 0 ? resynthCategories : undefined,
+                    replaceExisting: resynthReplace,
+                  });
+                }
+              }}
+              disabled={resynthMut.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {resynthMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Brain className="h-4 w-4 mr-2" />}
+              {resynthCategories.length > 0 ? `Re-Synthesize ${resynthCategories.length} Categories` : 'Re-Synthesize All Categories'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
