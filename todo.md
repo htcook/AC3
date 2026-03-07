@@ -7977,8 +7977,31 @@
 - [x] Verify no broken references after rename — all technical caldera C2 refs preserved
 
 ## LLM Error Investigation in Engagement Ops & Scans
-- [ ] Check database for recent engagement ops logs and scan results
-- [ ] Identify LLM-related errors in vulnerability correlation and scan analysis
-- [ ] Review LLM prompt construction in engagement-orchestrator for issues
-- [ ] Fix any identified LLM integration bugs
-- [ ] Test fixes
+- [x] Check database for recent engagement ops logs and scan results — analyzed 2 engagement snapshots (90001, 90002) and LLM telemetry
+- [x] Identify LLM-related errors in vulnerability correlation and scan analysis — found 403 errors were transient API gateway issues, not code bugs. LLM scan plan fell back to sequential scan, but vuln analysis succeeded (16-28 findings)
+- [x] Review LLM prompt construction in engagement-orchestrator for issues — found _engagementId missing from all invokeLLM calls, making telemetry correlation impossible
+- [x] Fix any identified LLM integration bugs — added _caller and _engagementId to generateScanPlan, llmDecide (ops decision), and both llmDecide call sites (vuln_detection, exploitation)
+- [x] Test fixes — 91 tests passing across 4 test suites
+
+## Training & Test Lab
+- [x] Design training_lab_sessions DB table for storing quick-scan sessions — training_lab_sessions with session_id, target, status, findings JSON, timestamps
+- [x] Design training_lab_targets preset catalog (Juice Shop, DVWA, vulnweb, etc.) — 9 targets: Juice Shop, vulnweb PHP/ASP/REST, Hackazon, Altoro Mutual, Zero Bank, WebScanTest, Custom
+- [x] Build trainingLab tRPC router with quickScan, listSessions, getSession endpoints — full router with 12 endpoints
+- [x] Implement lightweight scan pipeline (reuse scan-server-executor without ROE/engagement) — LabScanState with nmap, httpx, nuclei, nikto, gobuster, ZAP tools
+- [x] Add LLM analysis endpoint that runs vuln correlation on scan results — analyzeWithLlm mutation with self-learning context injection
+- [x] Add LLM training feedback mechanism (operator can rate/correct LLM findings) — submitFeedback mutation with correct/incorrect/partial/missed_finding types, stores to llm_learning_entries
+- [x] Build TrainingLab.tsx frontend page with target selector and scan launcher — 1534 lines, full page with 4 tabs
+- [x] Build scan progress view with real-time WebSocket updates — live progress bar, phase indicator, log feed
+- [x] Build results view with LLM analysis, findings table, and OWASP coverage — findings table with severity badges, LLM analysis with feedback buttons
+- [x] Add sidebar navigation entry under Mission Operations — FlaskConical icon, /training-lab route
+- [x] Write vitest tests for training lab router — 21 tests covering targets catalog, ground truth, scoring, correction prompts
+
+## Self-Learning LLM Engine for Training Lab
+- [x] Build feedback knowledge base — storeLearningEntry/getLearningEntries with persistent DB storage, injected into all future LLM prompts
+- [x] Build ground truth library — GROUND_TRUTH_LIBRARY with 15 Juice Shop vulns, 10 vulnweb-php vulns, 8 vulnweb-asp vulns, 7 hackazon vulns, 8 altoro-mutual vulns
+- [x] Build progressive prompt refinement — buildCorrectionHistoryPrompt() auto-injects target-specific + global corrections into every LLM analysis
+- [x] Build accuracy trending — saveAccuracyScore/getAccuracyTrend with precision/recall/F1/overallScore per session, per target
+- [x] Create DB tables for learning data — llm_learning_entries (12 columns), llm_accuracy_scores (12 columns)
+- [x] Wire learning context into Training Lab LLM analysis prompts — buildLearningContext() called before every analyzeWithLlm and rerunAnalysis
+- [x] Add accuracy dashboard to Training Lab frontend — Learning Dashboard tab with accuracy trend chart, feedback stats, per-target breakdown
+- [x] Add ground truth comparison view to session results — auto-scoring after every analysis with matched/missed/FP breakdown

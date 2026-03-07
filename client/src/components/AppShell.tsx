@@ -142,6 +142,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/roe-builder", icon: ClipboardCheck, label: "ROE BUILDER" },
           { href: "/campaign-archetypes", icon: Layers, label: "CAMPAIGN ARCHETYPES" },
           { href: "/hunt-ops", icon: Search, label: "HUNT OPS" },
+          { href: "/training-lab", icon: FlaskConical, label: "TRAINING LAB" },
         ],
       },
       {

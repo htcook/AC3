@@ -1,0 +1,53 @@
+{
+  "query": "SELECT * FROM engagements ORDER BY id DESC LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT * FROM engagements ORDER BY id DESC LIMIT 5",
+  "rows": [
+    {
+      "id": "1350014",
+      "name": "Vianova External Pentest",
+      "customerName": "Vianova",
+      "description": "External penetration test for Vianova. Targets: dashboard-dev.vianovahealth.com, api.dev.vianova.ai, 23.20.98.48",
+      "engagementType": "pentest",
+      "status": "active",
+      "startDate": "2026-03-02 06:20:21",
+      "endDate": "NULL",
+      "targetDomain": "dashboard-dev.vianovahealth.com, api.dev.vianova.ai, demo.owasp-juice.shop, testphp.vulnweb.com, demo.testfire.net, demo.owasp.org",
+      "targetIpRange": "",
+      "phishingDomain": "",
+      "calderaOperationId": "NULL",
+      "calderaAdversaryId": "NULL",
+      "gophishCampaignId": "NULL",
+      "notes": "",
+      "createdBy": "NULL",
+      "createdAt": "2026-03-02 06:20:21",
+      "updatedAt": "2026-03-06 20:03:49",
+      "roe_status": "signed",
+      "roe_signed_date": "2026-03-02 00:00:00",
+      "roe_expiry_date": "NULL",
+      "roe_document_url": "NULL",
+      "roe_scope": "{\"domains\": [\"dashboard-dev.vianovahealth.com\", \"api.dev.vianova.ai\"]}",
+      "roe_signer_name": "Harrison Cook",
+      "roe_signer_email": "harrison@aceofcloud.com",
+      "roe_document_id": "NULL",
+      "eng_tenant_id": "NULL",
+      "scan_mode": "strict_passive"
+    }
+  ],
+  "messages": [
+    "1530002\tTest Engagement - OWASP Juice Shop\tOWASP\tExternal web application penetration test targeting customer-facing web applications. Testing will cover OWASP Top 10 vulnerabilities, authentication/authorization flaws, business logic errors, and sensitive data exposure. Goal: demonstrate unauthorized access to data or privileged functions on each in-scope asset.\tpentest\tplanning\tNULL\tNULL\thttps://demo.owasp-juice.shop, demo.owasp-juice.shop\t\t\t99ab3058-7059-4921-9a13-68f7a581369a\tNULL\tNULL\tPre-engagement checklist:",
+    "- Confirm all target URLs/domains",
+    "- Verify test accounts provided (if authenticated testing)",
+    "- Confirm WAF whitelisting or test from approved IPs",
+    "- Establish emergency contact and deconfliction process",
+    "- Review any excluded endpoints or functionality\t-1\t2026-03-06 15:51:00\t2026-03-06 15:51:10\tpending\tNULL\tNULL\tNULL\t{\"inScopeDomains\": [{\"description\": \"From template\", \"domain\": \"https://demo.owasp-juice.shop\", \"includeSubdomains\": true}]}\tNULL\tNULL\t60002\tNULL\tstrict_passive",
+    "1530001\tTest Engagement-Web App Testing\tVulnweb Test Server\tExternal web application penetration test targeting customer-facing web applications. Testing will cover OWASP Top 10 vulnerabilities, authentication/authorization flaws, business logic errors, and sensitive data exposure. Goal: demonstrate unauthorized access to data or privileged functions on each in-scope asset.\tpentest\tplanning\tNULL\tNULL\thttp://testphp.vulnweb.com, testphp.vulnweb.com\t\t\t11d7bbcc-14b0-45a7-83f5-982322837394\tNULL\tNULL\tPre-engagement checklist:",
+    "- Confirm all target URLs/domains",
+    "- Verify test accounts provided (if authenticated testing)",
+    "- Confirm WAF whitelisting or test from approved IPs",
+    "- Establish emergency contact and deconfliction process",
+    "- Review any excluded endpoints or functionality\t-1\t2026-03-06 15:47:10\t2026-03-06 15:47:22\tpending\tNULL\tNULL\tNULL\t{\"inScopeDomains\": [{\"description\": \"From template\", \"domain\": \"http://testphp.vulnweb.com\", \"includeSubdomains\": true}]}\tNULL\tNULL\t60001\tNULL\tstrict_passive"
+  ],
+  "stdout": "id\tname\tcustomerName\tdescription\tengagementType\tstatus\tstartDate\tendDate\ttargetDomain\ttargetIpRange\tphishingDomain\tcalderaOperationId\tcalderaAdversaryId\tgophishCampaignId\tnotes\tcreatedBy\tcreatedAt\tupdatedAt\troe_status\troe_signed_date\troe_expiry_date\troe_document_url\troe_scope\troe_signer_name\troe_signer_email\troe_document_id\teng_tenant_id\tscan_mode\n1530002\tTest Engagement - OWASP Juice Shop\tOWASP\tExternal web application penetration test targeting customer-facing web applications. Testing will cover OWASP Top 10 vulnerabilities, authentication/authorization flaws, business logic errors, and sensitive data exposure. Goal: demonstrate unauthorized access to data or privileged functions on each in-scope asset.\tpentest\tplanning\tNULL\tNULL\thttps://demo.owasp-juice.shop, demo.owasp-juice.shop\t\t\t99ab3058-7059-4921-9a13-68f7a581369a\tNULL\tNULL\tPre-engagement checklist:\n- Confirm all target URLs/domains\n- Verify test accounts provided (if authenticated testing)\n- Confirm WAF whitelisting or test from approved IPs\n- Establish emergency contact and deconfliction process\n- Review any excluded endpoints or functionality\t-1\t2026-03-06 15:51:00\t2026-03-06 15:51:10\tpending\tNULL\tNULL\tNULL\t{\"inScopeDomains\": [{\"description\": \"From template\", \"domain\": \"https://demo.owasp-juice.shop\", \"includeSubdomains\": true}]}\tNULL\tNULL\t60002\tNULL\tstrict_passive\n1530001\tTest Engagement-Web App Testing\tVulnweb Test Server\tExternal web application penetration test targeting customer-facing web applications. Testing will cover OWASP Top 10 vulnerabilities, authentication/authorization flaws, business logic errors, and sensitive data exposure. Goal: demonstrate unauthorized access to data or privileged functions on each in-scope asset.\tpentest\tplanning\tNULL\tNULL\thttp://testphp.vulnweb.com, testphp.vulnweb.com\t\t\t11d7bbcc-14b0-45a7-83f5-982322837394\tNULL\tNULL\tPre-engagement checklist:\n- Confirm all target URLs/domains\n- Verify test accounts provided (if authenticated testing)\n- Confirm WAF whitelisting or test from approved IPs\n- Establish emergency contact and deconfliction process\n- Review any excluded endpoints or functionality\t-1\t2026-03-06 15:47:10\t2026-03-06 15:47:22\tpending\tNULL\tNULL\tNULL\t{\"inScopeDomains\": [{\"description\": \"From template\", \"domain\": \"http://testphp.vulnweb.com\", \"includeSubdomains\": true}]}\tNULL\tNULL\t60001\tNULL\tstrict_passive\n1350014\tVianova External Pentest\tVianova\tExternal penetration test for Vianova. Targets: dashboard-dev.vianovahealth.com, api.dev.vianova.ai, 23.20.98.48\tpentest\tactive\t2026-03-02 06:20:21\tNULL\tdashboard-dev.vianovahealth.com, api.dev.vianova.ai, demo.owasp-juice.shop, testphp.vulnweb.com, demo.testfire.net, demo.owasp.org\t\t\tNULL\tNULL\tNULL\t\tNULL\t2026-03-02 06:20:21\t2026-03-06 20:03:49\tsigned\t2026-03-02 00:00:00\tNULL\tNULL\t{\"domains\": [\"dashboard-dev.vianovahealth.com\", \"api.dev.vianova.ai\"]}\tHarrison Cook\tharrison@aceofcloud.com\tNULL\tNULL\tstrict_passive\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

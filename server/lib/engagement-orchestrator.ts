@@ -855,6 +855,8 @@ You MUST respond with valid JSON matching this exact schema:
 })()}Generate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
       }
     ],
+    _caller: 'engagement-orchestrator.generateScanPlan',
+    _engagementId: state.engagementId,
     response_format: {
       type: 'json_schema',
       json_schema: {
@@ -1007,6 +1009,7 @@ You MUST respond with valid JSON matching this exact schema:
 async function llmDecide(context: {
   phase: OpsPhase;
   engagementType: string;
+  engagementId?: number;
   assets: AssetStatus[];
   recentLog: OpsLogEntry[];
   question: string;
@@ -1081,6 +1084,8 @@ ${(() => {
         { role: "system", content: systemPrompt },
         { role: "user", content: context.question },
       ],
+      _caller: 'engagement-orchestrator.opsDecision',
+      _engagementId: context.engagementId,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -3274,6 +3279,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     const correlationDecision = await llmDecide({
       phase: "vuln_detection",
       engagementType: state.engagementType,
+      engagementId: state.engagementId,
       assets: state.assets,
       recentLog: state.log.slice(-20),
       question: `We've completed vulnerability scanning. Here are the findings:
@@ -3336,6 +3342,7 @@ async function executeExploitation(state: EngagementOpsState, engagement: any, o
   const decision = await llmDecide({
     phase: "exploitation",
     engagementType: state.engagementType,
+    engagementId: state.engagementId,
     assets: state.assets,
     recentLog: state.log.slice(-15),
     question: `It's time to exploit. Which assets should we target first and with what techniques? Remember:

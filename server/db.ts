@@ -8,7 +8,9 @@ import {
   calderaStats, InsertCalderaStats, CalderaStats,
   engagementOpsSnapshots,
   llmTelemetry, InsertLlmTelemetry, LlmTelemetry,
-  exploitPlanHistory, InsertExploitPlanHistory, ExploitPlanHistory
+  exploitPlanHistory, InsertExploitPlanHistory, ExploitPlanHistory,
+  trainingLabSessions, InsertTrainingLabSession, SelectTrainingLabSession,
+  trainingLabFeedback, InsertTrainingLabFeedback, SelectTrainingLabFeedback
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -2634,4 +2636,56 @@ export async function getExploitPlanStats() {
     rejected: Number(r.rejected) || 0,
     modified: Number(r.modified) || 0,
   };
+}
+
+
+// ─── Training Lab Helpers ──────────────────────────────────────────────────
+
+export async function createTrainingLabSession(data: InsertTrainingLabSession): Promise<SelectTrainingLabSession | null> {
+  const db = await getDb();
+  if (!db) return null;
+  await db.insert(trainingLabSessions).values(data);
+  const [row] = await db.select().from(trainingLabSessions)
+    .where(eq(trainingLabSessions.sessionId, data.sessionId!))
+    .limit(1);
+  return row || null;
+}
+
+export async function updateTrainingLabSession(
+  sessionId: string,
+  update: Partial<InsertTrainingLabSession>
+): Promise<void> {
+  const db = await getDbRequired();
+  await db.update(trainingLabSessions)
+    .set(update)
+    .where(eq(trainingLabSessions.sessionId, sessionId));
+}
+
+export async function getTrainingLabSession(sessionId: string): Promise<SelectTrainingLabSession | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(trainingLabSessions)
+    .where(eq(trainingLabSessions.sessionId, sessionId))
+    .limit(1);
+  return row || null;
+}
+
+export async function listTrainingLabSessions(limit = 50): Promise<SelectTrainingLabSession[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trainingLabSessions)
+    .orderBy(desc(trainingLabSessions.id))
+    .limit(limit);
+}
+
+export async function insertTrainingLabFeedbackEntry(data: InsertTrainingLabFeedback): Promise<void> {
+  const db = await getDbRequired();
+  await db.insert(trainingLabFeedback).values(data);
+}
+
+export async function getTrainingLabFeedbackForSession(sessionId: string): Promise<SelectTrainingLabFeedback[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trainingLabFeedback)
+    .where(eq(trainingLabFeedback.sessionId, sessionId));
 }

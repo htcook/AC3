@@ -60,6 +60,7 @@ const DarkwebIntel = lazy(() => import("./pages/DarkwebIntel"));
 const BreachEvents = lazy(() => import("./pages/BreachEvents"));
 const ThreatIntelHub = lazy(() => import("./pages/ThreatIntelHub"));
 const ThreatGroupBrowser = lazy(() => import("./pages/ThreatGroupBrowser"));
+const TrainingLab = lazy(() => import("./pages/TrainingLab"));
 const CampaignArchetypes = lazy(() => import("./pages/CampaignArchetypes"));
 const ExploitArsenal = lazy(() => import("./pages/ExploitArsenal"));
 const MsfServers = lazy(() => import("./pages/MsfServers"));
@@ -850,6 +851,9 @@ function Router() {
         </Route>
         <Route path="/hunt-ops">
           <ProtectedRoute component={HuntDashboard} />
+        </Route>
+        <Route path="/training-lab">
+          <ProtectedRoute component={TrainingLab} />
         </Route>
         <Route path="/review-queue">
           <ProtectedRoute component={ReviewQueue} />

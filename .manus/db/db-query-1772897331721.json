@@ -1,0 +1,22 @@
+{
+  "query": "SHOW TABLES LIKE '%ops%'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SHOW TABLES LIKE '%ops%'",
+  "rows": [
+    {
+      "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (%ops%)": "engagement_ops_snapshots"
+    },
+    {
+      "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (%ops%)": "info_ops_campaigns"
+    },
+    {
+      "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (%ops%)": "opsec_events"
+    },
+    {
+      "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (%ops%)": "opsec_scores"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_VmWWcXQYZJYuALRdNNvsC2 (%ops%)\nengagement_ops_snapshots\ninfo_ops_campaigns\nopsec_events\nopsec_scores\n",
+  "stderr": "",
+  "execution_time_ms": 51
+}

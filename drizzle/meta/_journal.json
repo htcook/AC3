@@ -8,6 +8,13 @@
       "when": 1772773984415,
       "tag": "0000_chilly_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1772897660588,
+      "tag": "0001_kind_zuras",
+      "breakpoints": true
     }
   ]
 }

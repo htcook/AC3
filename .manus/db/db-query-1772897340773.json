@@ -1,0 +1,112 @@
+{
+  "query": "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND (TABLE_NAME LIKE '%ops%' OR TABLE_NAME LIKE '%scan%' OR TABLE_NAME LIKE '%log%' OR TABLE_NAME LIKE '%finding%' OR TABLE_NAME LIKE '%vuln%' OR TABLE_NAME LIKE '%llm%') ORDER BY TABLE_NAME",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND (TABLE_NAME LIKE '%ops%' OR TABLE_NAME LIKE '%scan%' OR TABLE_NAME LIKE '%log%' OR TABLE_NAME LIKE '%finding%' OR TABLE_NAME LIKE '%vuln%' OR TABLE_NAME LIKE '%llm%') ORDER BY TABLE_NAME",
+  "rows": [
+    {
+      "TABLE_NAME": "activity_logs"
+    },
+    {
+      "TABLE_NAME": "agent_audit_log"
+    },
+    {
+      "TABLE_NAME": "bug_bounty_findings"
+    },
+    {
+      "TABLE_NAME": "bug_bounty_sync_logs"
+    },
+    {
+      "TABLE_NAME": "config_scan_results"
+    },
+    {
+      "TABLE_NAME": "container_image_scans"
+    },
+    {
+      "TABLE_NAME": "credential_findings"
+    },
+    {
+      "TABLE_NAME": "domain_intel_scans"
+    },
+    {
+      "TABLE_NAME": "edr_test_catalog"
+    },
+    {
+      "TABLE_NAME": "engagement_ops_snapshots"
+    },
+    {
+      "TABLE_NAME": "false_positive_findings"
+    },
+    {
+      "TABLE_NAME": "info_ops_campaigns"
+    },
+    {
+      "TABLE_NAME": "ioc_sync_logs"
+    },
+    {
+      "TABLE_NAME": "llm_telemetry"
+    },
+    {
+      "TABLE_NAME": "lolbin_catalog"
+    },
+    {
+      "TABLE_NAME": "nuclei_findings"
+    },
+    {
+      "TABLE_NAME": "nuclei_scans"
+    },
+    {
+      "TABLE_NAME": "offensive_audit_log"
+    },
+    {
+      "TABLE_NAME": "opsec_events"
+    },
+    {
+      "TABLE_NAME": "opsec_scores"
+    },
+    {
+      "TABLE_NAME": "osint_findings"
+    },
+    {
+      "TABLE_NAME": "privesc_findings"
+    },
+    {
+      "TABLE_NAME": "protocol_findings"
+    },
+    {
+      "TABLE_NAME": "scan_observations"
+    },
+    {
+      "TABLE_NAME": "scan_policies"
+    },
+    {
+      "TABLE_NAME": "scan_results"
+    },
+    {
+      "TABLE_NAME": "scan_risk_cards"
+    },
+    {
+      "TABLE_NAME": "scan_signals"
+    },
+    {
+      "TABLE_NAME": "scoring_audit_log"
+    },
+    {
+      "TABLE_NAME": "unified_exploit_catalog"
+    },
+    {
+      "TABLE_NAME": "vuln_scan_findings"
+    },
+    {
+      "TABLE_NAME": "vuln_scan_imports"
+    },
+    {
+      "TABLE_NAME": "web_app_findings"
+    },
+    {
+      "TABLE_NAME": "web_app_scans"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nactivity_logs\nagent_audit_log\nbug_bounty_findings\nbug_bounty_sync_logs\nconfig_scan_results\ncontainer_image_scans\ncredential_findings\ndomain_intel_scans\nedr_test_catalog\nengagement_ops_snapshots\nfalse_positive_findings\ninfo_ops_campaigns\nioc_sync_logs\nllm_telemetry\nlolbin_catalog\nnuclei_findings\nnuclei_scans\noffensive_audit_log\nopsec_events\nopsec_scores\nosint_findings\nprivesc_findings\nprotocol_findings\nscan_observations\nscan_policies\nscan_results\nscan_risk_cards\nscan_signals\nscoring_audit_log\nunified_exploit_catalog\nvuln_scan_findings\nvuln_scan_imports\nweb_app_findings\nweb_app_scans\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

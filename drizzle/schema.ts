@@ -4989,3 +4989,52 @@ export const jobQueueEntries = mysqlTable("job_queue_entries", {
 
 export type InsertJobQueueEntry = typeof jobQueueEntries.$inferInsert;
 export type SelectJobQueueEntry = typeof jobQueueEntries.$inferSelect;
+
+
+// ─── Training & Test Lab ──────────────────────────────────────────────────────
+
+export const trainingLabSessions = mysqlTable("training_lab_sessions", {
+	id: int().autoincrement().notNull(),
+	sessionId: varchar("session_id", { length: 64 }).notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	targetUrl: varchar("target_url", { length: 512 }).notNull(),
+	targetPreset: varchar("target_preset", { length: 64 }),
+	scanProfile: mysqlEnum("scan_profile", ['quick', 'standard', 'deep']).default('standard').notNull(),
+	labStatus: mysqlEnum("lab_status", ['queued', 'scanning', 'analyzing', 'completed', 'failed', 'cancelled']).default('queued').notNull(),
+	phase: varchar({ length: 64 }).default('idle'),
+	progress: int().default(0),
+	assetsJson: json("assets_json"),
+	findingsJson: json("findings_json"),
+	llmAnalysisJson: json("llm_analysis_json"),
+	owaspCoverageJson: json("owasp_coverage_json"),
+	statsJson: json("stats_json"),
+	scanLogJson: json("scan_log_json"),
+	operatorId: int("operator_id"),
+	operatorName: varchar("operator_name", { length: 255 }),
+	startedAt: bigint("started_at", { mode: "number" }),
+	completedAt: bigint("completed_at", { mode: "number" }),
+	durationMs: int("duration_ms"),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("training_lab_sessions_session_id_unique").on(table.sessionId),
+]);
+
+export const trainingLabFeedback = mysqlTable("training_lab_feedback", {
+	id: int().autoincrement().notNull(),
+	sessionId: varchar("session_id", { length: 64 }).notNull(),
+	findingIndex: int("finding_index").notNull(),
+	feedbackType: mysqlEnum("feedback_type", ['correct', 'incorrect', 'partial', 'missed_finding']).notNull(),
+	operatorNotes: text("operator_notes"),
+	expectedSeverity: varchar("expected_severity", { length: 32 }),
+	expectedCategory: varchar("expected_category", { length: 128 }),
+	operatorId: int("operator_id"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export type InsertTrainingLabSession = typeof trainingLabSessions.$inferInsert;
+export type SelectTrainingLabSession = typeof trainingLabSessions.$inferSelect;
+export type InsertTrainingLabFeedback = typeof trainingLabFeedback.$inferInsert;
+export type SelectTrainingLabFeedback = typeof trainingLabFeedback.$inferSelect;

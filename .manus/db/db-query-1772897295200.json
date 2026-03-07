@@ -1,0 +1,122 @@
+{
+  "query": "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'engagements' AND TABLE_SCHEMA = DATABASE() ORDER BY ORDINAL_POSITION LIMIT 30",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'engagements' AND TABLE_SCHEMA = DATABASE() ORDER BY ORDINAL_POSITION LIMIT 30",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "name",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "customerName",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "description",
+      "DATA_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "engagementType",
+      "DATA_TYPE": "enum"
+    },
+    {
+      "COLUMN_NAME": "status",
+      "DATA_TYPE": "enum"
+    },
+    {
+      "COLUMN_NAME": "startDate",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "endDate",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "targetDomain",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "targetIpRange",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "phishingDomain",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "calderaOperationId",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "calderaAdversaryId",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "gophishCampaignId",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "notes",
+      "DATA_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "createdBy",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "createdAt",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "updatedAt",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "roe_status",
+      "DATA_TYPE": "enum"
+    },
+    {
+      "COLUMN_NAME": "roe_signed_date",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "roe_expiry_date",
+      "DATA_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "roe_document_url",
+      "DATA_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "roe_scope",
+      "DATA_TYPE": "json"
+    },
+    {
+      "COLUMN_NAME": "roe_signer_name",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "roe_signer_email",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "roe_document_id",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "eng_tenant_id",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "scan_mode",
+      "DATA_TYPE": "enum"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tDATA_TYPE\nid\tint\nname\tvarchar\ncustomerName\tvarchar\ndescription\ttext\nengagementType\tenum\nstatus\tenum\nstartDate\ttimestamp\nendDate\ttimestamp\ntargetDomain\tvarchar\ntargetIpRange\tvarchar\nphishingDomain\tvarchar\ncalderaOperationId\tvarchar\ncalderaAdversaryId\tvarchar\ngophishCampaignId\tint\nnotes\ttext\ncreatedBy\tint\ncreatedAt\ttimestamp\nupdatedAt\ttimestamp\nroe_status\tenum\nroe_signed_date\ttimestamp\nroe_expiry_date\ttimestamp\nroe_document_url\ttext\nroe_scope\tjson\nroe_signer_name\tvarchar\nroe_signer_email\tvarchar\nroe_document_id\tint\neng_tenant_id\tint\nscan_mode\tenum\n",
+  "stderr": "",
+  "execution_time_ms": 48
+}

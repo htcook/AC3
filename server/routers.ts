@@ -128,6 +128,7 @@ import { sigmaRulesRouter } from "./routers/sigma-rules";
 import { c2ActorOrchestrationRouter } from "./routers/c2-actor-orchestration";
 import { threatGroupKnowledgeRouter } from "./routers/threat-group-knowledge";
 import { owaspCoverageRouter } from "./routers/owasp-coverage";
+import { trainingLabRouter } from "./routers/training-lab";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -468,6 +469,7 @@ export const appRouter = router({
   threatGroupKnowledge: threatGroupKnowledgeRouter,
   // ─── OWASP Coverage Tracking & Export ───────────────────────────────────
   owaspCoverage: owaspCoverageRouter,
+  trainingLab: trainingLabRouter,
 });
 export type AppRouter = typeof appRouter;
 
