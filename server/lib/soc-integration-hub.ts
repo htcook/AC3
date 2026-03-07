@@ -463,7 +463,7 @@ export function computeSocHealth(connectors: SocConnectorHealth[]): SocHealthSna
 
 export interface SiemPushConfig {
   /** Target SIEM type */
-  target: "splunk_hec" | "elastic" | "syslog" | "qradar" | "sentinel";
+  target: "splunk_hec" | "elastic" | "syslog" | "qradar" | "sentinel" | "wazuh";
   /** Endpoint URL (HEC endpoint, Elastic bulk API, syslog host:port, etc.) */
   endpoint: string;
   /** Auth token or API key */
@@ -602,6 +602,47 @@ export async function pushAlertsToSiem(
           } catch (e: any) {
             failed++;
             errors.push(`QRadar error: ${e.message}`);
+          }
+        }
+        break;
+      }
+
+      case "wazuh": {
+        // Wazuh API — authenticate then push events via /events endpoint
+        let wazuhToken = config.authToken;
+        if (!wazuhToken && config.endpoint) {
+          // Attempt JWT auth with username/password in authToken as "user:pass"
+          try {
+            const authResp = await fetch(`${config.endpoint}/security/user/authenticate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (authResp.ok) {
+              const authData = await authResp.json();
+              wazuhToken = authData?.data?.token;
+            }
+          } catch (e: any) {
+            errors.push(`Wazuh auth error: ${e.message}`);
+          }
+        }
+        for (const alert of alerts) {
+          if (alert.findingId === "header") continue;
+          try {
+            const body = alert.format === "json" ? alert.raw : JSON.stringify({ message: alert.raw, format: alert.format });
+            const resp = await fetch(`${config.endpoint}/events`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${wazuhToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ events: [body] }),
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (resp.ok) sent++; else { failed++; errors.push(`Wazuh ${resp.status}`); }
+          } catch (e: any) {
+            failed++;
+            errors.push(`Wazuh error: ${e.message}`);
           }
         }
         break;

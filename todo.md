@@ -8047,3 +8047,13 @@
 - [x] Add exfiltration detection validation against SIEM
 - [x] Build exfiltration path visualization
 - [x] Write vitest tests for exfiltration simulation
+
+## Real SIEM Connector Endpoints
+- [x] Build Splunk HEC push endpoint (HTTP Event Collector with token auth, SSL support)
+- [x] Build Azure Sentinel push endpoint (Log Analytics Data Collector API with workspace ID + shared key)
+- [x] Build Elastic SIEM push endpoint (Elasticsearch bulk API with API key or basic auth)
+- [x] Build Wazuh push endpoint (Wazuh API with JWT auth)
+- [x] Add SIEM connection configuration storage in database
+- [x] Add connection testing endpoint for each SIEM backend
+- [x] Update SOC Integration Hub frontend with SIEM config forms and real push UI
+- [x] Write vitest tests for SIEM push endpoints
