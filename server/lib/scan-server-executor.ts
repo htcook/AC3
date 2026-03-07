@@ -86,7 +86,7 @@ let cachedSshKey: string | null = null;
 // Fallback RSA key URL stored in S3 (uploaded during provisioning)
 const SCAN_SERVER_KEY_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310419663028432609/hHJfIBSNDxDiefRC";
 
-async function getScanServerConfig() {
+export async function getScanServerConfig() {
   const host = ENV.SCAN_SERVER_HOST;
   const user = ENV.SCAN_SERVER_USER || "root";
   const sshKey = ENV.SCAN_SERVER_SSH_KEY;

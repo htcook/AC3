@@ -688,6 +688,58 @@ export default function EngagementOps() {
     onError: (e) => toast.error(e.message),
   });
 
+  // ── Full Pipeline Re-Run ──
+  const [showRerunDialog, setShowRerunDialog] = useState(false);
+  const [rerunPhases, setRerunPhases] = useState({ passive: true, active: true, llmAnalysis: true, exploitGeneration: true });
+  const rerunMut = trpc.engagementOps.rerunFullPipeline.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Full pipeline re-run started for engagement #${data.engagementId}`);
+      setShowRerunDialog(false);
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(`Re-run failed: ${e.message}`),
+  });
+
+  // ── Functional Exploit Generation ──
+  const [showExploitGen, setShowExploitGen] = useState(false);
+  const [selectedExploitAsset, setSelectedExploitAsset] = useState('');
+  const [selectedVulnIdx, setSelectedVulnIdx] = useState<number | undefined>(undefined);
+  const [exploitLang, setExploitLang] = useState<'python' | 'bash' | 'powershell' | 'ruby'>('python');
+  const [includeEvasion, setIncludeEvasion] = useState(false);
+  const generatedExploitsQ = trpc.engagementOps.getGeneratedExploits.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0 }
+  );
+  const genExploitMut = trpc.engagementOps.generateFunctionalExploit.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Exploit generated: ${data.filename} (${data.confidence}% confidence)`);
+      generatedExploitsQ.refetch();
+    },
+    onError: (e) => toast.error(`Exploit generation failed: ${e.message}`),
+  });
+  const validateExploitMut = trpc.engagementOps.validateExploit.useMutation({
+    onSuccess: (data) => {
+      if (data.isValid) {
+        toast.success(`Exploit validated: ${data.overallAssessment}`);
+      } else {
+        toast.error(`Validation issues found: ${data.issues?.length || 0} issues`);
+      }
+    },
+    onError: (e) => toast.error(`Validation failed: ${e.message}`),
+  });
+  const improveExploitMut = trpc.engagementOps.improveExploit.useMutation({
+    onSuccess: () => {
+      toast.success('Exploit improved successfully');
+      generatedExploitsQ.refetch();
+    },
+    onError: (e) => toast.error(`Improvement failed: ${e.message}`),
+  });
+  const [viewingExploitIdx, setViewingExploitIdx] = useState<number | null>(null);
+  const exploitDetailQ = trpc.engagementOps.getExploitDetail.useQuery(
+    { engagementId, exploitIndex: viewingExploitIdx ?? 0 },
+    { enabled: viewingExploitIdx !== null }
+  );
+
   // ── WebSocket live feed ──
   const wsChannels = useMemo(
     () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
@@ -3384,6 +3436,159 @@ export default function EngagementOps() {
 
           <Separator />
 
+          {/* Pipeline Re-Run */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pipeline Control</h3>
+            <div className="space-y-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                onClick={() => setShowRerunDialog(true)}
+                disabled={ops?.isRunning || rerunMut.isPending}
+              >
+                {rerunMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+                Re-Run Full Pipeline
+              </Button>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Reset and re-execute: passive scan → LLM analysis → active scan → LLM re-scan → exploit generation
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Functional Exploit Generator */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Exploit Generator</h3>
+            <div className="space-y-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                onClick={() => setShowExploitGen(!showExploitGen)}
+              >
+                <Swords className="h-3.5 w-3.5 mr-1.5" />
+                {showExploitGen ? 'Hide Generator' : 'Generate Exploit Code'}
+              </Button>
+              {showExploitGen && (
+                <div className="space-y-2 p-2 rounded-lg bg-red-500/5 border border-red-500/10">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground block mb-1">Target Asset</label>
+                    <select
+                      value={selectedExploitAsset}
+                      onChange={(e) => { setSelectedExploitAsset(e.target.value); setSelectedVulnIdx(undefined); }}
+                      className="w-full text-xs bg-background border border-border rounded px-2 py-1.5"
+                    >
+                      <option value="">Select asset...</option>
+                      {(ops?.assets || []).filter(a => a.vulns.length > 0).map(a => (
+                        <option key={a.hostname} value={a.hostname}>{a.hostname} ({a.vulns.length} vulns)</option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedExploitAsset && (() => {
+                    const asset = ops?.assets?.find(a => a.hostname === selectedExploitAsset);
+                    if (!asset) return null;
+                    return (
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Vulnerability (optional)</label>
+                        <select
+                          value={selectedVulnIdx ?? ''}
+                          onChange={(e) => setSelectedVulnIdx(e.target.value ? Number(e.target.value) : undefined)}
+                          className="w-full text-xs bg-background border border-border rounded px-2 py-1.5"
+                        >
+                          <option value="">All vulns (auto-select best)</option>
+                          {asset.vulns.map((v, i) => (
+                            <option key={i} value={i}>{v.severity.toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block mb-1">Language</label>
+                      <select
+                        value={exploitLang}
+                        onChange={(e) => setExploitLang(e.target.value as any)}
+                        className="w-full text-xs bg-background border border-border rounded px-2 py-1.5"
+                      >
+                        <option value="python">Python</option>
+                        <option value="bash">Bash</option>
+                        <option value="powershell">PowerShell</option>
+                        <option value="ruby">Ruby</option>
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer">
+                        <Checkbox
+                          checked={includeEvasion}
+                          onCheckedChange={(c) => setIncludeEvasion(!!c)}
+                        />
+                        Evasion
+                      </label>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-xs"
+                    onClick={() => genExploitMut.mutate({
+                      engagementId,
+                      targetAsset: selectedExploitAsset,
+                      vulnIndex: selectedVulnIdx,
+                      language: exploitLang,
+                      includeEvasion,
+                    })}
+                    disabled={!selectedExploitAsset || genExploitMut.isPending}
+                  >
+                    {genExploitMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1" />}
+                    Generate Exploit
+                  </Button>
+                </div>
+              )}
+              {/* Generated Exploits List */}
+              {(generatedExploitsQ.data?.exploits?.length || 0) > 0 && (
+                <div className="space-y-1 mt-2">
+                  <span className="text-[10px] text-muted-foreground">{generatedExploitsQ.data!.exploits.length} exploit(s) generated</span>
+                  {generatedExploitsQ.data!.exploits.map((ex: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/30">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Skull className="h-3 w-3 text-red-400 flex-none" />
+                        <span className="text-[10px] truncate">{ex.filename}</span>
+                        <Badge variant="outline" className={`text-[8px] flex-none ${
+                          ex.confidence >= 80 ? 'text-green-400 border-green-500/30' :
+                          ex.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
+                          'text-red-400 border-red-500/30'
+                        }`}>{ex.confidence}%</Badge>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => setViewingExploitIdx(i)} title="View code">
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
+                          onClick={() => validateExploitMut.mutate({ engagementId, exploitIndex: i })}
+                          disabled={validateExploitMut.isPending}
+                          title="Validate"
+                        >
+                          <Shield className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
+                          onClick={() => improveExploitMut.mutate({ engagementId, exploitIndex: i, feedback: 'Improve reliability and add better error handling' })}
+                          disabled={improveExploitMut.isPending}
+                          title="Improve"
+                        >
+                          <Wrench className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Report Generation */}
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Reports</h3>
@@ -3491,6 +3696,162 @@ export default function EngagementOps() {
             >
               Stop Execution
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Re-Run Pipeline Dialog ── */}
+      <AlertDialog open={showRerunDialog} onOpenChange={setShowRerunDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-cyan-400" />
+              Re-Run Full Pipeline
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reset the engagement state and re-execute all selected phases. Existing findings will be preserved in history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Select Phases</h4>
+              {[
+                { key: 'passive' as const, label: 'Passive Reconnaissance', desc: 'OSINT, domain intel, certificate transparency', icon: <Search className="h-4 w-4" /> },
+                { key: 'active' as const, label: 'Active Scanning', desc: 'Nmap, Nuclei, ZAP, Nikto via scan server', icon: <Target className="h-4 w-4" /> },
+                { key: 'llmAnalysis' as const, label: 'LLM Analysis & Re-Scan', desc: 'AI-driven gap analysis, targeted re-scans', icon: <Brain className="h-4 w-4" /> },
+                { key: 'exploitGeneration' as const, label: 'Exploit Generation', desc: 'LLM-generated exploit plans and functional code', icon: <Skull className="h-4 w-4" /> },
+              ].map(phase => (
+                <label key={phase.key} className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
+                  rerunPhases[phase.key] ? 'bg-cyan-500/5 border-cyan-500/20' : 'border-transparent hover:bg-muted/30'
+                }`}>
+                  <Checkbox
+                    checked={rerunPhases[phase.key]}
+                    onCheckedChange={(c) => setRerunPhases(prev => ({ ...prev, [phase.key]: !!c }))}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-cyan-400">{phase.icon}</span>
+                      <span className="text-sm font-medium">{phase.label}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{phase.desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-cyan-600 to-blue-600"
+              onClick={() => rerunMut.mutate({
+                engagementId,
+                phases: rerunPhases,
+              })}
+              disabled={rerunMut.isPending || !Object.values(rerunPhases).some(Boolean)}
+            >
+              {rerunMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              Start Re-Run
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Exploit Code Viewer Dialog ── */}
+      <AlertDialog open={viewingExploitIdx !== null} onOpenChange={(open) => { if (!open) setViewingExploitIdx(null); }}>
+        <AlertDialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Skull className="h-5 w-5 text-red-400" />
+              {exploitDetailQ.data?.filename || 'Exploit Code'}
+              {exploitDetailQ.data?.confidence && (
+                <Badge variant="outline" className={`text-xs ${
+                  exploitDetailQ.data.confidence >= 80 ? 'text-green-400 border-green-500/30' :
+                  exploitDetailQ.data.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
+                  'text-red-400 border-red-500/30'
+                }`}>{exploitDetailQ.data.confidence}% confidence</Badge>
+              )}
+            </AlertDialogTitle>
+            {exploitDetailQ.data && (
+              <AlertDialogDescription className="text-left">
+                <span className="font-medium">{exploitDetailQ.data.targetAsset}</span>
+                {exploitDetailQ.data.cve && <span> — {exploitDetailQ.data.cve}</span>}
+                {exploitDetailQ.data.attackVector && <span> — {exploitDetailQ.data.attackVector}</span>}
+              </AlertDialogDescription>
+            )}
+          </AlertDialogHeader>
+          <div className="flex-1 overflow-auto">
+            {exploitDetailQ.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : exploitDetailQ.data?.code ? (
+              <div className="space-y-3">
+                {exploitDetailQ.data.description && (
+                  <p className="text-xs text-muted-foreground bg-muted/30 p-3 rounded">{exploitDetailQ.data.description}</p>
+                )}
+                <pre className="text-xs font-mono bg-zinc-950 text-green-400 p-4 rounded-lg overflow-auto max-h-[400px] border border-zinc-800">
+                  <code>{exploitDetailQ.data.code}</code>
+                </pre>
+                {exploitDetailQ.data.usage && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground mb-1">Usage</h4>
+                    <pre className="text-xs font-mono bg-zinc-950 text-cyan-400 p-3 rounded border border-zinc-800">
+                      <code>{exploitDetailQ.data.usage}</code>
+                    </pre>
+                  </div>
+                )}
+                {exploitDetailQ.data.mitigations && exploitDetailQ.data.mitigations.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground mb-1">Mitigations</h4>
+                    <ul className="text-xs text-muted-foreground space-y-1">
+                      {exploitDetailQ.data.mitigations.map((m: string, i: number) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <Shield className="h-3 w-3 text-green-400 mt-0.5 flex-none" />
+                          {m}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No exploit code available.</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <div className="flex items-center gap-2 w-full">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+                onClick={() => {
+                  if (viewingExploitIdx !== null) {
+                    validateExploitMut.mutate({ engagementId, exploitIndex: viewingExploitIdx });
+                  }
+                }}
+                disabled={validateExploitMut.isPending}
+              >
+                {validateExploitMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Shield className="h-3.5 w-3.5 mr-1" />}
+                Validate
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                onClick={() => {
+                  if (viewingExploitIdx !== null) {
+                    improveExploitMut.mutate({ engagementId, exploitIndex: viewingExploitIdx, feedback: 'Improve reliability, error handling, and stealth' });
+                  }
+                }}
+                disabled={improveExploitMut.isPending}
+              >
+                {improveExploitMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Wrench className="h-3.5 w-3.5 mr-1" />}
+                Improve
+              </Button>
+              <div className="flex-1" />
+              <AlertDialogCancel>Close</AlertDialogCancel>
+            </div>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

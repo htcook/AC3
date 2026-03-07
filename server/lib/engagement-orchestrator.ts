@@ -380,7 +380,7 @@ export function broadcastOpsUpdate(engagementId: number, data: Record<string, an
   }
 }
 
-function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
+export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
   const logEntry: OpsLogEntry = { id: genId(), timestamp: Date.now(), ...entry };
   state.log.push(logEntry);
   // Keep last 500 entries
@@ -1202,37 +1202,167 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
 
       // Extract discovered assets — RoE SCOPE GUARD enforced
       const discoveredAssets = (result as any).assets || [];
+      const passiveReconData = (result as any).passiveRecon;
       let outOfScopeCount = 0;
+
+      // Helper: build AssetPassiveRecon from pipeline result observations
+      function buildPassiveRecon(assetAnalysis: any, reconData: any): AssetPassiveRecon {
+        const observations = reconData?.allObservations || [];
+        const riskSignals = reconData?.riskSignals || [];
+        const assetObs = observations.filter((o: any) => o.domain === domain || o.name === assetAnalysis?.asset?.hostname);
+        const services: AssetPassiveRecon['services'] = [];
+        const ipAddresses: string[] = [];
+        const subdomains: string[] = [];
+        const technologies: string[] = [...(assetAnalysis?.asset?.technologies || [])];
+        const certificates: AssetPassiveRecon['certificates'] = [];
+        const historicalUrls: string[] = [];
+        const sources: string[] = [];
+
+        for (const obs of assetObs) {
+          if (obs.source && !sources.includes(obs.source)) sources.push(obs.source);
+          if (obs.ip && !ipAddresses.includes(obs.ip)) ipAddresses.push(obs.ip);
+          if (obs.name && obs.name !== domain && !subdomains.includes(obs.name)) subdomains.push(obs.name);
+          // Extract services from evidence (Shodan, Censys)
+          const ev = obs.evidence || {};
+          if (ev.port) {
+            services.push({
+              port: Number(ev.port),
+              protocol: ev.transport || 'tcp',
+              service: ev.service || ev.product || 'unknown',
+              product: ev.product,
+              version: ev.version,
+              source: obs.source,
+            });
+          }
+          if (ev.ports && Array.isArray(ev.ports)) {
+            for (const p of ev.ports) {
+              services.push({
+                port: typeof p === 'number' ? p : Number(p.port || p),
+                protocol: p.transport || 'tcp',
+                service: p.service || 'unknown',
+                product: p.product,
+                version: p.version,
+                source: obs.source,
+              });
+            }
+          }
+          if (ev.technologies && Array.isArray(ev.technologies)) {
+            for (const t of ev.technologies) {
+              if (typeof t === 'string' && !technologies.includes(t)) technologies.push(t);
+            }
+          }
+          if (ev.ssl?.cert) {
+            certificates.push({
+              subject: ev.ssl.cert.subject || ev.ssl.cert.cn || '',
+              issuer: ev.ssl.cert.issuer,
+              validFrom: ev.ssl.cert.notBefore,
+              validTo: ev.ssl.cert.notAfter,
+            });
+          }
+        }
+
+        return {
+          subdomains,
+          ipAddresses,
+          services,
+          technologies,
+          certificates,
+          riskSignals: riskSignals.map((r: any) => ({
+            severity: r.severity || 'info',
+            type: r.signalType || r.type || 'unknown',
+            rationale: r.rationale || r.description || r.title || '',
+          })),
+          wafDetected: undefined,
+          cloudProvider: undefined,
+          historicalUrls,
+          rawObservationCount: assetObs.length,
+          sources,
+        };
+      }
+
+      // Helper: convert PostureFindings to vulns (matching AssetStatus.vulns type)
+      function postureToVulns(findings: any[]): Array<{ id: string; severity: string; title: string; cve?: string }> {
+        return (findings || []).map((f: any, idx: number) => ({
+          id: f.cveIds?.[0] || `passive-${domain}-${idx}`,
+          severity: f.severity >= 8 ? 'critical' : f.severity >= 6 ? 'high' : f.severity >= 4 ? 'medium' : 'low',
+          title: f.title || f.category || 'Unknown finding',
+          cve: f.cveIds?.[0],
+        }));
+      }
+
       for (const asset of discoveredAssets) {
-        const hostname = asset.hostname || asset.domain || asset.ip;
-        if (!hostname) continue;
-        const existing = state.assets.find(a => a.hostname === hostname);
+        const assetHostname = asset.asset?.hostname || asset.hostname || asset.domain || asset.ip;
+        if (!assetHostname) continue;
+        const existing = state.assets.find(a => a.hostname === assetHostname);
+        const passiveRecon = buildPassiveRecon(asset, passiveReconData);
+        const passiveVulns = postureToVulns(asset.postureFindings);
+
         if (existing) {
-          existing.ip = asset.ip || existing.ip;
-          existing.type = asset.assetType === "web_application" ? "web_app" : existing.type;
-        } else if (isInRoeScope(state, hostname, asset.ip)) {
+          existing.ip = asset.asset?.ip || asset.ip || existing.ip;
+          existing.type = asset.asset?.assetType === "web_application" ? "web_app" : existing.type;
+          // CRITICAL FIX: Populate passiveRecon data from domain intel pipeline
+          existing.passiveRecon = passiveRecon;
+          // Add ports from passive recon (Shodan/Censys service discovery)
+          for (const svc of passiveRecon.services) {
+            if (!existing.ports.some((p) => p.port === svc.port)) {
+              existing.ports.push({
+                port: svc.port,
+                service: svc.service || 'unknown',
+                version: svc.version || '',
+              });
+            }
+          }
+          // Add vulns from posture findings
+          for (const v of passiveVulns) {
+            if (!existing.vulns.some((ev: any) => ev.title === v.title)) {
+              existing.vulns.push(v);
+            }
+          }
+          existing.status = 'discovered';
+          // Update stats
+          state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+          state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+        } else if (isInRoeScope(state, assetHostname, asset.asset?.ip || asset.ip)) {
           // Asset is in RoE scope — add for active scanning
           state.assets.push({
-            hostname,
-            ip: asset.ip,
-            type: asset.assetType === "web_application" ? "web_app" : "unknown",
-            ports: [],
-            vulns: [],
+            hostname: assetHostname,
+            ip: asset.asset?.ip || asset.ip,
+            type: asset.asset?.assetType === "web_application" ? "web_app" : "unknown",
+            ports: passiveRecon.services.map(svc => ({
+              port: svc.port,
+              service: svc.service || 'unknown',
+              version: svc.version || '',
+            })),
+            vulns: passiveVulns,
             zapFindings: [],
             exploitAttempts: [],
             toolResults: [],
-            status: "pending",
+            status: "discovered",
+            passiveRecon,
           });
+          state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+          state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
         } else {
           // Asset discovered but OUT OF RoE SCOPE — log but do NOT add for active scanning
           outOfScopeCount++;
           addLog(state, {
             phase: "recon", type: "warning",
-            title: `⚠️ Out-of-Scope Asset: ${hostname}`,
-            detail: `Discovered ${hostname}${asset.ip ? ` (${asset.ip})` : ''} via passive recon but it is NOT in the RoE authorized target list. Skipping active scanning.`,
+            title: `⚠️ Out-of-Scope Asset: ${assetHostname}`,
+            detail: `Discovered ${assetHostname}${asset.ip ? ` (${asset.ip})` : ''} via passive recon but it is NOT in the RoE authorized target list. Skipping active scanning.`,
           });
         }
       }
+
+      // Store raw passive recon results for LLM context
+      if (passiveReconData) {
+        if (!state.passiveReconResults) state.passiveReconResults = {};
+        state.passiveReconResults[domain] = {
+          totalObservations: passiveReconData.allObservations?.length || 0,
+          riskSignals: passiveReconData.riskSignals?.length || 0,
+          connectorStats: passiveReconData.summary?.connectorStats || [],
+        };
+      }
+
       if (outOfScopeCount > 0) {
         addLog(state, {
           phase: "recon", type: "info",
@@ -1242,12 +1372,14 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
       }
 
       const findingsCount = (result as any).totalFindings || 0;
+      const portsFound = state.stats.portsFound;
+      const vulnsFound = state.stats.vulnsFound;
       addLog(state, {
         phase: "recon",
         type: "scan_result",
         title: `Recon Complete: ${domain}`,
-        detail: `Discovered ${discoveredAssets.length} assets, ${findingsCount} findings`,
-        data: { domain, assets: discoveredAssets.length, findings: findingsCount },
+        detail: `Discovered ${discoveredAssets.length} assets, ${findingsCount} findings, ${portsFound} ports, ${vulnsFound} vulns from passive recon`,
+        data: { domain, assets: discoveredAssets.length, findings: findingsCount, ports: portsFound, vulns: vulnsFound },
       });
 
       emitReconComplete({ scanId: 0, domain, findings: findingsCount });
@@ -3511,7 +3643,7 @@ ${(() => {
         });
 
         // Simulate exploit result (in production this would call MSF API)
-        const success = plan?.exploitModules?.length > 0;
+        const success = !!plan?.selectedExploit?.modulePath;
         if (asset) {
           asset.exploitAttempts.push({ module: module || cve || "auto", success, sessionId: success ? `session-${genId()}` : undefined });
           if (success) {
@@ -3550,7 +3682,7 @@ ${(() => {
             ? `Successfully exploited ${service} on ${target}:${port}. Session opened.`
             : `Exploitation of ${service} on ${target}:${port} failed. Moving to next target.`,
           riskTier: "red",
-          data: { plan: plan?.exploitModules?.slice(0, 3) },
+          data: { plan: plan ? { module: plan.selectedExploit?.modulePath, confidence: plan.confidence, reasoning: plan.reasoning?.slice(0, 300) } : null },
         });
       } catch (e: any) {
         addLog(state, { phase: "exploitation", type: "error", title: `Exploit Error: ${target}`, detail: e.message });

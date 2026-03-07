@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, name, customerName, engagementType, status, roe_status, targetDomain FROM engagements WHERE customerName LIKE '%Vianova%' OR name LIKE '%Vianova%' ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, name, customerName, engagementType, status, roe_status, targetDomain FROM engagements WHERE customerName LIKE '%Vianova%' OR name LIKE '%Vianova%' ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "1350014",
+      "name": "Vianova External Pentest",
+      "customerName": "Vianova",
+      "engagementType": "pentest",
+      "status": "active",
+      "roe_status": "signed",
+      "targetDomain": "dashboard-dev.vianovahealth.com, api.dev.vianova.ai, demo.owasp-juice.shop, testphp.vulnweb.com, demo.testfire.net, demo.owasp.org"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tcustomerName\tengagementType\tstatus\troe_status\ttargetDomain\n1350014\tVianova External Pentest\tVianova\tpentest\tactive\tsigned\tdashboard-dev.vianovahealth.com, api.dev.vianova.ai, demo.owasp-juice.shop, testphp.vulnweb.com, demo.testfire.net, demo.owasp.org\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}
