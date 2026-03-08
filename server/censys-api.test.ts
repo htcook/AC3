@@ -77,6 +77,47 @@ describe("Censys Platform API v3 credentials and connector", () => {
     expect(data.result.resource.autonomous_system).toBeDefined();
   });
 
+  it("should handle hyphenated domain names without 422 errors", async () => {
+    // Regression test: CenQL requires quoted domain values when they contain hyphens
+    // Previously: host.dns.names: dashboard-dev.example.com → 422 "Invalid character: '-'"
+    // Fixed:      host.dns.names: "dashboard-dev.example.com" → 200 OK
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${pat}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (orgId) headers["X-Organization-ID"] = orgId;
+
+    // Test with a hyphenated domain — this should NOT return 422
+    const res = await fetch("https://api.platform.censys.io/v3/global/search/query", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        query: `host.dns.names: "my-test-domain.example.com"`,
+        page_size: 1,
+      }),
+    });
+
+    // Should be 200 (even if 0 results), NOT 422
+    expect(res.status).toBe(200);
+  });
+
+  it("should verify connector quotes domains in CenQL queries", async () => {
+    // Verify the connector properly quotes domains by testing with a hyphenated domain
+    const { censysConnector } = await import("./lib/passive/censys");
+    const result = await censysConnector.collect("dashboard-dev.vianovahealth.com", {
+      apiId: orgId,
+      apiSecret: pat,
+      timeout: 30000,
+    });
+
+    expect(result.connector).toBe("censys");
+    expect(result.domain).toBe("dashboard-dev.vianovahealth.com");
+    // The key assertion: no "query error" or "Invalid character" errors
+    const queryErrors = result.errors.filter(e => e.includes("query error") || e.includes("Invalid character"));
+    expect(queryErrors).toHaveLength(0);
+  });
+
   it("should run the censys connector and return observations", async () => {
     const { censysConnector } = await import("./lib/passive/censys");
     const result = await censysConnector.collect("google.com", {

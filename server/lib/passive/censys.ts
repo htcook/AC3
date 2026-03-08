@@ -59,8 +59,9 @@ export const censysConnector: PassiveConnector = {
 
       // Platform API v3 uses CenQL query syntax
       // host.dns.names matches domains observed in DNS records
+      // MUST quote the domain value — unquoted hyphens cause CenQL parse errors (422)
       const body = JSON.stringify({
-        query: `host.dns.names: ${domain}`,
+        query: `host.dns.names: "${domain}"`,
         page_size: 100,
       });
 
@@ -191,7 +192,7 @@ export const censysConnector: PassiveConnector = {
       if (data?.result?.next_page_token && observations.length < 500) {
         try {
           const page2Body = JSON.stringify({
-            query: `host.dns.names: ${domain}`,
+            query: `host.dns.names: "${domain}"`,
             page_size: 100,
             page_token: data.result.next_page_token,
           });

@@ -8438,3 +8438,7 @@
 - [x] Verified clean state: idle phase, 0 log entries, 0 stats, 2 target assets preserved
 - [ ] Publish to production so clearOps endpoint is available there
 - [ ] Re-run discovery on Vianova engagement
+
+## Vianova Scan Error Fixes (March 2026)
+- [x] Investigate LLM 403 Forbidden — confirmed transient issue, API working now, retry logic already handles it
+- [x] Fix Censys query escaping for hyphenated domain names (e.g. dashboard-dev.vianovahealth.com)
