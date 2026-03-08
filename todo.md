@@ -8384,3 +8384,14 @@
 - [x] Build scan delta comparison UI banner in DomainIntelResults overview tab
 - [x] Write vitest tests for cross-session context and exploitation bridge (9 tests passing)
 - [ ] Test context persistence with a re-scan of a previously scanned domain — requires full pipeline run
+
+## Exploit Execution Flow Testing (March 2026)
+- [x] Verify exploit bridge API endpoints are reachable and properly authenticated
+- [x] Test knownCves — returns 16 CVEs with exploit mappings
+- [x] Test lookupCve — correct CVE lookup for Log4Shell (CVSS 10.0, 1 module)
+- [x] Test lookupCve — unknown CVE correctly returns null
+- [x] Test quickPlan (Log4Shell → Juice Shop) — 5 steps, 3 preflight checks, OPSEC risk 7, confidence 80%
+- [x] Test quickPlan (EternalBlue → DVWA) — ms17_010_eternalblue, confidence 80%
+- [x] Test quickPlan (unknown CVE) — fallback plan, confidence 40%
+- [x] Test generatePlan (LLM → Juice Shop) — 7 steps, OPSEC risk 5, confidence 95%
+- [x] All 19 exploit bridge integration tests passing
