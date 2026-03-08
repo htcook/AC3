@@ -8421,3 +8421,9 @@
 - [x] Verify build succeeds: 14.4MB total JS (down from ~30MB), shiki 2.8MB (down from ~10.5MB)
 - [x] Verify dev preview renders correctly — no JS errors
 - [x] Save final checkpoint
+
+## Blank Screen Issue (March 2026 - Post Optimization)
+- [x] Diagnose blank screen on internal preview and aceofcloud.io
+- [x] Root cause: shiki subset plugin + manualChunks caused CJS/ESM interop crash in production build
+- [x] Fix: reverted build optimizations (removed shikiSubsetPlugin and manualChunks), kept all bug fixes and null safety audit
+- [x] Verify dev preview renders correctly
