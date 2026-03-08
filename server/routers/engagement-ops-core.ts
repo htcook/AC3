@@ -163,6 +163,16 @@ export const engagementOpsRouter = router({
         return { skipped: true, domain };
       }),
 
+    /** Fully clear ops state — wipes all in-memory and DB state so engagement starts fresh */
+    clearOps: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { clearOpsState } = await import('../lib/engagement-orchestrator');
+        await clearOpsState(input.engagementId);
+        await db.logActivity({ userId: ctx.user.id, action: 'engagement_ops_cleared', details: `Fully cleared ops state for engagement #${input.engagementId}` });
+        return { cleared: true };
+      }),
+
     /** Reset ops state — clears error state so operator can retry */
     resetOps: protectedProcedure
       .input(z.object({ engagementId: z.number() }))

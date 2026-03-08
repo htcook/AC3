@@ -8427,3 +8427,14 @@
 - [x] Root cause: shiki subset plugin + manualChunks caused CJS/ESM interop crash in production build
 - [x] Fix: reverted build optimizations (removed shikiSubsetPlugin and manualChunks), kept all bug fixes and null safety audit
 - [x] Verify dev preview renders correctly
+
+## Remove Vianova Scan Data (March 2026)
+- [x] Find Vianova engagement (ID: 1350014) and review scan errors — both scans completed successfully, no errors
+- [x] Clear scan results: deleted 2 domain intel scans and 1 engagement report
+- [x] Clear 824 rows across 20+ related tables (discovered_assets, attack_vectors, etc.)
+- [x] Add clearOpsState function to engagement-orchestrator.ts to wipe in-memory state
+- [x] Add clearOps tRPC procedure to engagement-ops-core.ts
+- [x] Clear in-memory ops state and DB snapshot for engagement 1350014
+- [x] Verified clean state: idle phase, 0 log entries, 0 stats, 2 target assets preserved
+- [ ] Publish to production so clearOps endpoint is available there
+- [ ] Re-run discovery on Vianova engagement

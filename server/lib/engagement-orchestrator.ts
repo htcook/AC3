@@ -274,6 +274,22 @@ export function getOpsState(engagementId: number): EngagementOpsState | null {
 }
 
 /**
+ * Fully clear the in-memory ops state for an engagement.
+ * Also removes the DB snapshot so recovery won't restore stale data.
+ */
+export async function clearOpsState(engagementId: number): Promise<void> {
+  opsStates.delete(engagementId);
+  const timer = persistTimers.get(engagementId);
+  if (timer) { clearTimeout(timer); persistTimers.delete(engagementId); }
+  try {
+    const { deleteOpsSnapshot } = await import('../db');
+    await deleteOpsSnapshot(engagementId);
+  } catch (e: any) {
+    console.error(`[OpsState] Failed to delete DB snapshot for #${engagementId}:`, e.message);
+  }
+}
+
+/**
  * Get ops state with auto-recovery from DB if in-memory state is missing.
  * Use this from API endpoints; the sync version above is for internal pipeline use.
  */

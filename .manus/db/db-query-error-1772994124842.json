@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, name, customer_name, status, engagement_type, target_domain, scan_mode FROM engagements WHERE name LIKE '%vianova%' OR name LIKE '%Vianova%' OR customer_name LIKE '%vianova%' OR target_domain LIKE '%vianova%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, name, customer_name, status, engagement_type, target_domain, scan_mode FROM engagements WHERE name LIKE '%vianova%' OR name LIKE '%Vianova%' OR customer_name LIKE '%vianova%' OR target_domain LIKE '%vianova%';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'customer_name' in 'where clause'"
+  ]
+}
