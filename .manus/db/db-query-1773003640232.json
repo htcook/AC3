@@ -1,0 +1,122 @@
+{
+  "query": "DESCRIBE llm_telemetry;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DESCRIBE llm_telemetry;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "called_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "caller",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "unknown",
+      "Extra": ""
+    },
+    {
+      "Field": "model",
+      "Type": "varchar(128)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "gemini-2.5-flash",
+      "Extra": ""
+    },
+    {
+      "Field": "llm_status",
+      "Type": "enum('success','error','timeout','retried_success')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "success",
+      "Extra": ""
+    },
+    {
+      "Field": "http_status",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "latency_ms",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "retry_count",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "tokens_in",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "tokens_out",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "has_response_format",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "error_message",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "engagement_id",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "created_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\ncalled_at\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\ncaller\tvarchar(255)\tNO\t\tunknown\t\nmodel\tvarchar(128)\tNO\t\tgemini-2.5-flash\t\nllm_status\tenum('success','error','timeout','retried_success')\tNO\t\tsuccess\t\nhttp_status\tint\tYES\t\tNULL\t\nlatency_ms\tint\tNO\t\t0\t\nretry_count\tint\tNO\t\t0\t\ntokens_in\tint\tYES\t\t0\t\ntokens_out\tint\tYES\t\t0\t\nhas_response_format\ttinyint(1)\tYES\t\t0\t\nerror_message\ttext\tYES\t\tNULL\t\nengagement_id\tint\tYES\t\tNULL\t\ncreated_at\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

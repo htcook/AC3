@@ -175,26 +175,108 @@ export const engagementOpsRouter = router({
 
     /** Diagnostic: test LLM connectivity from the production server */
     testLlm: protectedProcedure
-      .input(z.object({ paddingKB: z.number().min(0).max(500).optional() }).optional())
+      .input(z.object({
+        paddingKB: z.number().min(0).max(500).optional(),
+        mode: z.enum(['basic', 'security', 'json_schema', 'scan_plan']).optional(),
+      }).optional())
       .mutation(async ({ input }) => {
         const { invokeLLM } = await import('../_core/llm');
         const { ENV } = await import('../_core/env');
         const paddingKB = input?.paddingKB ?? 0;
+        const mode = input?.mode ?? 'basic';
         const padding = paddingKB > 0 ? 'X'.repeat(paddingKB * 1024) : '';
         const start = Date.now();
         try {
-          const result = await invokeLLM({
-            messages: [
+          // Build messages based on mode
+          let messages: any[] = [];
+          let opts: any = {};
+          if (mode === 'security') {
+            // Test with security-related content
+            messages = [
+              { role: 'system', content: 'You are an expert penetration tester and red team operator. You plan nmap scans, nuclei vulnerability scans, exploit payloads, and SQL injection attacks. You use tools like hydra for credential brute-forcing, metasploit for exploitation, and gobuster for directory discovery. ' + padding },
+              { role: 'user', content: 'Recommend nmap flags for scanning a web server behind CloudFlare WAF. Include evasion techniques.' },
+            ];
+          } else if (mode === 'json_schema') {
+            // Test with json_schema response_format
+            messages = [
+              { role: 'system', content: 'You are a helpful assistant. ' + padding },
+              { role: 'user', content: 'Return a JSON object with a greeting field.' },
+            ];
+            opts.response_format = {
+              type: 'json_schema',
+              json_schema: {
+                name: 'test_output',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: { greeting: { type: 'string' } },
+                  required: ['greeting'],
+                  additionalProperties: false,
+                },
+              },
+            };
+          } else if (mode === 'scan_plan') {
+            // Test with the ACTUAL scan plan system prompt (trimmed)
+            messages = [
+              { role: 'system', content: `You are an expert penetration tester and red team operator planning the active scanning phase of a pentest engagement. Available tools: nmap (port scanner), nuclei (vuln scanner with -u URL format), nikto (web scanner), gobuster (dir brute-forcer), httpx (HTTP probe), hydra (credential brute-forcer), sqlmap (SQL injection), testssl (TLS scanner), whatweb (tech fingerprinter), wpscan (WordPress scanner), cloud_enum (cloud resource enumerator), s3scanner (S3 bucket scanner). EVASION: If WAF/CDN detected do NOT use -f fragmentation or -D decoys. For cloud targets use simple '-Pn -sV -sC'. Respond with JSON matching: { "overallStrategy": "string", "assetPlans": [{ "hostname": "string", "nmapFlags": "string", "activeTools": [{ "tool": "string", "command": "string" }] }] }` + padding },
+              { role: 'user', content: 'Plan a scan for dashboard-dev.vianovahealth.com (cloud-hosted on AWS, WAF detected: CloudFront). Passive recon found: ports 80/443 open, nginx web server, React frontend. Generate a two-phase scan plan.' },
+            ];
+            opts.response_format = {
+              type: 'json_schema',
+              json_schema: {
+                name: 'scan_plan',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    overallStrategy: { type: 'string' },
+                    assetPlans: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          hostname: { type: 'string' },
+                          nmapFlags: { type: 'string' },
+                          activeTools: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                tool: { type: 'string' },
+                                command: { type: 'string' },
+                              },
+                              required: ['tool', 'command'],
+                              additionalProperties: false,
+                            },
+                          },
+                        },
+                        required: ['hostname', 'nmapFlags', 'activeTools'],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ['overallStrategy', 'assetPlans'],
+                  additionalProperties: false,
+                },
+              },
+            };
+          } else {
+            messages = [
               ...(padding ? [{ role: 'system' as const, content: 'You are a helpful assistant. ' + padding }] : []),
               { role: 'user' as const, content: 'Say hello in one word' },
-            ],
+            ];
+          }
+          const result = await invokeLLM({
+            messages,
             _caller: 'engagement-ops.testLlm',
+            ...opts,
           });
           return {
             ok: true,
             latencyMs: Date.now() - start,
+            mode,
             model: result.model,
-            content: result.choices?.[0]?.message?.content,
+            content: result.choices?.[0]?.message?.content?.substring(0, 500),
             tokensIn: result.usage?.prompt_tokens ?? 0,
             tokensOut: result.usage?.completion_tokens ?? 0,
             paddingKB,
@@ -205,6 +287,7 @@ export const engagementOpsRouter = router({
           return {
             ok: false,
             latencyMs: Date.now() - start,
+            mode,
             error: err.message?.substring(0, 500),
             paddingKB,
             apiUrlPrefix: (ENV.forgeApiUrl || 'NOT_SET').substring(0, 30),
