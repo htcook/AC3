@@ -173,6 +173,38 @@ export const engagementOpsRouter = router({
         return { cleared: true };
       }),
 
+    /** Diagnostic: test LLM connectivity from the production server */
+    testLlm: protectedProcedure
+      .mutation(async () => {
+        const { invokeLLM } = await import('../_core/llm');
+        const { ENV } = await import('../_core/env');
+        const start = Date.now();
+        try {
+          const result = await invokeLLM({
+            messages: [{ role: 'user', content: 'Say hello in one word' }],
+            _caller: 'engagement-ops.testLlm',
+          });
+          return {
+            ok: true,
+            latencyMs: Date.now() - start,
+            model: result.model,
+            content: result.choices?.[0]?.message?.content,
+            tokensIn: result.usage?.prompt_tokens ?? 0,
+            tokensOut: result.usage?.completion_tokens ?? 0,
+            apiUrlPrefix: (ENV.forgeApiUrl || 'NOT_SET').substring(0, 30),
+            apiKeyLength: (ENV.forgeApiKey || '').length,
+          };
+        } catch (err: any) {
+          return {
+            ok: false,
+            latencyMs: Date.now() - start,
+            error: err.message?.substring(0, 500),
+            apiUrlPrefix: (ENV.forgeApiUrl || 'NOT_SET').substring(0, 30),
+            apiKeyLength: (ENV.forgeApiKey || '').length,
+          };
+        }
+      }),
+
     /** Reset ops state — clears error state so operator can retry */
     resetOps: protectedProcedure
       .input(z.object({ engagementId: z.number() }))

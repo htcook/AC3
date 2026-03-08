@@ -8436,9 +8436,17 @@
 - [x] Add clearOps tRPC procedure to engagement-ops-core.ts
 - [x] Clear in-memory ops state and DB snapshot for engagement 1350014
 - [x] Verified clean state: idle phase, 0 log entries, 0 stats, 2 target assets preserved
-- [ ] Publish to production so clearOps endpoint is available there
-- [ ] Re-run discovery on Vianova engagement
+- [x] Publish to production so clearOps endpoint is available there
+- [x] Re-run discovery on Vianova engagement — completed successfully, Censys fix confirmed, no LLM errors
 
 ## Vianova Scan Error Fixes (March 2026)
 - [x] Investigate LLM 403 Forbidden — confirmed transient issue, API working now, retry logic already handles it
 - [x] Fix Censys query escaping for hyphenated domain names (e.g. dashboard-dev.vianovahealth.com)
+
+## LLM Exploit Function Testing on Vianova Domains (March 2026)
+- [ ] Generate LLM scan plan for Vianova engagement
+- [ ] Start active scan (LLM-guided nmap + service matching)
+- [ ] Monitor LLM analysis for errors (token usage, cost tracking)
+- [ ] Test exploit matching on discovered services
+- [ ] Test exploit code generation
+- [ ] Verify LLM synthesis tab results
