@@ -710,248 +710,195 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     { name: 'amass', desc: 'In-depth attack surface mapping and external asset discovery. Usage: amass enum -d <domain> -o /tmp/amass_<domain>.txt -timeout 15 -passive. Combines DNS brute-force, certificate transparency, web archives, and API sources.', use: 'comprehensive subdomain and infrastructure discovery — use for broad attack surface mapping when scope allows domain-wide discovery' },
   ];
 
-  const response = await invokeLLM({
-    messages: [
-      {
-        role: 'system',
-        content: `You are an expert penetration tester and red team operator planning the active scanning phase of a ${state.engagementType} engagement. You have completed passive OSINT reconnaissance and now have rich data about each target asset including services, technologies, certificates, risk signals, and WAF/CDN detection.
+  // ─── Build tiered prompt for scan plan generation ───────────────────────
+  // Tier 1 (essential): asset summaries + domain recon + engagement type
+  // Tier 2 (enrichment): knowledge context blocks (ontology, bug bounty, etc.)
+  // Strategy: try full prompt first, fallback to Tier 1 only if 403 error
+
+  const systemPrompt = `You are an expert penetration tester and red team operator planning the active scanning phase of a ${state.engagementType} engagement. You have completed passive OSINT reconnaissance and now have rich data about each target asset.
 
 Your scan plan MUST follow a two-phase approach:
 
-## PHASE A: Discovery Scan (MANDATORY FIRST STEP — 2 tools in sequence)
-Phase A runs TWO mandatory tools in sequence for every asset:
+## PHASE A: Discovery Scan (MANDATORY FIRST STEP)
+Run nmap (--top-ports 1000, -T3) then httpx on all discovered web ports for every asset.
+- discoveryNmapFlags: ONLY scan type/evasion flags. NO -p, --top-ports, -T, or placeholders.
+- DO NOT use -p- (all 65535 ports) — it times out.
 
-### Step 1: nmap (port discovery + service fingerprinting)
-- Run nmap with --top-ports 1000 and -T3 timing for reliable port discovery
-- The system automatically appends the target and enforces --top-ports 1000 with -T3 timing
-- discoveryNmapFlags should ONLY contain scan type flags, NOT port specs or target
-- DO NOT include -p, --top-ports, -T flags, or any {placeholder} strings in discoveryNmapFlags
-- DO NOT use -p- (all 65535 ports) — it takes 30+ minutes per host and will timeout
-
-⚠️ CRITICAL: EVASION FLAGS vs CLOUD TARGETS
-- If the target is behind a CDN/WAF (CloudFront, CloudFlare, Akamai, etc.) or is cloud-hosted (AWS, Azure, GCP):
-  * DO NOT use -f (fragmentation) — cloud firewalls DROP fragmented packets, causing ALL ports to show as 'filtered'
-  * DO NOT use -D RND:5 (decoys) — cloud infrastructure ignores decoy responses
-  * DO NOT use --data-length (padding) — gets stripped/blocked by cloud WAFs
-  * DO NOT use --source-port 53/80 (source port spoofing) — cloud firewalls block spoofed source ports
-  * USE SIMPLE FLAGS ONLY: '-Pn -sV -sC' — this reliably finds open ports on cloud targets
-  * Example for cloud targets: '-Pn -sV -sC'
-- If the target is on-premise / self-hosted / no CDN detected:
-  * Evasion flags are appropriate: '-Pn -sV -sC -O -f -D RND:5 --data-length 64 --source-port 53'
-  * Example for on-premise targets: '-Pn -sV -sC -O -f -D RND:5 --data-length 64'
-- When in doubt, use SIMPLE flags — finding ports is more important than evasion
-
-### Step 2: httpx (HTTP probing on all web ports)
-- Run httpx on ALL HTTP/HTTPS ports found by nmap
-- The system automatically builds the httpx command with discovered ports — no need to specify in flags
-- httpx detects: technology stack, CDN/WAF presence, TLS certificate info, HTTP status codes, web server software, page titles
-- This data is CRITICAL for Phase B tool selection (e.g., if httpx detects WordPress → nuclei wordpress templates)
-
-The discovery scan ENRICHES the passive recon data — both tools' results will be fed back to you for Phase B planning
+⚠️ EVASION vs CLOUD: If target is behind CDN/WAF or cloud-hosted: DO NOT use -f, -D, --data-length, --source-port. Use '-Pn -sV -sC' only. For on-premise: evasion flags OK.
 
 ## PHASE B: Targeted Tool Deployment
-After discovery results are merged, select specific tools per asset based on the COMBINED passive recon + discovery data:
-- Web services → nuclei, nikto, gobuster, httpx, ffuf (fast fuzzing), feroxbuster (recursive discovery)
-- Web tech fingerprinting → whatweb (deep CMS/framework detection, complements httpx)
-- WordPress sites → wpscan (ONLY when WordPress detected by httpx/whatweb)
-- SQL injection → sqlmap (ONLY against confirmed or suspected injectable parameters from nuclei/ZAP findings)
-- TLS/SSL analysis → testssl (run on all HTTPS services to check for protocol vulnerabilities)
-- SMB/NetBIOS → enum4linux, smbclient
-- LDAP/AD → ldapsearch
-- DNS → dig (zone transfer attempts)
-- SNMP → onesixtyone
-- Login services (SSH, FTP, RDP, MySQL) → hydra (only if approved)
-- Additional subdomains → subfinder or amass (ONLY for domain intelligence / unscoped discovery — skip for scoped engagements where targets are already defined)
-- Attack surface mapping → amass (comprehensive subdomain + infrastructure discovery when scope allows)
-- Cloud storage/apps → cloud_enum (keyword enumeration), s3scanner (bucket permission testing), aws CLI (anonymous S3 access), trufflehog (secret scanning in accessible buckets)
-- Nuclei cloud templates → nuclei with -tags cloud,s3,azure,gcp,firebase,bucket,storage,misconfig
+Select tools per asset based on passive recon + discovery data:
+- Web → nuclei (-u URL format), nikto, ffuf, feroxbuster, whatweb, testssl
+- WordPress → wpscan (only when detected)
+- SQLi → sqlmap (only confirmed targets)
+- Cloud → cloud_enum (MANDATORY for cloud targets), s3scanner (MANDATORY for AWS), nuclei -tags cloud
+- SMB → enum4linux; LDAP → ldapsearch; DNS → dig; SNMP → onesixtyone; Login → hydra
 
-### Tool Selection Priority Rules:
-1. ALWAYS run whatweb on web services for deep tech fingerprinting before selecting specialized tools
-2. If WordPress detected → add wpscan to the tool list
-3. If SQLi suspected (from nuclei/ZAP) → add sqlmap targeting the specific parameter
-4. Use ffuf over gobuster when you need parameter fuzzing or vhost enumeration
-5. Use feroxbuster over gobuster when you need recursive depth-first directory discovery
-6. Run testssl on all HTTPS services — TLS vulnerabilities are often overlooked
-7. Use amass instead of subfinder when you need comprehensive infrastructure mapping (DNS + CT + web archives)
+Available tools:
+${availableTools.map(t => `- ${t.name}: ${t.desc.substring(0, 120)}${(t as any).use ? ` [${(t as any).use.substring(0, 60)}]` : ''}`).join('\n')}
 
-## CLOUD STORAGE & APP MISCONFIGURATION DETECTION
-When you detect cloud-hosted assets (via CNAME patterns, HTTP headers, or technology fingerprints), you MUST include cloud-specific tools in the activeTools list:
+Respond with valid JSON matching the schema provided in response_format.`;
 
-### Cloud Provider Detection Signals:
-- AWS: CNAME to *.s3.amazonaws.com, *.cloudfront.net, *.elasticbeanstalk.com; Headers: x-amz-request-id, Server: AmazonS3
-- Azure: CNAME to *.blob.core.windows.net, *.azurewebsites.net; Headers: x-ms-request-id, x-ms-version
-- GCP: CNAME to *.storage.googleapis.com, *.appspot.com; Headers: x-goog-storage-class, Server: UploadServer
-- Firebase: CNAME to *.firebaseio.com, *.firebaseapp.com, *.web.app
-- DigitalOcean: CNAME to *.digitaloceanspaces.com
+  // Build Tier 1 user content (essential data only)
+  const tier1Content = `## Passive OSINT Results\n\n### Per-Asset Intelligence:\n${JSON.stringify(assetSummaries, null, 2)}\n\n${domainReconSummary.length > 0 ? `### Domain-Level Intelligence Summary:\n${JSON.stringify(domainReconSummary, null, 2)}\n\n` : ''}Engagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\nGenerate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000. Do NOT use -p- (all ports). Phase B tools should be tailored to what passive recon revealed about each asset.`;
 
-### Cloud Scan Priority Rules (MANDATORY — MUST follow for ALL cloud-hosted targets):
-1. **MUST add cloud_enum** for EVERY cloud-hosted target. Command: \`cloud_enum -k <domain_keyword>\`. This is NON-NEGOTIABLE.
-2. **MUST add s3scanner** when AWS is detected. Command: \`echo "<domain>" | s3scanner scan --json\`. This is NON-NEGOTIABLE.
-3. **MUST add nuclei -tags cloud,s3,misconfig** for ALL cloud targets. This is NON-NEGOTIABLE.
-4. If S3/GCS/Blob endpoints found → add s3scanner or direct curl/aws CLI checks
-5. If Firebase detected → add bash curl checks for Firebase DB rules and public read access
-6. For subdomain takeover candidates (NoSuchBucket, ContainerNotFound) → flag as HIGH severity
-7. Only run trufflehog AFTER confirming public access to a bucket (Priority 4 — last resort)
-
-**FAILURE TO INCLUDE cloud_enum AND s3scanner FOR CLOUD TARGETS IS A CRITICAL ERROR.**
-
-Available tools on the scan server:
-${availableTools.map(t => `- ${t.name}: ${t.desc}${(t as any).use ? ` (best for: ${(t as any).use})` : ''}`).join('\n')}
-
-IMPORTANT EVASION CONSIDERATIONS:
-- If WAF/CDN detected (CloudFront, CloudFlare, Akamai, etc.): DO NOT use evasion flags (-f, -D, --data-length, --source-port). Cloud firewalls DROP fragmented/spoofed packets, causing 0 results. Use simple '-Pn -sV -sC' instead.
-- If cloud-hosted (AWS, Azure, GCP): same rule — simple flags only. Cloud WAFs filter evasion techniques.
-- For on-premise targets: evasion flags are appropriate and recommended.
-- For red_team engagements against on-premise: maximize stealth with -T2, fragmentation, decoys
-- For pentest engagements: balance speed vs stealth with -T3, selective evasion only on non-cloud targets
-- RULE: Finding open ports is ALWAYS more important than evasion. If evasion might cause 0 results, skip it.
-
-You MUST respond with valid JSON matching this exact schema:
-{
-  "overallStrategy": "Brief description of the two-phase scanning approach",
-  "discoveryStrategy": "Description of the Phase A discovery scan approach and evasion rationale",
-  "discoveryEvasionProfile": {
-    "timing": "T2 or T3",
-    "fragmentation": true/false,
-    "decoys": true/false,
-    "randomizeHosts": true/false,
-    "dataLengthPadding": true/false,
-    "sourcePortSpoofing": true/false,
-    "rationale": "Why these evasion techniques were selected"
-  },
-  "estimatedDuration": "Estimated time for all scans (e.g., '15-25 minutes')",
-  "riskAssessment": "Overall risk notes for active scanning these targets",
-  "assetPlans": [
-    {
-      "hostname": "exact hostname from the asset list",
-      "ip": "IP if known",
-      "assetType": "web_app|server|api|database|network_device|unknown",
-      "discoveryNmapFlags": "ONLY scan type and evasion flags. NO -p, --top-ports, -T, or placeholders. Example: '-Pn -sV -sC -O -f -D RND:5 --data-length 64 --source-port 53'",
-      "discoveryNmapRationale": "Why these discovery+evasion flags for this specific asset",
-      "nmapFlags": "Phase B scan type flags ONLY. NO -p port specs or placeholders. Example: '-sV -sC --script vuln'. Ports are added automatically from Phase A results.",
-      "nmapRationale": "Why these targeted flags based on expected services",
-      "activeTools": [
-        {
-          "tool": "tool name from available list",
-          "command": "exact command with the ACTUAL hostname/IP. CRITICAL FORMAT RULES: nuclei MUST use '-u URL' format with -severity filter (e.g. 'nuclei -u https://target:443 -severity critical,high,medium -tags nginx -jsonl -nc -duc -ni -timeout 10 -retries 1'). httpx MUST use pipe mode (e.g. 'echo https://target:443 | httpx -json -tech-detect -status-code -title -follow-redirects'). nikto uses -h URL (e.g. 'nikto -h https://target:443 -Tuning 1234567890 -maxtime 300')",
-          "rationale": "Why this tool for this asset based on passive recon data",
-          "priority": 1
-        }
-      ],
-      "riskNotes": "Any risk concerns for this specific asset (WAF, rate limiting, IDS)",
-      "evasionTechniques": ["list of evasion techniques to use for this asset"]
-    }
-  ]
-}`
-      },
-      {
-        role: 'user',
-        content: `## Passive OSINT Results\n\n### Per-Asset Intelligence:\n${JSON.stringify(assetSummaries, null, 2)}\n\n${domainReconSummary.length > 0 ? `### Domain-Level Intelligence Summary:\n${JSON.stringify(domainReconSummary, null, 2)}\n\n` : ''}Engagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\n${(() => {
-  // Inject knowledge context for smarter scan planning
+  // Build Tier 2 enrichment context
   const detectedTech = state.assets.flatMap(a => [
     ...(a.type !== 'unknown' ? [a.type] : []),
     ...a.ports.map((p: any) => p.service).filter(Boolean),
   ]);
-  const ontologyCtx = detectedTech.length > 0 ? formatOntologyForPrompt([...new Set(detectedTech)]) : '';
-  const bbCtx = getTrainingExamplesForPrompt(2);
-  const corpusCtx = getTriageCorpusContext(undefined, 2);
-  // Inject cloud security awareness for cloud asset detection
+  const uniqueTech = [...new Set(detectedTech)];
   const allObs = state.assets.flatMap(a => [
     ...(a.passiveRecon?.technologies || []),
     ...(a.passiveRecon?.riskSignals?.map(r => r.rationale) || []),
     a.passiveRecon?.cloudProvider || '',
   ]).filter(Boolean);
-  const cloudCtx = allObs.length > 0 ? buildCloudSecurityContext(allObs) : buildGeneralCloudContext();
-  // Inject nmap expertise for scan plan generation
-  const nmapCtx = getNmapScanPlanContext({
-    detectedTech: [...new Set(detectedTech)],
-    cloudProvider: state.assets.find(a => a.passiveRecon?.cloudProvider)?.passiveRecon?.cloudProvider,
-    hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
-    hasIDS: state.engagementType === 'red_team',
-    stealthRequired: state.engagementType === 'red_team',
-  });
-  const owaspCtx = getOwaspScanPlanContext([...new Set(detectedTech)]);
-  const threatGroupCtx = getThreatGroupScanContext({ technologies: [...new Set(detectedTech)] });
-  return (ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx + '\n\n' : '') +
-    (bbCtx ? '## Bug Bounty Methodology Context\n' + bbCtx + '\n\n' : '') +
-    (corpusCtx ? '## Tool Output Triage Examples\n' + corpusCtx + '\n\n' : '') +
-    (cloudCtx ? cloudCtx + '\n\n' : '') +
-    (nmapCtx ? nmapCtx + '\n\n' : '') +
-    (owaspCtx ? owaspCtx + '\n\n' : '') +
-    (threatGroupCtx ? threatGroupCtx + '\n\n' : '');
-})()}Generate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000 with evasion techniques. Do NOT use -p- (all ports) — it times out. Always include --top-ports 1000 in discoveryNmapFlags. Phase B tools should be tailored to what passive recon already revealed about each asset.`
-      }
-    ],
-    _caller: 'engagement-orchestrator.generateScanPlan',
-    _engagementId: state.engagementId,
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        name: 'scan_plan',
-        strict: true,
-        schema: {
-          type: 'object',
-          properties: {
-            overallStrategy: { type: 'string' },
-            discoveryStrategy: { type: 'string' },
-            discoveryEvasionProfile: {
+
+  let enrichmentCtx = '';
+  try {
+    const ontologyCtx = uniqueTech.length > 0 ? formatOntologyForPrompt(uniqueTech) : '';
+    const bbCtx = getTrainingExamplesForPrompt(2);
+    const corpusCtx = getTriageCorpusContext(undefined, 2);
+    const cloudCtx = allObs.length > 0 ? buildCloudSecurityContext(allObs) : buildGeneralCloudContext();
+    const nmapCtx = getNmapScanPlanContext({
+      detectedTech: uniqueTech,
+      cloudProvider: state.assets.find(a => a.passiveRecon?.cloudProvider)?.passiveRecon?.cloudProvider,
+      hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+      hasIDS: state.engagementType === 'red_team',
+      stealthRequired: state.engagementType === 'red_team',
+    });
+    const owaspCtx = getOwaspScanPlanContext(uniqueTech);
+    const threatGroupCtx = getThreatGroupScanContext({ technologies: uniqueTech });
+    enrichmentCtx = [
+      ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '',
+      bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '',
+      corpusCtx ? '## Triage Examples\n' + corpusCtx : '',
+      cloudCtx || '',
+      nmapCtx || '',
+      owaspCtx || '',
+      threatGroupCtx || '',
+    ].filter(Boolean).join('\n\n');
+  } catch (e) {
+    console.warn('[ScanPlan] Failed to build enrichment context:', e);
+  }
+
+  const fullUserContent = enrichmentCtx
+    ? tier1Content + '\n\n' + enrichmentCtx
+    : tier1Content;
+
+  const scanPlanResponseFormat = {
+    type: 'json_schema' as const,
+    json_schema: {
+      name: 'scan_plan',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          overallStrategy: { type: 'string' },
+          discoveryStrategy: { type: 'string' },
+          discoveryEvasionProfile: {
+            type: 'object',
+            properties: {
+              timing: { type: 'string' },
+              fragmentation: { type: 'boolean' },
+              decoys: { type: 'boolean' },
+              randomizeHosts: { type: 'boolean' },
+              dataLengthPadding: { type: 'boolean' },
+              sourcePortSpoofing: { type: 'boolean' },
+              rationale: { type: 'string' }
+            },
+            required: ['timing', 'fragmentation', 'decoys', 'randomizeHosts', 'dataLengthPadding', 'sourcePortSpoofing', 'rationale'],
+            additionalProperties: false
+          },
+          estimatedDuration: { type: 'string' },
+          riskAssessment: { type: 'string' },
+          assetPlans: {
+            type: 'array',
+            items: {
               type: 'object',
               properties: {
-                timing: { type: 'string' },
-                fragmentation: { type: 'boolean' },
-                decoys: { type: 'boolean' },
-                randomizeHosts: { type: 'boolean' },
-                dataLengthPadding: { type: 'boolean' },
-                sourcePortSpoofing: { type: 'boolean' },
-                rationale: { type: 'string' }
-              },
-              required: ['timing', 'fragmentation', 'decoys', 'randomizeHosts', 'dataLengthPadding', 'sourcePortSpoofing', 'rationale'],
-              additionalProperties: false
-            },
-            estimatedDuration: { type: 'string' },
-            riskAssessment: { type: 'string' },
-            assetPlans: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  hostname: { type: 'string' },
-                  ip: { type: 'string' },
-                  assetType: { type: 'string' },
-                  discoveryNmapFlags: { type: 'string' },
-                  discoveryNmapRationale: { type: 'string' },
-                  httpxFlags: { type: 'string', description: 'httpx flags for HTTP probing on discovered web ports' },
-                  nmapFlags: { type: 'string' },
-                  nmapRationale: { type: 'string' },
-                  activeTools: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        tool: { type: 'string' },
-                        command: { type: 'string' },
-                        rationale: { type: 'string' },
-                        priority: { type: 'number' }
-                      },
-                      required: ['tool', 'command', 'rationale', 'priority'],
-                      additionalProperties: false
-                    }
-                  },
-                  riskNotes: { type: 'string' },
-                  evasionTechniques: { type: 'array', items: { type: 'string' } }
+                hostname: { type: 'string' },
+                ip: { type: 'string' },
+                assetType: { type: 'string' },
+                discoveryNmapFlags: { type: 'string' },
+                discoveryNmapRationale: { type: 'string' },
+                httpxFlags: { type: 'string', description: 'httpx flags for HTTP probing on discovered web ports' },
+                nmapFlags: { type: 'string' },
+                nmapRationale: { type: 'string' },
+                activeTools: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      tool: { type: 'string' },
+                      command: { type: 'string' },
+                      rationale: { type: 'string' },
+                      priority: { type: 'number' }
+                    },
+                    required: ['tool', 'command', 'rationale', 'priority'],
+                    additionalProperties: false
+                  }
                 },
-                required: ['hostname', 'ip', 'assetType', 'discoveryNmapFlags', 'discoveryNmapRationale', 'httpxFlags', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
-                additionalProperties: false
-              }
+                riskNotes: { type: 'string' },
+                evasionTechniques: { type: 'array', items: { type: 'string' } }
+              },
+              required: ['hostname', 'ip', 'assetType', 'discoveryNmapFlags', 'discoveryNmapRationale', 'httpxFlags', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
+              additionalProperties: false
             }
-          },
-          required: ['overallStrategy', 'discoveryStrategy', 'discoveryEvasionProfile', 'estimatedDuration', 'riskAssessment', 'assetPlans'],
-          additionalProperties: false
-        }
+          }
+        },
+        required: ['overallStrategy', 'discoveryStrategy', 'discoveryEvasionProfile', 'estimatedDuration', 'riskAssessment', 'assetPlans'],
+        additionalProperties: false
       }
     }
-  });
+  };
+
+  // Try full prompt first, fallback to tier1-only on error
+  let response: any;
+  let usedTier = 'full';
+  try {
+    console.log(`[ScanPlan] Attempting full prompt (tier1 + enrichment)...`);
+    response = await invokeLLM({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: fullUserContent },
+      ],
+      _caller: 'engagement-orchestrator.generateScanPlan',
+      _engagementId: state.engagementId,
+      response_format: scanPlanResponseFormat,
+    });
+  } catch (fullErr: any) {
+    console.warn(`[ScanPlan] Full prompt failed: ${fullErr.message}. Retrying with tier1-only (no enrichment)...`);
+    addLog(state, {
+      phase: state.phase,
+      type: 'warning',
+      title: 'LLM Scan Plan — Retrying with Lean Prompt',
+      detail: `Full prompt failed (${fullErr.message?.substring(0, 100)}). Retrying without enrichment context...`,
+    });
+    broadcastOpsUpdate(engagementId, { type: 'log_update' });
+    usedTier = 'tier1-only';
+    try {
+      response = await invokeLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: tier1Content },
+        ],
+        _caller: 'engagement-orchestrator.generateScanPlan.fallback',
+        _engagementId: state.engagementId,
+        response_format: scanPlanResponseFormat,
+      });
+    } catch (fallbackErr: any) {
+      addLog(state, {
+        phase: state.phase,
+        type: 'error',
+        title: 'LLM Scan Plan Failed',
+        detail: `Both full and lean prompts failed. Error: ${fallbackErr.message?.substring(0, 200)}`,
+      });
+      broadcastOpsUpdate(engagementId, { type: 'log_update' });
+      throw fallbackErr;
+    }
+  }
+  console.log(`[ScanPlan] Succeeded with ${usedTier} prompt`);
 
   let parsed: any;
   try {

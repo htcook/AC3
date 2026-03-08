@@ -8444,7 +8444,8 @@
 - [x] Fix Censys query escaping for hyphenated domain names (e.g. dashboard-dev.vianovahealth.com)
 
 ## LLM Exploit Function Testing on Vianova Domains (March 2026)
-- [ ] Generate LLM scan plan for Vianova engagement
+- [x] Refactor generateScanPlan with tiered prompt (lean system prompt + tier1/tier2 user content with auto-fallback)
+- [ ] Deploy and test scan plan generation on production
 - [ ] Start active scan (LLM-guided nmap + service matching)
 - [ ] Monitor LLM analysis for errors (token usage, cost tracking)
 - [ ] Test exploit matching on discovered services
