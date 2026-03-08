@@ -1584,6 +1584,8 @@ export async function runDomainIntelPipeline(
   onProgress?: (stage: 'passive_recon' | 'discovering' | 'analyzing' | 'scoring' | 'recommending') => void | Promise<void>,
   options?: { scanMode?: ScanMode; skipEngagement?: boolean; scopedAssets?: string[]; onConnectorProgress?: (event: { connector: string; status: 'started' | 'completed' | 'failed' | 'skipped'; observations?: number; durationMs?: number; error?: string }) => void | Promise<void> }
 ): Promise<PipelineResult> {
+  // ── Event loop yield helper: prevents blocking the server during long pipelines ──
+  const yieldEventLoop = () => new Promise<void>(resolve => setImmediate(resolve));
   // Defensive defaults for optional arrays to prevent undefined access
   org.criticalFunctions = org.criticalFunctions || [];
   org.complianceFlags = org.complianceFlags || [];
@@ -1605,6 +1607,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] FP context load failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 0.5: Passive Reconnaissance (run all connectors)
   await onProgress?.('passive_recon');
   let passiveRecon: PassiveReconResult | undefined;
@@ -1673,6 +1676,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Passive recon failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 0.75: Org Domain Discovery (find related domains owned by same org)
   let orgDiscoveryResult: OrgDiscoveryResult | undefined;
   try {
@@ -1694,10 +1698,12 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Org domain discovery failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 1: Discover assets (with FP learning context + passive recon data)
   await onProgress?.('discovering');
   const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined, passiveContext);
 
+  await yieldEventLoop();
   // Stage 1.1: Post-LLM Deduplication & Filtering
   // Fix: LLM sometimes creates multiple assets for the same hostname (e.g., different URL paths)
   // and includes third-party SaaS/infrastructure hostnames that aren't target-owned.
@@ -1841,6 +1847,7 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  await yieldEventLoop();
   // Stage 1.25: Merge passive recon subdomains into rawAssets
   // The LLM discovery stage only generates 15-30 assets. Passive recon may discover
   // many more subdomains (from crt.sh, SecurityTrails, Shodan, Censys, etc.) that the
@@ -1910,6 +1917,7 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  await yieldEventLoop();
   // Stage 1.4: Scoped Scan Filter — restrict to user-specified assets only (RoE mode)
   // This is the critical scope enforcement gate: only assets explicitly listed by the user
   // should survive into the analysis pipeline. Matches on hostname, URL, resolved IPs,
@@ -1956,6 +1964,7 @@ export async function runDomainIntelPipeline(
     console.log(`[DomainIntel] Scoped Scan: Filtered ${beforeCount} discovered assets down to ${rawAssets.length} matching RoE scope (${options.scopedAssets.join(', ')})`);
   }
 
+  await yieldEventLoop();
   // Stage 1.5: Active DNS & Banner Verification
   let verifiedAssets: typeof rawAssets;
   let unresolvedHypotheses: typeof rawAssets = [];
@@ -1988,6 +1997,7 @@ export async function runDomainIntelPipeline(
     verifiedAssets = rawAssets;
   }
 
+  await yieldEventLoop();
   // Stage 1.7: Shodan Banner Enrichment — populate technologyVersions from Shodan data
   // This runs BEFORE analysis so that KEV/CVE matching has real version data to work with
   if (passiveRecon) {
@@ -2002,6 +2012,7 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  await yieldEventLoop();
   // Stage 1.8: WAF/NGFW Detection & Scan Tuning Profile
   let wafNgfwAssessment: WafNgfwAssessment | undefined;
   try {
@@ -2047,6 +2058,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Stage 1.8 WAF/NGFW detection failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 2 & 3: Analyze assets (classification, BIA, hybrid risk) — with FP calibration
   await onProgress?.('analyzing');
   const analyses = await analyzeAssets(verifiedAssets, org, fpContext ? {
@@ -2144,6 +2156,7 @@ export async function runDomainIntelPipeline(
     });
   }
 
+  await yieldEventLoop();
   // Stage 3.5: CISA KEV Enrichment
   const preKevSnapshot = snapshotScores();
   await onProgress?.('scoring');
@@ -2173,9 +2186,12 @@ export async function runDomainIntelPipeline(
         // FIX: Per-asset KEV matching. We run matchTechnologiesAgainstKev per-asset
         // using only THAT asset's technologies, so findings are never cross-contaminated.
         // We also build a per-asset seen set to avoid duplicate CVEs on the same asset.
-        analyses.forEach(a => {
+        let kevIdx = 0;
+        for (const a of analyses) {
+          kevIdx++;
+          if (kevIdx % 10 === 0) await yieldEventLoop();
           const assetTechs = (a.asset.technologies || []).filter(Boolean);
-          if (assetTechs.length === 0) return;
+          if (assetTechs.length === 0) continue;
           // Run KEV matching using ONLY this asset's own technologies
           const assetKevMatches = matchTechnologiesAgainstKev(assetTechs, kevCatalog);
           // Deduplicate: skip CVEs already present as posture findings on this asset
@@ -2262,7 +2278,7 @@ export async function runDomainIntelPipeline(
               });
             });
           }
-        });
+        }
         console.log(`[DomainIntel] KEV enrichment: ${kevMatches.length} matches, ${chainSteps.length} chain steps, boost=${boost.riskBoost}`);
       }
     }
@@ -2272,6 +2288,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] KEV enrichment failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 3.6: Vuln Feed Enrichment — add real CVE IDs from all feeds
   // FIX: Per-asset vuln feed matching. We run matchTechnologiesAgainstAllFeeds per-asset
   // using only THAT asset's technologies, so findings are never cross-contaminated.
@@ -2284,7 +2301,10 @@ export async function runDomainIntelPipeline(
     let totalTechsMatched = 0;
 
     // Enrich each asset's posture findings with real CVE data — PER ASSET
+    let vfIdx = 0;
     for (const a of analyses) {
+      vfIdx++;
+      if (vfIdx % 10 === 0) await yieldEventLoop();
       const assetTechs = (a.asset.technologies || []).filter(Boolean);
       if (assetTechs.length === 0) continue;
 
@@ -2382,6 +2402,7 @@ export async function runDomainIntelPipeline(
   // Note: vuln feed findings don't change hybridRiskScore directly — they add postureFindings
   // that are picked up in the post-enrichment recalculation below.
 
+  await yieldEventLoop();
   // Stage 3.7: Shodan CVE Verification — upgrade probable findings to confirmed using Shodan banner data
   if (passiveRecon) {
     try {
@@ -2404,6 +2425,7 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  await yieldEventLoop();
   // Stage 3.8: Exploit Matching — match confirmed CVEs against Metasploit/ExploitDB
   let exploitMatchResult: PipelineResult['exploitMatches'] | undefined;
   try {
@@ -2424,6 +2446,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Exploit matching failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 3.81: Cross-link exploit matches back to KEV posture findings
   // The exploit matcher finds Metasploit/ExploitDB/Caldera matches for CVEs, but stores
   // them in a separate exploitMatches object. This stage annotates each KEV posture finding
@@ -2436,7 +2459,10 @@ export async function runDomainIntelPipeline(
       cveToExploit.set(match.cveId, match);
     }
     let linkedCount = 0;
+    let linkIdx = 0;
     for (const a of analyses) {
+      linkIdx++;
+      if (linkIdx % 10 === 0) await yieldEventLoop();
       for (const finding of a.postureFindings) {
         if (!finding.cveIds || finding.cveIds.length === 0) continue;
         const matchedExploits: Array<{
@@ -2486,13 +2512,17 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  await yieldEventLoop();
   // Stage 3.85: Port-Based Risk Scoring — analyze exposed ports and generate findings
   const prePortSnapshot = snapshotScores();
   let portRiskStats = { totalAssetsWithPorts: 0, totalHighRiskPorts: 0, totalPortFindings: 0 };
   if (passiveRecon) {
     try {
       const allObs = passiveRecon.allObservations;
+      let portIdx = 0;
       for (const a of analyses) {
+        portIdx++;
+        if (portIdx % 10 === 0) await yieldEventLoop();
         const portRisk = computePortRisk(a.asset, allObs);
         if (portRisk.totalOpenPorts > 0) {
           portRiskStats.totalAssetsWithPorts++;
@@ -2526,6 +2556,7 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  await yieldEventLoop();
   // Stage 3.9: Email Security Analysis — check SPF/DKIM/DMARC for phishing weaknesses
   let emailSecurityReport: any = undefined;
   let hasMx = false;
@@ -2588,6 +2619,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Email security analysis failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 3.10: Strip email security findings from ALL non-mail assets.
   // Only assets positively identified as mail infrastructure should retain
   // DMARC/SPF/DKIM/email security findings. Web servers, APIs, SSO portals,
@@ -2595,7 +2627,10 @@ export async function runDomainIntelPipeline(
   // assets should NEVER be flagged for missing email authentication.
   try {
     const { isMailAsset } = await import('./lib/email-security-analyzer');
+    let emailIdx = 0;
     for (const a of analyses) {
+      emailIdx++;
+      if (emailIdx % 10 === 0) await yieldEventLoop();
       const hostname = a.asset.hostname || '';
       // Check if this asset is a mail asset — if NOT, strip all email findings
       const assetIsMailRelated = isMailAsset({
@@ -2641,6 +2676,7 @@ export async function runDomainIntelPipeline(
   }
 
   // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan + PORT + EMAIL) are in place
+  await yieldEventLoop();
   for (const a of analyses) {
     const vulnRisk = computeVulnRisk(a.postureFindings);
     a.vulnRiskScore = vulnRisk.score;
@@ -2663,7 +2699,10 @@ export async function runDomainIntelPipeline(
   // Essential service baselines provide granular CARVER/Shock adjustments.
   try {
     const { applyMissionBaselines } = await import('./lib/scoring-engine');
+    let missionIdx = 0;
     for (const a of analyses) {
+      missionIdx++;
+      if (missionIdx % 10 === 0) await yieldEventLoop();
       // Apply mission function + essential service baselines in one call
       // This ensures critical assets are never under-scored regardless of vuln data
       const baselines = applyMissionBaselines(
@@ -2710,6 +2749,7 @@ export async function runDomainIntelPipeline(
   }
   console.log(`[DomainIntel] Re-scoring timeline: ${rescoringTimeline.length} events recorded across ${analyses.length} assets`);
 
+  await yieldEventLoop();
   // Stage 3.95: Cross-Module Enrichment — Bug Bounty, Threat Intel, OpSec, Discovery Deep Dive
   // This feeds data from other modules back into the pipeline for two-way enrichment
   let crossModuleEnrichment: CrossModuleEnrichmentResult | undefined;
@@ -2738,6 +2778,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Cross-module enrichment failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 3.99: LLM Post-Enrichment Analysis — attack paths, blind spots, recommendations
   let postEnrichmentAnalysis: PostEnrichmentAnalysis | undefined;
   try {
@@ -2753,6 +2794,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Post-enrichment analysis failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 4: Generate campaign recommendations (now KEV-enriched)
   // If skipEngagement is true, skip campaign design and generate scan-only summaries
   let campaigns: CampaignRecommendation[] = [];
@@ -2776,11 +2818,15 @@ export async function runDomainIntelPipeline(
     : 0;
   const overallBand = riskBand(overallRisk);
 
+  await yieldEventLoop();
   // Stage 6: Post-scan FP auto-flagging — mark findings that match known FP hashes
   if (fpHashes && fpHashes.size > 0) {
     const { createHash } = await import('crypto');
     let autoFlagged = 0;
+    let fpIdx = 0;
     for (const a of analyses) {
+      fpIdx++;
+      if (fpIdx % 10 === 0) await yieldEventLoop();
       for (const f of a.postureFindings) {
         const hash = createHash('sha256')
           .update(`${f.title}|${a.asset.assetId}|${f.category || ''}`)
@@ -2852,6 +2898,7 @@ export async function runDomainIntelPipeline(
   }
   console.log(`[DomainIntel] Asset totals: ${analyses.length} analyzed + ${subdomainAssetCount} passive recon subdomains = ${analyses.length + subdomainAssetCount} total`);
 
+  await yieldEventLoop();
   // Stage 3.97: OEM Default Credential Auto-Collection
   // Match discovered technologies against known default credentials for use in active testing
   let oemCredentials: PipelineResult['oemCredentials'] = [];
@@ -2879,6 +2926,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] OEM credential matching failed (non-fatal): ${err.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 3.98: Automated Credential Testing
   // Test matched OEM credentials against discovered services with open ports
   let credentialTestSummary: PipelineResult['credentialTestSummary'];
@@ -2943,6 +2991,7 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  await yieldEventLoop();
   // Stage 3.991: External SCAP/STIG Compliance Scan
   let complianceScan: PipelineResult['complianceScan'];
   try {
@@ -2954,6 +3003,7 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Stage 3.991 SCAP compliance scan failed (non-fatal): ${scapErr.message}`);
   }
 
+  await yieldEventLoop();
   // Stage 3.992: Container Infrastructure Exposure Scan
   let containerExposure: PipelineResult['containerExposure'];
   try {

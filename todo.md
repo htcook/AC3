@@ -8293,4 +8293,75 @@
 - [x] Update training targets with live instance URLs (Juice Shop, DVWA, Gruyere)
 - [x] Add DVWA to TRAINING_TARGETS catalog with full RoE and ground truth (14 vulns)
 - [x] Verify all three instances are reachable and functional (all HTTP 200/302, titles confirmed)
-- [ ] Save checkpoint and deliver
+- [x] Save checkpoint and deliver
+
+## Validation Scans Against Live Instances (March 8, 2026)
+- [ ] Launch deep scan against Juice Shop live instance (scan server :3001)
+- [ ] Launch deep scan against DVWA live instance (scan server :3002)
+- [ ] Launch deep scan against Google Gruyere sandboxed instance
+- [ ] Monitor all 3 scans to completion
+- [ ] Collect F1, precision, recall scores for each target
+- [ ] Compare accuracy across targets and analyze knowledge module impact
+- [ ] Deliver benchmark report
+
+## Scan Pipeline Validation (March 2026)
+- [x] Fix httpx command: use stdin piping instead of -u flag (hangs without TTY)
+- [x] Fix nuclei command: use stdin piping instead of -u flag (PDCP auth prompt)
+- [x] Fix nmap: target specific ports for non-standard port targets (3001, 3002)
+- [x] Fix gobuster: add SPA wildcard detection with --exclude-length
+- [x] Add nikto web vulnerability scanner to pipeline
+- [x] Add curl header probe for security header analysis
+- [x] Enhance LLM analysis prompt with httpx metadata, target context, directory listings
+- [x] Install SecLists on scan server for gobuster wordlists
+- [ ] Run validation scan against Juice Shop (http://159.223.152.190:3001)
+- [ ] Run validation scan against DVWA (http://159.223.152.190:3002)
+- [ ] Run validation scan against testphp.vulnweb.com
+- [ ] Verify F1 scores against ground truth
+- [ ] Save checkpoint with all pipeline fixes
+
+## Nuclei Optimization (March 2026)
+- [ ] Split nuclei into parallel fast+deep passes for speed without losing coverage
+- [ ] Use target-specific template IDs for known training targets
+- [ ] Enforce remote timeout on all long-running scan commands
+- [ ] Switch SSH execution to child_process to prevent event loop blocking
+- [ ] Validate F1 scores on all 3 live instances after optimization
+
+## Context-Aware LLM Analysis Enhancement
+- [ ] Structured context injection: feed LLM organized tech stack, service versions, directories, headers
+- [ ] Technology-aware vulnerability inference: reason about likely vulns from fingerprint data
+- [ ] Exploit chain planning: identify multi-step attack paths from combined scan data
+- [ ] Knowledge module integration: use self-learning history to prioritize high-confidence findings
+- [ ] MITRE ATT&CK mapping: map findings to ATT&CK techniques for exploit planning
+
+## Validation & Vianova Re-run (March 2026)
+- [ ] Complete validation scans against Juice Shop, DVWA, VulnWeb PHP
+- [ ] Fix any scan pipeline errors found during validation
+- [ ] Re-run Vianova engagement scans with fixed pipeline
+- [ ] Test exploit button and functions (UI/API verification without execution)
+- [ ] Save checkpoint for user review
+
+## Exploit Function Testing (March 2026)
+- [ ] Test exploit button UI on Juice Shop findings
+- [ ] Test exploit button UI on DVWA findings
+- [ ] Verify exploit API endpoints work (without actual execution on Vianova)
+- [ ] Test exploit plan generation via LLM
+- [ ] Test exploit execution flow against own test servers
+
+## Context Awareness Integration Audit (March 2026)
+- [ ] Audit domain intelligence → scan pipeline context sharing
+- [ ] Audit OSINT feeds → scan context enrichment
+- [ ] Integrate dark web intel into scan target profiling
+- [ ] Connect Auto-BIA scoring with scan findings
+- [ ] Ensure LLM analysis receives domain intel + OSINT context for each target
+- [ ] Cross-reference OSINT discoveries with scan findings for validation
+- [ ] Feed engagement OSINT data into training lab LLM prompts
+- [ ] Use domain whois/DNS intel to inform nuclei template selection
+
+## Vianova Engagement Cleanup & Re-scan
+- [x] Remove test domains from Vianova engagement (keep only dashboard-dev.vianovahealth.com and api.dev.vianova.ai)
+- [x] Update RoE scope to match real Vianova targets only
+- [x] Re-run all scans for the Vianova engagement
+- [x] Fix event loop blocking in domain intel pipeline (added setImmediate yields between all stages)
+- [x] Fix deduplication logic to treat 'failed' scans as terminal (allows re-scanning)
+- [x] Clean up failed scan records from database
+- [x] Verify scan results: dashboard-dev (10 assets, 23 findings, risk 60) and api.dev (87 assets, 43 findings, risk 22)

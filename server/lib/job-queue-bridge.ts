@@ -198,10 +198,14 @@ export async function executeRawCommandViaQueue(
     forceLocal?: boolean;
   }
 ): Promise<ToolExecResult & { executionMode: "queue" | "local" }> {
-  // Raw commands always go through SSH — they're typically pipe commands
-  // that need shell interpretation which workers don't support yet
-  const { executeRawCommand } = await import("./scan-server-executor");
-  const result = await executeRawCommand(command, timeoutSeconds);
+  // Use child_process SSH to prevent event loop blocking.
+  // The SSH2 library does crypto in-process which blocks the event loop
+  // during long-running scans (nuclei, nikto). child_process SSH offloads
+  // all crypto to the OS ssh binary.
+  console.log(`[RawCmdViaQueue] Using child_process SSH for: ${command.slice(0, 80)}...`);
+  const { executeViaChildProcessSSH } = await import("./scan-server-executor");
+  const result = await executeViaChildProcessSSH(command, timeoutSeconds);
+  console.log(`[RawCmdViaQueue] Completed: exit=${result.exitCode}, stdout=${result.stdout.length}b, stderr=${result.stderr.length}b`);
   return { ...result, executionMode: "local" };
 }
 

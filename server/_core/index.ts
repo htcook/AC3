@@ -16,6 +16,24 @@ import { enforceFIPSTLS } from "../lib/fips-tls-global";
 import { initFIPSProvider } from "../lib/fips-openssl-provider";
 import { initCertPinning } from "../lib/cert-pinning";
 
+// ── Event Loop Lag Monitor ──────────────────────────────────────────────
+// Detects when the event loop is blocked for more than 500ms
+(function startEventLoopMonitor() {
+  let lastTick = Date.now();
+  const THRESHOLD_MS = 500;
+  setInterval(() => {
+    const now = Date.now();
+    const lag = now - lastTick - 200; // Expected ~200ms between ticks
+    if (lag > THRESHOLD_MS) {
+      console.error(`[EVENT_LOOP_BLOCK] Blocked for ${lag}ms at ${new Date().toISOString()}`);
+      // Log memory usage
+      const mem = process.memoryUsage();
+      console.error(`[EVENT_LOOP_BLOCK] Memory: RSS=${Math.round(mem.rss/1024/1024)}MB, Heap=${Math.round(mem.heapUsed/1024/1024)}/${Math.round(mem.heapTotal/1024/1024)}MB`);
+    }
+    lastTick = now;
+  }, 200).unref();
+})();
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();

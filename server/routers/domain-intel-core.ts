@@ -31,7 +31,7 @@ export const domainIntelRouter = router({
           const existing = existingScans.find(s => s.primaryDomain === input.primaryDomain);
           if (existing) {
             // If the existing scan is in a terminal state, allow re-scan; otherwise return existing
-            if (existing.status !== 'completed' && existing.status !== 'error') {
+            if (existing.status !== 'completed' && existing.status !== 'error' && existing.status !== 'failed') {
               return { scanId: existing.id, deduplicated: true, message: `Scan already in progress for ${input.primaryDomain} (status: ${existing.status})` };
             }
             // For completed/error scans, allow a new scan (user explicitly wants to re-run)

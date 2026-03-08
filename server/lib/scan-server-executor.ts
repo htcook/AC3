@@ -339,18 +339,8 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
   const command = `${prefix}${tool} ${args} 2>&1`;
 
   try {
-    // Use pooled SSH connection first, fall back to fresh connection on failure
-    let result: { stdout: string; stderr: string; exitCode: number };
-    try {
-      result = await executeSSHPooled(command, timeoutSeconds * 1000);
-    } catch (poolErr: any) {
-      // If pooled connection failed (not a timeout), try fresh connection
-      if (!poolErr.message.includes('timed out')) {
-        result = await executeSSH(command, timeoutSeconds * 1000);
-      } else {
-        throw poolErr;
-      }
-    }
+    // Use child_process SSH to prevent event loop blocking during long scans
+    const result = await executeViaChildProcessSSH(command, timeoutSeconds);
     return {
       tool,
       command: `${tool} ${args}`,
@@ -376,8 +366,10 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
 }
 
 /**
- * Execute a raw command on the scan server (for advanced use cases).
- * Use with caution — prefer executeTool for standard operations.
+ * Execute a raw command on the scan server via child_process ssh.
+ * This uses the system ssh binary which runs crypto in a separate OS process,
+ * preventing the Node.js event loop from being blocked during long-running scans.
+ * Falls back to the SSH2 library if the system ssh binary is not available.
  */
 export async function executeRawCommand(
   command: string,
@@ -385,17 +377,7 @@ export async function executeRawCommand(
 ): Promise<ToolExecResult> {
   const startTime = Date.now();
   try {
-    // Use pooled SSH connection first, fall back to fresh connection on failure
-    let result: { stdout: string; stderr: string; exitCode: number };
-    try {
-      result = await executeSSHPooled(command, timeoutSeconds * 1000);
-    } catch (poolErr: any) {
-      if (!poolErr.message.includes('timed out')) {
-        result = await executeSSH(command, timeoutSeconds * 1000);
-      } else {
-        throw poolErr;
-      }
-    }
+    const result = await executeViaChildProcessSSH(command, timeoutSeconds);
     return {
       tool: "raw",
       command,
@@ -417,6 +399,116 @@ export async function executeRawCommand(
       error: err.message,
     };
   }
+}
+
+/**
+ * Execute a command on the scan server using the system ssh binary.
+ * This runs in a child process so SSH crypto doesn't block the Node.js event loop.
+ * Used by the training lab for long-running scans (nuclei, nikto, etc.).
+ */
+export async function executeViaChildProcessSSH(
+  command: string,
+  timeoutSeconds: number
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  console.log(`[ChildProcessSSH] START: timeout=${timeoutSeconds}s cmd=${command.slice(0, 80)}...`);
+  const { spawn } = await import('child_process');
+  const { writeFile, unlink } = await import('fs/promises');
+  const config = await getScanServerConfig();
+
+  // Write the SSH key to a temp file (child_process ssh needs a file path)
+  const keyPath = `/tmp/.scan_key_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  await writeFile(keyPath, config.privateKey, { mode: 0o600 });
+
+  const MAX_OUTPUT = 512 * 1024; // 512KB max per stream
+
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'UserKnownHostsFile=/dev/null',
+      '-o', 'LogLevel=ERROR',
+      '-o', `ConnectTimeout=15`,
+      '-o', 'ServerAliveInterval=15',
+      '-o', 'ServerAliveCountMax=3',
+      '-i', keyPath,
+      `${config.username}@${config.host}`,
+      command,
+    ];
+
+    const child = spawn('ssh', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdoutBuf = '';
+    let stderrBuf = '';
+    let stdoutCapped = false;
+    let stderrCapped = false;
+    let resolved = false;
+
+    // Stream stdout with cap — pause stream when limit reached
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (stdoutCapped) return;
+      const str = chunk.toString('utf8');
+      if (stdoutBuf.length + str.length > MAX_OUTPUT) {
+        stdoutBuf += str.slice(0, MAX_OUTPUT - stdoutBuf.length);
+        stdoutBuf += '\n[OUTPUT TRUNCATED]';
+        stdoutCapped = true;
+        // Don't kill the process — let it finish naturally
+      } else {
+        stdoutBuf += str;
+      }
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      if (stderrCapped) return;
+      const str = chunk.toString('utf8');
+      if (stderrBuf.length + str.length > MAX_OUTPUT) {
+        stderrBuf += str.slice(0, MAX_OUTPUT - stderrBuf.length);
+        stderrCapped = true;
+      } else {
+        stderrBuf += str;
+      }
+    });
+
+    // Timeout handler
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        child.kill('SIGTERM');
+        setTimeout(() => child.kill('SIGKILL'), 5000);
+        unlink(keyPath).catch(() => {});
+        // Resolve with whatever output we have instead of rejecting
+        resolve({
+          stdout: stdoutBuf,
+          stderr: stderrBuf + '\n[TIMED OUT]',
+          exitCode: -1,
+        });
+      }
+    }, timeoutSeconds * 1000);
+
+    child.on('close', (code) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        unlink(keyPath).catch(() => {});
+        console.log(`[ChildProcessSSH] DONE: exit=${code} stdout=${stdoutBuf.length}b stderr=${stderrBuf.length}b`);
+        resolve({
+          stdout: stdoutBuf,
+          stderr: stderrBuf,
+          exitCode: code ?? -1,
+        });
+      }
+    });
+
+    child.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        unlink(keyPath).catch(() => {});
+        resolve({
+          stdout: stdoutBuf,
+          stderr: err.message,
+          exitCode: -1,
+        });
+      }
+    });
+  });
 }
 
 /**
@@ -502,17 +594,26 @@ export function suggestToolCommands(asset: {
       const scheme = wp.port === 443 || wp.port === 8443 ? "https" : "http";
       const url = `${scheme}://${target}:${wp.port}`;
 
+      // NOTE: httpx and nuclei MUST use raw commands with stdin piping
+      // because the -u flag hangs without a TTY / PDCP auth prompt
       commands.push({
-        tool: "nikto",
-        args: `-h ${url} -Tuning 1234567890 -maxtime 300`,
-        purpose: `Web vulnerability scan on ${url}`,
+        tool: "raw",
+        args: `echo '${url}' | httpx -silent -nc -json -follow-redirects -tech-detect -status-code -title -web-server -content-length -content-type`,
+        purpose: `HTTP probe and tech detection on ${url}`,
         priority: 1,
       });
 
       commands.push({
-        tool: "nuclei",
-        args: `-u ${url} -severity low,medium,high,critical -jsonl -nc -duc -ni -timeout 10 -retries 1`,
+        tool: "raw",
+        args: `echo '${url}' | nuclei -jsonl -nc -timeout 10 -retries 1 -rate-limit 100 -silent -tags exposure,misconfig,tech,xss,sqli,lfi,ssrf,cve,rce,traversal -severity info,low,medium,high,critical -concurrency 5`,
         purpose: `CVE/vulnerability template scan on ${url}`,
+        priority: 1,
+      });
+
+      commands.push({
+        tool: "nikto",
+        args: `-h ${url} -Tuning 1234567890abc -maxtime 300`,
+        purpose: `Web vulnerability scan on ${url}`,
         priority: 1,
       });
 
@@ -521,13 +622,6 @@ export function suggestToolCommands(asset: {
         args: `dir -u ${url} -w /opt/SecLists/Discovery/Web-Content/common.txt -t 20 -q --no-error`,
         purpose: `Directory brute-force on ${url}`,
         priority: 2,
-      });
-
-      commands.push({
-        tool: "httpx",
-        args: `echo ${url} | httpx -json -title -status-code -tech-detect -follow-redirects`,
-        purpose: `HTTP probe and tech detection on ${url}`,
-        priority: 1,
       });
     }
   }

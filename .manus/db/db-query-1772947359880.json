@@ -1,0 +1,34 @@
+{
+  "query": "SELECT session_id, lab_status, phase, progress FROM training_lab_sessions ORDER BY id DESC LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT session_id, lab_status, phase, progress FROM training_lab_sessions ORDER BY id DESC LIMIT 5",
+  "rows": [
+    {
+      "session_id": "lab-1772947176823-cc645b70",
+      "lab_status": "scanning",
+      "phase": "enumeration",
+      "progress": "30"
+    },
+    {
+      "session_id": "lab-1772947169778-93beb922",
+      "lab_status": "scanning",
+      "phase": "enumeration",
+      "progress": "30"
+    },
+    {
+      "session_id": "lab-1772947105392-5bfa4116",
+      "lab_status": "completed",
+      "phase": "completed",
+      "progress": "100"
+    },
+    {
+      "session_id": "lab-1772946366547-d01b6775",
+      "lab_status": "scanning",
+      "phase": "vuln_detection",
+      "progress": "55"
+    }
+  ],
+  "messages": [],
+  "stdout": "session_id\tlab_status\tphase\tprogress\nlab-1772947176823-cc645b70\tscanning\tenumeration\t30\nlab-1772947169778-93beb922\tscanning\tenumeration\t30\nlab-1772947105392-5bfa4116\tcompleted\tcompleted\t100\nlab-1772946366547-d01b6775\tscanning\tvuln_detection\t55\n",
+  "stderr": "",
+  "execution_time_ms": 71
+}
