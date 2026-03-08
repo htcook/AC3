@@ -2689,3 +2689,171 @@ export async function getTrainingLabFeedbackForSession(sessionId: string): Promi
   return db.select().from(trainingLabFeedback)
     .where(eq(trainingLabFeedback.sessionId, sessionId));
 }
+
+
+// ─── Cross-Session Context Persistence ──────────────────────────────────────
+// Fetches historical scan data for the same domain to provide context to new scans.
+
+export interface HistoricalScanContext {
+  previousScanId: number;
+  previousScanDate: string;
+  previousRiskScore: number | null;
+  previousRiskBand: string | null;
+  previousTotalAssets: number | null;
+  previousTotalFindings: number | null;
+  previousConfirmedFindings: number | null;
+  previousExecutiveSummary: string | null;
+  previousAssets: {
+    hostname: string;
+    assetType: string | null;
+    hybridRiskScore: number | null;
+    riskBand: string | null;
+    technologies: any;
+    postureFindings: any;
+    vulnRiskScore: number | null;
+    excluded: boolean;
+  }[];
+  scanCount: number;
+}
+
+/**
+ * Get the most recent completed scan for a given domain, along with its assets.
+ * This provides historical context for new scans of the same target.
+ */
+export async function getHistoricalScanContext(
+  primaryDomain: string,
+  excludeScanId?: number
+): Promise<HistoricalScanContext | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Find the most recent completed scan for this domain
+  const conditions = [
+    eq(domainIntelScans.primaryDomain, primaryDomain),
+    or(
+      eq(domainIntelScans.status, 'completed'),
+      eq(domainIntelScans.status, 'scan_complete')
+    )!,
+  ];
+  if (excludeScanId) {
+    conditions.push(ne(domainIntelScans.id, excludeScanId));
+  }
+
+  const previousScans = await db.select({
+    id: domainIntelScans.id,
+    overallRiskScore: domainIntelScans.overallRiskScore,
+    overallRiskBand: domainIntelScans.overallRiskBand,
+    totalAssets: domainIntelScans.totalAssets,
+    totalFindings: domainIntelScans.totalFindings,
+    confirmedFindings: domainIntelScans.confirmedFindings,
+    executiveSummary: domainIntelScans.executiveSummary,
+    createdAt: domainIntelScans.createdAt,
+  }).from(domainIntelScans)
+    .where(and(...conditions))
+    .orderBy(desc(domainIntelScans.createdAt))
+    .limit(1);
+
+  if (previousScans.length === 0) return null;
+
+  const prevScan = previousScans[0];
+
+  // Count total scans for this domain
+  const countResult = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(domainIntelScans)
+    .where(eq(domainIntelScans.primaryDomain, primaryDomain));
+  const scanCount = countResult[0]?.count || 1;
+
+  // Fetch previous scan's assets (non-excluded only)
+  const prevAssets = await db.select({
+    hostname: discoveredAssets.hostname,
+    assetType: discoveredAssets.assetType,
+    hybridRiskScore: discoveredAssets.hybridRiskScore,
+    riskBand: discoveredAssets.riskBand,
+    technologies: discoveredAssets.technologies,
+    postureFindings: discoveredAssets.postureFindings,
+    vulnRiskScore: discoveredAssets.vulnRiskScore,
+    excluded: discoveredAssets.excluded,
+  }).from(discoveredAssets)
+    .where(and(
+      eq(discoveredAssets.scanId, prevScan.id),
+      eq(discoveredAssets.excluded, 0)
+    ));
+
+  return {
+    previousScanId: prevScan.id,
+    previousScanDate: prevScan.createdAt,
+    previousRiskScore: prevScan.overallRiskScore,
+    previousRiskBand: prevScan.overallRiskBand,
+    previousTotalAssets: prevScan.totalAssets,
+    previousTotalFindings: prevScan.totalFindings,
+    previousConfirmedFindings: prevScan.confirmedFindings,
+    previousExecutiveSummary: prevScan.executiveSummary,
+    previousAssets: prevAssets.map(a => ({
+      hostname: a.hostname,
+      assetType: a.assetType,
+      hybridRiskScore: a.hybridRiskScore,
+      riskBand: a.riskBand,
+      technologies: a.technologies,
+      postureFindings: a.postureFindings,
+      vulnRiskScore: a.vulnRiskScore,
+      excluded: !!a.excluded,
+    })),
+    scanCount,
+  };
+}
+
+/**
+ * Build a concise historical context string for LLM injection.
+ * Summarizes previous scan findings so the LLM can reference them.
+ */
+export function buildHistoricalContextString(ctx: HistoricalScanContext): string {
+  const parts: string[] = [
+    `\n--- HISTORICAL SCAN CONTEXT (previous scan from ${ctx.previousScanDate}) ---`,
+    `This is scan #${ctx.scanCount} for this domain. Previous scan ID: ${ctx.previousScanId}.`,
+    `Previous overall risk: ${ctx.previousRiskScore ?? 'N/A'}/100 (${ctx.previousRiskBand ?? 'N/A'})`,
+    `Previous assets: ${ctx.previousTotalAssets ?? 0}, findings: ${ctx.previousTotalFindings ?? 0} (${ctx.previousConfirmedFindings ?? 0} confirmed)`,
+  ];
+
+  if (ctx.previousAssets.length > 0) {
+    const highRisk = ctx.previousAssets.filter(a => (a.hybridRiskScore ?? 0) >= 60);
+    const medRisk = ctx.previousAssets.filter(a => (a.hybridRiskScore ?? 0) >= 30 && (a.hybridRiskScore ?? 0) < 60);
+
+    if (highRisk.length > 0) {
+      parts.push(`High-risk assets from previous scan (${highRisk.length}):`);
+      for (const a of highRisk.slice(0, 15)) {
+        const techs = Array.isArray(a.technologies) ? a.technologies.slice(0, 5).join(', ') : '';
+        const findings = Array.isArray(a.postureFindings) ? a.postureFindings.length : 0;
+        parts.push(`  - ${a.hostname} [${a.assetType || 'unknown'}] risk=${a.hybridRiskScore}, vulnRisk=${a.vulnRiskScore ?? 'N/A'}, techs=[${techs}], findings=${findings}`);
+      }
+    }
+
+    if (medRisk.length > 0) {
+      parts.push(`Medium-risk assets from previous scan (${medRisk.length}): ${medRisk.slice(0, 10).map(a => `${a.hostname}(${a.hybridRiskScore})`).join(', ')}`);
+    }
+
+    // Summarize technologies seen previously
+    const allTechs = new Set<string>();
+    for (const a of ctx.previousAssets) {
+      if (Array.isArray(a.technologies)) {
+        for (const t of a.technologies) allTechs.add(typeof t === 'string' ? t : String(t));
+      }
+    }
+    if (allTechs.size > 0) {
+      parts.push(`Technologies observed in previous scan: ${[...allTechs].slice(0, 30).join(', ')}`);
+    }
+  }
+
+  if (ctx.previousExecutiveSummary) {
+    // Truncate to avoid overwhelming the prompt
+    const summary = ctx.previousExecutiveSummary.length > 500
+      ? ctx.previousExecutiveSummary.slice(0, 500) + '...'
+      : ctx.previousExecutiveSummary;
+    parts.push(`Previous executive summary: ${summary}`);
+  }
+
+  parts.push('--- END HISTORICAL CONTEXT ---');
+  parts.push('IMPORTANT: Compare your new findings against the historical data above. Flag any NEW assets or findings not seen before, and note any risk changes (improvements or regressions).');
+
+  return parts.join('\n');
+}

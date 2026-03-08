@@ -8365,3 +8365,22 @@
 - [x] Fix deduplication logic to treat 'failed' scans as terminal (allows re-scanning)
 - [x] Clean up failed scan records from database
 - [x] Verify scan results: dashboard-dev (10 assets, 23 findings, risk 60) and api.dev (87 assets, 43 findings, risk 22)
+
+## Exploit Function Testing (March 2026 - Active)
+- [x] Fix exploit bridge router: align server input schema with UI field names (cveId, targetPort, vulnDescription)
+- [x] Fix quickPlan: changed from .query() to .mutation() to match client usage
+- [x] Fix lookupExploits: aligned response shape with UI expectations
+- [x] Rewrite ExploitationBridge.tsx UI to match fixed server API
+- [ ] Test exploit execution flow against test targets (Juice Shop/DVWA) — requires active scan server
+
+## Cross-Session Context Persistence (March 2026)
+- [x] Add getHistoricalScanContext DB helper to fetch previous completed scan data
+- [x] Load previous scan results as context when starting new scans of the same domain
+- [x] Feed historical findings into LLM discovery prompts (discoverAssets passiveContext)
+- [x] Feed historical findings into LLM analysis prompts (analyzeAssets historicalContext)
+- [x] Feed historical findings into executive summary generation (generateSummaries)
+- [x] Compute scan delta (new/removed/persistent assets, risk/finding deltas)
+- [x] Add scanDelta field to PipelineResult interface
+- [x] Build scan delta comparison UI banner in DomainIntelResults overview tab
+- [x] Write vitest tests for cross-session context and exploitation bridge (9 tests passing)
+- [ ] Test context persistence with a re-scan of a previously scanned domain — requires full pipeline run

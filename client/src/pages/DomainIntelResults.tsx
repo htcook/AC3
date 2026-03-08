@@ -18,7 +18,7 @@ import {
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
-  Box, ClipboardCheck, PackageSearch
+  Box, ClipboardCheck, PackageSearch, GitCompareArrows
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -365,6 +365,7 @@ export default function DomainIntelResults() {
   const postEnrichmentAnalysis = pipeline?.postEnrichmentAnalysis as any;
   const credentialTestSummary = pipeline?.credentialTestSummary as any;
   const oemCredentials = pipeline?.oemCredentials as any;
+  const scanDelta = pipeline?.scanDelta as { previousScanId: number; previousScanDate: string; scanNumber: number; riskDelta: number | null; previousRiskScore: number | null; assetDelta: number | null; previousTotalAssets: number | null; findingsDelta: number | null; previousTotalFindings: number | null; newAssets: string[]; removedAssets: string[]; persistentAssets: string[] } | undefined;
 
   // Build unified asset list: DB assets + pipeline subdomains not already in DB assets
   const dbAssetHostnames = new Set((assets as any[]).map((a: any) => (a.hostname || '').toLowerCase()));
@@ -1104,6 +1105,88 @@ export default function DomainIntelResults() {
         )}
 
         <TabsContent value="overview" className="space-y-6">
+          {/* Cross-Session Scan Delta Banner */}
+          {scanDelta && (
+            <Card className="border-blue-500/30 bg-blue-950/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <GitCompareArrows className="h-4 w-4 text-blue-400" />
+                  Scan Comparison — Scan #{scanDelta.scanNumber} vs Previous (#{scanDelta.previousScanId})
+                  <span className="text-xs text-muted-foreground ml-auto">Previous scan: {new Date(scanDelta.previousScanDate).toLocaleDateString()}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  {/* Risk Delta */}
+                  <div className="rounded-lg border border-zinc-700/50 p-3 text-center">
+                    <div className="text-xs text-muted-foreground mb-1">Risk Score</div>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-lg font-mono text-zinc-400">{scanDelta.previousRiskScore ?? '—'}</span>
+                      <span className="text-zinc-500">→</span>
+                      <span className="text-lg font-mono">{scan.overallRiskScore ?? '—'}</span>
+                    </div>
+                    {scanDelta.riskDelta != null && (
+                      <div className={`text-xs mt-1 font-medium ${scanDelta.riskDelta > 0 ? 'text-red-400' : scanDelta.riskDelta < 0 ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                        {scanDelta.riskDelta > 0 ? '▲' : scanDelta.riskDelta < 0 ? '▼' : '—'} {Math.abs(scanDelta.riskDelta)} pts {scanDelta.riskDelta > 0 ? '(regressed)' : scanDelta.riskDelta < 0 ? '(improved)' : '(unchanged)'}
+                      </div>
+                    )}
+                  </div>
+                  {/* Asset Delta */}
+                  <div className="rounded-lg border border-zinc-700/50 p-3 text-center">
+                    <div className="text-xs text-muted-foreground mb-1">Assets Discovered</div>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-lg font-mono text-zinc-400">{scanDelta.previousTotalAssets ?? '—'}</span>
+                      <span className="text-zinc-500">→</span>
+                      <span className="text-lg font-mono">{scan.totalAssets ?? '—'}</span>
+                    </div>
+                    {scanDelta.assetDelta != null && (
+                      <div className={`text-xs mt-1 font-medium ${scanDelta.assetDelta > 0 ? 'text-amber-400' : scanDelta.assetDelta < 0 ? 'text-blue-400' : 'text-zinc-400'}`}>
+                        {scanDelta.assetDelta > 0 ? '+' : ''}{scanDelta.assetDelta} assets
+                      </div>
+                    )}
+                  </div>
+                  {/* Findings Delta */}
+                  <div className="rounded-lg border border-zinc-700/50 p-3 text-center">
+                    <div className="text-xs text-muted-foreground mb-1">Total Findings</div>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-lg font-mono text-zinc-400">{scanDelta.previousTotalFindings ?? '—'}</span>
+                      <span className="text-zinc-500">→</span>
+                      <span className="text-lg font-mono">{scan.totalFindings ?? '—'}</span>
+                    </div>
+                    {scanDelta.findingsDelta != null && (
+                      <div className={`text-xs mt-1 font-medium ${scanDelta.findingsDelta > 0 ? 'text-red-400' : scanDelta.findingsDelta < 0 ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                        {scanDelta.findingsDelta > 0 ? '+' : ''}{scanDelta.findingsDelta} findings
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* New / Removed / Persistent asset breakdown */}
+                <div className="flex gap-4 text-xs">
+                  {scanDelta.newAssets.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+                      <span className="text-emerald-400 font-medium">{scanDelta.newAssets.length} new</span>
+                      <span className="text-muted-foreground">({scanDelta.newAssets.slice(0, 3).join(', ')}{scanDelta.newAssets.length > 3 ? '...' : ''})</span>
+                    </div>
+                  )}
+                  {scanDelta.removedAssets.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-red-400" />
+                      <span className="text-red-400 font-medium">{scanDelta.removedAssets.length} removed</span>
+                      <span className="text-muted-foreground">({scanDelta.removedAssets.slice(0, 3).join(', ')}{scanDelta.removedAssets.length > 3 ? '...' : ''})</span>
+                    </div>
+                  )}
+                  {scanDelta.persistentAssets.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-blue-400 font-medium">{scanDelta.persistentAssets.length} persistent</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Executive Summary */}
           {scan.executiveSummary && (
             <Card>

@@ -347,6 +347,21 @@ export interface PipelineResult {
       accessLevel: string;
     }>;
   };
+  /** Cross-session scan delta — comparison against previous scan of the same domain */
+  scanDelta?: {
+    previousScanId: number;
+    previousScanDate: string;
+    scanNumber: number;
+    riskDelta: number | null; // positive = risk increased, negative = improved
+    previousRiskScore: number | null;
+    assetDelta: number | null; // positive = more assets discovered
+    previousTotalAssets: number | null;
+    findingsDelta: number | null;
+    previousTotalFindings: number | null;
+    newAssets: string[]; // hostnames not seen in previous scan
+    removedAssets: string[]; // hostnames in previous scan but not in current
+    persistentAssets: string[]; // hostnames in both scans
+  };
 }
 
 export interface BreachDataSummary {
@@ -540,7 +555,8 @@ function generateFallbackAssets(org: OrgProfile): DiscoveredAssetRaw[] {
 export async function analyzeAssets(
   assets: DiscoveredAssetRaw[],
   org: OrgProfile,
-  fpContext?: { patterns: { title: string; type: string | null; severity: string | null; reason: string; occurrences: number }[]; categorySummary: { type: string; count: number }[] }
+  fpContext?: { patterns: { title: string; type: string | null; severity: string | null; reason: string; occurrences: number }[]; categorySummary: { type: string; count: number }[] },
+  historicalContext?: string
 ): Promise<AssetAnalysis[]> {
   // Build FP learning context for severity calibration
   let fpCalibrationBlock = '';
@@ -657,7 +673,7 @@ SCORING CALIBRATION (CRITICAL):
 - A typical scan should produce: ~5-10% critical (confirmed CVEs on critical assets), ~15-25% high, ~40-50% medium, ~20-30% low. If most assets are critical/high, your scores are inflated.
 - CDNs, static sites, and informational pages are LOW risk (tier3). APIs and SSO are MEDIUM unless specific vulns are confirmed.
 
-Be thorough and realistic. Score based on the specific sector (${org.sector}) and client type (${org.clientType}).${fpCalibrationBlock}`;
+Be thorough and realistic. Score based on the specific sector (${org.sector}) and client type (${org.clientType}).${fpCalibrationBlock}${historicalContext ? `\n\n${historicalContext}\n\nWhen analyzing assets, compare against the historical data above. For assets that appeared in the previous scan:\n- Note whether their risk profile has changed\n- Flag any NEW findings not present before\n- Indicate if previously identified vulnerabilities appear to be remediated\n- Adjust confidence scores upward for findings that persist across scans (confirmed by repeated observation)` : ''}`;
 
   try {
     const response = await invokeLLM({
@@ -1511,7 +1527,8 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 export async function generateSummaries(
   analyses: AssetAnalysis[],
   campaigns: CampaignRecommendation[],
-  org: OrgProfile
+  org: OrgProfile,
+  historicalContext?: string
 ): Promise<{ executiveSummary: string; threatModelSummary: string }> {
   const criticalAssets = analyses.filter(a => a.riskBand === "critical" || a.riskBand === "high");
   const allFindings = analyses.flatMap(a => a.postureFindings);
@@ -1531,7 +1548,7 @@ Key Findings:
 ${allFindings.slice(0, 10).map(f => `- ${f.title} (severity: ${f.severity}/10)`).join("\n")}
 
 Campaigns Designed:
-${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}
+${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}${historicalContext ? `\n\n${historicalContext}` : ''}
 
 Provide:
 1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings, and recommended actions. Written for Ace C3 by AceofCloud.
@@ -1605,6 +1622,23 @@ export async function runDomainIntelPipeline(
     }
   } catch (err: any) {
     console.error(`[DomainIntel] FP context load failed (non-fatal): ${err.message}`);
+  }
+
+  await yieldEventLoop();
+
+  // Stage 0.1: Load Cross-Session Historical Context
+  let historicalContext = '';
+  try {
+    const db = await import('./db');
+    const histCtx = await db.getHistoricalScanContext(org.primaryDomain);
+    if (histCtx) {
+      historicalContext = db.buildHistoricalContextString(histCtx);
+      console.log(`[DomainIntel] Historical Context: Loaded scan #${histCtx.scanCount} context from ${histCtx.previousScanDate} (prev risk: ${histCtx.previousRiskScore}, assets: ${histCtx.previousTotalAssets}, findings: ${histCtx.previousTotalFindings})`);
+    } else {
+      console.log(`[DomainIntel] Historical Context: No previous scans found for ${org.primaryDomain} — this is the first scan`);
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] Historical context load failed (non-fatal): ${err.message}`);
   }
 
   await yieldEventLoop();
@@ -1701,7 +1735,9 @@ export async function runDomainIntelPipeline(
   await yieldEventLoop();
   // Stage 1: Discover assets (with FP learning context + passive recon data)
   await onProgress?.('discovering');
-  const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined, passiveContext);
+  // Combine passive recon data with historical context for richer LLM prompts
+  const combinedContext = [passiveContext, historicalContext].filter(Boolean).join('\n');
+  const rawAssets = await discoverAssets(org, fpContext ? { patterns: fpContext.patterns } : undefined, combinedContext);
 
   await yieldEventLoop();
   // Stage 1.1: Post-LLM Deduplication & Filtering
@@ -2064,7 +2100,7 @@ export async function runDomainIntelPipeline(
   const analyses = await analyzeAssets(verifiedAssets, org, fpContext ? {
     patterns: fpContext.patterns,
     categorySummary: fpContext.categorySummary.map(c => ({ type: c.type, count: c.count })),
-  } : undefined);
+  } : undefined, historicalContext || undefined);
 
   // ─── Dynamic Re-Scoring Timeline ────────────────────────────────
   // Capture score snapshots before each enrichment phase so we can record
@@ -2807,7 +2843,7 @@ export async function runDomainIntelPipeline(
   } else {
     await onProgress?.('recommending');
     campaigns = await generateCampaignRecommendations(analyses, org, kevEnrichment);
-    summaries = await generateSummaries(analyses, campaigns, org);
+    summaries = await generateSummaries(analyses, campaigns, org, historicalContext || undefined);
   }
 
   // Compute overall risk — KEV boost is already baked into per-asset hybridRiskScores,
@@ -3082,6 +3118,38 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] CARVER risk card generation failed (non-fatal): ${carverErr.message}`);
   }
 
+  // ─── Compute Scan Delta (cross-session comparison) ──────────────────
+  let scanDelta: PipelineResult['scanDelta'] | undefined;
+  try {
+    const db = await import('./db');
+    const histCtx = await db.getHistoricalScanContext(org.primaryDomain);
+    if (histCtx) {
+      const currentHostnames = new Set(analyses.map(a => a.asset.hostname.toLowerCase()));
+      const previousHostnames = new Set(histCtx.previousAssets.map(a => a.hostname.toLowerCase()));
+      const newAssets = [...currentHostnames].filter(h => !previousHostnames.has(h));
+      const removedAssets = [...previousHostnames].filter(h => !currentHostnames.has(h));
+      const persistentAssets = [...currentHostnames].filter(h => previousHostnames.has(h));
+
+      scanDelta = {
+        previousScanId: histCtx.previousScanId,
+        previousScanDate: histCtx.previousScanDate,
+        scanNumber: histCtx.scanCount + 1,
+        riskDelta: histCtx.previousRiskScore != null ? overallRisk - histCtx.previousRiskScore : null,
+        previousRiskScore: histCtx.previousRiskScore,
+        assetDelta: histCtx.previousTotalAssets != null ? (analyses.length + subdomainAssetCount) - histCtx.previousTotalAssets : null,
+        previousTotalAssets: histCtx.previousTotalAssets,
+        findingsDelta: histCtx.previousTotalFindings != null ? totalFindings - histCtx.previousTotalFindings : null,
+        previousTotalFindings: histCtx.previousTotalFindings,
+        newAssets,
+        removedAssets,
+        persistentAssets,
+      };
+      console.log(`[DomainIntel] Scan Delta: risk ${scanDelta.riskDelta! >= 0 ? '+' : ''}${scanDelta.riskDelta}, assets ${scanDelta.assetDelta! >= 0 ? '+' : ''}${scanDelta.assetDelta}, findings ${scanDelta.findingsDelta! >= 0 ? '+' : ''}${scanDelta.findingsDelta}, new=${newAssets.length}, removed=${removedAssets.length}, persistent=${persistentAssets.length}`);
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] Scan delta computation failed (non-fatal): ${err.message}`);
+  }
+
   return {
     orgProfile: org,
     assets: analyses,
@@ -3114,5 +3182,6 @@ export async function runDomainIntelPipeline(
     complianceScan,
     containerExposure,
     wafNgfwAssessment,
+    scanDelta,
   };
 }
