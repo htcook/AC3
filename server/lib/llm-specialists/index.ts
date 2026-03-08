@@ -23,3 +23,16 @@ export { mapThreats, type ThreatMapperInput, type ThreatMapperOutput } from "./t
 export { decideNextOp, type OpsDeciderInput, type OpsDeciderOutput } from "./ops-decider";
 export { buildCalderaOp, type CalderaBuilderInput, type CalderaBuilderOutput } from "./caldera-builder";
 export { writeReportFinding, type ReportWriterInput, type ReportWriterOutput } from "./report-writer";
+
+// Hybrid Scorer with Context Awareness
+export {
+  scoreHybrid,
+  scoreFullHybrid,
+  buildEngagementContext,
+  formatContextForLLM,
+  type HybridScorerInput,
+  type HybridScorerOutput,
+  type FullHybridScoreInput,
+  type FullHybridScoreOutput,
+  type EngagementContext,
+} from "./hybrid-scorer";

@@ -235,6 +235,8 @@ export interface EngagementOpsState {
     authorizedIps: string[];      // exact IPs/CIDRs from targetIpRange
     roeStatus: string;            // signed, pending, etc.
   };
+  /** LLM engagement context — built once at pipeline start, shared across all specialist calls */
+  engagementContext?: any;
   /** DAST scanning configuration */
   dastConfig?: {
     enabled: boolean;
@@ -853,30 +855,86 @@ Return valid JSON per the response_format schema.`;
     }
   };
 
-  // Try full prompt first, fallback to tier1-only on error
+  // ─── Dual-path: try specialist planAttack first, fallback to direct invokeLLM ───
   let response: any;
-  let usedTier = 'full';
+  let usedPath = 'specialist';
   try {
-    console.log(`[ScanPlan] Attempting full prompt (tier1 + enrichment)...`);
-    response = await invokeLLM({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: fullUserContent },
-      ],
-      _caller: 'engagement-orchestrator.generateScanPlan',
-      _engagementId: state.engagementId,
-      response_format: scanPlanResponseFormat,
+    console.log(`[ScanPlan] Using Attack Planner specialist...`);
+    const { planAttack } = await import('./llm-specialists/attack-planner');
+    const attackPlan = await planAttack({
+      passiveReconSummary: fullUserContent,
+      engagement: {
+        engagementType: state.engagementType,
+        clientName: state.assets[0]?.hostname,
+        targetCount: state.assets.length,
+      },
+      assets: state.assets.map(a => ({
+        hostname: a.hostname,
+        ip: a.ip,
+        type: a.type,
+        status: a.status,
+        ports: a.ports.map(p => ({ port: p.port, service: p.service, version: p.version })),
+        technologies: a.passiveRecon?.technologies,
+        wafDetected: a.wafDetected,
+        cloudProvider: a.passiveRecon?.cloudProvider,
+        riskSignals: a.passiveRecon?.riskSignals?.map(r => ({ severity: r.severity, rationale: r.rationale })),
+      })),
+      engagementId: state.engagementId,
     });
-  } catch (fullErr: any) {
-    console.warn(`[ScanPlan] Full prompt failed: ${fullErr.message}. Retrying with tier1-only (no enrichment)...`);
+
+    // Map specialist output to the existing ScanPlan response format
+    const mappedContent = JSON.stringify({
+      overallStrategy: attackPlan.attack_objective + ' — ' + attackPlan.estimated_impact,
+      discoveryStrategy: 'Full port discovery with evasion techniques',
+      discoveryEvasionProfile: {
+        timing: 'T2', fragmentation: true, decoys: true,
+        randomizeHosts: true, dataLengthPadding: true, sourcePortSpoofing: false,
+        rationale: `Attack confidence: ${attackPlan.confidence}. Detection risks: ${attackPlan.detection_opportunities.join('; ')}`,
+      },
+      estimatedDuration: 'Varies by target count',
+      riskAssessment: attackPlan.estimated_impact,
+      assetPlans: attackPlan.scan_plan.nmap_targets.map(nt => {
+        const webScans = attackPlan.scan_plan.web_scan_targets.filter(w => w.target === nt.target);
+        const nucleiScans = attackPlan.scan_plan.nuclei_targets.filter(n => n.target === nt.target);
+        return {
+          hostname: nt.target,
+          ip: state.assets.find(a => a.hostname === nt.target)?.ip || nt.target,
+          assetType: state.assets.find(a => a.hostname === nt.target)?.type || 'unknown',
+          discoveryNmapFlags: '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
+          discoveryNmapRationale: 'Default discovery with evasion',
+          httpxFlags: '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
+          nmapFlags: nt.flags,
+          nmapRationale: nt.rationale,
+          activeTools: [
+            ...nucleiScans.map(n => ({ tool: 'nuclei', command: `nuclei -u ${n.target} -severity critical,high,medium -tags ${n.templates} -nc -duc -ni -jsonl`, rationale: n.rationale, priority: 1 })),
+            ...webScans.map(w => ({ tool: w.tool, command: w.config, rationale: w.rationale, priority: 2 })),
+          ],
+          riskNotes: attackPlan.detection_opportunities.join('; '),
+          evasionTechniques: ['fragmentation', 'decoys', 'timing-T2'],
+        };
+      }),
+    });
+    response = { choices: [{ message: { content: mappedContent } }] };
+
+    // Log the attack chain from the specialist
+    if (attackPlan.attack_chain.length > 0) {
+      addLog(state, {
+        phase: state.phase, type: 'llm_decision',
+        title: '⚔️ Attack Chain Identified',
+        detail: attackPlan.attack_chain.map(ac => `${ac.stage}: ${ac.technique} (${ac.mitre_id}) → ${ac.target}`).join('\n'),
+        data: { attackChain: attackPlan.attack_chain, initialAccess: attackPlan.initial_access_options },
+      });
+      broadcastOpsUpdate(engagementId, { type: 'log_update' });
+    }
+  } catch (specialistErr: any) {
+    console.warn(`[ScanPlan] Specialist failed: ${specialistErr.message}. Falling back to direct LLM...`);
     addLog(state, {
-      phase: state.phase,
-      type: 'warning',
-      title: 'LLM Scan Plan — Retrying with Lean Prompt',
-      detail: `Full prompt failed (${fullErr.message?.substring(0, 100)}). Retrying without enrichment context...`,
+      phase: state.phase, type: 'warning',
+      title: 'Attack Planner Specialist Failed — Falling Back',
+      detail: `${specialistErr.message?.substring(0, 150)}. Using direct LLM call...`,
     });
     broadcastOpsUpdate(engagementId, { type: 'log_update' });
-    usedTier = 'tier1-only';
+    usedPath = 'direct-llm';
     try {
       response = await invokeLLM({
         messages: [
@@ -889,16 +947,15 @@ Return valid JSON per the response_format schema.`;
       });
     } catch (fallbackErr: any) {
       addLog(state, {
-        phase: state.phase,
-        type: 'error',
+        phase: state.phase, type: 'error',
         title: 'LLM Scan Plan Failed',
-        detail: `Both full and lean prompts failed. Error: ${fallbackErr.message?.substring(0, 200)}`,
+        detail: `Both specialist and direct LLM failed. Error: ${fallbackErr.message?.substring(0, 200)}`,
       });
       broadcastOpsUpdate(engagementId, { type: 'log_update' });
       throw fallbackErr;
     }
   }
-  console.log(`[ScanPlan] Succeeded with ${usedTier} prompt`);
+  console.log(`[ScanPlan] Succeeded with ${usedPath} path`);
 
   let parsed: any;
   try {
@@ -995,6 +1052,54 @@ async function llmDecide(context: {
   ).join('\n');
   const recentActivity = context.recentLog.slice(-10).map(l => `[${l.type}] ${l.title}`).join('\n');
 
+  // ─── Try Ops Decider specialist first ───
+  try {
+    const { decideNextOp } = await import('./llm-specialists/ops-decider');
+    const opsResult = await decideNextOp({
+      currentPhase: context.phase,
+      recentActivity,
+      assetSummary,
+      availableTools: ['nmap', 'nuclei', 'zap', 'nikto', 'gobuster', 'ffuf', 'testssl', 'hydra', 'sqlmap'],
+      engagement: {
+        engagementType: context.engagementType,
+        clientName: context.assets[0]?.hostname,
+        targetCount: context.assets.length,
+      },
+      engagementId: context.engagementId,
+    });
+
+    // Map specialist output to legacy format
+    const toolToActionType: Record<string, string> = {
+      nmap: 'nmap_scan', nuclei: 'nuclei_scan', zap: 'zap_scan',
+      nikto: 'nuclei_scan', gobuster: 'nuclei_scan', ffuf: 'nuclei_scan',
+      testssl: 'nuclei_scan', hydra: 'exploit_attempt', sqlmap: 'exploit_attempt',
+    };
+    const actionType = toolToActionType[opsResult.recommended_action.tool] || 'nmap_scan';
+    const actions: Array<{ type: string; params: Record<string, any> }> = [{
+      type: actionType,
+      params: {
+        target: opsResult.recommended_action.target,
+        targets: [opsResult.recommended_action.target],
+        tool: opsResult.recommended_action.tool,
+        profile: 'standard',
+      },
+    }];
+
+    // Add alternative actions
+    for (const alt of opsResult.alternative_actions.slice(0, 2)) {
+      actions.push({ type: 'nmap_scan', params: { reason: alt.action } });
+    }
+
+    return {
+      decision: opsResult.recommended_action.action,
+      reasoning: `[${opsResult.confidence}] ${opsResult.current_assessment}\nGaps: ${opsResult.coverage_gaps.join(', ')}\nRationale: ${opsResult.recommended_action.rationale}${opsResult.should_escalate ? '\n⚠️ ESCALATION RECOMMENDED' : ''}`,
+      actions,
+    };
+  } catch (specialistErr: any) {
+    console.warn(`[OpsLLM] Specialist failed: ${specialistErr.message}. Falling back to direct LLM...`);
+  }
+
+  // ─── Fallback: direct invokeLLM ───
   const systemPrompt = `Pentest AI for ${context.engagementType} engagement. Phase: ${context.phase}.
 
 Assets:\n${assetSummary}\n\nRecent:\n${recentActivity}\n\nReturn JSON: {"decision":"str","reasoning":"str","actions":[{"type":"nmap_scan|nuclei_scan|zap_scan|exploit_attempt|c2_deploy|recon|skip|complete|wait","params":{...}}]}
@@ -1281,6 +1386,82 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
       });
 
       emitReconComplete({ scanId: 0, domain, findings: findingsCount });
+
+      // ─── Specialist: Scan Analyst for passive recon findings ───
+      try {
+        const domainAssets = state.assets.filter(a => a.hostname === domain || a.hostname.endsWith('.' + domain));
+        if (domainAssets.length > 0) {
+          const { analyzeScan } = await import('./llm-specialists/scan-analyst');
+          const scanData = domainAssets.map(a => ({
+            hostname: a.hostname,
+            ip: a.ip,
+            type: a.type,
+            ports: a.ports,
+            technologies: a.passiveRecon?.technologies,
+            cloudProvider: a.passiveRecon?.cloudProvider,
+            riskSignals: a.passiveRecon?.riskSignals?.map(r => ({ severity: r.severity, rationale: r.rationale })),
+          }));
+          const analysis = await analyzeScan({
+            scanType: 'passive',
+            rawFindings: JSON.stringify(scanData, null, 2),
+            engagement: {
+              engagementType: state.engagementType,
+              clientName: domain,
+              targetCount: state.assets.length,
+            },
+            engagementId: state.engagementId,
+          });
+          addLog(state, {
+            phase: 'recon', type: 'llm_decision',
+            title: `📊 Scan Analysis: ${domain}`,
+            detail: `Risk: ${analysis.risk_rating} (${analysis.confidence})\n${analysis.executive_summary}\n\nKey findings:\n${analysis.findings.slice(0, 5).map(f => `• [${f.severity}] ${f.title} — ${f.evidence_tag}`).join('\n')}\n\nRecommendations:\n${analysis.recommendations.slice(0, 3).map(r => `• [${r.priority}] ${r.action}`).join('\n')}`,
+            data: { scanAnalysis: analysis },
+          });
+          broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+        }
+      } catch (saErr: any) {
+        console.warn(`[ScanAnalyst] Failed for ${domain}:`, saErr.message);
+      }
+
+      // ─── Specialist: Hybrid Scorer for context-aware risk scoring ───
+      try {
+        const domainAssets = state.assets.filter(a => a.hostname === domain || a.hostname.endsWith('.' + domain));
+        if (domainAssets.length > 0) {
+          const { scoreFullHybrid } = await import('./llm-specialists/hybrid-scorer');
+          const findings = domainAssets.flatMap(a => [
+            ...(a.passiveRecon?.riskSignals || []).map((r: any) => ({
+              id: `risk-${a.hostname}-${r.rationale?.substring(0, 20)}`,
+              title: r.rationale || 'Risk signal',
+              severity: r.severity || 'medium',
+              source: 'passive_recon',
+              evidence: r.rationale || '',
+            })),
+          ]);
+          if (findings.length > 0) {
+            const hybridResult = await scoreFullHybrid({
+              findings,
+              assets: domainAssets.map(a => ({
+                hostname: a.hostname,
+                ip: a.ip,
+                type: a.type,
+                ports: a.ports,
+                technologies: a.passiveRecon?.technologies || [],
+              })),
+              engagementContext: state.engagementContext,
+              engagementId: state.engagementId,
+            });
+            addLog(state, {
+              phase: 'recon', type: 'llm_decision',
+              title: `🎯 Hybrid Risk Score: ${domain}`,
+              detail: `Overall: ${hybridResult.overallRiskRating}/10 (${hybridResult.confidence})\nSector: ${hybridResult.sectorContext}\n\nTop risks:\n${hybridResult.scoredFindings.slice(0, 5).map((f: any) => `• ${f.title}: ${f.hybridScore}/10 (CARVER: ${f.carverScore}, CVSS: ${f.cvssEstimate}) — ${f.justification}`).join('\n')}\n\nBIA: ${hybridResult.biaInference}`,
+              data: { hybridScoring: hybridResult },
+            });
+            broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+          }
+        }
+      } catch (hsErr: any) {
+        console.warn(`[HybridScorer] Failed for ${domain}:`, hsErr.message);
+      }
     } catch (e: any) {
       addLog(state, { phase: "recon", type: "error", title: `Recon Failed: ${domain}`, detail: e.message });
     }
@@ -3353,6 +3534,156 @@ ${(() => {
   }
 
   state.progress = 55;
+
+  // ─── Specialist: Verify high/critical vulnerabilities ───
+  const highCritVulns = state.assets.flatMap(a => 
+    a.vulns.filter(v => v.severity === 'critical' || v.severity === 'high')
+      .map(v => ({ ...v, hostname: a.hostname, assetType: a.type }))
+  );
+  if (highCritVulns.length > 0) {
+    addLog(state, {
+      phase: 'vuln_detection', type: 'info',
+      title: '🧐 Vulnerability Verification (AI Specialist)',
+      detail: `Verifying ${highCritVulns.length} high/critical findings with Vulnerability Verifier...`,
+    });
+    broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    try {
+      const { verifyVulnerability } = await import('./llm-specialists/vuln-verifier');
+      for (const v of highCritVulns.slice(0, 10)) { // Cap at 10 to avoid excessive LLM calls
+        try {
+          const result = await verifyVulnerability({
+            finding: {
+              title: v.title,
+              severity: v.severity,
+              cve: v.cve,
+              description: v.title,
+              evidence: `Found on ${v.hostname} during vulnerability detection phase`,
+              source: v.title.startsWith('[ZAP]') ? 'ZAP' : 'nuclei',
+              hostname: v.hostname,
+            },
+            engagement: {
+              engagementType: state.engagementType,
+              clientName: state.assets[0]?.hostname,
+              targetCount: state.assets.length,
+            },
+            engagementId: state.engagementId,
+          });
+          const verdictEmoji = result.analyst_verdict.includes('True Positive') ? '✅' : result.analyst_verdict.includes('False Positive') ? '❌' : '❓';
+          addLog(state, {
+            phase: 'vuln_detection', type: 'llm_decision',
+            title: `${verdictEmoji} Verified: ${v.title}`,
+            detail: `Verdict: ${result.analyst_verdict} (${result.confidence})\nExploitability: ${result.exploitability.rating}\nImpact: ${result.business_impact.severity} — ${result.business_impact.rationale}\nATT&CK: ${result.attack_mapping.map(m => m.technique_id).join(', ') || 'N/A'}\nValidation: ${result.safe_validation_step}`,
+            data: { vulnVerification: result },
+          });
+        } catch (vErr: any) {
+          console.warn(`[VulnVerifier] Failed for ${v.title}:`, vErr.message);
+        }
+      }
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (e: any) {
+      console.warn('[VulnVerifier] Specialist unavailable:', e.message);
+    }
+  }
+
+  // ─── Specialist: Hybrid Scorer for active scan findings ───
+  const activeFindings = state.assets.flatMap(a => [
+    ...a.vulns.map(v => ({
+      id: `vuln-${a.hostname}-${v.cve || v.title.substring(0, 30)}`,
+      title: v.title,
+      severity: v.severity,
+      source: v.title.startsWith('[ZAP]') ? 'ZAP' : 'nuclei',
+      evidence: `Found on ${a.hostname}${v.cve ? ` (${v.cve})` : ''}`,
+      cve: v.cve,
+    })),
+    ...a.zapFindings.map(z => ({
+      id: `zap-${a.hostname}-${z.alert.substring(0, 30)}`,
+      title: z.alert,
+      severity: z.risk,
+      source: 'ZAP',
+      evidence: `${z.url} — ${z.description?.substring(0, 200) || ''}`,
+    })),
+  ]);
+  if (activeFindings.length > 0) {
+    try {
+      const { scoreFullHybrid } = await import('./llm-specialists/hybrid-scorer');
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: '\ud83c\udfaf Hybrid Risk Scoring (Active Findings)',
+        detail: `Scoring ${activeFindings.length} findings with context-aware CARVER+CVSS fusion...`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+      const hybridResult = await scoreFullHybrid({
+        findings: activeFindings,
+        assets: state.assets.map(a => ({
+          hostname: a.hostname,
+          ip: a.ip,
+          type: a.type,
+          ports: a.ports,
+          technologies: a.passiveRecon?.technologies || [],
+        })),
+        engagementContext: state.engagementContext,
+        engagementId: state.engagementId,
+      });
+      addLog(state, {
+        phase: 'vuln_detection', type: 'llm_decision',
+        title: `\ud83c\udfaf Active Scan Risk: ${hybridResult.overallRiskRating}/10`,
+        detail: `Confidence: ${hybridResult.confidence} | Sector: ${hybridResult.sectorContext}\n\nTop risks:\n${hybridResult.scoredFindings.slice(0, 5).map((f: any) => `\u2022 ${f.title}: ${f.hybridScore}/10 (CARVER: ${f.carverScore}, CVSS: ${f.cvssEstimate}) \u2014 ${f.justification}`).join('\n')}\n\nBIA: ${hybridResult.biaInference}`,
+        data: { hybridScoring: hybridResult },
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (hsErr: any) {
+      console.warn('[HybridScorer] Active findings scoring failed:', hsErr.message);
+    }
+  }
+
+  // ─── Specialist: Map threats to threat actors ───
+  if (state.assets.some(a => a.vulns.length > 0 || a.zapFindings.length > 0)) {
+    try {
+      const { mapThreats } = await import('./llm-specialists/threat-mapper');
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: '🌐 Threat Actor Mapping (AI Specialist)',
+        detail: 'Correlating findings with known threat actors and APT groups...',
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+      const allFindings = state.assets.flatMap(a => [
+        ...a.vulns.map(v => `[${v.severity}] ${v.title} on ${a.hostname}${v.cve ? ' ('+v.cve+')' : ''}`),
+        ...a.zapFindings.map(z => `[${z.risk}] ${z.alert} on ${a.hostname}`),
+      ]);
+      const threatResult = await mapThreats({
+        findingsSummary: allFindings.join('\n'),
+        assets: state.assets.map(a => ({
+          hostname: a.hostname,
+          ip: a.ip,
+          type: a.type,
+          technologies: a.passiveRecon?.technologies,
+          ports: a.ports.map(p => ({ port: p.port, service: p.service })),
+        })),
+        engagement: {
+          engagementType: state.engagementType,
+          clientName: state.assets[0]?.hostname,
+          targetCount: state.assets.length,
+        },
+        engagementId: state.engagementId,
+      });
+
+      if (threatResult.threat_actors.length > 0) {
+        addLog(state, {
+          phase: 'vuln_detection', type: 'llm_decision',
+          title: `🎯 ${threatResult.threat_actors.length} Threat Actor(s) Mapped`,
+          detail: threatResult.threat_actors.map(ta =>
+            `${ta.actor_name} (${ta.confidence}) — ${ta.relevance_rationale}\n  TTPs: ${ta.associated_ttps.join(', ')}`
+          ).join('\n\n') + `\n\nSector risk: ${threatResult.sector_risk_assessment}`,
+          data: { threatMapping: threatResult },
+        });
+      }
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (e: any) {
+      console.warn('[ThreatMapper] Specialist unavailable:', e.message);
+    }
+  }
+
   addLog(state, {
     phase: "vuln_detection",
     type: "phase_complete",
@@ -3763,6 +4094,31 @@ export async function executeEngagement(
   if (!state.startedAt) state.startedAt = Date.now();
   state.phase = startPhase;
   if (options?.scanProfile) state.scanProfile = options.scanProfile;
+
+  // ═══ ENGAGEMENT CONTEXT (shared across all LLM specialist calls) ═══
+  try {
+    const { buildEngagementContext } = await import('./llm-specialists/hybrid-scorer');
+    state.engagementContext = buildEngagementContext({
+      engagementType: state.engagementType,
+      clientName: engagement.clientName || engagement.name || 'Unknown',
+      sector: engagement.sector || engagement.industry || undefined,
+      complianceFrameworks: engagement.complianceFrameworks || [],
+      roeConstraints: engagement.roeStatus === 'signed' ? {
+        authorizedDomains: state.roeScopeGuard?.authorizedDomains || [],
+        authorizedIps: state.roeScopeGuard?.authorizedIps || [],
+        restrictions: engagement.roeNotes || '',
+      } : undefined,
+      knownAssets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ip, type: a.type })),
+    });
+    addLog(state, {
+      phase: state.phase, type: 'info',
+      title: '🧠 Context Engine Initialized',
+      detail: `Sector: ${state.engagementContext.sector || 'auto-detect'} | Type: ${state.engagementType} | Compliance: ${state.engagementContext.complianceFrameworks?.join(', ') || 'none'} | RoE: ${engagement.roeStatus}`,
+    });
+  } catch (e: any) {
+    console.error('[OpsState] Context engine init failed:', e.message);
+    // Non-fatal — specialists will work without context
+  }
 
   // ═══ OWASP COVERAGE TRACKING ═══
   // Reset tracker at engagement start, register asset tech as discovered

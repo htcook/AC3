@@ -8473,5 +8473,19 @@
 - [x] Create barrel index.ts for all specialist modules
 - [x] Add JSON output schemas for all modules
 - [x] Add evidence tags ([OBSERVED], [INFERRED], [HYPOTHESIS]) to findings
-- [ ] Wire specialists into orchestrator pipeline (replace monolithic calls)
+- [x] Wire specialists into orchestrator pipeline (replace monolithic calls)
+  - [x] planAttack replaces generateScanPlan LLM call
+  - [x] decideNextOp replaces llmDecide LLM call
+  - [x] analyzeScan after passive recon per domain
+  - [x] verifyVulnerability after Phase 3 for high/critical vulns
+  - [x] mapThreats after Phase 3 for threat actor correlation
 - [ ] Test specialist calls on production with OpenAI
+
+## Hybrid Scoring & Context Awareness (March 2026)
+- [x] Create hybrid-scorer.ts specialist — combines CARVER, Shock 2.0, CVSS v4.0, AI-BIA scoring with integrated context awareness
+- [x] Context engine embedded in hybrid-scorer (buildEngagementContext, formatContextForLLM)
+- [x] Wire hybrid scoring into passive recon (after scan analyst per domain)
+- [x] Wire hybrid scoring into post-vuln detection phase (active scan findings)
+- [x] Wire context awareness into executeEngagement pipeline start
+- [x] Build succeeds with all integrations
+- [ ] Deploy and test on Vianova engagement
