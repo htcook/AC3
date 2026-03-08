@@ -252,7 +252,7 @@ export interface LearningEntry {
  * This creates a persistent correction that will be injected into future LLM prompts.
  */
 export async function storeLearningEntry(entry: LearningEntry & { sessionId: string; targetUrl: string; operatorId?: number }): Promise<void> {
-  const mysql = require("mysql2/promise");
+  const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     await conn.execute(
@@ -269,7 +269,7 @@ export async function storeLearningEntry(entry: LearningEntry & { sessionId: str
  * Used to build the correction history for progressive prompt refinement.
  */
 export async function getLearningEntries(targetPreset: string): Promise<LearningEntry[]> {
-  const mysql = require("mysql2/promise");
+  const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     const [rows] = await conn.execute(
@@ -296,12 +296,12 @@ export async function getLearningEntries(targetPreset: string): Promise<Learning
  * Get all learning entries across all targets for global pattern learning.
  */
 export async function getAllLearningEntries(limit = 200): Promise<LearningEntry[]> {
-  const mysql = require("mysql2/promise");
+  const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     const [rows] = await conn.execute(
       `SELECT * FROM llm_learning_entries ORDER BY created_at DESC LIMIT ?`,
-      [limit]
+      [String(limit)]
     );
     return (rows as any[]).map(r => ({
       targetPreset: r.target_preset,
@@ -545,7 +545,7 @@ export function scoreAgainstGroundTruth(
  * Persist an accuracy score to the database for trending.
  */
 export async function saveAccuracyScore(sessionId: string, targetPreset: string, score: AccuracyScore): Promise<void> {
-  const mysql = require("mysql2/promise");
+  const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     await conn.execute(
@@ -569,13 +569,13 @@ export async function getAccuracyTrend(targetPreset?: string, limit = 50): Promi
   overallScore: number;
   scoredAt: number;
 }>> {
-  const mysql = require("mysql2/promise");
+  const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     const query = targetPreset
       ? `SELECT * FROM llm_accuracy_scores WHERE target_preset = ? ORDER BY scored_at DESC LIMIT ?`
       : `SELECT * FROM llm_accuracy_scores ORDER BY scored_at DESC LIMIT ?`;
-    const params = targetPreset ? [targetPreset, limit] : [limit];
+    const params = targetPreset ? [targetPreset, String(limit)] : [String(limit)];
     const [rows] = await conn.execute(query, params);
     return (rows as any[]).map(r => ({
       sessionId: r.session_id,
@@ -604,7 +604,7 @@ export async function getAccuracyStats(): Promise<Array<{
   latestF1: number;
   trend: "improving" | "declining" | "stable" | "insufficient_data";
 }>> {
-  const mysql = require("mysql2/promise");
+  const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     const [rows] = await conn.execute(`
@@ -696,7 +696,7 @@ export async function getLearningStats(): Promise<{
   uniqueTargets: number;
   accuracyStats: Awaited<ReturnType<typeof getAccuracyStats>>;
 }> {
-  const mysql = require("mysql2/promise");
+  const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
     const [countRows] = await conn.execute(`

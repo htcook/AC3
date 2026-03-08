@@ -1,0 +1,14 @@
+{
+  "query": "SELECT JSON_EXTRACT(llm_analysis_json, '$.findings[0]') as first_finding, JSON_EXTRACT(llm_analysis_json, '$.findings[1]') as second_finding FROM training_lab_sessions WHERE session_id = 'lab-1772928125108-a84a74ae'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT JSON_EXTRACT(llm_analysis_json, '$.findings[0]') as first_finding, JSON_EXTRACT(llm_analysis_json, '$.findings[1]') as second_finding FROM training_lab_sessions WHERE session_id = 'lab-1772928125108-a84a74ae'",
+  "rows": [
+    {
+      "first_finding": "{}",
+      "second_finding": "{}"
+    }
+  ],
+  "messages": [],
+  "stdout": "first_finding\tsecond_finding\n{}\t{}\n",
+  "stderr": "",
+  "execution_time_ms": 64
+}

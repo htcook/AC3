@@ -655,8 +655,30 @@ ${learningContext}`;
                 executiveSummary: { type: "string" },
                 riskScore: { type: "integer" },
                 riskRating: { type: "string" },
-                findings: { type: "array", items: { type: "object" } },
-                attackChains: { type: "array", items: { type: "object" } },
+                findings: { type: "array", items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string", description: "Vulnerability title" },
+                    severity: { type: "string", description: "critical, high, medium, low, or info" },
+                    category: { type: "string", description: "OWASP category or vuln class" },
+                    cve: { type: "string", description: "CVE ID if applicable" },
+                    description: { type: "string", description: "Detailed description" },
+                    evidence: { type: "string", description: "Evidence or proof" },
+                    remediation: { type: "string", description: "Fix recommendation" },
+                    cvss: { type: "number", description: "CVSS score 0-10" },
+                  },
+                  required: ["title", "severity", "category", "description"],
+                }},
+                attackChains: { type: "array", items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string", description: "Attack chain name" },
+                    steps: { type: "array", items: { type: "string" }, description: "Ordered attack steps" },
+                    impact: { type: "string", description: "Combined impact" },
+                    likelihood: { type: "string", description: "high, medium, or low" },
+                  },
+                  required: ["name", "steps", "impact", "likelihood"],
+                }},
                 missedAreas: { type: "array", items: { type: "string" } },
                 recommendations: { type: "array", items: { type: "string" } },
               },
@@ -723,22 +745,23 @@ ${learningContext}`;
     try {
       const { OwaspCoverageTracker } = await import("../lib/owasp-coverage-tracker");
       const tracker = new OwaspCoverageTracker();
-      tracker.registerAssetTech(hostname, state.assets[0].ports.map(p => p.service));
+      tracker.registerAssetTech(hostname, state.assets[0].ports.map(p => p.service).filter(Boolean));
 
       // Register tool runs
       for (const tr of state.assets[0].toolResults) {
-        tracker.addToolRun(hostname, tr.tool);
+        tracker.addToolRun({ tool: tr.tool, target: hostname, command: tr.command, exitCode: tr.exitCode });
         for (const f of tr.findings) {
-          tracker.addFinding(hostname, {
+          tracker.addFinding({
             tool: tr.tool,
+            target: hostname,
             title: f.title || "",
             severity: f.severity || "info",
-            cve: f.cve,
+            description: f.description || "",
           });
         }
       }
 
-      owaspCoverage = tracker.getEngagementCoverage();
+      owaspCoverage = tracker.getEngagementCoverage(state.sessionId || "training-lab");
     } catch (e: any) {
       addLabLog(state, { phase: "analyzing", type: "warning", title: "OWASP Coverage Failed", detail: e.message?.slice(0, 200) || "Unknown error" });
     }
@@ -983,7 +1006,7 @@ ${toolOutputSummary.slice(0, 8000)}${feedbackContext}
 ${learningContext}
 Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskRating, findings (array with title, severity, category, description, exploitationPath, impact, remediation, cve, confidence), attackChains (array with name, description, steps, impact, likelihood), missedAreas (array of strings), recommendations (array of strings).` },
             ],
-            response_format: { type: "json_schema", json_schema: { name: "security_analysis", strict: false, schema: { type: "object", properties: { executiveSummary: { type: "string" }, riskScore: { type: "integer" }, riskRating: { type: "string" }, findings: { type: "array", items: { type: "object" } }, attackChains: { type: "array", items: { type: "object" } }, missedAreas: { type: "array", items: { type: "string" } }, recommendations: { type: "array", items: { type: "string" } } }, required: ["executiveSummary", "riskScore", "riskRating", "findings", "attackChains", "missedAreas", "recommendations"] } } },
+            response_format: { type: "json_schema", json_schema: { name: "security_analysis", strict: false, schema: { type: "object", properties: { executiveSummary: { type: "string" }, riskScore: { type: "integer" }, riskRating: { type: "string" }, findings: { type: "array", items: { type: "object", properties: { title: { type: "string" }, severity: { type: "string" }, category: { type: "string" }, cve: { type: "string" }, description: { type: "string" }, evidence: { type: "string" }, remediation: { type: "string" }, cvss: { type: "number" } }, required: ["title", "severity", "category", "description"] } }, attackChains: { type: "array", items: { type: "object", properties: { name: { type: "string" }, steps: { type: "array", items: { type: "string" } }, impact: { type: "string" }, likelihood: { type: "string" } }, required: ["name", "steps", "impact", "likelihood"] } }, missedAreas: { type: "array", items: { type: "string" } }, recommendations: { type: "array", items: { type: "string" } } }, required: ["executiveSummary", "riskScore", "riskRating", "findings", "attackChains", "missedAreas", "recommendations"] } } },
             _caller: "training-lab.rerunAnalysis",
           });
 

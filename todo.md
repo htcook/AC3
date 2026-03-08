@@ -8238,3 +8238,18 @@
 - [x] Restart server and verify all 20 targets visible in UI (API returns 20 targets, 19 ground truth sets)
 - [x] Fix require() → dynamic import() in training-lab.ts for ESM compatibility
 - [x] Fix async addLabLog function for await import support
+
+## Training Lab Scan Validation (March 7, 2026)
+- [x] Launch Training Lab scan against Broken Crystals (brokencrystals.com)
+- [x] Launch Training Lab scan against Gin & Juice Shop (ginandjuice.shop)
+- [x] Monitor scans and collect results
+- [x] Compare accuracy scores across both targets
+- [x] Analyze knowledge module impact on vuln detection quality
+- [ ] Deliver results report to pentest team
+
+## Bug Fixes During Scan Validation
+- [x] Fix JSON schema for LLM findings (added explicit property definitions for findings + attackChains)
+- [x] Fix accuracy trend LIMIT SQL bug (mysql2 execute needs String for LIMIT params)
+- [x] Fix OWASP coverage tracker wrong function signatures (addToolRun/addFinding need objects, not positional args)
+- [x] Fix OWASP coverage tracker missing engagementId parameter
+- [x] Fix require() → await import() in llm-self-learning.ts (7 occurrences)
