@@ -90,4 +90,6 @@ export const ENV = {
   CS_API_PORT: parseInt(process.env.CS_API_PORT ?? "55553", 10),
   CS_USERNAME: process.env.CS_USERNAME ?? "",
   CS_PASSWORD: process.env.CS_PASSWORD ?? "",
+  // OpenAI — direct API access (bypasses Forge proxy token limits)
+  openaiApiKey: process.env.OPENAI_API_KEY ?? "",
 };

@@ -8451,3 +8451,27 @@
 - [ ] Test exploit matching on discovered services
 - [ ] Test exploit code generation
 - [ ] Verify LLM synthesis tab results
+
+## OpenAI API Integration (March 2026)
+- [x] Add OPENAI_API_KEY secret via webdev_request_secrets
+- [x] Update invokeLLM to use OpenAI as primary provider when key is available
+- [x] Keep Forge API as fallback when OpenAI key not set
+- [x] Fix llmDecide response_format for OpenAI compatibility (json_object mode)
+- [ ] Test scan plan generation with OpenAI on production
+- [ ] Test opsDecision with OpenAI on production
+
+## Ace C3 LLM Prompt Pack Integration (March 2026)
+- [x] Create modular prompt assembly system (CORE_POLICY + ROLE_PROMPT + CONTEXT + SCHEMA)
+- [x] Implement Core Policy prompt (core-policy.ts) as universal prefix
+- [x] Implement Scan Analyst specialist (scan-analyst.ts)
+- [x] Implement Attack Path Planner specialist (attack-planner.ts)
+- [x] Implement Vulnerability Verifier specialist (vuln-verifier.ts)
+- [x] Implement Threat Actor Mapper specialist (threat-mapper.ts)
+- [x] Implement Ops Decider specialist (ops-decider.ts)
+- [x] Implement Caldera Operation Builder specialist (caldera-builder.ts)
+- [x] Implement Pentest Report Writer specialist (report-writer.ts)
+- [x] Create barrel index.ts for all specialist modules
+- [x] Add JSON output schemas for all modules
+- [x] Add evidence tags ([OBSERVED], [INFERRED], [HYPOTHESIS]) to findings
+- [ ] Wire specialists into orchestrator pipeline (replace monolithic calls)
+- [ ] Test specialist calls on production with OpenAI

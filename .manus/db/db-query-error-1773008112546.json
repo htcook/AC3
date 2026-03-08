@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, created_at, caller, model, http_status, total_tokens, error FROM llm_telemetry WHERE engagement_id = 1350014 ORDER BY created_at DESC LIMIT 20",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, created_at, caller, model, http_status, total_tokens, error FROM llm_telemetry WHERE engagement_id = 1350014 ORDER BY created_at DESC LIMIT 20",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'total_tokens' in 'field list'"
+  ]
+}

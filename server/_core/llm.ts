@@ -213,14 +213,33 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+// ─── Provider Resolution ─────────────────────────────────────────────────
+// When OPENAI_API_KEY is set, use OpenAI directly (no token limits).
+// Otherwise fall back to Forge proxy.
+function resolveProvider(): { apiUrl: string; apiKey: string; model: string; provider: string } {
+  if (ENV.openaiApiKey && ENV.openaiApiKey.trim().length > 0) {
+    return {
+      apiUrl: 'https://api.openai.com/v1/chat/completions',
+      apiKey: ENV.openaiApiKey,
+      model: 'gpt-4o',
+      provider: 'openai',
+    };
+  }
+  const forgeUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
+    ? `${ENV.forgeApiUrl.replace(/\/$/, '')}/v1/chat/completions`
+    : 'https://forge.manus.im/v1/chat/completions';
+  return {
+    apiUrl: forgeUrl,
+    apiKey: ENV.forgeApiKey,
+    model: 'gemini-2.5-flash',
+    provider: 'forge',
+  };
+}
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  const { apiKey, provider } = resolveProvider();
+  if (!apiKey) {
+    throw new Error(`LLM API key not configured (provider: ${provider})`);
   }
 };
 
@@ -304,8 +323,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   let telemetryStatus: "success" | "error" | "timeout" | "retried_success" = "success";
   let telemetryError: string | undefined;
 
+  const { apiUrl, apiKey, model, provider } = resolveProvider();
+  console.log(`[LLM] Using provider: ${provider} (model: ${model})`);
+
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model,
     messages: messages.map(normalizeMessage),
   };
 
@@ -321,9 +343,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
+  payload.max_tokens = 32768;
+  // Only add thinking budget for Forge/Gemini; OpenAI uses native reasoning
+  if (provider === 'forge') {
+    payload.thinking = { budget_tokens: 128 };
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({
@@ -349,11 +372,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
     try {
-      const response = await fetch(resolveApiUrl(), {
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          authorization: `Bearer ${ENV.forgeApiKey}`,
+          authorization: `Bearer ${apiKey}`,
         },
         body: bodyStr,
         signal: controller.signal,
@@ -380,7 +403,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         // Record failed telemetry
         recordTelemetry({
           caller: _caller,
-          model: "gemini-2.5-flash",
+          model,
           status: "error",
           httpStatus: status,
           latencyMs: Date.now() - telemetryStart,
@@ -409,7 +432,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       const tokensOut = result.usage?.completion_tokens ?? 0;
       recordTelemetry({
         caller: _caller,
-        model: (result.model || "gemini-2.5-flash"),
+        model: (result.model || model),
         status: telemetryStatus,
         httpStatus: 200,
         latencyMs: Date.now() - telemetryStart,
@@ -436,7 +459,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         }
         recordTelemetry({
           caller: _caller,
-          model: "gemini-2.5-flash",
+          model,
           status: "timeout",
           latencyMs: Date.now() - telemetryStart,
           retryCount: attempt,
@@ -461,7 +484,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       // Record telemetry for unrecoverable errors
       recordTelemetry({
         caller: _caller,
-        model: "gemini-2.5-flash",
+        model,
         status: "error",
         latencyMs: Date.now() - telemetryStart,
         retryCount: attempt,

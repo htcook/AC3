@@ -676,71 +676,71 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     connectorStats: (data.connectorStats || []).filter((c: any) => c.observations > 0).map((c: any) => `${c.name}: ${c.observations} obs`),
   })) : [];
 
-  const availableTools = [
-    { name: 'nmap', desc: 'Port scanner and service fingerprinter', flags: ['-sV (version detection)', '-sC (default scripts)', '-sU (UDP scan)', '-O (OS detection)', '--script vuln (vuln scripts)', '-T4 (aggressive timing)', '-T2 (polite timing)', '-Pn (skip host discovery)', '-p- (all ports)', '--top-ports N'] },
-    { name: 'nuclei', desc: 'Template-based vulnerability scanner (v3.7.0, 9800+ templates). CRITICAL: always use -u URL (NOT -target), always include -severity critical,high,medium to filter templates, always use -nc -duc -ni -jsonl flags. Example: nuclei -u https://target:443 -severity critical,high,medium -tags nginx -jsonl -nc -duc -ni -timeout 10 -retries 1', use: 'web apps, known CVEs, misconfigurations' },
-    { name: 'nikto', desc: 'Web server scanner for dangerous files/CGIs. Use -h URL format. Example: nikto -h https://target:443 -Tuning 1234567890 -maxtime 300', use: 'web servers' },
-    { name: 'gobuster', desc: 'Directory/file brute-forcer', use: 'web apps to find hidden paths' },
-    { name: 'httpx', desc: 'HTTP probe, tech fingerprinter, and web asset enumerator. CRITICAL: use pipe mode (echo URL | httpx flags) NOT -u flag. Example: echo https://target:443 | httpx -json -tech-detect -status-code -title -follow-redirects', flags: ['-json (JSON output)', '-tech-detect', '-status-code', '-title', '-cdn', '-tls-grab', '-follow-redirects', '-content-length', '-web-server', '-method GET', '-threads 50', '-ports 80,443,8080,8443', '-probe', '-silent'], use: 'mandatory HTTP probing after port discovery — detects tech stack, CDN/WAF, TLS, status codes, web server' },
-    { name: 'hydra', desc: 'Credential brute-forcer', use: 'SSH, FTP, RDP, MySQL, HTTP-auth, SMB logins' },
-    { name: 'enum4linux', desc: 'SMB/NetBIOS enumerator', use: 'Windows/Samba hosts' },
-    { name: 'smbclient', desc: 'SMB share lister', use: 'Windows/Samba file shares' },
-    { name: 'ldapsearch', desc: 'LDAP directory enumerator', use: 'Active Directory/LDAP servers' },
-    { name: 'dig', desc: 'DNS query tool', use: 'DNS servers, zone transfers' },
-    { name: 'onesixtyone', desc: 'SNMP scanner', use: 'network devices with SNMP' },
-    // naabu removed — raw socket issues on DigitalOcean; use nmap --top-ports for port discovery
-    { name: 'subfinder', desc: 'Subdomain discovery (skip for scoped engagements — only use when doing broad domain discovery)', use: 'finding additional subdomains in unscoped/domain-intel mode' },
-    // Cloud storage & misconfiguration enumeration tools
-    { name: 'cloud_enum', desc: 'Multi-cloud resource enumerator — discovers S3 buckets, Azure Blobs, GCS buckets by keyword. Usage: cloud_enum -k <keyword> [--disable-aws] [--disable-azure] [--disable-gcp] -l /tmp/cloud_enum_<keyword>.txt', use: 'cloud resource discovery when cloud-hosted assets detected via CNAME/headers' },
-    { name: 's3scanner', desc: 'S3 bucket permission scanner — checks for public ACLs, listing, and read/write access. Usage: echo "<bucket_name>" | s3scanner scan --json', use: 'testing specific S3 bucket names for access misconfigurations' },
-    { name: 'trufflehog', desc: 'Secret scanner — finds exposed credentials in public buckets. Usage: trufflehog s3 --bucket <bucket_name> --json', use: 'post-discovery scanning of accessible buckets for leaked secrets' },
-    { name: 'aws', desc: 'AWS CLI for direct S3/cloud API interaction. Usage: aws s3 ls s3://<bucket> --no-sign-request', use: 'direct bucket enumeration without credentials (anonymous access testing)' },
-    // Web application fuzzing & content discovery tools
-    { name: 'ffuf', desc: 'Fast web fuzzer for directory/file discovery, parameter fuzzing, and vhost enumeration. Usage: ffuf -u https://target/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302,403 -o /tmp/ffuf_<target>.json -of json -t 50 -timeout 10', use: 'web content discovery, hidden endpoint fuzzing, parameter brute-forcing — faster than gobuster for large wordlists' },
-    { name: 'feroxbuster', desc: 'Recursive content discovery tool with auto-filtering and smart recursion. Usage: feroxbuster -u https://target -w /usr/share/wordlists/dirb/common.txt -o /tmp/ferox_<target>.txt --json -t 50 -d 3 --smart --auto-tune', use: 'deep recursive directory discovery — better than gobuster for finding nested paths and auto-filtering false positives' },
-    // SQL injection & database exploitation
-    { name: 'sqlmap', desc: 'Automatic SQL injection detection and exploitation tool. Usage: sqlmap -u "https://target/page?id=1" --batch --level 3 --risk 2 --random-agent --output-dir /tmp/sqlmap_<target> --forms --crawl=2. CRITICAL: only use against confirmed injectable parameters or after nuclei/ZAP identifies SQLi. Never run blindly.', use: 'SQL injection exploitation on web apps with confirmed or suspected SQLi vulnerabilities' },
-    // TLS/SSL analysis
-    { name: 'testssl', desc: 'TLS/SSL cipher and vulnerability scanner. Usage: testssl.sh --jsonfile /tmp/testssl_<target>.json --severity HIGH --sneaky <target>:443. Tests for Heartbleed, POODLE, BEAST, ROBOT, DROWN, CRIME, BREACH, FREAK, Logjam, and weak ciphers.', use: 'TLS/SSL security assessment — run on all HTTPS services to check for protocol vulnerabilities and weak cipher suites' },
-    // Web technology fingerprinting
-    { name: 'whatweb', desc: 'Web technology identifier — detects CMS, frameworks, server software, analytics, JavaScript libraries. Usage: whatweb -a 3 --log-json /tmp/whatweb_<target>.json https://target', use: 'technology stack fingerprinting — complements httpx with deeper CMS/framework detection (WordPress, Drupal, Joomla, etc.)' },
-    // WordPress-specific scanning
-    { name: 'wpscan', desc: 'WordPress vulnerability scanner — enumerates users, plugins, themes, and checks for known CVEs. Usage: wpscan --url https://target --enumerate u,vp,vt,dbe --format json -o /tmp/wpscan_<target>.json --random-user-agent. CRITICAL: only use when WordPress is detected by httpx/whatweb.', use: 'WordPress-specific vulnerability scanning — plugin/theme CVEs, user enumeration, xmlrpc abuse' },
-    // Advanced subdomain & infrastructure discovery
-    { name: 'amass', desc: 'In-depth attack surface mapping and external asset discovery. Usage: amass enum -d <domain> -o /tmp/amass_<domain>.txt -timeout 15 -passive. Combines DNS brute-force, certificate transparency, web archives, and API sources.', use: 'comprehensive subdomain and infrastructure discovery — use for broad attack surface mapping when scope allows domain-wide discovery' },
-  ];
+  // Compact tool reference — name:purpose only to minimize token count
+  const toolRef = [
+    'nmap: port scan/service detection',
+    'nuclei: vuln scanner (-u URL -severity critical,high,medium -nc -duc -ni -jsonl)',
+    'nikto: web server scanner (-h URL)',
+    'gobuster: dir brute-forcer',
+    'httpx: HTTP probe (echo URL | httpx -json -tech-detect -status-code -title -follow-redirects)',
+    'hydra: credential brute-forcer',
+    'enum4linux: SMB/NetBIOS enum',
+    'smbclient: SMB share lister',
+    'ldapsearch: LDAP enum',
+    'dig: DNS queries/zone transfers',
+    'onesixtyone: SNMP scanner',
+    'subfinder: subdomain discovery (broad scope only)',
+    'cloud_enum: multi-cloud resource enum (-k keyword)',
+    's3scanner: S3 bucket ACL check (echo bucket | s3scanner scan --json)',
+    'trufflehog: secret scanner for buckets',
+    'aws: S3 CLI (aws s3 ls s3://bucket --no-sign-request)',
+    'ffuf: web fuzzer (ffuf -u URL/FUZZ -w wordlist -mc 200,301,302,403 -of json)',
+    'feroxbuster: recursive dir discovery (feroxbuster -u URL -w wordlist --json --smart)',
+    'sqlmap: SQLi exploitation (only confirmed targets)',
+    'testssl: TLS/SSL vuln scanner',
+    'whatweb: tech fingerprinter',
+    'wpscan: WordPress scanner (only when WP detected)',
+    'amass: attack surface mapping (amass enum -d domain -passive)',
+  ].join('\n');
 
   // ─── Build tiered prompt for scan plan generation ───────────────────────
   // Tier 1 (essential): asset summaries + domain recon + engagement type
   // Tier 2 (enrichment): knowledge context blocks (ontology, bug bounty, etc.)
   // Strategy: try full prompt first, fallback to Tier 1 only if 403 error
 
-  const systemPrompt = `You are an expert penetration tester and red team operator planning the active scanning phase of a ${state.engagementType} engagement. You have completed passive OSINT reconnaissance and now have rich data about each target asset.
+  const systemPrompt = `You are a penetration tester planning active scanning for a ${state.engagementType} engagement after passive OSINT.
 
-Your scan plan MUST follow a two-phase approach:
+PHASE A — Discovery: nmap --top-ports 1000 -T3 then httpx on web ports. discoveryNmapFlags = scan type/evasion only (no -p, --top-ports, -T). Cloud/WAF targets: use '-Pn -sV -sC' only, no evasion flags.
+PHASE B — Targeted tools per asset based on recon: Web→nuclei,nikto,ffuf,feroxbuster,whatweb,testssl; WP→wpscan; SQLi→sqlmap; Cloud→cloud_enum,s3scanner; SMB→enum4linux; LDAP→ldapsearch; DNS→dig; SNMP→onesixtyone; Login→hydra.
 
-## PHASE A: Discovery Scan (MANDATORY FIRST STEP)
-Run nmap (--top-ports 1000, -T3) then httpx on all discovered web ports for every asset.
-- discoveryNmapFlags: ONLY scan type/evasion flags. NO -p, --top-ports, -T, or placeholders.
-- DO NOT use -p- (all 65535 ports) — it times out.
+Tools:
+${toolRef}
 
-⚠️ EVASION vs CLOUD: If target is behind CDN/WAF or cloud-hosted: DO NOT use -f, -D, --data-length, --source-port. Use '-Pn -sV -sC' only. For on-premise: evasion flags OK.
+Return valid JSON per the response_format schema.`;
 
-## PHASE B: Targeted Tool Deployment
-Select tools per asset based on passive recon + discovery data:
-- Web → nuclei (-u URL format), nikto, ffuf, feroxbuster, whatweb, testssl
-- WordPress → wpscan (only when detected)
-- SQLi → sqlmap (only confirmed targets)
-- Cloud → cloud_enum (MANDATORY for cloud targets), s3scanner (MANDATORY for AWS), nuclei -tags cloud
-- SMB → enum4linux; LDAP → ldapsearch; DNS → dig; SNMP → onesixtyone; Login → hydra
+  // Build compact user content — summarize assets as text, not JSON
+  const assetLines = assetSummaries.map((a: any) => {
+    const parts = [`${a.hostname}${a.ip ? ' ('+a.ip+')' : ''} [${a.type}]`];
+    if (a.wafDetected && a.wafDetected !== 'none') parts.push(`WAF:${a.wafDetected}`);
+    if (a.cloudProvider) parts.push(`Cloud:${a.cloudProvider}`);
+    if (a.ports?.length) parts.push(`Ports:${a.ports.map((p:any) => typeof p === 'object' ? `${p.port}/${p.service||''}` : p).join(',')}`);
+    if (a.technologies?.length) parts.push(`Tech:${a.technologies.slice(0,5).join(',')}`);
+    if (a.riskSignals?.length) parts.push(`Risks:${a.riskSignals.length}`);
+    if (a.toolResults?.length) {
+      const tools = a.toolResults.map((t:any) => `${t.tool}(${t.findingCount})`).join(',');
+      parts.push(`Scanned:${tools}`);
+    }
+    return parts.join(' | ');
+  }).join('\n');
 
-Available tools:
-${availableTools.map(t => `- ${t.name}: ${t.desc.substring(0, 120)}${(t as any).use ? ` [${(t as any).use.substring(0, 60)}]` : ''}`).join('\n')}
+  const domainLines = domainReconSummary.map((d: any) => {
+    const parts = [`${d.domain}: risk=${d.overallRiskScore||'?'}, findings=${d.totalFindings||0}`];
+    if (d.wafAssessment?.detected) parts.push(`WAF:${d.wafAssessment.vendor}`);
+    if (d.emailSecurity) parts.push(`Email:${JSON.stringify(d.emailSecurity).substring(0,80)}`);
+    return parts.join(' | ');
+  }).join('\n');
 
-Respond with valid JSON matching the schema provided in response_format.`;
-
-  // Build Tier 1 user content (essential data only)
-  const tier1Content = `## Passive OSINT Results\n\n### Per-Asset Intelligence:\n${JSON.stringify(assetSummaries, null, 2)}\n\n${domainReconSummary.length > 0 ? `### Domain-Level Intelligence Summary:\n${JSON.stringify(domainReconSummary, null, 2)}\n\n` : ''}Engagement type: ${state.engagementType}\nTotal assets: ${state.assets.length}\n\nGenerate the two-phase scan plan. Phase A discovery nmap MUST use --top-ports 1000. Do NOT use -p- (all ports). Phase B tools should be tailored to what passive recon revealed about each asset.`;
+  const tier1Content = `Assets (${state.assets.length}, ${state.engagementType}):\n${assetLines}\n${domainLines ? '\nDomain Intel:\n' + domainLines + '\n' : ''}\nGenerate two-phase scan plan. Phase A: nmap --top-ports 1000. Phase B: tools per asset.`;
 
   // Build Tier 2 enrichment context
   const detectedTech = state.assets.flatMap(a => [
@@ -989,69 +989,17 @@ async function llmDecide(context: {
   recentLog: OpsLogEntry[];
   question: string;
 }): Promise<{ decision: string; reasoning: string; actions: Array<{ type: string; params: Record<string, any> }> }> {
-  const systemPrompt = `You are an expert penetration tester and red team operator AI assistant embedded in the ACE C3 offensive security platform. You are orchestrating an autonomous ${context.engagementType} engagement.
+  // Compact asset summary for ops decisions
+  const assetSummary = context.assets.map(a =>
+    `${a.hostname}${a.ip ? '('+a.ip+')' : ''} [${a.type}] ${a.status} ports:${a.ports.length} vulns:${a.vulns.length} zap:${a.zapFindings.length}${a.wafDetected ? ' WAF:'+a.wafDetected : ''}`
+  ).join('\n');
+  const recentActivity = context.recentLog.slice(-10).map(l => `[${l.type}] ${l.title}`).join('\n');
 
-Current phase: ${context.phase}
-Assets in scope: ${context.assets.map(a => `${a.hostname}${a.ip ? ` (${a.ip})` : ''} [${a.type}] — ${a.status}, ${a.ports.length} ports, ${a.vulns.length} vulns, ${a.zapFindings.length} ZAP findings${a.wafDetected ? `, WAF: ${a.wafDetected}` : ''}`).join('\n')}
+  const systemPrompt = `Pentest AI for ${context.engagementType} engagement. Phase: ${context.phase}.
 
-Recent activity:
-${context.recentLog.slice(-15).map(l => `[${l.type}] ${l.title}: ${l.detail}`).join('\n')}
-
-You must respond with valid JSON matching this schema:
-{
-  "decision": "brief summary of what to do next",
-  "reasoning": "why this is the best next step",
-  "actions": [
-    {
-      "type": "nmap_scan|nuclei_scan|zap_scan|exploit_attempt|c2_deploy|recon|skip|complete|wait",
-      "params": { ... action-specific parameters ... }
-    }
-  ]
-}
-
-For nmap_scan: params = { targets: string[], profile: "quick"|"standard"|"deep"|"stealth"|"service"|"vuln" }
-For nuclei_scan: params = { targets: string[], severity: string[], tags?: string[] }
-For zap_scan: params = { targetUrl: string, scanType: "full"|"active"|"spider_only", wafAware: boolean }
-For exploit_attempt: params = { target: string, port: number, cve: string, service: string, module?: string }
-For c2_deploy: params = { target: string, platform: string, method: string }
-For recon: params = { domain: string }
-For complete: params = { reason: string }
-
-Rules:
-- For pentest: systematically test each asset for unauthorized access to data or privileged functions
-- For red_team: find the weakest/easiest entry point, exploit it, deploy C2, pivot internally
-- Always check for web applications and trigger ZAP scans on discovered web apps/sites
-- Be WAF-aware: if WAF is detected, adjust scan parameters (lower rate, use evasion)
-- Correlate findings across tools (nmap services → nuclei templates → ZAP findings → exploit selection)
-- High-risk actions (exploits, C2 deployment) require operator approval — flag them
-- Never scan out-of-scope targets
-${(() => {
-  // Inject asset ontology context for architecture-aware decisions
-  const detectedTech = context.assets.flatMap(a => [
-    ...(a.type !== 'unknown' ? [a.type] : []),
-    ...a.ports.map((p: any) => p.service).filter(Boolean),
-  ]);
-  const ontology = detectedTech.length > 0 ? formatOntologyForPrompt([...new Set(detectedTech)]) : '';
-  const bbTraining = getTrainingExamplesForPrompt(2);
-  // Inject attack chain context based on known vulns
-  const vulnDescs = context.assets.flatMap(a => a.vulns.map((v: any) => v.title || v.description || '').filter(Boolean));
-  const chains = vulnDescs.length > 0 ? getChainsByVulnDescriptions(vulnDescs, 3) : [];
-  const chainCtx = chains.length > 0 ? formatChainsForPrompt(chains) : '';
-  const corpusCtx = getTriageCorpusContext(undefined, 2);
-  // Cloud security context for cloud-aware decision making
-  const cloudObs = context.assets.flatMap(a => [
-    ...(a.passiveRecon?.technologies || []),
-    ...(a.passiveRecon?.riskSignals?.map(r => r.rationale) || []),
-    a.passiveRecon?.cloudProvider || '',
-    ...a.vulns.map(v => v.title),
-  ]).filter(Boolean);
-  const cloudCtx = cloudObs.length > 0 ? buildCloudSecurityContext(cloudObs) : '';
-  return (chainCtx ? '\n\n## Known Attack Chains\n' + chainCtx : '') +
-    ontology +
-    (bbTraining ? '\n\n## Bug Bounty Reasoning Examples\n' + bbTraining : '') +
-    (corpusCtx ? '\n\n## Tool Output Triage Examples\n' + corpusCtx : '') +
-    (cloudCtx ? '\n\n' + cloudCtx : '');
-})()}`;
+Assets:\n${assetSummary}\n\nRecent:\n${recentActivity}\n\nReturn JSON: {"decision":"str","reasoning":"str","actions":[{"type":"nmap_scan|nuclei_scan|zap_scan|exploit_attempt|c2_deploy|recon|skip|complete|wait","params":{...}}]}
+Action params: nmap_scan={targets,profile:quick|standard|deep|stealth|service|vuln} nuclei_scan={targets,severity,tags?} zap_scan={targetUrl,scanType:full|active|spider_only,wafAware} exploit_attempt={target,port,cve,service,module?} c2_deploy={target,platform,method} recon={domain} complete={reason}
+Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.`;
 
   try {
     const response = await invokeLLM({
@@ -1062,32 +1010,7 @@ ${(() => {
       _caller: 'engagement-orchestrator.opsDecision',
       _engagementId: context.engagementId,
       response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "ops_decision",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              decision: { type: "string" },
-              reasoning: { type: "string" },
-              actions: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    type: { type: "string" },
-                    params: { type: "object", additionalProperties: true },
-                  },
-                  required: ["type", "params"],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: ["decision", "reasoning", "actions"],
-            additionalProperties: false,
-          },
-        },
+        type: "json_object" as const,
       },
     });
 
