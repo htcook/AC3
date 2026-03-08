@@ -175,7 +175,7 @@ export const engagementAutomationRouter = router({
       let exploitScripts: any[] = [];
       try {
         exploitScripts = await db.select().from(unifiedExploitCatalog)
-          .where(inArray(unifiedExploitCatalog.mitreTechniqueId, techniqueArray))
+          .where(inArray(unifiedExploitCatalog.exploitMitreId, techniqueArray))
           .limit(30);
       } catch { /* table may not have data */ }
 
@@ -321,7 +321,7 @@ export const engagementAutomationRouter = router({
       let exploits: any[] = [];
       try {
         exploits = await db.select().from(unifiedExploitCatalog)
-          .where(inArray(unifiedExploitCatalog.mitreTechniqueId, techniqueArray))
+          .where(inArray(unifiedExploitCatalog.exploitMitreId, techniqueArray))
           .limit(30);
       } catch { /* */ }
 

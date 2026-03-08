@@ -393,7 +393,7 @@ const preFlightRouter = router({
       const { batchPreFlightChecks, filterViableModules, getExploitSuccessRate } = await import("../lib/exploit-preflight");
 
       const dbConn = await getDbRequired();
-      const catalog = await dbConn.select().from(unifiedExploitCatalog).where(eq(unifiedExploitCatalog.enabled, true));
+      const catalog = await dbConn.select().from(unifiedExploitCatalog).where(eq(unifiedExploitCatalog.exploitEnabled, true));
 
       const modules = catalog.slice(0, 30).map((c: any) => {
         const history = getExploitSuccessRate(c.msfModule || c.catalogId);

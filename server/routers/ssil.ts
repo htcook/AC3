@@ -608,7 +608,7 @@ export const ssilRouter = router({
       name: z.string().min(1).max(255),
       description: z.string().optional(),
       triggerType: z.enum(["critical_cve", "new_open_port", "high_severity_signal", "risk_score_threshold", "observation_count", "new_vulnerability", "tls_expiry", "misconfiguration", "custom"]),
-      conditions: z.record(z.unknown()),
+      conditions: z.record(z.string(), z.any()),
       notifyOwner: z.boolean().default(true),
       cooldownMinutes: z.number().min(1).default(60),
       isEnabled: z.boolean().default(true),
@@ -653,7 +653,7 @@ export const ssilRouter = router({
       name: z.string().min(1).max(255).optional(),
       description: z.string().optional(),
       isEnabled: z.boolean().optional(),
-      conditions: z.record(z.unknown()).optional(),
+      conditions: z.record(z.string(), z.any()).optional(),
       notifyOwner: z.boolean().optional(),
       cooldownMinutes: z.number().min(1).optional(),
     }))

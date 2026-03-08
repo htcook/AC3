@@ -343,27 +343,27 @@ export const ksiThreatMapRouter = router({
       const matchedExploits = await db.select({
         id: unifiedExploitCatalog.id,
         catalogId: unifiedExploitCatalog.catalogId,
-        name: unifiedExploitCatalog.name,
-        description: unifiedExploitCatalog.description,
+        name: unifiedExploitCatalog.exploitName,
+        description: unifiedExploitCatalog.exploitDescription,
         tier: unifiedExploitCatalog.tier,
-        category: unifiedExploitCatalog.category,
-        source: unifiedExploitCatalog.source,
-        cveIds: unifiedExploitCatalog.cveIds,
-        cvssScore: unifiedExploitCatalog.cvssScore,
-        severity: unifiedExploitCatalog.severity,
-        mitreId: unifiedExploitCatalog.mitreId,
-        mitreName: unifiedExploitCatalog.mitreName,
-        mitreTactic: unifiedExploitCatalog.mitreTactic,
-        platform: unifiedExploitCatalog.platform,
+        category: unifiedExploitCatalog.exploitCategory,
+        source: unifiedExploitCatalog.exploitSource,
+        cveIds: unifiedExploitCatalog.exploitCveIds,
+        cvssScore: unifiedExploitCatalog.exploitCvssScore,
+        severity: unifiedExploitCatalog.exploitSeverity,
+        mitreId: unifiedExploitCatalog.exploitMitreId,
+        mitreName: unifiedExploitCatalog.exploitMitreName,
+        mitreTactic: unifiedExploitCatalog.exploitMitreTactic,
+        platform: unifiedExploitCatalog.exploitPlatform,
         exploitType: unifiedExploitCatalog.exploitType,
-        reliability: unifiedExploitCatalog.reliability,
-        difficulty: unifiedExploitCatalog.difficulty,
+        reliability: unifiedExploitCatalog.exploitReliability,
+        difficulty: unifiedExploitCatalog.exploitDifficulty,
         msfModule: unifiedExploitCatalog.msfModule,
-        verified: unifiedExploitCatalog.verified,
-        enabled: unifiedExploitCatalog.enabled,
+        verified: unifiedExploitCatalog.exploitVerified,
+        enabled: unifiedExploitCatalog.exploitEnabled,
       }).from(unifiedExploitCatalog)
-        .where(inArray(unifiedExploitCatalog.mitreId, techniqueIds))
-        .orderBy(desc(unifiedExploitCatalog.cvssScore))
+        .where(inArray(unifiedExploitCatalog.exploitMitreId, techniqueIds))
+        .orderBy(desc(unifiedExploitCatalog.exploitCvssScore))
         .limit(50);
 
       // Find Atomic Red Team tests that match these techniques
@@ -398,7 +398,7 @@ export const ksiThreatMapRouter = router({
 
     // Count total exploits with MITRE mappings
     const totalExploits = await db.select({ count: count() }).from(unifiedExploitCatalog)
-      .where(isNotNull(unifiedExploitCatalog.mitreId));
+      .where(isNotNull(unifiedExploitCatalog.exploitMitreId));
 
     // Count total atomic tests
     const totalAtomicTests = await db.select({ count: count() }).from(atomicTests);
@@ -408,11 +408,11 @@ export const ksiThreatMapRouter = router({
 
     // Count exploits per technique
     const exploitsByTechnique = await db.select({
-      mitreId: unifiedExploitCatalog.mitreId,
+      mitreId: unifiedExploitCatalog.exploitMitreId,
       count: count(),
     }).from(unifiedExploitCatalog)
-      .where(isNotNull(unifiedExploitCatalog.mitreId))
-      .groupBy(unifiedExploitCatalog.mitreId);
+      .where(isNotNull(unifiedExploitCatalog.exploitMitreId))
+      .groupBy(unifiedExploitCatalog.exploitMitreId);
 
     // Count atomic tests per technique
     const atomicsByTechnique = await db.select({
@@ -542,7 +542,7 @@ export const ksiThreatMapRouter = router({
 
       // Count matching exploits
       const exploitCount = await db.select({ count: count() }).from(unifiedExploitCatalog)
-        .where(inArray(unifiedExploitCatalog.mitreId, techniqueIds));
+        .where(inArray(unifiedExploitCatalog.exploitMitreId, techniqueIds));
 
       // Count matching atomic tests
       const atomicCount = await db.select({ count: count() }).from(atomicTests)

@@ -7,10 +7,13 @@ import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
+  // Respect hmr setting from vite.config.ts — if hmr is explicitly false,
+  // don't override it (needed when running behind a proxy that doesn't support WebSocket)
+  const configHmr = (viteConfig as any).server?.hmr;
+  const serverOptions: Record<string, any> = {
     middlewareMode: true,
-    hmr: { server },
     allowedHosts: true as const,
+    hmr: configHmr === false ? false : { server },
   };
 
   const vite = await createViteServer({

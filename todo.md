@@ -8405,3 +8405,11 @@
 - [ ] Fix production build OOM (currently needs 4GB heap)
 - [ ] Verify production build succeeds with default memory
 - [ ] Test production site renders correctly after optimization
+
+## Display Fix (March 2026)
+- [x] Fix HMR infinite reload loop: modified server/_core/vite.ts to respect hmr:false from vite.config.ts
+- [x] Fix TypeBadge crash: actor.type is null in DB, added null safety to toUpperCase
+- [x] Fix Drizzle column references: unifiedExploitCatalog columns use exploitX prefix (8 files fixed)
+- [x] Fix Zod v4 compatibility: z.record(z.unknown()) → z.record(z.string(), z.any()) in error-log.ts and ssil.ts
+- [x] Verify dev preview renders correctly
+- [ ] Verify aceofcloud.io renders correctly after publish

@@ -44,7 +44,7 @@ function TypeBadge({ type }: { type: string }) {
   };
   return (
     <span className={`text-[10px] font-display tracking-widest ${colors[type] || colors.unknown}`}>
-      {labels[type] || type.toUpperCase()}
+      {labels[type] || (type || 'UNKNOWN').toUpperCase()}
     </span>
   );
 }
@@ -140,13 +140,13 @@ function ActorDetailModal({ actorId, onClose }: { actorId: string; onClose: () =
                 {actor.sophistication && (
                   <div className="p-3 border border-border/50 bg-background/50">
                     <div className="text-[10px] font-display tracking-widest text-muted-foreground mb-1">SOPHISTICATION</div>
-                    <div className="text-sm font-display tracking-wider">{actor.sophistication.toUpperCase()}</div>
+                    <div className="text-sm font-display tracking-wider">{(actor.sophistication || '').toUpperCase()}</div>
                   </div>
                 )}
                 {actor.motivation && (
                   <div className="p-3 border border-border/50 bg-background/50">
                     <div className="text-[10px] font-display tracking-widest text-muted-foreground mb-1">MOTIVATION</div>
-                    <div className="text-sm font-display tracking-wider">{actor.motivation.toUpperCase()}</div>
+                    <div className="text-sm font-display tracking-wider">{(actor.motivation || '').toUpperCase()}</div>
                   </div>
                 )}
                 {actor.firstSeen && (

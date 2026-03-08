@@ -20,10 +20,10 @@ export const validationRouter = router({
           catalogId: unifiedExploitCatalog.catalogId,
           msfModule: unifiedExploitCatalog.msfModule,
           msfRank: unifiedExploitCatalog.msfRank,
-          cveIds: unifiedExploitCatalog.cveIds,
-          cvssScore: unifiedExploitCatalog.cvssScore,
-          source: unifiedExploitCatalog.source,
-        }).from(unifiedExploitCatalog).where(eq(unifiedExploitCatalog.enabled, true));
+          cveIds: unifiedExploitCatalog.exploitCveIds,
+          cvssScore: unifiedExploitCatalog.exploitCvssScore,
+          source: unifiedExploitCatalog.exploitSource,
+        }).from(unifiedExploitCatalog).where(eq(unifiedExploitCatalog.exploitEnabled, true));
 
         const candidates = selectCandidates(assets as any, catalog as any, input.maxCandidates);
         return { candidates, totalAssets: assets.length, totalCatalogEntries: catalog.length };
@@ -79,10 +79,10 @@ export const validationRouter = router({
           catalogId: unifiedExploitCatalog.catalogId,
           msfModule: unifiedExploitCatalog.msfModule,
           msfRank: unifiedExploitCatalog.msfRank,
-          cveIds: unifiedExploitCatalog.cveIds,
-          cvssScore: unifiedExploitCatalog.cvssScore,
-          source: unifiedExploitCatalog.source,
-        }).from(unifiedExploitCatalog).where(eq(unifiedExploitCatalog.enabled, true));
+          cveIds: unifiedExploitCatalog.exploitCveIds,
+          cvssScore: unifiedExploitCatalog.exploitCvssScore,
+          source: unifiedExploitCatalog.exploitSource,
+        }).from(unifiedExploitCatalog).where(eq(unifiedExploitCatalog.exploitEnabled, true));
 
         const candidates = selectCandidates(assets as any, catalog as any, input.maxCandidates);
         if (candidates.length === 0) {

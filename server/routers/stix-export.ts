@@ -178,19 +178,19 @@ export const stixExportRouter = router({
       const db = await requireDb();
       const conditions: any[] = [];
 
-      conditions.push(sql`${unifiedExploitCatalog.cveIds} IS NOT NULL`);
+      conditions.push(sql`${unifiedExploitCatalog.exploitCveIds} IS NOT NULL`);
       if (input.severity !== "all") {
-        conditions.push(eq(unifiedExploitCatalog.severity, input.severity));
+        conditions.push(eq(unifiedExploitCatalog.exploitSeverity, input.severity));
       }
       if (input.source !== "all") {
-        conditions.push(eq(unifiedExploitCatalog.source, input.source));
+        conditions.push(eq(unifiedExploitCatalog.exploitSource, input.source));
       }
 
       const exploits = await db
         .select()
         .from(unifiedExploitCatalog)
         .where(and(...conditions))
-        .orderBy(desc(unifiedExploitCatalog.cvssScore))
+        .orderBy(desc(unifiedExploitCatalog.exploitCvssScore))
         .limit(input.limit);
 
       const stixObjects: StixObject[] = [];
@@ -298,8 +298,8 @@ export const stixExportRouter = router({
       // Exploits with CVEs
       const exploits = await db
         .select().from(unifiedExploitCatalog)
-        .where(sql`${unifiedExploitCatalog.cveIds} IS NOT NULL`)
-        .orderBy(desc(unifiedExploitCatalog.cvssScore))
+        .where(sql`${unifiedExploitCatalog.exploitCveIds} IS NOT NULL`)
+        .orderBy(desc(unifiedExploitCatalog.exploitCvssScore))
         .limit(input.maxExploits);
       for (const exploit of exploits) {
         stixObjects.push(...exploitToStix(exploit as ExploitInput));
@@ -402,8 +402,8 @@ export const stixExportRouter = router({
         }
         case "ace-c3-vulnerabilities": {
           const exploits = await db.select().from(unifiedExploitCatalog)
-            .where(sql`${unifiedExploitCatalog.cveIds} IS NOT NULL`)
-            .orderBy(desc(unifiedExploitCatalog.cvssScore))
+            .where(sql`${unifiedExploitCatalog.exploitCveIds} IS NOT NULL`)
+            .orderBy(desc(unifiedExploitCatalog.exploitCvssScore))
             .limit(input.limit);
           for (const exploit of exploits) {
             stixObjects.push(...exploitToStix(exploit as ExploitInput));
@@ -425,7 +425,7 @@ export const stixExportRouter = router({
           for (const actor of actors) stixObjects.push(...threatActorToStix(actor as ThreatActorInput));
           const entries = await db.select().from(iocFeeds).orderBy(desc(iocFeeds.createdAt)).limit(lim);
           for (const entry of entries) stixObjects.push(...iocFeedToStix(entry as IocFeedInput));
-          const exploits = await db.select().from(unifiedExploitCatalog).where(sql`${unifiedExploitCatalog.cveIds} IS NOT NULL`).orderBy(desc(unifiedExploitCatalog.cvssScore)).limit(lim);
+          const exploits = await db.select().from(unifiedExploitCatalog).where(sql`${unifiedExploitCatalog.exploitCveIds} IS NOT NULL`).orderBy(desc(unifiedExploitCatalog.exploitCvssScore)).limit(lim);
           for (const exploit of exploits) stixObjects.push(...exploitToStix(exploit as ExploitInput));
           const engs = await db.select().from(engagements).orderBy(desc(engagements.createdAt)).limit(lim);
           for (const eng of engs) stixObjects.push(engagementToStix(eng as EngagementInput));

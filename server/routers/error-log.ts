@@ -30,8 +30,8 @@ export const errorLogRouter = router({
       message: z.string().max(65535),
       stack: z.string().max(1000000).optional(),
       page: z.string().max(512).optional(),
-      engagementContext: z.record(z.unknown()).optional(),
-      clientMeta: z.record(z.unknown()).optional(),
+      engagementContext: z.record(z.string(), z.any()).optional(),
+      clientMeta: z.record(z.string(), z.any()).optional(),
       autoRecovered: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
