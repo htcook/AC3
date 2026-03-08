@@ -216,7 +216,7 @@ export default function OperationMonitor() {
                   operation.state === 'paused' ? 'bg-yellow-500' :
                   operation.state === 'finished' ? 'bg-blue-500' : 'bg-gray-500'
                 }`}>
-                  {operation.state.toUpperCase()}
+                  {(operation.state || '').toUpperCase()}
                 </Badge>
                 <div className="flex gap-1">
                   <Button size="sm" variant="ghost" disabled={operation.state === 'running'}>
@@ -402,7 +402,7 @@ export default function OperationMonitor() {
                         <div className="flex items-center gap-2">
                           {getStatusIcon(result.status)}
                           <Badge className={`text-xs ${getStatusBadge(result.status)}`}>
-                            {result.status.toUpperCase()}
+                            {(result.status || '').toUpperCase()}
                           </Badge>
                         </div>
                       </div>

@@ -370,7 +370,7 @@ export default function DomainIntelResults() {
   // Build unified asset list: DB assets + pipeline subdomains not already in DB assets
   const dbAssetHostnames = new Set((assets as any[]).map((a: any) => (a.hostname || '').toLowerCase()));
   const pipelineSubdomains = ((pipeline?.discoveredSubdomains || []) as any[]).filter(
-    (s: any) => s.name && !dbAssetHostnames.has(s.name.toLowerCase())
+    (s: any) => s.name && !dbAssetHostnames.has((s.name || '').toLowerCase())
   );
   const pipelinePorts = (pipeline?.discoveredPorts || []) as any[];
 
@@ -1614,7 +1614,7 @@ export default function DomainIntelResults() {
                             <span className="text-base">{catIcons[f.category] || '📡'}</span>
                             <span className="text-sm font-medium truncate">{f.service}</span>
                             <Badge className={`text-[9px] px-1.5 py-0 ${sevColors[f.severity] || sevColors.medium}`}>
-                              {f.severity.toUpperCase()}
+                              {(f.severity || '').toUpperCase()}
                             </Badge>
                             {f.authenticated && (
                               <Badge className="text-[9px] px-1.5 py-0 bg-red-600/30 text-red-300 border-red-500/50">UNAUTHENTICATED</Badge>
@@ -1726,7 +1726,7 @@ export default function DomainIntelResults() {
                                 check.severity === 'critical' ? 'bg-red-600/30 text-red-300' :
                                 check.severity === 'high' ? 'bg-orange-500/20 text-orange-400' :
                                 'bg-yellow-500/20 text-yellow-400'
-                              }`}>{check.severity.toUpperCase()}</Badge>
+                              }`}>{(check.severity || '').toUpperCase()}</Badge>
                               <span className="text-xs font-medium truncate">{check.title}</span>
                               <span className="text-[9px] font-mono text-muted-foreground ml-auto shrink-0">{check.checkId}</span>
                             </div>
@@ -2760,7 +2760,7 @@ export default function DomainIntelResults() {
             // Merge: pipeline subdomains + asset subdomains (deduplicated)
             const allSubdomainMap = new Map<string, any>();
             for (const s of subdomains) {
-              allSubdomainMap.set(s.name.toLowerCase(), { ...s });
+              allSubdomainMap.set((s.name || '').toLowerCase(), { ...s });
             }
             for (const a of assetSubdomains) {
               const key = (a as any).hostname?.toLowerCase();
@@ -2858,7 +2858,7 @@ export default function DomainIntelResults() {
             const filtered = enrichedSubdomains.filter(s => {
               if (subSearch) {
                 const q = subSearch.toLowerCase();
-                if (!s.name.toLowerCase().includes(q) && !(s.ip || '').includes(q) && !s.technologies.some((t: string) => t.toLowerCase().includes(q)) && !s.ports.some((p: any) => String(p.port).includes(q) || p.service.toLowerCase().includes(q))) return false;
+                if (!(s.name || '').toLowerCase().includes(q) && !(s.ip || '').includes(q) && !s.technologies.some((t: string) => t.toLowerCase().includes(q)) && !s.ports.some((p: any) => String(p.port).includes(q) || p.service.toLowerCase().includes(q))) return false;
               }
               if (subSourceFilter !== 'all' && s.source !== subSourceFilter) return false;
               return true;
@@ -3233,7 +3233,7 @@ export default function DomainIntelResults() {
             const filtered = allItems.filter(item => {
               if (inventorySearch) {
                 const q = inventorySearch.toLowerCase();
-                if (!item.hostname.toLowerCase().includes(q) && !item.ip.includes(q) && !item.technologies.some(t => t.toLowerCase().includes(q)) && !item.ports.some(p => String(p.port).includes(q) || p.service.toLowerCase().includes(q))) return false;
+                if (!(item.hostname || '').toLowerCase().includes(q) && !item.ip.includes(q) && !item.technologies.some(t => t.toLowerCase().includes(q)) && !item.ports.some(p => String(p.port).includes(q) || p.service.toLowerCase().includes(q))) return false;
               }
               if (inventoryTypeFilter !== 'all' && item.assetType !== inventoryTypeFilter) return false;
               return true;
@@ -3519,7 +3519,7 @@ export default function DomainIntelResults() {
             const filtered = ports.filter(p => {
               if (portSearch) {
                 const q = portSearch.toLowerCase();
-                if (!p.ip.includes(q) && !p.hostname.toLowerCase().includes(q) && !String(p.port).includes(q) && !p.product.toLowerCase().includes(q)) return false;
+                if (!p.ip.includes(q) && !(p.hostname || '').toLowerCase().includes(q) && !String(p.port).includes(q) && !(p.product || '').toLowerCase().includes(q)) return false;
               }
               if (portProtocolFilter !== 'all' && p.transport !== portProtocolFilter) return false;
               return true;
@@ -8514,7 +8514,7 @@ function TechVulnsTab({ scanId }: { scanId: number }) {
 
   const filteredProfiles = techProfiles.filter((tp: any) => {
     if (severityFilter !== "all" && tp.highestSeverity !== severityFilter) return false;
-    if (searchTerm && !tp.technology.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    if (searchTerm && !(tp.technology || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
         !tp.cves?.some((c: any) => c.cveId?.toLowerCase().includes(searchTerm.toLowerCase()))) return false;
     return true;
   });
@@ -9482,7 +9482,7 @@ function TakeoverPocTab({ scanId }: { scanId: number }) {
                   <div className="flex items-center gap-3">
                     {statusIcon(r.validationStatus)}
                     <span className="font-mono text-sm font-bold">{r.subdomain}</span>
-                    <Badge className={statusColor(r.validationStatus)}>{r.validationStatus.toUpperCase()}</Badge>
+                    <Badge className={statusColor(r.validationStatus)}>{(r.validationStatus || '').toUpperCase()}</Badge>
                     <Badge variant="outline" className="text-[10px]">{r.service}</Badge>
                   </div>
                   <div className="flex items-center gap-2">

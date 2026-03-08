@@ -140,7 +140,7 @@ app_https_cidrs      = ["0.0.0.0/0", "::/0"]`;
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className={`font-display text-lg ${colorMap[comp.name].split(' ')[0]}`}>{comp.name.toUpperCase()}</h3>
+                        <h3 className={`font-display text-lg ${colorMap[comp.name].split(' ')[0]}`}>{(comp.name || '').toUpperCase()}</h3>
                         <span className="px-2 py-0.5 text-[10px] font-display tracking-wider bg-secondary text-muted-foreground">{comp.role}</span>
                         <span className="px-2 py-0.5 text-[10px] font-display tracking-wider bg-secondary text-muted-foreground">{comp.size}</span>
                       </div>

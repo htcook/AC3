@@ -120,7 +120,7 @@ function RedirectorTab() {
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <Badge className={typeColors[t.type]}>{t.type.toUpperCase()}</Badge>
+                    <Badge className={typeColors[t.type]}>{(t.type || '').toUpperCase()}</Badge>
                     <span className="text-sm font-medium text-white">{t.name}</span>
                   </div>
                   <p className="text-xs text-zinc-400 mt-1">{t.description}</p>
@@ -173,7 +173,7 @@ function RedirectorTab() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-white">{rdr.name}</span>
-                      <Badge className={typeColors[rdr.type]}>{rdr.type.toUpperCase()}</Badge>
+                      <Badge className={typeColors[rdr.type]}>{(rdr.type || '').toUpperCase()}</Badge>
                       <Badge variant="outline" className="text-xs">{rdr.engine}</Badge>
                     </div>
                     <div className="text-xs text-zinc-400 mt-1">

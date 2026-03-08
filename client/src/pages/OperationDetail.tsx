@@ -191,7 +191,7 @@ export default function OperationDetail() {
                   <h1 className="font-display text-3xl md:text-2xl sm:text-3xl lg:text-4xl">{operation.name}</h1>
                   <span className={`px-3 py-1 text-sm font-display border ${statusStyle.bg} ${statusStyle.text} flex items-center gap-2`}>
                     {statusStyle.icon}
-                    {operation.state.toUpperCase()}
+                    {(operation.state || '').toUpperCase()}
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">

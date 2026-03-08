@@ -8413,3 +8413,11 @@
 - [x] Fix Zod v4 compatibility: z.record(z.unknown()) → z.record(z.string(), z.any()) in error-log.ts and ssil.ts
 - [x] Verify dev preview renders correctly
 - [ ] Verify aceofcloud.io renders correctly after publish
+
+## Three-Part Optimization (March 2026)
+- [x] Publish checkpoint to restore aceofcloud.io (user to click Publish in UI)
+- [x] Re-apply safe build optimizations: shiki subset plugin (28 langs, 2 themes), split shiki into 3 chunks, no catch-all vendor-misc
+- [x] Null safety audit: 158 fixes across 71 files — wrapped nullable DB fields with (x || '') before .toUpperCase()/.toLowerCase()
+- [x] Verify build succeeds: 14.4MB total JS (down from ~30MB), shiki 2.8MB (down from ~10.5MB)
+- [x] Verify dev preview renders correctly — no JS errors
+- [x] Save final checkpoint

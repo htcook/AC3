@@ -85,7 +85,7 @@ function FIPSStatusCard() {
             FIPS 140-3 Compliance Status
           </CardTitle>
           <Badge className={isFullFips ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}>
-            {data.complianceLevel.toUpperCase()}
+            {(data.complianceLevel || '').toUpperCase()}
           </Badge>
         </div>
         <CardDescription>
@@ -272,7 +272,7 @@ function ScheduledAuditPanel() {
                 scheduledAuditMut.data.overallStatus === "compliant" ? "text-emerald-400" :
                 scheduledAuditMut.data.overallStatus === "warning" ? "text-amber-400" : "text-red-400"
               }`}>
-                {scheduledAuditMut.data.overallStatus.toUpperCase()}
+                {(scheduledAuditMut.data.overallStatus || '').toUpperCase()}
               </p>
               <p className="text-xs text-zinc-500">Overall Status</p>
             </div>

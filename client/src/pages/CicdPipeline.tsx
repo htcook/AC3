@@ -314,7 +314,7 @@ export default function CicdPipelinePage() {
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <span className={`h-2 w-2 rounded-full ${(statusColors as any)[run.status] || 'bg-gray-400'}`} />
-                                                <span className="capitalize">{run.status.toLowerCase()}</span>
+                                                <span className="capitalize">{(run.status || '').toLowerCase()}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right text-muted-foreground text-xs">{new Date(run.completedAt || run.createdAt).toLocaleString()}</TableCell>

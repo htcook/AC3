@@ -161,7 +161,7 @@ export default function KsiThreatMap() {
                     <div className="font-medium text-lg">{group.groupName}</div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Badge variant={group.type === "apt" ? "destructive" : group.type === "ransomware" ? "default" : "secondary"}>
-                        {group.type.toUpperCase()}
+                        {(group.type || '').toUpperCase()}
                       </Badge>
                       <span>Origin: {group.origin}</span>
                     </div>

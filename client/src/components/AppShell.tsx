@@ -797,10 +797,10 @@ function NavSearch({
     const q = query.toLowerCase();
     return ALL_NAV_ITEMS.filter(
       (item) =>
-        item.label.toLowerCase().includes(q) ||
-        item.groupLabel.toLowerCase().includes(q) ||
-        item.subLabel.toLowerCase().includes(q) ||
-        item.href.toLowerCase().includes(q)
+        (item.label || '').toLowerCase().includes(q) ||
+        (item.groupLabel || '').toLowerCase().includes(q) ||
+        (item.subLabel || '').toLowerCase().includes(q) ||
+        (item.href || '').toLowerCase().includes(q)
     ).slice(0, 12);
   }, [query]);
 

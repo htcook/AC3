@@ -44,10 +44,10 @@ export default function HttpxPage() {
       const f = filter.toLowerCase();
       items = items.filter(
         (t) =>
-          t.host.toLowerCase().includes(f) ||
-          t.url.toLowerCase().includes(f) ||
-          t.title.toLowerCase().includes(f) ||
-          t.webServer.toLowerCase().includes(f) ||
+          (t.host || '').toLowerCase().includes(f) ||
+          (t.url || '').toLowerCase().includes(f) ||
+          (t.title || '').toLowerCase().includes(f) ||
+          (t.webServer || '').toLowerCase().includes(f) ||
           t.technologies.some((tech) => tech.toLowerCase().includes(f))
       );
     }

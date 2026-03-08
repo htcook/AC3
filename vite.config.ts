@@ -3,10 +3,38 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
+/**
+ * Vite plugin: redirect bare `import ... from "shiki"` to our subset module.
+ * Sub-path imports like "shiki/engine/javascript" and "shiki/wasm" are NOT affected.
+ */
+function shikiSubsetPlugin(): Plugin {
+  const subsetPath = path.resolve(
+    import.meta.dirname,
+    "client/src/lib/shiki-subset.ts"
+  );
+  return {
+    name: "shiki-subset",
+    enforce: "pre",
+    resolveId(source) {
+      // Only intercept the exact bare "shiki" import, not sub-paths
+      if (source === "shiki") {
+        return subsetPath;
+      }
+      return null;
+    },
+  };
+}
+
+const plugins = [
+  shikiSubsetPlugin(),
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+];
 
 export default defineConfig({
   plugins,
@@ -34,8 +62,10 @@ export default defineConfig({
           if (id.includes('mermaid')) return 'vendor-mermaid';
           if (id.includes('cytoscape')) return 'vendor-cytoscape';
 
-          // Shiki code highlighter + all language grammars (~3 MB)
-          if (id.includes('shiki') || id.includes('@shikijs')) return 'vendor-shiki';
+          // Shiki code highlighter — split into langs, themes, core
+          if (id.includes('@shikijs/langs') || id.match(/shiki\/dist\/langs/)) return 'vendor-shiki-langs';
+          if (id.includes('@shikijs/themes') || id.match(/shiki\/dist\/themes/)) return 'vendor-shiki-themes';
+          if (id.includes('shiki') || id.includes('@shikijs')) return 'vendor-shiki-core';
 
           // KaTeX math renderer + fonts (~1 MB)
           if (id.includes('katex')) return 'vendor-katex';
@@ -58,6 +88,9 @@ export default defineConfig({
 
           // ── React core (shared across all routes) ──────────────────────
           if (id.includes('react-dom')) return 'vendor-react';
+
+          // NOTE: No catch-all "vendor-misc" — let Vite handle remaining
+          // modules naturally to avoid CJS/ESM interop issues.
         },
       },
     },

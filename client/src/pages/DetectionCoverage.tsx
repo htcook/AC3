@@ -357,7 +357,7 @@ export default function DetectionCoverage() {
                                       rule.ruleType === 'sigma' ? 'border-cyan-500/30 text-cyan-400' :
                                       rule.ruleType === 'yara' ? 'border-purple-500/30 text-purple-400' :
                                       'border-orange-500/30 text-orange-400'
-                                    }`}>{rule.ruleType.toUpperCase()}</Badge>
+                                    }`}>{(rule.ruleType || '').toUpperCase()}</Badge>
                                     <span>Confidence: {rule.confidence}%</span>
                                     <Badge variant="outline" className={`text-xs ml-auto ${
                                       rule.severity === 'critical' ? 'border-red-500/30 text-red-400' :

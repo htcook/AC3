@@ -356,7 +356,7 @@ export default function OperatorHome() {
                   <span className={`text-[9px] font-display tracking-widest px-2 py-0.5 rounded-full ${
                     op.status === "active" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"
                   }`}>
-                    {op.status.toUpperCase()}
+                    {(op.status || '').toUpperCase()}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">

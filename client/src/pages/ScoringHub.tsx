@@ -795,7 +795,7 @@ export default function ScoringHub() {
                         {simResult.hybridRiskScore}
                       </div>
                       <Badge className={`mt-1 ${RISK_BG[simResult.riskBand]}`}>
-                        {simResult.riskBand.toUpperCase()}
+                        {(simResult.riskBand || '').toUpperCase()}
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -2145,25 +2145,25 @@ export default function ScoringHub() {
                         <div className="text-center p-2 bg-zinc-900/60 rounded">
                           <div className="text-[10px] text-zinc-500">Confidentiality</div>
                           <div className={`text-sm font-semibold ${levelColors[adj.highWatermark.confidentiality]}`}>
-                            {adj.highWatermark.confidentiality.toUpperCase()}
+                            {(adj.highWatermark.confidentiality || '').toUpperCase()}
                           </div>
                         </div>
                         <div className="text-center p-2 bg-zinc-900/60 rounded">
                           <div className="text-[10px] text-zinc-500">Integrity</div>
                           <div className={`text-sm font-semibold ${levelColors[adj.highWatermark.integrity]}`}>
-                            {adj.highWatermark.integrity.toUpperCase()}
+                            {(adj.highWatermark.integrity || '').toUpperCase()}
                           </div>
                         </div>
                         <div className="text-center p-2 bg-zinc-900/60 rounded">
                           <div className="text-[10px] text-zinc-500">Availability</div>
                           <div className={`text-sm font-semibold ${levelColors[adj.highWatermark.availability]}`}>
-                            {adj.highWatermark.availability.toUpperCase()}
+                            {(adj.highWatermark.availability || '').toUpperCase()}
                           </div>
                         </div>
                         <div className="text-center p-2 bg-zinc-900/60 rounded border border-purple-500/30">
                           <div className="text-[10px] text-zinc-500">Overall</div>
                           <div className={`text-sm font-bold ${levelColors[adj.highWatermark.overallLevel]}`}>
-                            {adj.highWatermark.overallLevel.toUpperCase()}
+                            {(adj.highWatermark.overallLevel || '').toUpperCase()}
                           </div>
                         </div>
                       </div>

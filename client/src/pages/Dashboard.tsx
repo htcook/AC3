@@ -1154,7 +1154,7 @@ function DashboardInner() {
                                 const covered = techniques.some((tech: any) => {
                                   const tactic = typeof tech === 'string' ? '' : (tech.tactic || tech.killChainPhase || '');
                                   const tacticNorm = tactic.toLowerCase().replace(/[\s\-_]/g, '');
-                                  const tacNameNorm = tac.name.toLowerCase().replace(/[\s\-_]/g, '');
+                                  const tacNameNorm = (tac.name || '').toLowerCase().replace(/[\s\-_]/g, '');
                                   return tacticNorm.includes(tacNameNorm) || tacNameNorm.includes(tacticNorm);
                                 });
                                 return (

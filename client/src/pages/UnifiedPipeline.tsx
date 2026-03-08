@@ -173,7 +173,7 @@ export default function UnifiedPipeline() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={STATUS_COLORS[run.status]}>
-                          {run.status.toUpperCase()}
+                          {(run.status || '').toUpperCase()}
                         </Badge>
                         {run.status === "running" && (
                           <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => cancelRun.mutate({ runId: run.id })}>

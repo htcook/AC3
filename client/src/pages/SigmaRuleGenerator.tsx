@@ -146,9 +146,9 @@ export default function SigmaRuleGenerator() {
     if (!searchFilter) return templateData.templates;
     const lower = searchFilter.toLowerCase();
     return templateData.templates.filter(t =>
-      t.techniqueId.toLowerCase().includes(lower) ||
-      t.techniqueName.toLowerCase().includes(lower) ||
-      t.tactic.toLowerCase().includes(lower)
+      (t.techniqueId || '').toLowerCase().includes(lower) ||
+      (t.techniqueName || '').toLowerCase().includes(lower) ||
+      (t.tactic || '').toLowerCase().includes(lower)
     );
   }, [templateData, searchFilter]);
 

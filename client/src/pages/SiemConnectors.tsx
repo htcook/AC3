@@ -347,7 +347,7 @@ export default function SiemConnectors() {
                           variant={conn.backend === "wazuh" ? "default" : "secondary"}
                           className="font-display text-xs"
                         >
-                          {conn.backend.toUpperCase()}
+                          {(conn.backend || '').toUpperCase()}
                         </Badge>
                         {!conn.enabled && (
                           <Badge variant="outline" className="text-xs text-muted-foreground">

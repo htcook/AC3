@@ -328,7 +328,7 @@ export default function ThreatEnrichment() {
               <Input
                 placeholder="Enter KSI ID (e.g., KSI-SVC-VSR)"
                 value={selectedKsi}
-                onChange={(e) => setSelectedKsi(e.target.value.toUpperCase())}
+                onChange={(e) => setSelectedKsi((e.target.value || '').toUpperCase())}
                 className="bg-zinc-800 border-zinc-700"
               />
               <Button
@@ -489,7 +489,7 @@ export default function ThreatEnrichment() {
               <Input
                 placeholder="Enter Technique ID (e.g., T1190)"
                 value={selectedTechnique}
-                onChange={(e) => setSelectedTechnique(e.target.value.toUpperCase())}
+                onChange={(e) => setSelectedTechnique((e.target.value || '').toUpperCase())}
                 className="bg-zinc-800 border-zinc-700"
               />
               <Button size="sm" variant="outline" onClick={() => techniqueCoverage.refetch()} disabled={!selectedTechnique}>

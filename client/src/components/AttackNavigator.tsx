@@ -112,8 +112,8 @@ export default function AttackNavigator({
     for (const [tactic, techs] of Object.entries(techniquesByTactic)) {
       const matching = techs.filter(
         (t) =>
-          t.id.toLowerCase().includes(lower) ||
-          t.name.toLowerCase().includes(lower)
+          (t.id || '').toLowerCase().includes(lower) ||
+          (t.name || '').toLowerCase().includes(lower)
       );
       if (matching.length > 0) filtered[tactic] = matching;
     }

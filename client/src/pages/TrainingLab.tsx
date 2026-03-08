@@ -1720,9 +1720,9 @@ function RoECards({ targets }: { targets: TrainingTarget[] }) {
     const q = searchQuery.toLowerCase();
     return targets.filter(t =>
       t.id !== "custom" &&
-      (t.name.toLowerCase().includes(q) ||
-       t.roe.provider.toLowerCase().includes(q) ||
-       t.category.toLowerCase().includes(q) ||
+      ((t.name || '').toLowerCase().includes(q) ||
+       (t.roe.provider || '').toLowerCase().includes(q) ||
+       (t.category || '').toLowerCase().includes(q) ||
        t.tags.some(tag => tag.toLowerCase().includes(q)))
     );
   }, [targets, searchQuery]);

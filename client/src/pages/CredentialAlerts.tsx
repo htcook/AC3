@@ -189,7 +189,7 @@ export default function CredentialAlerts() {
                             <div>
                               <div className="font-medium">{rule.alertName}</div>
                               <div className="text-sm text-muted-foreground">
-                                {cred ? `${cred.credentialName} (${cred.provider.toUpperCase()})` : `Credential #${rule.credentialId}`}
+                                {cred ? `${cred.credentialName} (${(cred.provider || '').toUpperCase()})` : `Credential #${rule.credentialId}`}
                                 {" · "}{rule.thresholdDays} day threshold
                                 {rule.notifyOwner && " · Notifications enabled"}
                               </div>
@@ -237,7 +237,7 @@ export default function CredentialAlerts() {
                                 <Badge className={severityColors[alert.severity]}>{alert.severity}</Badge>
                                 <span className="font-medium text-sm">{alert.alertType.replace(/_/g, " ")}</span>
                                 {alert.credentialProvider && (
-                                  <Badge variant="outline">{alert.credentialProvider.toUpperCase()}</Badge>
+                                  <Badge variant="outline">{(alert.credentialProvider || '').toUpperCase()}</Badge>
                                 )}
                               </div>
                               <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>

@@ -241,7 +241,7 @@ export default function BiaReportPage() {
                 </div>
                 <div className="text-right space-y-2">
                   <Badge className={`${riskBandColor(report.overallRiskBand)} text-sm px-3 py-1`}>
-                    Risk: {report.overallRiskScore}/100 ({report.overallRiskBand.toUpperCase()})
+                    Risk: {report.overallRiskScore}/100 ({(report.overallRiskBand || '').toUpperCase()})
                   </Badge>
                   <div className="flex gap-1 justify-end">
                     <Badge variant="outline" className={fipsColor(report.systemSecurityCategorization.overall)}>

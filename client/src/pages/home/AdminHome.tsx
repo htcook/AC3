@@ -275,7 +275,7 @@ export default function AdminHome() {
 
                     {/* Status badge */}
                     <span className={`text-[8px] font-display tracking-widest px-1.5 py-0.5 rounded hidden sm:inline-block ${STATUS_COLORS[account.status] || ""}`}>
-                      {account.status.toUpperCase()}
+                      {(account.status || '').toUpperCase()}
                     </span>
 
                     {/* Last login */}

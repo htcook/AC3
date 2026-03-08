@@ -89,9 +89,9 @@ function FrameworkDashboard({ categories, accentColor, frameworkName }: {
       ...cat,
       controls: cat.controls.filter(ctrl => {
         const matchesSearch = searchQuery === "" ||
-          ctrl.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ctrl.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ctrl.description.toLowerCase().includes(searchQuery.toLowerCase());
+          (ctrl.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (ctrl.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (ctrl.description || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesSeverity = severityFilter === "all" || ctrl.severity === severityFilter;
         return matchesSearch && matchesSeverity;
       }),
@@ -543,11 +543,11 @@ export default function ComplianceFrameworks() {
               <div className="grid md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-card border-2 border-pink-500/30 p-4 text-center">
                   <p className="text-xs font-display tracking-wider text-muted-foreground mb-1">CATEGORY</p>
-                  <p className="text-lg font-display text-pink-400">{GOPHISH_POLICY_TEMPLATE.category.toUpperCase()}</p>
+                  <p className="text-lg font-display text-pink-400">{(GOPHISH_POLICY_TEMPLATE.category || '').toUpperCase()}</p>
                 </div>
                 <div className="bg-card border-2 border-pink-500/30 p-4 text-center">
                   <p className="text-xs font-display tracking-wider text-muted-foreground mb-1">RISK LEVEL</p>
-                  <p className="text-lg font-display text-green-400">{GOPHISH_POLICY_TEMPLATE.riskLevel.toUpperCase()}</p>
+                  <p className="text-lg font-display text-green-400">{(GOPHISH_POLICY_TEMPLATE.riskLevel || '').toUpperCase()}</p>
                 </div>
                 <div className="bg-card border-2 border-pink-500/30 p-4 text-center">
                   <p className="text-xs font-display tracking-wider text-muted-foreground mb-1">INDUSTRIES</p>

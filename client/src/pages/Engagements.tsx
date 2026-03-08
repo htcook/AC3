@@ -315,8 +315,8 @@ export default function Engagements() {
     if (!engagements) return [];
     return engagements.filter((e: any) => {
       const matchesSearch = searchQuery === '' ||
-        e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.customerName.toLowerCase().includes(searchQuery.toLowerCase());
+        (e.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (e.customerName || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = filterType === 'all' || e.engagementType === filterType;
       const matchesStatus = filterStatus === 'all' || e.status === filterStatus;
       return matchesSearch && matchesType && matchesStatus;
@@ -497,7 +497,7 @@ export default function Engagements() {
                           <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{tmpl.description}</p>
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             <span className={`text-[9px] px-1.5 py-0.5 ${difficultyColors[tmpl.difficulty] || ''}`}>
-                              {tmpl.difficulty.toUpperCase()}
+                              {(tmpl.difficulty || '').toUpperCase()}
                             </span>
                             <span className="text-[9px] px-1.5 py-0.5 text-muted-foreground bg-muted">
                               {tmpl.estimatedDuration}
@@ -752,7 +752,7 @@ export default function Engagements() {
               const count = engagements?.filter((e: any) => e.status === s.value).length || 0;
               return (
                 <div key={s.value} className="bg-card border border-border p-4">
-                  <p className="text-xs text-muted-foreground tracking-wider">{s.label.toUpperCase()}</p>
+                  <p className="text-xs text-muted-foreground tracking-wider">{(s.label || '').toUpperCase()}</p>
                   <p className="text-2xl font-display mt-1">{count}</p>
                 </div>
               );
@@ -797,10 +797,10 @@ export default function Engagements() {
                         <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
                           <h3 className="font-display text-lg tracking-wider truncate">{engagement.name}</h3>
                           <span className={`text-xs px-2 py-0.5 ${typeConfig.color} font-display tracking-wider`}>
-                            {typeConfig.label.toUpperCase()}
+                            {(typeConfig.label || '').toUpperCase()}
                           </span>
                           <span className={`text-xs px-2 py-0.5 ${statusConfig.color} font-display tracking-wider`}>
-                            {statusConfig.label.toUpperCase()}
+                            {(statusConfig.label || '').toUpperCase()}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
@@ -1197,7 +1197,7 @@ export default function Engagements() {
                             <h3 className="font-display text-xl">{operation.name}</h3>
                             <span className={`px-2 py-1 text-xs font-display border ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
                               {statusStyle.icon}
-                              {operation.state.toUpperCase()}
+                              {(operation.state || '').toUpperCase()}
                             </span>
                             <span className="px-2 py-1 text-xs font-display bg-primary/20 text-primary border border-primary">
                               {operation.abilityCount} ABILITIES

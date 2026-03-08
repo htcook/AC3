@@ -101,8 +101,8 @@ export default function FAQ({ items, title = 'FREQUENTLY ASKED QUESTIONS', descr
     return items.filter((item) => {
       const matchesSearch =
         searchTerm === '' ||
-        item.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.answer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.question || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.answer || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
       const matchesSeverity = selectedSeverity === 'all' || item.severity === selectedSeverity;

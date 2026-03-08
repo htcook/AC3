@@ -1073,7 +1073,7 @@ function AttackTemplatePicker({ selectedAttackTemplateId, onSelectTemplate }: {
                           )}
                           {template.complexity && (
                             <span className="text-[9px] px-1.5 py-0.5 bg-secondary text-muted-foreground rounded">
-                              {template.complexity.toUpperCase()}
+                              {(template.complexity || '').toUpperCase()}
                             </span>
                           )}
                         </div>

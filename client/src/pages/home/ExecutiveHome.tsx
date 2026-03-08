@@ -111,7 +111,7 @@ export default function ExecutiveHome() {
                 <span className="text-[10px] font-display tracking-wider w-8 text-right">{fw.score}%</span>
                 <span className={`text-[9px] font-display tracking-widest px-2 py-0.5 rounded-full ${
                   fw.status === "compliant" ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"
-                }`}>{fw.status.toUpperCase()}</span>
+                }`}>{(fw.status || '').toUpperCase()}</span>
               </div>
             ))}
           </CardContent>
@@ -162,7 +162,7 @@ export default function ExecutiveHome() {
                   <span className={`text-[9px] font-display tracking-widest px-2 py-0.5 rounded-full ${
                     eng.status === "In Progress" ? "bg-blue-500/20 text-blue-400" :
                     eng.status === "Reporting" ? "bg-purple-500/20 text-purple-400" : "bg-gray-500/20 text-gray-400"
-                  }`}>{eng.status.toUpperCase()}</span>
+                  }`}>{(eng.status || '').toUpperCase()}</span>
                 </div>
               ))}
             </div>

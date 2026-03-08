@@ -42,7 +42,7 @@ export default function OscalExport() {
 
   const generateMutation = trpc.oscalExport.generate.useMutation({
     onSuccess: (data) => {
-      toast.success(`OSCAL Document Generated: ${data.documentType.toUpperCase()} — ${(data.documentSize / 1024).toFixed(1)} KB`);
+      toast.success(`OSCAL Document Generated: ${(data.documentType || '').toUpperCase()} — ${(data.documentSize / 1024).toFixed(1)} KB`);
       setShowGenerateDialog(false);
       setPreviewData(data);
       setShowPreviewDialog(true);
@@ -127,7 +127,7 @@ export default function OscalExport() {
                   <Input
                     value={newExport.title}
                     onChange={(e) => setNewExport(p => ({ ...p, title: e.target.value }))}
-                    placeholder={`ACE C3 ${newExport.documentType.toUpperCase()} — FedRAMP`}
+                    placeholder={`ACE C3 ${(newExport.documentType || '').toUpperCase()} — FedRAMP`}
                   />
                 </div>
                 <div>
@@ -176,7 +176,7 @@ export default function OscalExport() {
         {stats?.byType?.map((t: any) => (
           <Card key={t.type}>
             <CardContent className="pt-4 pb-3">
-              <div className="text-xs text-muted-foreground uppercase">{t.type.toUpperCase()}</div>
+              <div className="text-xs text-muted-foreground uppercase">{(t.type || '').toUpperCase()}</div>
               <div className="text-2xl font-bold mt-1">{t.count}</div>
             </CardContent>
           </Card>
@@ -187,7 +187,7 @@ export default function OscalExport() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {DOC_TYPES.map(dt => (
           <Card key={dt.id} className="hover:border-blue-500/30 transition-colors cursor-pointer" onClick={() => {
-            setNewExport(p => ({ ...p, documentType: dt.id, title: `ACE C3 ${dt.id.toUpperCase()} — FedRAMP` }));
+            setNewExport(p => ({ ...p, documentType: dt.id, title: `ACE C3 ${(dt.id || '').toUpperCase()} — FedRAMP` }));
             setShowGenerateDialog(true);
           }}>
             <CardContent className="pt-5 pb-4">
@@ -224,7 +224,7 @@ export default function OscalExport() {
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span>OSCAL v{exp.oscalVersion}</span>
                       <span>·</span>
-                      <span>{exp.outputFormat.toUpperCase()}</span>
+                      <span>{(exp.outputFormat || '').toUpperCase()}</span>
                       <span>·</span>
                       <span>{new Date(exp.createdAt).toLocaleString()}</span>
                       {exp.outputHash && (

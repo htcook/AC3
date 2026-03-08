@@ -199,7 +199,7 @@ export default function Campaigns() {
                             <h3 className="font-display text-xl">{operation.name}</h3>
                             <span className={`px-2 py-1 text-xs font-display border ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
                               {statusStyle.icon}
-                              {operation.state.toUpperCase()}
+                              {(operation.state || '').toUpperCase()}
                             </span>
                             <span className="px-2 py-1 text-xs font-display bg-primary/20 text-primary border border-primary">
                               {operation.abilityCount} ABILITIES

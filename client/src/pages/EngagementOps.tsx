@@ -3032,7 +3032,7 @@ export default function EngagementOps() {
                             attackChainsQ.data.cloudRiskAssessment.overallRisk === 'medium' ? 'border-yellow-500 text-yellow-400' :
                             'border-green-500 text-green-400'
                           }`}>
-                            {attackChainsQ.data.cloudRiskAssessment.overallRisk.toUpperCase()} — Score: {attackChainsQ.data.cloudRiskAssessment.riskScore}/100
+                            {(attackChainsQ.data.cloudRiskAssessment.overallRisk || '').toUpperCase()} — Score: {attackChainsQ.data.cloudRiskAssessment.riskScore}/100
                           </Badge>
                         </CardTitle>
                       </CardHeader>
@@ -3903,7 +3903,7 @@ export default function EngagementOps() {
                         >
                           <option value="">All vulns (auto-select best)</option>
                           {asset.vulns.map((v, i) => (
-                            <option key={i} value={i}>{v.severity.toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}</option>
+                            <option key={i} value={i}>{(v.severity || '').toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}</option>
                           ))}
                         </select>
                       </div>
@@ -4210,7 +4210,7 @@ export default function EngagementOps() {
                     execResult.status === 'success' ? 'text-green-400 border-green-500/30' :
                     execResult.status === 'timeout' ? 'text-yellow-400 border-yellow-500/30' :
                     'text-red-400 border-red-500/30'
-                  }`}>{execResult.status.toUpperCase()}</Badge>
+                  }`}>{(execResult.status || '').toUpperCase()}</Badge>
                   <span className="text-[10px] text-muted-foreground">Exit: {execResult.exitCode} | {execResult.durationMs}ms{execResult.dryRun ? ' | Dry Run' : ''}</span>
                 </div>
                 <div className="bg-black/40 rounded-lg p-3 font-mono text-[11px] max-h-[300px] overflow-auto">

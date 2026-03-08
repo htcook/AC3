@@ -47,7 +47,7 @@ export default function EDRValidation() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       items = items.filter((t) =>
-        t.testName.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
+        (t.testName || '').toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
       );
     }
     return items;

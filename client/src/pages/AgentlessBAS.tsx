@@ -153,7 +153,7 @@ function ResultsDialog({ testId }: { testId: number }) {
                     <div className="grid grid-cols-2 gap-4">
                         <div><strong>ID:</strong> {test.id}</div>
                         <div><strong>Status:</strong> <StatusBadge status={test.status as StatusType} /></div>
-                        <div><strong>Test Type:</strong> <Badge variant="secondary">{test.testType.toUpperCase()}</Badge></div>
+                        <div><strong>Test Type:</strong> <Badge variant="secondary">{(test.testType || '').toUpperCase()}</Badge></div>
                         <div><strong>Result:</strong> <ResultBadge result={test.result} /></div>
                     </div>
                     <div><strong>Target:</strong> <p className="font-mono p-2 bg-gray-800 rounded">{test.targetDescription}</p></div>
@@ -299,7 +299,7 @@ export default function AgentlessBASPage() {
               {listQuery.isSuccess && listQuery.data.map((test) => (
                 <TableRow key={test.id}>
                   <TableCell className="font-medium">{test.name}</TableCell>
-                  <TableCell><Badge variant="secondary">{test.testType.toUpperCase()}</Badge></TableCell>
+                  <TableCell><Badge variant="secondary">{(test.testType || '').toUpperCase()}</Badge></TableCell>
                   <TableCell className="font-mono text-xs">{test.targetDescription}</TableCell>
                   <TableCell><StatusBadge status={test.status as StatusType} /></TableCell>
                   <TableCell><ResultBadge result={test.result} /></TableCell>

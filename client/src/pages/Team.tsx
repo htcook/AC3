@@ -80,7 +80,7 @@ export default function Team() {
                   <div key={role} className="bg-card border-2 border-border p-4">
                     <div className="flex items-center gap-3 mb-2">
                       <Icon className={`w-5 h-5 ${info.color}`} />
-                      <span className="font-display">{info.label.toUpperCase()}</span>
+                      <span className="font-display">{(info.label || '').toUpperCase()}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">{info.description}</p>
                   </div>

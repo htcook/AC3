@@ -290,7 +290,7 @@ export default function ControlTestingDashboard() {
                           <span>{ctrl.evidenceCount} evidence records</span>
                           <span>·</span>
                           <span className={RISK_COLORS[ctrl.residualRisk]}>
-                            {ctrl.residualRisk.toUpperCase()} residual risk
+                            {(ctrl.residualRisk || '').toUpperCase()} residual risk
                           </span>
                         </div>
                       </div>

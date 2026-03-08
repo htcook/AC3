@@ -1150,8 +1150,8 @@ export function getAbilitiesByTactic(tactic: string): CalderaAbilityDef[] {
 export function searchIOCs(pattern: string): RansomwareIOC[] {
   const lower = pattern.toLowerCase();
   return getAllIOCs().filter(ioc => 
-    ioc.value.toLowerCase().includes(lower) || 
-    ioc.description.toLowerCase().includes(lower)
+    (ioc.value || '').toLowerCase().includes(lower) || 
+    (ioc.description || '').toLowerCase().includes(lower)
   );
 }
 

@@ -269,7 +269,7 @@ export default function CampaignDetail() {
             <div className="flex items-center gap-4">
               <h1 className="font-display text-3xl md:text-2xl sm:text-3xl lg:text-4xl">{campaign.name}</h1>
               <span className={`px-3 py-1 text-xs font-display border ${statusStyle.bg} ${statusStyle.text}`}>
-                {campaign.status.toUpperCase()}
+                {(campaign.status || '').toUpperCase()}
               </span>
             </div>
           </div>
@@ -703,7 +703,7 @@ export default function CampaignDetail() {
                           <td className="px-3 py-2">{c.alertCount}</td>
                           <td className="px-3 py-2">
                             <Badge variant={c.maxSeverity === 'critical' ? 'destructive' : c.maxSeverity === 'high' ? 'destructive' : 'secondary'} className="text-xs">
-                              {c.maxSeverity.toUpperCase()}
+                              {(c.maxSeverity || '').toUpperCase()}
                             </Badge>
                           </td>
                           <td className="px-3 py-2 text-xs text-muted-foreground truncate max-w-[200px]">

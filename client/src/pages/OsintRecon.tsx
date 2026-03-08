@@ -421,7 +421,7 @@ export default function OsintRecon() {
                             factor.impact === 'high' ? 'bg-orange-500/20 text-orange-400' :
                             factor.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
                             'bg-green-500/20 text-green-400'
-                          }`}>{factor.impact.toUpperCase()}</span>
+                          }`}>{(factor.impact || '').toUpperCase()}</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">{factor.detail}</p>
                       </div>
@@ -496,7 +496,7 @@ export default function OsintRecon() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-display tracking-wider text-muted-foreground bg-accent/50 px-2 py-0.5">
-                        {t.permutationType.toUpperCase().replace('_', ' ')}
+                        {(t.permutationType || '').toUpperCase().replace('_', ' ')}
                       </span>
                       <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Button
@@ -622,7 +622,7 @@ export default function OsintRecon() {
                         t.status === 'transferred' ? 'bg-purple-500/20 text-purple-400' :
                         'bg-gray-500/20 text-gray-400'
                       }`}>
-                        {t.status.toUpperCase().replace('_', ' ')}
+                        {(t.status || '').toUpperCase().replace('_', ' ')}
                       </div>
                     )}
                   </div>

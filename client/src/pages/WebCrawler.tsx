@@ -468,7 +468,7 @@ function CrawlResultDetail({ result }: { result: any }) {
             {result.findings.map((f: any, i: number) => (
               <div key={i} className="p-3 bg-muted/10 rounded-lg border border-border/20">
                 <div className="flex items-center gap-2 mb-1">
-                  <Badge className={SEVERITY_COLORS[f.severity]}>{f.severity.toUpperCase()}</Badge>
+                  <Badge className={SEVERITY_COLORS[f.severity]}>{(f.severity || '').toUpperCase()}</Badge>
                   <span className="text-sm font-semibold">{f.title}</span>
                 </div>
                 <div className="text-xs text-muted-foreground mb-1">{f.description}</div>
@@ -538,7 +538,7 @@ function CrawlResultDetail({ result }: { result: any }) {
         <div className="space-y-2">
           {result.exposedPaths?.map((ep: any, i: number) => (
             <div key={i} className="flex items-center gap-3 p-3 bg-muted/10 rounded-lg border border-border/20">
-              <Badge className={SEVERITY_COLORS[ep.severity]}>{ep.severity.toUpperCase()}</Badge>
+              <Badge className={SEVERITY_COLORS[ep.severity]}>{(ep.severity || '').toUpperCase()}</Badge>
               <span className="text-sm font-mono">{ep.path}</span>
               <Badge variant="outline" className="text-xs border-border/30">{ep.status}</Badge>
               <span className="text-xs text-muted-foreground flex-1">{ep.description}</span>

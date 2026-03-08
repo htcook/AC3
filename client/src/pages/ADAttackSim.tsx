@@ -83,7 +83,7 @@ export default function ADAttackSim() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       items = items.filter((a: { name: string; description: string }) =>
-        a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
+        (a.name || '').toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
       );
     }
     return items;

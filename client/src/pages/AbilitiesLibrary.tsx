@@ -213,11 +213,11 @@ export default function AbilitiesLibrary() {
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(a =>
-        a.name.toLowerCase().includes(q) ||
-        a.description.toLowerCase().includes(q) ||
-        a.technique_id.toLowerCase().includes(q) ||
-        a.technique_name.toLowerCase().includes(q) ||
-        a.ability_id.toLowerCase().includes(q)
+        (a.name || '').toLowerCase().includes(q) ||
+        (a.description || '').toLowerCase().includes(q) ||
+        (a.technique_id || '').toLowerCase().includes(q) ||
+        (a.technique_name || '').toLowerCase().includes(q) ||
+        (a.ability_id || '').toLowerCase().includes(q)
       );
     }
     return result;
@@ -235,9 +235,9 @@ export default function AbilitiesLibrary() {
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(i =>
-        i.value.toLowerCase().includes(q) ||
-        i.description.toLowerCase().includes(q) ||
-        i.type.toLowerCase().includes(q)
+        (i.value || '').toLowerCase().includes(q) ||
+        (i.description || '').toLowerCase().includes(q) ||
+        (i.type || '').toLowerCase().includes(q)
       );
     }
     return result;

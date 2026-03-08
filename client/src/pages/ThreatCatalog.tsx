@@ -314,7 +314,7 @@ export default function ThreatCatalog() {
                       {/* Type, Origin & Threat Level */}
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className={`text-[10px] px-2 py-0.5 border ${typeConf.bg} ${typeConf.color} tracking-wider`}>
-                          {typeConf.label.toUpperCase()}
+                          {(typeConf.label || '').toUpperCase()}
                         </span>
                         {actor.origin && (
                           <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">

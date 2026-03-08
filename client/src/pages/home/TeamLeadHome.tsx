@@ -71,7 +71,7 @@ export default function TeamLeadHome() {
                   <span className={`text-[9px] font-display tracking-widest px-2 py-0.5 rounded-full ${
                     eng.status === "on-track" ? "bg-emerald-500/20 text-emerald-400" :
                     eng.status === "at-risk" ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"
-                  }`}>{eng.status.toUpperCase().replace("-", " ")}</span>
+                  }`}>{(eng.status || '').toUpperCase().replace("-", " ")}</span>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-[10px] text-muted-foreground">{eng.phase}</span>

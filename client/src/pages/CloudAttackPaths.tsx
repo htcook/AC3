@@ -96,7 +96,7 @@ export default function CloudAttackPaths() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       items = items.filter((a) =>
-        a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
+        (a.name || '').toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
       );
     }
     return items;
@@ -111,7 +111,7 @@ export default function CloudAttackPaths() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       items = items.filter((p) =>
-        p.pathName.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q)
+        (p.pathName || '').toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q)
       );
     }
     return items;

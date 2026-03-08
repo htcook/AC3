@@ -259,7 +259,7 @@ export default function AuthPipeline() {
                         }
                       >
                         {pipeline.status === "running" && <Radio className="h-3 w-3 mr-1 animate-pulse" />}
-                        {pipeline.status.toUpperCase()}
+                        {(pipeline.status || '').toUpperCase()}
                       </Badge>
                       <span className="text-sm font-medium">{pipeline.name}</span>
                       <Badge variant="outline" className="text-[10px] font-mono">{pipeline.mode}</Badge>

@@ -495,7 +495,7 @@ export default function ControlTesting() {
                                   {tr.execution.result.detailedFindings.map((f: any) => (
                                     <div key={f.findingId} className="p-2 rounded border mb-1">
                                       <div className="flex items-center gap-2 mb-1">
-                                        <Badge className={`text-xs ${severityColor(f.severity)}`}>{f.severity.toUpperCase()}</Badge>
+                                        <Badge className={`text-xs ${severityColor(f.severity)}`}>{(f.severity || '').toUpperCase()}</Badge>
                                         <span className="text-sm font-medium">{f.title}</span>
                                       </div>
                                       <div className="grid grid-cols-2 gap-2 text-xs">

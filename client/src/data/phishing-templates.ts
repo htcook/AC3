@@ -1637,11 +1637,11 @@ export function getTemplatesByCategory(category: TemplateCategory): PhishingTemp
 export function searchTemplates(query: string): PhishingTemplate[] {
   const lower = query.toLowerCase();
   return PHISHING_TEMPLATES.filter(t =>
-    t.name.toLowerCase().includes(lower) ||
-    t.description.toLowerCase().includes(lower) ||
-    t.subjectLine.toLowerCase().includes(lower) ||
+    (t.name || '').toLowerCase().includes(lower) ||
+    (t.description || '').toLowerCase().includes(lower) ||
+    (t.subjectLine || '').toLowerCase().includes(lower) ||
     t.tags.some(tag => tag.toLowerCase().includes(lower)) ||
-    t.category.toLowerCase().includes(lower)
+    (t.category || '').toLowerCase().includes(lower)
   );
 }
 

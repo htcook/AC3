@@ -93,7 +93,7 @@ export default function AttackCoverage() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <Badge variant="outline" className={COVERAGE_COLORS[tactic.coverageLevel]}>
-                        {tactic.coverageLevel.toUpperCase()}
+                        {(tactic.coverageLevel || '').toUpperCase()}
                       </Badge>
                       <div>
                         <p className="font-medium">{tactic.tacticName}</p>

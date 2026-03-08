@@ -75,7 +75,7 @@ export default function CampaignArchetypes() {
     return archetypes.filter((a) => {
       const matchSearch =
         !search ||
-        a.name.toLowerCase().includes(search.toLowerCase()) ||
+        (a.name || '').toLowerCase().includes(search.toLowerCase()) ||
         (a.description || "").toLowerCase().includes(search.toLowerCase());
       const matchCategory = categoryFilter === "all" || a.category === categoryFilter;
       return matchSearch && matchCategory;

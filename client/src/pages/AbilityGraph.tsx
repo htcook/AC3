@@ -1292,9 +1292,9 @@ export default function AbilityGraph() {
     if (!listFilter) return graphList.data.items;
     const q = listFilter.toLowerCase();
     return graphList.data.items.filter(g =>
-      g.name.toLowerCase().includes(q) ||
+      (g.name || '').toLowerCase().includes(q) ||
       g.actorName?.toLowerCase().includes(q) ||
-      g.status.toLowerCase().includes(q),
+      (g.status || '').toLowerCase().includes(q),
     );
   }, [graphList.data, listFilter]);
 

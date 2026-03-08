@@ -85,9 +85,9 @@ export default function TemplateGenerator() {
     if (!searchQuery) return allActors;
     const q = searchQuery.toLowerCase();
     return allActors.filter(a =>
-      a.name.toLowerCase().includes(q) ||
-      a.alias.toLowerCase().includes(q) ||
-      a.type.toLowerCase().includes(q) ||
+      (a.name || '').toLowerCase().includes(q) ||
+      (a.alias || '').toLowerCase().includes(q) ||
+      (a.type || '').toLowerCase().includes(q) ||
       a.targetSectors.some(s => s.toLowerCase().includes(q))
     );
   }, [allActors, searchQuery]);

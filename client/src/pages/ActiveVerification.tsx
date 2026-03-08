@@ -140,7 +140,7 @@ export default function ActiveVerification() {
             <CardTitle className="flex items-center gap-3">
               Verification Report
               <Badge className={riskColors[suiteResult.overallRisk] || "bg-zinc-500"}>
-                {suiteResult.overallRisk.toUpperCase()} RISK
+                {(suiteResult.overallRisk || '').toUpperCase()} RISK
               </Badge>
             </CardTitle>
             <CardDescription>

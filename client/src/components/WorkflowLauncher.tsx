@@ -706,10 +706,10 @@ export default function WorkflowLauncher() {
 
   const filteredWorkflows = searchQuery
     ? WORKFLOWS.filter(w =>
-        w.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        w.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (w.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (w.subtitle || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         w.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        w.steps.some(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+        w.steps.some(s => (s.title || '').toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : WORKFLOWS;
 

@@ -1116,7 +1116,7 @@ function EvasionOrchestratorTab() {
                       attempt.result === "blocked" ? "border-red-500/30 text-red-400" :
                       "border-amber-500/30 text-amber-400"
                     }`}>
-                      {attempt.result.toUpperCase()}
+                      {(attempt.result || '').toUpperCase()}
                     </Badge>
                     {attempt.blockSignal && (
                       <span className="text-xs text-muted-foreground shrink-0">{attempt.blockSignal}</span>
@@ -1157,14 +1157,14 @@ function EvasionOrchestratorTab() {
                 >
                   <div className="flex items-center gap-3">
                     {expandedFinding === f.id ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    <Badge variant="outline" className="text-xs">{f.domain.toUpperCase()}</Badge>
+                    <Badge variant="outline" className="text-xs">{(f.domain || '').toUpperCase()}</Badge>
                     <span className="text-sm truncate max-w-[300px]">{f.target}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className={`text-xs ${
                       f.finalResult === "bypassed" ? "border-green-500/30 text-green-400" : "border-red-500/30 text-red-400"
                     }`}>
-                      {f.finalResult.toUpperCase()}
+                      {(f.finalResult || '').toUpperCase()}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{f.totalAttempts} attempts</span>
                     <span className="text-xs text-muted-foreground">{new Date(f.completedAt).toLocaleTimeString()}</span>

@@ -232,7 +232,7 @@ function ConfigurePanel({
             <div>
               <CardTitle className="text-base text-zinc-100">Configure {meta.displayName}</CardTitle>
               <CardDescription className="text-xs text-zinc-500">
-                Auth type: {meta.authType.toUpperCase()} | Required: {meta.requiredFields.join(", ")}
+                Auth type: {(meta.authType || '').toUpperCase()} | Required: {meta.requiredFields.join(", ")}
               </CardDescription>
             </div>
           </div>

@@ -67,11 +67,11 @@ export default function NaabuPage() {
       const f = filter.toLowerCase();
       return items.filter(
         (p) =>
-          p.host.toLowerCase().includes(f) ||
+          (p.host || '').toLowerCase().includes(f) ||
           p.ip.includes(f) ||
           p.port.toString().includes(f) ||
-          (p.service && p.service.toLowerCase().includes(f)) ||
-          (p.banner && p.banner.toLowerCase().includes(f))
+          (p.service && (p.service || '').toLowerCase().includes(f)) ||
+          (p.banner && (p.banner || '').toLowerCase().includes(f))
       );
     }
     items.sort((a, b) => {

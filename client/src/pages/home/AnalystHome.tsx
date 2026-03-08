@@ -114,7 +114,7 @@ export default function AnalystHome() {
                     vuln.status === "exploited" ? "bg-red-500/20 text-red-400" :
                     vuln.status === "unpatched" ? "bg-amber-500/20 text-amber-400" :
                     vuln.status === "patched" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"
-                  }`}>{vuln.status.toUpperCase()}</span>
+                  }`}>{(vuln.status || '').toUpperCase()}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-muted-foreground">{vuln.product}</span>

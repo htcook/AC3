@@ -630,7 +630,7 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
                     : 'bg-card text-muted-foreground border-border hover:border-blue-500/30 hover:text-foreground'
                 }`}
               >
-                {CATEGORY_ICONS_MAP[cat]} {catInfo.label.toUpperCase()} ({count})
+                {CATEGORY_ICONS_MAP[cat]} {(catInfo.label || '').toUpperCase()} ({count})
               </button>
             );
           })}
@@ -731,7 +731,7 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
                   )}
                   {t._difficulty && (
                     <span className={`text-[10px] font-display tracking-wider px-2 py-0.5 rounded border ${difficultyColors[t._difficulty]}`}>
-                      {t._difficulty.toUpperCase()}
+                      {(t._difficulty || '').toUpperCase()}
                     </span>
                   )}
                 </div>

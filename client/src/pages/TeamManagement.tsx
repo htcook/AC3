@@ -163,7 +163,7 @@ export default function TeamManagement() {
       (u) =>
         u.name?.toLowerCase().includes(q) ||
         u.email?.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q) ||
+        (u.role || '').toLowerCase().includes(q) ||
         u.department?.toLowerCase().includes(q)
     );
   }, [team.data, searchQuery]);

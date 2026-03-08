@@ -82,7 +82,7 @@ export default function AttackVectorEngine() {
   const filteredVectors = useMemo(() => {
     if (!vectors.data) return [];
     return vectors.data.filter((v: any) => {
-      if (searchFilter && !v.title.toLowerCase().includes(searchFilter.toLowerCase()) &&
+      if (searchFilter && !(v.title || '').toLowerCase().includes(searchFilter.toLowerCase()) &&
           !v.attackSurface?.toLowerCase().includes(searchFilter.toLowerCase())) return false;
       return true;
     });

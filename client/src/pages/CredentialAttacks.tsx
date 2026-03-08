@@ -949,11 +949,11 @@ function ExternalToolsPanel({ protocol, host, port, attackMode, onAttackResult }
       };
       onAttackResult(normalized);
       if (data.successfulLogins?.length > 0) {
-        toast.success(`${data.tool.toUpperCase()}: Found ${data.successfulLogins.length} valid credential(s)!`);
+        toast.success(`${(data.tool || '').toUpperCase()}: Found ${data.successfulLogins.length} valid credential(s)!`);
       } else if (data.status === "tool_not_found") {
         toast.error(`${data.tool} is not installed. ${data.errors?.[0] || ""}`);
       } else {
-        toast.info(`${data.tool.toUpperCase()}: Attack completed — no valid credentials found`);
+        toast.info(`${(data.tool || '').toUpperCase()}: Attack completed — no valid credentials found`);
       }
     },
     onError: (err) => {

@@ -992,9 +992,9 @@ function ATLASDrillDownTab({ preselectedTechniqueId }: { preselectedTechniqueId:
     if (!searchQuery.trim()) return summaries;
     const q = searchQuery.toLowerCase();
     return summaries.filter((s: any) =>
-      s.id.toLowerCase().includes(q) ||
-      s.name.toLowerCase().includes(q) ||
-      s.tactic.toLowerCase().includes(q)
+      (s.id || '').toLowerCase().includes(q) ||
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.tactic || '').toLowerCase().includes(q)
     );
   }, [summaries, searchQuery]);
 

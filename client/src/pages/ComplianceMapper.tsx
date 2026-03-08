@@ -78,7 +78,7 @@ export default function ComplianceMapper() {
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      items = items.filter((f) => f.name.toLowerCase().includes(q) || f.key.toLowerCase().includes(q));
+      items = items.filter((f) => (f.name || '').toLowerCase().includes(q) || f.key.toLowerCase().includes(q));
     }
     return items;
   }, [frameworkCatalog.data, selectedFramework, searchQuery]);
@@ -213,7 +213,7 @@ export default function ComplianceMapper() {
                   .filter((c) => {
                     if (!searchQuery) return true;
                     const q = searchQuery.toLowerCase();
-                    return c.controlId.toLowerCase().includes(q) || c.controlName.toLowerCase().includes(q) || c.description.toLowerCase().includes(q);
+                    return (c.controlId || '').toLowerCase().includes(q) || c.controlName.toLowerCase().includes(q) || c.description.toLowerCase().includes(q);
                   })
                   .map((control) => (
                     <Card key={control.controlId} className="bg-card/50 border-border/50">

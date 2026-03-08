@@ -148,7 +148,7 @@ export default function CredentialAutoRotation() {
                   <SelectContent>
                     {(credentials.data || []).map((cred: any) => (
                       <SelectItem key={cred.id} value={String(cred.id)}>
-                        {cred.provider.toUpperCase()} — {cred.credentialName}
+                        {(cred.provider || '').toUpperCase()} — {cred.credentialName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -260,7 +260,7 @@ export default function CredentialAutoRotation() {
                       <div>
                         <p className="font-medium">{policy.credentialName}</p>
                         <p className="text-xs text-muted-foreground">
-                          {policy.provider.toUpperCase()} · Every {policy.rotationIntervalDays} days
+                          {(policy.provider || '').toUpperCase()} · Every {policy.rotationIntervalDays} days
                           {policy.lastRotatedAt && (
                             <> · Last rotated: {new Date(policy.lastRotatedAt).toLocaleDateString()}</>
                           )}

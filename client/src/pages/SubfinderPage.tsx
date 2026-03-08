@@ -40,8 +40,8 @@ export default function SubfinderPage() {
       const f = filter.toLowerCase();
       items = items.filter(
         (s) =>
-          s.subdomain.toLowerCase().includes(f) ||
-          s.source.toLowerCase().includes(f) ||
+          (s.subdomain || '').toLowerCase().includes(f) ||
+          (s.source || '').toLowerCase().includes(f) ||
           (s.ip && s.ip.includes(f))
       );
     }
