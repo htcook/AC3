@@ -8274,3 +8274,23 @@
 - [x] Log acknowledgment with operator name, target, timestamp, and rules accepted
 - [x] Write vitest tests for RoE acknowledgment flow (24/24 passing)
 - [x] Save checkpoint and deliver
+
+## RoE Enforcement Testing (March 8, 2026)
+- [ ] Test RoE acknowledgment endpoint against restricted target (scanme-nmap)
+- [ ] Test RoE acknowledgment endpoint against unrestricted target (juice-shop)
+- [ ] Test RoE acknowledgment endpoint against requires-own-instance target (google-gruyere)
+- [ ] Test RoE enforcement blocks prohibited scan types
+- [ ] Test scan launch with RoE acknowledgment flow end-to-end
+- [ ] Verify audit trail entries in roe_acknowledgments table
+- [ ] Report results
+
+## Auto-Deploy Training Instances (March 8, 2026)
+- [x] Check scan server SSH connectivity and Docker availability (Docker 28.2.2 installed)
+- [x] Deploy OWASP Juice Shop Docker container on scan server (port 3001, HTTP 200)
+- [x] Deploy DVWA Docker container on scan server (port 3002, HTTP 302)
+- [x] Auto-provision Google Gruyere sandboxed instance (ID: 447779178481370595027386738577077166232, HTTP 200)
+- [x] Wire deployed instance URLs into training lab pipeline (liveInstanceUrl field, auto-resolve in startSession)
+- [x] Update training targets with live instance URLs (Juice Shop, DVWA, Gruyere)
+- [x] Add DVWA to TRAINING_TARGETS catalog with full RoE and ground truth (14 vulns)
+- [x] Verify all three instances are reachable and functional (all HTTP 200/302, titles confirmed)
+- [ ] Save checkpoint and deliver

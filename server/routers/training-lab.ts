@@ -40,6 +40,7 @@ export interface TrainingTarget {
   id: string;
   name: string;
   url: string;
+  liveInstanceUrl?: string;
   description: string;
   difficulty: "beginner" | "intermediate" | "advanced";
   category: string;
@@ -54,6 +55,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "juice-shop",
     name: "OWASP Juice Shop",
     url: "https://demo.owasp-juice.shop",
+    liveInstanceUrl: `http://${process.env.SCAN_SERVER_HOST || '159.223.152.190'}:3001`,
     description: "Intentionally insecure web application for security training. Contains 100+ challenges covering the OWASP Top 10 and beyond.",
     difficulty: "beginner",
     category: "Web Application",
@@ -304,6 +306,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "google-gruyere",
     name: "Google Gruyere",
     url: "http://google-gruyere.appspot.com/start",
+    liveInstanceUrl: "https://google-gruyere.appspot.com/447779178481370595027386738577077166232/",
     description: "Google's 'cheesy' vulnerable web app. Built in Python on GAE, features XSS, CSRF, RCE, DoS, and information disclosure vulnerabilities.",
     difficulty: "beginner",
     category: "Web Application",
@@ -551,6 +554,32 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     },
   },
   {
+    id: "dvwa",
+    name: "Damn Vulnerable Web Application (DVWA)",
+    url: "https://github.com/digininja/DVWA",
+    liveInstanceUrl: `http://${process.env.SCAN_SERVER_HOST || '159.223.152.190'}:3002`,
+    description: "PHP/MySQL web application that is intentionally vulnerable. Covers SQL injection, XSS, CSRF, file inclusion, command injection, brute force, and more. Multiple security levels (low/medium/high/impossible).",
+    difficulty: "beginner",
+    category: "Web Application",
+    knownVulns: ["SQL Injection", "XSS (Reflected)", "XSS (Stored)", "XSS (DOM)", "CSRF", "File Inclusion", "File Upload", "Command Injection", "Brute Force", "Insecure CAPTCHA", "Weak Session IDs", "Open HTTP Redirect", "Content Security Policy Bypass", "JavaScript Attacks"],
+    owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025", "A06:2025", "A07:2025"],
+    tags: ["php", "mysql", "beginner-friendly", "multi-level", "classic"],
+    roe: {
+      provider: "DVWA Project (digininja)",
+      termsUrl: "https://github.com/digininja/DVWA",
+      summary: "Open-source GPL-licensed training app. Designed to be attacked. Self-hosted instance — you own it, full permission to test.",
+      allowed: ["All web vulnerability testing", "SQL injection", "XSS", "Command injection", "File upload attacks", "Brute force", "CSRF", "Automated DAST"],
+      prohibited: [],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: false,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Self-hosted on scan server. Default credentials: admin/password. Set security level via DVWA Security page.",
+    },
+  },
+  {
     id: "custom",
     name: "Custom Target",
     url: "",
@@ -644,7 +673,7 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
 
     // ── Load RoE for this target (if it's a known training target) ──
     let targetRoE: import("../lib/training-roe-guard").RoECheckResult | null = null;
-    const matchedTarget = TRAINING_TARGETS.find(t => t.url === targetUrl || hostname.includes(new URL(t.url.startsWith("http") ? t.url : `https://${t.url}`).hostname));
+    const matchedTarget = TRAINING_TARGETS.find(t => t.url === targetUrl || t.liveInstanceUrl === targetUrl || hostname.includes(new URL(t.url.startsWith("http") ? t.url : `https://${t.url}`).hostname));
     if (matchedTarget) {
       const { enforceTrainingRoE } = await import("../lib/training-roe-guard");
       targetRoE = enforceTrainingRoE(matchedTarget, { targetId: matchedTarget.id, scanProfile: scanProfile as any });
@@ -900,7 +929,7 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
     });
 
     // Determine target preset for learning context
-    const targetPresetForLearning = TRAINING_TARGETS.find(t => t.url === targetUrl)?.id || "custom";
+    const targetPresetForLearning = TRAINING_TARGETS.find(t => t.url === targetUrl || t.liveInstanceUrl === targetUrl)?.id || "custom";
 
     let llmAnalysis: any = null;
     try {
@@ -1188,9 +1217,13 @@ export const trainingLabRouter = router({
         // Record the scan launch for rate limiting
         recordScanLaunch(target.id);
 
-        targetUrl = target.url;
+        // Prefer live instance URL (self-hosted) over canonical URL
+        targetUrl = target.liveInstanceUrl || target.url;
         targetPreset = target.id;
         sessionName = input.name || `${target.name} - ${new Date().toLocaleDateString()}`;
+        if (target.liveInstanceUrl) {
+          console.log(`[TrainingLab] Using live instance: ${target.liveInstanceUrl} (canonical: ${target.url})`);
+        }
       } else if (input.customUrl) {
         targetUrl = input.customUrl;
         targetPreset = "custom";

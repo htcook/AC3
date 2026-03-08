@@ -231,6 +231,22 @@ export const GROUND_TRUTH_LIBRARY: Record<string, GroundTruthVuln[]> = {
     { title: "File Upload Vulnerability", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "Unrestricted file upload allows malicious file execution.", detectionHint: "Upload PHP/JSP webshell" },
     { title: "Authentication Bypass", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "critical", description: "Authentication mechanisms can be bypassed.", detectionHint: "Test with SQLi and default credentials" },
   ],
+  "dvwa": [
+    { title: "SQL Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "SQL injection in login and ID parameter on multiple pages.", detectionHint: "Test ID parameter with ' OR 1=1 --" },
+    { title: "XSS - Reflected", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Reflected XSS via name parameter on XSS (Reflected) page.", detectionHint: "Inject <script>alert(1)</script> in name field" },
+    { title: "XSS - Stored", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Stored XSS via guestbook entries on XSS (Stored) page.", detectionHint: "Submit XSS payload in guestbook name/message" },
+    { title: "XSS - DOM Based", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DOM-based XSS via URL parameter on XSS (DOM) page.", detectionHint: "Manipulate URL fragment with XSS payload" },
+    { title: "Command Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "OS command injection via ping IP input field.", detectionHint: "Test with ; id or | cat /etc/passwd" },
+    { title: "CSRF", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "medium", description: "Password change form lacks CSRF token protection.", detectionHint: "Craft external form that submits password change" },
+    { title: "File Inclusion - Local", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Local file inclusion via page parameter.", detectionHint: "Test with ../../etc/passwd" },
+    { title: "File Inclusion - Remote", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Remote file inclusion allows loading external PHP files.", detectionHint: "Include remote PHP shell via URL" },
+    { title: "File Upload Vulnerability", category: "Injection", owaspCategory: "A04:2025", severity: "critical", description: "Unrestricted file upload allows PHP webshell upload.", detectionHint: "Upload .php file and execute via web" },
+    { title: "Brute Force", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "Login form has no rate limiting or account lockout.", detectionHint: "Attempt multiple login attempts with common passwords" },
+    { title: "Insecure CAPTCHA", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "CAPTCHA implementation can be bypassed by manipulating step parameter.", detectionHint: "Skip CAPTCHA step by modifying POST parameters" },
+    { title: "Weak Session IDs", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "Session IDs are predictable and sequential.", detectionHint: "Collect multiple session IDs and analyze pattern" },
+    { title: "Open HTTP Redirect", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Redirect parameter allows redirection to arbitrary URLs.", detectionHint: "Test redirect parameter with external URL" },
+    { title: "Content Security Policy Bypass", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "CSP headers are misconfigured allowing inline script execution.", detectionHint: "Check CSP headers and test bypass techniques" },
+  ],
 };
 
 // ─── Feedback Knowledge Base ───────────────────────────────────────────────
