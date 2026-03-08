@@ -8395,3 +8395,13 @@
 - [x] Test quickPlan (unknown CVE) — fallback plan, confidence 40%
 - [x] Test generatePlan (LLM → Juice Shop) — 7 steps, OPSEC risk 5, confidence 95%
 - [x] All 19 exploit bridge integration tests passing
+
+## Build Optimization (March 2026)
+- [ ] Analyze bundle composition and identify largest chunks
+- [ ] Configure Vite manualChunks for better code-splitting
+- [ ] Lazy-load heavy vendor libraries (shiki, mermaid, cytoscape, katex, pdf)
+- [ ] Reduce DomainIntelResults chunk size (1.1MB)
+- [ ] Reduce EngagementOps chunk size (554KB)
+- [ ] Fix production build OOM (currently needs 4GB heap)
+- [ ] Verify production build succeeds with default memory
+- [ ] Test production site renders correctly after optimization
