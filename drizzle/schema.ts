@@ -5091,3 +5091,29 @@ export type InsertVulnScanSnapshot = typeof vulnScanSnapshots.$inferInsert;
 export type SelectVulnScanSnapshot = typeof vulnScanSnapshots.$inferSelect;
 export type InsertVulnTrendEntry = typeof vulnTrendEntries.$inferInsert;
 export type SelectVulnTrendEntry = typeof vulnTrendEntries.$inferSelect;
+
+
+// ─── RoE Acknowledgment Audit Trail ──────────────────────────────────
+
+export const roeAcknowledgments = mysqlTable("roe_acknowledgments", {
+	id: int().autoincrement().notNull().primaryKey(),
+	operatorId: int("operator_id").notNull(),
+	operatorName: varchar("operator_name", { length: 255 }).notNull(),
+	targetId: varchar("target_id", { length: 128 }).notNull(),
+	targetName: varchar("target_name", { length: 255 }).notNull(),
+	targetUrl: varchar("target_url", { length: 512 }).notNull(),
+	rulesAccepted: json("rules_accepted").notNull(),
+	enforcedRules: json("enforced_rules").notNull(),
+	scanProfile: varchar("scan_profile", { length: 32 }).notNull(),
+	sessionId: varchar("session_id", { length: 128 }),
+	ipAddress: varchar("ip_address", { length: 64 }),
+	acknowledgedAt: timestamp("acknowledged_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("roe_ack_operator_idx").on(table.operatorId),
+	index("roe_ack_target_idx").on(table.targetId),
+	index("roe_ack_time_idx").on(table.acknowledgedAt),
+]);
+
+export type InsertRoeAcknowledgment = typeof roeAcknowledgments.$inferInsert;
+export type SelectRoeAcknowledgment = typeof roeAcknowledgments.$inferSelect;

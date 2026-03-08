@@ -27,6 +27,8 @@ import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -165,6 +167,8 @@ export default function TrainingLab() {
   const [targetSearch, setTargetSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [difficultyFilter, setDifficultyFilter] = useState<string>("all");
+  const [showRoEModal, setShowRoEModal] = useState(false);
+  const [pendingScanConfig, setPendingScanConfig] = useState<{ targetId?: string; customUrl?: string; scanProfile: string } | null>(null);
 
   // Data queries
   const { data: targets } = trpc.trainingLab.targets.useQuery();
@@ -205,16 +209,80 @@ export default function TrainingLab() {
     }
   }, [activeSession?.isRunning, activeSession?.phase]);
 
+  // Find the selected target object for RoE checks
+  const selectedTargetObj = useMemo(() => {
+    if (!selectedTarget || selectedTarget === "custom") return null;
+    return targets?.find(t => t.id === selectedTarget) || null;
+  }, [selectedTarget, targets]);
+
+  const acknowledgeRoE = trpc.trainingLab.acknowledgeRoE.useMutation({
+    onError: (err) => toast.error(`RoE acknowledgment failed: ${err.message}`),
+  });
+
   function handleStartScan() {
     if (!selectedTarget && !customUrl) {
       toast.error("Select a target or enter a custom URL");
       return;
     }
-    startSession.mutate({
+
+    const config = {
       targetId: selectedTarget || undefined,
       customUrl: selectedTarget === "custom" || !selectedTarget ? customUrl || undefined : undefined,
-      scanProfile: scanProfile as any,
+      scanProfile: scanProfile,
+    };
+
+    // Check if the target has restrictions that require acknowledgment
+    const target = selectedTargetObj;
+    if (target && target.roe) {
+      const hasRestrictions = target.roe.noBruteForce || target.roe.noDoS || target.roe.noExfiltration ||
+        target.roe.requiresOwnInstance || target.roe.maxScansPerDay !== null || target.roe.prohibited.length > 0;
+      if (hasRestrictions) {
+        setPendingScanConfig(config);
+        setShowRoEModal(true);
+        return;
+      }
+    }
+
+    // Custom target always requires acknowledgment
+    if (selectedTarget === "custom" || !selectedTarget) {
+      setPendingScanConfig(config);
+      setShowRoEModal(true);
+      return;
+    }
+
+    // Unrestricted target — launch directly
+    startSession.mutate({
+      targetId: config.targetId,
+      customUrl: config.customUrl,
+      scanProfile: config.scanProfile as any,
     });
+  }
+
+  function handleRoEAccepted() {
+    if (!pendingScanConfig) return;
+
+    // Log the acknowledgment
+    const target = selectedTargetObj;
+    acknowledgeRoE.mutate({
+      targetId: pendingScanConfig.targetId || "custom",
+      scanProfile: pendingScanConfig.scanProfile,
+    });
+
+    // Launch the scan
+    startSession.mutate({
+      targetId: pendingScanConfig.targetId,
+      customUrl: pendingScanConfig.customUrl,
+      scanProfile: pendingScanConfig.scanProfile as any,
+    });
+
+    setShowRoEModal(false);
+    setPendingScanConfig(null);
+  }
+
+  function handleRoERejected() {
+    setShowRoEModal(false);
+    setPendingScanConfig(null);
+    toast.info("Scan cancelled — RoE not accepted.");
   }
 
   function handleViewSession(sessionId: string) {
@@ -508,6 +576,7 @@ export default function TrainingLab() {
                         className="w-full"
                         disabled={
                           startSession.isPending ||
+                          acknowledgeRoE.isPending ||
                           (!selectedTarget && !customUrl) ||
                           (selectedTarget === "custom" && !customUrl)
                         }
@@ -520,6 +589,16 @@ export default function TrainingLab() {
                         )}
                         Start Training Scan
                       </Button>
+
+                      {/* RoE Acknowledgment Modal */}
+                      <RoEAcknowledgmentModal
+                        open={showRoEModal}
+                        target={selectedTargetObj}
+                        customUrl={customUrl}
+                        scanProfile={scanProfile}
+                        onAccept={handleRoEAccepted}
+                        onReject={handleRoERejected}
+                      />
                     </CardContent>
                   </Card>
 
@@ -1872,5 +1951,211 @@ function RoECard({ target, expanded, onToggle }: { target: TrainingTarget; expan
         )}
       </CardContent>
     </Card>
+  );
+}
+
+
+// ─── RoE Acknowledgment Modal ─────────────────────────────────────────────
+
+interface RoEAcknowledgmentModalProps {
+  open: boolean;
+  target: any | null;
+  customUrl: string;
+  scanProfile: string;
+  onAccept: () => void;
+  onReject: () => void;
+}
+
+function RoEAcknowledgmentModal({ open, target, customUrl, scanProfile, onAccept, onReject }: RoEAcknowledgmentModalProps) {
+  const [accepted, setAccepted] = useState(false);
+  const [scrolledToBottom, setScrolledToBottom] = useState(false);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (open) {
+      setAccepted(false);
+      setScrolledToBottom(false);
+    }
+  }, [open]);
+
+  const roe = target?.roe;
+  const isCustom = !target;
+  const targetName = target?.name || customUrl || "Custom Target";
+  const targetUrl = target?.url || customUrl || "";
+
+  const restrictions: string[] = [];
+  if (roe) {
+    if (roe.noBruteForce) restrictions.push("Brute-force attacks are PROHIBITED");
+    if (roe.noDoS) restrictions.push("Denial of Service (DoS) attacks are PROHIBITED");
+    if (roe.noExfiltration) restrictions.push("Data exfiltration is PROHIBITED");
+    if (roe.requiresOwnInstance) restrictions.push("You MUST deploy your own instance before scanning");
+    if (roe.maxScansPerDay) restrictions.push(`Maximum ${roe.maxScansPerDay} scans per day allowed`);
+    if (roe.prohibited?.length > 0) {
+      restrictions.push(`Prohibited activities: ${roe.prohibited.join(", ")}`);
+    }
+    if (roe.allowed?.length > 0 && roe.allowed.length < 5) {
+      restrictions.push(`Only these activities are allowed: ${roe.allowed.join(", ")}`);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onReject(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <ShieldAlert className="w-5 h-5 text-amber-400" />
+            Rules of Engagement
+          </DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            Review and accept the rules before scanning <span className="font-semibold text-foreground">{targetName}</span>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Target Info */}
+          <div className="p-3 rounded-lg bg-muted/30 border border-border space-y-1">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">{targetName}</span>
+            </div>
+            {targetUrl && (
+              <p className="text-xs text-muted-foreground pl-6">{targetUrl}</p>
+            )}
+            <div className="flex items-center gap-2 pl-6">
+              <Badge variant="outline" className="text-[10px]">{scanProfile} scan</Badge>
+              {roe?.provider && <Badge variant="outline" className="text-[10px]">{roe.provider}</Badge>}
+            </div>
+          </div>
+
+          {/* Rules ScrollArea */}
+          <ScrollArea
+            className="h-[200px] rounded-lg border border-border p-3"
+            onScrollCapture={(e) => {
+              const el = e.currentTarget.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement;
+              if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 20) {
+                setScrolledToBottom(true);
+              }
+            }}
+          >
+            <div className="space-y-3">
+              {isCustom ? (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 p-2 rounded bg-red-500/10 border border-red-500/20">
+                    <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                    <div className="text-xs text-red-300">
+                      <p className="font-semibold">Custom Target Warning</p>
+                      <p className="mt-1">You are scanning a custom URL that is NOT in the pre-approved training catalog.
+                      You MUST have explicit written authorization from the target owner before proceeding.</p>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1.5 pl-1">
+                    <p>By proceeding, you confirm that:</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>You have written authorization to scan this target</li>
+                      <li>You understand unauthorized scanning is illegal</li>
+                      <li>You accept full responsibility for this scan</li>
+                      <li>AceofCloud is not liable for unauthorized use</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Summary */}
+                  <p className="text-xs text-muted-foreground">{roe?.summary || "No specific rules documented."}</p>
+
+                  {/* Restrictions */}
+                  {restrictions.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-amber-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5" /> Restrictions
+                      </p>
+                      {restrictions.map((r, i) => (
+                        <div key={i} className="flex items-start gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                          <XCircle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                          <span className="text-xs text-amber-200">{r}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Allowed Activities */}
+                  {roe?.allowed?.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-green-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Allowed Activities
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {roe.allowed.map((a: string) => (
+                          <Badge key={a} variant="outline" className="text-[10px] bg-green-500/10 text-green-400 border-green-500/30">
+                            {a}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {roe?.notes && (
+                    <div className="p-2 rounded bg-muted/30 border border-border">
+                      <p className="text-[10px] text-muted-foreground">{roe.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Terms URL */}
+                  {roe?.termsUrl && (
+                    <a
+                      href={roe.termsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                    >
+                      <ExternalLink className="w-3 h-3" /> View Official Terms
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* Enforcement Notice */}
+              <div className="p-2 rounded bg-primary/5 border border-primary/20 mt-2">
+                <p className="text-[10px] text-primary">
+                  <Shield className="w-3 h-3 inline mr-1" />
+                  The platform will automatically enforce these rules by blocking prohibited scan types,
+                  sanitizing nmap flags, and filtering nuclei templates.
+                </p>
+              </div>
+            </div>
+          </ScrollArea>
+
+          {/* Acceptance Checkbox */}
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(e) => setAccepted(e.target.checked)}
+              className="mt-1 w-4 h-4 rounded border-border accent-primary"
+            />
+            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              I have read and agree to the Rules of Engagement for this target.
+              I understand that violations may result in legal consequences and
+              that this acknowledgment is logged for audit purposes.
+            </span>
+          </label>
+        </div>
+
+        <DialogFooter className="flex gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onReject} className="flex-1">
+            Cancel
+          </Button>
+          <Button
+            onClick={onAccept}
+            disabled={!accepted}
+            className="flex-1"
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Accept & Launch Scan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

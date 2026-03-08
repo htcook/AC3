@@ -8264,4 +8264,13 @@
 - [x] Sanitize nmap flags and filter nuclei templates based on target RoE
 - [x] Build RoE cards UI in Training Lab (new tab with expandable cards)
 - [x] Write vitest tests for RoE enforcement (25/25 passing)
-- [ ] Save checkpoint and deliver to pentest team
+- [x] Save checkpoint and deliver to pentest team
+
+## RoE Acknowledgment Modal & Audit Trail
+- [x] Add roe_acknowledgments table to database schema
+- [x] Create backend endpoint to log RoE acknowledgments (acknowledgeRoE mutation + roeAuditLog query)
+- [x] Build RoE acknowledgment modal component with rules summary
+- [x] Wire modal into scan launch flow (show before startSession on restricted targets)
+- [x] Log acknowledgment with operator name, target, timestamp, and rules accepted
+- [x] Write vitest tests for RoE acknowledgment flow (24/24 passing)
+- [x] Save checkpoint and deliver

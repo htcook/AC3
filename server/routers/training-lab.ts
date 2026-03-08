@@ -1608,4 +1608,93 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
         await conn.end();
       }
     }),
+
+  /** Log RoE acknowledgment before scan launch */
+  acknowledgeRoE: protectedProcedure
+    .input(z.object({
+      targetId: z.string(),
+      scanProfile: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const mysql = await import("mysql2/promise");
+      const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+      try {
+        const target = TRAINING_TARGETS.find(t => t.id === input.targetId);
+        const targetName = target?.name || "Custom Target";
+        const targetUrl = target?.url || "custom";
+        const rulesAccepted = target?.roe ? {
+          noBruteForce: target.roe.noBruteForce,
+          noDoS: target.roe.noDoS,
+          noExfiltration: target.roe.noExfiltration,
+          requiresOwnInstance: target.roe.requiresOwnInstance,
+          maxScansPerDay: target.roe.maxScansPerDay,
+          prohibited: target.roe.prohibited,
+          allowed: target.roe.allowed,
+        } : { customTarget: true, requiresAuthorization: true };
+
+        const enforcedRules: string[] = [];
+        if (target?.roe) {
+          if (target.roe.noBruteForce) enforcedRules.push("no-brute-force");
+          if (target.roe.noDoS) enforcedRules.push("no-dos");
+          if (target.roe.noExfiltration) enforcedRules.push("no-exfiltration");
+          if (target.roe.requiresOwnInstance) enforcedRules.push("requires-own-instance");
+          if (target.roe.maxScansPerDay) enforcedRules.push(`max-${target.roe.maxScansPerDay}-scans-per-day`);
+        } else {
+          enforcedRules.push("custom-target-authorization-required");
+        }
+
+        await conn.execute(
+          `INSERT INTO roe_acknowledgments (operator_id, operator_name, target_id, target_name, target_url, rules_accepted, enforced_rules, scan_profile) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            ctx.user?.id ? Number(ctx.user.id) : 0,
+            ctx.user?.name || "Unknown Operator",
+            input.targetId,
+            targetName,
+            targetUrl,
+            JSON.stringify(rulesAccepted),
+            JSON.stringify(enforcedRules),
+            input.scanProfile,
+          ]
+        );
+
+        return { success: true, enforcedRules };
+      } finally {
+        await conn.end();
+      }
+    }),
+
+  /** Get RoE acknowledgment audit log */
+  roeAuditLog: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(50),
+      targetId: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const mysql = await import("mysql2/promise");
+      const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+      try {
+        let query = `SELECT * FROM roe_acknowledgments ORDER BY acknowledged_at DESC LIMIT ${Number(input.limit)}`;
+        let params: any[] = [];
+        if (input.targetId) {
+          query = `SELECT * FROM roe_acknowledgments WHERE target_id = ? ORDER BY acknowledged_at DESC LIMIT ${Number(input.limit)}`;
+          params = [input.targetId];
+        }
+        const [rows] = await conn.execute(query, params);
+        return (rows as any[]).map(r => ({
+          id: r.id,
+          operatorId: r.operator_id,
+          operatorName: r.operator_name,
+          targetId: r.target_id,
+          targetName: r.target_name,
+          targetUrl: r.target_url,
+          rulesAccepted: typeof r.rules_accepted === "string" ? JSON.parse(r.rules_accepted) : r.rules_accepted,
+          enforcedRules: typeof r.enforced_rules === "string" ? JSON.parse(r.enforced_rules) : r.enforced_rules,
+          scanProfile: r.scan_profile,
+          sessionId: r.session_id,
+          acknowledgedAt: r.acknowledged_at,
+        }));
+      } finally {
+        await conn.end();
+      }
+    }),
 });

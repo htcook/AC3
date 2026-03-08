@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `roe_acknowledgments` (\n\t`id` int AUTO_INCREMENT NOT NULL PRIMARY KEY,\n\t`operator_id` int NOT NULL,\n\t`operator_name` varchar(255) NOT NULL,\n\t`target_id` varchar(128) NOT NULL,\n\t`target_name` varchar(255) NOT NULL,\n\t`target_url` varchar(512) NOT NULL,\n\t`rules_accepted` json NOT NULL,\n\t`enforced_rules` json NOT NULL,\n\t`scan_profile` varchar(32) NOT NULL,\n\t`session_id` varchar(128),\n\t`ip_address` varchar(64),\n\t`acknowledged_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\nCREATE INDEX `roe_ack_operator_idx` ON `roe_acknowledgments` (`operator_id`);\nCREATE INDEX `roe_ack_target_idx` ON `roe_acknowledgments` (`target_id`);\nCREATE INDEX `roe_ack_time_idx` ON `roe_acknowledgments` (`acknowledged_at`);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE `roe_acknowledgments` (\n\t`id` int AUTO_INCREMENT NOT NULL PRIMARY KEY,\n\t`operator_id` int NOT NULL,\n\t`operator_name` varchar(255) NOT NULL,\n\t`target_id` varchar(128) NOT NULL,\n\t`target_name` varchar(255) NOT NULL,\n\t`target_url` varchar(512) NOT NULL,\n\t`rules_accepted` json NOT NULL,\n\t`enforced_rules` json NOT NULL,\n\t`scan_profile` varchar(32) NOT NULL,\n\t`session_id` varchar(128),\n\t`ip_address` varchar(64),\n\t`acknowledged_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\nCREATE INDEX `roe_ack_operator_idx` ON `roe_acknowledgments` (`operator_id`);\nCREATE INDEX `roe_ack_target_idx` ON `roe_acknowledgments` (`target_id`);\nCREATE INDEX `roe_ack_time_idx` ON `roe_acknowledgments` (`acknowledged_at`);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1775
+}
