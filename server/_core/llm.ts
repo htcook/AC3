@@ -338,6 +338,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   const bodyStr = JSON.stringify(payload);
+  const payloadSizeKB = (bodyStr.length / 1024).toFixed(1);
+  console.log(`[LLM] Request payload: ${payloadSizeKB}KB (${bodyStr.length} bytes) caller=${_caller || 'unknown'}`);
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {

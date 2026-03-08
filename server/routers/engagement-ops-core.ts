@@ -175,13 +175,19 @@ export const engagementOpsRouter = router({
 
     /** Diagnostic: test LLM connectivity from the production server */
     testLlm: protectedProcedure
-      .mutation(async () => {
+      .input(z.object({ paddingKB: z.number().min(0).max(500).optional() }).optional())
+      .mutation(async ({ input }) => {
         const { invokeLLM } = await import('../_core/llm');
         const { ENV } = await import('../_core/env');
+        const paddingKB = input?.paddingKB ?? 0;
+        const padding = paddingKB > 0 ? 'X'.repeat(paddingKB * 1024) : '';
         const start = Date.now();
         try {
           const result = await invokeLLM({
-            messages: [{ role: 'user', content: 'Say hello in one word' }],
+            messages: [
+              ...(padding ? [{ role: 'system' as const, content: 'You are a helpful assistant. ' + padding }] : []),
+              { role: 'user' as const, content: 'Say hello in one word' },
+            ],
             _caller: 'engagement-ops.testLlm',
           });
           return {
@@ -191,6 +197,7 @@ export const engagementOpsRouter = router({
             content: result.choices?.[0]?.message?.content,
             tokensIn: result.usage?.prompt_tokens ?? 0,
             tokensOut: result.usage?.completion_tokens ?? 0,
+            paddingKB,
             apiUrlPrefix: (ENV.forgeApiUrl || 'NOT_SET').substring(0, 30),
             apiKeyLength: (ENV.forgeApiKey || '').length,
           };
@@ -199,6 +206,7 @@ export const engagementOpsRouter = router({
             ok: false,
             latencyMs: Date.now() - start,
             error: err.message?.substring(0, 500),
+            paddingKB,
             apiUrlPrefix: (ENV.forgeApiUrl || 'NOT_SET').substring(0, 30),
             apiKeyLength: (ENV.forgeApiKey || '').length,
           };
