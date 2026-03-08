@@ -8397,17 +8397,11 @@
 - [x] All 19 exploit bridge integration tests passing
 
 ## Build Optimization (March 2026)
-- [x] Analyze bundle composition and identify largest chunks
-- [x] Configure Vite manualChunks for better code-splitting (17 vendor chunks)
-- [x] Create shiki language subset module (29 langs instead of 327, saving ~7.2MB)
-- [x] Build Vite plugin to intercept bare `shiki` import and redirect to subset
-- [x] Add shiki@3.14.0 as direct devDependency for proper pnpm resolution
-- [x] Fix production build OOM — now builds with 2GB heap (was 4GB)
-- [x] Build time reduced from 1m 56s to 42s (64% faster)
-- [x] Total JS bundle reduced from ~30MB to 15.7MB (~50% reduction)
-- [x] Shiki languages reduced from 9.3MB to 2.1MB (77% reduction)
-- [x] Verify production build succeeds with 2GB heap
-- [x] Verify dev server still works correctly after changes
-- [ ] Reduce DomainIntelResults chunk size (611KB — down from 1.1MB)
-- [ ] Reduce EngagementOps chunk size (251KB — down from 554KB)
+- [ ] Analyze bundle composition and identify largest chunks
+- [ ] Configure Vite manualChunks for better code-splitting
+- [ ] Lazy-load heavy vendor libraries (shiki, mermaid, cytoscape, katex, pdf)
+- [ ] Reduce DomainIntelResults chunk size (1.1MB)
+- [ ] Reduce EngagementOps chunk size (554KB)
+- [ ] Fix production build OOM (currently needs 4GB heap)
+- [ ] Verify production build succeeds with default memory
 - [ ] Test production site renders correctly after optimization
