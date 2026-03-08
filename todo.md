@@ -8253,3 +8253,15 @@
 - [x] Fix OWASP coverage tracker wrong function signatures (addToolRun/addFinding need objects, not positional args)
 - [x] Fix OWASP coverage tracker missing engagementId parameter
 - [x] Fix require() → await import() in llm-self-learning.ts (7 occurrences)
+
+## Rules of Engagement Documentation & Enforcement
+- [x] Research RoE/ToS for all 21 training targets
+- [x] Define RoE data model with allowed/prohibited scan types, rate limits, auth requirements
+- [x] Add RoE rules to all 21 training targets in TRAINING_TARGETS catalog
+- [x] Build enforcement layer in scan pipeline that blocks prohibited scan types
+- [x] Enforce rate limits per target before scan launch
+- [x] Block brute-force/credential attacks on targets that prohibit them
+- [x] Sanitize nmap flags and filter nuclei templates based on target RoE
+- [x] Build RoE cards UI in Training Lab (new tab with expandable cards)
+- [x] Write vitest tests for RoE enforcement (25/25 passing)
+- [ ] Save checkpoint and deliver to pentest team

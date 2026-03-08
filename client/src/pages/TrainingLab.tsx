@@ -64,10 +64,32 @@ import {
   Search,
   Globe,
   Server,
+  FileText,
+  ShieldAlert,
+  ShieldCheck,
+  Ban,
+  ExternalLink,
+  Gauge,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────
+
+interface TrainingTargetRoE {
+  provider: string;
+  termsUrl: string | null;
+  summary: string;
+  allowed: string[];
+  prohibited: string[];
+  rateLimit: string | null;
+  requiresOwnInstance: boolean;
+  noBruteForce: boolean;
+  noDoS: boolean;
+  noExfiltration: boolean;
+  maxScansPerDay: number | null;
+  notes: string | null;
+}
 
 interface TrainingTarget {
   id: string;
@@ -79,6 +101,7 @@ interface TrainingTarget {
   knownVulns: string[];
   owaspCategories: string[];
   tags: string[];
+  roe: TrainingTargetRoE;
 }
 
 interface SessionListItem {
@@ -273,6 +296,9 @@ export default function TrainingLab() {
               </TabsTrigger>
               <TabsTrigger value="learning" className="gap-1.5">
                 <GraduationCap className="w-3.5 h-3.5" /> Learning Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="roe" className="gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" /> Rules of Engagement
               </TabsTrigger>
             </TabsList>
 
@@ -618,6 +644,11 @@ export default function TrainingLab() {
                 accuracyTrend={accuracyTrend}
                 groundTruthTargets={groundTruthTargets}
               />
+            </TabsContent>
+
+            {/* ─── ROE TAB ─── */}
+            <TabsContent value="roe" className="space-y-6 mt-4">
+              <RoECards targets={targets || []} />
             </TabsContent>
           </Tabs>
         </div>
@@ -1595,5 +1626,251 @@ function TrendIndicator({ trend }: { trend: string }) {
     <Badge className="bg-muted text-muted-foreground text-[10px]">
       Insufficient Data
     </Badge>
+  );
+}
+
+
+// ─── RoE Cards Component ─────────────────────────────────────────────────
+
+function RoECards({ targets }: { targets: TrainingTarget[] }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return targets.filter(t => t.id !== "custom");
+    const q = searchQuery.toLowerCase();
+    return targets.filter(t =>
+      t.id !== "custom" &&
+      (t.name.toLowerCase().includes(q) ||
+       t.roe.provider.toLowerCase().includes(q) ||
+       t.category.toLowerCase().includes(q) ||
+       t.tags.some(tag => tag.toLowerCase().includes(q)))
+    );
+  }, [targets, searchQuery]);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-primary" /> Rules of Engagement
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Review the terms, allowed activities, and restrictions for each training target before scanning.
+          </p>
+        </div>
+        <Badge variant="outline" className="text-xs">
+          {filtered.length} targets
+        </Badge>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by name, provider, category, or tag..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9 bg-card border-border"
+        />
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-green-400" /> Allowed</span>
+        <span className="flex items-center gap-1"><Ban className="w-3.5 h-3.5 text-red-400" /> Prohibited</span>
+        <span className="flex items-center gap-1"><ShieldAlert className="w-3.5 h-3.5 text-amber-400" /> Restriction</span>
+        <span className="flex items-center gap-1"><Gauge className="w-3.5 h-3.5 text-blue-400" /> Rate Limit</span>
+        <span className="flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-purple-400" /> Requires Own Instance</span>
+      </div>
+
+      {/* Cards Grid */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {filtered.map((target) => (
+          <RoECard
+            key={target.id}
+            target={target}
+            expanded={expandedId === target.id}
+            onToggle={() => setExpandedId(expandedId === target.id ? null : target.id)}
+          />
+        ))}
+      </div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <Shield className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p>No targets match your search.</p>
+        </div>
+      )}
+
+      {/* Custom Target Warning */}
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-400">Custom Targets</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              When scanning custom URLs not listed above, <strong>you</strong> are responsible for ensuring you have written authorization (Rules of Engagement) from the target owner. Scanning without authorization is illegal under the Computer Fraud and Abuse Act (CFAA) and similar laws.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RoECard({ target, expanded, onToggle }: { target: TrainingTarget; expanded: boolean; onToggle: () => void }) {
+  const roe = target.roe;
+  const hasRestrictions = roe.noBruteForce || roe.noDoS || roe.noExfiltration || roe.requiresOwnInstance || roe.maxScansPerDay !== null;
+
+  return (
+    <Card className={`border-border transition-all duration-200 ${expanded ? "ring-1 ring-primary/30" : "hover:border-primary/20"}`}>
+      <CardHeader className="pb-2 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <CardTitle className="text-sm font-semibold text-foreground truncate">{target.name}</CardTitle>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{roe.provider}</p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Badge className={DIFFICULTY_COLORS[target.difficulty] || "bg-muted text-muted-foreground"} variant="outline">
+              {target.difficulty}
+            </Badge>
+            {hasRestrictions ? (
+              <ShieldAlert className="w-4 h-4 text-amber-400" />
+            ) : (
+              <ShieldCheck className="w-4 h-4 text-green-400" />
+            )}
+          </div>
+        </div>
+
+        {/* URL */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Globe className="w-3 h-3 shrink-0" />
+          <a href={target.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary truncate">
+            {target.url}
+          </a>
+        </div>
+      </CardHeader>
+
+      <CardContent className="pt-0 space-y-3">
+        {/* Summary */}
+        <p className="text-xs text-muted-foreground leading-relaxed">{roe.summary}</p>
+
+        {/* Quick restriction badges */}
+        <div className="flex flex-wrap gap-1.5">
+          {roe.noBruteForce && (
+            <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/10">
+              <Ban className="w-2.5 h-2.5 mr-1" /> No Brute-Force
+            </Badge>
+          )}
+          {roe.noDoS && (
+            <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/10">
+              <Ban className="w-2.5 h-2.5 mr-1" /> No DoS
+            </Badge>
+          )}
+          {roe.noExfiltration && (
+            <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400 bg-red-500/10">
+              <Ban className="w-2.5 h-2.5 mr-1" /> No Exfiltration
+            </Badge>
+          )}
+          {roe.requiresOwnInstance && (
+            <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-400 bg-purple-500/10">
+              <Lock className="w-2.5 h-2.5 mr-1" /> Own Instance Required
+            </Badge>
+          )}
+          {roe.maxScansPerDay !== null && (
+            <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/10">
+              <Gauge className="w-2.5 h-2.5 mr-1" /> Max {roe.maxScansPerDay}/day
+            </Badge>
+          )}
+          {!hasRestrictions && (
+            <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-400 bg-green-500/10">
+              <ShieldCheck className="w-2.5 h-2.5 mr-1" /> Unrestricted
+            </Badge>
+          )}
+        </div>
+
+        {/* Expand/Collapse */}
+        <Button variant="ghost" size="sm" onClick={onToggle} className="w-full text-xs h-7">
+          {expanded ? <ChevronUp className="w-3.5 h-3.5 mr-1" /> : <ChevronDown className="w-3.5 h-3.5 mr-1" />}
+          {expanded ? "Hide Details" : "View Full RoE"}
+        </Button>
+
+        {/* Expanded Details */}
+        {expanded && (
+          <div className="space-y-3 pt-2 border-t border-border">
+            {/* Allowed Activities */}
+            {roe.allowed.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-green-400 font-medium mb-1.5 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> Allowed Activities
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {roe.allowed.map((item, i) => (
+                    <Badge key={i} variant="outline" className="text-[10px] border-green-500/20 text-green-400/80 bg-green-500/5">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Prohibited Activities */}
+            {roe.prohibited.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-red-400 font-medium mb-1.5 flex items-center gap-1">
+                  <Ban className="w-3 h-3" /> Prohibited Activities
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {roe.prohibited.map((item, i) => (
+                    <Badge key={i} variant="outline" className="text-[10px] border-red-500/20 text-red-400/80 bg-red-500/5">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rate Limit */}
+            {roe.rateLimit && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-500/5 rounded p-2 border border-blue-500/20">
+                <Gauge className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
+                <span><strong className="text-blue-400">Rate Limit:</strong> {roe.rateLimit}</span>
+              </div>
+            )}
+
+            {/* Notes */}
+            {roe.notes && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 rounded p-2">
+                <AlertCircle className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                <span>{roe.notes}</span>
+              </div>
+            )}
+
+            {/* Terms URL */}
+            {roe.termsUrl && (
+              <a
+                href={roe.termsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="w-3 h-3" /> View Official Terms
+              </a>
+            )}
+
+            {/* Tech Tags */}
+            <div className="flex flex-wrap gap-1 pt-1">
+              {target.tags.map((tag) => (
+                <Badge key={tag} variant="outline" className="text-[10px] bg-muted/30 text-muted-foreground border-border">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

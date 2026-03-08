@@ -21,6 +21,21 @@ import crypto from "crypto";
 
 // ─── Training Target Catalog ───────────────────────────────────────────────
 
+export interface TrainingTargetRoE {
+  provider: string;
+  termsUrl: string | null;
+  summary: string;
+  allowed: string[];
+  prohibited: string[];
+  rateLimit: string | null;
+  requiresOwnInstance: boolean;
+  noBruteForce: boolean;
+  noDoS: boolean;
+  noExfiltration: boolean;
+  maxScansPerDay: number | null;
+  notes: string | null;
+}
+
 export interface TrainingTarget {
   id: string;
   name: string;
@@ -31,6 +46,7 @@ export interface TrainingTarget {
   knownVulns: string[];
   owaspCategories: string[];
   tags: string[];
+  roe: TrainingTargetRoE;
 }
 
 export const TRAINING_TARGETS: TrainingTarget[] = [
@@ -44,6 +60,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "Broken Auth", "SSRF", "XXE", "Insecure Deserialization"],
     owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025", "A06:2025", "A07:2025", "A08:2025"],
     tags: ["nodejs", "angular", "rest-api", "jwt"],
+    roe: {
+      provider: "OWASP Foundation",
+      termsUrl: "https://owasp.org/www-project-juice-shop/",
+      summary: "Open-source MIT-licensed training app. Designed to be attacked. All web vulnerability testing is permitted.",
+      allowed: ["Web vulnerability scanning", "SQL injection", "XSS", "Auth bypass", "CTF challenges", "Automated DAST"],
+      prohibited: [],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: false,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "MIT License. Online demo instance resets periodically.",
+    },
   },
   {
     id: "vulnweb-php",
@@ -55,6 +85,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "File Inclusion", "CSRF", "Directory Traversal"],
     owaspCategories: ["A01:2025", "A03:2025", "A05:2025", "A06:2025"],
     tags: ["php", "mysql", "legacy"],
+    roe: {
+      provider: "Acunetix (Invicti)",
+      termsUrl: "http://www.vulnweb.com/",
+      summary: "Intentionally vulnerable website designed for testing web vulnerability scanners. Automated scanning is the intended use case.",
+      allowed: ["Web vulnerability scanning", "Automated DAST", "SQL injection", "XSS testing", "File inclusion testing"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Part of the vulnweb.com family of test sites maintained by Acunetix/Invicti.",
+    },
   },
   {
     id: "vulnweb-asp",
@@ -66,6 +110,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "Path Traversal", "Information Disclosure"],
     owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
     tags: ["asp.net", "iis", "mssql"],
+    roe: {
+      provider: "Acunetix (Invicti)",
+      termsUrl: "http://www.vulnweb.com/",
+      summary: "Intentionally vulnerable website designed for testing web vulnerability scanners.",
+      allowed: ["Web vulnerability scanning", "Automated DAST", "SQL injection", "XSS testing"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Part of the vulnweb.com family of test sites.",
+    },
   },
   {
     id: "vulnweb-rest",
@@ -77,6 +135,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["Broken Auth", "Excessive Data Exposure", "Injection", "BOLA"],
     owaspCategories: ["A01:2025", "A03:2025", "A04:2025"],
     tags: ["rest-api", "json", "oauth"],
+    roe: {
+      provider: "Acunetix (Invicti)",
+      termsUrl: "http://www.vulnweb.com/",
+      summary: "Intentionally vulnerable REST API designed for testing API security scanners.",
+      allowed: ["API security scanning", "Auth testing", "Injection testing", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Part of the vulnweb.com family of test sites.",
+    },
   },
   {
     id: "hackazon",
@@ -88,6 +160,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "CSRF", "Business Logic", "Auth Bypass"],
     owaspCategories: ["A01:2025", "A03:2025", "A04:2025", "A05:2025", "A07:2025"],
     tags: ["php", "rest-api", "ajax", "e-commerce"],
+    roe: {
+      provider: "Rapid7",
+      termsUrl: null,
+      summary: "Intentionally vulnerable e-commerce application designed for security testing and scanner benchmarking.",
+      allowed: ["Web vulnerability scanning", "Business logic testing", "Auth testing", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Hosted at webscantest.com. Designed for scanner benchmarking.",
+    },
   },
   {
     id: "altoro-mutual",
@@ -99,6 +185,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "Auth Bypass", "Session Fixation", "IDOR"],
     owaspCategories: ["A01:2025", "A03:2025", "A04:2025", "A07:2025"],
     tags: ["java", "banking", "session-mgmt"],
+    roe: {
+      provider: "HCL Technologies (formerly IBM)",
+      termsUrl: "https://www.hcl-software.com/appscan/",
+      summary: "Published for the sole purpose of demonstrating the effectiveness of HCL products in detecting web application vulnerabilities. Not a real banking site. Provided 'as is' without warranty.",
+      allowed: ["Web vulnerability scanning", "SQL injection testing", "XSS testing", "Auth testing", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Open source on GitHub. Copyright HCL Technologies 2017-2026.",
+    },
   },
   {
     id: "zero-bank",
@@ -110,6 +210,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["Broken Auth", "IDOR", "XSS", "CSRF"],
     owaspCategories: ["A01:2025", "A04:2025", "A07:2025"],
     tags: ["banking", "auth", "session"],
+    roe: {
+      provider: "Micro Focus / OpenText (Fortify)",
+      termsUrl: "https://www.microfocus.com/about/legal/#privacy",
+      summary: "Designed for Fortify WebInspect testing. Use indicates agreement to Micro Focus Terms of Use.",
+      allowed: ["Web vulnerability scanning", "Auth testing", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Subject to Micro Focus Fortify Terms of Use.",
+    },
   },
   {
     id: "webscantest",
@@ -121,6 +235,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["XSS", "SQL Injection", "Open Redirect", "Information Disclosure"],
     owaspCategories: ["A03:2025", "A05:2025", "A06:2025"],
     tags: ["general", "scanner-test"],
+    roe: {
+      provider: "Community",
+      termsUrl: null,
+      summary: "General-purpose vulnerable web application designed for scanner benchmarking.",
+      allowed: ["Web vulnerability scanning", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: null,
+    },
   },
   {
     id: "broken-crystals",
@@ -132,6 +260,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["JWT Bypass", "SQL Injection", "XSS", "SSRF", "SSTI", "CSRF", "IDOR", "XXE", "LDAP Injection", "OS Command Injection", "Prototype Pollution", "Brute Force", "Cookie Security", "Common Files", "Open Database", "Default Login", "Email Header Injection", "File Upload", "Full Path Disclosure", "Header Security", "HTML Injection", "HTTP Method Tampering", "Mass Assignment", "Secret Tokens", "Unvalidated Redirect", "Version Control", "GraphQL Introspection", "Business Constraint Bypass", "Date Manipulation", "ID Enumeration"],
     owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025", "A06:2025", "A07:2025", "A08:2025", "A10:2025"],
     tags: ["nodejs", "react", "graphql", "jwt", "modern"],
+    roe: {
+      provider: "Bright Security (NeuraLegion)",
+      termsUrl: "https://github.com/NeuraLegion/brokencrystals",
+      summary: "MIT-licensed benchmark app. Only scan instances you own or have explicit permission to test. Do not disrupt service. Respect rate limits. No destructive operations without permission.",
+      allowed: ["Web vulnerability scanning", "API testing", "GraphQL testing", "Automated DAST"],
+      prohibited: ["DDoS attacks", "Service disruption", "Destructive operations without permission"],
+      rateLimit: "Respect rate limits",
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "MIT License. Hosted instance at brokencrystals.com. Self-hosting also available via Docker.",
+    },
   },
   {
     id: "gin-juice-shop",
@@ -143,6 +285,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["XSS", "SQL Injection", "SSRF", "SSTI", "XXE", "CORS Misconfiguration", "Clickjacking", "DOM-based XSS", "HTTP Request Smuggling", "WebSocket Vulns", "Deserialization", "Path Traversal", "Authentication Bypass", "Access Control", "Information Disclosure"],
     owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A05:2025", "A08:2025", "A10:2025"],
     tags: ["portswigger", "dast-benchmark", "modern", "aws"],
+    roe: {
+      provider: "PortSwigger",
+      termsUrl: "https://portswigger.net/web-security/certification/terms-and-conditions/website-terms-of-use",
+      summary: "PortSwigger's DAST benchmark application. Designed for Burp Suite and scanner testing. Subject to PortSwigger Terms of Use.",
+      allowed: ["Web vulnerability scanning", "Automated DAST", "Manual penetration testing"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "PortSwigger's official benchmark site for DAST tool validation.",
+    },
   },
   {
     id: "google-gruyere",
@@ -154,6 +310,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["XSS", "CSRF", "Remote Code Execution", "DoS", "Information Disclosure"],
     owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
     tags: ["python", "gae", "beginner-friendly"],
+    roe: {
+      provider: "Google",
+      termsUrl: "https://google-gruyere.appspot.com/",
+      summary: "You are specifically granted authorization to attack the Gruyere application AS DIRECTED in the codelab. You may NOT attack App Engine directly or any other Google service. Each user gets a sandboxed instance via /start.",
+      allowed: ["XSS testing", "CSRF testing", "Path traversal", "Info disclosure", "DoS (own instance only)", "RCE (own instance only)"],
+      prohibited: ["Attacking App Engine infrastructure", "Attacking other Google services", "Attacks not described in the codelab", "Brute-force attacks"],
+      rateLimit: null,
+      requiresOwnInstance: true,
+      noBruteForce: true,
+      noDoS: false,
+      noExfiltration: true,
+      maxScansPerDay: null,
+      notes: "IMPORTANT: Must use /start to get your own sandboxed instance. Do NOT scan the main domain directly. Google Terms of Service apply.",
+    },
   },
   {
     id: "firing-range",
@@ -165,6 +335,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["DOM XSS", "Reflected XSS", "CORS Misconfiguration", "Reverse Clickjacking", "Mixed Content", "Flash Injection", "Remote Inclusion"],
     owaspCategories: ["A03:2025", "A05:2025"],
     tags: ["google", "xss", "dom", "gae"],
+    roe: {
+      provider: "Google",
+      termsUrl: "https://github.com/google/firing-range",
+      summary: "Google's XSS testbed under Apache 2.0 license. Designed specifically for automated web application security scanner testing.",
+      allowed: ["XSS testing", "DOM testing", "CORS testing", "Automated scanning"],
+      prohibited: ["Attacking App Engine infrastructure", "Attacking other Google services"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: true,
+      noDoS: true,
+      noExfiltration: true,
+      maxScansPerDay: null,
+      notes: "Apache 2.0 License. Focus on XSS variants only — not a general-purpose vuln app.",
+    },
   },
   {
     id: "vulnweb-aspnet",
@@ -176,6 +360,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "ASP.NET Misconfigurations", "Information Disclosure"],
     owaspCategories: ["A03:2025", "A05:2025"],
     tags: ["asp.net", "iis", "mssql"],
+    roe: {
+      provider: "Acunetix (Invicti)",
+      termsUrl: "http://www.vulnweb.com/",
+      summary: "Intentionally vulnerable website designed for testing web vulnerability scanners.",
+      allowed: ["Web vulnerability scanning", "Automated DAST", "SQL injection", "XSS testing"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Part of the vulnweb.com family of test sites.",
+    },
   },
   {
     id: "vulnweb-html5",
@@ -187,6 +385,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["NoSQL Injection", "XSS", "HTML5 Security Issues", "CORS Misconfiguration"],
     owaspCategories: ["A03:2025", "A05:2025"],
     tags: ["html5", "flask", "couchdb", "nosql"],
+    roe: {
+      provider: "Acunetix (Invicti)",
+      termsUrl: "http://www.vulnweb.com/",
+      summary: "Intentionally vulnerable website designed for testing web vulnerability scanners.",
+      allowed: ["Web vulnerability scanning", "Automated DAST", "NoSQL injection testing", "XSS testing"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Part of the vulnweb.com family of test sites.",
+    },
   },
   {
     id: "hack-yourself-first",
@@ -198,6 +410,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "CSRF", "IDOR", "Information Disclosure", "Insecure Transport"],
     owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
     tags: ["asp.net", "iis", "developer-training"],
+    roe: {
+      provider: "Troy Hunt",
+      termsUrl: "https://www.troyhunt.com/hack-yourself-first-how-to-go-on/",
+      summary: "Troy Hunt's training site for developers to learn offensive security. Designed to be attacked as part of the Hack Yourself First methodology.",
+      allowed: ["SQL injection", "XSS", "CSRF testing", "IDOR testing", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Associated with Troy Hunt's Pluralsight course.",
+    },
   },
   {
     id: "testsparker-aspnet",
@@ -209,6 +435,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "Path Traversal", "Information Disclosure", "Authentication Bypass"],
     owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
     tags: ["asp.net", "iis", "mssql", "netsparker"],
+    roe: {
+      provider: "Invicti (formerly Netsparker)",
+      termsUrl: "https://www.invicti.com/legal/ssa",
+      summary: "Test site for Invicti/Netsparker scanner validation. Designed for automated scanner testing.",
+      allowed: ["Web vulnerability scanning", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Maintained by Invicti for scanner benchmarking.",
+    },
   },
   {
     id: "testsparker-php",
@@ -220,6 +460,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "File Inclusion", "Command Injection", "Information Disclosure"],
     owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
     tags: ["php", "mysql", "netsparker"],
+    roe: {
+      provider: "Invicti (formerly Netsparker)",
+      termsUrl: "https://www.invicti.com/legal/ssa",
+      summary: "Test site for Invicti/Netsparker scanner validation. Designed for automated scanner testing.",
+      allowed: ["Web vulnerability scanning", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Maintained by Invicti for scanner benchmarking.",
+    },
   },
   {
     id: "testsparker-angular",
@@ -231,6 +485,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["DOM XSS", "Template Injection", "CORS Misconfiguration", "API Security Issues"],
     owaspCategories: ["A03:2025", "A05:2025"],
     tags: ["angular", "spa", "php", "mysql", "netsparker"],
+    roe: {
+      provider: "Invicti (formerly Netsparker)",
+      termsUrl: "https://www.invicti.com/legal/ssa",
+      summary: "Test site for Invicti/Netsparker scanner validation. Tests SPA-specific vulnerabilities.",
+      allowed: ["Web vulnerability scanning", "Automated DAST", "SPA testing"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Maintained by Invicti for scanner benchmarking.",
+    },
   },
   {
     id: "pentest-ground",
@@ -242,6 +510,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["SQL Injection", "XSS", "Command Injection", "File Upload", "Authentication Bypass"],
     owaspCategories: ["A01:2025", "A03:2025", "A05:2025"],
     tags: ["multi-app", "apache", "nginx", "redis"],
+    roe: {
+      provider: "Community",
+      termsUrl: "https://pentest-ground.com",
+      summary: "Free playground with deliberately vulnerable web applications and network services for scanner testing.",
+      allowed: ["Web vulnerability scanning", "Network scanning", "Automated DAST"],
+      prohibited: ["DDoS attacks"],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Community-maintained playground.",
+    },
   },
   {
     id: "scanme-nmap",
@@ -253,6 +535,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: ["Open Ports", "Service Detection", "OS Detection"],
     owaspCategories: [],
     tags: ["network", "nmap", "recon"],
+    roe: {
+      provider: "Nmap Project (Fyodor)",
+      termsUrl: "http://scanme.nmap.org/",
+      summary: "Authorized for port scanning with Nmap or other port scanners. A few scans per day is fine. Do NOT scan 100+ times per day. Do NOT use for SSH brute-force password cracking.",
+      allowed: ["Port scanning", "Service detection", "OS detection", "Nmap scripts"],
+      prohibited: ["SSH brute-force", "Password cracking", "Excessive scanning (>100/day)", "DDoS attacks"],
+      rateLimit: "A few scans per day. Do not exceed 100 scans/day.",
+      requiresOwnInstance: false,
+      noBruteForce: true,
+      noDoS: true,
+      noExfiltration: false,
+      maxScansPerDay: 10,
+      notes: "Explicitly stated: 'don't scan 100 times a day or use this site to test your ssh brute-force password cracking tool.'",
+    },
   },
   {
     id: "custom",
@@ -264,6 +560,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     knownVulns: [],
     owaspCategories: [],
     tags: ["custom"],
+    roe: {
+      provider: "User-provided",
+      termsUrl: null,
+      summary: "Custom target. YOU must ensure you have written authorization (ROE) before scanning. The platform will not enforce rules for custom targets — all responsibility lies with the operator.",
+      allowed: [],
+      prohibited: [],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: false,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "WARNING: Scanning without authorization is illegal. Ensure you have a signed ROE before proceeding.",
+    },
   },
 ];
 
@@ -331,6 +641,22 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
       phase: "recon",
       startedAt: Date.now(),
     });
+
+    // ── Load RoE for this target (if it's a known training target) ──
+    let targetRoE: import("../lib/training-roe-guard").RoECheckResult | null = null;
+    const matchedTarget = TRAINING_TARGETS.find(t => t.url === targetUrl || hostname.includes(new URL(t.url.startsWith("http") ? t.url : `https://${t.url}`).hostname));
+    if (matchedTarget) {
+      const { enforceTrainingRoE } = await import("../lib/training-roe-guard");
+      targetRoE = enforceTrainingRoE(matchedTarget, { targetId: matchedTarget.id, scanProfile: scanProfile as any });
+      if (targetRoE.enforcedRules.length > 0) {
+        addLabLog(state, { phase: "recon", type: "info", title: "RoE Guardrails Active", detail: `Enforcing: ${targetRoE.enforcedRules.join(", ")}` });
+      }
+      if (targetRoE.warnings.length > 0) {
+        for (const w of targetRoE.warnings) {
+          addLabLog(state, { phase: "recon", type: "warning", title: "RoE Warning", detail: w.message });
+        }
+      }
+    }
 
     // Initialize asset
     state.assets.push({
@@ -402,11 +728,21 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
     try {
       const { executeToolViaQueue } = await import("../lib/job-queue-bridge");
       
-      const nmapFlags = scanProfile === "quick"
+      let nmapFlags = scanProfile === "quick"
         ? `-sV -sC --top-ports 100 -T4 --open`
         : scanProfile === "deep"
         ? `-sV -sC -p- -T3 --open -A`
         : `-sV -sC --top-ports 1000 -T4 --open`;
+
+      // Sanitize nmap flags based on target RoE
+      if (matchedTarget) {
+        const { sanitizeNmapFlags } = await import("../lib/training-roe-guard");
+        const original = nmapFlags;
+        nmapFlags = sanitizeNmapFlags(nmapFlags, matchedTarget.roe);
+        if (nmapFlags !== original) {
+          addLabLog(state, { phase: "enumeration", type: "info", title: "RoE: Nmap Flags Sanitized", detail: `Adjusted flags to comply with ${matchedTarget.name} RoE` });
+        }
+      }
 
       const nmapResult = await executeToolViaQueue({
         tool: "nmap",
@@ -835,6 +1171,23 @@ export const trainingLabRouter = router({
       if (input.targetId && input.targetId !== "custom") {
         const target = TRAINING_TARGETS.find(t => t.id === input.targetId);
         if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Training target not found" });
+
+        // ── RoE Enforcement ──
+        const { enforceTrainingRoE, recordScanLaunch } = await import("../lib/training-roe-guard");
+        const roeCheck = enforceTrainingRoE(target, {
+          targetId: target.id,
+          scanProfile: input.scanProfile,
+        });
+        if (!roeCheck.allowed) {
+          const violationMessages = roeCheck.violations.map(v => v.message).join(" | ");
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `[ROE VIOLATION] Scan blocked for ${target.name}: ${violationMessages}`,
+          });
+        }
+        // Record the scan launch for rate limiting
+        recordScanLaunch(target.id);
+
         targetUrl = target.url;
         targetPreset = target.id;
         sessionName = input.name || `${target.name} - ${new Date().toLocaleDateString()}`;
@@ -866,6 +1219,29 @@ export const trainingLabRouter = router({
       });
 
       return { sessionId, name: sessionName, targetUrl };
+    }),
+
+  /** Pre-check RoE for a target before launching a scan */
+  checkRoE: publicProcedure
+    .input(z.object({
+      targetId: z.string(),
+      scanProfile: z.enum(["quick", "standard", "deep"]).default("standard"),
+      enableBruteForce: z.boolean().optional(),
+      enableDoS: z.boolean().optional(),
+      enableExfiltration: z.boolean().optional(),
+    }))
+    .query(async ({ input }) => {
+      const target = TRAINING_TARGETS.find(t => t.id === input.targetId);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Training target not found" });
+
+      const { enforceTrainingRoE } = await import("../lib/training-roe-guard");
+      return enforceTrainingRoE(target, {
+        targetId: target.id,
+        scanProfile: input.scanProfile,
+        enableBruteForce: input.enableBruteForce,
+        enableDoS: input.enableDoS,
+        enableExfiltration: input.enableExfiltration,
+      });
     }),
 
   /** Get session status and results */
