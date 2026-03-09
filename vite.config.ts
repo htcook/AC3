@@ -2,12 +2,33 @@ import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 const __dir = import.meta.dirname;
 
+/**
+ * Custom plugin to redirect bare `import ... from "shiki"` to our 25-language subset.
+ * Without this, streamdown pulls in all 327 shiki language grammars (~700 chunks / 19.6MB).
+ * Sub-path imports like `shiki/core`, `shiki/engine/*`, `shiki/dist/langs/*` are NOT affected.
+ */
+function shikiSubsetPlugin(): Plugin {
+  const subsetPath = path.resolve(__dir, "client", "src", "lib", "shiki-subset.ts");
+  return {
+    name: "shiki-subset-redirect",
+    enforce: "pre",
+    resolveId(source) {
+      // Only intercept the exact bare "shiki" import, not sub-paths
+      if (source === "shiki") {
+        return subsetPath;
+      }
+      return null;
+    },
+  };
+}
+
 const plugins = [
+  shikiSubsetPlugin(),
   react(),
   tailwindcss(),
   jsxLocPlugin(),

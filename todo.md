@@ -167,4 +167,13 @@
 - [x] Fix attempt 3: Remove manualChunks entirely — let Rollup handle splitting naturally via React.lazy
 - [x] Build succeeds in 71s with 751 natural chunks (mostly tiny syntax highlighting langs)
 - [x] All 72 tests pass
-- [ ] Save checkpoint and publish to verify fix
+- [x] Deployed successfully — black screen FIXED (site live at dashboard.aceofcloud.io)
+- [x] Added shiki subset Vite plugin: 751→466 chunks, 31MB→24MB build output
+
+## Deployment Size Reduction via DO Offloading
+- [x] Analyzed: shiki language grammars were 711 chunks / 19.6MB (95% of chunk count)
+- [x] Root cause: shiki alias removed during vite.config.ts rewrite, streamdown pulled all 327 langs
+- [x] Fix: Custom Vite resolveId plugin intercepts exact "shiki" imports, redirects to 25-lang subset
+- [x] Result: 466 chunks / 24MB (was 751 / 31MB) — 38% fewer chunks, 23% less size
+- [ ] Further optimization: externalize jspdf/cytoscape/mermaid to CDN (saves ~2MB more)
+- [ ] Save checkpoint and publish
