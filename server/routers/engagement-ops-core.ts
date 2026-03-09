@@ -548,7 +548,7 @@ export const engagementOpsRouter = router({
         // Run pipeline in background — mutation returns immediately with assets already populated
         (async () => {
           // ── Per-domain watchdog: 15 minutes per domain (increased for parallel mode where LLM calls queue up) ──
-          const PER_DOMAIN_WATCHDOG_MS = 15 * 60 * 1000;
+          const PER_DOMAIN_WATCHDOG_MS = 20 * 60 * 1000;
           // ── Global watchdog: 90 minutes total for entire pipeline (accounts for LLM rate limits across parallel batches) ──
           const GLOBAL_WATCHDOG_MS = 90 * 60 * 1000;
           // ── Parallel concurrency: scan up to 3 domains simultaneously (reduced from 5 to avoid OSINT rate limits) ──
@@ -597,7 +597,7 @@ export const engagementOpsRouter = router({
             // Per-domain watchdog
             let domainWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
             const domainWatchdogPromise = new Promise<never>((_, reject) => {
-              domainWatchdogTimer = setTimeout(() => reject(new Error(`Domain watchdog timeout (8 min) for ${domain}`)), PER_DOMAIN_WATCHDOG_MS);
+              domainWatchdogTimer = setTimeout(() => reject(new Error(`Domain watchdog timeout (${Math.round(PER_DOMAIN_WATCHDOG_MS / 60000)} min) for ${domain}`)), PER_DOMAIN_WATCHDOG_MS);
             });
             // Also abort on global signal
             const globalAbortPromise = new Promise<never>((_, reject) => {

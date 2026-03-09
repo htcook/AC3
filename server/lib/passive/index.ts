@@ -140,7 +140,7 @@ export async function runPassiveRecon(
   config: PassiveReconConfig
 ): Promise<PassiveReconResult> {
   const start = Date.now();
-  const { scanMode, apiKeys = {}, timeout = 30000, maxConcurrent = 5 } = config;
+  const { scanMode, apiKeys = {}, timeout = 15000, maxConcurrent = 10 } = config;
 
   // Apply scan mode policy
   const { allowed, blocked } = filterConnectors(ALL_CONNECTORS, scanMode);
@@ -182,11 +182,41 @@ export async function runPassiveRecon(
     halfOpenMaxAttempts: 1,   // 1 probe attempt in half-open state
   };
 
+  // ── Pre-filter: skip connectors that require API keys when no key is configured ──
+  // This avoids wasting batch slots on connectors that will immediately fail with "No API key"
+  const CONNECTORS_REQUIRING_API_KEY: Record<string, string> = {
+    shodan: 'apiKey', censys: 'apiId', urlscan: 'apiKey', securitytrails: 'apiKey',
+    dehashed: 'apiKey', binaryedge: 'apiKey', greynoise: 'apiKey', virustotal: 'apiKey',
+    hibp: 'apiKey', whoisxml: 'apiKey', leakix: 'apiKey', fullhunt: 'apiKey',
+    netlas: 'apiKey', hunter: 'apiKey', abuseipdb: 'apiKey', passivetotal: 'apiKey',
+    github_recon: 'apiKey', github_leaks: 'apiKey',
+  };
+  const readyConnectors: PassiveConnector[] = [];
+  const skippedNoKey: ConnectorResult[] = [];
+  for (const connector of allowed) {
+    const requiredField = CONNECTORS_REQUIRING_API_KEY[connector.name];
+    if (requiredField) {
+      const cfg = connectorConfigs.get(connector.name);
+      const hasKey = cfg && ((cfg as any).apiKey || (cfg as any).apiId);
+      if (!hasKey) {
+        skippedNoKey.push({
+          connector: connector.name, domain, observations: [],
+          errors: [`Skipped: No API key configured`], durationMs: 0, rateLimited: false,
+        });
+        continue;
+      }
+    }
+    readyConnectors.push(connector);
+  }
+  if (skippedNoKey.length > 0) {
+    console.log(`[PassiveRecon] Skipped ${skippedNoKey.length} connectors with no API key: ${skippedNoKey.map(s => s.connector).join(', ')}`);
+  }
+
   // Run connectors in parallel with concurrency limit + circuit breaker
-  const connectorResults: ConnectorResult[] = [];
+  const connectorResults: ConnectorResult[] = [...skippedNoKey];
   const batches: PassiveConnector[][] = [];
-  for (let i = 0; i < allowed.length; i += maxConcurrent) {
-    batches.push(allowed.slice(i, i + maxConcurrent));
+  for (let i = 0; i < readyConnectors.length; i += maxConcurrent) {
+    batches.push(readyConnectors.slice(i, i + maxConcurrent));
   }
 
   const { onConnectorProgress } = config;

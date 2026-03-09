@@ -502,7 +502,7 @@ export const cloudBucketReconConnector: PassiveConnector = {
     const observations: AssetObservation[] = [];
     const timeout = config?.timeout ?? 4000;
     const now = new Date();
-    const GLOBAL_TIMEOUT = 60000; // 60s max for entire connector
+    const GLOBAL_TIMEOUT = 30000; // 30s max for entire connector (reduced from 60s to prevent pipeline stalls)
     const CONCURRENCY = 15;
 
     try {
