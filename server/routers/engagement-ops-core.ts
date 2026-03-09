@@ -836,6 +836,13 @@ export const engagementOpsRouter = router({
                     severity: pf.severity >= 8 ? 'critical' : pf.severity >= 6 ? 'high' : pf.severity >= 4 ? 'medium' : 'low',
                     title: pf.title || pf.category || 'Unknown finding',
                     cve: pf.cveIds?.[0],
+                    // Version confidence fields for UI indicators
+                    corroborationTier: pf.corroborationTier || 'potential',
+                    detectedVersion: pf.detectedVersion || null,
+                    affectedVersions: pf.affectedVersions || null,
+                    versionMatchConfirmed: pf.versionMatchConfirmed || false,
+                    evidenceDetail: pf.evidenceDetail || null,
+                    cvssScore: pf.cvssScore || null,
                   }));
 
                   if (existing) {

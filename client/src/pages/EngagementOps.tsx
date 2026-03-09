@@ -107,7 +107,12 @@ interface AssetStatus {
   ip?: string;
   type: string;
   ports: Array<{ port: number; service: string; version?: string }>;
-  vulns: Array<{ id: string; severity: string; title: string; cve?: string }>;
+  vulns: Array<{
+    id: string; severity: string; title: string; cve?: string;
+    corroborationTier?: string; detectedVersion?: string | null;
+    affectedVersions?: string | null; versionMatchConfirmed?: boolean;
+    evidenceDetail?: string | null; cvssScore?: number | null;
+  }>;
   zapFindings: Array<{ alert: string; risk: string; url: string; cweId?: number }>;
   exploitAttempts: Array<{ module: string; success: boolean; sessionId?: string }>;
   status: string;
@@ -1888,6 +1893,36 @@ export default function EngagementOps() {
                                   <span className="text-foreground truncate flex-1">{v.title}</span>
                                   {v.cve && <span className="text-muted-foreground font-mono text-[10px]">{v.cve}</span>}
                                 </div>
+                                {/* Version Confidence Indicator */}
+                                {v.corroborationTier && (
+                                  <div className="flex items-center gap-1.5 flex-wrap ml-0.5">
+                                    <Badge variant="outline" className={`text-[8px] font-semibold ${
+                                      v.corroborationTier === 'confirmed' ? 'bg-green-500/20 text-green-300 border-green-500/40' :
+                                      v.corroborationTier === 'probable' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
+                                      'bg-zinc-500/20 text-zinc-400 border-zinc-500/40'
+                                    }`}>
+                                      {v.corroborationTier === 'confirmed' ? '\u2713 CONFIRMED' :
+                                       v.corroborationTier === 'probable' ? '\u223c PROBABLE' : '? POTENTIAL'}
+                                    </Badge>
+                                    {v.detectedVersion && (
+                                      <span className="text-[9px] font-mono text-emerald-400" title={v.evidenceDetail || undefined}>
+                                        v{v.detectedVersion}
+                                        {v.affectedVersions && (
+                                          <span className="text-muted-foreground"> in {v.affectedVersions}</span>
+                                        )}
+                                      </span>
+                                    )}
+                                    {v.cvssScore != null && v.cvssScore > 0 && !v.essEnrichment && (
+                                      <span className={`text-[9px] font-mono ${
+                                        v.cvssScore >= 9 ? 'text-red-400' :
+                                        v.cvssScore >= 7 ? 'text-orange-400' :
+                                        v.cvssScore >= 4 ? 'text-yellow-400' : 'text-blue-400'
+                                      }`} title="CVSS base score">
+                                        CVSS:{v.cvssScore}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                                 {/* ESS Enrichment Badges */}
                                 {v.essEnrichment && (
                                   <div className="flex items-center gap-1.5 flex-wrap ml-0.5">
@@ -3375,9 +3410,24 @@ export default function EngagementOps() {
                                     'text-orange-400 border-orange-500/30'
                                   }`}>{v.confidence}% conf</Badge>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   {v.confirmedByActiveScan && (
                                     <Badge variant="outline" className="text-[8px] text-green-300 border-green-500/30 bg-green-500/10">✓ confirmed</Badge>
+                                  )}
+                                  {v.corroborationTier && (
+                                    <Badge variant="outline" className={`text-[8px] font-semibold ${
+                                      v.corroborationTier === 'confirmed' ? 'bg-green-500/20 text-green-300 border-green-500/40' :
+                                      v.corroborationTier === 'probable' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
+                                      'bg-zinc-500/20 text-zinc-400 border-zinc-500/40'
+                                    }`}>
+                                      {v.corroborationTier === 'confirmed' ? '\u2713 VER' :
+                                       v.corroborationTier === 'probable' ? '\u223c VER' : '? VER'}
+                                    </Badge>
+                                  )}
+                                  {v.detectedVersion && (
+                                    <span className="text-[9px] font-mono text-emerald-400" title={v.evidenceDetail || undefined}>
+                                      v{v.detectedVersion}{v.affectedVersions ? ` in ${v.affectedVersions}` : ''}
+                                    </span>
                                   )}
                                   {v.category && (
                                     <Badge variant="outline" className="text-[8px] text-cyan-300 border-cyan-500/20">{v.category.replace(/_/g, ' ')}</Badge>
@@ -3944,7 +3994,7 @@ export default function EngagementOps() {
                             const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
                             return (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5);
                           }).map((v) => (
-                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || '').toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}</option>
+                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || '').toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}{v.corroborationTier === 'confirmed' ? ' \u2713' : v.corroborationTier === 'probable' ? ' \u223c' : ''}{v.detectedVersion ? ` [v${v.detectedVersion}]` : ''}</option>
                           ))}
                         </select>
                       </div>
