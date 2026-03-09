@@ -124,3 +124,37 @@ drizzle/0001_kind_zuras.sql
 drizzle/0002_lumpy_paladin.sql
 drizzle/0003_gray_roulette.sql
 drizzle/0004_opposite_marvel_apes.sql
+
+# Debug/test/analysis files (not needed for deployment)
+*.mjs
+debug-*.txt
+*-audit*.md
+*-research*.md
+*-analysis*.md
+*-notes*.md
+*-results*.md
+*-results*.json
+AUTH_PACK_*.md
+KSI_*.md
+LLM_*.md
+MODULE_*.md
+DO_*.md
+Ace_*.md
+shannon-*.md
+roadmap-*.md
+gap-*.md
+knowledge-*.md
+
+# Docker/deploy (Manus hosting handles this)
+Dockerfile
+docker-compose.yml
+.dockerignore
+ecosystem.config.cjs
+deploy/
+
+# Scripts directory
+scripts/
+
+# Shell scripts (not needed for deployment)
+fedramp-*.sh
+fix-*.sh

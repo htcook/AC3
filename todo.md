@@ -113,3 +113,11 @@
   - Before exploitation decision gate (line 4568)
   - Before final engagement summary (line 4631)
 - [x] All 64 tests passing
+
+## Persistent Deployment S3 Timeout Fix
+- [x] Deep audit: found ~80 non-essential files (debug .mjs, audit .md, threatActorSeed, Docker, deploy, scripts)
+- [x] Removed 82 files: 22 audit/analysis .md, 38 debug/test .mjs, 4 threatActorSeed, 7 server .mjs, 5 deploy, 9 scripts, 4 Docker
+- [x] Cleaned old drizzle snapshots from disk (0000-0004, 4.5MB)
+- [x] Updated .gitignore with comprehensive exclusion patterns
+- [x] Result: 897 files / 22MB (down from original 1318 / 33MB — 32% fewer files, 33% less size)
+- [ ] Publish and verify deployment succeeds
