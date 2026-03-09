@@ -135,3 +135,20 @@
 - [x] Result: 906 files / 18.7MB (down from 1318 / 33MB — 31% fewer files, 43% less size)
 - [x] All 64 tests passing
 - [x] Save checkpoint and publish
+
+## Deployment Build OOM Fix (Exit Code 137)
+- [x] Diagnose vite build OOM — 7175 modules + 209 lazy chunks exhausting 4GB heap during rollup rendering
+- [x] Downgrade Vite 7.1.9 to 6.4.1 (compatible with deploy env Node 20.15.1)
+- [x] Add manualChunks config to group 209 lazy page chunks into 8 page groups + 6 vendor groups
+- [x] Disable sourcemaps and CSS code splitting to reduce memory
+- [x] Build succeeds locally in 61s (was OOM killed)
+- [x] Restored test files from git history (were removed in payload reduction)
+- [x] All 64 tests passing
+- [ ] Save checkpoint and publish
+
+## DO Scan Execution Offload
+- [ ] Review current DO scan service architecture
+- [ ] Implement scan execution endpoints on DO droplet (nmap, nuclei, ZAP proxy)
+- [ ] Update Manus engagement orchestrator to proxy scan commands to DO
+- [ ] Test end-to-end scan flow through DO proxy
+- [ ] Save checkpoint and publish
