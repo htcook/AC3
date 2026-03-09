@@ -551,8 +551,8 @@ export const engagementOpsRouter = router({
           const PER_DOMAIN_WATCHDOG_MS = 15 * 60 * 1000;
           // ── Global watchdog: 90 minutes total for entire pipeline (accounts for LLM rate limits across parallel batches) ──
           const GLOBAL_WATCHDOG_MS = 90 * 60 * 1000;
-          // ── Parallel concurrency: scan up to 5 domains simultaneously ──
-          const PARALLEL_CONCURRENCY = 5;
+          // ── Parallel concurrency: scan up to 3 domains simultaneously (reduced from 5 to avoid OSINT rate limits) ──
+          const PARALLEL_CONCURRENCY = 3;
           let globalWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
           const globalAbort = new AbortController();
           globalWatchdogTimer = setTimeout(() => {
