@@ -106,3 +106,21 @@ temp/
 *.sqlite
 *.sqlite3
 .manus/db/
+
+# Deployment optimization - exclude from deploy
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+docs/
+scan-pipeline-optimization-report.md
+drizzle/meta/0000_snapshot.json
+drizzle/meta/0001_snapshot.json
+drizzle/meta/0002_snapshot.json
+drizzle/meta/0003_snapshot.json
+drizzle/meta/0004_snapshot.json
+drizzle/0000_chilly_toxin.sql
+drizzle/0001_kind_zuras.sql
+drizzle/0002_lumpy_paladin.sql
+drizzle/0003_gray_roulette.sql
+drizzle/0004_opposite_marvel_apes.sql
