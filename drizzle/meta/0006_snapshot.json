@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "9a2ce432-df83-42b3-b11c-31d17b6233ed",
-  "prevId": "c829c63c-3a0f-4a29-8577-05117ecfb197",
+  "id": "1db41258-b28f-4b1c-a57d-00abbb73eb8c",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "ability_graph_edges": {
       "name": "ability_graph_edges",

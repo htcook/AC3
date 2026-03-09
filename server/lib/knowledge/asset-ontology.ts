@@ -10,11 +10,13 @@
  *   4. Prioritize targets by deployment zone and business criticality
  */
 
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __esm_dirname = dirname(fileURLToPath(import.meta.url));
+const SCAN_SERVICE_URL = process.env.SCAN_SERVER_HOST ? `http://${process.env.SCAN_SERVER_HOST}` : "http://159.223.152.190";
+const SCAN_API_KEY = process.env.CALDERA_API_KEY || "ADMIN123";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -50,27 +52,66 @@ let _ontology: AssetOntologyEntry[] | null = null;
 let _patterns: ArchitecturePattern[] | null = null;
 let _rules: InferenceRule[] | null = null;
 
+function deduplicateOntology(entries: AssetOntologyEntry[]): AssetOntologyEntry[] {
+  const seen = new Set<string>();
+  return entries.filter(e => {
+    const base = e.product_name.replace(/_\d+$/, "");
+    if (seen.has(base)) return false;
+    seen.add(base);
+    return true;
+  });
+}
+
+async function loadOntologyAsync(): Promise<AssetOntologyEntry[]> {
+  if (_ontology) return _ontology;
+  const localPath = join(__esm_dirname, "asset_role_ontology.json");
+  if (existsSync(localPath)) {
+    try {
+      const raw = readFileSync(localPath, "utf-8");
+      _ontology = deduplicateOntology(JSON.parse(raw) as AssetOntologyEntry[]);
+      console.log(`[AssetOntology] Loaded ${_ontology.length} unique product entries from local file`);
+      return _ontology;
+    } catch (e: any) {
+      console.warn("[AssetOntology] Local file read failed:", e.message);
+    }
+  }
+  try {
+    const res = await fetch(`${SCAN_SERVICE_URL}/api/knowledge/asset_role_ontology.json`, {
+      headers: { "X-Scan-Key": SCAN_API_KEY },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      _ontology = deduplicateOntology((await res.json()) as AssetOntologyEntry[]);
+      console.log(`[AssetOntology] Loaded ${_ontology.length} unique product entries from DO scan service`);
+      return _ontology;
+    }
+  } catch (e: any) {
+    console.warn("[AssetOntology] DO fetch error:", e.message);
+  }
+  _ontology = [];
+  return _ontology;
+}
+
 function loadOntology(): AssetOntologyEntry[] {
   if (_ontology) return _ontology;
-  try {
-    const raw = readFileSync(join(__esm_dirname, "asset_role_ontology.json"), "utf-8");
-    _ontology = JSON.parse(raw) as AssetOntologyEntry[];
-    // Deduplicate by product_name (keep first occurrence)
-    const seen = new Set<string>();
-    _ontology = _ontology.filter(e => {
-      const base = e.product_name.replace(/_\d+$/, ""); // strip numeric suffixes
-      if (seen.has(base)) return false;
-      seen.add(base);
-      return true;
-    });
-    console.log(`[AssetOntology] Loaded ${_ontology.length} unique product entries`);
-    return _ontology;
-  } catch (e: any) {
-    console.warn("[AssetOntology] Failed to load ontology:", e.message);
-    _ontology = [];
-    return _ontology;
+  const localPath = join(__esm_dirname, "asset_role_ontology.json");
+  if (existsSync(localPath)) {
+    try {
+      const raw = readFileSync(localPath, "utf-8");
+      _ontology = deduplicateOntology(JSON.parse(raw) as AssetOntologyEntry[]);
+      console.log(`[AssetOntology] Loaded ${_ontology.length} unique product entries from local file`);
+      return _ontology;
+    } catch (e: any) {
+      console.warn("[AssetOntology] Local file read failed:", e.message);
+    }
   }
+  loadOntologyAsync().catch(() => {});
+  _ontology = [];
+  return _ontology;
 }
+
+// Pre-warm cache
+loadOntologyAsync().catch(() => {});
 
 function loadPatterns(): ArchitecturePattern[] {
   if (_patterns) return _patterns;

@@ -6,11 +6,13 @@
  * planning prompt so the LLM can reference proven attack patterns.
  */
 
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __esm_dirname = dirname(fileURLToPath(import.meta.url));
+const SCAN_SERVICE_URL = process.env.SCAN_SERVER_HOST ? `http://${process.env.SCAN_SERVER_HOST}` : "http://159.223.152.190";
+const SCAN_API_KEY = process.env.CALDERA_API_KEY || "ADMIN123";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,19 +35,62 @@ export interface AttackChain {
 
 let _chains: AttackChain[] | null = null;
 
+async function loadChainsAsync(): Promise<AttackChain[]> {
+  if (_chains) return _chains;
+  // Try local file first
+  const localPath = join(__esm_dirname, "attack_chains_300.json");
+  if (existsSync(localPath)) {
+    try {
+      const raw = readFileSync(localPath, "utf-8");
+      _chains = JSON.parse(raw) as AttackChain[];
+      console.log(`[AttackChainRetriever] Loaded ${_chains.length} attack chains from local file`);
+      return _chains;
+    } catch (e: any) {
+      console.warn("[AttackChainRetriever] Local file read failed:", e.message);
+    }
+  }
+  // Fetch from DO scan service
+  try {
+    const res = await fetch(`${SCAN_SERVICE_URL}/api/knowledge/attack_chains_300.json`, {
+      headers: { "X-Scan-Key": SCAN_API_KEY },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      _chains = (await res.json()) as AttackChain[];
+      console.log(`[AttackChainRetriever] Loaded ${_chains.length} attack chains from DO scan service`);
+      return _chains;
+    }
+    console.warn(`[AttackChainRetriever] DO fetch failed: ${res.status}`);
+  } catch (e: any) {
+    console.warn("[AttackChainRetriever] DO fetch error:", e.message);
+  }
+  _chains = [];
+  return _chains;
+}
+
+// Synchronous wrapper for backward compatibility — returns cached or empty
 function loadChains(): AttackChain[] {
   if (_chains) return _chains;
-  try {
-    const raw = readFileSync(join(__esm_dirname, "attack_chains_300.json"), "utf-8");
-    _chains = JSON.parse(raw) as AttackChain[];
-    console.log(`[AttackChainRetriever] Loaded ${_chains.length} attack chains`);
-    return _chains;
-  } catch (e: any) {
-    console.warn("[AttackChainRetriever] Failed to load attack chains:", e.message);
-    _chains = [];
-    return _chains;
+  // Try local file synchronously
+  const localPath = join(__esm_dirname, "attack_chains_300.json");
+  if (existsSync(localPath)) {
+    try {
+      const raw = readFileSync(localPath, "utf-8");
+      _chains = JSON.parse(raw) as AttackChain[];
+      console.log(`[AttackChainRetriever] Loaded ${_chains.length} attack chains from local file`);
+      return _chains;
+    } catch (e: any) {
+      console.warn("[AttackChainRetriever] Local file read failed:", e.message);
+    }
   }
+  // Trigger async load for next call
+  loadChainsAsync().catch(() => {});
+  _chains = [];
+  return _chains;
 }
+
+// Pre-warm the cache on module load
+loadChainsAsync().catch(() => {});
 
 // ─── OWASP → vulnerability keyword mapping ──────────────────────────────────
 

@@ -43,6 +43,13 @@
       "when": 1773014641890,
       "tag": "0005_romantic_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773086148218,
+      "tag": "0006_amused_golden_guardian",
+      "breakpoints": true
     }
   ]
 }

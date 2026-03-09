@@ -121,3 +121,17 @@
 - [x] Updated .gitignore with comprehensive exclusion patterns
 - [x] Result: 897 files / 22MB (down from original 1318 / 33MB — 32% fewer files, 33% less size)
 - [ ] Publish and verify deployment succeeds
+
+## DigitalOcean Architecture Split
+- [x] Audit codebase: 910 files/22MB — server/lib 351 files/8.6MB, routers 158/3.1MB, client 339/8.1MB
+- [x] Design split architecture — Option A: DO Scan Microservice approved
+- [x] Plan approved by user
+- [x] Query DO API — found caldera-scan-server at 159.223.152.190 (4GB/2vCPU)
+- [x] Scaffold DO scan microservice (Express API on port 4000 with auth)
+- [x] Deploy to DO droplet with PM2 + nginx (auto-restart, auto-startup)
+- [x] Knowledge files served from DO via /api/knowledge/:filename endpoint
+- [x] Updated attack-chain-retriever.ts and asset-ontology.ts to fetch from DO with local fallback
+- [x] Removed 4 large files from git: attack_chains_300.json (425K), asset_role_ontology.json (75K), 0005_snapshot.json (933K), threatActorSeed2.ts (67K)
+- [x] Result: 906 files / 18.7MB (down from 1318 / 33MB — 31% fewer files, 43% less size)
+- [x] All 64 tests passing
+- [x] Save checkpoint and publish

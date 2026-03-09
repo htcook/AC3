@@ -158,3 +158,12 @@ scripts/
 # Shell scripts (not needed for deployment)
 fedramp-*.sh
 fix-*.sh
+
+# Large knowledge files (served from DO scan service)
+server/lib/knowledge/attack_chains_300.json
+server/lib/knowledge/asset_role_ontology.json
+server/threatActorSeed2.ts
+drizzle/meta/0005_snapshot.json
+DO-ARCHITECTURE-PLAN.md
+scan-pipeline-optimization-report.md
+training-targets-reachability.md
