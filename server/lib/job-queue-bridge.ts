@@ -2,18 +2,20 @@
  * Job Queue Bridge — Transparent replacement for direct SSH executeTool() calls
  *
  * This module provides `executeToolViaQueue()` which has the same signature as
- * `executeTool()` from scan-server-executor.ts but routes execution through the
- * Redis job queue when healthy DO workers are available, falling back to direct
- * SSH execution when they're not.
+ * `executeTool()` from scan-server-executor.ts but routes execution through:
+ *   1. DO HTTP API (primary) — fastest, no SSH overhead, no event loop blocking
+ *   2. Redis job queue (if workers available) — for distributed execution
+ *   3. Direct SSH (fallback) — legacy path, used when HTTP and queue are unavailable
  *
  * The engagement-orchestrator imports this instead of scan-server-executor for
- * all scan execution, making the queue integration transparent to the rest of
- * the pipeline.
+ * all scan execution, making the routing transparent to the rest of the pipeline.
  *
  * Architecture:
- *   Orchestrator → executeToolViaQueue() → [healthy workers?]
- *                                            ├─ YES → enqueue job → poll for result → return ToolExecResult
- *                                            └─ NO  → executeTool() via SSH (fallback)
+ *   Orchestrator → executeToolViaQueue() → [DO HTTP API available?]
+ *                                            ├─ YES → HTTP POST → DO scan service → return ToolExecResult
+ *                                            └─ NO  → [healthy workers?]
+ *                                                      ├─ YES → enqueue job → poll → return
+ *                                                      └─ NO  → executeTool() via SSH (fallback)
  */
 import type { ToolExecConfig, ToolExecResult } from "./scan-server-executor";
 import {
@@ -101,9 +103,32 @@ export async function executeToolViaQueue(
   const useQueue = !options?.forceLocal && (options?.forceQueue || hasHealthyWorker("scan"));
 
   if (!useQueue) {
-    // Fallback to direct SSH execution
+    // Primary: try DO HTTP API first (fastest path, no SSH overhead)
+    if (!options?.forceLocal) {
+      try {
+        const { executeToolViaHttp } = await import("./do-scan-api");
+        const httpResult = await executeToolViaHttp(config);
+        const latency = Date.now() - startTime;
+        metrics.fellBackToSSH++; // Reuse counter for non-queue execution
+        metrics.avgSSHLatencyMs = metrics.fellBackToSSH === 1
+          ? latency
+          : Math.round((metrics.avgSSHLatencyMs * (metrics.fellBackToSSH - 1) + latency) / metrics.fellBackToSSH);
+        broadcastJobEvent(engagementId, {
+          type: "job:executed_http",
+          tool: config.tool,
+          target,
+          durationMs: latency,
+          exitCode: httpResult.exitCode,
+        });
+        return { ...httpResult, executionMode: "local" as const };
+      } catch (httpErr: any) {
+        console.warn(`${LOG} HTTP API failed for ${config.tool}: ${httpErr.message}, falling back to SSH`);
+      }
+    }
+
+    // Fallback: direct SSH execution
     metrics.fellBackToSSH++;
-    console.log(`${LOG} No healthy workers or forceLocal — SSH fallback for ${config.tool} on ${target}`);
+    console.log(`${LOG} SSH fallback for ${config.tool} on ${target}`);
 
     const { executeTool } = await import("./scan-server-executor");
     const result = await executeTool(config);
@@ -186,8 +211,9 @@ export async function executeToolViaQueue(
 }
 
 /**
- * Execute a raw command through the job queue or SSH fallback.
+ * Execute a raw command through DO HTTP API, with SSH fallback.
  * Drop-in replacement for `executeRawCommand()` from scan-server-executor.ts.
+ * Used for piped commands like "echo URL | httpx ..." or "echo URL | nuclei ...".
  */
 export async function executeRawCommandViaQueue(
   command: string,
@@ -198,14 +224,24 @@ export async function executeRawCommandViaQueue(
     forceLocal?: boolean;
   }
 ): Promise<ToolExecResult & { executionMode: "queue" | "local" }> {
-  // Use child_process SSH to prevent event loop blocking.
-  // The SSH2 library does crypto in-process which blocks the event loop
-  // during long-running scans (nuclei, nikto). child_process SSH offloads
-  // all crypto to the OS ssh binary.
+  // Primary: try DO HTTP API (no SSH overhead, no event loop blocking)
+  if (!options?.forceLocal) {
+    try {
+      console.log(`[RawCmdViaQueue] Using DO HTTP API for: ${command.slice(0, 80)}...`);
+      const { executeRawCommandViaHttp } = await import("./do-scan-api");
+      const result = await executeRawCommandViaHttp(command, timeoutSeconds);
+      console.log(`[RawCmdViaQueue] HTTP completed: exit=${result.exitCode}, stdout=${result.stdout.length}b`);
+      return { ...result, executionMode: "local" as const };
+    } catch (httpErr: any) {
+      console.warn(`[RawCmdViaQueue] HTTP API failed: ${httpErr.message}, falling back to SSH`);
+    }
+  }
+
+  // Fallback: child_process SSH
   console.log(`[RawCmdViaQueue] Using child_process SSH for: ${command.slice(0, 80)}...`);
   const { executeViaChildProcessSSH } = await import("./scan-server-executor");
   const result = await executeViaChildProcessSSH(command, timeoutSeconds);
-  console.log(`[RawCmdViaQueue] Completed: exit=${result.exitCode}, stdout=${result.stdout.length}b, stderr=${result.stderr.length}b`);
+  console.log(`[RawCmdViaQueue] SSH completed: exit=${result.exitCode}, stdout=${result.stdout.length}b, stderr=${result.stderr.length}b`);
   return { ...result, executionMode: "local" };
 }
 

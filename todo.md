@@ -152,3 +152,16 @@
 - [ ] Update Manus engagement orchestrator to proxy scan commands to DO
 - [ ] Test end-to-end scan flow through DO proxy
 - [ ] Save checkpoint and publish
+
+## Vianova Engagement Re-run
+- [x] Reset Vianova engagement (cleared: 1 ops snapshot, 6 scan results, 91 LLM telemetry rows, reset to planning)
+- [ ] Re-run Vianova engagement scans
+- [ ] Monitor scan execution for errors
+- [ ] Verify vulnsFound bug fix (should show vulns and enter Phase 4)
+
+## Black Screen Fix (User-Reported)
+- [x] Diagnosed: React fails to mount — TypeError: Cannot read properties of undefined (reading 'forwardRef') in vendor-radix chunk
+- [x] Root cause: manualChunks split React and @radix-ui into separate chunks; Radix loaded before React was available
+- [x] Fix: Merged react, react-dom, react-is, scheduler, and @radix-ui into single 'vendor-react' chunk
+- [x] Build succeeds in 82s, all 72 tests pass
+- [ ] Save checkpoint and publish to verify fix

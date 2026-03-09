@@ -40,10 +40,18 @@ export default defineConfig({
         // This dramatically reduces peak memory during rollup's "rendering chunks" phase
         manualChunks(id) {
           if (id.includes("node_modules")) {
+            // CRITICAL: react, react-dom, react-is, and @radix-ui MUST stay in the same chunk
+            // Separating them causes "Cannot read properties of undefined (reading 'forwardRef')"
+            // because Radix loads before React is available as a separate chunk
+            if (
+              id.includes("/react/") ||
+              id.includes("/react-dom/") ||
+              id.includes("react-is") ||
+              id.includes("@radix-ui") ||
+              id.includes("scheduler")
+            ) return "vendor-react";
             if (id.includes("recharts") || id.includes("d3-")) return "vendor-charts";
-            if (id.includes("react-dom")) return "vendor-react-dom";
             if (id.includes("lucide-react")) return "vendor-icons";
-            if (id.includes("@radix-ui")) return "vendor-radix";
             if (id.includes("@tanstack")) return "vendor-tanstack";
             return "vendor";
           }
