@@ -8489,3 +8489,12 @@
 - [x] Wire context awareness into executeEngagement pipeline start
 - [x] Build succeeds with all integrations
 - [ ] Deploy and test on Vianova engagement
+
+## Parallel Passive Discovery Scan
+- [x] Parallelize passive discovery scan — scan multiple domains concurrently instead of sequentially
+- [ ] Add configurable concurrency limit (e.g., 5 domains at once)
+- [ ] Ensure state updates and log broadcasts are thread-safe with concurrent scans
+- [ ] Maintain per-domain watchdog timers in parallel mode
+- [ ] Test parallel scan execution and verify observation collection
+- [x] Sort CVEs by most recent in engagement ops asset detail views
+- [x] Add version-aware vulnerability matching — only list CVEs that affect the detected version, not all CVEs for the product

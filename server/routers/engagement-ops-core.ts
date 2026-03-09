@@ -548,134 +548,145 @@ export const engagementOpsRouter = router({
         // Run pipeline in background — mutation returns immediately with assets already populated
         (async () => {
           // ── Per-domain watchdog: 8 minutes per domain ──
-          // The full pipeline runs ~10 stages (passive recon connectors, LLM discovery,
-          // DNS verification, WAF detection, LLM analysis) with external API calls.
-          // Individual LLM calls have a 60s timeout. 8 min gives enough headroom.
           const PER_DOMAIN_WATCHDOG_MS = 8 * 60 * 1000;
-          // ── Global watchdog: 20 minutes total for entire pipeline ──
-          const GLOBAL_WATCHDOG_MS = 20 * 60 * 1000;
+          // ── Global watchdog: 45 minutes total for entire pipeline (increased for parallel batches) ──
+          const GLOBAL_WATCHDOG_MS = 45 * 60 * 1000;
+          // ── Parallel concurrency: scan up to 5 domains simultaneously ──
+          const PARALLEL_CONCURRENCY = 5;
           let globalWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
-          const globalWatchdogPromise = new Promise<never>((_, reject) => {
-            globalWatchdogTimer = setTimeout(() => reject(new Error('Global pipeline watchdog timeout (20 min) — aborting all remaining domains')), GLOBAL_WATCHDOG_MS);
-          });
+          const globalAbort = new AbortController();
+          globalWatchdogTimer = setTimeout(() => {
+            globalAbort.abort();
+          }, GLOBAL_WATCHDOG_MS);
 
-          try {
+          // Track active domains for UI (replaces single currentDomain)
+          const activeDomains = new Set<string>();
+          const updateCurrentAction = () => {
+            const active = [...activeDomains];
+            if (active.length === 0) {
+              state!.currentAction = undefined;
+            } else if (active.length === 1) {
+              state!.currentDomain = active[0];
+              state!.currentAction = `Scanning ${active[0]}...`;
+            } else {
+              state!.currentDomain = active[0]; // UI shows first for elapsed timer
+              state!.currentAction = `Scanning ${active.length} domains in parallel: ${active.slice(0, 3).join(', ')}${active.length > 3 ? ` +${active.length - 3} more` : ''}`;
+            }
+          };
 
-            for (const domain of domains) {
-              // Check if scan was stopped by operator
-              if (!state!.isRunning) {
-                const stopLog = { id: `log-${Date.now()}-stopped`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: '⏹ Scan Stopped', detail: 'Passive scan stopped by operator before completing all domains.' };
-                state!.log.push(stopLog);
-                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stopLog });
-                break;
-              }
+          const parallelStartLog = { id: `log-${Date.now()}-parallel`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `⚡ Parallel Scan Mode`, detail: `Scanning up to ${PARALLEL_CONCURRENCY} domains concurrently. ${domains.length} domains queued.` };
+          state!.log.push(parallelStartLog);
+          broadcastOpsUpdate(input.engagementId, { type: 'log', entry: parallelStartLog });
 
-              // Check if this domain was skipped by operator
-              if (state!.skippedDomains?.has(domain)) {
-                const skipLog = { id: `log-${Date.now()}-skip-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `⏭ Skipped: ${domain}`, detail: 'Domain skipped by operator request.' };
-                state!.log.push(skipLog);
-                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: skipLog });
-                continue;
-              }
+          /** Process a single domain through the full pipeline */
+          const processDomain = async (domain: string): Promise<void> => {
+            // Check if scan was stopped by operator
+            if (!state!.isRunning || globalAbort.signal.aborted) return;
 
-              // Track current domain for UI elapsed timer and skip button
-              state!.currentDomain = domain;
-              state!.currentDomainStartedAt = Date.now();
+            // Check if this domain was skipped by operator
+            if (state!.skippedDomains?.has(domain)) {
+              const skipLog = { id: `log-${Date.now()}-skip-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `⏭ Skipped: ${domain}`, detail: 'Domain skipped by operator request.' };
+              state!.log.push(skipLog);
+              broadcastOpsUpdate(input.engagementId, { type: 'log', entry: skipLog });
+              return;
+            }
 
-              // Per-domain watchdog
-              let domainWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
-              const domainWatchdogPromise = new Promise<never>((_, reject) => {
-                domainWatchdogTimer = setTimeout(() => reject(new Error(`Domain watchdog timeout (8 min) for ${domain}`)), PER_DOMAIN_WATCHDOG_MS);
-              });
+            activeDomains.add(domain);
+            updateCurrentAction();
 
-              try {
-                const logEntry = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'scan_start' as const, title: `Domain Intel: ${domain}`, detail: 'Running strict passive OSINT scan (no direct target contact)' };
-                state!.log.push(logEntry);
-                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: logEntry });
+            // Per-domain watchdog
+            let domainWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+            const domainWatchdogPromise = new Promise<never>((_, reject) => {
+              domainWatchdogTimer = setTimeout(() => reject(new Error(`Domain watchdog timeout (8 min) for ${domain}`)), PER_DOMAIN_WATCHDOG_MS);
+            });
+            // Also abort on global signal
+            const globalAbortPromise = new Promise<never>((_, reject) => {
+              if (globalAbort.signal.aborted) return reject(new Error('Global pipeline watchdog timeout — aborting'));
+              globalAbort.signal.addEventListener('abort', () => reject(new Error('Global pipeline watchdog timeout — aborting')), { once: true });
+            });
 
-                state!.currentAction = `Scanning ${domain}...`;
-                broadcastOpsUpdate(input.engagementId, { type: 'stats_update', stats: { ...state!.stats } });
+            try {
+              const logEntry = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'scan_start' as const, title: `Domain Intel: ${domain}`, detail: 'Running strict passive OSINT scan (no direct target contact)' };
+              state!.log.push(logEntry);
+              broadcastOpsUpdate(input.engagementId, { type: 'log', entry: logEntry });
 
-                const { runDomainIntelPipeline } = await import('../domainIntel');
-                console.log(`[PassiveScan] Starting runDomainIntelPipeline for ${domain}`);
-                const result = await Promise.race([
-                  runDomainIntelPipeline(
-                    {
-                      customerName: engagement.customerName || 'Auto',
-                      primaryDomain: domain,
-                      additionalDomains: [],
-                      sector: 'technology',
-                      clientType: 'enterprise',
-                      criticalFunctions: [],
-                      complianceFlags: [],
-                    },
-                    // Progress callback — push stage updates to live feed
-                    async (stage) => {
-                      // Check if domain was skipped mid-pipeline
-                      if (state!.skippedDomains?.has(domain)) {
-                        throw new Error(`Domain ${domain} skipped by operator`);
-                      }
-                      console.log(`[PassiveScan] Pipeline stage: ${stage} for ${domain}`);
-                      state!.currentAction = `${domain}: ${stage}`;
-                      const stageLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `Pipeline: ${domain}`, detail: `Stage: ${stage}` };
-                      state!.log.push(stageLog);
-                      broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stageLog });
-                    },
-                    // Options: use engagement scan mode, scoped to engagement targets only, with per-connector progress
-                    {
-                      scanMode: effectiveScanMode as any,
-                      skipEngagement: false,
-                      scopedAssets: allTargets,
-                      onConnectorProgress: async (event) => {
-                        // Distinguish between: success with data, success but empty, skipped (no key), failed, circuit breaker
-                        let statusIcon: string;
-                        let detail: string;
-                        if (event.status === 'started') {
-                          statusIcon = '\u25b6';
-                          detail = 'Querying...';
-                        } else if (event.status === 'completed') {
-                          const obs = event.observations || 0;
-                          const dur = ((event.durationMs || 0) / 1000).toFixed(1);
-                          if (obs > 0) {
-                            statusIcon = '\u2705';
-                            detail = `${obs} observations in ${dur}s`;
-                          } else if ((event.durationMs || 0) < 50) {
-                            // Completed in <50ms with 0 observations = likely skipped (no API key configured)
-                            statusIcon = '\u23ed';
-                            detail = `No API key configured — skipped (${dur}s)`;
-                          } else {
-                            // Real API call returned empty results
-                            statusIcon = '\u2139\ufe0f';
-                            detail = `0 observations — no records found for this domain (${dur}s)`;
-                          }
-                        } else if (event.status === 'failed') {
-                          statusIcon = '\u274c';
-                          detail = `Error: ${event.error || 'unknown'}`;
-                        } else if (event.status === 'skipped') {
-                          statusIcon = '\u23ed';
-                          detail = `Skipped: ${event.error || 'circuit breaker'}`;
-                        } else {
-                          statusIcon = '\u2753';
-                          detail = `Unknown status: ${event.status}`;
-                        }
-                        state!.currentAction = `${domain}: ${statusIcon} ${event.connector} ${event.status}`;
-                        const connLog = {
-                          id: `log-${Date.now()}-conn-${Math.random().toString(36).slice(2,6)}`,
-                          timestamp: Date.now(),
-                          phase: 'recon' as const,
-                          type: 'info' as const,
-                          title: `${statusIcon} ${event.connector} — ${domain}`,
-                          detail,
-                        };
-                        state!.log.push(connLog);
-                        broadcastOpsUpdate(input.engagementId, { type: 'log', entry: connLog });
-                      },
+              broadcastOpsUpdate(input.engagementId, { type: 'stats_update', stats: { ...state!.stats } });
+
+              const { runDomainIntelPipeline } = await import('../domainIntel');
+              console.log(`[PassiveScan] Starting runDomainIntelPipeline for ${domain}`);
+              const result = await Promise.race([
+                runDomainIntelPipeline(
+                  {
+                    customerName: engagement.customerName || 'Auto',
+                    primaryDomain: domain,
+                    additionalDomains: [],
+                    sector: 'technology',
+                    clientType: 'enterprise',
+                    criticalFunctions: [],
+                    complianceFlags: [],
+                  },
+                  // Progress callback — push stage updates to live feed
+                  async (stage) => {
+                    // Check if domain was skipped mid-pipeline
+                    if (state!.skippedDomains?.has(domain)) {
+                      throw new Error(`Domain ${domain} skipped by operator`);
                     }
-                  ),
-                  domainWatchdogPromise,
-                  globalWatchdogPromise,
-                ]);
-                console.log(`[PassiveScan] Pipeline completed for ${domain}`);
+                    console.log(`[PassiveScan] Pipeline stage: ${stage} for ${domain}`);
+                    const stageLog = { id: `log-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `Pipeline: ${domain}`, detail: `Stage: ${stage}` };
+                    state!.log.push(stageLog);
+                    broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stageLog });
+                  },
+                  // Options: use engagement scan mode, scoped to engagement targets only, with per-connector progress
+                  {
+                    scanMode: effectiveScanMode as any,
+                    skipEngagement: false,
+                    scopedAssets: allTargets,
+                    onConnectorProgress: async (event) => {
+                      let statusIcon: string;
+                      let detail: string;
+                      if (event.status === 'started') {
+                        statusIcon = '\u25b6';
+                        detail = 'Querying...';
+                      } else if (event.status === 'completed') {
+                        const obs = event.observations || 0;
+                        const dur = ((event.durationMs || 0) / 1000).toFixed(1);
+                        if (obs > 0) {
+                          statusIcon = '\u2705';
+                          detail = `${obs} observations in ${dur}s`;
+                        } else if ((event.durationMs || 0) < 50) {
+                          statusIcon = '\u23ed';
+                          detail = `No API key configured — skipped (${dur}s)`;
+                        } else {
+                          statusIcon = '\u2139\ufe0f';
+                          detail = `0 observations — no records found for this domain (${dur}s)`;
+                        }
+                      } else if (event.status === 'failed') {
+                        statusIcon = '\u274c';
+                        detail = `Error: ${event.error || 'unknown'}`;
+                      } else if (event.status === 'skipped') {
+                        statusIcon = '\u23ed';
+                        detail = `Skipped: ${event.error || 'circuit breaker'}`;
+                      } else {
+                        statusIcon = '\u2753';
+                        detail = `Unknown status: ${event.status}`;
+                      }
+                      const connLog = {
+                        id: `log-${Date.now()}-conn-${Math.random().toString(36).slice(2,6)}`,
+                        timestamp: Date.now(),
+                        phase: 'recon' as const,
+                        type: 'info' as const,
+                        title: `${statusIcon} ${event.connector} — ${domain}`,
+                        detail,
+                      };
+                      state!.log.push(connLog);
+                      broadcastOpsUpdate(input.engagementId, { type: 'log', entry: connLog });
+                    },
+                  }
+                ),
+                domainWatchdogPromise,
+                globalAbortPromise,
+              ]);
+              console.log(`[PassiveScan] Pipeline completed for ${domain}`);
 
                 const pipelineResult = result as any;
                 const discoveredAssets = pipelineResult.assets || [];
@@ -903,13 +914,40 @@ export const engagementOpsRouter = router({
                 }
               } finally {
                 if (domainWatchdogTimer) clearTimeout(domainWatchdogTimer);
-                // Clear per-domain tracking
-                state!.currentDomain = undefined;
-                state!.currentDomainStartedAt = undefined;
+                // Remove from active tracking
+                activeDomains.delete(domain);
+                updateCurrentAction();
                 // Force-persist after each domain so assets survive crashes
                 const { persistOpsStateNow: persistAfterDomain } = await import('../lib/engagement-orchestrator');
                 await persistAfterDomain(input.engagementId).catch(() => {});
               }
+          }; // end processDomain
+
+          try {
+            // ── Parallel batch execution with concurrency limit ──
+            // Process domains in batches of PARALLEL_CONCURRENCY
+            const domainQueue = [...domains];
+            const batchCount = Math.ceil(domainQueue.length / PARALLEL_CONCURRENCY);
+            console.log(`[PassiveScan] Processing ${domainQueue.length} domains in ${batchCount} batches of up to ${PARALLEL_CONCURRENCY}`);
+
+            for (let batchIdx = 0; batchIdx < batchCount; batchIdx++) {
+              if (!state!.isRunning || globalAbort.signal.aborted) {
+                const stopLog = { id: `log-${Date.now()}-stopped`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: '\u23f9 Scan Stopped', detail: 'Passive scan stopped by operator before completing all domains.' };
+                state!.log.push(stopLog);
+                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: stopLog });
+                break;
+              }
+
+              const batchStart = batchIdx * PARALLEL_CONCURRENCY;
+              const batch = domainQueue.slice(batchStart, batchStart + PARALLEL_CONCURRENCY);
+              const batchLog = { id: `log-${Date.now()}-batch-${batchIdx}`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `\u{1F4E6} Batch ${batchIdx + 1}/${batchCount}`, detail: `Processing ${batch.length} domains in parallel: ${batch.join(', ')}` };
+              state!.log.push(batchLog);
+              broadcastOpsUpdate(input.engagementId, { type: 'log', entry: batchLog });
+
+              // Run all domains in this batch concurrently
+              await Promise.allSettled(batch.map(d => processDomain(d)));
+
+              console.log(`[PassiveScan] Batch ${batchIdx + 1}/${batchCount} complete`);
             }
 
             // Handle IP-only targets — run Shodan/Censys lookups if available
@@ -935,18 +973,18 @@ export const engagementOpsRouter = router({
             }
 
             // Mark recon complete — wait for operator to start active scan
-            // If already stopped by operator, don't overwrite the phase
             if (state!.isRunning) {
               state!.phase = 'recon_complete' as any;
               state!.isRunning = false;
             } else {
-              // Stopped by operator mid-scan — still mark as recon_complete if we have assets
               if (state!.assets.some((a: any) => a.status === 'discovered')) {
                 state!.phase = 'recon_complete' as any;
               }
             }
             state!.progress = 15;
             state!.currentAction = undefined;
+            state!.currentDomain = undefined;
+            state!.currentDomainStartedAt = undefined;
             const doneLog = { id: `log-${Date.now()}-done`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '\u2705 Strict Passive Discovery Complete', detail: `${state!.assets.length} assets discovered via strict passive OSINT (zero target contact). Click "Start Active Scan" to hand off to LLM for nmap \u2192 service matching \u2192 vuln detection \u2192 exploitation.` };
             state!.log.push(doneLog);
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon_complete' });
@@ -959,16 +997,13 @@ export const engagementOpsRouter = router({
             state!.phase = 'error';
             state!.isRunning = false;
             state!.error = e.message;
-            // Broadcast error to UI so user sees what happened
-            const errLog = { id: `log-${Date.now()}-fatal`, timestamp: Date.now(), phase: 'recon' as const, type: 'error' as const, title: '❌ Passive Scan Failed', detail: `Error: ${e.message}. ${state!.assets.filter((a: any) => a.status === 'discovered').length} assets were discovered before the error.` };
+            const errLog = { id: `log-${Date.now()}-fatal`, timestamp: Date.now(), phase: 'recon' as const, type: 'error' as const, title: '\u274c Passive Scan Failed', detail: `Error: ${e.message}. ${state!.assets.filter((a: any) => a.status === 'discovered').length} assets were discovered before the error.` };
             state!.log.push(errLog);
             broadcastOpsUpdate(input.engagementId, { type: 'log', entry: errLog });
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'error' });
-            // Force-persist error state so assets are preserved
             const { persistOpsStateNow: persistOnError } = await import('../lib/engagement-orchestrator');
             await persistOnError(input.engagementId).catch(() => {});
           } finally {
-            // Clean up global watchdog timer
             if (globalWatchdogTimer) clearTimeout(globalWatchdogTimer);
           }
         })();

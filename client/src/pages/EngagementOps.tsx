@@ -1855,12 +1855,28 @@ export default function EngagementOps() {
                         </div>
                       )}
 
-                      {/* Vulns */}
+                      {/* Vulns — sorted by most recent CVE first (year desc, number desc), then by severity */}
                       {(selectedAssetData.vulns || []).length > 0 && (
                         <div>
                           <h4 className="text-xs font-medium text-muted-foreground mb-1">Vulnerabilities ({(selectedAssetData.vulns || []).length})</h4>
                           <div className="space-y-0.5">
-                            {(selectedAssetData.vulns || []).map((v: any, i: number) => (
+                            {[...(selectedAssetData.vulns || [])].sort((a: any, b: any) => {
+                              // Parse CVE-YYYY-NNNNN format for sorting
+                              const parseCve = (cve?: string) => {
+                                if (!cve) return { year: 0, num: 0 };
+                                const m = cve.match(/CVE-(\d{4})-(\d+)/i);
+                                return m ? { year: parseInt(m[1]), num: parseInt(m[2]) } : { year: 0, num: 0 };
+                              };
+                              const aCve = parseCve(a.cve);
+                              const bCve = parseCve(b.cve);
+                              // Sort by year descending first
+                              if (bCve.year !== aCve.year) return bCve.year - aCve.year;
+                              // Then by CVE number descending (higher = more recent)
+                              if (bCve.num !== aCve.num) return bCve.num - aCve.num;
+                              // Fallback: severity order (critical > high > medium > low)
+                              const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+                              return (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5);
+                            }).map((v: any, i: number) => (
                               <div key={i} className="text-xs px-2 py-1.5 bg-muted/10 rounded space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <Badge variant="outline" className={`text-[9px] ${
@@ -2063,7 +2079,14 @@ export default function EngagementOps() {
                                 <p className="text-[10px] text-muted-foreground font-mono truncate mb-1" title={tr.command}>{tr.command}</p>
                                {(tr.findings || []).length > 0 && (
                                    <div className="space-y-0.5">
-                                     {(tr.findings || []).slice(0, 8).map((f, fi) => (
+                                     {[...(tr.findings || [])].sort((a: any, b: any) => {
+                                       const parseCve = (cve?: string) => { if (!cve) return { year: 0, num: 0 }; const m = cve.match(/CVE-(\d{4})-(\d+)/i); return m ? { year: parseInt(m[1]), num: parseInt(m[2]) } : { year: 0, num: 0 }; };
+                                       const ac = parseCve(a.cve), bc = parseCve(b.cve);
+                                       if (bc.year !== ac.year) return bc.year - ac.year;
+                                       if (bc.num !== ac.num) return bc.num - ac.num;
+                                       const so: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+                                       return (so[a.severity] ?? 5) - (so[b.severity] ?? 5);
+                                     }).slice(0, 8).map((f, fi) => (
                                       <div key={fi} className="flex items-center gap-1 text-[10px]">
                                         <Badge variant="outline" className={`text-[7px] px-1 ${
                                           f.severity === 'critical' ? 'text-red-400 border-red-500/30' :
@@ -2545,7 +2568,13 @@ export default function EngagementOps() {
                                     )}
                                     {tr.findings && (tr.findings || []).length > 0 && (
                                       <div className="space-y-0.5">
-                                        {(tr.findings || []).slice(0, 5).map((f: any, fi: number) => {
+                                        {[...(tr.findings || [])].sort((a: any, b: any) => {
+                                          if (typeof a === 'string' || typeof b === 'string') return 0;
+                                          const parseCve = (cve?: string) => { if (!cve) return { year: 0, num: 0 }; const m = cve.match(/CVE-(\d{4})-(\d+)/i); return m ? { year: parseInt(m[1]), num: parseInt(m[2]) } : { year: 0, num: 0 }; };
+                                          const ac = parseCve(a?.cve), bc = parseCve(b?.cve);
+                                          if (bc.year !== ac.year) return bc.year - ac.year;
+                                          return bc.num - ac.num;
+                                        }).slice(0, 5).map((f: any, fi: number) => {
                                           const fStr = typeof f === 'string' ? f : (f?.title || JSON.stringify(f));
                                           return (
                                             <div key={fi} className="text-[9px] text-amber-300/80 flex items-start gap-1">
@@ -3902,8 +3931,20 @@ export default function EngagementOps() {
                           className="w-full text-xs bg-background border border-border rounded px-2 py-1.5"
                         >
                           <option value="">All vulns (auto-select best)</option>
-                          {asset.vulns.map((v, i) => (
-                            <option key={i} value={i}>{(v.severity || '').toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}</option>
+                          {[...asset.vulns].map((v, origIdx) => ({ ...v, origIdx })).sort((a: any, b: any) => {
+                            const parseCve = (cve?: string) => {
+                              if (!cve) return { year: 0, num: 0 };
+                              const m = cve.match(/CVE-(\d{4})-(\d+)/i);
+                              return m ? { year: parseInt(m[1]), num: parseInt(m[2]) } : { year: 0, num: 0 };
+                            };
+                            const aCve = parseCve(a.cve);
+                            const bCve = parseCve(b.cve);
+                            if (bCve.year !== aCve.year) return bCve.year - aCve.year;
+                            if (bCve.num !== aCve.num) return bCve.num - aCve.num;
+                            const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+                            return (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5);
+                          }).map((v) => (
+                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || '').toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}</option>
                           ))}
                         </select>
                       </div>

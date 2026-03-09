@@ -2346,12 +2346,14 @@ export async function runDomainIntelPipeline(
 
       // Get unique techs for this asset only
       const uniqueAssetTechs = Array.from(new Set(assetTechs));
-      const cacheKey = uniqueAssetTechs.sort().join('|').toLowerCase();
+      // Include version info in cache key since version-aware filtering produces different results
+      const versionSuffix = Object.entries(a.asset.technologyVersions || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => `${k}=${v}`).join('&');
+      const cacheKey = uniqueAssetTechs.sort().join('|').toLowerCase() + (versionSuffix ? `#${versionSuffix}` : '');
 
       // Check cache first — if another asset has the exact same tech set, reuse results
       let vulnResult = vulnFeedCache.get(cacheKey);
       if (!vulnResult) {
-        vulnResult = await matchTechnologiesAgainstAllFeeds(uniqueAssetTechs);
+        vulnResult = await matchTechnologiesAgainstAllFeeds(uniqueAssetTechs, a.asset.technologyVersions || {});
         vulnFeedCache.set(cacheKey, vulnResult);
       }
 
@@ -2377,6 +2379,17 @@ export async function runDomainIntelPipeline(
           const detectedVersion = Object.entries(versions).find(
             ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
           )?.[1] || undefined;
+
+          // VERSION-AWARE FILTERING: If we have a detected version AND the CVE has
+          // version range data, verify the detected version is actually affected.
+          // This prevents listing all CVEs for a product when only specific versions are vulnerable.
+          if (detectedVersion && vuln.affectedVersionRange) {
+            const { isVersionAffected } = await import("./lib/dynamic-cpe-matcher");
+            if (!isVersionAffected(detectedVersion, vuln.affectedVersionRange)) {
+              continue; // Detected version is NOT in the affected range — skip this CVE
+            }
+          }
+
           // With version: confirmed. Without: probable (we have a real CVE, just no version confirmation)
           const tier: CorroborationTier = detectedVersion ? "confirmed" : "probable";
           const severityCap = tier === "confirmed" ? 10 : 6;
@@ -2388,7 +2401,11 @@ export async function runDomainIntelPipeline(
             `Sources: ${vuln.sources.join(", ")}`,
           ];
           if (detectedVersion) {
-            evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED`);
+            if (vuln.affectedVersionRange) {
+              evidenceChain.push(`Detected version: ${detectedVersion} — CONFIRMED within affected range (${vuln.affectedVersionRange})`);
+            } else {
+              evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED (no version range data to verify against)`);
+            }
           } else {
             evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
           }
@@ -2419,7 +2436,7 @@ export async function runDomainIntelPipeline(
             affectedAssets: [a.asset.hostname],
             evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
             evidenceDetail: detectedVersion
-              ? `CONFIRMED: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
+              ? `CONFIRMED: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product}${vuln.affectedVersionRange ? ` (affected: ${vuln.affectedVersionRange})` : ''}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
               : `PROBABLE: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but version not confirmed. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
             corroborationTier: tier,
             detectedVersion,

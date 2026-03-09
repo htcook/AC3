@@ -365,6 +365,17 @@ export async function matchTechnologyCves(
     matchConfidence = "fuzzy";
   }
   
+  // VERSION-AWARE FILTERING: If a version was provided, filter out CVEs
+  // whose affectedVersionRange explicitly excludes the detected version.
+  // CVEs with no version range data are kept (can't confirm or deny).
+  if (version && cves.length > 0) {
+    const beforeCount = cves.length;
+    cves = filterCvesByVersion(cves, version);
+    if (cves.length < beforeCount) {
+      console.log(`[DynamicCPE] Version filter for ${technology} v${version}: ${beforeCount} \u2192 ${cves.length} CVEs (removed ${beforeCount - cves.length} non-matching)`);
+    }
+  }
+  
   const result: CpeMatchResult = {
     technology,
     version: version || "*",

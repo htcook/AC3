@@ -21,6 +21,7 @@ import {
   type KevMatch,
   type KevCatalog,
 } from "./kev-service";
+import { isVersionAffected } from "./dynamic-cpe-matcher";
 
 async function fetchWithRetry(url: string, opts: RequestInit = {}, retries = 2, delay = 3000): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -57,6 +58,7 @@ export interface VulnEntry {
   patchAvailable?: boolean;
   attackVector?: string;
   attackComplexity?: string;
+  affectedVersionRange?: string; // e.g. ">= 2.0.0, < 2.4.50" from NVD CPE match data
 }
 
 export type VulnSource = "cisa_kev" | "project_zero" | "nvd" | "circl" | "exploit_db";
@@ -189,6 +191,7 @@ interface NvdCveItem {
   vendor: string;
   product: string;
   cweId: string | null;
+  affectedVersionRange: string | null;
 }
 
 const NVD_API_BASE = "https://services.nvd.nist.gov/rest/json/cves/2.0";
@@ -220,13 +223,28 @@ async function fetchNvdRecent(days: number = 30): Promise<NvdCveItem[]> {
       const cvssV3 = cve.metrics?.cvssMetricV31?.[0]?.cvssData ||
                      cve.metrics?.cvssMetricV30?.[0]?.cvssData;
 
-      // Extract vendor/product from CPE
+      // Extract vendor/product and version range from CPE
       let vendor = "", product = "";
-      const cpeMatch = cve.configurations?.[0]?.nodes?.[0]?.cpeMatch?.[0];
-      if (cpeMatch?.criteria) {
-        const parts = cpeMatch.criteria.split(":");
-        vendor = parts[3] || "";
-        product = parts[4] || "";
+      let affectedVersionRange: string | null = null;
+      // Iterate ALL cpeMatch nodes to build comprehensive version range
+      const allNodes = cve.configurations?.flatMap((c: any) => c.nodes || []) || [];
+      for (const node of allNodes) {
+        for (const cm of (node.cpeMatch || [])) {
+          if (cm?.criteria) {
+            const parts = cm.criteria.split(":");
+            if (!vendor && parts[3]) vendor = parts[3];
+            if (!product && parts[4]) product = parts[4];
+          }
+          // Extract version range from this cpeMatch entry
+          const rangeParts: string[] = [];
+          if (cm?.versionStartIncluding) rangeParts.push(`>= ${cm.versionStartIncluding}`);
+          if (cm?.versionStartExcluding) rangeParts.push(`> ${cm.versionStartExcluding}`);
+          if (cm?.versionEndIncluding) rangeParts.push(`<= ${cm.versionEndIncluding}`);
+          if (cm?.versionEndExcluding) rangeParts.push(`< ${cm.versionEndExcluding}`);
+          if (rangeParts.length > 0 && !affectedVersionRange) {
+            affectedVersionRange = rangeParts.join(", ");
+          }
+        }
       }
 
       items.push({
@@ -241,6 +259,7 @@ async function fetchNvdRecent(days: number = 30): Promise<NvdCveItem[]> {
         vendor,
         product,
         cweId: cve.weaknesses?.[0]?.description?.[0]?.value || null,
+        affectedVersionRange,
       });
     }
 
@@ -552,6 +571,9 @@ async function buildUnifiedMap(): Promise<Map<string, VulnEntry>> {
       existing.severity = severityFromCvss(nvd.cvssV3Score);
       existing.attackVector = nvd.attackVector || undefined;
       existing.attackComplexity = nvd.attackComplexity || undefined;
+      if (nvd.affectedVersionRange && !existing.affectedVersionRange) {
+        existing.affectedVersionRange = nvd.affectedVersionRange;
+      }
       if (!existing.description && nvd.description) {
         existing.description = nvd.description;
       }
@@ -573,6 +595,7 @@ async function buildUnifiedMap(): Promise<Map<string, VulnEntry>> {
         suggestedTechniques: [],
         attackVector: nvd.attackVector || undefined,
         attackComplexity: nvd.attackComplexity || undefined,
+        affectedVersionRange: nvd.affectedVersionRange || undefined,
       });
     }
   }
@@ -805,13 +828,35 @@ export async function matchTechnologiesAgainstAllFeeds(
     }
 
     if (matchedVulns.length > 0) {
-      const exploitCount = matchedVulns.filter(v => v.exploitAvailable).length;
-      const kevCount = matchedVulns.filter(v => v.kevListed).length;
-      const zeroDayCount = matchedVulns.filter(v => v.inTheWild).length;
-
-      // Determine corroboration tier for this technology
+      // ── Version-aware filtering ──────────────────────────────────
+      // If we have a detected version for this technology, filter out CVEs
+      // whose affectedVersionRange explicitly excludes the detected version.
+      // CVEs with no version range data are kept (we can't exclude them).
       const detectedVersion = versions[tech] || versions[techLower];
       const hasVersionMatch = !!detectedVersion;
+
+      let filteredVulns: VulnEntry[];
+      if (hasVersionMatch) {
+        filteredVulns = matchedVulns.filter(v => {
+          // If CVE has no version range info, we can't confirm or deny — keep as "probable"
+          if (!v.affectedVersionRange) return true;
+          // Use the version comparator from dynamic-cpe-matcher to check if detected version is affected
+          return isVersionAffected(detectedVersion, v.affectedVersionRange);
+        });
+        if (filteredVulns.length < matchedVulns.length) {
+          console.log(`[VulnFeeds] Version filter for ${tech} v${detectedVersion}: ${matchedVulns.length} → ${filteredVulns.length} CVEs (removed ${matchedVulns.length - filteredVulns.length} non-matching)`);
+        }
+      } else {
+        filteredVulns = matchedVulns;
+      }
+
+      // Skip this technology entirely if no vulns remain after version filtering
+      if (filteredVulns.length === 0) continue;
+
+      const exploitCount = filteredVulns.filter(v => v.exploitAvailable).length;
+      const kevCount = filteredVulns.filter(v => v.kevListed).length;
+      const zeroDayCount = filteredVulns.filter(v => v.inTheWild).length;
+
       const hasKev = kevCount > 0;
       const hasZeroDay = zeroDayCount > 0;
       const hasExploit = exploitCount > 0;
@@ -829,16 +874,16 @@ export async function matchTechnologiesAgainstAllFeeds(
         tier = 'potential';
       }
 
-      // Per-vuln tier counts
+      // Per-vuln tier counts — use filteredVulns
       let techConfirmed = 0, techProbable = 0, techPotential = 0;
-      for (const v of matchedVulns) {
+      for (const v of filteredVulns) {
         if (v.kevListed || v.inTheWild) techConfirmed++;
         else if (hasVersionMatch || v.exploitAvailable) techProbable++;
         else techPotential++;
       }
 
-      // Calculate risk score for this technology
-      const maxCvss = Math.max(...matchedVulns.map(v => v.cvssScore || 0));
+      // Calculate risk score for this technology — use filteredVulns (version-matched only)
+      const maxCvss = Math.max(...filteredVulns.map(v => v.cvssScore || 0));
       const riskScore = Math.min(100, Math.round(
         (maxCvss / 10) * 40 +
         (exploitCount > 0 ? 25 : 0) +
@@ -847,14 +892,14 @@ export async function matchTechnologiesAgainstAllFeeds(
       ));
 
       const severityOrder = { critical: 4, high: 3, medium: 2, low: 1, unknown: 0 };
-      const maxSeverity = matchedVulns.reduce((max, v) =>
+      const maxSeverity = filteredVulns.reduce((max, v) =>
         (severityOrder[v.severity] > severityOrder[max]) ? v.severity : max,
         "unknown" as VulnEntry["severity"]
       );
 
       techMatches.push({
         technology: tech,
-        vulns: matchedVulns.sort((a, b) => (b.cvssScore || 0) - (a.cvssScore || 0)).slice(0, 25),
+        vulns: filteredVulns.sort((a, b) => (b.cvssScore || 0) - (a.cvssScore || 0)).slice(0, 25),
         maxSeverity,
         exploitCount,
         kevCount,
@@ -865,7 +910,7 @@ export async function matchTechnologiesAgainstAllFeeds(
         potentialVulnCount: techPotential,
       });
 
-      totalVulns += matchedVulns.length;
+      totalVulns += filteredVulns.length;
       totalExploits += exploitCount;
       totalKev += kevCount;
       totalZeroDay += zeroDayCount;
