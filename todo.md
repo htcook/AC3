@@ -163,7 +163,8 @@
 - [x] Diagnosed: React fails to mount — TypeError: Cannot read properties of undefined (reading 'forwardRef') in vendor-radix chunk
 - [x] Root cause: manualChunks split React and @radix-ui into separate chunks; Radix loaded before React was available
 - [x] Fix attempt 1: Merged react+radix into vendor-react chunk — FAILED (lucide-react also needs React)
-- [x] Fix attempt 2: Put ALL node_modules into single 'vendor' chunk — eliminates all loading order issues
-- [x] Build succeeds in 68s with 11 total chunks (1 vendor + 8 page groups + index + chat)
+- [x] Fix attempt 2: Put ALL node_modules into single 'vendor' chunk — FAILED (TDZ error: Cannot access 'aft' before initialization due to circular deps between vendor and page chunks)
+- [x] Fix attempt 3: Remove manualChunks entirely — let Rollup handle splitting naturally via React.lazy
+- [x] Build succeeds in 71s with 751 natural chunks (mostly tiny syntax highlighting langs)
 - [x] All 72 tests pass
 - [ ] Save checkpoint and publish to verify fix

@@ -30,39 +30,14 @@ export default defineConfig({
     outDir: path.resolve(__dir, "dist/public"),
     emptyOutDir: true,
     // Memory optimization for deployment (Node 20.15.1 with 4GB heap)
+    // Let Rollup handle chunk splitting naturally via React.lazy dynamic imports.
+    // DO NOT use manualChunks — it causes:
+    //   1. forwardRef undefined (when React split from Radix/lucide)
+    //   2. TDZ errors (when pages split alphabetically create circular refs)
     minify: "esbuild",
     sourcemap: false,
     cssCodeSplit: false,
     chunkSizeWarningLimit: 5000,
-    rollupOptions: {
-      output: {
-        // STRATEGY: Keep ALL node_modules in ONE vendor chunk to prevent
-        // React loading order issues (forwardRef undefined errors).
-        // Only split page components into groups to reduce chunk count
-        // from 209 lazy chunks to ~9 total chunks.
-        manualChunks(id) {
-          // ALL node_modules go into a single vendor chunk
-          // This prevents any loading order issues between React and
-          // libraries that depend on it (radix-ui, lucide-react, etc.)
-          if (id.includes("node_modules")) {
-            return "vendor";
-          }
-          // Group page components by first letter to reduce chunk count
-          if (id.includes("/pages/")) {
-            const filename = id.split("/pages/")[1]?.split(/[./]/)[0] || "";
-            const first = filename.charAt(0).toUpperCase();
-            if (first <= "C") return "pages-ac";
-            if (first <= "E") return "pages-de";
-            if (first <= "G") return "pages-fg";
-            if (first <= "K") return "pages-hk";
-            if (first <= "O") return "pages-lo";
-            if (first <= "R") return "pages-pr";
-            if (first <= "T") return "pages-st";
-            return "pages-uz";
-          }
-        },
-      },
-    },
   },
   server: {
     host: true,
