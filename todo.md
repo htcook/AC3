@@ -102,3 +102,14 @@
 - [x] Updated .gitignore to prevent re-tracking
 - [x] Result: 990 files, 23MB (down from 1318 files, 33MB — 25% fewer files, 30% less size)
 - [ ] Save checkpoint and verify deployment succeeds
+
+## Bug: Confirmed Vulns Showing 0 in Final Summary
+- [x] Query Vianova scan data: assets have 16 vulns (10 + 6) but stats.vulnsFound = 0
+- [x] Root cause: stats counter only incremented by nmap/nuclei/ZAP tool parsers, not by passive recon handoff or LLM correlation
+- [x] Impact: Phase 4 (Exploitation) skipped entirely because vulnsFound=0 gate check fails
+- [x] Fix: Added stats recalculation (reduce over asset.vulns) at 4 critical checkpoints:
+  - Before LLM correlation analysis (line 3469)
+  - Before Phase 3 completion summary (line 3692)
+  - Before exploitation decision gate (line 4568)
+  - Before final engagement summary (line 4631)
+- [x] All 64 tests passing

@@ -3465,6 +3465,10 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     addLog(state, { phase: "vuln_detection", type: "error", title: "Credential Testing Error", detail: e.message });
   }
 
+  // ── Recalculate stats from actual asset data (fixes counter drift) ──
+  state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+  state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+
   // ── LLM Correlation: analyze all findings and recommend exploit strategy ──
   const allVulns = state.assets.flatMap(a => a.vulns);
   if (allVulns.length > 0) {
@@ -3683,6 +3687,10 @@ ${(() => {
       console.warn('[ThreatMapper] Specialist unavailable:', e.message);
     }
   }
+
+  // ── Final stats recalculation before Phase 3 summary ──
+  state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+  state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
 
   addLog(state, {
     phase: "vuln_detection",
@@ -4556,6 +4564,10 @@ export async function executeEngagement(
         }
       }
 
+      // ── Recalculate stats before exploitation decision ──
+      state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+      state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+
       // Phase 4: Exploitation
       if (state.stats.vulnsFound > 0) {
         await executeExploitation(state, engagement, operatorCtx);
@@ -4614,12 +4626,17 @@ export async function executeEngagement(
     state.isRunning = false;
     state.completedAt = Date.now();
     state.currentAction = undefined;
+
+    // ── Final stats recalculation from actual asset data ──
+    state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+    state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+
     addLog(state, {
       phase: "completed",
       type: "phase_complete",
       title: "🏁 Engagement Execution Complete",
       detail: `${state.stats.hostsScanned} hosts, ${state.stats.vulnsFound} vulns, ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits, ${state.stats.zapScansRun} ZAP scans`,
-    });;
+    });
 
     // Final checkpoint
     await phaseCheckpoint('completed');
