@@ -39,20 +39,26 @@ interface BucketProbeResult {
   statusCode?: number;
 }
 
-async function probeBucket(candidate: string, provider: "aws" | "azure" | "gcp", timeout: number): Promise<BucketProbeResult> {
+async function probeBucket(candidate: string, provider: "aws" | "azure" | "gcp", timeout: number, externalSignal?: AbortSignal): Promise<BucketProbeResult> {
   const url = provider === "aws" ? `https://${candidate}.s3.amazonaws.com/`
     : provider === "azure" ? `https://${candidate}.blob.core.windows.net/`
     : `https://storage.googleapis.com/${candidate}/`;
   const controller = new AbortController();
+  // Link external abort signal to this controller
+  if (externalSignal?.aborted) return { provider, bucketName: candidate, url, status: "error" };
+  const onAbort = () => controller.abort();
+  externalSignal?.addEventListener('abort', onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const res = await fetch(url, { method: "HEAD", signal: controller.signal, redirect: "follow" });
     clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', onAbort);
     if (res.status === 200) return { provider, bucketName: candidate, url, status: "public", statusCode: 200 };
     if (res.status === 403) return { provider, bucketName: candidate, url, status: "exists_private", statusCode: 403 };
     return { provider, bucketName: candidate, url, status: res.status === 404 ? "not_found" : "error", statusCode: res.status };
   } catch {
     clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', onAbort);
     return { provider, bucketName: candidate, url, status: "error" };
   }
 }
@@ -79,9 +85,12 @@ export const cloudAssetsConnector: PassiveConnector = {
       }
 
       const results: BucketProbeResult[] = [];
+      const externalSignal = config?.signal;
       for (let i = 0; i < allProbes.length; i += 10) {
+        // Check if externally aborted before starting next batch
+        if (externalSignal?.aborted) break;
         const batch = allProbes.slice(i, i + 10);
-        const batchResults = await Promise.allSettled(batch.map(p => probeBucket(p.candidate, p.provider, timeout)));
+        const batchResults = await Promise.allSettled(batch.map(p => probeBucket(p.candidate, p.provider, timeout, externalSignal)));
         for (const r of batchResults) { if (r.status === "fulfilled") results.push(r.value); }
       }
 

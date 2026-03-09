@@ -77,6 +77,7 @@ export interface ConnectorConfig {
   apiSecret?: string;
   timeout?: number;        // ms, default 30000
   maxResults?: number;
+  signal?: AbortSignal;     // External abort signal for hard timeout enforcement
 }
 
 export interface PassiveConnector {

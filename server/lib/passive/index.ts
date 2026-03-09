@@ -252,11 +252,35 @@ export async function runPassiveRecon(
           await onConnectorProgress?.({ connector: serviceName, status: 'started' });
           const connStart = Date.now();
           const HARD_CONNECTOR_TIMEOUT = 30_000; // 30s hard cap per connector
+          const abortCtrl = new AbortController();
+          // Inject abort signal into the connector config so fetch calls can be cancelled
+          const cfgWithAbort = { ...connectorConfigs.get(serviceName), signal: abortCtrl.signal, timeout: Math.min(timeout, HARD_CONNECTOR_TIMEOUT) };
+          // Use Promise.race as the GUARANTEED hard timeout — AbortController is best-effort cleanup
           const result = await Promise.race([
-            connector.collect(domain, connectorConfigs.get(serviceName)),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error(`Hard timeout: ${serviceName} exceeded ${HARD_CONNECTOR_TIMEOUT / 1000}s`)), HARD_CONNECTOR_TIMEOUT)
-            ),
+            connector.collect(domain, cfgWithAbort).catch((err: any) => {
+              // If the connector throws due to abort, return an error result instead of throwing
+              return {
+                connector: serviceName,
+                domain,
+                observations: [] as AssetObservation[],
+                errors: [`Connector error: ${err.message}`],
+                durationMs: Date.now() - connStart,
+                rateLimited: false,
+              } satisfies ConnectorResult;
+            }),
+            new Promise<ConnectorResult>((resolve) => {
+              setTimeout(() => {
+                abortCtrl.abort(); // Also abort to clean up any pending fetches
+                resolve({
+                  connector: serviceName,
+                  domain,
+                  observations: [] as AssetObservation[],
+                  errors: [`Hard timeout: ${serviceName} exceeded ${HARD_CONNECTOR_TIMEOUT / 1000}s`],
+                  durationMs: HARD_CONNECTOR_TIMEOUT,
+                  rateLimited: false,
+                });
+              }, HARD_CONNECTOR_TIMEOUT);
+            }),
           ]);
 
           // Track success/failure based on result errors

@@ -33,9 +33,12 @@ function makeAssetId(domain: string, name: string, source: string): string {
 }
 
 /** Rate-limited fetch with retry on 429 */
-async function shodanFetch(url: string, timeout: number, retries = 1): Promise<any> {
+async function shodanFetch(url: string, timeout: number, retries = 1, externalSignal?: AbortSignal): Promise<any> {
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (externalSignal?.aborted) throw new Error('Aborted by external signal');
     const controller = new AbortController();
+    const onAbort = () => controller.abort();
+    externalSignal?.addEventListener('abort', onAbort, { once: true });
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
       const res = await fetch(url, { signal: controller.signal });
@@ -51,6 +54,7 @@ async function shodanFetch(url: string, timeout: number, retries = 1): Promise<a
       return await res.json();
     } finally {
       clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', onAbort);
     }
   }
 }
@@ -76,6 +80,7 @@ export const shodanConnector: PassiveConnector = {
     const observations: AssetObservation[] = [];
     const timeout = config?.timeout ?? 30000;
     const apiKey = config?.apiKey;
+    const externalSignal = config?.signal;
 
     if (!apiKey) {
       return {
@@ -97,7 +102,7 @@ export const shodanConnector: PassiveConnector = {
     try {
       const dnsData = await shodanFetch(
         `https://api.shodan.io/dns/domain/${encodeURIComponent(domain)}?key=${encodeURIComponent(apiKey)}`,
-        timeout
+        timeout, 1, externalSignal
       );
 
       if (dnsData && dnsData.subdomains) {
@@ -152,7 +157,7 @@ export const shodanConnector: PassiveConnector = {
       const query = `hostname:.${domain}`;
       const searchData = await shodanFetch(
         `https://api.shodan.io/shodan/host/search?key=${encodeURIComponent(apiKey)}&query=${encodeURIComponent(query)}&minify=false`,
-        timeout
+        timeout, 1, externalSignal
       );
 
       if (searchData && searchData.matches) {
@@ -289,7 +294,7 @@ export const shodanConnector: PassiveConnector = {
         await delay(300);
         const hostData = await shodanFetch(
           `https://api.shodan.io/shodan/host/${ip}?key=${encodeURIComponent(apiKey)}`,
-          timeout
+          timeout, 1, externalSignal
         );
 
         if (!hostData) continue;
