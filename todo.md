@@ -162,6 +162,8 @@
 ## Black Screen Fix (User-Reported)
 - [x] Diagnosed: React fails to mount — TypeError: Cannot read properties of undefined (reading 'forwardRef') in vendor-radix chunk
 - [x] Root cause: manualChunks split React and @radix-ui into separate chunks; Radix loaded before React was available
-- [x] Fix: Merged react, react-dom, react-is, scheduler, and @radix-ui into single 'vendor-react' chunk
-- [x] Build succeeds in 82s, all 72 tests pass
+- [x] Fix attempt 1: Merged react+radix into vendor-react chunk — FAILED (lucide-react also needs React)
+- [x] Fix attempt 2: Put ALL node_modules into single 'vendor' chunk — eliminates all loading order issues
+- [x] Build succeeds in 68s with 11 total chunks (1 vendor + 8 page groups + index + chat)
+- [x] All 72 tests pass
 - [ ] Save checkpoint and publish to verify fix

@@ -36,23 +36,15 @@ export default defineConfig({
     chunkSizeWarningLimit: 5000,
     rollupOptions: {
       output: {
-        // Reduce chunk count from 209 individual lazy chunks to ~15 grouped chunks
-        // This dramatically reduces peak memory during rollup's "rendering chunks" phase
+        // STRATEGY: Keep ALL node_modules in ONE vendor chunk to prevent
+        // React loading order issues (forwardRef undefined errors).
+        // Only split page components into groups to reduce chunk count
+        // from 209 lazy chunks to ~9 total chunks.
         manualChunks(id) {
+          // ALL node_modules go into a single vendor chunk
+          // This prevents any loading order issues between React and
+          // libraries that depend on it (radix-ui, lucide-react, etc.)
           if (id.includes("node_modules")) {
-            // CRITICAL: react, react-dom, react-is, and @radix-ui MUST stay in the same chunk
-            // Separating them causes "Cannot read properties of undefined (reading 'forwardRef')"
-            // because Radix loads before React is available as a separate chunk
-            if (
-              id.includes("/react/") ||
-              id.includes("/react-dom/") ||
-              id.includes("react-is") ||
-              id.includes("@radix-ui") ||
-              id.includes("scheduler")
-            ) return "vendor-react";
-            if (id.includes("recharts") || id.includes("d3-")) return "vendor-charts";
-            if (id.includes("lucide-react")) return "vendor-icons";
-            if (id.includes("@tanstack")) return "vendor-tanstack";
             return "vendor";
           }
           // Group page components by first letter to reduce chunk count
