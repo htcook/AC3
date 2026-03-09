@@ -133,7 +133,7 @@ export async function decideNextOp(input: OpsDeciderInput): Promise<OpsDeciderOu
     `What should be the next action?`,
   ].join('\n');
 
-  const result = await invokeLLM({
+  const result = await invokeLLM({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

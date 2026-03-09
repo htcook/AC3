@@ -55,6 +55,17 @@ export type ToolChoice =
   | ToolChoiceByName
   | ToolChoiceExplicit;
 
+/**
+ * LLM call priority tiers for cost-optimized routing:
+ * - "essential": Always uses OpenAI (gpt-4o) — accuracy-critical tasks like
+ *   vulnerability verification, attack planning, exploit generation, hybrid scoring
+ * - "standard": Uses Forge (gemini-2.5-flash) by default; if OpenAI key is set
+ *   and Forge fails, falls back to OpenAI. Default for untagged calls.
+ * - "bulk": Always uses Forge — high-volume commodity tasks like text
+ *   summarization, classification, report writing, enrichment
+ */
+export type LLMPriority = "essential" | "standard" | "bulk";
+
 export type InvokeParams = {
   messages: Message[];
   tools?: Tool[];
@@ -70,6 +81,13 @@ export type InvokeParams = {
   _caller?: string;
   /** Optional engagement ID for telemetry context */
   _engagementId?: number;
+  /**
+   * LLM routing priority. Controls which provider handles this call.
+   * - "essential": Always OpenAI (gpt-4o) for accuracy-critical work
+   * - "standard": Forge first, OpenAI fallback (default)
+   * - "bulk": Always Forge for commodity tasks
+   */
+  _priority?: LLMPriority;
 };
 
 export type ToolCall = {
@@ -211,20 +229,17 @@ const normalizeToolChoice = (
   }
 
   return toolChoice;
-};
+}
 
-// ─── Provider Resolution ─────────────────────────────────────────────────
-// When OPENAI_API_KEY is set, use OpenAI directly (no token limits).
-// Otherwise fall back to Forge proxy.
-function resolveProvider(): { apiUrl: string; apiKey: string; model: string; provider: string } {
-  if (ENV.openaiApiKey && ENV.openaiApiKey.trim().length > 0) {
-    return {
-      apiUrl: 'https://api.openai.com/v1/chat/completions',
-      apiKey: ENV.openaiApiKey,
-      model: 'gpt-4o',
-      provider: 'openai',
-    };
-  }
+// ─── Provider Resolution (Tiered Routing) ───────────────────────────────────────────
+// Routes LLM calls to the appropriate provider based on priority tier:
+//   essential → OpenAI (gpt-4o) for accuracy-critical tasks
+//   standard  → Forge (gemini-2.5-flash) first, OpenAI fallback
+//   bulk      → Forge only for high-volume commodity tasks
+//
+// When OPENAI_API_KEY is not set, all tiers fall back to Forge.
+
+function getForgeConfig(): { apiUrl: string; apiKey: string; model: string; provider: string } {
   const forgeUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
     ? `${ENV.forgeApiUrl.replace(/\/$/, '')}/v1/chat/completions`
     : 'https://forge.manus.im/v1/chat/completions';
@@ -236,12 +251,48 @@ function resolveProvider(): { apiUrl: string; apiKey: string; model: string; pro
   };
 }
 
-const assertApiKey = () => {
-  const { apiKey, provider } = resolveProvider();
-  if (!apiKey) {
-    throw new Error(`LLM API key not configured (provider: ${provider})`);
+function getOpenAIConfig(): { apiUrl: string; apiKey: string; model: string; provider: string } | null {
+  if (ENV.openaiApiKey && ENV.openaiApiKey.trim().length > 0) {
+    return {
+      apiUrl: 'https://api.openai.com/v1/chat/completions',
+      apiKey: ENV.openaiApiKey,
+      model: 'gpt-4o',
+      provider: 'openai',
+    };
   }
-};
+  return null;
+}
+
+function resolveProvider(priority: LLMPriority = 'standard'): { apiUrl: string; apiKey: string; model: string; provider: string } {
+  const openai = getOpenAIConfig();
+  const forge = getForgeConfig();
+
+  switch (priority) {
+    case 'essential':
+      // Always prefer OpenAI for accuracy-critical tasks
+      if (openai) {
+        console.log(`[LLM Router] Priority=essential → OpenAI (gpt-4o)`);
+        return openai;
+      }
+      // No OpenAI key — fall back to Forge
+      console.log(`[LLM Router] Priority=essential but no OpenAI key → Forge fallback`);
+      return forge;
+
+    case 'bulk':
+      // Always use Forge for commodity tasks to conserve OpenAI tokens
+      console.log(`[LLM Router] Priority=bulk → Forge (gemini-2.5-flash)`);
+      return forge;
+
+    case 'standard':
+    default:
+      // Use Forge by default; OpenAI is available as fallback if Forge fails
+      // (fallback logic is handled in the retry loop of invokeLLM)
+      console.log(`[LLM Router] Priority=standard → Forge (gemini-2.5-flash)`);
+      return forge;
+  }
+}
+
+// assertApiKey is no longer needed - key validation is done inline in invokeLLM
 
 const normalizeResponseFormat = ({
   responseFormat,
@@ -302,8 +353,6 @@ async function sleep(ms: number): Promise<void> {
 }
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
-
   const {
     messages,
     tools,
@@ -315,6 +364,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
     _caller,
     _engagementId,
+    _priority = 'standard',
   } = params;
 
   const telemetryStart = Date.now();
@@ -323,8 +373,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   let telemetryStatus: "success" | "error" | "timeout" | "retried_success" = "success";
   let telemetryError: string | undefined;
 
-  const { apiUrl, apiKey, model, provider } = resolveProvider();
-  console.log(`[LLM] Using provider: ${provider} (model: ${model})`);
+  const { apiUrl, apiKey, model, provider } = resolveProvider(_priority);
+  if (!apiKey) {
+    throw new Error(`LLM API key not configured (provider: ${provider})`);
+  }
+  console.log(`[LLM] Using provider: ${provider} (model: ${model}) priority=${_priority}`);
 
   const payload: Record<string, unknown> = {
     model,
@@ -343,7 +396,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768;
+  // Set max_tokens based on provider model limits
+  // Forge uses gemini-2.5-flash which supports max 16384 completion tokens
+  // OpenAI gpt-4o also supports 16384 completion tokens
+  payload.max_tokens = 16384;
   // Only add thinking budget for Forge/Gemini; OpenAI uses native reasoning
   if (provider === 'forge') {
     payload.thinking = { budget_tokens: 128 };

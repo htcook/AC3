@@ -1141,7 +1141,7 @@ async function learnNewTTPs(actorNames: string[], ctx: EngagementContext): Promi
         `${i + 1}. ${nt.name} (${nt.tactic}) — Source: ${nt.discoverySource}\n   Evidence: ${nt.evidence.slice(0, 150)}`
       ).join("\n");
 
-      const response = await invokeLLM({
+      const response = await invokeLLM({ _priority: 'bulk',
         messages: [
           {
             role: "system",

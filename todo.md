@@ -8544,3 +8544,16 @@
 - [x] 3.3: Move GitHub connectors (github_leaks, github_recon) to background queue with remaining time budget
 - [x] 3.2: Parallelize post-enrichment analysis + campaign recommendations via Promise.allSettled
 - [x] All 31 tests passing (16 passive-timeout + 14 tier1-optimizations + 1 auth)
+
+## LLM max_tokens Error Fix
+- [x] Fix max_tokens: 32768 exceeding model limit of 16384 — capped to 16384
+- [x] Check for other LLM calls with max_tokens > 16384 — all use 16384 now
+
+## Tiered LLM Routing
+- [x] Add _priority parameter to InvokeParams (essential | standard | bulk)
+- [x] Implement tiered resolveProvider that routes based on priority
+- [x] Tag 18 essential calls (vuln verification, attack planning, exploit generation, scoring)
+- [x] Tag 25 bulk calls (summarization, report writing, classification, enrichment)
+- [x] Default 52 untagged calls to standard (Forge-first)
+- [x] Add telemetry logging for provider routing decisions (priority logged in console)
+- [x] All 64 tests passing (33 llm-routing + 16 passive-timeout + 14 tier1 + 1 auth)

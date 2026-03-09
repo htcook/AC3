@@ -512,6 +512,7 @@ Return ONLY the JSON array, no markdown fences.`;
 
   try {
     const response = await invokeLLMWithTimeout({
+      _priority: 'standard' as const,
       messages: [
         { role: "system", content: "You are a cybersecurity OSINT analyst. Return only valid JSON arrays." },
         { role: "user", content: prompt },
@@ -688,6 +689,7 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
 
   try {
     const response = await invokeLLMWithTimeout({
+      _priority: 'essential' as const,
       messages: [
         { role: "system", content: "You are a cybersecurity risk analyst. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -1437,6 +1439,7 @@ Return JSON: { "campaigns": [...] }`;
 
   try {
     const response = await invokeLLMWithTimeout({
+      _priority: 'bulk' as const,
       messages: [
         { role: "system", content: "You are a red team campaign designer. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -1497,6 +1500,7 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
   try {
     const response = await invokeLLMWithTimeout({
+      _priority: 'bulk' as const,
       messages: [
         { role: 'system', content: 'You are a cybersecurity report writer. Return only valid JSON.' },
         { role: 'user', content: prompt },
@@ -1569,6 +1573,7 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
   try {
     const response = await invokeLLMWithTimeout({
+      _priority: 'bulk' as const,
       messages: [
         { role: "system", content: "You are a cybersecurity report writer. Return only valid JSON." },
         { role: "user", content: prompt },

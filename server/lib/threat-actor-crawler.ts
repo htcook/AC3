@@ -702,7 +702,7 @@ async function extractIntelligence(
     ? `Pay special attention to these actors: ${actorFocus.join(", ")}.`
     : "";
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _priority: 'bulk',
     messages: [
       {
         role: "system",
@@ -945,7 +945,7 @@ async function llmEnrichActor(gap: GapAnalysis): Promise<{
   newEvents?: Array<{ type: string; title: string; description: string; severity: string; date: string }>;
   newIocs?: Array<{ type: string; value: string; description: string }>;
 } | null> {
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _priority: 'bulk',
     messages: [
       {
         role: "system",

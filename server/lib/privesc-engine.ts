@@ -507,7 +507,7 @@ async function llmAnalyzePrivesc(
     ? enumerationOutput.substring(0, 8000) + "\n... [truncated]"
     : enumerationOutput;
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _priority: 'essential',
     messages: [
       { role: "system", content: PRIVESC_SYSTEM_PROMPT },
       {

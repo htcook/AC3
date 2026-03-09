@@ -154,7 +154,7 @@ export async function buildCalderaOp(input: CalderaBuilderInput): Promise<Calder
     input.findings,
   ].filter(Boolean).join('\n');
 
-  const result = await invokeLLM({
+  const result = await invokeLLM({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

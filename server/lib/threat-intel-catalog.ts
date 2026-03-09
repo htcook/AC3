@@ -187,7 +187,7 @@ Activity scores: surging (70-100), active (40-69), declining (20-39), dormant (0
     unknown: `You are a senior threat intelligence analyst. Generate a profile for the threat group "${groupName}".`,
   };
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _priority: 'bulk',
     messages: [
       { role: "system", content: typePrompts[groupType] },
       {
@@ -772,7 +772,7 @@ async function monitorSingleGroup(group: {
   const currentMalware = (group.malware as string[] | null) ?? [];
   const currentTools = (group.tools as string[] | null) ?? [];
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _priority: 'bulk',
     messages: [
       {
         role: "system",

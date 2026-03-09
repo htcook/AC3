@@ -351,7 +351,7 @@ ${previousScans.length > 0 ? `## Previous Re-Scans (${previousScans.length} exec
 
 Analyze these findings. Are there gaps that require additional scanning? If so, specify exactly which tools to run and why. If you have sufficient data to plan attacks, set satisfied=true.`;
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _priority: 'bulk',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

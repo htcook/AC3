@@ -1370,7 +1370,7 @@ CALIBRATION RULES:
 Return JSON: { "classifications": [ { "assetId": "...", ... } ] }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _priority: 'essential',
       messages: [
         { role: "system", content: "You are an IT asset classification specialist. Return only valid JSON." },
         { role: "user", content: prompt },

@@ -649,7 +649,7 @@ Return JSON:
 }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _priority: 'essential',
       messages: [
         { role: "system", content: "You are an expert adversary emulation engineer. Return valid JSON only." },
         { role: "user", content: prompt },

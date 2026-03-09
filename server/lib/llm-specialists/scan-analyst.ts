@@ -155,7 +155,7 @@ export async function analyzeScan(input: ScanAnalystInput): Promise<ScanAnalystO
 
   const userMessage = `Analyze the following scan data for: ${input.hostname}\n\n${input.scanData}`;
 
-  const result = await invokeLLM({
+  const result = await invokeLLM({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

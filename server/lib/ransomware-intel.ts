@@ -39,7 +39,7 @@ const KNOWN_RANSOMWARE_GROUPS = [
 export async function generateRansomwareProfile(
   groupName: string
 ): Promise<RansomwareGroupProfile> {
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _priority: 'bulk',
     messages: [
       {
         role: "system",
@@ -335,7 +335,7 @@ export async function enrichWithRansomwareIntel(
 
   let riskElevation = `${enrichedGroups.length} ransomware groups identified targeting the ${sector} sector.`;
   try {
-    const llmResponse = await invokeLLM({
+    const llmResponse = await invokeLLM({ _priority: 'bulk',
       messages: [
         {
           role: "system",

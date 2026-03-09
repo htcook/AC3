@@ -160,7 +160,7 @@ export async function verifyVulnerability(input: VulnVerifierInput): Promise<Vul
     f.evidence,
   ].filter(Boolean).join('\n');
 
-  const result = await invokeLLM({
+  const result = await invokeLLM({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

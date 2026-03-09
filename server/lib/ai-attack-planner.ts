@@ -463,7 +463,7 @@ ${request.environmentContext ? `**Environment:** ${JSON.stringify(request.enviro
 **Plan Skeleton:**
 ${JSON.stringify(skeleton, null, 2)}`;
 
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _priority: 'essential',
       messages: [
         { role: "system", content: ATTACK_PLANNING_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },

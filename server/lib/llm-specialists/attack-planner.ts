@@ -192,7 +192,7 @@ export async function planAttack(input: AttackPlannerInput): Promise<AttackPlann
 
   const userMessage = `Based on the following passive reconnaissance results, design an attack path and active scanning strategy:\n\n${input.passiveReconSummary}`;
 
-  const result = await invokeLLM({
+  const result = await invokeLLM({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

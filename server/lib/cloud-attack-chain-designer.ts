@@ -454,7 +454,7 @@ ${findings.engagementType === "pentest" ? "Systematically cover all attack surfa
 ${findings.engagementType === "purple_team" ? "Design chains that test specific detection capabilities. Include both stealthy and noisy variants." : ""}`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _priority: 'essential',
       messages: [
         { role: "system", content: ATTACK_CHAIN_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },

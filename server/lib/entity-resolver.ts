@@ -387,7 +387,7 @@ IMPORTANT:
 - If you cannot determine a value with any confidence, use null
 - Be conservative in estimates — underestimate rather than overestimate`;
 
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _priority: 'bulk',
       messages: [
         { role: "system", content: "You are a business intelligence analyst. Return ONLY valid JSON matching the requested schema. No markdown, no explanation." },
         { role: "user", content: prompt },
