@@ -1,9 +1,0 @@
-{
-  "query": "DELETE FROM discovered_assets WHERE scanId IN (SELECT id FROM domain_intel_scans WHERE totalAssets = 0 OR status IN ('pending', 'discovering', 'failed') OR primaryDomain LIKE '%test-%' OR primaryDomain LIKE '%update-%' OR primaryDomain LIKE '%trpc-%' OR primaryDomain LIKE '%findings-%' OR primaryDomain LIKE '%scores-%' OR primaryDomain LIKE '%multi-asset-%' OR primaryDomain LIKE '%asset-test-%' OR primaryDomain LIKE '%campaigns-%' OR primaryDomain LIKE '%get-scan-%' OR primaryDomain LIKE '%msp-%' OR primaryDomain LIKE '%enterprise-%' OR primaryDomain LIKE '%saas-%' OR primaryDomain LIKE '%paas-%' OR primaryDomain LIKE '%iaas-%' OR primaryDomain LIKE '%mixed_hosting-%' OR primaryDomain LIKE '%other-%' OR primaryDomain LIKE '%threat-model-%');",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DELETE FROM discovered_assets WHERE scanId IN (SELECT id FROM domain_intel_scans WHERE totalAssets = 0 OR status IN ('pending', 'discovering', 'failed') OR primaryDomain LIKE '%test-%' OR primaryDomain LIKE '%update-%' OR primaryDomain LIKE '%trpc-%' OR primaryDomain LIKE '%findings-%' OR primaryDomain LIKE '%scores-%' OR primaryDomain LIKE '%multi-asset-%' OR primaryDomain LIKE '%asset-test-%' OR primaryDomain LIKE '%campaigns-%' OR primaryDomain LIKE '%get-scan-%' OR primaryDomain LIKE '%msp-%' OR primaryDomain LIKE '%enterprise-%' OR primaryDomain LIKE '%saas-%' OR primaryDomain LIKE '%paas-%' OR primaryDomain LIKE '%iaas-%' OR primaryDomain LIKE '%mixed_hosting-%' OR primaryDomain LIKE '%other-%' OR primaryDomain LIKE '%threat-model-%');",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 542
-}

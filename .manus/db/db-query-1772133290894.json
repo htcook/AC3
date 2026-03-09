@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS scan_policies (\n    id int AUTO_INCREMENT PRIMARY KEY,\n    profileId varchar(64) NOT NULL UNIQUE,\n    policyName varchar(128) NOT NULL,\n    policyDescription text,\n    isActive boolean DEFAULT false NOT NULL,\n    profileData json NOT NULL,\n    escalationRules json,\n    policyCreatedAt bigint NOT NULL,\n    policyUpdatedAt bigint NOT NULL\n  )",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS scan_policies (\n    id int AUTO_INCREMENT PRIMARY KEY,\n    profileId varchar(64) NOT NULL UNIQUE,\n    policyName varchar(128) NOT NULL,\n    policyDescription text,\n    isActive boolean DEFAULT false NOT NULL,\n    profileData json NOT NULL,\n    escalationRules json,\n    policyCreatedAt bigint NOT NULL,\n    policyUpdatedAt bigint NOT NULL\n  )",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 191
-}

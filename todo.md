@@ -8521,3 +8521,9 @@
 - [x] Reduce connector timeout from 30s to 15s
 - [x] Update all 16 timeout configuration tests — all passing
 - [ ] Verify fix in production with Master Test Range scan
+
+## Deployment Failure Investigation
+- [x] Diagnose DeployS3WebsiteActivityV2 timeout error on publish
+- [x] Check for large static files in project directory causing upload timeout
+- [x] Remove 582 .manus/db query JSON files from git tracking (reduced files from 1897 to 1315)
+- [ ] Redeploy and verify

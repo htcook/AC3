@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE domain_intel_scans ADD COLUMN IF NOT EXISTS confirmedFindings INT DEFAULT 0; ALTER TABLE domain_intel_scans ADD COLUMN IF NOT EXISTS probableFindings INT DEFAULT 0; ALTER TABLE domain_intel_scans ADD COLUMN IF NOT EXISTS potentialFindings INT DEFAULT 0;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute ALTER TABLE domain_intel_scans ADD COLUMN IF NOT EXISTS confirmedFindings INT DEFAULT 0; ALTER TABLE domain_intel_scans ADD COLUMN IF NOT EXISTS probableFindings INT DEFAULT 0; ALTER TABLE domain_intel_scans ADD COLUMN IF NOT EXISTS potentialFindings INT DEFAULT 0;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 572
-}

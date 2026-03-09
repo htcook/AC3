@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS roe_versions (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  roe_id INT NOT NULL,\n  version_number VARCHAR(32) NOT NULL,\n  change_type ENUM('created', 'updated', 'status_change', 'approved', 'restored') NOT NULL DEFAULT 'updated',\n  change_summary TEXT,\n  changed_fields JSON,\n  previous_snapshot JSON,\n  current_snapshot JSON,\n  changed_by INT,\n  changed_by_name VARCHAR(256),\n  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS roe_versions (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  roe_id INT NOT NULL,\n  version_number VARCHAR(32) NOT NULL,\n  change_type ENUM('created', 'updated', 'status_change', 'approved', 'restored') NOT NULL DEFAULT 'updated',\n  change_summary TEXT,\n  changed_fields JSON,\n  previous_snapshot JSON,\n  current_snapshot JSON,\n  changed_by INT,\n  changed_by_name VARCHAR(256),\n  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 256
-}

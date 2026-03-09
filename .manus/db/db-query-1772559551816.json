@@ -1,9 +1,0 @@
-{
-  "query": "DELETE FROM engagement_ops_snapshots WHERE engagement_id IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_pipelines WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_reports WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM campaign_engagements WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_shares WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_timeline_events WHERE engagement_id IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_workflow_states WHERE engagement_id IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagements WHERE id != 1350014;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DELETE FROM engagement_ops_snapshots WHERE engagement_id IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_pipelines WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_reports WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM campaign_engagements WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_shares WHERE engagementId IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_timeline_events WHERE engagement_id IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagement_workflow_states WHERE engagement_id IN (SELECT id FROM engagements WHERE id != 1350014); DELETE FROM engagements WHERE id != 1350014;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 166
-}

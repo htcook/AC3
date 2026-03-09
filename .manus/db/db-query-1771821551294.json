@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `forest_trusts` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `trust_source_domain_id` int NOT NULL,\n  `trust_target_domain_id` int NOT NULL,\n  `trust_direction` enum('inbound','outbound','bidirectional') NOT NULL,\n  `trust_type` enum('parent_child','tree_root','shortcut','forest','external','realm') NOT NULL,\n  `trust_is_transitive` boolean NOT NULL DEFAULT true,\n  `sid_filtering_enabled` boolean NOT NULL DEFAULT true,\n  `selective_auth` boolean NOT NULL DEFAULT false,\n  `trust_attributes` int DEFAULT 0,\n  `trust_is_vulnerable` boolean NOT NULL DEFAULT false,\n  `trust_vulnerability_notes` text,\n  `trust_discovered_at` timestamp DEFAULT CURRENT_TIMESTAMP,\n  `forest_trust_created_at` timestamp DEFAULT CURRENT_TIMESTAMP\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `forest_trusts` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `trust_source_domain_id` int NOT NULL,\n  `trust_target_domain_id` int NOT NULL,\n  `trust_direction` enum('inbound','outbound','bidirectional') NOT NULL,\n  `trust_type` enum('parent_child','tree_root','shortcut','forest','external','realm') NOT NULL,\n  `trust_is_transitive` boolean NOT NULL DEFAULT true,\n  `sid_filtering_enabled` boolean NOT NULL DEFAULT true,\n  `selective_auth` boolean NOT NULL DEFAULT false,\n  `trust_attributes` int DEFAULT 0,\n  `trust_is_vulnerable` boolean NOT NULL DEFAULT false,\n  `trust_vulnerability_notes` text,\n  `trust_discovered_at` timestamp DEFAULT CURRENT_TIMESTAMP,\n  `forest_trust_created_at` timestamp DEFAULT CURRENT_TIMESTAMP\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 209
-}

@@ -1,8 +1,0 @@
-{
-  "query": "SELECT id, primary_domain, status, COALESCE(JSON_EXTRACT(pipeline_output, '$.totalAnalyzedAssets'), 0) as assets FROM domain_intel_scans ORDER BY id DESC LIMIT 20;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, primary_domain, status, COALESCE(JSON_EXTRACT(pipeline_output, '$.totalAnalyzedAssets'), 0) as assets FROM domain_intel_scans ORDER BY id DESC LIMIT 20;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'primary_domain' in 'field list'"
-  ]
-}

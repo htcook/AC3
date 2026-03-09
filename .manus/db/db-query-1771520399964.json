@@ -1,9 +1,0 @@
-{
-  "query": "SELECT id, status, CAST(pipelineOutput AS CHAR) as po FROM domain_intel_scans WHERE primaryDomain LIKE '%lexisnexis%' AND status = 'failed' ORDER BY id DESC LIMIT 1;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT id, status, CAST(pipelineOutput AS CHAR) as po FROM domain_intel_scans WHERE primaryDomain LIKE '%lexisnexis%' AND status = 'failed' ORDER BY id DESC LIMIT 1;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 393
-}

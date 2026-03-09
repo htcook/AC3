@@ -1,8 +1,0 @@
-{
-  "query": "SELECT COUNT(*) as test_count FROM ioc_feeds WHERE ioc_value LIKE 'test-%' OR ioc_value LIKE '%.example.com'; SELECT COUNT(*) as total_count FROM ioc_feeds; SELECT COUNT(*) as real_count FROM ioc_feeds WHERE ioc_value NOT LIKE 'test-%' AND ioc_value NOT LIKE '%.example.com';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute SELECT COUNT(*) as test_count FROM ioc_feeds WHERE ioc_value LIKE 'test-%' OR ioc_value LIKE '%.example.com'; SELECT COUNT(*) as total_count FROM ioc_feeds; SELECT COUNT(*) as real_count FROM ioc_feeds WHERE ioc_value NOT LIKE 'test-%' AND ioc_value NOT LIKE '%.example.com';",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'ioc_value' in 'where clause'"
-  ]
-}

@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS vendor_integrations (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  vendor ENUM('crowdstrike', 'sentinelone', 'defender', 'splunk', 'xsoar') NOT NULL,\n  displayName VARCHAR(255) NOT NULL,\n  enabled BOOLEAN DEFAULT FALSE NOT NULL,\n  authConfig JSON,\n  connectionConfig JSON,\n  integrationStatus ENUM('connected', 'disconnected', 'error', 'unconfigured') DEFAULT 'unconfigured' NOT NULL,\n  lastHealthCheck BIGINT,\n  lastError TEXT,\n  syncEnabled BOOLEAN DEFAULT FALSE NOT NULL,\n  syncIntervalMinutes INT DEFAULT 60,\n  lastSyncAt BIGINT,\n  createdBy VARCHAR(64),\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS vendor_integrations (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  vendor ENUM('crowdstrike', 'sentinelone', 'defender', 'splunk', 'xsoar') NOT NULL,\n  displayName VARCHAR(255) NOT NULL,\n  enabled BOOLEAN DEFAULT FALSE NOT NULL,\n  authConfig JSON,\n  connectionConfig JSON,\n  integrationStatus ENUM('connected', 'disconnected', 'error', 'unconfigured') DEFAULT 'unconfigured' NOT NULL,\n  lastHealthCheck BIGINT,\n  lastError TEXT,\n  syncEnabled BOOLEAN DEFAULT FALSE NOT NULL,\n  syncIntervalMinutes INT DEFAULT 60,\n  lastSyncAt BIGINT,\n  createdBy VARCHAR(64),\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 529
-}

@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `forest_domains` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `forest_name` varchar(255) NOT NULL,\n  `forest_domain_name` varchar(255) NOT NULL,\n  `forest_connection_id` int,\n  `parent_domain_id` int,\n  `forest_engagement_id` int,\n  `domain_sid` varchar(128),\n  `domain_functional_level` varchar(64),\n  `forest_functional_level` varchar(64),\n  `is_forest_root` boolean NOT NULL DEFAULT false,\n  `forest_total_users` int DEFAULT 0,\n  `forest_total_groups` int DEFAULT 0,\n  `forest_total_computers` int DEFAULT 0,\n  `forest_privileged_users` int DEFAULT 0,\n  `forest_last_enumerated_at` timestamp NULL,\n  `forest_metadata` json,\n  `forest_domain_created_at` timestamp DEFAULT CURRENT_TIMESTAMP\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS `forest_domains` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `forest_name` varchar(255) NOT NULL,\n  `forest_domain_name` varchar(255) NOT NULL,\n  `forest_connection_id` int,\n  `parent_domain_id` int,\n  `forest_engagement_id` int,\n  `domain_sid` varchar(128),\n  `domain_functional_level` varchar(64),\n  `forest_functional_level` varchar(64),\n  `is_forest_root` boolean NOT NULL DEFAULT false,\n  `forest_total_users` int DEFAULT 0,\n  `forest_total_groups` int DEFAULT 0,\n  `forest_total_computers` int DEFAULT 0,\n  `forest_privileged_users` int DEFAULT 0,\n  `forest_last_enumerated_at` timestamp NULL,\n  `forest_metadata` json,\n  `forest_domain_created_at` timestamp DEFAULT CURRENT_TIMESTAMP\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 187
-}

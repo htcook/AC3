@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS config_baselines (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  baseline_id VARCHAR(64) NOT NULL UNIQUE,\n  name VARCHAR(255) NOT NULL,\n  description TEXT,\n  platform VARCHAR(64) NOT NULL,\n  benchmark VARCHAR(128) NOT NULL,\n  rule_count INT DEFAULT 0,\n  bl_status ENUM('active','draft','archived') DEFAULT 'active' NOT NULL,\n  last_scan_at TIMESTAMP NULL,\n  last_scan_score INT,\n  created_by INT,\n  created_by_name VARCHAR(255),\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute CREATE TABLE IF NOT EXISTS config_baselines (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  baseline_id VARCHAR(64) NOT NULL UNIQUE,\n  name VARCHAR(255) NOT NULL,\n  description TEXT,\n  platform VARCHAR(64) NOT NULL,\n  benchmark VARCHAR(128) NOT NULL,\n  rule_count INT DEFAULT 0,\n  bl_status ENUM('active','draft','archived') DEFAULT 'active' NOT NULL,\n  last_scan_at TIMESTAMP NULL,\n  last_scan_score INT,\n  created_by INT,\n  created_by_name VARCHAR(255),\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 209
-}

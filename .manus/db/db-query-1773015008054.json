@@ -1,9 +1,0 @@
-{
-  "query": "UPDATE engagements SET roe_status = 'signed', roe_signer_name = 'Harrison Cook', roe_signer_email = 'harrison@aceofcloud.com', roe_signed_date = NOW(), scan_mode = 'strict_passive' WHERE id = 1590026;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute UPDATE engagements SET roe_status = 'signed', roe_signer_name = 'Harrison Cook', roe_signer_email = 'harrison@aceofcloud.com', roe_signed_date = NOW(), scan_mode = 'strict_passive' WHERE id = 1590026;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 61
-}

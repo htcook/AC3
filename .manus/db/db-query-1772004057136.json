@@ -1,9 +1,0 @@
-{
-  "query": "UPDATE domain_intel_scans SET status = 'failed', pipelineOutput = JSON_OBJECT('error', 'Pipeline timed out - scan was stuck in progress for over 15 minutes', 'failedAt', NOW()) WHERE status IN ('pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending') AND updatedAt < DATE_SUB(NOW(), INTERVAL 15 MINUTE)",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute UPDATE domain_intel_scans SET status = 'failed', pipelineOutput = JSON_OBJECT('error', 'Pipeline timed out - scan was stuck in progress for over 15 minutes', 'failedAt', NOW()) WHERE status IN ('pending', 'passive_recon', 'discovering', 'analyzing', 'scoring', 'recommending') AND updatedAt < DATE_SUB(NOW(), INTERVAL 15 MINUTE)",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 186
-}

@@ -1,9 +1,0 @@
-{
-  "query": "DELETE FROM scan_results WHERE engagement_id = 1350014;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute DELETE FROM scan_results WHERE engagement_id = 1350014;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 63
-}

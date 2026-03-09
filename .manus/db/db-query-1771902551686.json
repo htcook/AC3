@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE web_app_findings \nADD COLUMN mitre_attack_id varchar(20),\nADD COLUMN mitre_attack_name varchar(255),\nADD COLUMN mitre_tactic varchar(100),\nADD COLUMN exploit_available boolean DEFAULT false,\nADD COLUMN exploit_module_path varchar(512),\nADD COLUMN caldera_ability_id varchar(100),\nADD COLUMN ai_triage_verdict varchar(50),\nADD COLUMN ai_triage_reason text,\nADD COLUMN false_positive_score double;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute ALTER TABLE web_app_findings \nADD COLUMN mitre_attack_id varchar(20),\nADD COLUMN mitre_attack_name varchar(255),\nADD COLUMN mitre_tactic varchar(100),\nADD COLUMN exploit_available boolean DEFAULT false,\nADD COLUMN exploit_module_path varchar(512),\nADD COLUMN caldera_ability_id varchar(100),\nADD COLUMN ai_triage_verdict varchar(50),\nADD COLUMN ai_triage_reason text,\nADD COLUMN false_positive_score double;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 2979
-}

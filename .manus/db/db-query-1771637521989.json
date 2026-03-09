@@ -1,9 +1,0 @@
-{
-  "query": "UPDATE metasploit_servers SET rpcSsl = FALSE WHERE rpcSsl = TRUE;\nINSERT INTO metasploit_servers (name, dropletId, ipAddress, region, dropletSize, rpcPort, rpcUser, rpcPass, rpcSsl, msfStatus, msfStatusMessage, sshTunnelEnabled, sshUser)\nVALUES ('msf-tunnel-server', '553334575', '142.93.55.239', 'nyc1', 's-2vcpu-4gb', 55553, 'msf', 'msfrpc123', FALSE, 'provisioning', 'Cloud-init installing MSF framework', TRUE, 'root')\nON DUPLICATE KEY UPDATE ipAddress = '142.93.55.239', dropletId = '553334575';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute UPDATE metasploit_servers SET rpcSsl = FALSE WHERE rpcSsl = TRUE;\nINSERT INTO metasploit_servers (name, dropletId, ipAddress, region, dropletSize, rpcPort, rpcUser, rpcPass, rpcSsl, msfStatus, msfStatusMessage, sshTunnelEnabled, sshUser)\nVALUES ('msf-tunnel-server', '553334575', '142.93.55.239', 'nyc1', 's-2vcpu-4gb', 55553, 'msf', 'msfrpc123', FALSE, 'provisioning', 'Cloud-init installing MSF framework', TRUE, 'root')\nON DUPLICATE KEY UPDATE ipAddress = '142.93.55.239', dropletId = '553334575';",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 415
-}

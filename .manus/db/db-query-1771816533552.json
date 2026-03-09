@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE `compliance_frameworks` MODIFY COLUMN `framework_type` enum('soc2','iso27001','nist_csf','pci_dss','hipaa','cis','fedramp','dod_stig','cmmc','custom') NOT NULL;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute ALTER TABLE `compliance_frameworks` MODIFY COLUMN `framework_type` enum('soc2','iso27001','nist_csf','pci_dss','hipaa','cis','fedramp','dod_stig','cmmc','custom') NOT NULL;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 789
-}

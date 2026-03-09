@@ -1,9 +1,0 @@
-{
-  "query": "INSERT INTO metasploit_servers (name, dropletId, ipAddress, region, dropletSize, rpcPort, rpcUser, rpcPass, rpcSsl, msfStatus, msfVersion, sshTunnelEnabled, sshUser, msfTunnelStatus, msfLastHealthCheck) VALUES ('msf-tunnel-01', '553334575', '142.93.55.239', 'nyc1', 's-2vcpu-4gb', 55553, 'msf', 'msf_rpc_pass_2026', 0, 'online', '6.4.116-dev', 1, 'root', 'disconnected', NOW());",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2k2SuDvpDb6F44q.5f28f8362a85 --database VmWWcXQYZJYuALRdNNvsC2 --execute INSERT INTO metasploit_servers (name, dropletId, ipAddress, region, dropletSize, rpcPort, rpcUser, rpcPass, rpcSsl, msfStatus, msfVersion, sshTunnelEnabled, sshUser, msfTunnelStatus, msfLastHealthCheck) VALUES ('msf-tunnel-01', '553334575', '142.93.55.239', 'nyc1', 's-2vcpu-4gb', 55553, 'msf', 'msf_rpc_pass_2026', 0, 'online', '6.4.116-dev', 1, 'root', 'disconnected', NOW());",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 390
-}
