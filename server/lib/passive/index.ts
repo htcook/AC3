@@ -212,138 +212,153 @@ export async function runPassiveRecon(
     console.log(`[PassiveRecon] Skipped ${skippedNoKey.length} connectors with no API key: ${skippedNoKey.map(s => s.connector).join(', ')}`);
   }
 
-  // Run connectors in parallel with concurrency limit + circuit breaker
+  // ── Run connectors with semaphore + Promise.race hard timeout ──────────
+  // Key design: each connector is wrapped in Promise.race against a timeout
+  // promise. Even if the connector's .collect() blocks the event loop and
+  // never checks the abort signal, Promise.race resolves after the timeout
+  // and we move on. The straggler promise is abandoned (fire-and-forget).
   const connectorResults: ConnectorResult[] = [...skippedNoKey];
-  const batches: PassiveConnector[][] = [];
-  for (let i = 0; i < readyConnectors.length; i += maxConcurrent) {
-    batches.push(readyConnectors.slice(i, i + maxConcurrent));
-  }
-
   const { onConnectorProgress } = config;
-
+  const HARD_CONNECTOR_TIMEOUT = 30_000; // 30s hard cap per connector
   const GLOBAL_RECON_TIMEOUT = 5 * 60 * 1000; // 5 min max for all connectors combined
   const reconStart = Date.now();
-  for (const batch of batches) {
+
+  // Semaphore-based concurrency: process all connectors through a pool
+  let activeCount = 0;
+  let connectorIndex = 0;
+  const pendingResults: Promise<void>[] = [];
+
+  function makeTimeoutResult(serviceName: string): ConnectorResult {
+    return {
+      connector: serviceName,
+      domain,
+      observations: [],
+      errors: [`Hard timeout: ${serviceName} exceeded ${HARD_CONNECTOR_TIMEOUT / 1000}s — abandoned`],
+      durationMs: HARD_CONNECTOR_TIMEOUT,
+      rateLimited: false,
+    };
+  }
+
+  async function runSingleConnector(connector: PassiveConnector): Promise<ConnectorResult> {
+    const serviceName = connector.name;
+
+    // Check global timeout
     if (Date.now() - reconStart >= GLOBAL_RECON_TIMEOUT) {
-      console.log(`[PassiveRecon] Global recon timeout (${GLOBAL_RECON_TIMEOUT / 1000}s) reached — proceeding with ${connectorResults.length} results`);
-      break;
+      return { connector: serviceName, domain, observations: [], errors: ['Global recon timeout reached'], durationMs: 0, rateLimited: false };
     }
-    const results = await Promise.allSettled(
-      batch.map(async (connector) => {
-        const serviceName = connector.name;
 
-        // ── Circuit Breaker Gate ──────────────────────────────────────────
-        const cbCheck = shouldAllowRequest(serviceName, cbConfig);
-        if (!cbCheck.allowed) {
-          console.log(`[PassiveRecon] Circuit OPEN for ${serviceName} — skipping (${cbCheck.reason})`);
-          trackCall(serviceName, false);
-          await onConnectorProgress?.({ connector: serviceName, status: 'skipped', error: cbCheck.reason });
-          return {
-            connector: serviceName,
-            domain,
-            observations: [],
-            errors: [`Circuit breaker open: ${cbCheck.reason}`],
-            durationMs: 0,
-            rateLimited: false,
-          } satisfies ConnectorResult;
-        }
+    // Circuit breaker gate
+    const cbCheck = shouldAllowRequest(serviceName, cbConfig);
+    if (!cbCheck.allowed) {
+      console.log(`[PassiveRecon] Circuit OPEN for ${serviceName} — skipping (${cbCheck.reason})`);
+      trackCall(serviceName, false);
+      await onConnectorProgress?.({ connector: serviceName, status: 'skipped', error: cbCheck.reason });
+      return { connector: serviceName, domain, observations: [], errors: [`Circuit breaker open: ${cbCheck.reason}`], durationMs: 0, rateLimited: false };
+    }
 
-        try {
-          await onConnectorProgress?.({ connector: serviceName, status: 'started' });
-          const connStart = Date.now();
-          const HARD_CONNECTOR_TIMEOUT = 30_000; // 30s hard cap per connector
-          const abortCtrl = new AbortController();
-          // Inject abort signal into the connector config so fetch calls can be cancelled
-          const cfgWithAbort = { ...connectorConfigs.get(serviceName), signal: abortCtrl.signal, timeout: Math.min(timeout, HARD_CONNECTOR_TIMEOUT) };
-          // Use Promise.race as the GUARANTEED hard timeout — AbortController is best-effort cleanup
-          const result = await Promise.race([
-            connector.collect(domain, cfgWithAbort).catch((err: any) => {
-              // If the connector throws due to abort, return an error result instead of throwing
-              return {
-                connector: serviceName,
-                domain,
-                observations: [] as AssetObservation[],
-                errors: [`Connector error: ${err.message}`],
-                durationMs: Date.now() - connStart,
-                rateLimited: false,
-              } satisfies ConnectorResult;
-            }),
-            new Promise<ConnectorResult>((resolve) => {
-              setTimeout(() => {
-                abortCtrl.abort(); // Also abort to clean up any pending fetches
-                resolve({
-                  connector: serviceName,
-                  domain,
-                  observations: [] as AssetObservation[],
-                  errors: [`Hard timeout: ${serviceName} exceeded ${HARD_CONNECTOR_TIMEOUT / 1000}s`],
-                  durationMs: HARD_CONNECTOR_TIMEOUT,
-                  rateLimited: false,
-                });
-              }, HARD_CONNECTOR_TIMEOUT);
-            }),
-          ]);
+    await onConnectorProgress?.({ connector: serviceName, status: 'started' });
+    const connStart = Date.now();
 
-          // Track success/failure based on result errors
-          const hasAuthError = result.errors.some(e => e.includes("401") || e.includes("Unauthorized") || e.includes("invalid") || e.includes("not configured") || e.includes("skipping"));
-          const hasRateLimit = result.rateLimited;
-          const connDuration = Date.now() - connStart;
+    // Create abort controller for this connector
+    const abortCtrl = new AbortController();
+    const cfgWithAbort: ConnectorConfig = {
+      ...connectorConfigs.get(serviceName),
+      signal: abortCtrl.signal,
+      timeout: Math.min(timeout, HARD_CONNECTOR_TIMEOUT),
+    };
 
-          if (hasAuthError) {
-            // Auth/config failures — report as skipped, open circuit to avoid wasting quota
-            const classified = classifyError(new Error(result.errors[0]), serviceName);
-            recordFailure(serviceName, classified, cbConfig);
-            trackCall(serviceName, false);
-            await onConnectorProgress?.({ connector: serviceName, status: 'skipped', error: result.errors[0], durationMs: connDuration });
-          } else if (hasRateLimit) {
-            // Rate limits are transient — report as failed with rate limit info
-            trackCall(serviceName, false);
-            await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: 'Rate limited', observations: result.observations.length, durationMs: connDuration });
-          } else if (result.errors.length > 0 && result.observations.length === 0) {
-            // Complete failure with no data — report as failed
-            const classified = classifyError(new Error(result.errors[0]), serviceName);
-            recordFailure(serviceName, classified, cbConfig);
-            trackCall(serviceName, false);
-            await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: result.errors[0], observations: 0, durationMs: connDuration });
-          } else {
-            // Success (even partial — some errors but also some observations)
-            recordSuccess(serviceName);
-            trackCall(serviceName, true);
-            await onConnectorProgress?.({ connector: serviceName, status: 'completed', observations: result.observations.length, durationMs: connDuration });
-          };
-          return result;
-        } catch (err: any) {
-          const classified = classifyError(err, serviceName);
-          recordFailure(serviceName, classified, cbConfig);
-          trackCall(serviceName, false);
-          console.error(`[PassiveRecon] ${serviceName} failed (${classified.category}): ${classified.message}`);
-          await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: err.message });
-          return {
-            connector: serviceName,
-            domain,
-            observations: [],
-            errors: [`[${classified.category}] ${err.message}`],
-            durationMs: 0,
-            rateLimited: classified.category === "rate_limited",
-          } satisfies ConnectorResult;
-        }
-      })
-    );
+    // Promise.race: connector vs hard timeout
+    // The timeout promise resolves (not rejects) with a timeout result
+    const timeoutPromise = new Promise<ConnectorResult>((resolve) => {
+      setTimeout(() => {
+        abortCtrl.abort('Hard timeout');
+        resolve(makeTimeoutResult(serviceName));
+      }, HARD_CONNECTOR_TIMEOUT);
+    });
 
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        connectorResults.push(result.value);
-      } else {
-        connectorResults.push({
-          connector: "unknown",
+    const connectorPromise = (async (): Promise<ConnectorResult> => {
+      try {
+        const result = await connector.collect(domain, cfgWithAbort);
+        return result;
+      } catch (err: any) {
+        return {
+          connector: serviceName,
           domain,
           observations: [],
-          errors: [`Promise rejected: ${result.reason}`],
-          durationMs: 0,
+          errors: [`Connector error: ${err.message}`],
+          durationMs: Date.now() - connStart,
           rateLimited: false,
-        });
+        };
       }
+    })();
+
+    const result = await Promise.race([connectorPromise, timeoutPromise]);
+    const connDuration = Date.now() - connStart;
+
+    // Track success/failure
+    const hasAuthError = result.errors.some(e => e.includes('401') || e.includes('Unauthorized') || e.includes('invalid') || e.includes('not configured') || e.includes('skipping'));
+    const hasRateLimit = result.rateLimited;
+    const isTimeout = result.errors.some(e => e.includes('Hard timeout'));
+
+    if (isTimeout) {
+      console.log(`[PassiveRecon] ${serviceName} HARD TIMEOUT after ${(connDuration / 1000).toFixed(1)}s — abandoned`);
+      trackCall(serviceName, false);
+      await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: `Hard timeout (${HARD_CONNECTOR_TIMEOUT / 1000}s)`, durationMs: connDuration });
+    } else if (hasAuthError) {
+      const classified = classifyError(new Error(result.errors[0]), serviceName);
+      recordFailure(serviceName, classified, cbConfig);
+      trackCall(serviceName, false);
+      await onConnectorProgress?.({ connector: serviceName, status: 'skipped', error: result.errors[0], durationMs: connDuration });
+    } else if (hasRateLimit) {
+      trackCall(serviceName, false);
+      await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: 'Rate limited', observations: result.observations.length, durationMs: connDuration });
+    } else if (result.errors.length > 0 && result.observations.length === 0) {
+      const classified = classifyError(new Error(result.errors[0]), serviceName);
+      recordFailure(serviceName, classified, cbConfig);
+      trackCall(serviceName, false);
+      await onConnectorProgress?.({ connector: serviceName, status: 'failed', error: result.errors[0], observations: 0, durationMs: connDuration });
+    } else {
+      recordSuccess(serviceName);
+      trackCall(serviceName, true);
+      await onConnectorProgress?.({ connector: serviceName, status: 'completed', observations: result.observations.length, durationMs: connDuration });
     }
+
+    return result;
   }
+
+  // Process all connectors through a concurrency-limited pool
+  const allConnectorPromises = readyConnectors.map((connector) => {
+    return new Promise<void>(async (resolve) => {
+      // Wait for a slot in the pool
+      while (activeCount >= maxConcurrent) {
+        await new Promise(r => setTimeout(r, 100)); // Poll every 100ms for a free slot
+      }
+      // Check global timeout before starting
+      if (Date.now() - reconStart >= GLOBAL_RECON_TIMEOUT) {
+        connectorResults.push({
+          connector: connector.name, domain, observations: [],
+          errors: ['Global recon timeout reached — skipped'], durationMs: 0, rateLimited: false,
+        });
+        resolve();
+        return;
+      }
+      activeCount++;
+      try {
+        const result = await runSingleConnector(connector);
+        connectorResults.push(result);
+      } catch (err: any) {
+        connectorResults.push({
+          connector: connector.name, domain, observations: [],
+          errors: [`Unexpected error: ${err.message}`], durationMs: 0, rateLimited: false,
+        });
+      } finally {
+        activeCount--;
+        resolve();
+      }
+    });
+  });
+
+  await Promise.all(allConnectorPromises);
 
   // Add blocked connectors as skipped
   for (const b of blocked) {

@@ -152,6 +152,9 @@ export const shodanConnector: PassiveConnector = {
     }
 
     // ── Stage 2: Host Search API ────────────────────────────────
+    if (externalSignal?.aborted) {
+      return { connector: "shodan", domain, observations, errors: [...errors, "Aborted before stage 2"], durationMs: Date.now() - start, rateLimited };
+    }
     try {
       await delay(300); // Small delay between API calls
       const query = `hostname:.${domain}`;
@@ -287,9 +290,10 @@ export const shodanConnector: PassiveConnector = {
     }
 
     // ── Stage 3: Host Detail API (top IPs for deep banner/vuln data) ──
-    // Query up to 10 unique IPs for full host details including all ports and CVEs
-    const ipsToQuery = Array.from(seenIPs).slice(0, 10);
+    // Query up to 5 unique IPs for full host details including all ports and CVEs
+    const ipsToQuery = Array.from(seenIPs).slice(0, 5);
     for (const ip of ipsToQuery) {
+      if (externalSignal?.aborted) break;
       try {
         await delay(300);
         const hostData = await shodanFetch(

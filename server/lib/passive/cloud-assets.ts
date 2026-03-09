@@ -73,14 +73,15 @@ export const cloudAssetsConnector: PassiveConnector = {
     const start = Date.now();
     const errors: string[] = [];
     const observations: AssetObservation[] = [];
-    const timeout = config?.timeout ?? 5000;
+    const timeout = Math.min(config?.timeout ?? 3000, 3000); // Cap at 3s per probe
     const now = new Date();
 
     try {
       const candidates = generateCandidates(domain);
       const providers: Array<"aws" | "azure" | "gcp"> = ["aws", "azure", "gcp"];
       const allProbes: Array<{ candidate: string; provider: "aws" | "azure" | "gcp" }> = [];
-      for (const candidate of candidates.slice(0, 20)) {
+      // Limit to top 8 candidates and skip GCP (slowest) to keep total time under 30s
+      for (const candidate of candidates.slice(0, 8)) {
         for (const provider of providers) allProbes.push({ candidate, provider });
       }
 

@@ -8508,3 +8508,16 @@
 - [x] Reduce cloud-bucket-recon global timeout from 60s to 30s
 - [x] Increase connector concurrency from 5 to 10 per domain
 - [ ] Re-run passive discovery on Master Test Range to verify optimized pipeline
+
+## Connector Hard Timeout Fix (Promise.race + Semaphore)
+- [x] Replace batch-based connector execution with semaphore + Promise.race pattern
+- [x] Each connector wrapped in Promise.race against 30s timeout — straggler abandoned
+- [x] Reduce cloud-assets probes from 20 to 8 candidates, cap probe timeout at 3s
+- [x] Add external signal checks to Shodan connector between stages, limit IPs to 5
+- [x] Add external signal checks to social-media connector between operations
+- [x] Reduce domain parallelism from 3 to 2 (reduces event loop pressure)
+- [x] Reduce per-domain watchdog from 20 to 12 minutes
+- [x] Reduce global watchdog from 90 to 60 minutes
+- [x] Reduce connector timeout from 30s to 15s
+- [x] Update all 16 timeout configuration tests — all passing
+- [ ] Verify fix in production with Master Test Range scan

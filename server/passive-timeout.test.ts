@@ -22,19 +22,12 @@ describe("Passive Recon Timeout Configuration", () => {
     expect(source).toContain("GLOBAL_RECON_TIMEOUT = 5 * 60 * 1000");
   });
 
-  it("should have a 15s default connector timeout (reduced from 30s)", async () => {
+  it("should have a 15s default connector timeout", async () => {
     const source = await import("fs").then(fs =>
       fs.readFileSync("server/lib/passive/index.ts", "utf-8")
     );
     // Verify default timeout is 15s
     expect(source).toContain("timeout = 15000");
-  });
-
-  it("should have a 10 maxConcurrent connector limit", async () => {
-    const source = await import("fs").then(fs =>
-      fs.readFileSync("server/lib/passive/index.ts", "utf-8")
-    );
-    expect(source).toContain("maxConcurrent = 10");
   });
 
   it("should skip connectors with no API key before execution", async () => {
@@ -54,19 +47,41 @@ describe("Passive Recon Timeout Configuration", () => {
     expect(source).toContain("Hard timeout:");
   });
 
-  it("should break out of connector batches when global timeout is reached", async () => {
+  it("should use semaphore-based concurrency pool", async () => {
     const source = await import("fs").then(fs =>
       fs.readFileSync("server/lib/passive/index.ts", "utf-8")
     );
-    expect(source).toContain("Global recon timeout");
-    expect(source).toContain("break;");
+    expect(source).toContain("runSingleConnector");
+    expect(source).toContain("activeCount");
+    expect(source).toContain("allConnectorPromises");
   });
 
-  it("should have 20-minute per-domain watchdog in engagement-ops", async () => {
+  it("should check global timeout before starting each connector", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/lib/passive/index.ts", "utf-8")
+    );
+    expect(source).toContain("Global recon timeout reached");
+  });
+
+  it("should have 12-minute per-domain watchdog in engagement-ops", async () => {
     const source = await import("fs").then(fs =>
       fs.readFileSync("server/routers/engagement-ops-core.ts", "utf-8")
     );
-    expect(source).toContain("PER_DOMAIN_WATCHDOG_MS = 20 * 60 * 1000");
+    expect(source).toContain("PER_DOMAIN_WATCHDOG_MS = 12 * 60 * 1000");
+  });
+
+  it("should have 60-minute global watchdog in engagement-ops", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/routers/engagement-ops-core.ts", "utf-8")
+    );
+    expect(source).toContain("GLOBAL_WATCHDOG_MS = 60 * 60 * 1000");
+  });
+
+  it("should have parallel concurrency of 2 domains", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/routers/engagement-ops-core.ts", "utf-8")
+    );
+    expect(source).toContain("PARALLEL_CONCURRENCY = 2");
   });
 
   it("should have 30s cloud bucket recon global timeout", async () => {
@@ -74,5 +89,41 @@ describe("Passive Recon Timeout Configuration", () => {
       fs.readFileSync("server/lib/passive/cloud-bucket-recon.ts", "utf-8")
     );
     expect(source).toContain("GLOBAL_TIMEOUT = 30000");
+  });
+
+  it("cloud-assets connector should limit to 8 candidates", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/lib/passive/cloud-assets.ts", "utf-8")
+    );
+    expect(source).toContain("candidates.slice(0, 8)");
+  });
+
+  it("cloud-assets connector should cap probe timeout at 3s", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/lib/passive/cloud-assets.ts", "utf-8")
+    );
+    expect(source).toContain("3000, 3000)");
+  });
+
+  it("shodan connector should check external signal between stages", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/lib/passive/shodan.ts", "utf-8")
+    );
+    expect(source).toContain("externalSignal?.aborted");
+    expect(source).toContain("Aborted before stage 2");
+  });
+
+  it("shodan connector should limit IPs to 5", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/lib/passive/shodan.ts", "utf-8")
+    );
+    expect(source).toContain("seenIPs).slice(0, 5)");
+  });
+
+  it("social-media connector should check external signal", async () => {
+    const source = await import("fs").then(fs =>
+      fs.readFileSync("server/lib/passive/social-media.ts", "utf-8")
+    );
+    expect(source).toContain("externalSignal?.aborted");
   });
 });

@@ -49,16 +49,19 @@ export const socialMediaConnector: PassiveConnector = {
     const start = Date.now();
     const errors: string[] = [];
     const observations: AssetObservation[] = [];
-    const timeout = config?.timeout ?? 15000;
+    const timeout = Math.min(config?.timeout ?? 10000, 10000);
     let rateLimited = false;
+    const externalSignal = config?.signal;
 
     const orgNames = extractOrgName(domain);
 
     try {
       for (const orgName of orgNames) {
+        if (externalSignal?.aborted) break;
         // Check GitHub organization
         try {
           const controller = new AbortController();
+          if (externalSignal) externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
           const timer = setTimeout(() => controller.abort(), timeout);
           const res = await fetch(`https://api.github.com/orgs/${encodeURIComponent(orgName)}`, {
             headers: { "User-Agent": "AceStrike-DomainIntel", "Accept": "application/vnd.github.v3+json" },
@@ -176,9 +179,11 @@ export const socialMediaConnector: PassiveConnector = {
         }
 
         // Check GitHub user (if org not found)
+        if (externalSignal?.aborted) break;
         if (observations.filter(o => o.tags.includes("github")).length === 0) {
           try {
             const controller = new AbortController();
+            if (externalSignal) externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
             const timer = setTimeout(() => controller.abort(), timeout);
             const res = await fetch(`https://api.github.com/users/${encodeURIComponent(orgName)}`, {
               headers: { "User-Agent": "AceStrike-DomainIntel", "Accept": "application/vnd.github.v3+json" },

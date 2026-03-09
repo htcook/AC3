@@ -547,12 +547,12 @@ export const engagementOpsRouter = router({
 
         // Run pipeline in background — mutation returns immediately with assets already populated
         (async () => {
-          // ── Per-domain watchdog: 15 minutes per domain (increased for parallel mode where LLM calls queue up) ──
-          const PER_DOMAIN_WATCHDOG_MS = 20 * 60 * 1000;
-          // ── Global watchdog: 90 minutes total for entire pipeline (accounts for LLM rate limits across parallel batches) ──
-          const GLOBAL_WATCHDOG_MS = 90 * 60 * 1000;
-          // ── Parallel concurrency: scan up to 3 domains simultaneously (reduced from 5 to avoid OSINT rate limits) ──
-          const PARALLEL_CONCURRENCY = 3;
+          // ── Per-domain watchdog: 12 minutes per domain (connector hard timeout is 30s, so ~15 connectors max) ──
+          const PER_DOMAIN_WATCHDOG_MS = 12 * 60 * 1000;
+          // ── Global watchdog: 60 minutes total for entire pipeline ──
+          const GLOBAL_WATCHDOG_MS = 60 * 60 * 1000;
+          // ── Parallel concurrency: scan up to 2 domains simultaneously (reduced from 3 to reduce event loop pressure) ──
+          const PARALLEL_CONCURRENCY = 2;
           let globalWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
           const globalAbort = new AbortController();
           globalWatchdogTimer = setTimeout(() => {
@@ -574,7 +574,7 @@ export const engagementOpsRouter = router({
             }
           };
 
-          const parallelStartLog = { id: `log-${Date.now()}-parallel`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `⚡ Parallel Scan Mode`, detail: `Scanning up to ${PARALLEL_CONCURRENCY} domains concurrently. ${domains.length} domains queued.` };
+          const parallelStartLog = { id: `log-${Date.now()}-parallel`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: `⚡ Parallel Scan Mode`, detail: `Scanning up to ${PARALLEL_CONCURRENCY} domains concurrently (30s hard timeout per connector). ${domains.length} domains queued.` };
           state!.log.push(parallelStartLog);
           broadcastOpsUpdate(input.engagementId, { type: 'log', entry: parallelStartLog });
 

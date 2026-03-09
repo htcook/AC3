@@ -1661,7 +1661,7 @@ export async function runDomainIntelPipeline(
         abuseipdb: ENV.ABUSEIPDB_API_KEY || undefined,
         github: ENV.GITHUB_PAT || undefined,
       },
-      timeout: 30000,
+      timeout: 15000,
       maxConcurrent: 5,
       onConnectorProgress: options?.onConnectorProgress,
     });
