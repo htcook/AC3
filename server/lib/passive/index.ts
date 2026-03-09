@@ -221,7 +221,13 @@ export async function runPassiveRecon(
 
   const { onConnectorProgress } = config;
 
+  const GLOBAL_RECON_TIMEOUT = 5 * 60 * 1000; // 5 min max for all connectors combined
+  const reconStart = Date.now();
   for (const batch of batches) {
+    if (Date.now() - reconStart >= GLOBAL_RECON_TIMEOUT) {
+      console.log(`[PassiveRecon] Global recon timeout (${GLOBAL_RECON_TIMEOUT / 1000}s) reached — proceeding with ${connectorResults.length} results`);
+      break;
+    }
     const results = await Promise.allSettled(
       batch.map(async (connector) => {
         const serviceName = connector.name;
@@ -245,7 +251,13 @@ export async function runPassiveRecon(
         try {
           await onConnectorProgress?.({ connector: serviceName, status: 'started' });
           const connStart = Date.now();
-          const result = await connector.collect(domain, connectorConfigs.get(serviceName));
+          const HARD_CONNECTOR_TIMEOUT = 30_000; // 30s hard cap per connector
+          const result = await Promise.race([
+            connector.collect(domain, connectorConfigs.get(serviceName)),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`Hard timeout: ${serviceName} exceeded ${HARD_CONNECTOR_TIMEOUT / 1000}s`)), HARD_CONNECTOR_TIMEOUT)
+            ),
+          ]);
 
           // Track success/failure based on result errors
           const hasAuthError = result.errors.some(e => e.includes("401") || e.includes("Unauthorized") || e.includes("invalid") || e.includes("not configured") || e.includes("skipping"));

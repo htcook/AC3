@@ -8492,11 +8492,19 @@
 
 ## Parallel Passive Discovery Scan
 - [x] Parallelize passive discovery scan — scan multiple domains concurrently instead of sequentially
-- [ ] Add configurable concurrency limit (e.g., 5 domains at once)
-- [ ] Ensure state updates and log broadcasts are thread-safe with concurrent scans
-- [ ] Maintain per-domain watchdog timers in parallel mode
-- [ ] Test parallel scan execution and verify observation collection
+- [x] Add configurable concurrency limit (3 domains at once, with 20-min per-domain watchdog)
+- [x] Ensure state updates and log broadcasts are thread-safe with concurrent scans
+- [x] Maintain per-domain watchdog timers in parallel mode
+- [x] Test parallel scan execution and verify observation collection (IP targets complete, domain targets need connector optimization)
 - [x] Sort CVEs by most recent in engagement ops asset detail views
 - [x] Add version-aware vulnerability matching — only list CVEs that affect the detected version, not all CVEs for the product
 - [ ] Re-run passive discovery on Master Test Range to verify parallel scanning and version filtering
 - [x] Add version-match confidence indicators to findings cards in EngagementOps UI (e.g., "Confirmed v2.4.49 in range >= 2.4.49, < 2.4.50")
+
+## Connector Pipeline Optimization
+- [x] Add 30s hard per-connector timeout (Promise.race) to prevent individual connectors from hanging
+- [x] Add 5-minute global recon timeout to cap total connector phase duration
+- [x] Reduce default connector timeout from 30s to 15s
+- [x] Reduce cloud-bucket-recon global timeout from 60s to 30s
+- [x] Increase connector concurrency from 5 to 10 per domain
+- [ ] Re-run passive discovery on Master Test Range to verify optimized pipeline
