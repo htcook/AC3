@@ -407,3 +407,4 @@ export async function runPassiveRecon(
 export type { AssetObservation, ConnectorResult, RiskSignal, ScanMode, PassiveConnector } from "./types";
 export { getScanModeDescription } from "./passive-guard";
 export { getSignalRuleDescriptions } from "./signal-classifier";
+// Pipeline optimization v2 - Mon Mar  9 01:37:44 EDT 2026
