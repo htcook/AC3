@@ -212,6 +212,17 @@ export async function runPassiveRecon(
     console.log(`[PassiveRecon] Skipped ${skippedNoKey.length} connectors with no API key: ${skippedNoKey.map(s => s.connector).join(', ')}`);
   }
 
+  // ── Tier 1 Optimization #3.3: Separate GitHub connectors into background queue ──
+  // GitHub connectors (github_leaks, github_recon) consistently hit the 30s
+  // hard timeout. Moving them out of the main pool frees up 2 concurrency
+  // slots and lets the main pipeline complete ~30s faster.
+  const BACKGROUND_CONNECTORS = new Set(['github_leaks', 'github_recon']);
+  const mainConnectors = readyConnectors.filter(c => !BACKGROUND_CONNECTORS.has(c.name));
+  const backgroundConnectors = readyConnectors.filter(c => BACKGROUND_CONNECTORS.has(c.name));
+  if (backgroundConnectors.length > 0) {
+    console.log(`[PassiveRecon] Background queue: ${backgroundConnectors.map(c => c.name).join(', ')} (will run after main connectors)`);
+  }
+
   // ── Run connectors with semaphore + Promise.race hard timeout ──────────
   // Key design: each connector is wrapped in Promise.race against a timeout
   // promise. Even if the connector's .collect() blocks the event loop and
@@ -326,8 +337,9 @@ export async function runPassiveRecon(
     return result;
   }
 
-  // Process all connectors through a concurrency-limited pool
-  const allConnectorPromises = readyConnectors.map((connector) => {
+  // Process main connectors through a concurrency-limited pool
+  // (GitHub connectors run in background after main pool completes)
+  const allConnectorPromises = mainConnectors.map((connector) => {
     return new Promise<void>(async (resolve) => {
       // Wait for a slot in the pool
       while (activeCount >= maxConcurrent) {
@@ -359,6 +371,37 @@ export async function runPassiveRecon(
   });
 
   await Promise.all(allConnectorPromises);
+
+  // ── Background queue: run GitHub connectors with lower priority ──
+  // These run after main connectors complete, with a generous timeout.
+  // Results are merged into the main results before signal classification.
+  if (backgroundConnectors.length > 0 && (Date.now() - reconStart) < GLOBAL_RECON_TIMEOUT) {
+    const bgTimeout = Math.min(45_000, GLOBAL_RECON_TIMEOUT - (Date.now() - reconStart));
+    console.log(`[PassiveRecon] Starting background connectors (${bgTimeout / 1000}s budget remaining)`);
+    const bgPromises = backgroundConnectors.map(async (connector) => {
+      try {
+        const result = await runSingleConnector(connector);
+        connectorResults.push(result);
+      } catch (err: any) {
+        connectorResults.push({
+          connector: connector.name, domain, observations: [],
+          errors: [`Background connector error: ${err.message}`], durationMs: 0, rateLimited: false,
+        });
+      }
+    });
+    // Race background connectors against remaining budget
+    const bgTimeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, bgTimeout));
+    await Promise.race([Promise.all(bgPromises), bgTimeoutPromise]);
+    console.log(`[PassiveRecon] Background connectors finished or timed out`);
+  } else if (backgroundConnectors.length > 0) {
+    // Global timeout already reached, skip background connectors
+    for (const c of backgroundConnectors) {
+      connectorResults.push({
+        connector: c.name, domain, observations: [],
+        errors: ['Skipped: global timeout reached before background queue'], durationMs: 0, rateLimited: false,
+      });
+    }
+  }
 
   // Add blocked connectors as skipped
   for (const b of blocked) {

@@ -85,6 +85,14 @@ export async function runPostEnrichmentAnalysis(
 ): Promise<PostEnrichmentAnalysis> {
   try {
     const { invokeLLM } = await import("../_core/llm");
+    // LLM timeout wrapper (Tier 1 Optimization #3.1)
+    const LLM_TIMEOUT_MS = 60_000;
+    const invokeLLMWithTimeout = (params: any, timeoutMs = LLM_TIMEOUT_MS) => {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`LLM timeout after ${timeoutMs}ms`)), timeoutMs)
+      );
+      return Promise.race([invokeLLM(params), timeoutPromise]);
+    };
     // Wire knowledge modules for enriched post-enrichment analysis
     const { getThreatGroupVulnContext, getSectorThreatContext } = await import("./threat-group-knowledge");
     const { buildAuthKnowledgeContext } = await import("./auth-testing-knowledge");
@@ -164,7 +172,7 @@ ${pentestCtx.slice(0, 1000)}
 
 ${owaspCtx.slice(0, 800)}`;
 
-    const response = await invokeLLM({
+    const response = await invokeLLMWithTimeout({
       messages: [
         {
           role: "system",

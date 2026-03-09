@@ -8527,3 +8527,20 @@
 - [x] Check for large static files in project directory causing upload timeout
 - [x] Remove 582 .manus/db query JSON files from git tracking (reduced files from 1897 to 1315)
 - [ ] Redeploy and verify
+
+## Production Scan Verification
+- [ ] Trigger passive discovery scan on Master Test Range (ID: 1590026)
+- [ ] Monitor scan progress — verify connectors complete within 30s hard timeout
+- [ ] Verify domains complete within 12-minute watchdog
+- [ ] Check for "HARD TIMEOUT" log entries confirming enforcement
+
+## Black Page Issue
+- [ ] Investigate production page showing only black
+- [ ] Check if deployment succeeded or if old version is stale
+
+## Tier 1 Pipeline Optimizations
+- [x] 3.1: Add LLM timeout wrapper (60s) to all 6 invokeLLM calls (5 in domainIntel.ts + 1 in llm-post-enrichment-analysis.ts)
+- [x] 3.4: KEV catalog already has 6-hour in-memory cache — verified, no changes needed
+- [x] 3.3: Move GitHub connectors (github_leaks, github_recon) to background queue with remaining time budget
+- [x] 3.2: Parallelize post-enrichment analysis + campaign recommendations via Promise.allSettled
+- [x] All 31 tests passing (16 passive-timeout + 14 tier1-optimizations + 1 auth)

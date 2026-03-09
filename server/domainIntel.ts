@@ -10,6 +10,17 @@
  */
 
 import { invokeLLM } from "./_core/llm";
+
+// ─── LLM Timeout Wrapper (Tier 1 Optimization #3.1) ────────────────────
+// Wraps every LLM call in Promise.race with a hard timeout to prevent
+// pipeline hangs when the LLM API stalls or doesn't respond.
+const LLM_TIMEOUT_MS = 60_000; // 60 seconds
+async function invokeLLMWithTimeout(params: Parameters<typeof invokeLLM>[0], timeoutMs = LLM_TIMEOUT_MS): Promise<ReturnType<typeof invokeLLM>> {
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`LLM timeout after ${timeoutMs}ms`)), timeoutMs)
+  );
+  return Promise.race([invokeLLM(params), timeoutPromise]) as ReturnType<typeof invokeLLM>;
+}
 import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
 import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/passive/index";
 import { enrichAssetsWithShodanData, verifyCvesWithShodanData, createShodanPostureFindings } from "./lib/shodan-verifier";
@@ -500,7 +511,7 @@ ${org.clientType === "mixed_hosting" ? "- Shared hosting panels, dedicated serve
 Return ONLY the JSON array, no markdown fences.`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLMWithTimeout({
       messages: [
         { role: "system", content: "You are a cybersecurity OSINT analyst. Return only valid JSON arrays." },
         { role: "user", content: prompt },
@@ -676,7 +687,7 @@ SCORING CALIBRATION (CRITICAL):
 Be thorough and realistic. Score based on the specific sector (${org.sector}) and client type (${org.clientType}).${fpCalibrationBlock}${historicalContext ? `\n\n${historicalContext}\n\nWhen analyzing assets, compare against the historical data above. For assets that appeared in the previous scan:\n- Note whether their risk profile has changed\n- Flag any NEW findings not present before\n- Indicate if previously identified vulnerabilities appear to be remediated\n- Adjust confidence scores upward for findings that persist across scans (confirmed by repeated observation)` : ''}`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLMWithTimeout({
       messages: [
         { role: "system", content: "You are a cybersecurity risk analyst. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -1425,7 +1436,7 @@ For each campaign, provide:
 Return JSON: { "campaigns": [...] }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLMWithTimeout({
       messages: [
         { role: "system", content: "You are a red team campaign designer. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -1485,7 +1496,7 @@ Provide:
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLMWithTimeout({
       messages: [
         { role: 'system', content: 'You are a cybersecurity report writer. Return only valid JSON.' },
         { role: 'user', content: prompt },
@@ -1557,7 +1568,7 @@ Provide:
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLMWithTimeout({
       messages: [
         { role: "system", content: "You are a cybersecurity report writer. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -2832,34 +2843,66 @@ export async function runDomainIntelPipeline(
   }
 
   await yieldEventLoop();
-  // Stage 3.99: LLM Post-Enrichment Analysis — attack paths, blind spots, recommendations
+  // ─── Tier 1 Optimization #3.2: Parallelize independent LLM stages ───────
+  // Stage 3.99 (post-enrichment analysis) and Stage 4 (campaign recommendations)
+  // both consume `analyses` but produce independent outputs. Running them in
+  // parallel saves 10-20s per domain.
   let postEnrichmentAnalysis: PostEnrichmentAnalysis | undefined;
-  try {
-    console.log(`[DomainIntel] Stage 3.99: Running LLM post-enrichment analysis`);
-    postEnrichmentAnalysis = await runPostEnrichmentAnalysis(analyses, org, crossModuleEnrichment);
-    console.log(
-      `[DomainIntel] Post-enrichment analysis complete: ` +
-      `${postEnrichmentAnalysis.attackPaths.length} attack paths, ` +
-      `${postEnrichmentAnalysis.blindSpots.length} blind spots, ` +
-      `${postEnrichmentAnalysis.prioritizedRecommendations.length} recommendations`
-    );
-  } catch (err: any) {
-    console.error(`[DomainIntel] Post-enrichment analysis failed (non-fatal): ${err.message}`);
-  }
-
-  await yieldEventLoop();
-  // Stage 4: Generate campaign recommendations (now KEV-enriched)
-  // If skipEngagement is true, skip campaign design and generate scan-only summaries
   let campaigns: CampaignRecommendation[] = [];
   let summaries: { executiveSummary: string; threatModelSummary: string };
 
   if (options?.skipEngagement) {
-    // Scan-only mode: generate a scan summary without campaign design
-    summaries = await generateScanOnlySummary(analyses, org);
+    // Scan-only mode: run post-enrichment + scan summary in parallel
+    console.log(`[DomainIntel] Stage 3.99 + scan summary: running in parallel`);
+    const [peResult, scanSummary] = await Promise.allSettled([
+      (async () => {
+        console.log(`[DomainIntel] Stage 3.99: Running LLM post-enrichment analysis`);
+        return runPostEnrichmentAnalysis(analyses, org, crossModuleEnrichment);
+      })(),
+      generateScanOnlySummary(analyses, org),
+    ]);
+    if (peResult.status === 'fulfilled') {
+      postEnrichmentAnalysis = peResult.value;
+      console.log(
+        `[DomainIntel] Post-enrichment analysis complete: ` +
+        `${postEnrichmentAnalysis.attackPaths.length} attack paths, ` +
+        `${postEnrichmentAnalysis.blindSpots.length} blind spots, ` +
+        `${postEnrichmentAnalysis.prioritizedRecommendations.length} recommendations`
+      );
+    } else {
+      console.error(`[DomainIntel] Post-enrichment analysis failed (non-fatal): ${peResult.reason?.message || peResult.reason}`);
+    }
+    summaries = scanSummary.status === 'fulfilled'
+      ? scanSummary.value
+      : { executiveSummary: `Domain intelligence analysis of ${org.primaryDomain} identified ${analyses.length} assets.`, threatModelSummary: `Attack surface analysis for ${org.customerName} reveals ${analyses.length} discoverable assets.` };
     console.log(`[DomainIntel] Scan-only mode: skipped campaign design and threat modeling`);
   } else {
+    // Full mode: run post-enrichment + campaigns in parallel, then summaries
     await onProgress?.('recommending');
-    campaigns = await generateCampaignRecommendations(analyses, org, kevEnrichment);
+    console.log(`[DomainIntel] Stage 3.99 + Stage 4: running post-enrichment and campaign design in parallel`);
+    const [peResult, campaignResult] = await Promise.allSettled([
+      (async () => {
+        console.log(`[DomainIntel] Stage 3.99: Running LLM post-enrichment analysis`);
+        return runPostEnrichmentAnalysis(analyses, org, crossModuleEnrichment);
+      })(),
+      generateCampaignRecommendations(analyses, org, kevEnrichment),
+    ]);
+    if (peResult.status === 'fulfilled') {
+      postEnrichmentAnalysis = peResult.value;
+      console.log(
+        `[DomainIntel] Post-enrichment analysis complete: ` +
+        `${postEnrichmentAnalysis.attackPaths.length} attack paths, ` +
+        `${postEnrichmentAnalysis.blindSpots.length} blind spots, ` +
+        `${postEnrichmentAnalysis.prioritizedRecommendations.length} recommendations`
+      );
+    } else {
+      console.error(`[DomainIntel] Post-enrichment analysis failed (non-fatal): ${peResult.reason?.message || peResult.reason}`);
+    }
+    campaigns = campaignResult.status === 'fulfilled' ? campaignResult.value : [];
+    if (campaignResult.status === 'rejected') {
+      console.error(`[DomainIntel] Campaign generation failed (non-fatal): ${campaignResult.reason?.message || campaignResult.reason}`);
+    }
+    // Stage 5: Summaries depend on campaigns, so must run after
     summaries = await generateSummaries(analyses, campaigns, org, historicalContext || undefined);
   }
 
