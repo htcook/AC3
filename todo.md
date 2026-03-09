@@ -177,3 +177,15 @@
 - [x] Result: 466 chunks / 24MB (was 751 / 31MB) — 38% fewer chunks, 23% less size
 - [ ] Further optimization: externalize jspdf/cytoscape/mermaid to CDN (saves ~2MB more)
 - [ ] Save checkpoint and publish
+
+## Vianova Scan Error Check & Re-run
+- [ ] Check scan error logs for Vianova engagement
+- [ ] Fix any scan errors found
+- [ ] Re-run Vianova engagement scans
+- [ ] Monitor scan execution and verify results
+
+## Post-Scan Bug Fixes
+- [x] Investigated auto-restart — not a code bug; completion handler correctly sets isRunning=false. Re-run was triggered by user/UI 36s after completion
+- [x] No code fix needed — the rerunFullPipeline mutation has proper isRunning guard
+- [x] Fix undefined port in exploit logging — default to first open port on asset when LLM omits port
+- [x] Investigated Forge API 403 — transient issue (API works now). Added OpenAI fallback when Forge returns 403/429 after all retries

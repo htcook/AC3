@@ -310,7 +310,13 @@ export const engagementOpsRouter = router({
         state.isPaused = false;
         state.error = undefined;
         state.currentAction = undefined;
-        const resetLog = { id: `log-${Date.now()}-reset`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: '🔄 Ops State Reset', detail: `Reset by ${ctx.user.name || 'operator'}. ${hasAssets ? `${state.assets.length} assets preserved. Ready for active scan or re-run passive.` : 'Ready for passive discovery.'}` };
+        // Recalculate stats from preserved assets (fixes vulnsFound=0 after reset)
+        if (hasAssets) {
+          state.stats.vulnsFound = state.assets.reduce((sum: number, a: any) => sum + (a.vulns || []).length, 0);
+          state.stats.portsFound = state.assets.reduce((sum: number, a: any) => sum + (a.ports || []).length, 0);
+          state.stats.assetsDiscovered = state.assets.length;
+        }
+        const resetLog = { id: `log-${Date.now()}-reset`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: '🔄 Ops State Reset', detail: `Reset by ${ctx.user.name || 'operator'}. ${hasAssets ? `${state.assets.length} assets preserved (${state.stats.vulnsFound} vulns, ${state.stats.portsFound} ports). Ready for active scan or re-run passive.` : 'Ready for passive discovery.'}` };
         state.log.push(resetLog);
         broadcastOpsUpdate(input.engagementId, { type: 'log', entry: resetLog });
         broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: state.phase });

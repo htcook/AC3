@@ -2693,7 +2693,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
         // Add findings to asset vulns
         for (const f of findings) {
-          asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
+          asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` });
           state.stats.vulnsFound++;
         }
       } catch (e: any) {
@@ -3120,7 +3120,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           for (const f of findings) {
             const key = `${f.severity}::${f.title}::${f.cve || ''}`;
             if (!assetVulnKeys.has(key)) {
-              asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
+              asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` });
               assetVulnKeys.add(key);
               state.stats.vulnsFound++;
               newFindings++;
@@ -3293,12 +3293,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 if (totalAlerts > 0) {
                   if (counts.high > 0) {
                     webApp.zapFindings.push({ alert: "High-risk web vulnerability", risk: "high", url: targetUrl });
-                    webApp.vulns.push({ id: genId(), severity: "high", title: `[ZAP] ${counts.high} high-risk findings` });
+                    webApp.vulns.push({ id: genId(), severity: "high", title: `[ZAP] ${counts.high} high-risk findings`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by ZAP active scan' });
                     state.stats.vulnsFound += counts.high;
                   }
                   if (counts.medium > 0) {
                     webApp.zapFindings.push({ alert: "Medium-risk web vulnerability", risk: "medium", url: targetUrl });
-                    webApp.vulns.push({ id: genId(), severity: "medium", title: `[ZAP] ${counts.medium} medium-risk findings` });
+                    webApp.vulns.push({ id: genId(), severity: "medium", title: `[ZAP] ${counts.medium} medium-risk findings`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by ZAP active scan' });
                     state.stats.vulnsFound += counts.medium;
                   }
                   if (counts.low > 0) {
@@ -3752,7 +3752,9 @@ ${(() => {
   const exploitActions = decision.actions.filter((a: any) => a.type === "exploit_attempt");
   const planSummary = exploitActions.map((a: any, i: number) => {
     const p = a.params || {};
-    return `${i + 1}. ${p.target || "unknown"}:${p.port || "?"} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})`;
+    const matchedAsset = state.assets.find(ast => ast.hostname === p.target || ast.ip === p.target);
+    const resolvedPort = p.port || matchedAsset?.ports?.[0]?.port || 443;
+    return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})`;
   }).join("\n");
 
   const exploitPlanApproved = await requestApproval(state, {
@@ -3760,7 +3762,11 @@ ${(() => {
     riskTier: "red",
     title: `Exploit Plan Review — ${exploitActions.length} target${exploitActions.length !== 1 ? "s" : ""}`,
     description: `The LLM has selected ${exploitActions.length} exploit action${exploitActions.length !== 1 ? "s" : ""}. Review the plan below before any exploits are executed.\n\n${planSummary}\n\nLLM Reasoning: ${decision.reasoning || decision.decision}`,
-    target: exploitActions.map((a: any) => `${a.params?.target}:${a.params?.port}`).join(", "),
+    target: exploitActions.map((a: any) => {
+      const matchedAsset2 = state.assets.find(ast => ast.hostname === a.params?.target || ast.ip === a.params?.target);
+      const rPort = a.params?.port || matchedAsset2?.ports?.[0]?.port || 443;
+      return `${a.params?.target}:${rPort}`;
+    }).join(", "),
     module: exploitActions.map((a: any) => a.params?.cve || a.params?.module || "auto").join(", "),
     detail: {
       exploitCount: exploitActions.length,
@@ -3832,8 +3838,10 @@ ${(() => {
 
   for (const action of actionsToExecute) {
     if (action.type === "exploit_attempt") {
-      const { target, port, cve, service, module } = action.params as any;
+      const { target, cve, service, module } = action.params as any;
       const asset = state.assets.find(a => a.hostname === target || a.ip === target);
+      // Default port to first open port on the asset if LLM didn't specify one
+      const port = action.params?.port || asset?.ports?.[0]?.port || 443;
 
       // Request operator approval for exploitation
       const approved = await requestApproval(state, {
@@ -4102,6 +4110,14 @@ export async function executeEngagement(
   if (!state.startedAt) state.startedAt = Date.now();
   state.phase = startPhase;
   if (options?.scanProfile) state.scanProfile = options.scanProfile;
+
+  // ═══ STATS RECALCULATION ═══
+  // Ensure stats reflect actual asset data (fixes vulnsFound=0 after reset/resume)
+  if (state.assets.length > 0) {
+    state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + (a.vulns || []).length, 0);
+    state.stats.portsFound = state.assets.reduce((sum, a) => sum + (a.ports || []).length, 0);
+    state.stats.assetsDiscovered = state.assets.length;
+  }
 
   // ═══ ENGAGEMENT CONTEXT (shared across all LLM specialist calls) ═══
   try {

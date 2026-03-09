@@ -456,6 +456,36 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           continue;
         }
 
+        // Provider fallback: if Forge exhausted retries, try OpenAI as last resort
+        if (provider === 'forge' && (status === 403 || status === 429)) {
+          const openai = getOpenAIConfig();
+          if (openai) {
+            console.warn(`[LLM] Forge failed with ${status} after ${MAX_RETRIES + 1} attempts. Falling back to OpenAI...`);
+            try {
+              const fallbackResponse = await fetch(openai.apiUrl, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${openai.apiKey}` },
+                body: JSON.stringify({ ...JSON.parse(bodyStr), model: openai.model, thinking: undefined }),
+              });
+              if (fallbackResponse.ok) {
+                const fallbackResult = (await fallbackResponse.json()) as InvokeResult;
+                console.log(`[LLM] OpenAI fallback succeeded`);
+                recordTelemetry({
+                  caller: _caller, model: openai.model, status: 'retried_success',
+                  httpStatus: 200, latencyMs: Date.now() - telemetryStart,
+                  retryCount: attempt + 1,
+                  tokensIn: fallbackResult.usage?.prompt_tokens ?? 0,
+                  tokensOut: fallbackResult.usage?.completion_tokens ?? 0,
+                  hasResponseFormat: !!normalizedResponseFormat, engagementId: _engagementId,
+                });
+                return fallbackResult;
+              }
+            } catch (fallbackErr: any) {
+              console.warn(`[LLM] OpenAI fallback also failed: ${fallbackErr.message}`);
+            }
+          }
+        }
+
         // Record failed telemetry
         recordTelemetry({
           caller: _caller,
