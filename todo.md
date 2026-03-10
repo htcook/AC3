@@ -268,3 +268,17 @@
 - [x] Fix Master Test Range (1590026) — cleared error state for retry
 - [x] Fix threatIntelUpdates column name mismatches: status→tiuStatus, startedAt→tiuStartedAt, completedAt→tiuCompletedAt, summary→tiuSummary, details→tiuDetails, errors→tiuErrors across 5 files
 - [x] All 28 regression tests passing (15 field alignment + 13 catalog sync)
+
+## Re-trigger Master Test Range Scan (March 2026)
+- [x] Re-trigger scan for engagement 1590026 (Master Test Range) — resumed successfully, now running with 21 assets, 9 ports, 304 vulns found so far
+
+## Deploy Vulnerable Test Apps & Integrate into Test Range (March 2026)
+- [x] Research VAmPI, DVGA, WebGoat repos for deployment requirements
+- [x] Check existing test range infrastructure in the platform
+- [x] Deploy VAmPI (Vulnerable REST API) on scan server via Docker (port 5000, HTTP 200)
+- [x] Deploy DVGA (Damn Vulnerable GraphQL Application) on scan server via Docker (port 5013, HTTP 200)
+- [x] Deploy WebGoat (OWASP) on scan server via Docker (port 8080 + WebWolf 9090, HTTP 302)
+- [x] Integrate all three into Training Lab catalog (vampi, dvga, webgoat entries with full metadata, RoE, OWASP categories)
+- [x] Add container health check endpoint (scanServer.containerHealth procedure)
+- [x] All 9 integration tests passing (training-targets.test.ts)
+- [x] All containers verified running and responding on scan server 159.223.152.190

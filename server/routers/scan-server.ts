@@ -74,6 +74,30 @@ export const scanServerRouter = router({
       }
     }),
 
+    /** Check Docker container status for training targets */
+    containerHealth: protectedProcedure.query(async () => {
+      try {
+        const { executeTool } = await import('../lib/scan-server-executor');
+        const result = await executeTool({
+          tool: 'docker',
+          args: 'ps -a --format {{.Names}}\t{{.Status}}\t{{.Ports}}',
+          timeoutSeconds: 15,
+        });
+        const containers = result.stdout.trim().split('\n').filter(Boolean).map((line: string) => {
+          const [name, status, ports] = line.split('\t');
+          return {
+            name: name || '',
+            status: status || 'unknown',
+            ports: ports || '',
+            healthy: (status || '').toLowerCase().startsWith('up'),
+          };
+        });
+        return { containers, error: null };
+      } catch (err: any) {
+        return { containers: [], error: err.message };
+      }
+    }),
+
     /** Get tool versions from the scan server */
     toolVersions: protectedProcedure.query(async () => {
       try {
