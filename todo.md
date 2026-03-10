@@ -213,3 +213,11 @@
 - [x] Create test engagement: Gin & Juice Shop (PortSwigger) — https://ginandjuice.shop (ID: 1650003)
 - [x] Create test engagement: DVWA — dvwa.co.uk (ID: 1650004)
 - [x] Create test engagement: Nmap ScanMe — http://scanme.nmap.org (ID: 1650005)
+- [x] Audit Training Lab self-learning pipeline — does it persist corrections from test engagements?
+- [x] Audit engagement ops pipeline — does it use training data from previous runs?
+- [x] Implement training feedback loop — ensure test engagement results train LLM for future accuracy
+  - [x] Integration Point 1: Inject buildLearningContext() into LLM vuln synthesis prompt
+  - [x] Integration Point 2: Score results against ground truth after pipeline completion
+  - [x] Integration Point 3: Auto-generate learning entries for missed findings & false positives
+  - [x] Added scanme-nmap ground truth library (6 entries)
+  - [x] Domain-to-preset resolver maps engagement targets to Training Lab presets automatically

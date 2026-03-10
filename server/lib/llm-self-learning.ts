@@ -247,6 +247,15 @@ export const GROUND_TRUTH_LIBRARY: Record<string, GroundTruthVuln[]> = {
     { title: "Open HTTP Redirect", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Redirect parameter allows redirection to arbitrary URLs.", detectionHint: "Test redirect parameter with external URL" },
     { title: "Content Security Policy Bypass", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "CSP headers are misconfigured allowing inline script execution.", detectionHint: "Check CSP headers and test bypass techniques" },
   ],
+
+  "scanme-nmap": [
+    { title: "Open SSH Service", category: "Network Service", severity: "info", description: "SSH (port 22) is open and accepting connections. Version fingerprint reveals OpenSSH.", detectionHint: "Nmap -sV on port 22" },
+    { title: "Open HTTP Service", category: "Network Service", severity: "info", description: "HTTP (port 80) is open running Apache httpd.", detectionHint: "Nmap -sV on port 80" },
+    { title: "Open NTP Service", category: "Network Service", severity: "low", description: "NTP (port 123) is open and may be used for amplification attacks.", detectionHint: "Nmap -sU on port 123" },
+    { title: "Open DNS Service", category: "Network Service", severity: "low", description: "DNS (port 9929) is open on a non-standard port.", detectionHint: "Nmap -sV on port 9929" },
+    { title: "Missing Security Headers", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "HTTP service missing standard security headers (CSP, HSTS, X-Frame-Options).", detectionHint: "Check HTTP response headers" },
+    { title: "Server Version Disclosure", category: "Information Disclosure", owaspCategory: "A05:2025", severity: "low", description: "Server banner reveals software version information.", detectionHint: "Check Server header in HTTP response" },
+  ],
 };
 
 // ─── Feedback Knowledge Base ───────────────────────────────────────────────

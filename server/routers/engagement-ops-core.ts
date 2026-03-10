@@ -1806,6 +1806,33 @@ export const engagementOpsRouter = router({
                 const { buildAuthKnowledgeContext } = await import('../lib/auth-testing-knowledge');
                 const { getNmapVulnCorrelationContext } = await import('../lib/nmap-knowledge');
                 const { getThreatGroupVulnContext } = await import('../lib/threat-group-knowledge');
+                const { buildLearningContext, GROUND_TRUTH_LIBRARY } = await import('../lib/llm-self-learning');
+                const { TRAINING_TARGETS } = await import('./training-lab');
+
+                // Resolve training preset from engagement target domains
+                const engDomains = (engagement?.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+                let resolvedPreset = '';
+                let learningCtx = '';
+                for (const d of engDomains) {
+                  const match = TRAINING_TARGETS.find(t => {
+                    try {
+                      const tHost = new URL(t.url.startsWith('http') ? t.url : `https://${t.url}`).hostname;
+                      return d.includes(tHost) || tHost.includes(d) || (t.liveInstanceUrl && t.liveInstanceUrl.includes(d));
+                    } catch { return false; }
+                  });
+                  if (match) { resolvedPreset = match.id; break; }
+                }
+                if (resolvedPreset) {
+                  try {
+                    learningCtx = await buildLearningContext(resolvedPreset);
+                    if (learningCtx) {
+                      addLog(state!, { phase: 'scanning', type: 'info', title: '\u{1f9e0} Learning Context Injected', detail: `Loaded corrections for preset "${resolvedPreset}" (${learningCtx.length} chars)` });
+                    }
+                  } catch (lcErr: any) {
+                    console.error('[SelfLearning] Failed to build learning context:', lcErr.message);
+                  }
+                }
+
                 const owaspCtx = getOwaspVulnCorrelationContext();
                 const pentestCtx = buildKnowledgeContextForLLM('operator', 2000);
                 const authCtx = buildAuthKnowledgeContext();
@@ -1897,7 +1924,7 @@ ${authCtx.slice(0, 800)}
 ${nmapVulnCtx.slice(0, 800)}
 
 ${threatCtx.slice(0, 800)}
-
+${learningCtx ? `\n=== SELF-LEARNING CORRECTIONS (from previous scans) ===\n${learningCtx.slice(0, 2000)}\n` : ''}
 Return ONLY a JSON object with vulnerabilities array. No markdown, no explanation.`;
 
                   const synthSchema = { type: 'json_schema' as const, json_schema: {
@@ -2036,6 +2063,104 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
               addLog(state!, { phase: 'complete', type: 'info', title: '\ud83d\udcca Trend Snapshot Recorded', detail: `Snapshot #${snap.snapshotId}: ${snap.totalVulns} vulns (${snap.newVulnsFound} new, ${snap.resolvedVulns} resolved)` });
             } catch (snapErr: any) {
               console.error('[TrendTracker] Failed to record snapshot:', snapErr.message);
+            }
+
+            // ─── Self-Learning: Score against ground truth & auto-generate learning entries ───
+            try {
+              const { scoreAgainstGroundTruth, saveAccuracyScore, storeLearningEntry, GROUND_TRUTH_LIBRARY } = await import('../lib/llm-self-learning');
+              const { TRAINING_TARGETS } = await import('./training-lab');
+
+              // Resolve training preset from engagement target domains
+              const engDomainsForScoring = (engagement?.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+              let scoringPreset = '';
+              for (const d of engDomainsForScoring) {
+                const match = TRAINING_TARGETS.find(t => {
+                  try {
+                    const tHost = new URL(t.url.startsWith('http') ? t.url : `https://${t.url}`).hostname;
+                    return d.includes(tHost) || tHost.includes(d) || (t.liveInstanceUrl && t.liveInstanceUrl.includes(d));
+                  } catch { return false; }
+                });
+                if (match) { scoringPreset = match.id; break; }
+              }
+
+              if (scoringPreset && GROUND_TRUTH_LIBRARY[scoringPreset]) {
+                // Collect all vulns across all assets for scoring
+                const allVulns = state!.assets.flatMap(a => (a.vulns || []).map((v: any) => ({
+                  title: v.title || v.name || '',
+                  severity: v.severity || 'medium',
+                  category: v.category || '',
+                  cve: v.cve || '',
+                })));
+
+                const score = scoreAgainstGroundTruth(scoringPreset, allVulns);
+                if (score) {
+                  // Persist accuracy score for trending
+                  const sessionId = `eng-${input.engagementId}-${Date.now()}`;
+                  await saveAccuracyScore(sessionId, scoringPreset, score);
+
+                  addLog(state!, {
+                    phase: 'complete', type: 'info',
+                    title: '\u{1f3af} Ground Truth Score',
+                    detail: `Preset: ${scoringPreset} | F1: ${(score.f1Score * 100).toFixed(1)}% | Precision: ${(score.precision * 100).toFixed(1)}% | Recall: ${(score.recall * 100).toFixed(1)}% | TP: ${score.truePositives} FP: ${score.falsePositives} FN: ${score.falseNegatives}`,
+                  });
+
+                  // Store the score on the state for UI display
+                  (state as any).groundTruthScore = {
+                    preset: scoringPreset,
+                    f1Score: score.f1Score,
+                    precision: score.precision,
+                    recall: score.recall,
+                    overallScore: score.overallScore,
+                    truePositives: score.truePositives,
+                    falsePositives: score.falsePositives,
+                    falseNegatives: score.falseNegatives,
+                    severityAccuracy: score.severityAccuracy,
+                  };
+
+                  // Auto-generate learning entries for missed findings (false negatives)
+                  for (const detail of score.matchDetails) {
+                    if (!detail.matched) {
+                      await storeLearningEntry({
+                        targetPreset: scoringPreset,
+                        findingTitle: detail.groundTruth.title,
+                        correctSeverity: detail.groundTruth.severity,
+                        correctCategory: detail.groundTruth.category,
+                        feedbackType: 'missed_finding',
+                        operatorNotes: `Auto-generated: Pipeline missed this known vulnerability. Detection hint: ${detail.groundTruth.detectionHint || 'N/A'}`,
+                        correctionContext: `Ground truth vuln "${detail.groundTruth.title}" (${detail.groundTruth.severity}) was not detected. Description: ${detail.groundTruth.description}`,
+                        sessionId,
+                        targetUrl: engDomainsForScoring[0] || scoringPreset,
+                      }).catch(e => console.error('[SelfLearning] Failed to store missed finding:', e.message));
+                    }
+                  }
+
+                  // Auto-generate learning entries for false positives
+                  for (const fp of score.unmatchedLlmFindings) {
+                    await storeLearningEntry({
+                      targetPreset: scoringPreset,
+                      findingTitle: fp.title,
+                      llmSeverity: fp.severity,
+                      llmCategory: fp.category,
+                      feedbackType: 'false_positive',
+                      operatorNotes: `Auto-generated: LLM reported this vuln but it does not match any ground truth entry.`,
+                      correctionContext: `False positive: "${fp.title}" (${fp.severity}) was reported but is not in the ground truth library for ${scoringPreset}.`,
+                      sessionId,
+                      targetUrl: engDomainsForScoring[0] || scoringPreset,
+                    }).catch(e => console.error('[SelfLearning] Failed to store false positive:', e.message));
+                  }
+
+                  addLog(state!, {
+                    phase: 'complete', type: 'info',
+                    title: '\u{1f4da} Learning Entries Stored',
+                    detail: `${score.falseNegatives} missed findings + ${score.falsePositives} false positives recorded for future training`,
+                  });
+                }
+              } else if (scoringPreset) {
+                addLog(state!, { phase: 'complete', type: 'info', title: '\u{1f4cb} No Ground Truth', detail: `Target preset "${scoringPreset}" has no ground truth library — scoring skipped.` });
+              }
+            } catch (selfLearnErr: any) {
+              console.error('[SelfLearning] Ground truth scoring failed:', selfLearnErr.message);
+              addLog(state!, { phase: 'complete', type: 'warning' as any, title: '\u26a0\ufe0f Self-Learning Error', detail: selfLearnErr.message });
             }
 
             await persistOpsStateNow(input.engagementId).catch(() => {});
