@@ -59,7 +59,7 @@ export const threatIntelRouter = router({
       const offset = ((opts.page || 1) - 1) * (opts.pageSize || 50);
 
       const conditions: any[] = [];
-      if (opts.type && opts.type !== "all") conditions.push(eq(threatActors.type, opts.type));
+      if (opts.type && opts.type !== "all") conditions.push(eq(threatActors.actorType, opts.type));
       if (opts.threatLevel && opts.threatLevel !== "all") conditions.push(eq(threatActors.threatLevel, opts.threatLevel));
       if (opts.search) conditions.push(sql`(${threatActors.name} LIKE ${'%' + opts.search + '%'} OR ${threatActors.actorId} LIKE ${'%' + opts.search + '%'})`);
 
@@ -117,7 +117,7 @@ export const threatIntelRouter = router({
 
       // Get ransomware extension if applicable
       let ransomwareProfile = null;
-      if (actor.type === "ransomware") {
+      if (actor.actorType === "ransomware") {
         const [rg] = await db.select().from(ransomwareGroups)
           .where(eq(ransomwareGroups.calderaActorId, input.actorId))
           .limit(1);
@@ -229,7 +229,7 @@ export const threatIntelRouter = router({
       const events = await db.select({
         event: threatGroupEvents,
         actorName: threatActors.name,
-        actorType: threatActors.type,
+        actorType: threatActors.actorType,
       })
         .from(threatGroupEvents)
         .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
@@ -417,7 +417,7 @@ export const threatIntelRouter = router({
     const actors = await db.select({
       actorId: threatActors.actorId,
       name: threatActors.name,
-      type: threatActors.type,
+      actorType: threatActors.actorType,
       techniques: threatActors.techniques,
     }).from(threatActors);
 

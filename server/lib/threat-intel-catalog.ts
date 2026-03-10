@@ -287,7 +287,7 @@ For techniques, include the tactic category (initial-access, execution, persiste
     actorId,
     name: parsed.name || groupName,
     aliases: parsed.aliases ?? [],
-    type: parsed.type ?? groupType,
+    actorType: parsed.type ?? groupType,
     origin: parsed.origin ?? "Unknown",
     description: parsed.description ?? "",
     motivation: parsed.motivation ?? "unknown",
@@ -334,7 +334,7 @@ export async function upsertGroupToCatalog(profile: ThreatGroupProfile): Promise
     actorId: profile.actorId,
     name: profile.name,
     aliases: profile.aliases,
-    type: profile.type,
+    actorType: profile.type,
     origin: profile.origin,
     description: profile.description,
     motivation: profile.motivation,
@@ -476,7 +476,7 @@ export async function listGroups(filters?: {
   if (!db) return { groups: [], total: 0 };
 
   const conditions: any[] = [];
-  if (filters?.type) conditions.push(eq(threatActors.type, filters.type));
+  if (filters?.type) conditions.push(eq(threatActors.actorType, filters.type));
   if (filters?.threatLevel) conditions.push(eq(threatActors.threatLevel, filters.threatLevel));
   if (filters?.origin) conditions.push(like(threatActors.origin, `%${filters.origin}%`));
   if (filters?.search) {
@@ -530,7 +530,7 @@ export async function getGroupDetail(actorId: string) {
 
   // Get ransomware-specific data if applicable
   let ransomwareData = null;
-  if (actors[0].type === "ransomware") {
+  if (actors[0].actorType === "ransomware") {
     const rwRows = await db
       .select()
       .from(ransomwareGroups)
@@ -567,9 +567,9 @@ export async function getCatalogStats(): Promise<CatalogStats> {
   ] = await Promise.all([
     db.select({ count: sql<number>`COUNT(*)` }).from(threatActors),
     db.select({
-      type: threatActors.type,
+      type: threatActors.actorType,
       count: sql<number>`COUNT(*)`,
-    }).from(threatActors).groupBy(threatActors.type),
+    }).from(threatActors).groupBy(threatActors.actorType),
     db.select({
       level: threatActors.threatLevel,
       count: sql<number>`COUNT(*)`,

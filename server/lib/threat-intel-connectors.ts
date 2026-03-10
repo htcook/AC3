@@ -782,7 +782,7 @@ export async function ensureActorInCatalog(actorName: string, metadata?: {
   await db.insert(threatActors).values({
     actorId: actorIdSlug,
     name: actorName,
-    type: metadata?.type || "unknown",
+    actorType: metadata?.type || "unknown",
     description: metadata?.description || `${actorName} — auto-discovered threat actor.`,
     aliases: JSON.stringify([]),
     origin: metadata?.nationState || null,
@@ -815,7 +815,7 @@ export async function getCatalogStats() {
   const db = await requireDb();
 
   const actors = await db.select({
-    type: threatActors.type,
+    actorType: threatActors.actorType,
     dataSource: threatActors.dataSource,
     origin: threatActors.origin,
     threatLevel: threatActors.threatLevel,
@@ -827,7 +827,7 @@ export async function getCatalogStats() {
   const byThreatLevel: Record<string, number> = {};
 
   for (const a of actors) {
-    byType[a.type || "unknown"] = (byType[a.type || "unknown"] || 0) + 1;
+    byType[a.actorType || "unknown"] = (byType[a.actorType || "unknown"] || 0) + 1;
     for (const s of (a.dataSource || "unknown").split(",")) {
       const src = s.trim();
       bySource[src] = (bySource[src] || 0) + 1;

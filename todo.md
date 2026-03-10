@@ -242,3 +242,14 @@
 - [x] Create and approve RoE for Gin & Juice Shop test engagement (ID: 1650003) — RoE #120003 ACTIVE
 - [x] Create and approve RoE for DVWA test engagement (ID: 1650004) — RoE #120004 DRAFT (self-host first)
 - [x] Create and approve RoE for Nmap ScanMe test engagement (ID: 1650005) — RoE #120005 ACTIVE
+
+## Threat Catalog Dashboard Sync Fix (March 2026)
+- [x] Fix threat catalog sync with dashboards - some showing 0 counts
+- [x] Investigate data flow from vuln feeds to dashboard components
+- [x] Verify all dashboard cards/widgets pull from correct data sources
+- [x] Ensure threat catalog data is accessible to all relevant dashboard views
+- [x] Fix threatActors.type → threatActors.actorType in 6 files (db.ts, threat-intel.ts, threat-intel-connectors.ts, threat-intel-catalog.ts, actor-context-provider.ts)
+- [x] Fix iocFeeds.severity → iocFeeds.feedSeverity in db.ts queries
+- [x] Fix iocFeeds insert objects: severity→feedSeverity, iocType→feedIocType, tags→feedTags in ioc-feed.ts
+- [x] Fix ensureActorInCatalog insert: type→actorType in threat-intel-connectors.ts
+- [x] All 13 regression tests passing (threat-catalog-sync.test.ts)

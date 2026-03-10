@@ -895,7 +895,7 @@ export async function listThreatActors(filters?: {
   
   const conditions: any[] = [];
   if (filters?.type && filters.type !== 'all') {
-    conditions.push(eq(threatActors.type, filters.type as any));
+    conditions.push(eq(threatActors.actorType, filters.type as any));
   }
   if (filters?.origin && filters.origin !== 'all') {
     conditions.push(eq(threatActors.origin, filters.origin));
@@ -950,9 +950,9 @@ export async function getThreatActorStats() {
   
   const [total] = await db.select({ count: sql<number>`COUNT(*)` }).from(threatActors);
   const byType = await db.select({ 
-    type: threatActors.type, 
+    type: threatActors.actorType, 
     count: sql<number>`COUNT(*)` 
-  }).from(threatActors).groupBy(threatActors.type);
+  }).from(threatActors).groupBy(threatActors.actorType);
   const byOrigin = await db.select({ 
     origin: threatActors.origin, 
     count: sql<number>`COUNT(*)` 
@@ -1070,7 +1070,7 @@ export async function listIocFeedEntries(filters?: {
     conditions.push(eq(iocFeeds.feedSource, filters.feedSource));
   }
   if (filters?.severity && filters.severity !== 'all') {
-    conditions.push(eq(iocFeeds.severity, filters.severity as any));
+    conditions.push(eq(iocFeeds.feedSeverity, filters.severity as any));
   }
   if (filters?.search) {
     conditions.push(
@@ -1104,9 +1104,9 @@ export async function getIocFeedStats() {
     count: sql<number>`COUNT(*)` 
   }).from(iocFeeds).groupBy(iocFeeds.feedSource);
   const bySeverity = await db.select({ 
-    severity: iocFeeds.severity, 
+    severity: iocFeeds.feedSeverity, 
     count: sql<number>`COUNT(*)` 
-  }).from(iocFeeds).groupBy(iocFeeds.severity);
+  }).from(iocFeeds).groupBy(iocFeeds.feedSeverity);
   const [recent] = await db.select({ count: sql<number>`COUNT(*)` })
     .from(iocFeeds)
     .where(sql`${iocFeeds.createdAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);

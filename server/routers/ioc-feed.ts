@@ -18,8 +18,8 @@ export const iocFeedRouter = router({
           feedType: 'vulnerability',
           title: vuln.vulnerabilityName || vuln.cveID,
           description: vuln.shortDescription,
-          severity: 'critical' as const,
-          iocType: 'cve',
+          feedSeverity: 'critical' as const,
+          feedIocType: 'cve',
           iocValue: vuln.cveID,
           cveId: vuln.cveID,
           vendorProduct: vuln.vendorProject ? `${vuln.vendorProject} ${vuln.product}` : vuln.product,
@@ -27,7 +27,7 @@ export const iocFeedRouter = router({
           dateAdded: vuln.dateAdded,
           dueDate: vuln.dueDate,
           linkedActors: [],
-          tags: [vuln.vendorProject, vuln.product].filter(Boolean),
+          feedTags: [vuln.vendorProject, vuln.product].filter(Boolean),
           rawData: vuln,
         }));
 
@@ -60,12 +60,12 @@ export const iocFeedRouter = router({
           feedType: 'url',
           title: url.threat || 'Malicious URL',
           description: `URL: ${url.url} | Threat: ${url.threat} | Status: ${url.url_status}`,
-          severity: url.threat === 'malware_download' ? 'high' as const : 'medium' as const,
-          iocType: 'url',
+          feedSeverity: url.threat === 'malware_download' ? 'high' as const : 'medium' as const,
+          feedIocType: 'url',
           iocValue: url.url,
           dateAdded: url.date_added,
           linkedActors: [],
-          tags: url.tags || [],
+          feedTags: url.tags || [],
           rawData: url,
         }));
 
@@ -96,12 +96,12 @@ export const iocFeedRouter = router({
           feedType: ioc.ioc_type || 'unknown',
           title: ioc.malware_printable || ioc.threat_type || 'IOC',
           description: `${ioc.ioc_type}: ${ioc.ioc} | Malware: ${ioc.malware_printable} | Confidence: ${ioc.confidence_level}%`,
-          severity: (ioc.confidence_level || 0) > 75 ? 'high' as const : 'medium' as const,
-          iocType: ioc.ioc_type?.includes('hash') ? 'hash' : ioc.ioc_type?.includes('domain') ? 'domain' : ioc.ioc_type?.includes('ip') ? 'ip' : 'url',
+          feedSeverity: (ioc.confidence_level || 0) > 75 ? 'high' as const : 'medium' as const,
+          feedIocType: ioc.ioc_type?.includes('hash') ? 'hash' : ioc.ioc_type?.includes('domain') ? 'domain' : ioc.ioc_type?.includes('ip') ? 'ip' : 'url',
           iocValue: ioc.ioc,
           dateAdded: ioc.first_seen_utc,
           linkedActors: ioc.malware_alias ? [ioc.malware_alias] : [],
-          tags: ioc.tags || [],
+          feedTags: ioc.tags || [],
           rawData: ioc,
         }));
 
@@ -145,11 +145,11 @@ export const iocFeedRouter = router({
           const entries: InsertIocFeed[] = vulns.map((v: any) => ({
             feedSource: 'cisa_kev', feedType: 'vulnerability',
             title: v.vulnerabilityName || v.cveID, description: v.shortDescription,
-            severity: 'critical' as const, iocType: 'cve', iocValue: v.cveID,
+            feedSeverity: 'critical' as const, feedIocType: 'cve', iocValue: v.cveID,
             cveId: v.cveID, vendorProduct: `${v.vendorProject || ''} ${v.product || ''}`.trim(),
             knownRansomware: v.knownRansomwareCampaignUse === 'Known',
             dateAdded: v.dateAdded, dueDate: v.dueDate,
-            linkedActors: [], tags: [v.vendorProject, v.product].filter(Boolean), rawData: v,
+            linkedActors: [], feedTags: [v.vendorProject, v.product].filter(Boolean), rawData: v,
           }));
           if (entries.length > 0) await db.bulkCreateIocFeedEntries(entries);
           results.push({ source: 'cisa_kev', fetched: entries.length });
@@ -170,9 +170,9 @@ export const iocFeedRouter = router({
           const entries: InsertIocFeed[] = urls.map((u: any) => ({
             feedSource: 'abusech_urlhaus', feedType: 'url',
             title: u.threat || 'Malicious URL', description: `URL: ${u.url} | Threat: ${u.threat}`,
-            severity: u.threat === 'malware_download' ? 'high' as const : 'medium' as const,
-            iocType: 'url', iocValue: u.url, dateAdded: u.date_added,
-            linkedActors: [], tags: u.tags || [], rawData: u,
+            feedSeverity: u.threat === 'malware_download' ? 'high' as const : 'medium' as const,
+            feedIocType: 'url', iocValue: u.url, dateAdded: u.date_added,
+            linkedActors: [], feedTags: u.tags || [], rawData: u,
           }));
           if (entries.length > 0) await db.bulkCreateIocFeedEntries(entries);
           results.push({ source: 'abusech_urlhaus', fetched: entries.length });
@@ -192,10 +192,10 @@ export const iocFeedRouter = router({
             feedSource: 'abusech_threatfox', feedType: i.ioc_type || 'unknown',
             title: i.malware_printable || 'IOC',
             description: `${i.ioc_type}: ${i.ioc} | Malware: ${i.malware_printable}`,
-            severity: (i.confidence_level || 0) > 75 ? 'high' as const : 'medium' as const,
-            iocType: i.ioc_type?.includes('hash') ? 'hash' : i.ioc_type?.includes('domain') ? 'domain' : 'url',
+            feedSeverity: (i.confidence_level || 0) > 75 ? 'high' as const : 'medium' as const,
+            feedIocType: i.ioc_type?.includes('hash') ? 'hash' : i.ioc_type?.includes('domain') ? 'domain' : 'url',
             iocValue: i.ioc, dateAdded: i.first_seen_utc,
-            linkedActors: [], tags: i.tags || [], rawData: i,
+            linkedActors: [], feedTags: i.tags || [], rawData: i,
           }));
           if (entries.length > 0) await db.bulkCreateIocFeedEntries(entries);
           results.push({ source: 'abusech_threatfox', fetched: entries.length });

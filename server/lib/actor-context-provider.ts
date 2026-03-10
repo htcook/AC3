@@ -363,7 +363,7 @@ async function resolveActors(ctx: EngagementContext): Promise<ActorProfile[]> {
     actorId: a.actorId,
     name: a.name,
     aliases: (a.aliases as string[]) || [],
-    type: a.type || "unknown",
+    type: a.actorType || "unknown",
     origin: a.origin || "unknown",
     threatLevel: a.threatLevel || "medium",
     sophistication: a.sophistication || "intermediate",
