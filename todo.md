@@ -313,3 +313,27 @@
 - [x] Add missing type exports to schema (InsertEngagementReport, SelectEngagementReport, InsertPentestReport, SelectPentestReport, InsertScanResult, ScanResult)
 - [x] Write 15 regression tests covering pipeline input construction, scan_results fallback, risk matrix, timestamp format, and report type enum validation
 - [x] Verify data flow end-to-end: DVWA engagement has 12 vulns + 15 tool results in ops snapshot, 10 scan_results with 40 findings
+
+## Reporting Package Integration (March 2026)
+- [x] Integrate Ace C3 system prompt into report generation LLM calls (both pentest pipeline and legacy path)
+- [x] Integrate 6-step pipeline prompt into pentest_assessment report path (Step 2 signal translation, Step 3 exploit narratives, Step 5 findings production)
+- [x] Integrate AC3-XXX finding ID format and template structure (already implemented)
+- [x] Ensure all 13 sections are generated per the package spec (already implemented)
+- [x] Ensure every finding has CVSS v3.1 + vector, MITRE ATT&CK, NIST 800-53, OWASP Top 10 (already implemented)
+- [x] Add Mermaid diagrams: attack surface, kill chain, risk matrix, severity distribution pie chart (already implemented)
+- [x] Add Harrison Cook as report author attribution
+- [ ] Test report generation with updated pipeline
+
+## LLM Training Audit & Continuous Accuracy Loop (March 2026)
+- [x] Audit Training Lab learning metrics from recent test scans (26 scored sessions across 4 targets)
+- [x] Check LLM accuracy scores for vuln detection and exploit attempts (DVWA 44.7%, Vulnweb 50.6%, Broken Crystals 48.8%, Juice Shop 17.9%)
+- [x] Implement continuous scan-until-100% accuracy loop backend (continuous-training.ts + 3 tRPC endpoints)
+- [x] Build continuous training UI component in Training Lab page (ContinuousTraining.tsx with iteration history, accuracy trend bars, convergence detection)
+- [x] Add accuracy tracking dashboard/metrics for training progress (F1/precision/recall stats, iteration table, bar chart visualization)
+- [x] All 56 regression tests passing (21 continuous-training + 20 threat-actor-mapping + 15 reports)
+
+## Bug Fixes (March 2026)
+- [x] Fix Threat Actor catalog "actor not found" when clicking on a threat actor
+  - Root cause: threatGroupEvents.actorId should be threatGroupEvents.tgeActorId (prefixed column names)
+  - Also fixed: actorType→type alias, iocType→type, iocConfidence→confidence, iocLastSeen→lastSeen mappings
+  - 20 regression tests added (threat-actor-mapping.test.ts)

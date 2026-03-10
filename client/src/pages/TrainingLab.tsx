@@ -8,6 +8,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import AppShell from "@/components/AppShell";
+import ContinuousTraining from "@/components/ContinuousTraining";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ import {
   ExternalLink,
   Gauge,
   Lock,
+  Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -364,6 +366,9 @@ export default function TrainingLab() {
               </TabsTrigger>
               <TabsTrigger value="learning" className="gap-1.5">
                 <GraduationCap className="w-3.5 h-3.5" /> Learning Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="continuous" className="gap-1.5">
+                <Repeat className="w-3.5 h-3.5" /> Continuous Training
               </TabsTrigger>
               <TabsTrigger value="roe" className="gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5" /> Rules of Engagement
@@ -723,6 +728,11 @@ export default function TrainingLab() {
                 accuracyTrend={accuracyTrend}
                 groundTruthTargets={groundTruthTargets}
               />
+            </TabsContent>
+
+            {/* ─── CONTINUOUS TRAINING TAB ─── */}
+            <TabsContent value="continuous" className="space-y-6 mt-4">
+              <ContinuousTraining />
             </TabsContent>
 
             {/* ─── ROE TAB ─── */}

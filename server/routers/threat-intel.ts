@@ -79,6 +79,7 @@ export const threatIntelRouter = router({
       return {
         actors: actors.map(a => ({
           ...a,
+          type: a.actorType, // alias for frontend compatibility
           aliases: safeParseArr(a.aliases),
           targetSectors: safeParseArr(a.targetSectors),
           targetRegions: safeParseArr(a.targetRegions),
@@ -106,7 +107,7 @@ export const threatIntelRouter = router({
 
       // Get events
       const events = await db.select().from(threatGroupEvents)
-        .where(eq(threatGroupEvents.actorId, input.actorId))
+        .where(eq(threatGroupEvents.tgeActorId, input.actorId))
         .orderBy(desc(threatGroupEvents.eventDate))
         .limit(100);
 
@@ -135,6 +136,7 @@ export const threatIntelRouter = router({
       return {
         actor: {
           ...actor,
+          type: actor.actorType, // alias for frontend compatibility
           aliases: safeParseArr(actor.aliases),
           targetSectors: safeParseArr(actor.targetSectors),
           targetRegions: safeParseArr(actor.targetRegions),
@@ -146,10 +148,26 @@ export const threatIntelRouter = router({
         },
         events: events.map(e => ({
           ...e,
-          mitreTechniques: safeParseArr(e.mitreTechniques),
-          iocs: safeParseArr(e.iocs),
+          actorId: e.tgeActorId,
+          title: e.tgeTitle,
+          description: e.tgeDescription,
+          severity: e.tgeSeverity,
+          victimName: e.tgeVictimName,
+          victimSector: e.tgeVictimSector,
+          victimCountry: e.tgeVictimCountry,
+          mitreTechniques: safeParseArr(e.tgeMitreTechniques),
+          iocs: safeParseArr(e.tgeIocs),
+          source: e.tgeSource,
+          sourceUrl: e.tgeSourceUrl,
+          confidence: e.tgeConfidence,
         })),
-        iocs,
+        iocs: iocs.map(ioc => ({
+          ...ioc,
+          type: ioc.iocType,
+          confidence: ioc.iocConfidence,
+          firstSeen: ioc.iocFirstSeen,
+          lastSeen: ioc.iocLastSeen,
+        })),
         ransomwareProfile: ransomwareProfile ? {
           ...ransomwareProfile,
           aliases: safeParseArr(ransomwareProfile.aliases),

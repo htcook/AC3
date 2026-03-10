@@ -2218,4 +2218,139 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
         await conn.end();
       }
     }),
+
+  // ─── Continuous Training Loop Endpoints ─────────────────────────────────
+
+  /** Start a continuous training loop on an existing completed session */
+  startContinuousTraining: protectedProcedure
+    .input(z.object({
+      sessionId: z.string(),
+      maxIterations: z.number().min(1).max(50).default(10),
+      targetF1: z.number().min(0).max(1).default(1.0),
+      targetRecall: z.number().min(0).max(1).default(1.0),
+      targetPrecision: z.number().min(0).max(1).default(0.9),
+    }))
+    .mutation(async ({ input }) => {
+      const { getTrainingLabSession, updateTrainingLabSession } = await import("../db");
+      const session = await getTrainingLabSession(input.sessionId);
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+      if (session.labStatus !== "completed" && session.labStatus !== "failed") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Session must be completed to start continuous training" });
+      }
+
+      const assets = (session.assetsJson as any[]) || [];
+      if (assets.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "No scan data available" });
+
+      const { getActiveLoop, runContinuousTrainingLoop } = await import("../lib/continuous-training");
+      if (getActiveLoop(input.sessionId)?.isRunning) {
+        throw new TRPCError({ code: "CONFLICT", message: "Continuous training already running for this session" });
+      }
+
+      const targetPreset = session.targetPreset || "custom";
+      if (targetPreset === "custom") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Continuous training requires a known target with ground truth" });
+      }
+
+      // Run in background
+      const config = {
+        sessionId: input.sessionId,
+        targetPreset,
+        targetUrl: session.targetUrl,
+        maxIterations: input.maxIterations,
+        targetF1: input.targetF1,
+        targetRecall: input.targetRecall,
+        targetPrecision: input.targetPrecision,
+        delayBetweenIterations: 2000,
+      };
+
+      runContinuousTrainingLoop(config, assets, async (iteration) => {
+        // Broadcast progress via WebSocket
+        try {
+          const { eventHub } = await import("../lib/ws-event-hub");
+          eventHub.broadcast({
+            type: "continuous_training:progress",
+            sessionId: input.sessionId,
+            timestamp: Date.now(),
+            data: iteration,
+          });
+        } catch { /* ignore */ }
+      }).then(async (result) => {
+        // Save final result to the session
+        try {
+          await updateTrainingLabSession(input.sessionId, {
+            llmAnalysisJson: {
+              ...(session.llmAnalysisJson as any || {}),
+              __continuousTraining: result,
+            },
+          });
+          // Broadcast completion
+          const { eventHub } = await import("../lib/ws-event-hub");
+          eventHub.broadcast({
+            type: "continuous_training:complete",
+            sessionId: input.sessionId,
+            timestamp: Date.now(),
+            data: result,
+          });
+        } catch (e: any) {
+          console.error("[ContinuousTraining] Failed to save result:", e.message);
+        }
+      }).catch((err) => {
+        console.error("[ContinuousTraining] Loop failed:", err.message);
+      });
+
+      return { success: true, message: `Continuous training started (max ${input.maxIterations} iterations, target F1=${(input.targetF1 * 100).toFixed(0)}%)` };
+    }),
+
+  /** Cancel a running continuous training loop */
+  cancelContinuousTraining: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { cancelLoop, getActiveLoop } = await import("../lib/continuous-training");
+      const loop = getActiveLoop(input.sessionId);
+      if (!loop || !loop.isRunning) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No active continuous training loop for this session" });
+      }
+      cancelLoop(input.sessionId);
+      return { success: true, message: "Continuous training cancelled" };
+    }),
+
+  /** Get continuous training loop status */
+  continuousTrainingStatus: publicProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .query(async ({ input }) => {
+      const { getActiveLoop } = await import("../lib/continuous-training");
+      const loop = getActiveLoop(input.sessionId);
+      if (!loop) {
+        // Check if there's a saved result in the session
+        const { getTrainingLabSession } = await import("../db");
+        const session = await getTrainingLabSession(input.sessionId);
+        const saved = (session?.llmAnalysisJson as any)?.__continuousTraining;
+        if (saved) {
+          return { isRunning: false, result: saved, currentIteration: saved.totalIterations, iterations: saved.iterations };
+        }
+        return null;
+      }
+      return {
+        isRunning: loop.isRunning,
+        currentIteration: loop.currentIteration,
+        maxIterations: loop.config.maxIterations,
+        targetPreset: loop.config.targetPreset,
+        iterations: loop.iterations,
+        latestF1: loop.iterations.length > 0
+          ? loop.iterations[loop.iterations.length - 1].f1Score
+          : 0,
+        latestRecall: loop.iterations.length > 0
+          ? loop.iterations[loop.iterations.length - 1].recall
+          : 0,
+        latestPrecision: loop.iterations.length > 0
+          ? loop.iterations[loop.iterations.length - 1].precision
+          : 0,
+      };
+    }),
+
+  /** List all active continuous training loops */
+  activeContinuousTraining: publicProcedure.query(async () => {
+    const { listActiveLoops } = await import("../lib/continuous-training");
+    return listActiveLoops();
+  }),
 });

@@ -437,7 +437,37 @@ export const reportsRouter = router({
             messages: [
               {
                 role: 'system',
-                content: `You are a senior cybersecurity consultant at Ace of Cloud LLC generating a professional ${input.reportType.replace(/_/g, ' ')} report for a ${clientTypeLabels[input.clientType] || 'client'} using the Ace C3 (Cyber Campaign Command) platform. Use formal, professional language. Include specific data points from the provided engagement data including Domain Intelligence scan results, matched threat actors, Caldera adversary emulation results, and TTP knowledge base insights. Format the report in Markdown with clear sections, tables where appropriate, and actionable recommendations. Include a Detection Gap Analysis section mapping successful vs blocked techniques to MITRE ATT&CK. Include a Risk Matrix table. The report should be thorough, data-driven, and actionable. Do NOT include customer-identifiable information in template sections - only in the final report header. Brand the report as produced by Ace of Cloud LLC (aceofcloud.com).`,
+                content: `You are a senior penetration testing reporting engine designed to produce professional cybersecurity assessment reports suitable for enterprise clients and government compliance frameworks including FedRAMP, NIST 800-53, and SOC2.
+
+Your task is to convert raw security testing data, reconnaissance outputs, and vulnerability signals into a fully structured ${input.reportType.replace(/_/g, ' ')} report for a ${clientTypeLabels[input.clientType] || 'client'} suitable for executive leadership and security engineering teams.
+
+The report must follow professional penetration testing standards used by top consulting firms (Mandiant, NCC Group, Bishop Fox, CrowdStrike).
+
+REPORT STRUCTURE:
+1 Executive Summary
+2 Engagement Overview
+3 Scope of Testing
+4 Rules of Engagement
+5 Methodology (PTES, OWASP Testing Guide, NIST SP 800-115, FedRAMP guidance)
+6 Attack Surface Overview (tables + diagram)
+7 Vulnerability Summary (severity distribution + risk heatmap)
+8 Detailed Findings (CVSS, evidence, attack scenario, remediation)
+9 Exploitation Narrative (attack chain timeline)
+10 Risk Matrix
+11 Remediation Roadmap
+12 Detection & Monitoring Recommendations
+13 Appendix (tools used, evidence artifacts)
+
+FORMATTING:
+Use structured tables and Mermaid diagrams when possible.
+Every finding must include:
+- CVSS v3.1 score and vector
+- MITRE ATT&CK mapping
+- NIST 800-53 control mapping
+- OWASP Top 10 category
+
+Output format: Markdown compatible with PDF export.
+Brand the report as produced by Ace of Cloud LLC (aceofcloud.com). Report Author: Harrison Cook.`,
               },
               {
                 role: 'user',
