@@ -404,3 +404,39 @@
 - [x] esbuild server bundle now succeeds (8.7MB in 231ms)
 - [x] All 261 tests passing
 - [x] Save checkpoint and re-publish (committed as d30f6e4)
+
+## Passive Pipeline Audit Recommendations Implementation — March 2026
+
+### Tier 1: Quick Wins
+- [x] Add signal classifier rule: Dangling CNAME / Subdomain Takeover detection
+- [x] Add signal classifier rule: Cloud Storage Exposure (public S3/Azure/GCS buckets)
+- [x] Add signal classifier rule: Expanded Dev Environment detection (staging, qa, uat, sandbox, test, preview — already partial)
+- [x] Add signal classifier rule: API Key Leakage in JavaScript/public endpoints
+- [x] Add signal classifier rule: Certificate Transparency Anomalies
+- [x] Add signal classifier rule: Shadow IT / Unauthorized Services on non-standard ports
+- [x] Fix red team Priority 5 (Employee Emails): Map hunter connector
+- [x] Fix red team Priority 6 (Key Personnel OSINT): Map social-media connector
+
+### Tier 2: Medium Effort
+- [x] Implement observation caching with per-connector TTL and force-refresh flag (observation-cache.ts)
+- [x] Upgrade recursive discovery: Priority-weighted queue instead of flat BFS
+- [x] Upgrade recursive discovery: Diminishing returns detector (5 consecutive empty threshold)
+- [x] Implement delta comparison: compareReconResults(previous, current) function (delta-comparison.ts)
+
+### Tier 3: Strategic
+- [x] Implement PassiveToActiveHandoffRecord type for provenance tracking (HandoffProvenance in active-handoff.ts)
+- [x] Auto-orchestration: passive findings auto-generate active scan configs (generateActiveScanPlan)
+- [x] RoE enforcement: scope check, exclusion patterns, intensity limits (isInScope + buildDefaultRoE)
+- [x] Domain Intel scan (Operations Dashboard): Stop at passive, report findings only (existing behavior preserved)
+- [x] Engagement discovery scan: Seamless transition to active with RoE enforcement (active-handoff.ts)
+
+## DigitalOcean Platform Updates
+- [x] Audit all DigitalOcean integration points in the codebase (5 modules found)
+- [x] Wire do-scan-api.ts HTTP client as primary execution path in scan-server-executor.ts (SSH fallback preserved)
+- [x] Create do-infra-audit.ts: full infrastructure audit (droplets, firewalls, LBs, databases, DNS, K8s)
+- [x] Add scanServer.doInfraAudit and scanServer.doFirewallAudit tRPC endpoints
+- [x] Add scanServer.doApiHealth endpoint for HTTP API monitoring
+- [x] Update FedRAMP KSI map to reference actual module names (KSI-CNA-RNT, KSI-CNA-ULN, KSI-CNA-HCI)
+- [x] Verify scan server SSH/provisioning logic is current (child_process SSH with FIPS algorithms)
+- [x] DIGITALOCEAN_ACCESS_TOKEN now used by do-infra-audit.ts (was previously unused)
+- [x] All 290 tests passing

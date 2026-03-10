@@ -315,6 +315,16 @@ async function executeSSH(
 /**
  * Execute a tool on the remote scan server.
  * The tool must be in the ALLOWED_TOOLS whitelist.
+ *
+ * Execution strategy:
+ *   1. Try HTTP API (do-scan-api) — non-blocking, better error handling
+ *   2. Fall back to child_process SSH if HTTP is unavailable
+ *
+ * The HTTP API path is preferred because it:
+ *   - Eliminates SSH connection overhead and key management
+ *   - Runs in a separate OS process on the scan server (no event loop blocking)
+ *   - Provides built-in metrics and health monitoring
+ *   - Has automatic SSH fallback built into the do-scan-api module
  */
 export async function executeTool(config: ToolExecConfig): Promise<ToolExecResult> {
   const { tool, args, timeoutSeconds = 300, sudo = false } = config;
@@ -334,17 +344,25 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
     };
   }
 
-  // Build command
+  // Primary path: HTTP API (includes its own SSH fallback)
+  try {
+    const { executeToolViaHttp } = await import("./do-scan-api");
+    return await executeToolViaHttp(config);
+  } catch (httpImportErr: any) {
+    // do-scan-api module failed to load — fall through to direct SSH
+    console.warn(`[ScanServer] HTTP API module unavailable (${httpImportErr.message}), using direct SSH`);
+  }
+
+  // Fallback: direct child_process SSH
   const prefix = sudo ? "sudo " : "";
   const command = `${prefix}${tool} ${args} 2>&1`;
 
   try {
-    // Use child_process SSH to prevent event loop blocking during long scans
     const result = await executeViaChildProcessSSH(command, timeoutSeconds);
     return {
       tool,
       command: `${tool} ${args}`,
-      stdout: result.stdout.slice(0, 500_000), // Cap at 500KB
+      stdout: result.stdout.slice(0, 500_000),
       stderr: result.stderr.slice(0, 50_000),
       exitCode: result.exitCode,
       durationMs: Date.now() - startTime,
@@ -366,16 +384,25 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
 }
 
 /**
- * Execute a raw command on the scan server via child_process ssh.
- * This uses the system ssh binary which runs crypto in a separate OS process,
- * preventing the Node.js event loop from being blocked during long-running scans.
- * Falls back to the SSH2 library if the system ssh binary is not available.
+ * Execute a raw command on the scan server.
+ * Primary path: HTTP API (non-blocking, with SSH fallback built in).
+ * Fallback: direct child_process SSH if HTTP module is unavailable.
  */
 export async function executeRawCommand(
   command: string,
   timeoutSeconds: number = 300
 ): Promise<ToolExecResult> {
   const startTime = Date.now();
+
+  // Primary path: HTTP API
+  try {
+    const { executeRawCommandViaHttp } = await import("./do-scan-api");
+    return await executeRawCommandViaHttp(command, timeoutSeconds);
+  } catch (httpImportErr: any) {
+    console.warn(`[ScanServer] HTTP API module unavailable for raw command, using direct SSH`);
+  }
+
+  // Fallback: direct child_process SSH
   try {
     const result = await executeViaChildProcessSSH(command, timeoutSeconds);
     return {

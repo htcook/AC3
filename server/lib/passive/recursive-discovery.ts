@@ -389,7 +389,41 @@ function selectConnectorsForEntity(entity: DiscoveredEntity, allConnectors: Pass
   return allConnectors.filter(c => connectorNames.includes(c.name));
 }
 
-// ─── Main Recursive Discovery ───────────────────────────────────────────────
+// ─── Entity Priority Scoring ─────────────────────────────────────────
+
+/**
+ * Priority weights by entity type.
+ * Higher-priority types are investigated first because they
+ * tend to yield more downstream entities and actionable intel.
+ */
+const ENTITY_TYPE_PRIORITY: Record<EntityType, number> = {
+  domain: 1.0,       // Domains yield the most child entities
+  ip: 0.8,           // IPs reveal services and ports
+  certificate: 0.75, // Certs reveal SANs (new domains)
+  email: 0.6,        // Emails useful for breach checks
+  url: 0.5,          // URLs are leaf nodes usually
+  organization: 0.4, // Orgs are context, not actionable
+};
+
+/**
+ * Compute a priority score for an entity to determine investigation order.
+ * Factors: entity type priority, depth penalty, source quality.
+ */
+function computeEntityPriority(entity: DiscoveredEntity): number {
+  const typePriority = ENTITY_TYPE_PRIORITY[entity.type] || 0.5;
+
+  // Depth penalty: deeper entities are less likely to be in-scope and useful
+  // Score decays by 20% per depth level
+  const depthPenalty = Math.pow(0.8, entity.depth);
+
+  // Source quality bonus: entities from high-quality sources get priority
+  const highQualitySources = ["crtsh", "securitytrails", "dns-deep", "shodan", "censys"];
+  const sourceBonus = highQualitySources.includes(entity.source) ? 1.2 : 1.0;
+
+  return typePriority * depthPenalty * sourceBonus;
+}
+
+// ─── Main Recursive Discovery ───────────────────────────────────────
 
 /**
  * Run recursive discovery starting from initial observations
@@ -447,11 +481,26 @@ export async function runRecursiveDiscovery(
     }
   }
 
-  // BFS queue for recursive investigation
+  // Priority-weighted queue for recursive investigation
+  // Entities are scored by type priority, depth penalty, and source quality
   const queue: string[] = Array.from(allEntities.keys()).filter(id => {
     const e = allEntities.get(id)!;
     return !e.investigated && e.depth <= cfg.maxDepth;
   });
+
+  // Sort queue by priority score (highest first)
+  const sortQueue = () => {
+    queue.sort((a, b) => {
+      const ea = allEntities.get(a)!;
+      const eb = allEntities.get(b)!;
+      return computeEntityPriority(eb) - computeEntityPriority(ea);
+    });
+  };
+  sortQueue();
+
+  // Diminishing returns detection
+  let consecutiveEmptyInvestigations = 0;
+  const DIMINISHING_RETURNS_THRESHOLD = 5; // Stop after 5 consecutive empty results
 
   while (queue.length > 0) {
     // Check stopping conditions
@@ -465,6 +514,11 @@ export async function runRecursiveDiscovery(
     }
     if (Date.now() - start > 300000) { // 5 minute timeout
       stoppedReason = "timeout";
+      break;
+    }
+    // Diminishing returns — stop if last N investigations found nothing new
+    if (consecutiveEmptyInvestigations >= DIMINISHING_RETURNS_THRESHOLD) {
+      stoppedReason = "complete"; // Graceful stop, not a hard limit
       break;
     }
 
@@ -499,6 +553,7 @@ export async function runRecursiveDiscovery(
     cfg.onEntityInvestigated?.(entity, observations);
 
     // Extract new entities from results (next depth level)
+    let newEntitiesAdded = 0;
     if (entity.depth < cfg.maxDepth) {
       const newEntities = extractEntities(
         observations, entity.id, entity.depth + 1, rootDomain, cfg.scopeRestriction
@@ -519,9 +574,22 @@ export async function runRecursiveDiscovery(
             discoveredBy: newEntity.source,
           });
           queue.push(newEntity.id);
+          newEntitiesAdded++;
           cfg.onEntityDiscovered?.(newEntity);
         }
       }
+    }
+
+    // Diminishing returns tracking
+    if (observations.length === 0 && newEntitiesAdded === 0) {
+      consecutiveEmptyInvestigations++;
+    } else {
+      consecutiveEmptyInvestigations = 0;
+    }
+
+    // Re-sort queue after adding new entities to maintain priority ordering
+    if (newEntitiesAdded > 0) {
+      sortQueue();
     }
   }
 

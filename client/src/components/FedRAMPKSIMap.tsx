@@ -187,8 +187,8 @@ const KSI_THEMES: KSITheme[] = [
       },
       {
         id: "KSI-CNA-RNT", name: "Restrict Network Traffic", status: "supporting",
-        aceModules: ["DigitalOcean Firewall Validation", "NGFW Validation"],
-        cspDetail: "DigitalOcean Firewall Validation audits cloud firewall rules and port exposure. NGFW Validation tests next-generation firewall rules and network boundaries to verify traffic restriction effectiveness.",
+        aceModules: ["DO Firewall Audit (scanServer.doFirewallAudit)", "NGFW Validation"],
+        cspDetail: "DO Firewall Audit (server/lib/do-infra-audit.ts → runDoFirewallAudit) audits cloud firewall rules, port exposure, and droplet firewall coverage. NGFW Validation tests next-generation firewall rules and network boundaries to verify traffic restriction effectiveness.",
         agencyDetail: "Review CSP-submitted firewall validation results showing whether network traffic restrictions are properly configured and enforced."
       },
       {
@@ -205,14 +205,14 @@ const KSI_THEMES: KSITheme[] = [
       },
       {
         id: "KSI-CNA-ULN", name: "Use Logical Networking Controls", status: "supporting",
-        aceModules: ["NGFW Validation", "DigitalOcean Firewall Auditing"],
-        cspDetail: "NGFW Validation tests firewall rules and network segmentation. DigitalOcean Firewall Auditing validates cloud-native networking controls and security group configurations.",
+        aceModules: ["NGFW Validation", "DO Firewall Audit (scanServer.doFirewallAudit)"],
+        cspDetail: "NGFW Validation tests firewall rules and network segmentation. DO Firewall Audit (server/lib/do-infra-audit.ts → runDoFirewallAudit) validates cloud-native networking controls, security group configurations, and outbound egress rules.",
         agencyDetail: "Review CSP-submitted NGFW validation and firewall audit results to verify logical networking controls are properly configured."
       },
       {
         id: "KSI-CNA-HCI", name: "Harden Cloud Infrastructure", status: "direct",
-        aceModules: ["DigitalOcean Infrastructure Audit", "Cloud Misconfiguration Detection"],
-        cspDetail: "DigitalOcean Infrastructure Audit checks droplets, firewalls, load balancers, and databases for misconfigurations. Cloud Misconfiguration Detection via live KSI collectors identifies hardening gaps.",
+        aceModules: ["DO Infrastructure Audit (scanServer.doInfraAudit)", "Cloud Misconfiguration Detection"],
+        cspDetail: "DO Infrastructure Audit (server/lib/do-infra-audit.ts → runDoInfraAudit) checks droplets, firewalls, load balancers, managed databases, DNS/domains, and Kubernetes clusters for security misconfigurations. Cloud Misconfiguration Detection via live KSI collectors identifies hardening gaps.",
         agencyDetail: "Review CSP-submitted cloud infrastructure audit results showing hardening compliance across compute, network, and database resources."
       },
       {

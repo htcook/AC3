@@ -1,5 +1,6 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { not } from "drizzle-orm";
+import { runDoInfraAudit, runDoFirewallAudit } from "../lib/do-infra-audit";
 
 export const scanServerRouter = router({
     health: protectedProcedure.query(async () => {
@@ -95,6 +96,30 @@ export const scanServerRouter = router({
         return { containers, error: null };
       } catch (err: any) {
         return { containers: [], error: err.message };
+      }
+    }),
+
+    /** Run a full DigitalOcean infrastructure security audit */
+    doInfraAudit: protectedProcedure.mutation(async () => {
+      return await runDoInfraAudit();
+    }),
+
+    /** Run a targeted DigitalOcean firewall-only audit */
+    doFirewallAudit: protectedProcedure.mutation(async () => {
+      return await runDoFirewallAudit();
+    }),
+
+    /** Check the DO scan service HTTP API health */
+    doApiHealth: protectedProcedure.query(async () => {
+      try {
+        const { checkDoScanServiceHealth, getDoApiMetrics } = await import('../lib/do-scan-api');
+        const [health, metrics] = await Promise.all([
+          checkDoScanServiceHealth(),
+          Promise.resolve(getDoApiMetrics()),
+        ]);
+        return { ...health, metrics };
+      } catch (err: any) {
+        return { healthy: false, error: err.message, metrics: null };
       }
     }),
 

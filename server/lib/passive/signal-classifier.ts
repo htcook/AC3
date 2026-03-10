@@ -314,6 +314,190 @@ const SIGNAL_RULES: SignalRule[] = [
     },
   },
 
+  // ─── Dangling CNAME / Subdomain Takeover ──────────────────────
+  {
+    id: "subdomain_takeover",
+    name: "Potential Subdomain Takeover (Dangling CNAME)",
+    severity: "critical",
+    confidence: 0.80,
+    match: (obs) => {
+      if (obs.assetType !== "cname" && obs.assetType !== "subdomain") return false;
+      const name = (obs.name || "").toLowerCase();
+      const cname = (obs.evidence?.cname || obs.evidence?.value || "").toLowerCase();
+      // Check if CNAME points to a cloud provider that could be claimed
+      const takeoverTargets = [
+        /\.s3\.amazonaws\.com$/,
+        /\.s3-website[.-].*\.amazonaws\.com$/,
+        /\.cloudfront\.net$/,
+        /\.herokuapp\.com$/,
+        /\.herokudns\.com$/,
+        /\.azurewebsites\.net$/,
+        /\.blob\.core\.windows\.net$/,
+        /\.cloudapp\.azure\.com$/,
+        /\.trafficmanager\.net$/,
+        /\.ghost\.io$/,
+        /\.myshopify\.com$/,
+        /\.surge\.sh$/,
+        /\.bitbucket\.io$/,
+        /\.pantheonsite\.io$/,
+        /\.zendesk\.com$/,
+        /\.github\.io$/,
+        /\.gitlab\.io$/,
+        /\.netlify\.app$/,
+        /\.fly\.dev$/,
+        /\.vercel\.app$/,
+        /\.render\.com$/,
+        /\.unbouncepages\.com$/,
+        /\.wordpress\.com$/,
+        /\.wpengine\.com$/,
+        /\.fastly\.net$/,
+      ];
+      const hasTakeoverTarget = takeoverTargets.some(re => re.test(cname));
+      // Also check if the observation has NXDOMAIN or error tags
+      const hasNxdomain = obs.tags.some(t => t.includes("nxdomain") || t.includes("dangling") || t.includes("unresolved"));
+      return hasTakeoverTarget || hasNxdomain;
+    },
+    rationale: (obs) => {
+      const cname = obs.evidence?.cname || obs.evidence?.value || "unknown";
+      return `Potential subdomain takeover: ${obs.name} has a CNAME pointing to ${cname}, which may be unclaimed. An attacker could register this resource and serve malicious content under your domain.`;
+    },
+  },
+
+  // ─── Cloud Storage Exposure ───────────────────────────────────
+  {
+    id: "cloud_storage_exposed",
+    name: "Publicly Accessible Cloud Storage",
+    severity: "critical",
+    confidence: 0.85,
+    match: (obs) => {
+      const name = (obs.name || "").toLowerCase();
+      const tags = obs.tags.join(" ").toLowerCase();
+      const evidence = obs.evidence || {};
+      // Check for cloud storage indicators
+      const isCloudStorage = /s3\.amazonaws|blob\.core\.windows|storage\.googleapis|storage\.cloud\.google/i.test(name) ||
+                             tags.includes("s3_bucket") || tags.includes("azure_blob") || tags.includes("gcp_bucket") ||
+                             tags.includes("cloud_storage") || tags.includes("public_bucket");
+      // Check for public access indicators
+      const isPublic = tags.includes("public") || tags.includes("open_bucket") ||
+                       evidence.public === true || evidence.publicAccess === true ||
+                       evidence.acl === "public-read" || evidence.acl === "public-read-write" ||
+                       evidence.listable === true;
+      return isCloudStorage && isPublic;
+    },
+    rationale: (obs) => {
+      const provider = /s3|amazonaws/i.test(obs.name || "") ? "AWS S3" :
+                       /blob\.core\.windows/i.test(obs.name || "") ? "Azure Blob" :
+                       /storage\.google/i.test(obs.name || "") ? "Google Cloud Storage" : "cloud storage";
+      return `Publicly accessible ${provider} bucket detected: ${obs.name}. Public cloud storage can expose sensitive data, backups, credentials, and internal documents.`;
+    },
+  },
+
+  // ─── API Key Leakage ──────────────────────────────────────────
+  {
+    id: "api_key_leak",
+    name: "API Key or Secret Leaked in Public Source",
+    severity: "critical",
+    confidence: 0.75,
+    match: (obs) => {
+      const tags = obs.tags.join(" ").toLowerCase();
+      const evidence = obs.evidence || {};
+      // Check for API key leak indicators from GitHub leaks, code scanning, etc.
+      const hasLeakTag = tags.includes("api_key_leak") || tags.includes("secret_leak") ||
+                         tags.includes("credential_leak") || tags.includes("hardcoded_secret") ||
+                         tags.includes("exposed_key") || tags.includes("token_leak");
+      // Check evidence for common API key patterns
+      const hasKeyPattern = evidence.secret_type && /api.key|token|secret|password|credential/i.test(evidence.secret_type);
+      return hasLeakTag || hasKeyPattern;
+    },
+    rationale: (obs) => {
+      const secretType = obs.evidence?.secret_type || "API key/secret";
+      const location = obs.evidence?.file_path || obs.evidence?.url || obs.name;
+      return `${secretType} leaked in public source: ${location}. Exposed API keys and secrets can grant unauthorized access to internal systems, cloud resources, and third-party services.`;
+    },
+  },
+
+  // ─── Certificate Transparency Anomalies ───────────────────────
+  {
+    id: "cert_anomaly",
+    name: "Certificate Transparency Anomaly",
+    severity: "high",
+    confidence: 0.70,
+    match: (obs) => {
+      if (obs.assetType !== "certificate") return false;
+      const evidence = obs.evidence || {};
+      // Check for suspicious certificate characteristics
+      const issuer = (evidence.issuer || "").toLowerCase();
+      const subject = (evidence.subject || evidence.commonName || "").toLowerCase();
+      // Self-signed certs on production domains
+      const isSelfSigned = issuer === subject || evidence.selfSigned === true;
+      // Wildcard certs from unexpected issuers
+      const isWildcard = subject.startsWith("*.");
+      const suspiciousIssuer = /let.*encrypt/i.test(issuer) === false &&
+                               /digicert|comodo|sectigo|globalsign|entrust|godaddy|amazon|google|microsoft|cloudflare/i.test(issuer) === false &&
+                               issuer.length > 0;
+      // Very short validity period (< 30 days) or very long (> 2 years)
+      const notBefore = evidence.not_before ? new Date(evidence.not_before).getTime() : 0;
+      const notAfter = evidence.not_after ? new Date(evidence.not_after).getTime() : 0;
+      const validityDays = notAfter && notBefore ? (notAfter - notBefore) / (1000 * 60 * 60 * 24) : 0;
+      const unusualValidity = validityDays > 0 && (validityDays < 30 || validityDays > 825);
+      return isSelfSigned || (isWildcard && suspiciousIssuer) || unusualValidity;
+    },
+    rationale: (obs) => {
+      const evidence = obs.evidence || {};
+      const issuer = evidence.issuer || "unknown";
+      const subject = evidence.subject || evidence.commonName || obs.name;
+      if (evidence.selfSigned) {
+        return `Self-signed certificate detected for ${subject}. Self-signed certificates on production systems indicate misconfiguration or potential MITM setup.`;
+      }
+      return `Certificate anomaly detected for ${subject} (issuer: ${issuer}). Unexpected certificate characteristics may indicate domain hijacking, MITM, or misconfiguration.`;
+    },
+  },
+
+  // ─── Shadow IT / Unauthorized Services ────────────────────────
+  {
+    id: "shadow_it_service",
+    name: "Potential Shadow IT / Unauthorized Service",
+    severity: "medium",
+    confidence: 0.65,
+    match: (obs) => {
+      const portTag = obs.tags.find(t => t.startsWith("port:"));
+      if (!portTag) return false;
+      const port = parseInt(portTag.split(":")[1], 10);
+      // Non-standard web ports that often indicate unauthorized or forgotten services
+      const shadowPorts = [
+        8080, 8443, 8888, 9090, 9443, 3000, 4000, 5000, 7000, 7443,
+        8000, 8001, 8008, 8081, 8082, 8083, 8084, 8085, 8181, 8282,
+        8383, 8484, 8585, 8686, 8787, 8880, 8881, 8882, 8883, 8884,
+        9000, 9001, 9002, 9003, 9080, 9443, 10000, 10443,
+      ];
+      // Exclude well-known standard ports
+      const standardPorts = [22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 3306, 5432, 27017, 6379, 9200, 3389, 5900, 5901];
+      return shadowPorts.includes(port) || (port > 1024 && port < 65535 && !standardPorts.includes(port) && obs.evidence?.product);
+    },
+    rationale: (obs) => {
+      const portTag = obs.tags.find(t => t.startsWith("port:"))!;
+      const port = portTag.split(":")[1];
+      const product = obs.evidence?.product || "unknown service";
+      return `Potential shadow IT service detected: ${product} on port ${port} at ${obs.ip || obs.name}. Non-standard ports often host unauthorized, unpatched, or forgotten services that bypass normal security controls.`;
+    },
+  },
+
+  // ─── Missing DMARC Record ─────────────────────────────────────
+  {
+    id: "missing_dmarc",
+    name: "Missing or Weak DMARC Record",
+    severity: "medium",
+    confidence: 0.85,
+    match: (obs) => {
+      if (obs.source !== "email-security") return false;
+      const tags = obs.tags.join(" ").toLowerCase();
+      return tags.includes("no_dmarc") || tags.includes("dmarc_none") ||
+             (obs.evidence?.dmarc_policy === "none") ||
+             (obs.evidence?.hasDmarc === false);
+    },
+    rationale: (obs) => `Missing or weak DMARC policy for ${obs.domain || obs.name}. Without DMARC enforcement (quarantine/reject), attackers can spoof emails from this domain for phishing campaigns.`,
+  },
+
   // ─── Open Remote Access Ports ──────────────────────────────────
   {
     id: "open_remote_access",
