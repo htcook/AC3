@@ -374,3 +374,10 @@
 - [x] Add tRPC endpoints: searchExploitDB, downloadExploit, findExploitsForVuln, exploitDBStats
 - [x] Add deduplication by exploit ID in search results
 - [x] Live tested: 46,968 exploits indexed, CVE/keyword/vuln search all working
+
+## Ground Truth Vuln Libraries + DVWA Training Loop (March 2026)
+- [x] Add comprehensive Broken Crystals ground truth vuln library to GROUND_TRUTH_LIBRARY (expanded from 18→43 vulns in llm-self-learning.ts, 18→43 exploit methods in exploit-method-ground-truth.ts)
+- [x] Add comprehensive Juice Shop ground truth vuln library to GROUND_TRUTH_LIBRARY (expanded from 15→40 vulns in llm-self-learning.ts, 15→40 exploit methods in exploit-method-ground-truth.ts)
+- [ ] Run continuous training loop on DVWA (5-10 iterations) to improve recall
+- [ ] Analyze training results and verify accuracy improvement trend
+- [ ] Write tests for new ground truth libraries
