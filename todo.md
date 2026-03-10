@@ -221,3 +221,12 @@
   - [x] Integration Point 3: Auto-generate learning entries for missed findings & false positives
   - [x] Added scanme-nmap ground truth library (6 entries)
   - [x] Domain-to-preset resolver maps engagement targets to Training Lab presets automatically
+
+## Report Generation Overhaul (March 2026)
+- [x] Audit current report generation code — identify gaps against provided templates
+- [x] Implement 13-section report structure (Exec Summary, Engagement Overview, Scope, RoE, Methodology, Attack Surface, Vuln Summary, Detailed Findings, Exploitation Narrative, Risk Matrix, Remediation Roadmap, Detection Recommendations, Appendix)
+- [x] Implement 6-step pipeline (Ingest Recon → Translate Signals → Generate Exploit Narratives → Calculate Risk → Produce Findings → Build Visualizations)
+- [x] Every finding must include: CVSS v3.1 score+vector, MITRE ATT&CK mapping, NIST 800-53 control mapping, OWASP Top 10 category
+- [x] Generate Mermaid diagrams: attack surface, kill chain, risk matrix, severity distribution
+- [x] Build report generation UI with preview and PDF export (Streamdown markdown renderer + branded HTML export)
+- [x] Test end-to-end report generation from engagement data (11 tests passing)

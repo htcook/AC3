@@ -11,6 +11,7 @@ import {
   ChevronUp, Sparkles, Globe, Mail, Lock, BarChart3, Briefcase,
   Server, Cloud, Network, Copy, ExternalLink, RefreshCw, Zap
 } from 'lucide-react';
+import { Streamdown } from 'streamdown';
 
 const CLIENT_TYPES = [
   { value: 'msp', label: 'Managed Service Provider (MSP)', icon: <Server className="w-4 h-4" />, desc: 'Multi-tenant security assessments for MSP client portfolios' },
@@ -32,6 +33,7 @@ const REPORT_TYPES = [
   { value: 'purple_team', label: 'Purple Team Exercise', icon: <Target className="w-4 h-4" />, desc: 'Adversary emulation results, detection coverage, and SOC performance', color: 'text-violet-400 border-violet-500/30' },
   { value: 'red_team_assessment', label: 'Red Team Assessment', icon: <Zap className="w-4 h-4" />, desc: 'Attack paths, kill chain analysis, and remediation steps', color: 'text-rose-400 border-rose-500/30' },
   { value: 'detection_gap_analysis', label: 'Detection Gap Analysis', icon: <Lock className="w-4 h-4" />, desc: 'MITRE ATT&CK technique coverage with Sigma/YARA rules for gaps', color: 'text-amber-400 border-amber-500/30' },
+  { value: 'pentest_assessment', label: 'Pentest Assessment (Pipeline)', icon: <Shield className="w-4 h-4" />, desc: '13-section structured report with CVSS vectors, MITRE/NIST/OWASP mapping, Mermaid diagrams, and detection rules', color: 'text-emerald-400 border-emerald-500/30' },
 ] as const;
 
 const BRANDING_COLORS = [
@@ -93,6 +95,24 @@ export default function ReportGenerator() {
       setStep('configure');
     }
   };
+
+  const exportHtmlMut = trpc.reports.exportHtml.useMutation({
+    onSuccess: (data) => {
+      if (data.url) {
+        window.open(data.url, '_blank');
+      } else if (data.html) {
+        const blob = new Blob([data.html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, '_blank');
+        if (win) {
+          win.onload = () => {
+            setTimeout(() => win.print(), 500);
+          };
+        }
+      }
+    },
+    onError: (err) => toast.error('Export failed: ' + err.message),
+  });
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -307,8 +327,11 @@ export default function ReportGenerator() {
               {' '}{REPORT_TYPES.find(r => r.value === reportType)?.label.toLowerCase()} for your
               {' '}{CLIENT_TYPES.find(c => c.value === clientType)?.label.toLowerCase()} client...
             </p>
-            <div className="mt-6 flex justify-center gap-2">
-              {['Gathering data', 'Analyzing findings', 'Writing report', 'Formatting output'].map((s, i) => (
+            <div className="mt-6 flex justify-center gap-2 flex-wrap">
+              {(reportType === 'pentest_assessment'
+                ? ['Ingesting recon data', 'Translating signals (CVSS/MITRE/NIST)', 'Generating exploit narratives', 'Calculating risk matrix', 'Producing finding cards', 'Building visualizations']
+                : ['Gathering data', 'Analyzing findings', 'Writing report', 'Formatting output']
+              ).map((s, i) => (
                 <div key={i} className="flex items-center gap-1 text-[10px] text-muted-foreground">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
                   {s}
@@ -337,16 +360,30 @@ export default function ReportGenerator() {
                 </Button>
                 {generatedReport.url && (
                   <a href={generatedReport.url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" className="font-display tracking-wider bg-primary hover:bg-primary/90">
-                      <Download className="w-4 h-4 mr-2" /> DOWNLOAD
+                    <Button variant="outline" size="sm" className="font-display tracking-wider">
+                      <Download className="w-4 h-4 mr-2" /> MARKDOWN
                     </Button>
                   </a>
+                )}
+                {generatedReport.id && (
+                  <Button
+                    size="sm"
+                    className="font-display tracking-wider bg-primary hover:bg-primary/90"
+                    onClick={() => exportHtmlMut.mutate({ reportId: generatedReport.id })}
+                    disabled={exportHtmlMut.isPending}
+                  >
+                    {exportHtmlMut.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> EXPORTING...</>
+                    ) : (
+                      <><FileText className="w-4 h-4 mr-2" /> EXPORT PDF</>
+                    )}
+                  </Button>
                 )}
               </div>
             </div>
             <div className="bg-card border-2 border-border p-4 sm:p-6 max-h-[70vh] overflow-y-auto">
-              <div className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap font-mono text-xs leading-relaxed">
-                {generatedReport.content}
+              <div className="prose prose-invert prose-sm max-w-none">
+                <Streamdown>{generatedReport.content}</Streamdown>
               </div>
             </div>
           </div>
@@ -390,9 +427,20 @@ export default function ReportGenerator() {
                       {report.reportUrl && (
                         <a href={report.reportUrl} target="_blank" rel="noopener noreferrer">
                           <Button variant="ghost" size="sm" className="h-7 text-[10px] font-display">
-                            <Download className="w-3.5 h-3.5 mr-1" /> DOWNLOAD
+                            <Download className="w-3.5 h-3.5 mr-1" /> MD
                           </Button>
                         </a>
+                      )}
+                      {report.status === 'completed' && report.reportUrl && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-[10px] font-display"
+                          onClick={() => exportHtmlMut.mutate({ reportId: report.id })}
+                          disabled={exportHtmlMut.isPending}
+                        >
+                          <FileText className="w-3.5 h-3.5 mr-1" /> PDF
+                        </Button>
                       )}
                       {report.status === 'failed' && (
                         <Button
