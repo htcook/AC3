@@ -1614,17 +1614,132 @@ export const engagementOpsRouter = router({
               }
             }
 
-            // Phase 3: Active Scanning
+            // Phase 2.5: Passive-to-Active Handoff (generates targeted scan plan from passive findings)
+            let activeScanPlan: any = null;
+            if (input.phases.active) {
+              try {
+                addLog(state!, { phase: 'scanning', type: 'info', title: '\u{1f504} Generating Active Scan Plan', detail: 'Analyzing passive findings to build targeted scan configs with RoE enforcement...' });
+                const { generateActiveScanPlan, buildDefaultRoE, formatScanPlanSummary } = await import('../lib/passive/active-handoff');
+                const { type: _obsType, ...AssetObservation } = {} as any; // type import workaround
+
+                // Build RoE from engagement data
+                const engRoeScope = (engagement.roeScope as any) || {};
+                const roe = buildDefaultRoE(
+                  domains,
+                  engagement.engagementType || 'pentest',
+                  {
+                    excludedAssets: engRoeScope.excludedAssets || [],
+                    maxIntensity: engRoeScope.maxIntensity || undefined,
+                    allowedTools: engRoeScope.allowedTools || undefined,
+                  },
+                );
+
+                // Collect passive observations and risk signals from all assets
+                const allObservations: any[] = [];
+                const allRiskSignals: any[] = [];
+                for (const asset of state!.assets) {
+                  const pr = asset.passiveRecon as any;
+                  if (!pr) continue;
+                  // Convert passive recon observations to AssetObservation format
+                  const assetObs = (pr.observations || []).map((o: any) => ({
+                    ...o,
+                    assetId: o.assetId || asset.hostname,
+                    hostname: asset.hostname,
+                  }));
+                  allObservations.push(...assetObs);
+                  // Also create synthetic observations from technologies, services, DNS
+                  for (const tech of (pr.technologies || [])) {
+                    allObservations.push({
+                      id: `tech-${asset.hostname}-${tech}`,
+                      assetId: asset.hostname,
+                      hostname: asset.hostname,
+                      source: 'passive-recon',
+                      type: 'technology',
+                      value: tech,
+                      tags: [`tech:${tech.toLowerCase()}`],
+                      confidence: 0.8,
+                      timestamp: Date.now(),
+                    });
+                  }
+                  for (const port of (asset.ports || [])) {
+                    allObservations.push({
+                      id: `port-${asset.hostname}-${(port as any).port}`,
+                      assetId: asset.hostname,
+                      hostname: asset.hostname,
+                      source: 'passive-recon',
+                      type: 'service',
+                      value: `${(port as any).port}/${(port as any).service}`,
+                      tags: [`port:${(port as any).port}`, `service:${(port as any).service}`],
+                      confidence: 0.9,
+                      timestamp: Date.now(),
+                    });
+                  }
+                  // Collect risk signals
+                  for (const signal of (pr.riskSignals || [])) {
+                    allRiskSignals.push({
+                      ...signal,
+                      assetId: signal.assetId || asset.hostname,
+                    });
+                  }
+                }
+
+                activeScanPlan = generateActiveScanPlan(
+                  { observations: allObservations, riskSignals: allRiskSignals },
+                  roe,
+                );
+
+                const summary = formatScanPlanSummary(activeScanPlan);
+                addLog(state!, {
+                  phase: 'scanning', type: 'success',
+                  title: `\u2705 Active Scan Plan Generated: ${activeScanPlan.totalTargets} targets`,
+                  detail: `${activeScanPlan.nmapConfigs.length} nmap, ${activeScanPlan.nucleiConfigs.length} nuclei, ${activeScanPlan.zapConfigs.length} ZAP configs. Est. duration: ${activeScanPlan.stats.estimatedScanDuration}. Risk coverage: ${activeScanPlan.stats.riskCoverage}%. ${activeScanPlan.excludedByRoE.length} targets excluded by RoE.`,
+                });
+                if (activeScanPlan.excludedByRoE.length > 0) {
+                  addLog(state!, {
+                    phase: 'scanning', type: 'info',
+                    title: `\u{1f6ab} RoE Exclusions: ${activeScanPlan.excludedByRoE.length} targets`,
+                    detail: activeScanPlan.excludedByRoE.map((e: any) => `${e.hostname}: ${e.reason}`).join('; '),
+                  });
+                }
+                // Store the plan on state for downstream access
+                (state as any).activeScanPlan = activeScanPlan;
+              } catch (err: any) {
+                addLog(state!, { phase: 'scanning', type: 'error', title: '\u274c Scan Plan Generation failed', detail: `Falling back to default scan configs. Error: ${err.message}` });
+              }
+            }
+
+            // Phase 3: Active Scanning (uses handoff plan when available, falls back to defaults)
             if (input.phases.active) {
               state!.phase = 'scanning';
               state!.currentAction = 'Running active scans...';
               broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'scanning' });
               try {
                 const { executeTool, executeRawCommand } = await import('../lib/scan-server-executor');
-                for (const asset of state!.assets) {
-                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nmap: ${asset.hostname}`, detail: 'Service detection and version scan...' });
+
+                // Build a lookup of handoff-generated configs per target
+                const nmapConfigMap = new Map<string, any>();
+                const nucleiConfigMap = new Map<string, any>();
+                if (activeScanPlan) {
+                  for (const cfg of activeScanPlan.nmapConfigs || []) nmapConfigMap.set(cfg.target, cfg);
+                  for (const cfg of activeScanPlan.nucleiConfigs || []) nucleiConfigMap.set(cfg.target, cfg);
+                }
+
+                // Determine which assets to scan (handoff-prioritized order or all)
+                const assetsToScan = activeScanPlan
+                  ? activeScanPlan.targets.map((t: any) => state!.assets.find((a: any) => a.hostname === t.hostname)).filter(Boolean)
+                  : state!.assets;
+
+                for (const asset of assetsToScan) {
+                  // Use handoff nmap config if available, otherwise fall back to defaults
+                  const nmapCfg = nmapConfigMap.get(asset.hostname);
+                  const nmapArgs = nmapCfg
+                    ? `${nmapCfg.flags} ${nmapCfg.portSpec ? `-p ${nmapCfg.portSpec}` : '--top-ports 1000'} ${asset.hostname}`
+                    : `-sV -sC -T4 --top-ports 1000 ${asset.hostname}`;
+                  const nmapTimeout = nmapCfg?.timeout || 300;
+
+                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nmap: ${asset.hostname}`, detail: nmapCfg ? `Handoff config: ${nmapCfg.rationale}` : 'Service detection and version scan (default config)...' });
                   try {
-                    const nmapResult = await executeTool({ tool: 'nmap', args: `-sV -sC -T4 --top-ports 1000 ${asset.hostname}`, timeoutSeconds: 300 });
+                    const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: nmapTimeout });
                     const portRegex = /(\d+)\/tcp\s+open\s+(\S+)\s*(.*)/g;
                     let match;
                     while ((match = portRegex.exec(nmapResult.stdout)) !== null) {
@@ -1641,10 +1756,19 @@ export const engagementOpsRouter = router({
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Nmap failed: ${asset.hostname}`, detail: err.message });
                   }
 
-                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: 'Vulnerability templates...' });
+                  // Use handoff nuclei config if available, otherwise fall back to defaults
+                  const nucleiCfg = nucleiConfigMap.get(asset.hostname);
+                  const nucleiTags = nucleiCfg ? nucleiCfg.tags.join(',') : 'cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal';
+                  const nucleiSeverity = nucleiCfg?.severityFilter || 'critical,high,medium';
+                  const nucleiRateLimit = nucleiCfg?.rateLimit || 100;
+                  const nucleiCustomHeaders = nucleiCfg?.customHeaders
+                    ? Object.entries(nucleiCfg.customHeaders).map(([k, v]: [string, any]) => `-H "${k}: ${v}"`).join(' ')
+                    : '';
+
+                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: nucleiCfg ? `Handoff config: ${nucleiCfg.rationale}` : 'Vulnerability templates (default config)...' });
                   try {
                     // Use stdin piping to avoid nuclei hanging on PDCP TTY auth prompt
-                    const nucleiResult = await executeRawCommand(`echo "http://${asset.hostname}" | nuclei -severity critical,high,medium -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit 100 -tags cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal 2>&1`, 300);
+                    const nucleiResult = await executeRawCommand(`echo "http://${asset.hostname}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`, 300);
                     const findings = nucleiResult.stdout.split('\n').filter(Boolean).map((line: string) => {
                       try { return JSON.parse(line); } catch { return null; }
                     }).filter(Boolean);

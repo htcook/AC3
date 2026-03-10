@@ -393,6 +393,40 @@ export const domainIntelRouter = router({
               containerExposure: result.containerExposure || undefined,
             };
 
+            // ── Delta Comparison: Compare with previous scan for the same domain ──
+            let deltaReport: any = null;
+            try {
+              const previousScan = await db.getPreviousCompletedScan(pipelineInput.primaryDomain, scanId);
+              if (previousScan) {
+                const { compareReconResults } = await import('../lib/passive/delta-comparison');
+                // Extract observations from previous scan's pipelineOutput
+                const prevOutput = previousScan.pipelineOutput as any;
+                const prevObservations = prevOutput?.passiveRecon?.allObservations
+                  || prevOutput?.passiveRecon?.observations
+                  || [];
+                // Current observations from pipeline result
+                const currentObservations = result.passiveRecon?.allObservations || [];
+                const prevDate = previousScan.createdAt ? new Date(previousScan.createdAt) : null;
+                deltaReport = compareReconResults(prevObservations, currentObservations, prevDate);
+                // Trim deltas to keep pipelineOutput manageable (keep top 100 non-unchanged)
+                if (deltaReport.deltas) {
+                  const significantDeltas = deltaReport.deltas.filter((d: any) => d.status !== 'unchanged');
+                  deltaReport.deltas = significantDeltas.slice(0, 100);
+                  deltaReport.previousScanId = previousScan.id;
+                }
+                console.log(`[DomainIntel] Delta comparison: ${deltaReport.stats.newObservations} new, ${deltaReport.stats.removedObservations} removed, ${deltaReport.stats.changedObservations} changed, trend=${deltaReport.overallRiskTrend}`);
+              } else {
+                console.log(`[DomainIntel] No previous scan found for ${pipelineInput.primaryDomain} — skipping delta comparison`);
+              }
+            } catch (deltaErr: any) {
+              console.error(`[DomainIntel] Delta comparison failed (non-fatal):`, deltaErr.message);
+            }
+
+            // Merge delta report into trimmed output
+            const outputWithDelta = deltaReport
+              ? { ...trimmedOutput, deltaReport }
+              : trimmedOutput;
+
             // If scan-only mode, skip threat actor matching and campaign design
             if (pipelineInput.scanOnly) {
               await db.updateDomainIntelScan(scanId, {
@@ -409,7 +443,7 @@ export const domainIntelRouter = router({
                 executiveSummary: result.executiveSummary,
                 threatModelSummary: result.threatModelSummary,
                 campaignRecommendations: [],
-                pipelineOutput: trimmedOutput,
+                pipelineOutput: outputWithDelta,
               });
               console.log(`[DomainIntel] Scan-only completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
               try { const { emitReconComplete } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); } catch {}
@@ -448,9 +482,9 @@ export const domainIntelRouter = router({
                 console.error('[DomainIntel] Threat actor matching failed:', matchErr.message);
               }
 
-              // Update scan with results (including threat actor matches)
+              // Update scan with results (including threat actor matches + delta)
               const pipelineOutputWithMatches = {
-                ...trimmedOutput,
+                ...outputWithDelta,
                 threatActorMatches,
               };
               await db.updateDomainIntelScan(scanId, {
@@ -1502,6 +1536,26 @@ export const domainIntelRouter = router({
       .input(z.object({ scanId: z.number() }))
       .query(async ({ input }) => {
         return db.getDiscoveredAssetsByScan(input.scanId);
+      }),
+
+    // Get delta comparison report for a scan (changes since previous scan of same domain)
+    getDelta: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        const output = scan.pipelineOutput as any;
+        if (!output?.deltaReport) {
+          return {
+            available: false as const,
+            reason: 'No delta comparison available — this may be the first scan for this domain.',
+          };
+        }
+        return {
+          available: true as const,
+          deltaReport: output.deltaReport,
+          previousScanId: output.deltaReport.previousScanId || null,
+        };
       }),
 
     // Exclude a discovered asset (mark as incorrect/irrelevant)

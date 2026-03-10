@@ -440,3 +440,14 @@
 - [x] Verify scan server SSH/provisioning logic is current (child_process SSH with FIPS algorithms)
 - [x] DIGITALOCEAN_ACCESS_TOKEN now used by do-infra-audit.ts (was previously unused)
 - [x] All 290 tests passing
+
+## Active Handoff Wiring + Delta Comparison Integration
+- [x] Wire generateActiveScanPlan() into engagement-ops-core.ts after Phase 2 passive completion (Phase 2.5)
+- [x] Auto-configure Phase 3 nmap flags, port specs, nuclei tags, rate limits from passive findings
+- [x] Preserve manual override capability (handoff configs are fallbacks, user input takes priority)
+- [x] Add getPreviousCompletedScan() DB helper for delta comparison
+- [x] Add compareReconResults() call to Domain Intel pipeline (both scan-only and full engagement paths)
+- [x] Store deltaReport in pipelineOutput (trimmed to top 100 significant deltas)
+- [x] Add domainIntel.getDelta tRPC endpoint for frontend access
+- [x] esbuild server bundle succeeds (8.8MB in 263ms)
+- [x] All 290 tests passing

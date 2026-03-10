@@ -792,6 +792,30 @@ export async function getDomainIntelScanById(id: number) {
   return rows[0] || null;
 }
 
+/**
+ * Find the most recent completed scan for the same primary domain,
+ * excluding the current scan. Used for delta comparison.
+ */
+export async function getPreviousCompletedScan(primaryDomain: string, excludeScanId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select()
+    .from(domainIntelScans)
+    .where(
+      and(
+        eq(domainIntelScans.primaryDomain, primaryDomain),
+        not(eq(domainIntelScans.id, excludeScanId)),
+        or(
+          eq(domainIntelScans.status, 'completed'),
+          eq(domainIntelScans.status, 'scan_complete'),
+        ),
+      ),
+    )
+    .orderBy(sql`created_at DESC`)
+    .limit(1);
+  return rows[0] || null;
+}
+
 export async function updateDomainIntelScan(id: number, updates: Partial<InsertDomainIntelScan>) {
   const db = await getDbRequired();
   await db.update(domainIntelScans).set(updates).where(eq(domainIntelScans.id, id));
