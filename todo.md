@@ -337,3 +337,28 @@
   - Root cause: threatGroupEvents.actorId should be threatGroupEvents.tgeActorId (prefixed column names)
   - Also fixed: actorType→type alias, iocType→type, iocConfidence→confidence, iocLastSeen→lastSeen mappings
   - 20 regression tests added (threat-actor-mapping.test.ts)
+
+## Ground Truth Libraries for Continuous Training (March 2026)
+- [x] Research known vulnerabilities for Broken Crystals (brokencrystals.com)
+- [x] Research known vulnerabilities for OWASP Juice Shop
+- [x] Add Broken Crystals ground truth library to Training Lab (exploit-method-ground-truth.ts)
+- [x] Add Juice Shop ground truth library to Training Lab (exploit-method-ground-truth.ts)
+- [x] Wire new presets into domain-to-preset resolver (broken-crystals, juice-shop keys)
+- [x] Write tests for new ground truth libraries (20 tests in exploit-selection.test.ts)
+- [x] Verify scoring works with continuous training loop
+
+## Exploit Selection Intelligence Framework (March 2026)
+- [x] Review current exploit attempt tracking and LLM analysis pipeline (exploitation-bridge.ts)
+- [x] Design exploit method taxonomy (Metasploit, ExploitDB, Custom-built, Manual Verification)
+- [x] Build exploit selection decision tree with criteria (exploit-selection-intelligence.ts)
+- [x] Add exploit method ground truth to DVWA library (12 vulns mapped)
+- [x] Add exploit method ground truth to Broken Crystals library (12 vulns mapped)
+- [x] Add exploit method ground truth to Juice Shop library (12 vulns mapped)
+- [x] Integrate exploit selection reasoning into LLM analysis prompt (both main scan + rerunAnalysis)
+- [x] Add exploit selection scoring to ground truth scoring engine (scoreExploitSelection)
+- [x] Update continuous training loop to track exploit selection accuracy (methodAccuracy, cliToolAccuracy, cliPatternAccuracy)
+- [x] Add CLI command generation templates (msfconsole, searchsploit, custom scripts) — in EXPLOIT_SELECTION_SYSTEM_PROMPT
+- [x] Train LLM to generate proper msfconsole resource scripts — CLI templates in prompt + ground truth patterns
+- [x] Train LLM to use searchsploit CLI and pull/compile ExploitDB exploits — CLI templates in prompt
+- [x] Train LLM to generate custom exploit scripts (Python, bash) when no module exists — CLI templates in prompt
+- [x] Write tests for exploit selection framework (20 tests, all 237 tests passing across 15 files)

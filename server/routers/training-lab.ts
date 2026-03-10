@@ -1412,7 +1412,21 @@ Based on the technology fingerprint, discovered directories, HTTP headers, and s
 - If missing security headers (CSP, HSTS) → likely XSS, clickjacking
 - If /admin or /login found → likely brute force, default credentials, broken access control
 
-## Level 3: EXPLOIT CHAIN PLANNING
+## Level 3: EXPLOIT METHOD SELECTION
+For EACH finding, you MUST decide the optimal exploitation approach and provide ready-to-execute CLI commands.
+
+Decision framework (evaluate in order):
+1. **Does a reliable Metasploit module exist?** → Use "metasploit" (e.g., exploit/unix/webapp/dvwa_exec for DVWA command injection)
+2. **Does a public PoC exist on ExploitDB?** → Use "exploitdb" (searchsploit to find and download)
+3. **Is it a web app vuln requiring custom payload?** → Use "custom" (sqlmap, curl, python3, bash)
+4. **Is it a misconfiguration to verify?** → Use "manual_verification" (curl -I, check headers/files)
+
+For Metasploit: provide full msfconsole commands or resource scripts
+For ExploitDB: provide searchsploit search + download + execution commands
+For Custom: provide the exact curl/sqlmap/python3 commands with proper payloads
+For Manual Verification: provide curl/grep commands to confirm the issue
+
+## Level 4: EXPLOIT CHAIN PLANNING
 Identify multi-step attack chains that combine individual findings into realistic attack scenarios. Map each step to a MITRE ATT&CK technique. For example:
 - "Directory listing (T1083) → Config file exposure (T1552.001) → Credential theft (T1078) → Admin access (T1078.004)"
 - "SQL Injection (T1190) → Database dump (T1005) → Credential reuse (T1078) → Lateral movement"
@@ -1442,7 +1456,28 @@ Provide your analysis in the following JSON format:
       "evidence": "Specific evidence: tool name + output that confirms this, or reasoning chain for inferred findings",
       "remediation": "How to fix this vulnerability",
       "cve": "CVE-XXXX-XXXX or null",
-      "cvss": 0.0
+      "cvss": 0.0,
+      "exploitMethod": {
+        "method": "metasploit|exploitdb|custom|manual_verification",
+        "reasoning": "Why this method was chosen",
+        "primaryTool": "msfconsole|searchsploit|sqlmap|curl|python3|bash",
+        "cliCommands": [
+          {
+            "order": 1,
+            "tool": "tool_name",
+            "command": "full CLI command ready to copy-paste and execute",
+            "description": "what this step does",
+            "expectedOutput": "what success looks like"
+          }
+        ],
+        "alternativeMethod": {
+          "method": "fallback_method",
+          "reasoning": "when to use this instead"
+        },
+        "preConditions": ["conditions that must be true"],
+        "expectedOutcome": "what successful exploitation achieves",
+        "opsecNotes": "detection risk and evasion tips"
+      }
     }
   ],
   "attackChains": [
@@ -1500,8 +1535,27 @@ ${learningContext}`;
                     evidence: { type: "string", description: "Evidence or proof" },
                     remediation: { type: "string", description: "Fix recommendation" },
                     cvss: { type: "number", description: "CVSS score 0-10" },
+                    exploitMethod: { type: "object", description: "Exploit method selection", properties: {
+                      method: { type: "string", description: "metasploit, exploitdb, custom, or manual_verification" },
+                      reasoning: { type: "string", description: "Why this method was chosen" },
+                      primaryTool: { type: "string", description: "Primary CLI tool: msfconsole, searchsploit, sqlmap, curl, python3, bash" },
+                      cliCommands: { type: "array", items: { type: "object", properties: {
+                        order: { type: "integer" },
+                        tool: { type: "string" },
+                        command: { type: "string", description: "Full CLI command ready to execute" },
+                        description: { type: "string" },
+                        expectedOutput: { type: "string" },
+                      }, required: ["order", "tool", "command", "description"] }},
+                      alternativeMethod: { type: "object", properties: {
+                        method: { type: "string" },
+                        reasoning: { type: "string" },
+                      }},
+                      preConditions: { type: "array", items: { type: "string" } },
+                      expectedOutcome: { type: "string" },
+                      opsecNotes: { type: "string" },
+                    }, required: ["method", "reasoning", "primaryTool", "cliCommands"] },
                   },
-                  required: ["title", "severity", "category", "description", "confidence"],
+                  required: ["title", "severity", "category", "description", "confidence", "exploitMethod"],
                 }},
                 attackChains: { type: "array", items: {
                   type: "object",
@@ -1584,6 +1638,29 @@ ${learningContext}`;
           }
         } catch (e: any) {
           addLabLog(state, { phase: "analyzing", type: "warning", title: "Ground Truth Scoring Failed", detail: e.message?.slice(0, 200) || "" });
+        }
+
+        // ── Exploit Selection Scoring ──
+        try {
+          const { scoreExploitSelection } = await import("../lib/exploit-selection-intelligence");
+          const { getExploitMethodGroundTruth } = await import("../lib/exploit-method-ground-truth");
+          const exploitGroundTruth = getExploitMethodGroundTruth(targetPresetForLearning);
+          if (exploitGroundTruth && exploitGroundTruth.length > 0) {
+            const llmFindingsWithExploit = (llmAnalysis.findings || []).map((f: any) => ({
+              title: f.title || "",
+              category: f.category || "",
+              exploitMethod: f.exploitMethod || undefined,
+            }));
+            const exploitScore = scoreExploitSelection(exploitGroundTruth, llmFindingsWithExploit);
+            addLabLog(state, {
+              phase: "analyzing", type: "scan_result",
+              title: "Exploit Selection Scoring Complete",
+              detail: `Overall: ${(exploitScore.overallScore * 100).toFixed(1)}% | Method Accuracy: ${(exploitScore.methodAccuracy * 100).toFixed(1)}% | CLI Tool: ${(exploitScore.cliToolAccuracy * 100).toFixed(1)}% | CLI Pattern: ${(exploitScore.cliPatternAccuracy * 100).toFixed(1)}% | Scored: ${exploitScore.scoredFindings}/${exploitScore.totalFindings}`,
+            });
+            (llmAnalysis as any).__exploitSelectionScore = exploitScore;
+          }
+        } catch (e: any) {
+          addLabLog(state, { phase: "analyzing", type: "warning", title: "Exploit Selection Scoring Failed", detail: e.message?.slice(0, 200) || "" });
         }
       }
     } catch (e: any) {
@@ -1901,9 +1978,15 @@ ${findingsSummary || "No vulnerabilities detected by automated tools."}
 RAW TOOL OUTPUT:
 ${toolOutputSummary.slice(0, 8000)}${feedbackContext}
 ${learningContext}
-Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskRating, findings (array with title, severity, category, description, exploitationPath, impact, remediation, cve, confidence), attackChains (array with name, description, steps, impact, likelihood), missedAreas (array of strings), recommendations (array of strings).` },
+For EACH finding, you MUST also select the optimal exploit method:
+- "metasploit" if a reliable MSF module exists (provide full msfconsole commands)
+- "exploitdb" if a public PoC exists on ExploitDB (provide searchsploit + execution commands)
+- "custom" if it needs a tailored exploit (provide sqlmap/curl/python3/bash commands)
+- "manual_verification" for misconfigurations (provide curl/grep verification commands)
+
+Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskRating, findings (array with title, severity, category, description, confidence, evidence, remediation, cve, cvss, exploitMethod object with method, reasoning, primaryTool, cliCommands array), attackChains, missedAreas, recommendations.` },
             ],
-            response_format: { type: "json_schema", json_schema: { name: "security_analysis", strict: false, schema: { type: "object", properties: { executiveSummary: { type: "string" }, riskScore: { type: "integer" }, riskRating: { type: "string" }, findings: { type: "array", items: { type: "object", properties: { title: { type: "string" }, severity: { type: "string" }, category: { type: "string" }, cve: { type: "string" }, description: { type: "string" }, evidence: { type: "string" }, remediation: { type: "string" }, cvss: { type: "number" } }, required: ["title", "severity", "category", "description"] } }, attackChains: { type: "array", items: { type: "object", properties: { name: { type: "string" }, steps: { type: "array", items: { type: "string" } }, impact: { type: "string" }, likelihood: { type: "string" } }, required: ["name", "steps", "impact", "likelihood"] } }, missedAreas: { type: "array", items: { type: "string" } }, recommendations: { type: "array", items: { type: "string" } } }, required: ["executiveSummary", "riskScore", "riskRating", "findings", "attackChains", "missedAreas", "recommendations"] } } },
+            response_format: { type: "json_schema", json_schema: { name: "security_analysis", strict: false, schema: { type: "object", properties: { executiveSummary: { type: "string" }, riskScore: { type: "integer" }, riskRating: { type: "string" }, findings: { type: "array", items: { type: "object", properties: { title: { type: "string" }, severity: { type: "string" }, category: { type: "string" }, cve: { type: "string" }, description: { type: "string" }, confidence: { type: "string" }, evidence: { type: "string" }, remediation: { type: "string" }, cvss: { type: "number" }, exploitMethod: { type: "object", properties: { method: { type: "string" }, reasoning: { type: "string" }, primaryTool: { type: "string" }, cliCommands: { type: "array", items: { type: "object", properties: { order: { type: "integer" }, tool: { type: "string" }, command: { type: "string" }, description: { type: "string" }, expectedOutput: { type: "string" } }, required: ["order", "tool", "command", "description"] } }, alternativeMethod: { type: "object", properties: { method: { type: "string" }, reasoning: { type: "string" } } }, preConditions: { type: "array", items: { type: "string" } }, expectedOutcome: { type: "string" }, opsecNotes: { type: "string" } }, required: ["method", "reasoning", "primaryTool", "cliCommands"] } }, required: ["title", "severity", "category", "description", "exploitMethod"] } }, attackChains: { type: "array", items: { type: "object", properties: { name: { type: "string" }, steps: { type: "array", items: { type: "string" } }, impact: { type: "string" }, likelihood: { type: "string" } }, required: ["name", "steps", "impact", "likelihood"] } }, missedAreas: { type: "array", items: { type: "string" } }, recommendations: { type: "array", items: { type: "string" } } }, required: ["executiveSummary", "riskScore", "riskRating", "findings", "attackChains", "missedAreas", "recommendations"] } } },
             _caller: "training-lab.rerunAnalysis",
           });
 
@@ -1931,6 +2014,24 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
                 (llmAnalysis as any).__accuracyScore = accuracyScore;
               }
             } catch { /* ignore scoring errors */ }
+          }
+
+          // Exploit selection scoring for rerun
+          if (llmAnalysis && targetPresetForLearning !== "custom") {
+            try {
+              const { scoreExploitSelection } = await import("../lib/exploit-selection-intelligence");
+              const { getExploitMethodGroundTruth } = await import("../lib/exploit-method-ground-truth");
+              const exploitGroundTruth = getExploitMethodGroundTruth(targetPresetForLearning);
+              if (exploitGroundTruth && exploitGroundTruth.length > 0) {
+                const llmFindingsWithExploit = (llmAnalysis.findings || []).map((f: any) => ({
+                  title: f.title || "",
+                  category: f.category || "",
+                  exploitMethod: f.exploitMethod || undefined,
+                }));
+                const exploitScore = scoreExploitSelection(exploitGroundTruth, llmFindingsWithExploit);
+                (llmAnalysis as any).__exploitSelectionScore = exploitScore;
+              }
+            } catch { /* ignore exploit scoring errors */ }
           }
 
           await updateTrainingLabSession(input.sessionId, {

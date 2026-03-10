@@ -41,6 +41,11 @@ export interface TrainingIteration {
   overallScore: number;
   learningEntriesGenerated: number;
   timestamp: number;
+  // Exploit selection metrics
+  exploitMethodAccuracy: number;
+  exploitCLIToolAccuracy: number;
+  exploitCLIPatternAccuracy: number;
+  exploitOverallScore: number;
 }
 
 export interface ContinuousTrainingResult {
@@ -251,7 +256,13 @@ ${toolOutputSummary.slice(0, 8000)}
 
 ${learningContext}
 
-Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskRating, findings (array with title, severity, category, description, exploitationPath, impact, remediation, cve, confidence), attackChains (array with name, description, steps, impact, likelihood), missedAreas (array of strings), recommendations (array of strings).`,
+For EACH finding, you MUST also select the optimal exploit method:
+- "metasploit" if a reliable MSF module exists (provide full msfconsole commands)
+- "exploitdb" if a public PoC exists on ExploitDB (provide searchsploit + execution commands)
+- "custom" if it needs a tailored exploit (provide sqlmap/curl/python3/bash commands)
+- "manual_verification" for misconfigurations (provide curl/grep verification commands)
+
+Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskRating, findings (array with title, severity, category, description, confidence, cve, cvss, exploitMethod object with method, reasoning, primaryTool, cliCommands array), attackChains, missedAreas, recommendations.`,
       },
     ],
     response_format: {
@@ -280,8 +291,22 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
                   evidence: { type: "string" },
                   remediation: { type: "string" },
                   cvss: { type: "number" },
+                  exploitMethod: { type: "object", properties: {
+                    method: { type: "string", description: "metasploit, exploitdb, custom, or manual_verification" },
+                    reasoning: { type: "string" },
+                    primaryTool: { type: "string", description: "msfconsole, searchsploit, sqlmap, curl, python3, bash" },
+                    cliCommands: { type: "array", items: { type: "object", properties: {
+                      order: { type: "integer" }, tool: { type: "string" },
+                      command: { type: "string" }, description: { type: "string" },
+                      expectedOutput: { type: "string" },
+                    }, required: ["order", "tool", "command", "description"] }},
+                    alternativeMethod: { type: "object", properties: { method: { type: "string" }, reasoning: { type: "string" } }},
+                    preConditions: { type: "array", items: { type: "string" } },
+                    expectedOutcome: { type: "string" },
+                    opsecNotes: { type: "string" },
+                  }, required: ["method", "reasoning", "primaryTool", "cliCommands"] },
                 },
-                required: ["title", "severity", "category", "description"],
+                required: ["title", "severity", "category", "description", "exploitMethod"],
               },
             },
             attackChains: {
@@ -320,6 +345,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
 
   // Score against ground truth
   let accuracyScore: AccuracyScore | null = null;
+  let exploitSelectionScore: any = null;
   if (llmAnalysis && targetPreset !== "custom") {
     const llmFindings = (llmAnalysis.findings || []).map((f: any) => ({
       title: f.title || "",
@@ -331,9 +357,24 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     if (accuracyScore) {
       await saveAccuracyScore(`${sessionId}-continuous`, targetPreset, accuracyScore);
     }
+
+    // Score exploit selection
+    try {
+      const { scoreExploitSelection } = await import("./exploit-selection-intelligence");
+      const { getExploitMethodGroundTruth } = await import("./exploit-method-ground-truth");
+      const exploitGroundTruth = getExploitMethodGroundTruth(targetPreset);
+      if (exploitGroundTruth && exploitGroundTruth.length > 0) {
+        const llmFindingsWithExploit = (llmAnalysis.findings || []).map((f: any) => ({
+          title: f.title || "",
+          category: f.category || "",
+          exploitMethod: f.exploitMethod || undefined,
+        }));
+        exploitSelectionScore = scoreExploitSelection(exploitGroundTruth, llmFindingsWithExploit);
+      }
+    } catch { /* ignore exploit scoring errors */ }
   }
 
-  return { llmAnalysis, accuracyScore };
+  return { llmAnalysis, accuracyScore, exploitSelectionScore };
 }
 
 /**
@@ -369,7 +410,7 @@ export async function runContinuousTrainingLoop(
       console.log(`[ContinuousTraining] Iteration ${i}/${config.maxIterations} for ${config.targetPreset}`);
 
       // Run LLM analysis
-      const { llmAnalysis, accuracyScore } = await runAnalysisIteration(
+      const { llmAnalysis, accuracyScore, exploitSelectionScore } = await runAnalysisIteration(
         config.sessionId,
         config.targetPreset,
         config.targetUrl,
@@ -394,6 +435,10 @@ export async function runContinuousTrainingLoop(
         overallScore: accuracyScore.overallScore,
         learningEntriesGenerated: 0,
         timestamp: Date.now(),
+        exploitMethodAccuracy: exploitSelectionScore?.methodAccuracy || 0,
+        exploitCLIToolAccuracy: exploitSelectionScore?.cliToolAccuracy || 0,
+        exploitCLIPatternAccuracy: exploitSelectionScore?.cliPatternAccuracy || 0,
+        exploitOverallScore: exploitSelectionScore?.overallScore || 0,
       };
 
       // Check if we've reached the target
@@ -423,7 +468,7 @@ export async function runContinuousTrainingLoop(
       iterations.push(iteration);
       onProgress?.(iteration);
 
-      console.log(`[ContinuousTraining] Iteration ${i}: F1=${(accuracyScore.f1Score * 100).toFixed(1)}% | Recall=${(accuracyScore.recall * 100).toFixed(1)}% | Precision=${(accuracyScore.precision * 100).toFixed(1)}% | Generated ${entriesGenerated} learning entries`);
+      console.log(`[ContinuousTraining] Iteration ${i}: F1=${(accuracyScore.f1Score * 100).toFixed(1)}% | Recall=${(accuracyScore.recall * 100).toFixed(1)}% | Precision=${(accuracyScore.precision * 100).toFixed(1)}% | Exploit Method: ${(iteration.exploitMethodAccuracy * 100).toFixed(1)}% | CLI Tool: ${(iteration.exploitCLIToolAccuracy * 100).toFixed(1)}% | Generated ${entriesGenerated} learning entries`);
 
       // Delay before next iteration
       if (i < config.maxIterations) {
