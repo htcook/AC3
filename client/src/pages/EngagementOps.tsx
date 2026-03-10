@@ -114,7 +114,13 @@ interface AssetStatus {
     evidenceDetail?: string | null; cvssScore?: number | null;
   }>;
   zapFindings: Array<{ alert: string; risk: string; url: string; cweId?: number }>;
-  exploitAttempts: Array<{ module: string; success: boolean; sessionId?: string }>;
+  exploitAttempts: Array<{
+    module: string; success: boolean; sessionId?: string;
+    cve?: string; service?: string; port?: number; target?: string;
+    confidence?: number; reasoning?: string;
+    selectedExploit?: { modulePath?: string; payload?: string; options?: Record<string, any> };
+    timestamp?: number; durationMs?: number; errorDetail?: string;
+  }>;
   status: string;
   wafDetected?: string;
   passiveRecon?: AssetPassiveRecon;
@@ -2150,13 +2156,46 @@ export default function EngagementOps() {
                       {/* Exploit Attempts */}
                       {(selectedAssetData.exploitAttempts || []).length > 0 && (
                         <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Exploit Attempts ({(selectedAssetData.exploitAttempts || []).length})</h4>
-                          <div className="space-y-0.5">
+                          <h4 className="text-xs font-medium text-red-400 mb-2 flex items-center gap-1">
+                            <Crosshair className="h-3 w-3" /> Exploit Attempts ({(selectedAssetData.exploitAttempts || []).length})
+                          </h4>
+                          <div className="space-y-2">
                             {(selectedAssetData.exploitAttempts || []).map((e, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
-                                {e.success ? <CheckCircle2 className="h-3 w-3 text-green-400" /> : <XCircle className="h-3 w-3 text-red-400" />}
-                                <span className="text-foreground">{e.module}</span>
-                                {e.sessionId && <span className="text-green-400 font-mono">{e.sessionId}</span>}
+                              <div key={i} className="border border-border/20 rounded-md p-2 bg-muted/5 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {e.success ? <CheckCircle2 className="h-3 w-3 text-green-400" /> : <XCircle className="h-3 w-3 text-red-400" />}
+                                  <span className="text-xs text-foreground font-medium">{e.module}</span>
+                                  {e.cve && <span className="text-[10px] text-muted-foreground font-mono">{e.cve}</span>}
+                                  {e.sessionId && <Badge variant="outline" className="text-[8px] bg-green-500/20 text-green-300 border-green-500/40">{e.sessionId}</Badge>}
+                                  {e.confidence != null && (
+                                    <Badge variant="outline" className={`text-[8px] ${
+                                      e.confidence >= 0.7 ? 'text-green-300 border-green-500/30' :
+                                      e.confidence >= 0.4 ? 'text-yellow-300 border-yellow-500/30' :
+                                      'text-red-300 border-red-500/30'
+                                    }`}>
+                                      conf:{Math.round(e.confidence * 100)}%
+                                    </Badge>
+                                  )}
+                                  {e.timestamp && <span className="text-[9px] text-muted-foreground ml-auto">{new Date(e.timestamp).toLocaleTimeString()}</span>}
+                                </div>
+                                {/* Evidence details */}
+                                <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                                  {e.service && <span className="text-cyan-400">svc:{e.service}</span>}
+                                  {e.port && <span className="text-muted-foreground font-mono">:{e.port}</span>}
+                                  {e.target && <span className="text-muted-foreground">→ {e.target}</span>}
+                                  {e.durationMs != null && e.durationMs > 0 && <span className="text-muted-foreground">{Math.round(e.durationMs / 1000)}s</span>}
+                                </div>
+                                {e.selectedExploit?.modulePath && (
+                                  <p className="text-[9px] text-purple-400 font-mono truncate" title={e.selectedExploit.modulePath}>
+                                    MSF: {e.selectedExploit.modulePath}
+                                  </p>
+                                )}
+                                {e.reasoning && (
+                                  <p className="text-[9px] text-muted-foreground/70 line-clamp-2">{e.reasoning}</p>
+                                )}
+                                {e.errorDetail && (
+                                  <p className="text-[9px] text-red-400/70 line-clamp-2">⚠ {e.errorDetail}</p>
+                                )}
                               </div>
                             ))}
                           </div>

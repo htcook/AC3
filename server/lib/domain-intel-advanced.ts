@@ -543,13 +543,18 @@ export function crossReferenceTechVulnerabilities(
     for (const cve of KNOWN_TECH_CVES) {
       if (!cve.matchPattern.test(techLower)) continue;
 
-      // Check version match
+      // Check version match — only flag as confirmed vulnerable when version is known
       let isVulnerable = false;
+      let versionConfidence: 'confirmed' | 'potential' = 'potential';
       if (version !== "unknown") {
         isVulnerable = compareVersions(version, cve.affectedVersions);
+        if (isVulnerable) versionConfidence = 'confirmed';
       } else {
-        // Unknown version — flag as potentially vulnerable
+        // Unknown version — still include but mark as 'potential' (not confirmed)
+        // This prevents false positives where the tech is detected but the version
+        // may not actually be in the affected range
         isVulnerable = true;
+        versionConfidence = 'potential';
       }
 
       if (isVulnerable) {
@@ -562,6 +567,10 @@ export function crossReferenceTechVulnerabilities(
               existingVuln.affectedAssets.push(h);
             }
           }
+          // Upgrade confidence if this instance has a confirmed version
+          if (versionConfidence === 'confirmed' && (existingVuln as any).versionConfidence !== 'confirmed') {
+            (existingVuln as any).versionConfidence = 'confirmed';
+          }
           continue;
         }
 
@@ -569,9 +578,9 @@ export function crossReferenceTechVulnerabilities(
           technology: cve.technology,
           detectedVersion: version,
           cveId: cve.cveId,
-          cvssScore: cve.cvssScore,
-          severity: cve.severity,
-          description: cve.description,
+          cvssScore: versionConfidence === 'potential' ? Math.max(cve.cvssScore - 2, 1) : cve.cvssScore, // Reduce score for unconfirmed versions
+          severity: versionConfidence === 'potential' && cve.severity === 'critical' ? 'high' : cve.severity, // Downgrade critical to high for unconfirmed
+          description: cve.description + (versionConfidence === 'potential' ? ' [Version not confirmed — potential match only]' : ''),
           affectedVersions: cve.affectedVersions,
           fixedVersion: cve.fixedVersion,
           exploitAvailable: cve.exploitAvailable,
@@ -579,7 +588,8 @@ export function crossReferenceTechVulnerabilities(
           affectedAssets: [...affectedHosts],
           remediation: `Upgrade ${cve.technology} to version ${cve.fixedVersion} or later. ${cve.exploitAvailable ? "PUBLIC EXPLOIT AVAILABLE — prioritize immediate patching." : "No public exploit known, but patching is recommended."}`,
           publishedDate: cve.publishedDate,
-        });
+          versionConfidence, // Track whether this is a confirmed or potential match
+        } as any);
       }
     }
   }

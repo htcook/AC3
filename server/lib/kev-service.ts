@@ -504,8 +504,16 @@ export function matchTechnologiesAgainstKev(
     const techLower = parsed.name;
 
     // Phase 1: Mapped product matching with version awareness
+    // IMPORTANT: Only match if the detected tech name contains the pattern key.
+    // The reverse check (pattern.includes(techLower)) was removed because short
+    // tech names like "api", "cdn", or "app" would match inside longer pattern
+    // keys (e.g. "api" inside "apache"), pulling in completely unrelated KEV entries.
     for (const [pattern, mapping] of Object.entries(TECH_TO_KEV_PATTERNS)) {
-      if (techLower.includes(pattern) || pattern.includes(techLower)) {
+      // Require minimum 3-char tech name to avoid generic protocol/term matches
+      if (techLower.length < 3) continue;
+      // Only forward match: detected tech must contain the pattern key
+      // e.g. "nginx" includes "nginx" ✓, but "api" does NOT include "apache" ✓
+      if (techLower.includes(pattern) || techLower === pattern) {
         catalog.vulnerabilities.forEach(kev => {
           if (seen.has(kev.cveID)) return;
 

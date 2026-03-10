@@ -189,3 +189,17 @@
 - [x] No code fix needed — the rerunFullPipeline mutation has proper isRunning guard
 - [x] Fix undefined port in exploit logging — default to first open port on asset when LLM omits port
 - [x] Investigated Forge API 403 — transient issue (API works now). Added OpenAI fallback when Forge returns 403/429 after all retries
+
+## KEV Match Accuracy Audit & Exploit Evidence
+- [x] Audit KEV vuln matches on api.dev.vianova.ai for false positives (vulns for technologies not present)
+- [x] Fix KEV matching logic to validate against detected technology stack
+- [x] Add exploit success details and evidence to asset data after Phase 4
+- [x] Ensure supporting evidence (screenshots, command output, PoC) is stored with exploited vulns
+
+## Scan Accuracy Fixes (March 2026)
+- [x] Fix KEV matching false positives — validate CVE vendor/product against asset's detected tech stack
+- [x] Add exploit evidence persistence — store exploit output, PoC, screenshots, shell info in asset data
+- [x] Fix duplicate vulnerability entries — deduplicate vulns from multiple scan tools
+- [x] Delete existing Vianova scan data and reset engagement
+- [ ] Re-run Vianova engagement from start with all fixes applied
+- [ ] Verify scan accuracy — no false positive KEV matches, exploit evidence visible, no duplicate vulns

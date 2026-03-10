@@ -138,7 +138,22 @@ export interface AssetStatus {
   ports: Array<{ port: number; service: string; version?: string }>;
   vulns: Array<{ id: string; severity: string; title: string; cve?: string }>;
   zapFindings: Array<{ alert: string; risk: string; url: string; cweId?: number }>;
-  exploitAttempts: Array<{ module: string; success: boolean; sessionId?: string }>;
+  exploitAttempts: Array<{
+    module: string;
+    success: boolean;
+    sessionId?: string;
+    /** Evidence fields for exploit attempts */
+    cve?: string;
+    service?: string;
+    port?: number;
+    target?: string;
+    confidence?: number;
+    reasoning?: string;
+    selectedExploit?: { modulePath?: string; payload?: string; options?: Record<string, any> };
+    timestamp?: number;
+    durationMs?: number;
+    errorDetail?: string;
+  }>;
   status: "pending" | "scanning" | "enumerated" | "vulns_found" | "exploiting" | "compromised" | "no_vulns" | "discovered";
   wafDetected?: string;
   passiveRecon?: AssetPassiveRecon;
@@ -269,6 +284,27 @@ const approvalResolvers = new Map<string, (approved: boolean) => void>();
 let idCounter = 0;
 function genId(): string {
   return `ops-${Date.now()}-${++idCounter}`;
+}
+
+/**
+ * Deduplicated vuln push — prevents duplicate vulnerabilities on the same asset.
+ * Deduplicates by matching on (title + cve). Returns true if the vuln was added (new),
+ * false if it was a duplicate and skipped.
+ */
+function pushVulnDeduped(
+  asset: AssetStatus,
+  vuln: { id: string; severity: string; title: string; cve?: string; [key: string]: any },
+): boolean {
+  const isDuplicate = asset.vulns.some((existing: any) => {
+    // Match on CVE if both have one
+    if (vuln.cve && existing.cve && vuln.cve === existing.cve) return true;
+    // Match on title (normalized)
+    if (existing.title === vuln.title) return true;
+    return false;
+  });
+  if (isDuplicate) return false;
+  asset.vulns.push(vuln as any);
+  return true;
 }
 
 export function getOpsState(engagementId: number): EngagementOpsState | null {
@@ -1284,13 +1320,25 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
       }
 
       // Helper: convert PostureFindings to vulns (matching AssetStatus.vulns type)
-      function postureToVulns(findings: any[]): Array<{ id: string; severity: string; title: string; cve?: string }> {
-        return (findings || []).map((f: any, idx: number) => ({
-          id: f.cveIds?.[0] || `passive-${domain}-${idx}`,
-          severity: f.severity >= 8 ? 'critical' : f.severity >= 6 ? 'high' : f.severity >= 4 ? 'medium' : 'low',
-          title: f.title || f.category || 'Unknown finding',
-          cve: f.cveIds?.[0],
-        }));
+      function postureToVulns(findings: any[]): Array<{ id: string; severity: string; title: string; cve?: string; corroborationTier?: string; evidenceDetail?: string; detectedVersion?: string; affectedVersions?: string }> {
+        return (findings || []).map((f: any, idx: number) => {
+          // Determine corroboration tier based on evidence quality
+          const hasVersion = !!f.detectedVersion && f.detectedVersion !== 'unknown';
+          const hasConfirmedVersion = hasVersion && f.versionConfidence === 'confirmed';
+          const tier = hasConfirmedVersion ? 'confirmed' : hasVersion ? 'probable' : 'potential';
+          const evidenceSource = f.source || 'passive recon';
+
+          return {
+            id: f.cveIds?.[0] || `passive-${domain}-${idx}`,
+            severity: f.severity >= 8 ? 'critical' : f.severity >= 6 ? 'high' : f.severity >= 4 ? 'medium' : 'low',
+            title: f.title || f.category || 'Unknown finding',
+            cve: f.cveIds?.[0],
+            corroborationTier: tier,
+            evidenceDetail: `Detected via ${evidenceSource}${hasVersion ? ` (version ${f.detectedVersion})` : ' (version unconfirmed)'}`,
+            detectedVersion: f.detectedVersion || null,
+            affectedVersions: f.affectedVersions || null,
+          };
+        });
       }
 
       for (const asset of discoveredAssets) {
@@ -1315,11 +1363,9 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
               });
             }
           }
-          // Add vulns from posture findings
+          // Add vulns from posture findings (deduplicated by title and CVE)
           for (const v of passiveVulns) {
-            if (!existing.vulns.some((ev: any) => ev.title === v.title)) {
-              existing.vulns.push(v);
-            }
+            pushVulnDeduped(existing, v as any);
           }
           existing.status = 'discovered';
           // Update stats
@@ -2532,15 +2578,18 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
                 severity: finding.severity,
                 title: finding.title,
               });
-              // Add to asset vulns for downstream correlation
-              asset.vulns.push({
+              // Add to asset vulns for downstream correlation (deduplicated)
+              if (pushVulnDeduped(asset, {
                 id: `cloud-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 severity: finding.severity,
                 title: `[Cloud] ${finding.title}`,
                 cve: finding.cve,
                 description: finding.description,
-              });
-              state.stats.vulnsFound++;
+                corroborationTier: 'confirmed',
+                evidenceDetail: `Confirmed by cloud security scan`,
+              })) {
+                state.stats.vulnsFound++;
+              }
             }
             // Store raw results for the engagement log
             for (const raw of scanResult.rawResults) {
@@ -2691,10 +2740,11 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           phase: 'targeted_enum',
         });
 
-        // Add findings to asset vulns
+        // Add findings to asset vulns (deduplicated)
         for (const f of findings) {
-          asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` });
-          state.stats.vulnsFound++;
+          if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` })) {
+            state.stats.vulnsFound++;
+          }
         }
       } catch (e: any) {
         addLog(state, { phase: 'enumeration', type: 'error', title: `Targeted Nmap Failed: ${fmtTarget(asset, target)}`, detail: e.message });
@@ -2947,13 +2997,16 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         phase: "targeted_enum",
       });
 
-      // Add findings to asset vulns
+      // Add findings to asset vulns (deduplicated)
+      let newCount = 0;
       for (const f of findings) {
-        asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
-        state.stats.vulnsFound++;
+        if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${cmd.tool} active scan` })) {
+          state.stats.vulnsFound++;
+          newCount++;
+        }
       }
 
-      return { tool: cmd.tool, findings: findings.length, timedOut: result.timedOut };
+      return { tool: cmd.tool, findings: newCount, timedOut: result.timedOut };
     }
 
     // Run tools in batches with concurrency limit
@@ -3416,8 +3469,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
           const findings = parseToolOutput(cmd.tool, result.stdout, asset);
           for (const f of findings) {
-            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve });
-            state.stats.vulnsFound++;
+            if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${cmd.tool} credential test` })) {
+              state.stats.vulnsFound++;
+            }
           }
 
           // Store credential test as toolResult on asset
@@ -3888,9 +3942,28 @@ ${(() => {
         });
 
         // Simulate exploit result (in production this would call MSF API)
+        const exploitStartTime = Date.now();
         const success = !!plan?.selectedExploit?.modulePath;
         if (asset) {
-          asset.exploitAttempts.push({ module: module || cve || "auto", success, sessionId: success ? `session-${genId()}` : undefined });
+          asset.exploitAttempts.push({
+            module: module || cve || "auto",
+            success,
+            sessionId: success ? `session-${genId()}` : undefined,
+            // Full evidence fields
+            cve: cve || undefined,
+            service: service || undefined,
+            port: Number(port) || undefined,
+            target: target || undefined,
+            confidence: plan?.confidence ?? undefined,
+            reasoning: plan?.reasoning?.slice(0, 500) || undefined,
+            selectedExploit: plan?.selectedExploit ? {
+              modulePath: plan.selectedExploit.modulePath,
+              payload: plan.selectedExploit.payload || undefined,
+              options: plan.selectedExploit.options || undefined,
+            } : undefined,
+            timestamp: exploitStartTime,
+            durationMs: Date.now() - exploitStartTime,
+          });
           if (success) {
             asset.status = "compromised";
             state.stats.exploitsSucceeded++;
@@ -3930,6 +4003,19 @@ ${(() => {
           data: { plan: plan ? { module: plan.selectedExploit?.modulePath, confidence: plan.confidence, reasoning: plan.reasoning?.slice(0, 300) } : null },
         });
       } catch (e: any) {
+        // Record the failed attempt with error evidence
+        if (asset) {
+          asset.exploitAttempts.push({
+            module: module || cve || "auto",
+            success: false,
+            cve: cve || undefined,
+            service: service || undefined,
+            port: Number(port) || undefined,
+            target: target || undefined,
+            timestamp: Date.now(),
+            errorDetail: e.message?.slice(0, 500),
+          });
+        }
         addLog(state, { phase: "exploitation", type: "error", title: `Exploit Error: ${target}`, detail: e.message });
       }
     }
@@ -4502,14 +4588,17 @@ export async function executeEngagement(
               if (targetAsset) {
                 const parsedFindings = parseToolOutput(h.request.tool, h.result.stdout, targetAsset);
                 for (const pf of parsedFindings) {
-                  targetAsset.vulns.push({
+                  if (pushVulnDeduped(targetAsset, {
                     id: `rescan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                     severity: pf.severity,
                     title: pf.title,
                     cve: pf.cve,
-                  });
-                  state.stats.vulnsFound++;
-                  newFindingsCount++;
+                    corroborationTier: 'confirmed',
+                    evidenceDetail: `Confirmed by ${h.request.tool} re-scan`,
+                  })) {
+                    state.stats.vulnsFound++;
+                    newFindingsCount++;
+                  }
                 }
               }
               // Log each re-scan result
