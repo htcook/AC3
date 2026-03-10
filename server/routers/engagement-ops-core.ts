@@ -1633,8 +1633,11 @@ export const engagementOpsRouter = router({
                         asset.ports.push({ port, service: match[2], version: match[3]?.trim() || '' } as any);
                       }
                     }
+                    asset.status = 'scanned' as any;
                     addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Nmap: ${asset.hostname}`, detail: `${asset.ports.length} open ports` });
                   } catch (err: any) {
+                    // Even if nmap fails, mark as scanned (attempted) so it doesn't stay 'pending'
+                    asset.status = 'scanned' as any;
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Nmap failed: ${asset.hostname}`, detail: err.message });
                   }
 
@@ -1645,8 +1648,10 @@ export const engagementOpsRouter = router({
                     const findings = nucleiResult.stdout.split('\n').filter(Boolean).map((line: string) => {
                       try { return JSON.parse(line); } catch { return null; }
                     }).filter(Boolean);
+                    const { pushVulnDeduped: pushVulnDedupedNuclei } = await import('../lib/engagement-orchestrator');
                     for (const f of findings) {
-                      asset.vulns.push({
+                      pushVulnDedupedNuclei(asset as any, {
+                        id: `nuclei-${f['template-id'] || 'unknown'}-${asset.hostname}`,
                         title: f.info?.name || f['template-id'] || 'Unknown',
                         severity: f.info?.severity || 'medium',
                         cve: f.info?.classification?.['cve-id']?.[0] || '',
@@ -1692,7 +1697,9 @@ export const engagementOpsRouter = router({
                         );
                         if (existing) (existing as any).confirmedByActiveScan = true;
                       } else {
-                        asset.vulns.push({
+                        const { pushVulnDeduped: pushVulnDedupedDast } = await import('../lib/engagement-orchestrator');
+                        pushVulnDedupedDast(asset as any, {
+                          id: `dast-${f['template-id'] || 'unknown'}-${asset.hostname}`,
                           title: vulnTitle,
                           severity: f.info?.severity || 'medium',
                           cve: f.info?.classification?.['cve-id']?.[0] || '',
@@ -1729,7 +1736,9 @@ export const engagementOpsRouter = router({
                     if (!headers.match(/Strict-Transport-Security/i)) missingHeaders.push('HSTS');
                     if (!headers.match(/Content-Security-Policy/i)) missingHeaders.push('CSP');
                     if (missingHeaders.length > 0) {
-                      asset.vulns.push({
+                      const { pushVulnDeduped } = await import('../lib/engagement-orchestrator');
+                      pushVulnDeduped(asset as any, {
+                        id: `curl-headers-${asset.hostname}`,
                         title: `Missing Security Headers: ${missingHeaders.join(', ')}`,
                         severity: 'medium',
                         cve: '',
@@ -1944,9 +1953,10 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                     const content = llmResult.choices?.[0]?.message?.content || '{}';
                     const parsed = JSON.parse(content);
                     const synthVulns = parsed.vulnerabilities || [];
+                    const { pushVulnDeduped: pushVulnDedupedSynth } = await import('../lib/engagement-orchestrator');
                     for (const v of synthVulns) {
                       if (v.confidence >= 40) {
-                        asset.vulns.push({
+                        pushVulnDedupedSynth(asset as any, {
                           id: `synth-${asset.hostname}-${Math.random().toString(36).slice(2,8)}`,
                           title: v.title,
                           severity: v.severity,
@@ -1995,10 +2005,16 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
               }
             }
 
+            // Recalculate stats from actual asset data before marking complete
+            state!.stats.hostsScanned = state!.assets.filter(a => a.status !== 'pending').length;
+            state!.stats.portsFound = state!.assets.reduce((sum, a) => sum + (a.ports || []).length, 0);
+            state!.stats.vulnsFound = state!.assets.reduce((sum, a) => sum + (a.vulns || []).length, 0);
+            state!.stats.assetsDiscovered = state!.assets.length;
+
             state!.phase = 'complete';
             state!.isRunning = false;
             state!.currentAction = undefined;
-            addLog(state!, { phase: 'complete', type: 'success', title: '\u{1f3c1} Pipeline Complete', detail: `${state!.assets.length} assets, ${state!.assets.reduce((s, a) => s + a.vulns.length, 0)} vulns, ${(state as any).generatedExploits?.length || 0} exploits` });
+            addLog(state!, { phase: 'complete', type: 'success', title: '\u{1f3c1} Pipeline Complete', detail: `${state!.assets.length} assets, ${state!.stats.hostsScanned} scanned, ${state!.stats.portsFound} ports, ${state!.stats.vulnsFound} vulns, ${(state as any).generatedExploits?.length || 0} exploits` });
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'complete' });
 
             // Record vulnerability trend snapshot

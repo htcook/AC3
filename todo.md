@@ -203,3 +203,13 @@
 - [x] Delete existing Vianova scan data and reset engagement
 - [ ] Re-run Vianova engagement from start with all fixes applied
 - [ ] Verify scan accuracy — no false positive KEV matches, exploit evidence visible, no duplicate vulns
+- [ ] Audit Vianova re-run for errors in scan logs
+- [ ] Audit Vianova re-run for duplicate vulnerabilities across assets
+- [x] Fix duplicate header probe vulns — header probe findings pushed twice per asset
+- [x] Fix stats counters not updating — hostsScanned, portsFound, vulnsFound stay 0 after scans
+- [x] Fix asset status staying "pending" after nmap scan completes (23.20.98.48)
+- [x] Create test engagement: Acunetix Vulnweb (PHP) — http://testphp.vulnweb.com (ID: 1650001)
+- [x] Create test engagement: Broken Crystals — https://brokencrystals.com (ID: 1650002)
+- [x] Create test engagement: Gin & Juice Shop (PortSwigger) — https://ginandjuice.shop (ID: 1650003)
+- [x] Create test engagement: DVWA — dvwa.co.uk (ID: 1650004)
+- [x] Create test engagement: Nmap ScanMe — http://scanme.nmap.org (ID: 1650005)

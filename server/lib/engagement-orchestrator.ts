@@ -291,7 +291,7 @@ function genId(): string {
  * Deduplicates by matching on (title + cve). Returns true if the vuln was added (new),
  * false if it was a duplicate and skipped.
  */
-function pushVulnDeduped(
+export function pushVulnDeduped(
   asset: AssetStatus,
   vuln: { id: string; severity: string; title: string; cve?: string; [key: string]: any },
 ): boolean {
