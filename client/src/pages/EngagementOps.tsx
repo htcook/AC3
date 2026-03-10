@@ -1484,7 +1484,7 @@ export default function EngagementOps() {
       {/* Page Purpose Description */}
       <div className="flex-none px-6">
         <p className="page-purpose">
-          Active engagement operations console for <strong className="text-foreground">{eng?.name || 'this engagement'}</strong>. 
+          Active engagement operations console for <strong className="text-foreground">{engagement?.name || 'this engagement'}</strong>. 
           This view orchestrates the full scan pipeline — from passive reconnaissance through active enumeration, 
           vulnerability detection, and exploitation — with LLM-driven decision-making and human approval gates.
         </p>

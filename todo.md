@@ -501,3 +501,9 @@
 - [x] Applied normalizeOpsState to both getOpsState (sync) and getOpsStateWithRecovery (async) paths
 - [x] Strengthened client-side defensive guards: all asset sub-arrays, stats, booleans, phase, progress
 - [x] All 296 tests passing, Vite build succeeds
+
+## Bug: EngagementOps Crash Still Occurring (Vianova engagement)
+- [x] Deep investigation - downloaded deployed bundle, mapped minified col 5946 to source line 1487
+- [x] Root cause: page-purpose section used `eng?.name` but `eng` only exists inside .map() callback; correct variable is `engagement`
+- [x] Fixed: changed `eng?.name` to `engagement?.name` in page-purpose description
+- [x] All 296 tests passing
