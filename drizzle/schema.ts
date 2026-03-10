@@ -1931,7 +1931,7 @@ export const engagementPipelines = mysqlTable("engagement_pipelines", {
 export const engagementReports = mysqlTable("engagement_reports", {
 	id: int().autoincrement().notNull(),
 	engagementId: int().notNull().references(() => engagements.id, { onDelete: "cascade" } ),
-	reportType: mysqlEnum(['executive_summary','technical_detail','compliance','phishing_results','osint_assessment','full_engagement','purple_team','red_team_assessment','detection_gap_analysis']).notNull(),
+	reportType: mysqlEnum(['executive_summary','technical_detail','compliance','phishing_results','osint_assessment','full_engagement','purple_team','red_team_assessment','detection_gap_analysis','pentest_assessment']).notNull(),
 	clientType: mysqlEnum(['msp','enterprise','saas','paas','iaas','mixed_hosting','other']).default('enterprise').notNull(),
 	title: varchar({ length: 512 }).notNull(),
 	preparedFor: varchar({ length: 255 }),
@@ -5117,3 +5117,12 @@ export const roeAcknowledgments = mysqlTable("roe_acknowledgments", {
 
 export type InsertRoeAcknowledgment = typeof roeAcknowledgments.$inferInsert;
 export type SelectRoeAcknowledgment = typeof roeAcknowledgments.$inferSelect;
+
+
+// ─── Report & Scan Result Types ──────────────────────────────────────
+export type InsertEngagementReport = typeof engagementReports.$inferInsert;
+export type SelectEngagementReport = typeof engagementReports.$inferSelect;
+export type InsertPentestReport = typeof pentestReports.$inferInsert;
+export type SelectPentestReport = typeof pentestReports.$inferSelect;
+export type InsertScanResult = typeof scanResults.$inferInsert;
+export type ScanResult = typeof scanResults.$inferSelect;

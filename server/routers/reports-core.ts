@@ -148,8 +148,8 @@ export const reportsRouter = router({
         // Fetch engagement ops data for discovery/tool evidence sections
         let opsDataContext = 'No active scan data available for this engagement.';
         try {
-          const { getOpsState } = await import('../lib/engagement-orchestrator');
-          const opsState = getOpsState(input.engagementId);
+          const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+          const opsState = await getOpsStateWithRecovery(input.engagementId);
           if (opsState?.assets?.length) {
             const assets = opsState.assets;
             const totalToolRuns = assets.reduce((s, a) => s + (a.toolResults?.length || 0), 0);
@@ -171,17 +171,60 @@ export const reportsRouter = router({
             if (assets.length > 20) ctx += `... and ${assets.length - 20} more assets\n`;
             opsDataContext = ctx;
           }
+
+          // ─── Fallback: enrich opsDataContext from scan_results table ───
+          if (opsDataContext === 'No active scan data available for this engagement.') {
+            try {
+              const dbScanResults = await db.getScanResultsByEngagement(input.engagementId);
+              if (dbScanResults.length > 0) {
+                const scanSummary = await db.getScanResultsSummary(input.engagementId);
+                const totalDbFindings = dbScanResults.reduce((s, r) => s + (r.findingCount || 0), 0);
+                const uniqueTargets = [...new Set(dbScanResults.map(r => r.target))];
+                let ctx = `[Data recovered from scan_results database]\nTargets Scanned: ${uniqueTargets.length} | Tool Runs: ${dbScanResults.length} | Total Findings: ${totalDbFindings}\n\n`;
+                ctx += `Tool Summary:\n`;
+                for (const ts of scanSummary) {
+                  ctx += `  ${ts.tool}: ${ts.count} runs, ${ts.totalFindings} findings, avg ${Math.round(Number(ts.avgDurationMs))}ms\n`;
+                }
+                ctx += '\n';
+                // Group by target
+                const byTarget = new Map<string, typeof dbScanResults>();
+                for (const sr of dbScanResults) {
+                  if (!byTarget.has(sr.target)) byTarget.set(sr.target, []);
+                  byTarget.get(sr.target)!.push(sr);
+                }
+                for (const [target, results] of [...byTarget.entries()].slice(0, 20)) {
+                  ctx += `### ${target}\n`;
+                  for (const sr of results.slice(0, 8)) {
+                    ctx += `  Tool: ${sr.tool} | Exit: ${sr.exitCode ?? '?'} | Findings: ${sr.findingCount || 0} | Duration: ${sr.durationMs ? sr.durationMs + 'ms' : '?'}\n`;
+                    if (sr.command) ctx += `  Command: ${sr.command}\n`;
+                    const findings = Array.isArray(sr.findings) ? sr.findings : [];
+                    if (findings.length > 0) {
+                      const findingStrs = findings.slice(0, 5).map((f: any) =>
+                        typeof f === 'object' ? (f.title || f.name || f.vulnerability || JSON.stringify(f).substring(0, 100)) : String(f).substring(0, 100)
+                      );
+                      ctx += `  Findings: ${findingStrs.join('; ')}${findings.length > 5 ? ` (+${findings.length - 5} more)` : ''}\n`;
+                    }
+                  }
+                  ctx += '\n';
+                }
+                opsDataContext = ctx;
+                console.log(`[Report] Recovered ops context from ${dbScanResults.length} scan_results rows for ${uniqueTargets.length} targets`);
+              }
+            } catch (scanFallbackErr) {
+              console.error('[Report] Legacy scan_results fallback failed:', scanFallbackErr);
+            }
+          }
         } catch (e) { console.error('Failed to fetch ops data for report:', e); }
 
         // ─── Pentest Assessment Pipeline (new structured report) ───
         if (input.reportType === 'pentest_assessment') {
           try {
             const { runPentestReportPipeline } = await import('../lib/pentest-report-pipeline');
-            const { getOpsState } = await import('../lib/engagement-orchestrator');
-            const opsState = getOpsState(input.engagementId);
+            const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+            const opsState = await getOpsStateWithRecovery(input.engagementId);
 
             // Map ops state assets to pipeline format
-            const pipelineAssets = (opsState?.assets || []).map((a: any) => ({
+            let pipelineAssets = (opsState?.assets || []).map((a: any) => ({
               hostname: a.hostname || 'unknown',
               ip: a.ip || '',
               status: a.status || 'unknown',
@@ -218,6 +261,93 @@ export const reportsRouter = router({
                 error: ea.error,
               })),
             }));
+
+            // ─── Fallback: enrich from scan_results table when ops state has gaps ───
+            // This ensures reports capture data even after server restarts when
+            // in-memory state was lost and the DB snapshot may be stale.
+            try {
+              const dbScanResults = await db.getScanResultsByEngagement(input.engagementId);
+              if (dbScanResults.length > 0) {
+                // If ops state had no assets at all, build synthetic assets from scan_results
+                if (pipelineAssets.length === 0) {
+                  const assetMap = new Map<string, any>();
+                  for (const sr of dbScanResults) {
+                    const target = sr.target || 'unknown';
+                    if (!assetMap.has(target)) {
+                      assetMap.set(target, {
+                        hostname: target,
+                        ip: target,
+                        status: 'scanned',
+                        knownPorts: [],
+                        technologies: [],
+                        riskSignals: [],
+                        certificates: [],
+                        vulns: [],
+                        toolResults: [],
+                        exploitAttempts: [],
+                      });
+                    }
+                    const asset = assetMap.get(target)!;
+                    // Add tool result
+                    asset.toolResults.push({
+                      tool: sr.tool || 'unknown',
+                      command: sr.command || '',
+                      exitCode: sr.exitCode ?? -1,
+                      duration: sr.durationMs ? `${sr.durationMs}ms` : undefined,
+                      findings: Array.isArray(sr.findings) ? (sr.findings as string[]) : [],
+                      rawOutput: sr.rawOutput ? (sr.rawOutput as string).substring(0, 2000) : undefined,
+                    });
+                    // Extract vulns from findings JSON
+                    const findings = Array.isArray(sr.findings) ? sr.findings : [];
+                    for (const f of findings as any[]) {
+                      if (typeof f === 'object' && f !== null && (f.title || f.name || f.vulnerability)) {
+                        asset.vulns.push({
+                          title: f.title || f.name || f.vulnerability || 'Unknown Finding',
+                          severity: f.severity || 'medium',
+                          cve: f.cve || f.cveId || undefined,
+                          description: f.description || f.detail || undefined,
+                          source: sr.tool,
+                          corroborationTier: f.corroborationTier || undefined,
+                          evidenceDetail: f.evidence || f.evidenceDetail || undefined,
+                        });
+                      } else if (typeof f === 'string' && f.length > 5) {
+                        asset.vulns.push({
+                          title: f.substring(0, 200),
+                          severity: 'medium',
+                          source: sr.tool,
+                        });
+                      }
+                    }
+                  }
+                  pipelineAssets = Array.from(assetMap.values());
+                  console.log(`[Report] Built ${pipelineAssets.length} synthetic assets from ${dbScanResults.length} scan_results rows`);
+                } else {
+                  // Ops state had assets but may be missing tool results — merge scan_results
+                  for (const sr of dbScanResults) {
+                    const matchingAsset = pipelineAssets.find(
+                      a => a.hostname === sr.target || a.ip === sr.target
+                    );
+                    if (matchingAsset) {
+                      const alreadyHasTool = matchingAsset.toolResults.some(
+                        (tr: any) => tr.tool === sr.tool
+                      );
+                      if (!alreadyHasTool) {
+                        matchingAsset.toolResults.push({
+                          tool: sr.tool || 'unknown',
+                          command: sr.command || '',
+                          exitCode: sr.exitCode ?? -1,
+                          duration: sr.durationMs ? `${sr.durationMs}ms` : undefined,
+                          findings: Array.isArray(sr.findings) ? (sr.findings as string[]) : [],
+                          rawOutput: sr.rawOutput ? (sr.rawOutput as string).substring(0, 2000) : undefined,
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (scanFallbackErr) {
+              console.error('[Report] scan_results fallback failed:', scanFallbackErr);
+            }
 
             const pipelineResult = await runPentestReportPipeline({
               engagement: {
@@ -257,14 +387,14 @@ export const reportsRouter = router({
                 status: 'completed',
                 reportUrl: url,
                 reportKey,
-                generatedAt: new Date(),
+                generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               });
 
               return { id: reportId, url, content: pipelineResult.markdown };
             } catch (storageErr) {
               await db.updateReport(reportId, {
                 status: 'completed',
-                generatedAt: new Date(),
+                generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               });
               return { id: reportId, url: null, content: pipelineResult.markdown };
             }
@@ -423,7 +553,7 @@ Instructions: ${reportPrompt}`,
               status: 'completed',
               reportUrl: url,
               reportKey,
-              generatedAt: new Date(),
+              generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             });
 
             return { id: reportId, url, content: reportContent };
@@ -431,7 +561,7 @@ Instructions: ${reportPrompt}`,
             // If S3 fails, still return the content
             await db.updateReport(reportId, {
               status: 'completed',
-              generatedAt: new Date(),
+              generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             });
             return { id: reportId, url: null, content: reportContent };
           }

@@ -302,3 +302,14 @@
 - [x] Add unified KSI detail page (/ksi/:ksiId with definition, evidence, validation, NIST controls tabs)
 - [x] Add clickable KSI navigation from heatmap grid and 3PAO review to detail page
 - [x] All 20 regression tests passing (ksi-improvements.test.ts)
+
+## Fix Report Generation - 0 Scan Findings (March 2026)
+- [x] Trace report generation data pipeline from scan results to report output
+- [x] Identify column name mismatches or query failures in report data ingestion
+- [x] Fix getOpsState→getOpsStateWithRecovery in reports-core.ts (in-memory only → DB fallback)
+- [x] Add scan_results table fallback when ops snapshot has no findings
+- [x] Add missing pentest_assessment enum value to engagementReports.reportType (was causing insert failures)
+- [x] Fix generatedAt timestamp format — pass MySQL-compatible string instead of Date object for Drizzle string mode
+- [x] Add missing type exports to schema (InsertEngagementReport, SelectEngagementReport, InsertPentestReport, SelectPentestReport, InsertScanResult, ScanResult)
+- [x] Write 15 regression tests covering pipeline input construction, scan_results fallback, risk matrix, timestamp format, and report type enum validation
+- [x] Verify data flow end-to-end: DVWA engagement has 12 vulns + 15 tool results in ops snapshot, 10 scan_results with 40 findings
