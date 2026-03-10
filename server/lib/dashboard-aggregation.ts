@@ -355,7 +355,7 @@ export async function getAnalystDashboardData(): Promise<AnalystDashboardData> {
     const [tiStats] = await db
       .select({ total: count() })
       .from(threatIntelUpdates)
-      .where(gt(threatIntelUpdates.startedAt, hoursAgo(720)));
+      .where(gt(threatIntelUpdates.tiuStartedAt, hoursAgo(720)));
 
     const [osintStats] = await db.select({ total: count() }).from(osintFindings);
     const [domainStats] = await db.select({ total: count() }).from(domainRecon);

@@ -580,7 +580,7 @@ export async function getCatalogStats(): Promise<CatalogStats> {
     }).from(threatActors).groupBy(threatActors.origin).orderBy(desc(sql`COUNT(*)`)).limit(10),
     db.select({ count: sql<number>`COUNT(*)` }).from(threatActors)
       .where(sql`${threatActors.updatedAt} > NOW() - INTERVAL 7 DAY`),
-    db.select().from(threatIntelUpdates).orderBy(desc(threatIntelUpdates.startedAt)).limit(1),
+    db.select().from(threatIntelUpdates).orderBy(desc(threatIntelUpdates.tiuStartedAt)).limit(1),
   ]);
 
   // Get trend data from activityTimeline JSON
@@ -688,8 +688,8 @@ export async function runMonitoringSweep(
   // Create sweep record
   const [sweepRow] = await db.insert(threatIntelUpdates).values({
     sweepType: "manual",
-    status: "running",
-    startedAt: new Date(),
+    tiuStatus: "running",
+    tiuStartedAt: new Date(),
   });
   const sweepId = sweepRow.insertId;
 
@@ -740,17 +740,17 @@ export async function runMonitoringSweep(
 
   // Update sweep record
   await db.update(threatIntelUpdates).set({
-    status: "completed",
+    tiuStatus: "completed",
     groupsScanned: result.groupsScanned,
     updatesApplied: result.updatesApplied,
     newEventsFound: result.newEventsFound,
     newIocsFound: result.newIocsFound,
     newTtpsFound: result.newTtpsFound,
-    summary: result.summary,
-    details: result.details,
-    errors: result.errors,
-    completedAt: new Date(),
-    durationMs: Date.now() - ((sweepRow as any).startedAt?.getTime?.() || Date.now()),
+    tiuSummary: result.summary,
+    tiuDetails: result.details,
+    tiuErrors: result.errors,
+    tiuCompletedAt: new Date(),
+    durationMs: Date.now() - ((sweepRow as any).tiuStartedAt?.getTime?.() || Date.now()),
   }).where(eq(threatIntelUpdates.id, sweepId));
 
   return result;

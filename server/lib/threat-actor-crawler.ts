@@ -1176,15 +1176,15 @@ async function recordCrawlResult(result: CrawlResult): Promise<void> {
   try {
     await db.insert(threatIntelUpdates).values({
       sweepType: "triggered",
-      status: "completed",
+      tiuStatus: "completed",
       groupsScanned: result.sourcesChecked,
       updatesApplied: result.actorsEnriched,
       newEventsFound: result.newEventsRecorded,
       newIocsFound: result.newIocsFound,
       newTtpsFound: result.newTtpsFound,
-      summary: result.summary,
-      details: result.errors.length > 0 ? [{ errors: result.errors }] : [],
-      completedAt: new Date(),
+      tiuSummary: result.summary,
+      tiuDetails: result.errors.length > 0 ? [{ errors: result.errors }] : [],
+      tiuCompletedAt: new Date(),
     });
   } catch {
     // Non-critical

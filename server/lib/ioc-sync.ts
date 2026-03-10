@@ -16,6 +16,33 @@ import type { InsertIocFeed } from "../../drizzle/schema";
 
 let syncRunning = false;
 
+/**
+ * Auto-cleanup stuck sync jobs — marks any sync that has been "running"
+ * for more than 30 minutes as "timed_out". Called on startup and before
+ * each new sync to prevent orphaned locks.
+ */
+async function cleanupStuckSyncs(): Promise<number> {
+  try {
+    const { getDb } = await import("../db");
+    const database = await getDb();
+    if (!database) return 0;
+    const { iocSyncLogs } = await import("../../drizzle/schema");
+    const { eq, and, lt, sql } = await import("drizzle-orm");
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const result = await database.update(iocSyncLogs)
+      .set({ status: "timed_out" as any, completedAt: new Date(), errorMessage: "Auto-cleanup: stuck in running state for >30 min" })
+      .where(and(eq(iocSyncLogs.status, "running"), lt(iocSyncLogs.startedAt, thirtyMinAgo)));
+    const cleaned = (result as any)[0]?.affectedRows || 0;
+    if (cleaned > 0) {
+      console.log(`[IOC Sync] Auto-cleaned ${cleaned} stuck sync job(s)`);
+    }
+    return cleaned;
+  } catch (err: any) {
+    console.warn(`[IOC Sync] Cleanup check failed: ${err.message}`);
+    return 0;
+  }
+}
+
 async function fetchWithRetry(url: string, opts: RequestInit = {}, retries = 2, delay = 3000): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -148,6 +175,10 @@ export async function runIocSync(syncType: "scheduled" | "manual" = "scheduled")
   if (syncRunning) {
     throw new Error("IOC sync is already running");
   }
+
+  // Auto-cleanup any stuck syncs before starting
+  await cleanupStuckSyncs();
+
   syncRunning = true;
 
   // Create sync log entry
@@ -245,6 +276,9 @@ export function initIocSyncSchedule() {
   }, {
     timezone: "UTC",
   });
+
+  // Run cleanup on startup
+  cleanupStuckSyncs().catch(() => {});
 
   console.log("[IOC Sync] Scheduled daily sync at 06:00 UTC");
 

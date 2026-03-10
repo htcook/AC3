@@ -252,7 +252,7 @@ export const threatIntelRouter = router({
     .query(async ({ input }) => {
       const db = await requireDb();
       return db.select().from(threatIntelUpdates)
-        .orderBy(desc(threatIntelUpdates.startedAt))
+        .orderBy(desc(threatIntelUpdates.tiuStartedAt))
         .limit(input?.limit || 20);
     }),
 

@@ -253,3 +253,18 @@
 - [x] Fix iocFeeds insert objects: severity→feedSeverity, iocType→feedIocType, tags→feedTags in ioc-feed.ts
 - [x] Fix ensureActorInCatalog insert: type→actorType in threat-intel-connectors.ts
 - [x] All 13 regression tests passing (threat-catalog-sync.test.ts)
+
+## Recent Test Scan Error Audit (March 2026)
+- [x] Check recent test scan logs for errors
+- [x] Identify any scan failures or issues
+- [x] Report findings
+
+## Fix Scan Errors (March 2026)
+- [x] Clean up 15 stuck IOC sync jobs (marked as timed_out)
+- [x] Clean up 10 stuck threat intel updates (marked as failed)
+- [x] Investigate Broken Crystals recon failure (1650002) — domain watchdog timeout, recon completed with 1 asset
+- [x] Add auto-cleanup logic for stuck IOC sync jobs (30-min timeout, runs on startup + before each sync)
+- [x] Fix Vianova (1350014) — confirmed recon-only completion, no active scan was triggered
+- [x] Fix Master Test Range (1590026) — cleared error state for retry
+- [x] Fix threatIntelUpdates column name mismatches: status→tiuStatus, startedAt→tiuStartedAt, completedAt→tiuCompletedAt, summary→tiuSummary, details→tiuDetails, errors→tiuErrors across 5 files
+- [x] All 28 regression tests passing (15 field alignment + 13 catalog sync)

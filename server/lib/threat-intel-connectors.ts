@@ -265,12 +265,12 @@ export async function ingestMitreAttack(): Promise<IngestionResult> {
 
     await db.insert(threatIntelUpdates).values({
       sweepType: "manual",
-      status: "completed",
+      tiuStatus: "completed",
       groupsScanned: groups.length,
       updatesApplied: r.groupsIngested + r.groupsUpdated,
       newTtpsFound: r.ttpsIngested,
-      summary: `MITRE ATT&CK: ${r.groupsIngested} new, ${r.groupsUpdated} updated, ${r.ttpsIngested} TTPs`,
-      details: JSON.stringify({ source: "mitre-attack", intrusionSets: groups.length }),
+      tiuSummary: `MITRE ATT&CK: ${r.groupsIngested} new, ${r.groupsUpdated} updated, ${r.ttpsIngested} TTPs`,
+      tiuDetails: JSON.stringify({ source: "mitre-attack", intrusionSets: groups.length }),
       durationMs: Date.now() - start,
     });
   } catch (err: any) {
@@ -416,12 +416,12 @@ export async function ingestRansomwareLive(): Promise<IngestionResult> {
 
     await db.insert(threatIntelUpdates).values({
       sweepType: "manual",
-      status: "completed",
+      tiuStatus: "completed",
       groupsScanned: groups.length,
       updatesApplied: r.groupsIngested + r.groupsUpdated,
       newEventsFound: r.eventsIngested,
-      summary: `Ransomware.live: ${r.groupsIngested} new, ${r.groupsUpdated} updated, ${r.eventsIngested} victim events`,
-      details: JSON.stringify({ source: "ransomware.live", totalGroups: groups.length }),
+      tiuSummary: `Ransomware.live: ${r.groupsIngested} new, ${r.groupsUpdated} updated, ${r.eventsIngested} victim events`,
+      tiuDetails: JSON.stringify({ source: "ransomware.live", totalGroups: groups.length }),
       durationMs: Date.now() - start,
     });
   } catch (err: any) {
@@ -579,11 +579,11 @@ export async function ingestMalpedia(): Promise<IngestionResult> {
 
     await db.insert(threatIntelUpdates).values({
       sweepType: "manual",
-      status: "completed",
+      tiuStatus: "completed",
       groupsScanned: entries.length,
       updatesApplied: r.groupsIngested + r.groupsUpdated,
-      summary: `Malpedia: ${r.groupsIngested} new, ${r.groupsUpdated} enriched/cross-referenced`,
-      details: JSON.stringify({ source: "malpedia", totalActors: entries.length }),
+      tiuSummary: `Malpedia: ${r.groupsIngested} new, ${r.groupsUpdated} enriched/cross-referenced`,
+      tiuDetails: JSON.stringify({ source: "malpedia", totalActors: entries.length }),
       durationMs: Date.now() - start,
     });
   } catch (err: any) {
@@ -705,12 +705,12 @@ export async function ingestCalderaAdversaries(): Promise<IngestionResult> {
 
     await db.insert(threatIntelUpdates).values({
       sweepType: "manual",
-      status: "completed",
+      tiuStatus: "completed",
       groupsScanned: adversaries.length,
       updatesApplied: r.groupsIngested + r.groupsUpdated,
       newTtpsFound: r.ttpsIngested,
-      summary: `Caldera: ${r.groupsIngested} new, ${r.groupsUpdated} updated, ${r.ttpsIngested} abilities mapped`,
-      details: JSON.stringify({ source: "caldera", totalAdversaries: adversaries.length, abilities: abMap.size }),
+      tiuSummary: `Caldera: ${r.groupsIngested} new, ${r.groupsUpdated} updated, ${r.ttpsIngested} abilities mapped`,
+      tiuDetails: JSON.stringify({ source: "caldera", totalAdversaries: adversaries.length, abilities: abMap.size }),
       durationMs: Date.now() - start,
     });
   } catch (err: any) {
@@ -799,10 +799,10 @@ export async function ensureActorInCatalog(actorName: string, metadata?: {
 
   await db.insert(threatIntelUpdates).values({
     sweepType: "triggered",
-    status: "completed",
+    tiuStatus: "completed",
     groupsScanned: 1,
     updatesApplied: 1,
-    summary: `Auto-discovered: ${actorName}`,
+    tiuSummary: `Auto-discovered: ${actorName}`,
     durationMs: 0,
   });
 
@@ -838,12 +838,12 @@ export async function getCatalogStats() {
 
   const recentUpdates = await db.select({ count: sql<number>`count(*)` })
     .from(threatIntelUpdates)
-    .where(sql`${threatIntelUpdates.startedAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+    .where(sql`${threatIntelUpdates.tiuStartedAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
 
-  const lastSync = await db.select({ completedAt: threatIntelUpdates.completedAt })
+  const lastSync = await db.select({ completedAt: threatIntelUpdates.tiuCompletedAt })
     .from(threatIntelUpdates)
-    .where(eq(threatIntelUpdates.status, "completed"))
-    .orderBy(sql`${threatIntelUpdates.completedAt} DESC`)
+    .where(eq(threatIntelUpdates.tiuStatus, "completed"))
+    .orderBy(sql`${threatIntelUpdates.tiuCompletedAt} DESC`)
     .limit(1);
 
   return {
