@@ -484,3 +484,13 @@
 - [x] Add tabular-nums, page-purpose, kpi-strip, feed-group-header CSS utilities to index.css
 - [x] Verify all scans still run correctly after UI changes (all tRPC endpoints intact, mutations wired, 59 TabsContent in DomainIntelResults, 27 in EngagementOps)
 - [x] All 296 tests passing, Vite build succeeds (1m23s), esbuild server bundle 8.8MB
+
+## KPI Strip Delta Indicators + Live Scan Verification
+- [x] Add delta indicator support to KpiStrip component (arrows, percentage changes, color coding)
+- [x] Wire delta data into DomainIntelResults KPI strip from previous scan comparison (percentage + absolute for assets, risk, findings)
+- [x] Wire delta data into EngagementOps KPI strip (compare to last vuln trend snapshot: assets, ports, vulns, exploits with % change)
+- [x] Verified 5 existing scans in DB with KPI data (risk scores, findings, assets)
+- [x] All tRPC scan endpoints verified intact (startScan, startActiveScan, execute, etc.)
+- [x] Tab grouping verified: 59 TabsContent in DomainIntelResults, 27 in EngagementOps — all preserved
+- [x] All 296 tests passing, Vite build succeeds (3m18s), esbuild server bundle 8.8MB
+- [x] Dev server running and responding 200 on all endpoints

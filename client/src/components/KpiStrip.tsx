@@ -3,9 +3,12 @@
  * 
  * Design Bundle: "Mission Posture Strip" — 6-8 KPI cards that never scroll away,
  * giving operators instant situational awareness at all times.
+ * 
+ * Delta indicators show changes since the last scan/state with arrows,
+ * absolute change values, and percentage changes.
  */
 import { ReactNode } from "react";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
 
 export interface KpiItem {
   label: string;
@@ -13,9 +16,11 @@ export interface KpiItem {
   icon: ReactNode;
   /** Optional color class for the value text */
   color?: string;
-  /** Optional delta from previous scan/state */
+  /** Optional delta from previous scan/state (absolute change) */
   delta?: number | null;
-  /** If true, positive delta is bad (e.g., risk score going up) */
+  /** Optional percentage change from previous value */
+  deltaPercent?: number | null;
+  /** If true, positive delta is bad (e.g., risk score going up, vulns increasing) */
   deltaInverted?: boolean;
   /** Optional subtitle text below the value */
   subtitle?: string;
@@ -47,20 +52,40 @@ export function KpiStrip({ items, className = "" }: KpiStripProps) {
 }
 
 function KpiCard({ item }: { item: KpiItem }) {
-  const deltaColor = item.delta != null
-    ? item.delta === 0
-      ? "text-muted-foreground"
-      : item.deltaInverted
-        ? item.delta > 0 ? "text-red-400" : "text-emerald-400"
-        : item.delta > 0 ? "text-emerald-400" : "text-red-400"
-    : "";
+  const hasDelta = item.delta != null && item.delta !== 0;
+  const hasPercent = item.deltaPercent != null && item.deltaPercent !== 0;
+  const showDelta = hasDelta || hasPercent;
 
-  const DeltaIcon = item.delta != null
-    ? item.delta > 0 ? TrendingUp : item.delta < 0 ? TrendingDown : Minus
-    : null;
+  // Determine if the change is positive or negative in the "good/bad" sense
+  const isPositiveChange = item.delta != null ? item.delta > 0 : (item.deltaPercent != null ? item.deltaPercent > 0 : false);
+  const isNegativeChange = item.delta != null ? item.delta < 0 : (item.deltaPercent != null ? item.deltaPercent < 0 : false);
+  const isNeutral = !isPositiveChange && !isNegativeChange;
+
+  // Color: green = good, red = bad. deltaInverted flips the meaning.
+  const deltaColor = isNeutral
+    ? "text-muted-foreground"
+    : item.deltaInverted
+      ? isPositiveChange ? "text-red-400" : "text-emerald-400"
+      : isPositiveChange ? "text-emerald-400" : "text-red-400";
+
+  const DeltaArrow = isPositiveChange ? ArrowUp : isNegativeChange ? ArrowDown : null;
+
+  // Format the delta display
+  const formatDelta = () => {
+    const parts: string[] = [];
+    if (hasDelta) {
+      const sign = item.delta! > 0 ? "+" : "";
+      parts.push(`${sign}${item.delta!.toLocaleString()}`);
+    }
+    if (hasPercent) {
+      const sign = item.deltaPercent! > 0 ? "+" : "";
+      parts.push(`${sign}${item.deltaPercent!.toFixed(1)}%`);
+    }
+    return parts.join(" ");
+  };
 
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border/40 bg-background/50 px-3 py-2 min-w-0">
+    <div className="flex items-center gap-2.5 rounded-lg border border-border/40 bg-background/50 px-3 py-2 min-w-0 group relative">
       <div className="flex-none text-muted-foreground/70">
         {item.icon}
       </div>
@@ -72,10 +97,10 @@ function KpiCard({ item }: { item: KpiItem }) {
           {item.suffix && (
             <span className="text-xs text-muted-foreground">{item.suffix}</span>
           )}
-          {item.delta != null && item.delta !== 0 && DeltaIcon && (
-            <span className={`flex items-center gap-0.5 text-[10px] font-medium ${deltaColor}`}>
-              <DeltaIcon className="h-2.5 w-2.5" />
-              {item.delta > 0 ? "+" : ""}{item.delta}
+          {showDelta && DeltaArrow && (
+            <span className={`flex items-center gap-0.5 text-[10px] font-medium tabular-nums ${deltaColor}`}>
+              <DeltaArrow className="h-2.5 w-2.5" />
+              {formatDelta()}
             </span>
           )}
         </div>

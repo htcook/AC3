@@ -766,29 +766,38 @@ export default function DomainIntelResults() {
         const coverageBand = (scan as any).discoveryCoverageBand || 'unknown';
         const prevRisk = scanDelta?.previousRiskScore ?? pipeline?.previousSnapshot?.overallRiskScore ?? null;
         const riskDelta = prevRisk != null ? (scan.overallRiskScore || 0) - prevRisk : null;
+        const riskDeltaPct = prevRisk != null && prevRisk > 0 ? ((riskDelta! / prevRisk) * 100) : null;
         const prevAssets = scanDelta?.previousTotalAssets ?? pipeline?.previousSnapshot?.totalAssets ?? null;
-        const assetDelta = prevAssets != null ? assets.length - prevAssets : null;
+        const totalAssets = assets.length + subdomainAssets.length;
+        const assetDelta = prevAssets != null ? totalAssets - prevAssets : null;
+        const assetDeltaPct = prevAssets != null && prevAssets > 0 ? ((assetDelta! / prevAssets) * 100) : null;
+        const prevFindings = scanDelta?.previousTotalFindings ?? null;
+        const findingsDelta = scanDelta?.findingsDelta ?? null;
+        const findingsDeltaPct = prevFindings != null && prevFindings > 0 && findingsDelta != null ? ((findingsDelta / prevFindings) * 100) : null;
 
         const kpiItems: KpiItem[] = [
           {
             label: "Assets in Scope",
-            value: assets.length + subdomainAssets.length,
+            value: totalAssets,
             icon: <Target className="h-4 w-4 text-cyan-400" />,
             color: "text-cyan-400",
             delta: assetDelta,
-            subtitle: subdomainAssets.length > 0 ? `${assets.length} analyzed + ${subdomainAssets.length} subs` : undefined,
+            deltaPercent: assetDeltaPct,
+            subtitle: subdomainAssets.length > 0 ? `${assets.length} analyzed + ${subdomainAssets.length} subs` : (scanDelta ? `vs. ${prevAssets ?? '?'} prev` : undefined),
           },
           {
             label: "Critical Findings",
             value: criticalCount,
             icon: <Skull className="h-4 w-4 text-red-400" />,
             color: criticalCount > 0 ? "text-red-400" : "text-muted-foreground",
+            deltaInverted: true,
           },
           {
             label: "High Findings",
             value: highCount,
             icon: <AlertTriangle className="h-4 w-4 text-orange-400" />,
             color: highCount > 0 ? "text-orange-400" : "text-muted-foreground",
+            deltaInverted: true,
           },
           {
             label: "Risk Score",
@@ -796,20 +805,24 @@ export default function DomainIntelResults() {
             icon: <Shield className="h-4 w-4 text-purple-400" />,
             color: (scan.overallRiskBand === 'critical' ? 'text-red-400' : scan.overallRiskBand === 'high' ? 'text-orange-400' : scan.overallRiskBand === 'medium' ? 'text-yellow-400' : 'text-emerald-400'),
             delta: riskDelta,
+            deltaPercent: riskDeltaPct,
             deltaInverted: true,
             suffix: "/100",
+            subtitle: scanDelta ? `prev: ${prevRisk ?? '?'}` : undefined,
           },
           {
             label: "Verified Exploitable",
             value: verifiedCount,
             icon: <Crosshair className="h-4 w-4 text-red-500" />,
             color: verifiedCount > 0 ? "text-red-500" : "text-muted-foreground",
+            deltaInverted: true,
           },
           {
             label: "Breach Exposures",
             value: breachExposures,
             icon: <Lock className="h-4 w-4 text-amber-400" />,
             color: breachExposures > 0 ? "text-amber-400" : "text-muted-foreground",
+            deltaInverted: true,
           },
           {
             label: "Recon Coverage",
@@ -825,8 +838,10 @@ export default function DomainIntelResults() {
             label: "Total Findings",
             value: scan.totalFindings || 0,
             icon: <Bug className="h-4 w-4 text-yellow-400" />,
-            delta: scanDelta?.findingsDelta ?? null,
+            delta: findingsDelta,
+            deltaPercent: findingsDeltaPct,
             deltaInverted: true,
+            subtitle: scanDelta ? `prev: ${prevFindings ?? '?'}` : undefined,
           },
         ];
 

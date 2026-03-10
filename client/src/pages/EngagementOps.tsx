@@ -1430,14 +1430,34 @@ export default function EngagementOps() {
       {/* ── KPI Mission Posture Strip ── */}
       {ops && (() => {
         const totalVulns = ops.stats?.vulnsFound || 0;
-        const criticalVulns = (ops.assets || []).reduce((sum, a) => sum + (a.vulns || []).filter(v => v.severity === 'critical').length, 0);
-        const highVulns = (ops.assets || []).reduce((sum, a) => sum + (a.vulns || []).filter(v => v.severity === 'high').length, 0);
+        const criticalVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'critical').length, 0);
+        const highVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'high').length, 0);
+
+        // Delta comparison: use the last vuln trend snapshot as the baseline
+        const trendData = vulnTrendQ.data as any[] | undefined;
+        const lastSnapshot = trendData && trendData.length > 0 ? trendData[trendData.length - 1] : null;
+        const prevVulns = lastSnapshot?.totalVulns ?? null;
+        const prevAssets = lastSnapshot?.assets ?? null;
+        const prevPorts = lastSnapshot?.ports ?? null;
+        const prevExploits = lastSnapshot?.exploits ?? null;
+
+        // Compute deltas (current - previous snapshot)
+        const vulnDelta = prevVulns != null ? totalVulns - prevVulns : null;
+        const vulnDeltaPct = prevVulns != null && prevVulns > 0 ? ((vulnDelta! / prevVulns) * 100) : null;
+        const assetCount = ops.assets?.length || 0;
+        const assetDelta = prevAssets != null ? assetCount - prevAssets : null;
+        const assetDeltaPct = prevAssets != null && prevAssets > 0 ? ((assetDelta! / prevAssets) * 100) : null;
+        const portDelta = prevPorts != null ? (ops.stats?.portsFound || 0) - prevPorts : null;
+        const exploitDelta = prevExploits != null ? (ops.stats?.exploitsSucceeded || 0) - prevExploits : null;
+
+        const snapshotLabel = lastSnapshot ? `vs. snapshot ${new Date(lastSnapshot.date).toLocaleTimeString()}` : undefined;
+
         const kpiItems: KpiItem[] = [
-          { label: 'Assets Discovered', value: ops.assets?.length || 0, icon: <Globe className="h-4 w-4 text-emerald-400" />, color: 'text-emerald-400' },
+          { label: 'Assets Discovered', value: assetCount, icon: <Globe className="h-4 w-4 text-emerald-400" />, color: 'text-emerald-400', delta: assetDelta, deltaPercent: assetDeltaPct, subtitle: snapshotLabel },
           { label: 'Hosts Scanned', value: ops.stats?.hostsScanned || 0, icon: <Server className="h-4 w-4 text-cyan-400" />, color: 'text-cyan-400' },
-          { label: 'Open Ports', value: ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400' },
-          { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : undefined },
-          { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', subtitle: `${ops.stats?.exploitsAttempted || 0} attempted` },
+          { label: 'Open Ports', value: ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta },
+          { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', delta: vulnDelta, deltaPercent: vulnDeltaPct, deltaInverted: true, subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : snapshotLabel },
+          { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', delta: exploitDelta, deltaInverted: true, subtitle: `${ops.stats?.exploitsAttempted || 0} attempted` },
           { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground' },
           ...(liveOwaspCoverage ? [{ label: 'OWASP Score', value: liveOwaspCoverage.overallScore, suffix: '%', icon: <ShieldCheck className="h-4 w-4 text-purple-400" />, color: liveOwaspCoverage.overallScore >= 70 ? 'text-green-400' : liveOwaspCoverage.overallScore >= 40 ? 'text-yellow-400' : 'text-red-400', progress: liveOwaspCoverage.overallScore, progressColor: liveOwaspCoverage.overallScore >= 70 ? 'bg-green-500' : liveOwaspCoverage.overallScore >= 40 ? 'bg-yellow-500' : 'bg-red-500' }] : []),
           { label: 'WAFs Detected', value: ops.stats?.wafDetections || 0, icon: <ShieldAlert className="h-4 w-4 text-orange-400" />, color: (ops.stats?.wafDetections || 0) > 0 ? 'text-orange-400' : 'text-foreground' },
