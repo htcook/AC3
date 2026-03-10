@@ -48,6 +48,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { KpiStrip } from "@/components/KpiStrip";
+import type { KpiItem } from "@/components/KpiStrip";
+import { TabGroupNav } from "@/components/TabGroupNav";
+import type { TabGroup } from "@/components/TabGroupNav";
+import { FindingStateBadge } from "@/components/FindingStateBadge";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -500,7 +505,108 @@ function ExploitPlanReviewCard({
   );
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
+// ─── Feed Entry Renderer ──────────────────────────────────────────────────────────────
+
+function renderFeedEntry(entry: OpsLogEntry) {
+  const hasEvidence = entry.data && (
+    entry.type === 'llm_decision' || entry.type === 'tool_match' ||
+    entry.type === 'exploit_success' || entry.type === 'credential_test' ||
+    entry.type === 'phase_complete' || entry.data.output || entry.data.command ||
+    entry.data.findings || entry.data.reasoning || entry.data.tools
+  );
+  return (
+    <Collapsible key={entry.id}>
+      <div
+        className={`rounded-md text-sm transition-colors ${
+          entry.type === "phase_complete" ? "bg-green-500/5 border border-green-500/10" :
+          entry.type === "approval_request" ? "bg-orange-500/5 border border-orange-500/10" :
+          entry.type === "exploit_success" ? "bg-red-500/5 border border-red-500/10" :
+          entry.type === "error" ? "bg-red-500/5 border border-red-500/10" :
+          entry.type === "llm_decision" ? "bg-cyan-500/5 border border-cyan-500/10" :
+          entry.type === "tool_match" ? "bg-purple-500/5 border border-purple-500/10" :
+          entry.type === "credential_test" ? "bg-yellow-500/5 border border-yellow-500/10" :
+          "hover:bg-muted/20"
+        }`}
+      >
+        <CollapsibleTrigger className="w-full text-left">
+          <div className="flex items-start gap-2 px-3 py-2">
+            <span className="flex-none mt-0.5">{logIcon(entry.type)}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-foreground">{entry.title}</span>
+                {riskBadge(entry.riskTier)}
+                {entry.data?.target && (
+                  <Badge variant="outline" className="text-[9px] text-muted-foreground border-border/50 font-mono">{entry.data.target}</Badge>
+                )}
+                {hasEvidence && (
+                  <ChevronDown className="h-3 w-3 text-muted-foreground/50 ml-auto flex-none" />
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{entry.detail}</p>
+            </div>
+            <span className="flex-none text-[10px] text-muted-foreground/50 tabular-nums">
+              {formatTime(entry.timestamp)}
+            </span>
+          </div>
+        </CollapsibleTrigger>
+        {hasEvidence && (
+          <CollapsibleContent>
+            <div className="px-3 pb-2 ml-6 space-y-1.5 border-t border-border/20 pt-1.5">
+              {entry.data?.reasoning && (
+                <div className="text-xs text-cyan-400/80 bg-cyan-500/5 rounded px-2 py-1">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block mb-0.5">LLM Reasoning</span>
+                  {entry.data.reasoning}
+                </div>
+              )}
+              {entry.data?.tools && (
+                <div className="flex flex-wrap gap-1">
+                  <span className="text-[10px] text-muted-foreground mr-1">Tools:</span>
+                  {(entry.data.tools as string[]).map((tool, i) => (
+                    <Badge key={i} variant="outline" className="text-[9px] text-purple-400 border-purple-500/30">{tool}</Badge>
+                  ))}
+                </div>
+              )}
+              {entry.data?.command && (
+                <div className="bg-black/30 rounded px-2 py-1">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block mb-0.5">Command</span>
+                  <code className="text-[10px] text-green-400 font-mono break-all">{entry.data.command}</code>
+                </div>
+              )}
+              {entry.data?.output && (
+                <div className="bg-black/30 rounded px-2 py-1 max-h-32 overflow-y-auto">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block mb-0.5">Output</span>
+                  <pre className="text-[10px] text-green-400/80 font-mono whitespace-pre-wrap break-all">{String(entry.data.output).slice(0, 500)}</pre>
+                </div>
+              )}
+              {entry.data?.findings && Array.isArray(entry.data.findings) && entry.data.findings.length > 0 && (
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block mb-0.5">Findings ({entry.data.findings.length})</span>
+                  <div className="space-y-0.5">
+                    {(entry.data.findings as Array<{severity?: string; title?: string; cve?: string}>).slice(0, 5).map((f, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                        {f.severity && <FindingStateBadge state={f.severity} size="sm" />}
+                        <span className="text-foreground">{f.title || 'Unnamed finding'}</span>
+                        {f.cve && <code className="text-red-400 font-mono">{f.cve}</code>}
+                      </div>
+                    ))}
+                    {entry.data.findings.length > 5 && (
+                      <span className="text-[10px] text-muted-foreground">...and {entry.data.findings.length - 5} more</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {entry.data?.durationMs && (
+                <span className="text-[10px] text-muted-foreground font-mono">Duration: {entry.data.durationMs}ms</span>
+              )}
+            </div>
+          </CollapsibleContent>
+        )}
+      </div>
+    </Collapsible>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────────────
 
 export default function EngagementOps() {
   const [, params] = useRoute("/engagement-ops/:id");
@@ -609,6 +715,8 @@ export default function EngagementOps() {
 
   const [showScanPlan, setShowScanPlan] = useState(false);
   const [selectedScanMode, setSelectedScanMode] = useState<'strict_passive' | 'standard' | 'active'>('strict_passive');
+  const [feedGroupBy, setFeedGroupBy] = useState<'none' | 'host' | 'phase' | 'type'>('none');
+  const [feedFilter, setFeedFilter] = useState<string>('all');
   const [showScanModePopover, setShowScanModePopover] = useState(false);
 
   // Sync scan mode from engagement data once loaded
@@ -1319,6 +1427,33 @@ export default function EngagementOps() {
         <Progress value={ops?.progress || 0} className="mt-2 h-1.5" />
       </div>
 
+      {/* ── KPI Mission Posture Strip ── */}
+      {ops && (() => {
+        const totalVulns = ops.stats?.vulnsFound || 0;
+        const criticalVulns = (ops.assets || []).reduce((sum, a) => sum + (a.vulns || []).filter(v => v.severity === 'critical').length, 0);
+        const highVulns = (ops.assets || []).reduce((sum, a) => sum + (a.vulns || []).filter(v => v.severity === 'high').length, 0);
+        const kpiItems: KpiItem[] = [
+          { label: 'Assets Discovered', value: ops.assets?.length || 0, icon: <Globe className="h-4 w-4 text-emerald-400" />, color: 'text-emerald-400' },
+          { label: 'Hosts Scanned', value: ops.stats?.hostsScanned || 0, icon: <Server className="h-4 w-4 text-cyan-400" />, color: 'text-cyan-400' },
+          { label: 'Open Ports', value: ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400' },
+          { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : undefined },
+          { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', subtitle: `${ops.stats?.exploitsAttempted || 0} attempted` },
+          { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground' },
+          ...(liveOwaspCoverage ? [{ label: 'OWASP Score', value: liveOwaspCoverage.overallScore, suffix: '%', icon: <ShieldCheck className="h-4 w-4 text-purple-400" />, color: liveOwaspCoverage.overallScore >= 70 ? 'text-green-400' : liveOwaspCoverage.overallScore >= 40 ? 'text-yellow-400' : 'text-red-400', progress: liveOwaspCoverage.overallScore, progressColor: liveOwaspCoverage.overallScore >= 70 ? 'bg-green-500' : liveOwaspCoverage.overallScore >= 40 ? 'bg-yellow-500' : 'bg-red-500' }] : []),
+          { label: 'WAFs Detected', value: ops.stats?.wafDetections || 0, icon: <ShieldAlert className="h-4 w-4 text-orange-400" />, color: (ops.stats?.wafDetections || 0) > 0 ? 'text-orange-400' : 'text-foreground' },
+        ];
+        return <KpiStrip items={kpiItems} />;
+      })()}
+
+      {/* Page Purpose Description */}
+      <div className="flex-none px-6">
+        <p className="page-purpose">
+          Active engagement operations console for <strong className="text-foreground">{eng?.name || 'this engagement'}</strong>. 
+          This view orchestrates the full scan pipeline — from passive reconnaissance through active enumeration, 
+          vulnerability detection, and exploitation — with LLM-driven decision-making and human approval gates.
+        </p>
+      </div>
+
       {/* ── Error Banner ── */}
       {isErrorState && (
         <div className="flex-none border-b border-red-500/30">
@@ -1626,95 +1761,109 @@ export default function EngagementOps() {
         </div>
       )}
 
-      {/* ── Main Content ── */}
+      {/* ── Main Content: Three-Column Operational View ── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Live Feed + Tabs */}
+        {/* Left: Event Stream (always visible) + Grouped Tabs below */}
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Grouped Tab Navigation */}
+          {(() => {
+            const toolCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.toolResults?.length || 0), 0);
+            const credTests = (ops?.assets || []).flatMap((a: any) => (a.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing'));
+            const credFound = credTests.filter((tr: any) => tr.findings?.length > 0).length;
+            const synthCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.tool === 'llm-synthesis').length, 0);
+            const tabGroups: TabGroup[] = [
+              {
+                id: 'operations',
+                label: 'Operations',
+                icon: <Activity className="h-3.5 w-3.5" />,
+                color: 'text-cyan-400',
+                subTabs: [
+                  { value: 'feed', label: 'Live Feed', icon: <Activity className="h-3 w-3" />, count: ops?.log?.length || 0 },
+                  { value: 'assets', label: 'Assets', icon: <Target className="h-3 w-3" />, count: ops?.assets?.length || 0 },
+                  { value: 'scope', label: 'RoE & Scope', icon: <Shield className="h-3 w-3" /> },
+                  { value: 'trends', label: 'Trends', icon: <TrendingUp className="h-3 w-3" /> },
+                  { value: 'planhistory', label: 'Plan History', icon: <ClipboardList className="h-3 w-3" /> },
+                ],
+              },
+              {
+                id: 'discovery',
+                label: 'Discovery',
+                icon: <Radar className="h-3.5 w-3.5" />,
+                color: 'text-purple-400',
+                subTabs: [
+                  { value: 'discovery', label: 'Tool Results', icon: <Radar className="h-3 w-3" />, count: toolCount },
+                  { value: 'credentials', label: 'Credentials', icon: <KeyRound className="h-3 w-3" />, count: credFound > 0 ? credFound : credTests.length },
+                  { value: 'cloud', label: 'Cloud', icon: <Cloud className="h-3 w-3" />, count: cloudMisconfigsQ.data?.stats?.total || 0 },
+                ],
+              },
+              {
+                id: 'exploitation',
+                label: 'Exploitation',
+                icon: <Swords className="h-3.5 w-3.5" />,
+                color: 'text-red-400',
+                subTabs: [
+                  { value: 'exploits', label: 'Exploit Match', icon: <Swords className="h-3 w-3" />, count: exploitsQ.data?.exploits?.length || 0 },
+                  { value: 'attackchains', label: 'Attack Chains', icon: <GitBranch className="h-3 w-3" />, count: attackChainsQ.data?.chains?.length || 0 },
+                  { value: 'genexploits', label: 'Exploit Code', icon: <Bolt className="h-3 w-3" />, count: generatedExploitsQ.data?.length || 0 },
+                ],
+              },
+              {
+                id: 'analysis',
+                label: 'AI Analysis',
+                icon: <Brain className="h-3.5 w-3.5" />,
+                color: 'text-emerald-400',
+                subTabs: [
+                  { value: 'llmsynthesis', label: 'LLM Synthesis', icon: <Brain className="h-3 w-3" />, count: synthCount },
+                  { value: 'feedback', label: 'Feedback Loop', icon: <RefreshCw className="h-3 w-3" />, count: feedbackLoopQ.data?.totalScansExecuted || 0 },
+                ],
+              },
+            ];
+            return (
+              <div className="flex-none px-4 pt-2">
+                <TabGroupNav groups={tabGroups} activeTab={activeTab} onTabChange={setActiveTab} />
+              </div>
+            );
+          })()}
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-none px-6 pt-3">
-              <TabsList className="bg-muted/30">
-                <TabsTrigger value="feed" className="text-xs">
-                  <Activity className="h-3.5 w-3.5 mr-1" /> Live Feed
-                  {ops?.log?.length ? <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">{ops.log.length}</Badge> : null}
-                </TabsTrigger>
-                <TabsTrigger value="assets" className="text-xs">
-                  <Target className="h-3.5 w-3.5 mr-1" /> Assets
-                  {ops?.assets?.length ? <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">{ops.assets.length}</Badge> : null}
-                </TabsTrigger>
-                <TabsTrigger value="discovery" className="text-xs">
-                  <Radar className="h-3.5 w-3.5 mr-1" /> Discovery
-                  {(() => {
-                    const toolCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.toolResults?.length || 0), 0);
-                    return toolCount > 0 ? <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-cyan-500/20 text-cyan-400">{toolCount}</Badge> : null;
-                  })()}
-                </TabsTrigger>
-                <TabsTrigger value="exploits" className="text-xs">
-                  <Swords className="h-3.5 w-3.5 mr-1" /> Exploit Match
-                  {(exploitsQ.data?.exploits?.length || 0) > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-red-500/20 text-red-400">{exploitsQ.data!.exploits.length}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="credentials" className="text-xs">
-                  <KeyRound className="h-3.5 w-3.5 mr-1" /> Credentials
-                  {(() => {
-                    const credTests = (ops?.assets || []).flatMap((a: any) => (a.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing'));
-                    const found = credTests.filter((tr: any) => tr.findings?.length > 0).length;
-                    return credTests.length > 0 ? (
-                      <Badge variant="secondary" className={`ml-1 text-[9px] h-4 px-1 ${found > 0 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                        {found > 0 ? `${found} found` : credTests.length}
-                      </Badge>
-                    ) : null;
-                  })()}
-                </TabsTrigger>
-                <TabsTrigger value="scope" className="text-xs">
-                  <Shield className="h-3.5 w-3.5 mr-1" /> RoE & Scope
-                </TabsTrigger>
-                <TabsTrigger value="attackchains" className="text-xs">
-                  <GitBranch className="h-3.5 w-3.5 mr-1" /> Attack Chains
-                  {(attackChainsQ.data?.chains?.length || 0) > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-red-500/20 text-red-400">{attackChainsQ.data!.chains.length}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="cloud" className="text-xs">
-                  <Cloud className="h-3.5 w-3.5 mr-1" /> Cloud
-                  {(cloudMisconfigsQ.data?.stats?.total || 0) > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-orange-500/20 text-orange-400">{cloudMisconfigsQ.data!.stats.total}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="feedback" className="text-xs">
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Feedback Loop
-                  {feedbackLoopQ.data && (
-                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-purple-500/20 text-purple-400">{feedbackLoopQ.data.totalScansExecuted}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="llmsynthesis" className="text-xs">
-                  <Brain className="h-3.5 w-3.5 mr-1" /> LLM Synthesis
-                  {(() => {
-                    const synthCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.tool === 'llm-synthesis').length, 0);
-                    return synthCount > 0 ? <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-emerald-500/20 text-emerald-400">{synthCount}</Badge> : null;
-                  })()}
-                </TabsTrigger>
-                <TabsTrigger value="genexploits" className="text-xs">
-                  <Bolt className="h-3.5 w-3.5 mr-1" /> Exploit Code
-                  {(generatedExploitsQ.data?.length || 0) > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 bg-red-500/20 text-red-400">{generatedExploitsQ.data!.length}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="trends" className="text-xs">
-                  <TrendingUp className="h-3.5 w-3.5 mr-1" /> Trends
-                </TabsTrigger>
-                <TabsTrigger value="planhistory" className="text-xs">
-                  <ClipboardList className="h-3.5 w-3.5 mr-1" /> Plan History
-                </TabsTrigger>
-              </TabsList>
-            </div>
 
             {/* ── Live Feed Tab ── */}
             <TabsContent value="feed" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <div className="relative h-full flex flex-col">
+              {/* Event Grouping & Filter Controls */}
+              <div className="flex-none flex items-center gap-2 py-2">
+                <span className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Group:</span>
+                {(['none', 'host', 'phase', 'type'] as const).map(g => (
+                  <button
+                    key={g}
+                    onClick={() => setFeedGroupBy(g)}
+                    className={`text-[10px] px-2 py-0.5 rounded-md transition-colors ${
+                      feedGroupBy === g ? 'bg-primary/15 text-primary ring-1 ring-primary/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+                    }`}
+                  >
+                    {g === 'none' ? 'Timeline' : g.charAt(0).toUpperCase() + g.slice(1)}
+                  </button>
+                ))}
+                <div className="flex-1" />
+                <span className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Filter:</span>
+                <select
+                  value={feedFilter}
+                  onChange={(e) => setFeedFilter(e.target.value)}
+                  className="text-[10px] bg-muted/20 border border-border/30 rounded px-1.5 py-0.5 text-foreground"
+                >
+                  <option value="all">All Events</option>
+                  <option value="phase_complete">Phase Changes</option>
+                  <option value="llm_decision">LLM Decisions</option>
+                  <option value="tool_match">Tool Matches</option>
+                  <option value="exploit_success">Exploits</option>
+                  <option value="credential_test">Credentials</option>
+                  <option value="error">Errors</option>
+                  <option value="approval_request">Approvals</option>
+                </select>
+              </div>
               <div
                 ref={feedScrollRef}
-                className="flex-1 overflow-y-auto min-h-0 max-h-[calc(100vh-280px)] border border-border/30 rounded-lg bg-background/50"
+                className="flex-1 overflow-y-auto min-h-0 max-h-[calc(100vh-320px)] border border-border/30 rounded-lg bg-background/50"
                 style={{ scrollBehavior: "smooth" }}
               >
                 <div className="space-y-1 p-3">
@@ -1733,43 +1882,37 @@ export default function EngagementOps() {
                       )}
                     </div>
                   )}
-                  {(ops?.log || []).map(entry => (
-                    <div
-                      key={entry.id}
-                      className={`flex items-start gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                        entry.type === "phase_complete" ? "bg-green-500/5 border border-green-500/10" :
-                        entry.type === "approval_request" ? "bg-orange-500/5 border border-orange-500/10" :
-                        entry.type === "exploit_success" ? "bg-red-500/5 border border-red-500/10" :
-                        entry.type === "error" ? "bg-red-500/5 border border-red-500/10" :
-                        entry.type === "llm_decision" ? "bg-cyan-500/5 border border-cyan-500/10" :
-                        entry.type === "tool_match" ? "bg-purple-500/5 border border-purple-500/10" :
-                        entry.type === "credential_test" ? "bg-yellow-500/5 border border-yellow-500/10" :
-                        "hover:bg-muted/20"
-                      }`}
-                    >
-                      <span className="flex-none mt-0.5">{logIcon(entry.type)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground">{entry.title}</span>
-                          {riskBadge(entry.riskTier)}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{entry.detail}</p>
-                        {entry.data && entry.type === "llm_decision" && entry.data.reasoning && (
-                          <p className="text-xs text-cyan-400/70 mt-1 italic">💡 {entry.data.reasoning}</p>
-                        )}
-                        {entry.data && entry.type === "tool_match" && entry.data.tools && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {(entry.data.tools as string[]).map((tool, i) => (
-                              <Badge key={i} variant="outline" className="text-[9px] text-purple-400 border-purple-500/30">{tool}</Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <span className="flex-none text-[10px] text-muted-foreground/50 tabular-nums">
-                        {formatTime(entry.timestamp)}
-                      </span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const filtered = (ops?.log || []).filter(e => feedFilter === 'all' || e.type === feedFilter);
+                    if (feedGroupBy !== 'none' && filtered.length > 0) {
+                      const groups = new Map<string, typeof filtered>();
+                      for (const e of filtered) {
+                        const key = feedGroupBy === 'host' ? (e.data?.target || e.data?.hostname || 'Unknown')
+                          : feedGroupBy === 'phase' ? (e.data?.phase || 'General')
+                          : e.type;
+                        if (!groups.has(key)) groups.set(key, []);
+                        groups.get(key)!.push(e);
+                      }
+                      return Array.from(groups.entries()).map(([groupName, entries]) => (
+                        <Collapsible key={groupName} defaultOpen>
+                          <CollapsibleTrigger className="w-full text-left">
+                            <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/20 rounded-md border border-border/20 mb-1">
+                              <ChevronRight className="h-3 w-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                              <span className="text-xs font-medium text-foreground">{groupName}</span>
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1">{entries.length}</Badge>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="space-y-1 ml-3 mb-2">
+                              {entries.map(entry => renderFeedEntry(entry))}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      ));
+                    }
+                    return filtered.map(entry => renderFeedEntry(entry));
+                  })()}
+
                   <div ref={feedEndRef} />
                 </div>
               </div>

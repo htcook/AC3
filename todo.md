@@ -464,9 +464,23 @@
 - [x] 6 new tests for provenance evidence chain (provenance rendering, grouping, cross-referencing, empty handling)
 - [x] All 296 tests passing, esbuild succeeds (8.8MB bundle)
 
-## Scan Dashboard UI Improvements (March 2026)
-- [ ] Analyze AceC3_UI_Design_Bundle for design patterns and improvements
-- [ ] Audit current Passive Domain Intel dashboard UI (DomainIntelResults.tsx)
-- [ ] Audit current Engagement Scanning UI (EngagementOps.tsx)
-- [ ] Propose specific UI improvements based on design bundle analysis
-- [ ] Implement approved UI improvements
+## Scan Dashboard UI Improvements (Design Bundle Implementation)
+- [x] Analyze AceC3_UI_Design_Bundle for design patterns and improvements
+- [x] Audit current Passive Domain Intel dashboard UI (DomainIntelResults.tsx)
+- [x] Audit current Engagement Scanning UI (EngagementOps.tsx)
+- [x] Propose specific UI improvements based on design bundle analysis
+- [x] Create shared KpiStrip component (horizontal strip of 6-8 KPI cards)
+- [x] Create FindingStateBadge component (7-state verification: observed → suspected → confirmed → verified → mitigated → accepted → FP)
+- [x] Create TabGroupNav component (two-level tab navigation with category + sub-tabs)
+- [x] Add KPI Mission Posture Strip to DomainIntelResults
+- [x] Group DomainIntelResults 25+ tabs into 6 categories with sub-navigation
+- [x] Add KPI Mission Posture Strip to EngagementOps
+- [x] Restructure EngagementOps tabs into grouped navigation (Operations, Discovery, Exploitation, AI Analysis)
+- [x] Add expandable evidence blocks to EngagementOps event stream entries (Collapsible with LLM reasoning, command, output, findings)
+- [x] Add event grouping controls to EngagementOps feed (by host, phase, type) + filter dropdown
+- [x] Extract renderFeedEntry helper function for reuse in grouped and flat views
+- [x] Apply Ace of Cloud brand alignment (restrained accent colors, tabular numbers)
+- [x] Add page purpose descriptions to top of both dashboards
+- [x] Add tabular-nums, page-purpose, kpi-strip, feed-group-header CSS utilities to index.css
+- [x] Verify all scans still run correctly after UI changes (all tRPC endpoints intact, mutations wired, 59 TabsContent in DomainIntelResults, 27 in EngagementOps)
+- [x] All 296 tests passing, Vite build succeeds (1m23s), esbuild server bundle 8.8MB

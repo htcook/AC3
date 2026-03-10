@@ -31,6 +31,11 @@ import CorroborationPanel from "@/components/CorroborationPanel";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { exportScanAssets, exportFindings, exportThreatActors, exportExecutiveSummary, exportExecutiveSummaryWithValidation, exportValidationReportPdf, exportValidationResultsCsv } from "@/lib/export-utils";
+import { KpiStrip } from "@/components/KpiStrip";
+import type { KpiItem } from "@/components/KpiStrip";
+import { TabGroupNav } from "@/components/TabGroupNav";
+import type { TabGroup } from "@/components/TabGroupNav";
+import { FindingStateBadge } from "@/components/FindingStateBadge";
 import type { ValidationResultExport, ValidationRunExport } from "@/lib/export-utils";
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
@@ -751,6 +756,92 @@ export default function DomainIntelResults() {
         </div>
       </div>
 
+      {/* ── KPI Mission Posture Strip ── */}
+      {(() => {
+        const criticalCount = (assets as any[]).filter((a: any) => a.riskBand === 'critical').length;
+        const highCount = (assets as any[]).filter((a: any) => a.riskBand === 'high').length;
+        const verifiedCount = validationSummary.data?.results?.filter((r: any) => r.exploitable)?.length || 0;
+        const breachExposures = (pipeline?.breachData?.totalExposures || 0) as number;
+        const coverageScore = (scan as any).discoveryCoverageScore || 0;
+        const coverageBand = (scan as any).discoveryCoverageBand || 'unknown';
+        const prevRisk = scanDelta?.previousRiskScore ?? pipeline?.previousSnapshot?.overallRiskScore ?? null;
+        const riskDelta = prevRisk != null ? (scan.overallRiskScore || 0) - prevRisk : null;
+        const prevAssets = scanDelta?.previousTotalAssets ?? pipeline?.previousSnapshot?.totalAssets ?? null;
+        const assetDelta = prevAssets != null ? assets.length - prevAssets : null;
+
+        const kpiItems: KpiItem[] = [
+          {
+            label: "Assets in Scope",
+            value: assets.length + subdomainAssets.length,
+            icon: <Target className="h-4 w-4 text-cyan-400" />,
+            color: "text-cyan-400",
+            delta: assetDelta,
+            subtitle: subdomainAssets.length > 0 ? `${assets.length} analyzed + ${subdomainAssets.length} subs` : undefined,
+          },
+          {
+            label: "Critical Findings",
+            value: criticalCount,
+            icon: <Skull className="h-4 w-4 text-red-400" />,
+            color: criticalCount > 0 ? "text-red-400" : "text-muted-foreground",
+          },
+          {
+            label: "High Findings",
+            value: highCount,
+            icon: <AlertTriangle className="h-4 w-4 text-orange-400" />,
+            color: highCount > 0 ? "text-orange-400" : "text-muted-foreground",
+          },
+          {
+            label: "Risk Score",
+            value: scan.overallRiskScore || 0,
+            icon: <Shield className="h-4 w-4 text-purple-400" />,
+            color: (scan.overallRiskBand === 'critical' ? 'text-red-400' : scan.overallRiskBand === 'high' ? 'text-orange-400' : scan.overallRiskBand === 'medium' ? 'text-yellow-400' : 'text-emerald-400'),
+            delta: riskDelta,
+            deltaInverted: true,
+            suffix: "/100",
+          },
+          {
+            label: "Verified Exploitable",
+            value: verifiedCount,
+            icon: <Crosshair className="h-4 w-4 text-red-500" />,
+            color: verifiedCount > 0 ? "text-red-500" : "text-muted-foreground",
+          },
+          {
+            label: "Breach Exposures",
+            value: breachExposures,
+            icon: <Lock className="h-4 w-4 text-amber-400" />,
+            color: breachExposures > 0 ? "text-amber-400" : "text-muted-foreground",
+          },
+          {
+            label: "Recon Coverage",
+            value: coverageScore,
+            icon: <Radar className="h-4 w-4 text-emerald-400" />,
+            color: coverageScore >= 70 ? "text-emerald-400" : coverageScore >= 40 ? "text-yellow-400" : "text-red-400",
+            suffix: "%",
+            progress: coverageScore,
+            progressColor: coverageScore >= 70 ? "bg-emerald-500" : coverageScore >= 40 ? "bg-yellow-500" : "bg-red-500",
+            subtitle: coverageBand,
+          },
+          {
+            label: "Total Findings",
+            value: scan.totalFindings || 0,
+            icon: <Bug className="h-4 w-4 text-yellow-400" />,
+            delta: scanDelta?.findingsDelta ?? null,
+            deltaInverted: true,
+          },
+        ];
+
+        return <KpiStrip items={kpiItems} />;
+      })()}
+
+      {/* Page Purpose Description */}
+      <div className="px-1">
+        <p className="page-purpose">
+          Passive domain intelligence results for <strong className="text-foreground">{scan.primaryDomain}</strong>. 
+          This view presents discovered assets, risk scores, vulnerability findings, breach exposures, and threat actor 
+          correlations gathered from open-source intelligence (OSINT) sources — no packets were sent to the target infrastructure.
+        </p>
+      </div>
+
       {/* Refresh In Progress Banner */}
       {isRefreshInProgress && (
         <Card className="border-cyan-500/30 bg-cyan-500/5">
@@ -1039,70 +1130,84 @@ export default function DomainIntelResults() {
         )}
       </div>
 
-      {/* Tabs */}
+      {/* Grouped Tab Navigation */}
+      {(() => {
+        const isEngagement = scan.status !== 'scan_complete';
+        const tabGroups: TabGroup[] = [
+          {
+            id: 'overview',
+            label: 'Overview',
+            icon: <BarChart3 className="h-3.5 w-3.5" />,
+            color: 'text-cyan-400',
+            subTabs: [
+              { value: 'overview', label: 'Dashboard', icon: <BarChart3 className="h-3 w-3" /> },
+              { value: 'findings', label: 'Findings', icon: <AlertTriangle className="h-3 w-3" />, count: scan.totalFindings || 0 },
+              { value: 'coverage', label: 'Coverage', icon: <Radar className="h-3 w-3" /> },
+              { value: 'changes', label: 'Changes', icon: <GitCompareArrows className="h-3 w-3" /> },
+            ],
+          },
+          {
+            id: 'attack-surface',
+            label: 'Attack Surface',
+            icon: <Target className="h-3.5 w-3.5" />,
+            color: 'text-purple-400',
+            subTabs: [
+              { value: 'assets', label: 'Assets', icon: <Server className="h-3 w-3" />, count: assets.length },
+              { value: 'subdomains', label: 'Subdomains', icon: <Globe className="h-3 w-3" />, count: subdomainAssets.length },
+              { value: 'inventory', label: 'Inventory', icon: <Database className="h-3 w-3" /> },
+              { value: 'ports', label: 'Ports & Services', icon: <Network className="h-3 w-3" /> },
+              { value: 'spider', label: 'Web Crawl', icon: <Route className="h-3 w-3" /> },
+              { value: 'web-crawl', label: 'Crawl Data', icon: <Telescope className="h-3 w-3" /> },
+              { value: 'email-security', label: 'Email Security', icon: <Mail className="h-3 w-3" /> },
+            ],
+          },
+          {
+            id: 'vulnerabilities',
+            label: 'Vulnerabilities',
+            icon: <Bug className="h-3.5 w-3.5" />,
+            color: 'text-red-400',
+            subTabs: [
+              { value: 'vulns', label: 'CVEs & Vulns', icon: <Bug className="h-3 w-3" /> },
+              { value: 'tech-vulns', label: 'Tech Vulns', icon: <Cpu className="h-3 w-3" /> },
+              { value: 'takeover', label: 'Takeover Risk', icon: <Flag className="h-3 w-3" /> },
+              { value: 'takeover-poc', label: 'Takeover PoC', icon: <Play className="h-3 w-3" /> },
+              { value: 'credentials', label: 'Default Creds', icon: <KeyRound className="h-3 w-3" />, hidden: !(credentialTestSummary || oemCredentials) },
+              { value: 'breaches', label: 'Breaches', icon: <Lock className="h-3 w-3" />, count: breachData?.totalExposures || 0 },
+            ],
+          },
+          {
+            id: 'threat-intel',
+            label: 'Threat Intel',
+            icon: <Skull className="h-3.5 w-3.5" />,
+            color: 'text-amber-400',
+            subTabs: [
+              { value: 'adversaries', label: 'Adversaries', icon: <Users className="h-3 w-3" />, hidden: isEngagement ? false : true },
+              { value: 'campaigns', label: 'Campaigns', icon: <Crosshair className="h-3 w-3" />, count: campaigns.length, hidden: isEngagement ? false : true },
+              { value: 'threat-model', label: 'Threat Model', icon: <ShieldAlert className="h-3 w-3" />, hidden: isEngagement ? false : true },
+              { value: 'cve-actors', label: 'CVE Actors', icon: <Fingerprint className="h-3 w-3" /> },
+              { value: 'entity-profile', label: 'Entity Profile', icon: <Box className="h-3 w-3" />, hidden: !pipeline?.entityProfile },
+              { value: 'vendor-alerts', label: 'Vendor Alerts', icon: <ShieldQuestion className="h-3 w-3" />, hidden: !pipeline?.vendorCorrelation },
+            ],
+          },
+          {
+            id: 'analysis',
+            label: 'Analysis',
+            icon: <Brain className="h-3.5 w-3.5" />,
+            color: 'text-emerald-400',
+            subTabs: [
+              { value: 'corroboration', label: 'Corroboration', icon: <CheckCircle2 className="h-3 w-3" /> },
+              { value: 'accuracy', label: 'Accuracy', icon: <ClipboardCheck className="h-3 w-3" /> },
+              { value: 'enrichment', label: 'Enrichment', icon: <Layers className="h-3 w-3" />, hidden: !crossModuleEnrichment },
+              { value: 'analysis', label: 'AI Analysis', icon: <Lightbulb className="h-3 w-3" />, hidden: !postEnrichmentAnalysis },
+              { value: 'methods', label: 'Methods', icon: <Workflow className="h-3 w-3" /> },
+              { value: 'osint-sources', label: 'OSINT Sources', icon: <Radio className="h-3 w-3" /> },
+            ],
+          },
+        ];
+        return <TabGroupNav groups={tabGroups} activeTab={activeTab} onTabChange={setActiveTab} />;
+      })()}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        {scan.status === 'scan_complete' ? (
-          <TabsList className="flex flex-wrap gap-1 w-full max-w-5xl">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="assets">Assets</TabsTrigger>
-            <TabsTrigger value="subdomains">Subdomains</TabsTrigger>
-            <TabsTrigger value="inventory">Asset Inventory</TabsTrigger>
-            <TabsTrigger value="ports">Ports & Services</TabsTrigger>
-            <TabsTrigger value="vulns">Vulns</TabsTrigger>
-            <TabsTrigger value="breaches">Breaches</TabsTrigger>
-            <TabsTrigger value="corroboration">Corroboration</TabsTrigger>
-            <TabsTrigger value="accuracy">Accuracy</TabsTrigger>
-            <TabsTrigger value="email-security">Email Security</TabsTrigger>
-            <TabsTrigger value="findings">Findings</TabsTrigger>
-            <TabsTrigger value="coverage">Coverage</TabsTrigger>
-            <TabsTrigger value="methods">Methods</TabsTrigger>
-            <TabsTrigger value="osint-sources">OSINT Sources</TabsTrigger>
-            <TabsTrigger value="spider">Spider</TabsTrigger>
-            <TabsTrigger value="changes">Changes</TabsTrigger>
-            <TabsTrigger value="tech-vulns">Tech Vulns</TabsTrigger>
-            <TabsTrigger value="takeover">Takeover</TabsTrigger>
-            <TabsTrigger value="cve-actors">CVE Actors</TabsTrigger>
-            <TabsTrigger value="takeover-poc">Takeover PoC</TabsTrigger>
-            {(credentialTestSummary || oemCredentials) && <TabsTrigger value="credentials">Default Creds</TabsTrigger>}
-                 {crossModuleEnrichment && <TabsTrigger value="enrichment">Enrichment</TabsTrigger>}
-            {postEnrichmentAnalysis && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
-            <TabsTrigger value="web-crawl">Web Crawl</TabsTrigger>
-            {pipeline?.entityProfile && <TabsTrigger value="entity-profile">Entity Profile</TabsTrigger>}
-            {pipeline?.vendorCorrelation && <TabsTrigger value="vendor-alerts">Vendor Alerts</TabsTrigger>}
-          </TabsList>
-        ) : (
-          <TabsList className="flex flex-wrap gap-1 w-full max-w-6xl">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="assets">Assets</TabsTrigger>
-            <TabsTrigger value="subdomains">Subdomains</TabsTrigger>
-            <TabsTrigger value="inventory">Asset Inventory</TabsTrigger>
-            <TabsTrigger value="ports">Ports & Services</TabsTrigger>
-            <TabsTrigger value="vulns">Vulns</TabsTrigger>
-            <TabsTrigger value="breaches">Breaches</TabsTrigger>
-            <TabsTrigger value="adversaries">Adversaries</TabsTrigger>
-            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-            <TabsTrigger value="threat-model">Threat Model</TabsTrigger>
-            <TabsTrigger value="corroboration">Corroboration</TabsTrigger>
-            <TabsTrigger value="accuracy">Accuracy</TabsTrigger>
-            <TabsTrigger value="email-security">Email Security</TabsTrigger>
-            <TabsTrigger value="findings">Findings</TabsTrigger>
-            <TabsTrigger value="coverage">Coverage</TabsTrigger>
-            <TabsTrigger value="methods">Methods</TabsTrigger>
-            <TabsTrigger value="osint-sources">OSINT Sources</TabsTrigger>
-            <TabsTrigger value="spider">Spider</TabsTrigger>
-            <TabsTrigger value="changes">Changes</TabsTrigger>
-            <TabsTrigger value="tech-vulns">Tech Vulns</TabsTrigger>
-            <TabsTrigger value="takeover">Takeover</TabsTrigger>
-            <TabsTrigger value="cve-actors">CVE Actors</TabsTrigger>
-            <TabsTrigger value="takeover-poc">Takeover PoC</TabsTrigger>
-            {(credentialTestSummary || oemCredentials) && <TabsTrigger value="credentials">Default Creds</TabsTrigger>}
-            {crossModuleEnrichment && <TabsTrigger value="enrichment">Enrichment</TabsTrigger>}
-            {postEnrichmentAnalysis && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
-            <TabsTrigger value="web-crawl">Web Crawl</TabsTrigger>
-            {pipeline?.entityProfile && <TabsTrigger value="entity-profile">Entity Profile</TabsTrigger>}
-            {pipeline?.vendorCorrelation && <TabsTrigger value="vendor-alerts">Vendor Alerts</TabsTrigger>}
-          </TabsList>
-        )}
 
         <TabsContent value="overview" className="space-y-6">
           {/* Cross-Session Scan Delta Banner */}
