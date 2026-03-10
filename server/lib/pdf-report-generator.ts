@@ -92,7 +92,7 @@ export function generateReportHtml(config: ReportConfig): string {
   /* Kill chain */
   .kill-chain { display: flex; gap: 4px; margin: 12px 0; flex-wrap: wrap; }
   .kill-chain-step { background: #333333; color: #fff; padding: 6px 12px; border-radius: 3px; font-size: 11px; font-weight: 500; position: relative; }
-  .kill-chain-step::after { content: '\2192'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: #999; font-size: 14px; }
+  .kill-chain-step::after { content: '\u2192'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: #999; font-size: 14px; }
   .kill-chain-step:last-child::after { display: none; }
   
   /* Footer */

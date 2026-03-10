@@ -395,3 +395,12 @@
 - [x] Added FedRAMP mandatory sections: Document Control, Assessment Timeline, Threat Models, Attack Vectors (6 mandatory), Access Paths, Evidence Catalog, NIST 800-53 Control Mapping, False Positives, Testing Personnel, Assumptions & Limitations
 - [x] Updated pdf-report-generator.ts shared HTML template to match minimal branding
 - [x] Updated reports-core.ts exportHtml template to match minimal branding
+
+## Deployment Build Failure — March 10, 2026
+- [x] Diagnose Docker build failure (exit code 1 during pnpm run build)
+- [x] Root cause: Legacy octal escape '\2192' in pdf-report-generator.ts line 95 inside template literal — esbuild rejects this
+- [x] Fix: Changed to Unicode escape '\u2192'
+- [x] Also converted jspdf from static to dynamic import in export-utils.ts (reduces initial bundle)
+- [x] esbuild server bundle now succeeds (8.7MB in 231ms)
+- [x] All 261 tests passing
+- [ ] Save checkpoint and re-publish

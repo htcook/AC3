@@ -4,8 +4,14 @@
  * Provides CSV and PDF export for scan results, findings, scoring data,
  * and engagement deliverables. Operators can export data for client reports.
  */
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+// Dynamic imports to reduce bundle size — jspdf is 29MB and only needed for PDF export
+let _jsPDF: typeof import('jspdf').default | null = null;
+let _autoTable: typeof import('jspdf-autotable').default | null = null;
+async function loadPdfLibs() {
+  if (!_jsPDF) _jsPDF = (await import('jspdf')).default;
+  if (!_autoTable) _autoTable = (await import('jspdf-autotable')).default;
+  return { jsPDF: _jsPDF, autoTable: _autoTable };
+}
 
 // ─── CSV Export ─────────────────────────────────────────────────────────
 
@@ -54,10 +60,11 @@ interface PdfTableSection {
   rows: (string | number)[][];
 }
 
-export function exportToPdf(
+export async function exportToPdf(
   options: PdfExportOptions,
   sections: PdfTableSection[],
-): void {
+): Promise<void> {
+  const { jsPDF, autoTable } = await loadPdfLibs();
   const doc = new jsPDF({
     orientation: options.orientation || 'landscape',
     unit: 'mm',
@@ -115,7 +122,7 @@ export function exportToPdf(
       yPos += 6;
     }
 
-    autoTable(doc, {
+    autoTable!(doc, {
       startY: yPos,
       head: [section.columns],
       body: section.rows.map(row => row.map(cell => String(cell ?? ''))),
@@ -383,10 +390,11 @@ export function exportThreatActors(
 }
 
 /** Export executive summary as PDF */
-export function exportExecutiveSummary(
+export async function exportExecutiveSummary(
   domain: string,
   scan: any,
-): void {
+): Promise<void> {
+  const { jsPDF, autoTable } = await loadPdfLibs();
   const filename = `${domain}_executive_summary_${dateStamp()}`;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -504,7 +512,8 @@ function getRiskColor(band: string): [number, number, number] {
 
 // ─── BIA Report PDF Export ──────────────────────────────────────────────
 
-export function exportBiaReportPdf(report: any): void {
+export async function exportBiaReportPdf(report: any): Promise<void> {
+  const { jsPDF, autoTable } = await loadPdfLibs();
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -633,7 +642,7 @@ export function exportBiaReportPdf(report: any): void {
         doc.text(table.caption, margin, yPos);
         yPos += 4;
 
-        autoTable(doc, {
+        autoTable!(doc, {
           startY: yPos,
           head: [table.headers],
           body: table.rows.map((row: string[]) => row.map(cell => String(cell ?? ''))),
@@ -751,11 +760,12 @@ export function exportValidationResultsCsv(
 }
 
 /** Export validation results as PDF with proof-of-exploit evidence */
-export function exportValidationReportPdf(
+export async function exportValidationReportPdf(
   domain: string,
   run: ValidationRunExport,
   results: ValidationResultExport[],
-): void {
+): Promise<void> {
+  const { jsPDF, autoTable } = await loadPdfLibs();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -973,12 +983,13 @@ export function exportValidationReportPdf(
 }
 
 /** Add validation evidence section to executive summary PDF */
-export function exportExecutiveSummaryWithValidation(
+export async function exportExecutiveSummaryWithValidation(
   domain: string,
   scan: any,
   validationRun: ValidationRunExport | null,
   validationResults: ValidationResultExport[],
-): void {
+): Promise<void> {
+  const { jsPDF, autoTable } = await loadPdfLibs();
   const filename = `${domain}_executive_summary_${dateStamp()}`;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -1132,7 +1143,7 @@ export function exportExecutiveSummaryWithValidation(
       doc.text('Confirmed Exploitable Findings', 20, y);
       y += 4;
 
-      autoTable(doc, {
+      autoTable!(doc, {
         startY: y,
         head: [['Asset', 'CVE', 'MSF Module', 'Score Impact', 'Evidence', 'Artifacts']],
         body: exploitable.map(r => [
@@ -1173,7 +1184,7 @@ export function exportExecutiveSummaryWithValidation(
       doc.text('Verified Not Exploitable', 20, y);
       y += 4;
 
-      autoTable(doc, {
+      autoTable!(doc, {
         startY: y,
         head: [['Asset', 'CVE', 'MSF Module', 'Result']],
         body: notVuln.slice(0, 15).map(r => [

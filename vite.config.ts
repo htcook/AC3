@@ -50,15 +50,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dir, "dist/public"),
     emptyOutDir: true,
-    // Memory optimization for deployment (Node 20.15.1 with 4GB heap)
-    // Let Rollup handle chunk splitting naturally via React.lazy dynamic imports.
-    // DO NOT use manualChunks — it causes:
-    //   1. forwardRef undefined (when React split from Radix/lucide)
-    //   2. TDZ errors (when pages split alphabetically create circular refs)
     minify: "esbuild",
     sourcemap: false,
     cssCodeSplit: false,
     chunkSizeWarningLimit: 5000,
+    // No manualChunks — let Rollup handle splitting naturally via React.lazy.
+    // jspdf is now dynamically imported in export-utils.ts to reduce module count.
   },
   server: {
     host: true,
