@@ -2,9 +2,14 @@ import { useState } from "react";
 import FedRAMPKSIMap from "@/components/FedRAMPKSIMap";
 import {
   Shield, CheckCircle2, ChevronRight, Target, BarChart3,
-  AlertTriangle, X, Info, Landmark, ArrowRight, ChevronDown, ChevronUp, FileText
+  AlertTriangle, X, Info, Landmark, ArrowRight, ChevronDown, ChevronUp, FileText,
+  Activity, TrendingUp, Clock, Hash
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { getThemeLabel } from "@/lib/ksi-labels";
 
 // ─── Collapsible Section (local) ─────────────────────────────────
 function CollapsibleSection({ title, defaultOpen = false, children }: {
@@ -32,6 +37,21 @@ function CollapsibleSection({ title, defaultOpen = false, children }: {
 }
 
 export default function FedRAMP20xReadiness() {
+  // Live data queries
+  const { data: coverageSummary } = trpc.ksiEvidenceChain.getCoverageSummary.useQuery();
+  const { data: validationDashboard } = trpc.ksiValidationScheduler.dashboard.useQuery();
+  const { data: chainIntegrity } = trpc.ksiEvidenceChain.getChainIntegrity.useQuery();
+
+  // Compute live stats
+  const themes = coverageSummary?.themes || [];
+  const totalKsis = coverageSummary?.totalKsis || 75;
+  const coveredKsis = coverageSummary?.coveredKsis || 0;
+  const evidenceCount = coverageSummary?.totalEvidence || 0;
+  const passRate = validationDashboard?.passRate ?? 0;
+  const overdueCount = validationDashboard?.overdueCount ?? 0;
+  const integrityPct = chainIntegrity?.integrityPercentage ?? 100;
+  const coveragePct = totalKsis > 0 ? Math.round((coveredKsis / totalKsis) * 100) : 0;
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -43,9 +63,78 @@ export default function FedRAMP20xReadiness() {
         <h2 className="text-2xl font-display mb-2">FedRAMP 20x Framework &amp; KSI Coverage</h2>
         <p className="text-muted-foreground max-w-3xl">
           Understand the FedRAMP 20x modernization, how Key Security Indicators (KSIs) work, and how Ace C3 maps to
-          all 13 security themes with 75 KSIs — providing 88% coverage through real security testing and evidence generation.
+          all 13 security themes with 75 KSIs — providing real-time security testing and evidence generation.
         </p>
       </div>
+
+      {/* ─── LIVE POSTURE SUMMARY ───────────────────────────── */}
+      <Card className="border-2 border-primary/30 bg-primary/5">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-primary animate-pulse" />
+            <CardTitle className="font-display text-sm tracking-wider">LIVE READINESS POSTURE</CardTitle>
+          </div>
+          <CardDescription>Real-time data from KSI evidence chain, validation scheduler, and integrity checks</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+            <div className="text-center p-3 bg-background/50 rounded border">
+              <div className={`font-display text-3xl ${coveragePct >= 80 ? 'text-emerald-400' : coveragePct >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                {coveragePct}%
+              </div>
+              <div className="text-[10px] text-muted-foreground tracking-wider mt-1">KSI COVERAGE</div>
+              <div className="text-xs text-muted-foreground">{coveredKsis}/{totalKsis} KSIs</div>
+            </div>
+            <div className="text-center p-3 bg-background/50 rounded border">
+              <div className="font-display text-3xl text-blue-400">{evidenceCount}</div>
+              <div className="text-[10px] text-muted-foreground tracking-wider mt-1">EVIDENCE RECORDS</div>
+              <div className="text-xs text-muted-foreground">Hash-chained</div>
+            </div>
+            <div className="text-center p-3 bg-background/50 rounded border">
+              <div className={`font-display text-3xl ${passRate >= 80 ? 'text-emerald-400' : passRate >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                {passRate}%
+              </div>
+              <div className="text-[10px] text-muted-foreground tracking-wider mt-1">PASS RATE</div>
+              <div className="text-xs text-muted-foreground">Validation runs</div>
+            </div>
+            <div className="text-center p-3 bg-background/50 rounded border">
+              <div className={`font-display text-3xl ${overdueCount === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {overdueCount}
+              </div>
+              <div className="text-[10px] text-muted-foreground tracking-wider mt-1">OVERDUE</div>
+              <div className="text-xs text-muted-foreground">Validations</div>
+            </div>
+            <div className="text-center p-3 bg-background/50 rounded border">
+              <div className={`font-display text-3xl ${integrityPct === 100 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {integrityPct}%
+              </div>
+              <div className="text-[10px] text-muted-foreground tracking-wider mt-1">CHAIN INTEGRITY</div>
+              <div className="text-xs text-muted-foreground">SHA-256 verified</div>
+            </div>
+          </div>
+
+          {/* Theme coverage mini-bars */}
+          {themes.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+              {themes.map((t: any) => {
+                const pct = t.total > 0 ? Math.round((t.covered / t.total) * 100) : 0;
+                return (
+                  <div key={t.themeCode} className="p-2 bg-background/30 rounded border border-border/50">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-mono font-bold">{t.themeCode}</span>
+                      <span className={`text-[10px] font-bold ${pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{pct}%</span>
+                    </div>
+                    <div className="h-1 bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${pct >= 80 ? 'bg-emerald-400' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5 truncate" title={getThemeLabel(t.themeCode)}>{getThemeLabel(t.themeCode)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ─── What Is FedRAMP 20x ─────────────────────────────── */}
       <CollapsibleSection title="WHAT IS FEDRAMP 20x?" defaultOpen={true}>

@@ -11,8 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   FileOutput, Download, Plus, Loader2, RefreshCw, FileJson,
-  FileText, ClipboardList, CheckCircle2, XCircle, Clock, Hash
+  FileText, ClipboardList, CheckCircle2, XCircle, Clock, Hash,
+  Package, Eye
 } from "lucide-react";
+import { Link } from "wouter";
 import AppShell from "@/components/AppShell";
 
 const DOC_TYPES = [
@@ -39,6 +41,34 @@ export default function OscalExport() {
   const exportsQuery = trpc.oscalExport.listExports.useQuery();
   const statsQuery = trpc.oscalExport.getStats.useQuery();
   const docTypesQuery = trpc.oscalExport.getDocumentTypes.useQuery();
+
+  const [generatingPackage, setGeneratingPackage] = useState(false);
+
+  const packageMutation = trpc.oscalExport.generateAssessmentPackage.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Assessment Package Generated: ${data.documentsGenerated}/5 documents created`);
+      utils.oscalExport.listExports.invalidate();
+      utils.oscalExport.getStats.invalidate();
+      setGeneratingPackage(false);
+      // Download all documents as individual files
+      for (const doc of data.documents) {
+        if (doc.success && doc.document) {
+          const json = JSON.stringify(doc.document, null, 2);
+          const blob = new Blob([json], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `oscal-${doc.type}-${doc.exportId}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      }
+    },
+    onError: (err) => {
+      toast.error("Package Generation Failed: " + err.message);
+      setGeneratingPackage(false);
+    },
+  });
 
   const generateMutation = trpc.oscalExport.generate.useMutation({
     onSuccess: (data) => {
@@ -92,9 +122,27 @@ export default function OscalExport() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            className="bg-emerald-600 hover:bg-emerald-700"
+            disabled={generatingPackage}
+            onClick={() => {
+              setGeneratingPackage(true);
+              packageMutation.mutate({ title: "ACE C3 FedRAMP Assessment Package" });
+            }}
+          >
+            {generatingPackage ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Package className="h-4 w-4 mr-1" />}
+            Generate Assessment Package
+          </Button>
+          <Link href="/3pao-review">
+            <Button size="sm" variant="outline">
+              <Eye className="h-4 w-4 mr-1" /> 3PAO Review
+            </Button>
+          </Link>
           <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Generate Document</Button>
+              <Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" /> Generate Document</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>

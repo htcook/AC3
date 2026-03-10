@@ -14,8 +14,8 @@ import {
   ShieldAlert, Link2, Plus, Search, CheckCircle2, XCircle,
   AlertTriangle, Shield, Loader2, RefreshCw, Hash, Eye
 } from "lucide-react";
-import AppShell from "@/components/AppShell";
 import { formatKsiId, getKsiLabel, getThemeLabel, getThemeFromKsiId } from "@/lib/ksi-labels";
+import EvidenceTimeline from "@/components/EvidenceTimeline";
 
 const EVIDENCE_TYPES = [
   "scan_result", "configuration_check", "log_entry", "screenshot",
@@ -116,7 +116,6 @@ export default function KsiEvidenceChain() {
     : [];
 
   return (
-      <AppShell activePath="/ksi-evidence-chain">
       <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -238,12 +237,26 @@ export default function KsiEvidenceChain() {
         </div>
       </div>
 
-      <Tabs defaultValue="evidence" className="space-y-4">
+      <Tabs defaultValue="timeline" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="evidence">Evidence ({evidence.length})</TabsTrigger>
           <TabsTrigger value="chains">Chains ({chains.length})</TabsTrigger>
           <TabsTrigger value="definitions">KSI Catalog ({defs.length})</TabsTrigger>
         </TabsList>
+
+        {/* Timeline Tab — visual hash-linked timeline */}
+        <TabsContent value="timeline">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Evidence Chain Timeline</CardTitle>
+              <CardDescription>Visual timeline showing evidence collection with SHA-256 hash chain links. Each item is cryptographically linked to the previous, forming a tamper-evident audit trail.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EvidenceTimeline evidence={filteredEvidence} maxItems={30} />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Evidence Tab */}
         <TabsContent value="evidence" className="space-y-4">
@@ -425,6 +438,5 @@ export default function KsiEvidenceChain() {
         </TabsContent>
       </Tabs>
     </div>
-      </AppShell>
   );
 }

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Zap, Database, ArrowRight, CheckCircle2, AlertTriangle, Loader2, Radio, Cloud, Shield, Server, Crosshair, Atom, BarChart3, Globe } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { getKsiLabel } from "@/lib/ksi-labels";
+import CollectionHealthPanel from "@/components/CollectionHealthPanel";
 
 const SOURCE_ICONS: Record<string, string> = {
   "vuln-scanner": "🔍",
@@ -188,6 +189,9 @@ export default function KsiAutoCollector() {
             </Button>
           </div>
         </div>
+
+        {/* Collection Health Panel */}
+        <CollectionHealthPanel stats={stats} mappings={mappings} />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

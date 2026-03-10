@@ -282,3 +282,23 @@
 - [x] Add container health check endpoint (scanServer.containerHealth procedure)
 - [x] All 9 integration tests passing (training-targets.test.ts)
 - [x] All containers verified running and responding on scan server 159.223.152.190
+
+## KSI Feature & UX Improvements (March 2026)
+### Phase 1: Demo-Critical
+- [x] Fix "11 themes" to "13 themes" in KsiDashboard
+- [x] Add KSI health summary bar to KSI Hub (coverage %, evidence count, overdue, chain integrity)
+- [x] Add Readiness Score KPI (0-100 composite score with gauge visualization)
+- [x] Replace theme coverage bars with interactive heatmap grid (13 themes x individual KSIs, clickable cells)
+- [x] Add evidence chain timeline visualization with hash links (EvidenceTimeline component)
+- [x] Add validation run detail view (expandable rows with full results)
+- [x] Add "Run All Overdue" button for batch validation
+- [x] Add visual ATT&CK matrix overlay in Threat Map (AttackMatrixGrid component, 14 tactics)
+- [x] Make FedRAMP coverage map dynamic with live data (live posture summary on FedRAMP20xReadiness)
+### Phase 2: Compliance Value
+- [x] Add collection health status panel in Auto-Collector (CollectionHealthPanel component)
+- [x] Add progress indicators during sweeps
+- [x] Add "Generate Assessment Package" button (bundles SSP+SAR+POA&M+Assessment Plan+Component Def)
+- [x] Add 3PAO Review Mode page (read-only assessor view with executive summary, theme breakdown, KSI detail table)
+- [x] Add unified KSI detail page (/ksi/:ksiId with definition, evidence, validation, NIST controls tabs)
+- [x] Add clickable KSI navigation from heatmap grid and 3PAO review to detail page
+- [x] All 20 regression tests passing (ksi-improvements.test.ts)

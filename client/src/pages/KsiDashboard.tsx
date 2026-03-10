@@ -10,10 +10,12 @@ import {
   AlertTriangle, Activity, TrendingUp, Loader2, RefreshCw, Database,
   Shield, BarChart3
 } from "lucide-react";
-import AppShell from "@/components/AppShell";
 import { formatKsiId, getKsiLabel } from "@/lib/ksi-labels";
+import KsiHeatmapGrid from "@/components/KsiHeatmapGrid";
+import { useLocation } from "wouter";
 
 export default function KsiDashboard() {
+  const [, navigate] = useLocation();
   
   const [seeding, setSeeding] = useState(false);
 
@@ -21,6 +23,7 @@ export default function KsiDashboard() {
   const evidenceStats = trpc.ksiEvidenceChain.getDashboardStats.useQuery();
   const validationDashboard = trpc.ksiValidationScheduler.getDashboard.useQuery();
   const oscalStats = trpc.oscalExport.getStats.useQuery();
+  const defsQuery = trpc.ksiEvidenceChain.listDefinitions.useQuery();
 
   const seedMutation = trpc.ksiEvidenceChain.seedCatalog.useMutation({
     onSuccess: (data) => {
@@ -54,7 +57,6 @@ export default function KsiDashboard() {
   const oscStats = oscalStats.data;
 
   return (
-      <AppShell activePath="/ksi-dashboard">
       <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -134,64 +136,21 @@ export default function KsiDashboard() {
         </Card>
       </div>
 
-      {/* Theme Coverage Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Indicator Theme Coverage
-          </CardTitle>
-          <CardDescription>Coverage across all 11 Key Security Indicator themes defined by FedRAMP</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {coverage?.themeStats && coverage.themeStats.length > 0 ? (
-            <div className="space-y-3">
-              {coverage.themeStats.map((theme) => (
-                <div key={theme.themeCode} className="flex items-center gap-4">
-                  <div className="w-48 text-sm font-medium truncate">{theme.themeName}</div>
-                  <div className="flex-1">
-                    <div className="h-6 bg-muted rounded-full overflow-hidden flex">
-                      <div
-                        className="h-full bg-emerald-500 transition-all"
-                        style={{ width: `${(theme.direct / theme.total) * 100}%` }}
-                        title={`Direct: ${theme.direct}`}
-                      />
-                      <div
-                        className="h-full bg-amber-500 transition-all"
-                        style={{ width: `${(theme.supporting / theme.total) * 100}%` }}
-                        title={`Supporting: ${theme.supporting}`}
-                      />
-                      <div
-                        className="h-full bg-slate-400 transition-all"
-                        style={{ width: `${(theme.planned / theme.total) * 100}%` }}
-                        title={`Planned: ${theme.planned}`}
-                      />
-                    </div>
-                  </div>
-                  <div className="w-16 text-right">
-                    <Badge variant={theme.coveragePercent >= 80 ? "default" : theme.coveragePercent >= 50 ? "secondary" : "destructive"}>
-                      {theme.coveragePercent}%
-                    </Badge>
-                  </div>
-                  <div className="w-32 text-xs text-muted-foreground">
-                    {theme.direct}D / {theme.supporting}S / {theme.planned}P
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No KSI data loaded. Click "Seed Indicator Catalog" to initialize.</p>
-            </div>
-          )}
-          <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Direct</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-500 inline-block" /> Supporting</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-400 inline-block" /> Planned</span>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Interactive Theme Coverage Heatmap */}
+      {coverage?.themeStats && coverage.themeStats.length > 0 ? (
+        <KsiHeatmapGrid
+          themeStats={coverage.themeStats}
+          definitions={defsQuery.data || []}
+          onKsiClick={(ksiId) => navigate(`/ksi/${encodeURIComponent(ksiId)}`)}
+        />
+      ) : (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>No KSI data loaded. Click "Seed Indicator Catalog" to initialize.</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs for detailed views */}
       <Tabs defaultValue="validation" className="space-y-4">
@@ -372,6 +331,5 @@ export default function KsiDashboard() {
         </TabsContent>
       </Tabs>
     </div>
-      </AppShell>
   );
 }

@@ -478,6 +478,172 @@ export const oscalExportRouter = router({
     };
   }),
 
+  /** Generate a full assessment package (SSP + SAR + POA&M + Assessment Plan + Component Definition) */
+  generateAssessmentPackage: protectedProcedure
+    .input(z.object({
+      title: z.string().default("ACE C3 FedRAMP Assessment Package"),
+      description: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const packageId = generateId("PKG");
+
+      // Fetch all data once
+      const ksiDefs = await db.select().from(ksiDefinitions);
+      const evidence = await db.select().from(ksiEvidence).orderBy(desc(ksiEvidence.createdAt)).limit(500);
+      const controlMappings = await db.select().from(ksiControlMappings);
+      const validationRuns = await db.select().from(ksiValidationRuns).orderBy(desc(ksiValidationRuns.createdAt)).limit(500);
+
+      const documents: Array<{ type: string; name: string; document: any; exportId: string }> = [];
+
+      // Generate all 5 core documents
+      const docSpecs = [
+        { type: "ssp" as const, name: "System Security Plan", gen: () => generateSSP(`${input.title} — SSP`, ksiDefs, evidence, controlMappings, validationRuns) },
+        { type: "sar" as const, name: "Security Assessment Report", gen: () => generateSAR(`${input.title} — SAR`, ksiDefs, evidence, validationRuns) },
+        { type: "poam" as const, name: "Plan of Action & Milestones", gen: () => generatePOAM(`${input.title} — POA&M`, ksiDefs, validationRuns) },
+        { type: "component_definition" as const, name: "Component Definition", gen: () => generateComponentDefinition(`${input.title} — Components`, ACE_C3_CAPABILITIES) },
+        { type: "assessment_plan" as const, name: "Assessment Plan", gen: () => generateAssessmentPlan(
+          `${input.title} — Assessment Plan`, "ace-c3-system",
+          ksiDefs.map(d => ({ controlId: d.ksiId, assessmentMethod: "test" as const, objectives: [d.title || "Validate control"] })),
+          [{ name: "ACE C3 Automated Assessor", role: "assessor" }]
+        ) },
+      ];
+
+      for (const spec of docSpecs) {
+        const exportId = generateId("OSC");
+        try {
+          const doc = spec.gen();
+          const outputJson = JSON.stringify(doc, null, 2);
+          const outputHash = crypto.createHash("sha256").update(outputJson).digest("hex");
+
+          await db.insert(oscalExports).values({
+            exportId,
+            documentType: spec.type,
+            title: `${input.title} — ${spec.name}`,
+            description: `Part of assessment package ${packageId}`,
+            outputFormat: "json",
+            status: "complete",
+            generatedBy: ctx.user?.id,
+            generatedByName: ctx.user?.name || "System",
+            outputHash,
+            completedAt: new Date(),
+            metadata: { packageId, ksiCount: ksiDefs.length, evidenceCount: evidence.length, documentSize: outputJson.length },
+          });
+
+          documents.push({ type: spec.type, name: spec.name, document: doc, exportId });
+        } catch (err: any) {
+          await db.insert(oscalExports).values({
+            exportId,
+            documentType: spec.type,
+            title: `${input.title} — ${spec.name}`,
+            description: `Part of assessment package ${packageId} (FAILED)`,
+            outputFormat: "json",
+            status: "failed",
+            generatedBy: ctx.user?.id,
+            generatedByName: ctx.user?.name || "System",
+            errorMessage: err.message,
+          });
+          documents.push({ type: spec.type, name: spec.name, document: null, exportId });
+        }
+      }
+
+      return {
+        packageId,
+        title: input.title,
+        documentsGenerated: documents.filter(d => d.document !== null).length,
+        documentsFailed: documents.filter(d => d.document === null).length,
+        documents: documents.map(d => ({
+          type: d.type,
+          name: d.name,
+          exportId: d.exportId,
+          success: d.document !== null,
+          document: d.document,
+        })),
+        generatedAt: new Date().toISOString(),
+      };
+    }),
+
+  /** Get 3PAO review data — read-only summary of all KSI posture for assessors */
+  get3paoReviewData: protectedProcedure.query(async () => {
+    const db = await getDbSafe();
+
+    const ksiDefs = await db.select().from(ksiDefinitions);
+    const evidence = await db.select().from(ksiEvidence).orderBy(desc(ksiEvidence.createdAt)).limit(1000);
+    const controlMappings = await db.select().from(ksiControlMappings);
+    const validationRuns = await db.select().from(ksiValidationRuns).orderBy(desc(ksiValidationRuns.createdAt)).limit(500);
+    const exports = await db.select().from(oscalExports).orderBy(desc(oscalExports.createdAt)).limit(50);
+
+    // Build per-KSI summary
+    const ksiSummaries = ksiDefs.map(def => {
+      const relEvidence = evidence.filter(e => e.ksiId === def.ksiId);
+      const relRuns = validationRuns.filter(r => r.ksiId === def.ksiId);
+      const relMappings = controlMappings.filter(m => m.ksiId === def.ksiId);
+      const latestRun = relRuns[0];
+
+      return {
+        ksiId: def.ksiId,
+        title: def.title,
+        themeCode: def.themeCode,
+        themeName: def.themeName,
+        coverageStatus: def.coverageStatus,
+        aceC3Module: def.aceC3Module,
+        validationType: def.validationType,
+        frequency: def.frequency,
+        evidenceCount: relEvidence.length,
+        latestEvidenceDate: relEvidence[0]?.createdAt?.toISOString() || null,
+        validationRunCount: relRuns.length,
+        latestValidationStatus: latestRun?.status || "not_run",
+        latestValidationDate: latestRun?.completedAt?.toISOString() || null,
+        nistControls: relMappings.map(m => m.controlId),
+        satisfactionState: latestRun?.status === "passed" ? "satisfied" :
+          def.coverageStatus === "direct" && relEvidence.length > 0 ? "satisfied" :
+          def.coverageStatus === "supporting" ? "partially-satisfied" : "not-satisfied",
+      };
+    });
+
+    // Theme-level aggregation
+    const themeMap = new Map<string, { code: string; name: string; total: number; satisfied: number; partial: number; notSatisfied: number }>();
+    for (const ksi of ksiSummaries) {
+      const key = ksi.themeCode || "UNK";
+      if (!themeMap.has(key)) {
+        themeMap.set(key, { code: key, name: ksi.themeName || key, total: 0, satisfied: 0, partial: 0, notSatisfied: 0 });
+      }
+      const t = themeMap.get(key)!;
+      t.total++;
+      if (ksi.satisfactionState === "satisfied") t.satisfied++;
+      else if (ksi.satisfactionState === "partially-satisfied") t.partial++;
+      else t.notSatisfied++;
+    }
+
+    const totalSatisfied = ksiSummaries.filter(k => k.satisfactionState === "satisfied").length;
+    const totalPartial = ksiSummaries.filter(k => k.satisfactionState === "partially-satisfied").length;
+    const totalNotSatisfied = ksiSummaries.filter(k => k.satisfactionState === "not-satisfied").length;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalKsis: ksiDefs.length,
+        satisfied: totalSatisfied,
+        partiallySatisfied: totalPartial,
+        notSatisfied: totalNotSatisfied,
+        totalEvidence: evidence.length,
+        totalValidationRuns: validationRuns.length,
+        totalNistMappings: controlMappings.length,
+        totalOscalExports: exports.length,
+      },
+      themes: Array.from(themeMap.values()),
+      ksis: ksiSummaries,
+      recentExports: exports.slice(0, 10).map(e => ({
+        exportId: e.exportId,
+        documentType: e.documentType,
+        title: e.title,
+        status: e.status,
+        createdAt: e.createdAt?.toISOString(),
+        outputHash: e.outputHash,
+      })),
+    };
+  }),
+
   /** Get supported document types */
   getDocumentTypes: protectedProcedure.query(() => {
     return [

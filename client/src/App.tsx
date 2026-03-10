@@ -133,6 +133,8 @@ const KsiDashboard = lazy(() => import("./pages/KsiDashboard"));
 const KsiEvidenceChain = lazy(() => import("./pages/KsiEvidenceChain"));
 const KsiValidation = lazy(() => import("./pages/KsiValidation"));
 const OscalExport = lazy(() => import("./pages/OscalExport"));
+const ThreePaoReview = lazy(() => import("./pages/ThreePaoReview"));
+const KsiDetail = lazy(() => import("./pages/KsiDetail"));
 const KsiAutoCollector = lazy(() => import("./pages/KsiAutoCollector"));
 const KsiThreatMap = lazy(() => import("./pages/KsiThreatMap"));
 const ConfigBaseline = lazy(() => import("./pages/ConfigBaseline"));
@@ -737,6 +739,12 @@ function Router() {
         </Route>
         <Route path="/oscal-export">
           <ProtectedRoute component={OscalExport} />
+        </Route>
+        <Route path="/3pao-review">
+          <ProtectedRoute component={ThreePaoReview} />
+        </Route>
+        <Route path="/ksi/:ksiId">
+          <ProtectedRoute component={KsiDetail} />
         </Route>
         <Route path="/ksi-auto-collector">
           <ProtectedRoute component={KsiAutoCollector} />

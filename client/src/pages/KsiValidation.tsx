@@ -19,6 +19,8 @@ export default function KsiValidation() {
   
   const [searchTerm, setSearchTerm] = useState("");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [expandedRun, setExpandedRun] = useState<string | null>(null);
+  const [runningAll, setRunningAll] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -94,15 +96,40 @@ export default function KsiValidation() {
             Automated validation scheduling and tracking for FedRAMP KSIs
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => {
-          schedulesQuery.refetch();
-          runsQuery.refetch();
-          dashboardQuery.refetch();
-          overdueQuery.refetch();
-        }}>
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          {overdue.length > 0 && (
+            <Button
+              variant="default"
+              size="sm"
+              disabled={runningAll || startValidation.isPending}
+              onClick={async () => {
+                setRunningAll(true);
+                try {
+                  for (const s of overdue) {
+                    await startValidation.mutateAsync({ ksiId: s.ksiId, triggerType: "scheduled" });
+                  }
+                  toast.success(`Started ${overdue.length} overdue validations`);
+                } catch (err: any) {
+                  toast.error("Error running overdue validations: " + err.message);
+                } finally {
+                  setRunningAll(false);
+                }
+              }}
+            >
+              {runningAll ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              Run All Overdue ({overdue.length})
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => {
+            schedulesQuery.refetch();
+            runsQuery.refetch();
+            dashboardQuery.refetch();
+            overdueQuery.refetch();
+          }}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -266,8 +293,8 @@ export default function KsiValidation() {
           {runs.length > 0 ? (
             <div className="space-y-2">
               {runs.map((run: any) => (
-                <Card key={run.runId}>
-                  <CardContent className="py-3 px-4">
+                <Card key={run.runId} className={`cursor-pointer transition-colors ${expandedRun === run.runId ? 'ring-1 ring-primary' : 'hover:bg-accent/30'}`}>
+                  <CardContent className="py-3 px-4" onClick={() => setExpandedRun(expandedRun === run.runId ? null : run.runId)}>
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -305,13 +332,76 @@ export default function KsiValidation() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => completeValidation.mutate({ runId: run.runId, status: "passed", score: 100, maxScore: 100 })}
+                            onClick={(e) => { e.stopPropagation(); completeValidation.mutate({ runId: run.runId, status: "passed", score: 100, maxScore: 100 }); }}
                           >
                             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                           </Button>
                         )}
                       </div>
                     </div>
+
+                    {/* Expanded Detail View */}
+                    {expandedRun === run.runId && (
+                      <div className="mt-3 pt-3 border-t space-y-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Run ID</div>
+                            <div className="text-xs font-mono mt-0.5">{run.runId}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Validation Type</div>
+                            <div className="text-xs mt-0.5 capitalize">{run.validationType}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Trigger</div>
+                            <div className="text-xs mt-0.5 capitalize">{run.triggerType}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Score</div>
+                            <div className="text-xs mt-0.5">
+                              {run.score !== null && run.maxScore ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="font-bold">{run.score}/{run.maxScore}</span>
+                                  <span className="text-muted-foreground">({Math.round((run.score / run.maxScore) * 100)}%)</span>
+                                </span>
+                              ) : "—"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Started</div>
+                            <div className="text-xs mt-0.5">{formatDate(run.startedAt)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Completed</div>
+                            <div className="text-xs mt-0.5">{run.completedAt ? formatDate(run.completedAt) : "In progress..."}</div>
+                          </div>
+                        </div>
+                        {run.errorMessage && (
+                          <div className="p-2 rounded bg-red-500/10 border border-red-500/20">
+                            <div className="text-[10px] uppercase text-red-400 tracking-wide mb-1">Error Details</div>
+                            <div className="text-xs text-red-300 font-mono whitespace-pre-wrap">{run.errorMessage}</div>
+                          </div>
+                        )}
+                        {run.notes && (
+                          <div className="p-2 rounded bg-muted/50">
+                            <div className="text-[10px] uppercase text-muted-foreground tracking-wide mb-1">Notes</div>
+                            <div className="text-xs">{run.notes}</div>
+                          </div>
+                        )}
+                        <div className="flex gap-2 pt-1">
+                          <Button size="sm" variant="outline" onClick={() => startValidation.mutate({ ksiId: run.ksiId, triggerType: "manual" })}>
+                            <Play className="h-3 w-3 mr-1" /> Re-run
+                          </Button>
+                          {run.status === "running" && (
+                            <Button size="sm" variant="outline" onClick={() => completeValidation.mutate({ runId: run.runId, status: "failed", score: 0, maxScore: 100, errorMessage: "Manually stopped" })}>
+                              <Pause className="h-3 w-3 mr-1" /> Stop
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

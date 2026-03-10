@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Shield, Target, Crosshair, Users, Zap, AlertTriangle, ChevronRight, ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { getKsiLabel, getThemeLabel, formatKsiId } from "@/lib/ksi-labels";
+import AttackMatrixGrid from "@/components/AttackMatrixGrid";
 
 const TACTIC_COLORS: Record<string, string> = {
   "Reconnaissance": "bg-slate-500",
@@ -93,13 +94,35 @@ export default function KsiThreatMap() {
         </Card>
       </div>
 
-      <Tabs defaultValue="matrix" className="space-y-4">
+      <Tabs defaultValue="attack-matrix" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="attack-matrix">ATT&CK Matrix</TabsTrigger>
           <TabsTrigger value="matrix">Coverage Matrix</TabsTrigger>
           <TabsTrigger value="threats">Threat Groups</TabsTrigger>
           <TabsTrigger value="exploits">Exploit Coverage</TabsTrigger>
           <TabsTrigger value="tactics">Tactic Distribution</TabsTrigger>
         </TabsList>
+
+        {/* ATT&CK Matrix Overlay Tab */}
+        <TabsContent value="attack-matrix">
+          {coverage?.matrix ? (
+            <AttackMatrixGrid
+              matrixData={coverage.matrix}
+              onTechniqueClick={(techId) => {
+                // Find a KSI that uses this technique and open its detail
+                const item = coverage.matrix.find(m => m.techniques.some(t => t.id === techId));
+                if (item) setSelectedKsi(item.ksiId);
+              }}
+            />
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <Shield className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p>Loading ATT&CK matrix data...</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         {/* Coverage Matrix Tab */}
         <TabsContent value="matrix" className="space-y-3">
