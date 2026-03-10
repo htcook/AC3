@@ -349,6 +349,40 @@ export const reportsRouter = router({
               console.error('[Report] scan_results fallback failed:', scanFallbackErr);
             }
 
+            // Extract provenance records from active scan plan (stored on opsState during Phase 2.5)
+            let provenanceRecords: Array<{
+              passiveObservationId: string;
+              passiveSignal: string;
+              activeTool: string;
+              target: string;
+              rationale: string;
+            }> | undefined;
+            let activeScanPlanMeta: {
+              totalTargets: number;
+              estimatedScanDuration: string;
+              riskCoverage: number;
+              excludedByRoE: Array<{ hostname: string; reason: string }>;
+            } | undefined;
+
+            if (opsState && (opsState as any).activeScanPlan) {
+              const plan = (opsState as any).activeScanPlan;
+              if (Array.isArray(plan.provenance) && plan.provenance.length > 0) {
+                provenanceRecords = plan.provenance.map((p: any) => ({
+                  passiveObservationId: p.passiveObservationId || 'unknown',
+                  passiveSignal: p.passiveSignal || 'unknown',
+                  activeTool: p.activeTool || 'unknown',
+                  target: p.target || 'unknown',
+                  rationale: p.rationale || '',
+                }));
+              }
+              activeScanPlanMeta = {
+                totalTargets: plan.totalTargets || 0,
+                estimatedScanDuration: plan.stats?.estimatedScanDuration || 'N/A',
+                riskCoverage: plan.stats?.riskCoverage || 0,
+                excludedByRoE: plan.excludedByRoE || [],
+              };
+            }
+
             const pipelineResult = await runPentestReportPipeline({
               engagement: {
                 id: engagement.id,
@@ -375,6 +409,8 @@ export const reportsRouter = router({
               campaignResults,
               roeData,
               auditLogEntries,
+              provenanceRecords,
+              activeScanPlan: activeScanPlanMeta,
             });
 
             // Store as S3 file

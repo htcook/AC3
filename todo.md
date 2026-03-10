@@ -451,3 +451,22 @@
 - [x] Add domainIntel.getDelta tRPC endpoint for frontend access
 - [x] esbuild server bundle succeeds (8.8MB in 263ms)
 - [x] All 290 tests passing
+
+## Provenance Evidence Chain in Pentest Report
+- [x] Read active-handoff provenance data model (HandoffProvenance type)
+- [x] Add provenanceRecords and activeScanPlan fields to PipelineInput interface
+- [x] Wire provenance from opsState.activeScanPlan through reports-core.ts into runPentestReportPipeline
+- [x] Add "Evidence Chain — Passive-to-Active Provenance" section to report (Appendix H)
+- [x] Scan Plan Summary table (targets, duration, risk coverage, RoE exclusions)
+- [x] Provenance Records by Target table (passive observation → signal → active tool → rationale)
+- [x] Finding-to-Passive-Source Cross-Reference table (maps each finding back to triggering passive observation)
+- [x] RoE Exclusions documentation (targets excluded with reasons)
+- [x] 6 new tests for provenance evidence chain (provenance rendering, grouping, cross-referencing, empty handling)
+- [x] All 296 tests passing, esbuild succeeds (8.8MB bundle)
+
+## Scan Dashboard UI Improvements (March 2026)
+- [ ] Analyze AceC3_UI_Design_Bundle for design patterns and improvements
+- [ ] Audit current Passive Domain Intel dashboard UI (DomainIntelResults.tsx)
+- [ ] Audit current Engagement Scanning UI (EngagementOps.tsx)
+- [ ] Propose specific UI improvements based on design bundle analysis
+- [ ] Implement approved UI improvements
