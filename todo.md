@@ -230,3 +230,15 @@
 - [x] Generate Mermaid diagrams: attack surface, kill chain, risk matrix, severity distribution
 - [x] Build report generation UI with preview and PDF export (Streamdown markdown renderer + branded HTML export)
 - [x] Test end-to-end report generation from engagement data (11 tests passing)
+
+## Training Environment Verification
+- [x] Check if Broken Crystals has a public live instance available for scanning (YES - brokencrystals.com HTTP 200)
+- [x] Verify legal authorization to scan all 5 test targets
+- [x] Check each target's ToS/README for explicit scanning permission
+- [x] DVWA requires self-hosted deployment on scan server (Docker: ghcr.io/digininja/dvwa)
+- [x] Verify all 5 test engagement targets are reachable (4/5 live; DVWA needs self-hosting)
+- [x] Create and approve RoE for Acunetix Vulnweb test engagement (ID: 1650001) — RoE #120001 ACTIVE
+- [x] Create and approve RoE for Broken Crystals test engagement (ID: 1650002) — RoE #120002 ACTIVE
+- [x] Create and approve RoE for Gin & Juice Shop test engagement (ID: 1650003) — RoE #120003 ACTIVE
+- [x] Create and approve RoE for DVWA test engagement (ID: 1650004) — RoE #120004 DRAFT (self-host first)
+- [x] Create and approve RoE for Nmap ScanMe test engagement (ID: 1650005) — RoE #120005 ACTIVE
