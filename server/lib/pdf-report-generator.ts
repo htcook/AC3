@@ -18,17 +18,15 @@ export interface ReportConfig {
 }
 
 const BRAND_COLORS = {
-  primary: "#213555",      // Ace of Cloud navy blue (from aceofcloud.com)
-  accent: "#14b8a6",       // Teal accent
-  cream: "#F5EFE7",        // Warm cream background
-  secondary: "#D8C4B6",    // Warm tan/beige
-  danger: "#ef4444",
-  warning: "#f59e0b",
-  success: "#22c55e",
-  muted: "#64748b",
+  primary: "#1a1a1a",      // Near-black for headings
+  accent: "#333333",       // Dark gray accent (minimal, no color)
+  cream: "#ffffff",        // White background
+  secondary: "#d9d9d9",    // Light gray for table headers
+  danger: "#c00000",
+  warning: "#b45309",
+  success: "#15803d",
+  muted: "#666666",
 };
-
-const BRAND_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/ace_of_cloud_logo_8934407a.jpeg";
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -51,95 +49,80 @@ export function generateReportHtml(config: ReportConfig): string {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; color: #1e293b; line-height: 1.6; background: #fff; }
-  .page { max-width: 800px; margin: 0 auto; padding: 40px; }
+  body { font-family: 'Inter', Helvetica, Arial, sans-serif; color: #1a1a1a; line-height: 1.7; background: #fff; }
+  .page { max-width: 850px; margin: 0 auto; padding: 48px 56px; }
   
-  /* Header */
-  .header { border-bottom: 3px solid ${BRAND_COLORS.accent}; padding-bottom: 24px; margin-bottom: 32px; }
-  .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand-logo { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; }
-  .brand-logo img { width: 100%; height: 100%; object-fit: contain; }
-  .brand-name { font-size: 20px; font-weight: 700; color: ${BRAND_COLORS.primary}; }
-  .brand-sub { font-size: 11px; color: ${BRAND_COLORS.muted}; text-transform: uppercase; letter-spacing: 1px; }
-  .classification { background: ${BRAND_COLORS.primary}; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-  .report-title { font-size: 28px; font-weight: 700; color: ${BRAND_COLORS.primary}; margin-bottom: 4px; }
-  .report-subtitle { font-size: 14px; color: ${BRAND_COLORS.muted}; }
-  .report-meta { display: flex; gap: 24px; margin-top: 12px; font-size: 12px; color: ${BRAND_COLORS.muted}; }
-  .report-meta span { display: flex; align-items: center; gap: 4px; }
+  /* Header — Ace of Cloud minimal style: no logo, no decorative colors */
+  .header { padding-bottom: 28px; margin-bottom: 36px; border-bottom: 1px solid #cccccc; }
+  .report-title { font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 16px; }
+  .report-subtitle { font-size: 14px; color: #666666; margin-bottom: 12px; }
+  .report-meta { font-size: 12px; color: #666666; line-height: 1.8; }
+  .report-meta div { margin-bottom: 2px; }
+  .classification-line { font-weight: 700; font-size: 13px; margin-top: 12px; }
   
   /* Sections */
-  .section { margin-bottom: 28px; page-break-inside: avoid; }
-  .section-title { font-size: 18px; font-weight: 700; color: ${BRAND_COLORS.primary}; border-left: 4px solid ${BRAND_COLORS.accent}; padding-left: 12px; margin-bottom: 16px; }
-  .section-content { font-size: 13px; }
+  .section { margin-bottom: 32px; page-break-inside: avoid; }
+  .section-title { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 16px; padding-bottom: 4px; }
+  .section-content { font-size: 13px; line-height: 1.7; }
+  .section-content p { margin-bottom: 10px; }
   
-  /* Tables */
-  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
-  th { background: ${BRAND_COLORS.primary}; color: #fff; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
-  tr:nth-child(even) { background: #f8fafc; }
+  /* Tables — Ace of Cloud style: light gray headers, thin borders, no alternating rows */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }
+  th { background: #d9d9d9; color: #1a1a1a; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; border: 1px solid #999999; }
+  td { padding: 8px 12px; border: 1px solid #cccccc; }
   
-  /* Status badges */
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-  .badge-critical { background: #fef2f2; color: #dc2626; }
-  .badge-high { background: #fff7ed; color: #ea580c; }
-  .badge-medium { background: #fefce8; color: #ca8a04; }
-  .badge-low { background: #f0fdf4; color: #16a34a; }
-  .badge-info { background: #eff6ff; color: #2563eb; }
-  .badge-fixed { background: #f0fdf4; color: #16a34a; }
-  .badge-vulnerable { background: #fef2f2; color: #dc2626; }
-  .badge-pending { background: #fefce8; color: #ca8a04; }
-  .badge-overdue { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+  /* Status badges — muted, professional */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+  .badge-critical { background: #f5d5d5; color: #c00000; }
+  .badge-high { background: #fde8d0; color: #b45309; }
+  .badge-medium { background: #fef3c7; color: #92400e; }
+  .badge-low { background: #d1fae5; color: #15803d; }
+  .badge-info { background: #dbeafe; color: #1d4ed8; }
+  .badge-fixed { background: #d1fae5; color: #15803d; }
+  .badge-vulnerable { background: #f5d5d5; color: #c00000; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .badge-overdue { background: #f5d5d5; color: #c00000; border: 1px solid #e8a0a0; }
   
   /* Stats grid */
   .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
-  .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; }
-  .stat-value { font-size: 24px; font-weight: 700; color: ${BRAND_COLORS.primary}; }
-  .stat-label { font-size: 11px; color: ${BRAND_COLORS.muted}; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card { background: #f5f5f5; border: 1px solid #d9d9d9; border-radius: 4px; padding: 12px; text-align: center; }
+  .stat-value { font-size: 24px; font-weight: 700; color: #1a1a1a; }
+  .stat-label { font-size: 11px; color: #666666; text-transform: uppercase; letter-spacing: 0.5px; }
   
   /* Kill chain */
   .kill-chain { display: flex; gap: 4px; margin: 12px 0; flex-wrap: wrap; }
-  .kill-chain-step { background: ${BRAND_COLORS.primary}; color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 500; position: relative; }
-  .kill-chain-step::after { content: '→'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: ${BRAND_COLORS.muted}; font-size: 14px; }
+  .kill-chain-step { background: #333333; color: #fff; padding: 6px 12px; border-radius: 3px; font-size: 11px; font-weight: 500; position: relative; }
+  .kill-chain-step::after { content: '\2192'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: #999; font-size: 14px; }
   .kill-chain-step:last-child::after { display: none; }
   
   /* Footer */
-  .footer { border-top: 2px solid #e2e8f0; padding-top: 16px; margin-top: 40px; font-size: 11px; color: ${BRAND_COLORS.muted}; display: flex; justify-content: space-between; }
+  .footer { border-top: 1px solid #cccccc; padding-top: 16px; margin-top: 40px; font-size: 11px; color: #666666; display: flex; justify-content: space-between; }
   
   /* Confidence bar */
-  .confidence-bar { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; width: 100px; display: inline-block; vertical-align: middle; }
+  .confidence-bar { height: 8px; background: #e5e5e5; border-radius: 4px; overflow: hidden; width: 100px; display: inline-block; vertical-align: middle; }
   .confidence-fill { height: 100%; border-radius: 4px; }
   .confidence-high { background: ${BRAND_COLORS.success}; }
   .confidence-medium { background: ${BRAND_COLORS.warning}; }
   .confidence-low { background: ${BRAND_COLORS.danger}; }
   
   @media print {
-    .page { padding: 20px; }
+    .page { padding: 24px; max-width: 100%; }
     .section { page-break-inside: avoid; }
+    .section-title { page-break-after: avoid; }
   }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="header">
-    <div class="header-top">
-      <div class="brand">
-        <div class="brand-logo"><img src="${BRAND_LOGO_URL}" alt="Ace of Cloud" /></div>
-        <div>
-          <div class="brand-name">Ace of Cloud</div>
-          <div class="brand-sub">Ace C3 — Cyber Campaign Command</div>
-        </div>
-      </div>
-      <div class="classification">${classification}</div>
-    </div>
     <div class="report-title">${escapeHtml(config.title)}</div>
     ${config.subtitle ? `<div class="report-subtitle">${escapeHtml(config.subtitle)}</div>` : ""}
     <div class="report-meta">
-      <span>Generated: ${dateStr}</span>
-      <span>Prepared by: Ace of Cloud LLC</span>
-      <span>Platform: Ace C3</span>
-      <span>aceofcloud.com</span>
+      <div>Prepared by: Ace of Cloud LLC</div>
+      <div>Report Date: ${dateStr}</div>
+      <div>Platform: Ace C3 (Cyber Campaign Command)</div>
     </div>
+    <div class="classification-line">${classification} \u2013 Security Assessment Report</div>
   </div>
   
   ${config.sections.map(s => `
@@ -150,8 +133,8 @@ export function generateReportHtml(config: ReportConfig): string {
   `).join("")}
   
   <div class="footer">
-    <div>Ace of Cloud LLC — Ace C3 Platform | aceofcloud.com</div>
-    <div>${classification} — ${dateStr}</div>
+    <div>Ace of Cloud LLC \u2014 aceofcloud.com</div>
+    <div>${classification} \u2014 ${dateStr}</div>
   </div>
 </div>
 </body>

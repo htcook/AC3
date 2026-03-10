@@ -653,7 +653,6 @@ Instructions: ${reportPrompt}`,
         });
 
         // Wrap in branded Ace of Cloud template
-        const BRAND_LOGO_URL = 'https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/ace_of_cloud_logo_8934407a.jpeg';
         const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
         const html = `<!DOCTYPE html>
@@ -664,38 +663,32 @@ Instructions: ${reportPrompt}`,
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; color: #1e293b; line-height: 1.7; background: #fff; }
-  .page { max-width: 900px; margin: 0 auto; padding: 40px 48px; }
-  .header { border-bottom: 3px solid #14b8a6; padding-bottom: 24px; margin-bottom: 32px; }
-  .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand-logo { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; }
-  .brand-logo img { width: 100%; height: 100%; object-fit: contain; }
-  .brand-name { font-size: 20px; font-weight: 700; color: #213555; }
-  .brand-sub { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
-  .classification { background: #213555; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-  .report-title { font-size: 26px; font-weight: 700; color: #213555; margin-bottom: 4px; }
-  .report-meta { display: flex; gap: 24px; margin-top: 8px; font-size: 12px; color: #64748b; }
-  .content h1 { font-size: 22px; font-weight: 700; color: #213555; border-left: 4px solid #14b8a6; padding-left: 12px; margin: 32px 0 16px 0; }
-  .content h2 { font-size: 18px; font-weight: 700; color: #213555; margin: 24px 0 12px 0; }
-  .content h3 { font-size: 15px; font-weight: 600; color: #334155; margin: 20px 0 10px 0; }
-  .content h4 { font-size: 13px; font-weight: 600; color: #475569; margin: 16px 0 8px 0; }
+  body { font-family: 'Inter', Helvetica, Arial, sans-serif; color: #1a1a1a; line-height: 1.7; background: #fff; }
+  .page { max-width: 850px; margin: 0 auto; padding: 48px 56px; }
+  .header { padding-bottom: 28px; margin-bottom: 36px; border-bottom: 1px solid #cccccc; }
+  .report-title { font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 16px; }
+  .report-meta { font-size: 12px; color: #666666; line-height: 1.8; }
+  .report-meta div { margin-bottom: 2px; }
+  .classification-line { font-weight: 700; font-size: 13px; margin-top: 12px; }
+  .content h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin: 32px 0 16px 0; }
+  .content h2 { font-size: 18px; font-weight: 700; color: #1a1a1a; margin: 24px 0 12px 0; }
+  .content h3 { font-size: 15px; font-weight: 600; color: #333333; margin: 20px 0 10px 0; }
+  .content h4 { font-size: 13px; font-weight: 600; color: #444444; margin: 16px 0 8px 0; }
   .content p { font-size: 13px; margin-bottom: 10px; }
   .content ul, .content ol { font-size: 13px; padding-left: 24px; margin-bottom: 12px; }
   .content li { margin-bottom: 4px; }
   .content table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
-  .content th { background: #213555; color: #fff; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .content td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
-  .content tr:nth-child(even) { background: #f8fafc; }
-  .content blockquote { border-left: 4px solid #14b8a6; padding: 12px 16px; margin: 12px 0; background: #f0fdfa; font-size: 13px; color: #0f766e; }
-  .content code { background: #f1f5f9; padding: 2px 6px; border-radius: 3px; font-size: 12px; color: #334155; }
-  .content pre { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; font-size: 12px; }
+  .content th { background: #d9d9d9; color: #1a1a1a; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; border: 1px solid #999999; }
+  .content td { padding: 8px 12px; border: 1px solid #cccccc; }
+  .content blockquote { border-left: 3px solid #999999; padding: 12px 16px; margin: 12px 0; background: #f5f5f5; font-size: 13px; color: #333333; }
+  .content code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 12px; color: #333333; }
+  .content pre { background: #2a2a2a; color: #e0e0e0; padding: 16px; border-radius: 4px; overflow-x: auto; margin: 12px 0; font-size: 12px; }
   .content pre code { background: none; padding: 0; color: inherit; }
-  .content hr { border: none; border-top: 2px solid #e2e8f0; margin: 24px 0; }
-  .content strong { color: #1e293b; }
-  .footer { border-top: 2px solid #e2e8f0; padding-top: 16px; margin-top: 40px; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; }
+  .content hr { border: none; border-top: 1px solid #cccccc; margin: 24px 0; }
+  .content strong { color: #1a1a1a; }
+  .footer { border-top: 1px solid #cccccc; padding-top: 16px; margin-top: 40px; font-size: 11px; color: #666666; display: flex; justify-content: space-between; }
   @media print {
-    .page { padding: 20px; max-width: 100%; }
+    .page { padding: 24px; max-width: 100%; }
     .content h1 { page-break-before: always; }
     .content h1:first-child { page-break-before: avoid; }
     .content table { page-break-inside: avoid; }
@@ -706,27 +699,19 @@ Instructions: ${reportPrompt}`,
 <body>
 <div class="page">
   <div class="header">
-    <div class="header-top">
-      <div class="brand">
-        <div class="brand-logo"><img src="${BRAND_LOGO_URL}" alt="Ace of Cloud" /></div>
-        <div>
-          <div class="brand-name">Ace of Cloud</div>
-          <div class="brand-sub">Ace C3 — Cyber Campaign Command</div>
-        </div>
-      </div>
-      <div class="classification">CONFIDENTIAL</div>
-    </div>
     <div class="report-title">${report.title || 'Penetration Test Assessment Report'}</div>
     <div class="report-meta">
-      <span>Prepared for: ${report.preparedFor || 'Client'}</span>
-      <span>Prepared by: ${report.preparedBy || 'Ace of Cloud LLC'}</span>
-      <span>Date: ${dateStr}</span>
+      <div>Client: ${report.preparedFor || 'Client'}</div>
+      <div>Prepared by: ${report.preparedBy || 'Ace of Cloud LLC'}</div>
+      <div>Assessment Type: Penetration Test</div>
+      <div>Report Date: ${dateStr}</div>
     </div>
+    <div class="classification-line">CONFIDENTIAL \u2013 Security Assessment Report</div>
   </div>
   <div class="content">${bodyHtml}</div>
   <div class="footer">
-    <div>Ace of Cloud LLC — Ace C3 Platform | aceofcloud.com</div>
-    <div>CONFIDENTIAL — ${dateStr}</div>
+    <div>Ace of Cloud LLC \u2014 aceofcloud.com</div>
+    <div>CONFIDENTIAL \u2014 ${dateStr}</div>
   </div>
 </div>
 <script class="no-print">

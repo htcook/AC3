@@ -381,3 +381,17 @@
 - [ ] Run continuous training loop on DVWA (5-10 iterations) to improve recall
 - [ ] Analyze training results and verify accuracy improvement trend
 - [ ] Write tests for new ground truth libraries
+
+## Report Template Branding Update — Ace of Cloud + FedRAMP (March 2026)
+- [x] Review full PDF template (6 pages) and extract all branding/structure details
+- [x] Audit current report generation code (pentest-report-pipeline.ts, reports-core.ts, HTML template)
+- [x] Update cover page: "External Penetration Test Report", Client field, Prepared by Ace of Cloud LLC, Assessment Type, Report Date, CONFIDENTIAL marking
+- [x] Update section headers and structure to match template (expanded from 13 to 16 sections)
+- [x] Merge FedRAMP compliance requirements into report sections (6.1-6.6: Scope, Attack Vectors, Timeline, Tests Performed, Findings, Access Paths)
+- [x] Update HTML/CSS styling to match Ace of Cloud branding (minimal: no logo, gray table headers, thin borders, white bg)
+- [x] Ensure Harrison Cook attribution as report author (in Testing Personnel appendix)
+- [x] Remove any customer-specific info from the template itself (template is reusable)
+- [x] Run tests and verify report generation (all 261 tests passing)
+- [x] Added FedRAMP mandatory sections: Document Control, Assessment Timeline, Threat Models, Attack Vectors (6 mandatory), Access Paths, Evidence Catalog, NIST 800-53 Control Mapping, False Positives, Testing Personnel, Assumptions & Limitations
+- [x] Updated pdf-report-generator.ts shared HTML template to match minimal branding
+- [x] Updated reports-core.ts exportHtml template to match minimal branding
