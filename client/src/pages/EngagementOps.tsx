@@ -979,11 +979,27 @@ export default function EngagementOps() {
   const ops: OpsState | null = useMemo(() => {
     const base = opsStateQ.data || null;
     if (!base) return null;
-    // Ensure required arrays exist (defensive against empty DB state)
-    if (!base.log) base.log = [];
-    if (!base.assets) base.assets = [];
-    if (!base.approvalGates) base.approvalGates = [];
-    if (!base.stats) base.stats = { hostsScanned: 0, portsFound: 0, vulnsFound: 0, exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0, zapScansRun: 0, wafDetections: 0 };
+    // Ensure required arrays exist (defensive against stale DB snapshots)
+    if (!Array.isArray(base.log)) base.log = [];
+    if (!Array.isArray(base.assets)) base.assets = [];
+    if (!Array.isArray(base.approvalGates)) base.approvalGates = [];
+    // Ensure stats object with all required fields
+    const defaultStats = { hostsScanned: 0, portsFound: 0, vulnsFound: 0, exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0, zapScansRun: 0, wafDetections: 0 };
+    base.stats = { ...defaultStats, ...(base.stats || {}) };
+    // Ensure each asset has required sub-arrays (prevents .map/.filter crashes)
+    for (const asset of base.assets) {
+      if (!Array.isArray((asset as any).vulns)) (asset as any).vulns = [];
+      if (!Array.isArray((asset as any).toolResults)) (asset as any).toolResults = [];
+      if (!Array.isArray((asset as any).ports)) (asset as any).ports = [];
+      if (!Array.isArray((asset as any).zapFindings)) (asset as any).zapFindings = [];
+      if (!Array.isArray((asset as any).exploitAttempts)) (asset as any).exploitAttempts = [];
+    }
+    // Ensure boolean/string fields
+    if (typeof base.isRunning !== 'boolean') base.isRunning = false;
+    if (typeof base.isPaused !== 'boolean') base.isPaused = false;
+    if (!base.phase) base.phase = 'idle';
+    if (typeof base.progress !== 'number') base.progress = 0;
+    // Merge WS log entries
     if (wsLogBuffer.length === 0) return base;
     const existingIds = new Set(base.log.map(l => l.id));
     const newEntries = wsLogBuffer.filter(e => !existingIds.has(e.id));

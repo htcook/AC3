@@ -328,21 +328,81 @@ export async function clearOpsState(engagementId: number): Promise<void> {
 }
 
 /**
+ * Normalize an ops state recovered from DB snapshot.
+ * Ensures all required fields exist and rehydrates non-JSON-safe types (e.g., Set).
+ * Prevents runtime crashes when snapshots were created before new fields were added.
+ */
+export function normalizeOpsState(state: any): EngagementOpsState {
+  // Ensure required arrays
+  if (!Array.isArray(state.assets)) state.assets = [];
+  if (!Array.isArray(state.log)) state.log = [];
+  if (!Array.isArray(state.approvalGates)) state.approvalGates = [];
+
+  // Ensure stats object with all required fields
+  const defaultStats = {
+    hostsScanned: 0, portsFound: 0, vulnsFound: 0,
+    exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,
+    zapScansRun: 0, wafDetections: 0,
+  };
+  state.stats = { ...defaultStats, ...(state.stats || {}) };
+
+  // Rehydrate skippedDomains from JSON (array/object/null → Set)
+  if (state.skippedDomains && !(state.skippedDomains instanceof Set)) {
+    try {
+      const arr = Array.isArray(state.skippedDomains)
+        ? state.skippedDomains
+        : Object.values(state.skippedDomains);
+      state.skippedDomains = new Set(arr);
+    } catch {
+      state.skippedDomains = new Set();
+    }
+  } else if (!state.skippedDomains) {
+    state.skippedDomains = new Set();
+  }
+
+  // Ensure boolean fields
+  if (typeof state.isRunning !== 'boolean') state.isRunning = false;
+  if (typeof state.isPaused !== 'boolean') state.isPaused = false;
+
+  // Ensure phase
+  if (!state.phase) state.phase = 'idle';
+
+  // Ensure progress
+  if (typeof state.progress !== 'number') state.progress = 0;
+
+  // Ensure roeScopeGuard sub-arrays
+  if (state.roeScopeGuard) {
+    if (!Array.isArray(state.roeScopeGuard.authorizedDomains)) state.roeScopeGuard.authorizedDomains = [];
+    if (!Array.isArray(state.roeScopeGuard.authorizedIps)) state.roeScopeGuard.authorizedIps = [];
+  }
+
+  // Ensure each asset has required arrays
+  for (const asset of state.assets) {
+    if (!Array.isArray(asset.vulns)) asset.vulns = [];
+    if (!Array.isArray(asset.toolResults)) asset.toolResults = [];
+    if (!Array.isArray(asset.ports)) asset.ports = [];
+  }
+
+  return state as EngagementOpsState;
+}
+
+/**
  * Get ops state with auto-recovery from DB if in-memory state is missing.
  * Use this from API endpoints; the sync version above is for internal pipeline use.
  */
 export async function getOpsStateWithRecovery(engagementId: number): Promise<EngagementOpsState | null> {
   const memState = opsStates.get(engagementId);
-  if (memState) return memState;
+  if (memState) return normalizeOpsState(memState);
 
   // Try to recover from DB snapshot
   try {
     const { loadOpsSnapshot } = await import('../db');
     const snapshot = await loadOpsSnapshot(engagementId);
     if (snapshot) {
-      console.log(`[OpsState] Recovered state for engagement #${engagementId} from DB snapshot (${snapshot.assets?.length || 0} assets)`);
-      opsStates.set(engagementId, snapshot);
-      return snapshot;
+      const normalized = normalizeOpsState(snapshot);
+      console.log(`[OpsState] Recovered state for engagement #${engagementId} from DB snapshot (${normalized.assets?.length || 0} assets, normalized)`);
+      opsStates.set(engagementId, normalized);
+      return normalized;
     }
   } catch (e: any) {
     console.error(`[OpsState] Failed to recover from DB:`, e.message);

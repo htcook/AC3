@@ -10,9 +10,10 @@ export const engagementOpsRouter = router({
     getState: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState, getOpsStateWithRecovery, initOpsState } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery, initOpsState, normalizeOpsState } = await import('../lib/engagement-orchestrator');
         // First try in-memory, then try DB recovery, then initialize fresh
         let state = getOpsState(input.engagementId);
+        if (state) state = normalizeOpsState(state);
         if (!state) {
           // Try to recover from DB snapshot (preserves assets from previous scans)
           state = await getOpsStateWithRecovery(input.engagementId);

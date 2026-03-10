@@ -494,3 +494,10 @@
 - [x] Tab grouping verified: 59 TabsContent in DomainIntelResults, 27 in EngagementOps — all preserved
 - [x] All 296 tests passing, Vite build succeeds (3m18s), esbuild server bundle 8.8MB
 - [x] Dev server running and responding 200 on all endpoints
+
+## Bug: EngagementOps Runtime Crash
+- [x] Fix runtime crash when opening an engagement (GD@ EngagementOps line ~105:5946)
+- [x] Added normalizeOpsState() server-side function to rehydrate Sets and fill missing fields from stale snapshots
+- [x] Applied normalizeOpsState to both getOpsState (sync) and getOpsStateWithRecovery (async) paths
+- [x] Strengthened client-side defensive guards: all asset sub-arrays, stats, booleans, phase, progress
+- [x] All 296 tests passing, Vite build succeeds
