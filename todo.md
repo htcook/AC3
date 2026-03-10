@@ -403,4 +403,4 @@
 - [x] Also converted jspdf from static to dynamic import in export-utils.ts (reduces initial bundle)
 - [x] esbuild server bundle now succeeds (8.7MB in 231ms)
 - [x] All 261 tests passing
-- [ ] Save checkpoint and re-publish
+- [x] Save checkpoint and re-publish (committed as d30f6e4)
