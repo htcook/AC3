@@ -362,3 +362,15 @@
 - [x] Train LLM to use searchsploit CLI and pull/compile ExploitDB exploits — CLI templates in prompt
 - [x] Train LLM to generate custom exploit scripts (Python, bash) when no module exists — CLI templates in prompt
 - [x] Write tests for exploit selection framework (20 tests, all 237 tests passing across 15 files)
+
+## Continuous Training Validation & ExploitDB Integration (March 2026)
+- [x] Run continuous training session on DVWA to validate exploit selection scoring end-to-end (validated: 18 findings with exploit methods, 2/14 ground truth matched, F1=12.5%)
+- [x] Verify exploit method accuracy, CLI tool accuracy, and CLI pattern accuracy are tracked (100% method accuracy on matched findings)
+- [x] Integrate ExploitDB/searchsploit API into the exploitation bridge (auto-enrichment before LLM call)
+- [x] Add searchsploit search endpoint for finding exploits by CVE/keyword (4 tRPC endpoints)
+- [x] Add exploit download/compilation support for ExploitDB entries (downloadExploitCode, downloadExploitById)
+- [x] Wire ExploitDB results into the LLM's exploit selection pipeline (exploitation-bridge.ts enrichment)
+- [x] Write tests for ExploitDB integration (24 tests in exploitdb-connector.test.ts)
+- [x] Add tRPC endpoints: searchExploitDB, downloadExploit, findExploitsForVuln, exploitDBStats
+- [x] Add deduplication by exploit ID in search results
+- [x] Live tested: 46,968 exploits indexed, CVE/keyword/vuln search all working

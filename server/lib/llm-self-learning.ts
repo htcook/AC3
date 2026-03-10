@@ -324,9 +324,10 @@ export async function getAllLearningEntries(limit = 200): Promise<LearningEntry[
   const mysql = await import("mysql2/promise");
   const conn = await mysql.createConnection(process.env.DATABASE_URL);
   try {
+    const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 200));
     const [rows] = await conn.execute(
-      `SELECT * FROM llm_learning_entries ORDER BY created_at DESC LIMIT ?`,
-      [String(limit)]
+      `SELECT * FROM llm_learning_entries ORDER BY created_at DESC LIMIT ${safeLimit}`,
+      []
     );
     return (rows as any[]).map(r => ({
       targetPreset: r.target_preset,

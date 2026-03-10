@@ -2454,4 +2454,58 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     const { listActiveLoops } = await import("../lib/continuous-training");
     return listActiveLoops();
   }),
+
+  // ─── ExploitDB Integration ──────────────────────────────────────────────────
+
+  /** Search ExploitDB for exploits by keyword, CVE, or service */
+  searchExploitDB: protectedProcedure
+    .input(z.object({
+      query: z.string().min(2).max(200),
+      type: z.enum(["dos", "local", "remote", "webapps", "shellcode", "papers"]).optional(),
+      platform: z.string().optional(),
+      verifiedOnly: z.boolean().optional(),
+      excludeMetasploit: z.boolean().optional(),
+      port: z.number().optional(),
+      limit: z.number().min(1).max(50).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { searchExploitDB } = await import("../lib/exploitdb-connector");
+      return searchExploitDB(input.query, {
+        type: input.type,
+        platform: input.platform,
+        verifiedOnly: input.verifiedOnly,
+        excludeMetasploit: input.excludeMetasploit,
+        port: input.port,
+        limit: input.limit || 20,
+      });
+    }),
+
+  /** Download exploit code from ExploitDB by ID */
+  downloadExploit: protectedProcedure
+    .input(z.object({ edbId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { downloadExploitById } = await import("../lib/exploitdb-connector");
+      const code = await downloadExploitById(input.edbId);
+      if (!code) throw new TRPCError({ code: "NOT_FOUND", message: `Exploit EDB-${input.edbId} not found in index` });
+      return code;
+    }),
+
+  /** Find ExploitDB exploits for a specific vulnerability */
+  findExploitsForVuln: protectedProcedure
+    .input(z.object({
+      vulnTitle: z.string(),
+      cve: z.string().optional(),
+      service: z.string().optional(),
+      platform: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { findExploitsForVuln } = await import("../lib/exploitdb-connector");
+      return findExploitsForVuln(input.vulnTitle, input.cve, input.service, input.platform);
+    }),
+
+  /** Get ExploitDB index stats (cache age, total exploits, etc.) */
+  exploitDBStats: publicProcedure.query(async () => {
+    const { getIndexStats } = await import("../lib/exploitdb-connector");
+    return getIndexStats();
+  }),
 });
