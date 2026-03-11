@@ -274,6 +274,161 @@ export const BUILTIN_DEFAULT_CREDS: Array<{
   { vendor: "Cisco", product: "CIMC", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", notes: "Cisco Integrated Management Controller", source: "Vendor documentation", tags: ["bmc", "server_management"] },
   { vendor: "Oracle", product: "ILOM", protocol: "https", port: 443, username: "root", password: "changeme", accessLevel: "root", source: "Oracle documentation", tags: ["bmc", "server_management"] },
   { vendor: "Fujitsu", product: "iRMC", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["bmc", "server_management"] },
+
+  // ─── Vulnerable-by-Design / Training Apps ────────────────────────
+  { vendor: "DVWA", product: "DVWA", protocol: "http", port: 80, username: "admin", password: "password", accessLevel: "admin", notes: "Damn Vulnerable Web Application — default admin login", source: "DVWA documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "DVWA", product: "DVWA", protocol: "http", port: 80, username: "gordonb", password: "abc123", accessLevel: "user", notes: "DVWA secondary user", source: "DVWA documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "DVWA", product: "DVWA", protocol: "http", port: 80, username: "1337", password: "charley", accessLevel: "user", source: "DVWA documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "DVWA", product: "DVWA", protocol: "http", port: 80, username: "pablo", password: "letmein", accessLevel: "user", source: "DVWA documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "DVWA", product: "DVWA", protocol: "http", port: 80, username: "smithy", password: "password", accessLevel: "user", source: "DVWA documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "OWASP", product: "WebGoat", protocol: "http", port: 8080, username: "guest", password: "guest", accessLevel: "user", source: "OWASP documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "OWASP", product: "Juice Shop", protocol: "http", port: 3000, username: "admin@juice-sh.op", password: "admin123", accessLevel: "admin", source: "OWASP documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "bWAPP", product: "bWAPP", protocol: "http", port: 80, username: "bee", password: "bug", accessLevel: "admin", notes: "Buggy Web Application", source: "bWAPP documentation", tags: ["web_app", "training", "vulnerable"] },
+  { vendor: "Metasploitable", product: "Metasploitable", protocol: "ssh", port: 22, username: "msfadmin", password: "msfadmin", accessLevel: "admin", source: "Rapid7 documentation", tags: ["training", "vulnerable", "linux"] },
+  { vendor: "VulnHub", product: "Kioptrix", protocol: "ssh", port: 22, username: "john", password: "TwsitdBilpsworD", accessLevel: "user", source: "VulnHub community", tags: ["training", "vulnerable", "linux"] },
+  { vendor: "HackTheBox", product: "Generic Linux", protocol: "ssh", port: 22, username: "root", password: "toor", accessLevel: "root", notes: "Common CTF/lab default", source: "CTF community", tags: ["training", "vulnerable", "linux"] },
+
+  // ─── Web Application Frameworks & Admin Panels ───────────────────
+  { vendor: "Django", product: "Django Admin", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Django admin panel", source: "Common misconfiguration", tags: ["web_app", "python", "framework"] },
+  { vendor: "Django", product: "Django Admin", protocol: "http", port: 8000, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["web_app", "python", "framework"] },
+  { vendor: "Laravel", product: "Laravel Nova", protocol: "http", port: 80, username: "admin@admin.com", password: "password", accessLevel: "admin", source: "Common misconfiguration", tags: ["web_app", "php", "framework"] },
+  { vendor: "Rails", product: "Rails Admin", protocol: "http", port: 3000, username: "admin@example.com", password: "password", accessLevel: "admin", source: "Common misconfiguration", tags: ["web_app", "ruby", "framework"] },
+  { vendor: "Strapi", product: "Strapi CMS", protocol: "http", port: 1337, username: "admin@strapi.io", password: "strapiPassword", accessLevel: "admin", source: "Common misconfiguration", tags: ["cms", "web_app", "headless"] },
+  { vendor: "Ghost", product: "Ghost CMS", protocol: "http", port: 2368, username: "ghost@example.com", password: "ghostpassword", accessLevel: "admin", source: "Common misconfiguration", tags: ["cms", "web_app", "blog"] },
+  { vendor: "Directus", product: "Directus", protocol: "http", port: 8055, username: "admin@example.com", password: "d1r3ctu5", accessLevel: "admin", source: "Directus documentation", tags: ["cms", "web_app", "headless"] },
+  { vendor: "KeystoneJS", product: "KeystoneJS", protocol: "http", port: 3000, username: "admin@keystonejs.com", password: "password", accessLevel: "admin", source: "Common misconfiguration", tags: ["cms", "web_app", "node"] },
+  { vendor: "Webmin", product: "Webmin", protocol: "https", port: 10000, username: "root", password: "root", accessLevel: "root", source: "Common misconfiguration", tags: ["admin_panel", "linux", "management"] },
+  { vendor: "Webmin", product: "Webmin", protocol: "https", port: 10000, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["admin_panel", "linux", "management"] },
+  { vendor: "cPanel", product: "cPanel", protocol: "https", port: 2083, username: "root", password: "password", accessLevel: "root", source: "Common misconfiguration", tags: ["admin_panel", "hosting", "management"] },
+  { vendor: "Plesk", product: "Plesk", protocol: "https", port: 8443, username: "admin", password: "setup", accessLevel: "admin", source: "Vendor documentation", tags: ["admin_panel", "hosting", "management"] },
+  { vendor: "Cockpit", product: "Cockpit", protocol: "https", port: 9090, username: "root", password: "root", accessLevel: "root", notes: "Linux server management", source: "Common misconfiguration", tags: ["admin_panel", "linux", "management"] },
+  { vendor: "phpIPAM", product: "phpIPAM", protocol: "http", port: 80, username: "admin", password: "ipamadmin", accessLevel: "admin", source: "Vendor documentation", tags: ["web_app", "network", "ipam"] },
+  { vendor: "GLPI", product: "GLPI", protocol: "http", port: 80, username: "glpi", password: "glpi", accessLevel: "admin", notes: "IT asset management", source: "Vendor documentation", tags: ["web_app", "itsm", "asset_management"] },
+  { vendor: "OCS Inventory", product: "OCS Inventory", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["web_app", "inventory", "asset_management"] },
+  { vendor: "Cacti", product: "Cacti", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["monitoring", "web_app", "network"] },
+  { vendor: "LibreNMS", product: "LibreNMS", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["monitoring", "web_app", "network"] },
+  { vendor: "Icinga", product: "Icinga Web 2", protocol: "http", port: 80, username: "icingaadmin", password: "icinga", accessLevel: "admin", source: "Vendor documentation", tags: ["monitoring", "web_app"] },
+  { vendor: "Prometheus", product: "Prometheus", protocol: "http", port: 9090, username: "", password: "", accessLevel: "admin", notes: "No auth by default", source: "Common misconfiguration", tags: ["monitoring", "devops"] },
+  { vendor: "Graylog", product: "Graylog", protocol: "http", port: 9000, username: "admin", password: "admin", accessLevel: "admin", source: "Graylog documentation", tags: ["siem", "log_management", "web_app"] },
+  { vendor: "Wazuh", product: "Wazuh", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Wazuh documentation", tags: ["siem", "security", "web_app"] },
+  { vendor: "OSSEC", product: "OSSEC Web UI", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["siem", "security", "web_app"] },
+  { vendor: "Moodle", product: "Moodle", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["cms", "web_app", "education"] },
+  { vendor: "MediaWiki", product: "MediaWiki", protocol: "http", port: 80, username: "WikiSysop", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["wiki", "web_app"] },
+  { vendor: "DokuWiki", product: "DokuWiki", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["wiki", "web_app"] },
+  { vendor: "Mantis", product: "MantisBT", protocol: "http", port: 80, username: "administrator", password: "root", accessLevel: "admin", source: "Vendor documentation", tags: ["bug_tracker", "web_app"] },
+  { vendor: "Redmine", product: "Redmine", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["project_management", "web_app"] },
+  { vendor: "Gitea", product: "Gitea", protocol: "http", port: 3000, username: "gitea", password: "gitea", accessLevel: "admin", source: "Common misconfiguration", tags: ["git", "devops", "web_app"] },
+  { vendor: "Gogs", product: "Gogs", protocol: "http", port: 3000, username: "gogs", password: "gogs", accessLevel: "admin", source: "Common misconfiguration", tags: ["git", "devops", "web_app"] },
+  { vendor: "Minio", product: "MinIO", protocol: "http", port: 9000, username: "minioadmin", password: "minioadmin", accessLevel: "admin", source: "MinIO documentation", tags: ["storage", "s3", "devops"] },
+  { vendor: "Minio", product: "MinIO Console", protocol: "http", port: 9001, username: "minioadmin", password: "minioadmin", accessLevel: "admin", source: "MinIO documentation", tags: ["storage", "s3", "devops"] },
+  { vendor: "Keycloak", product: "Keycloak", protocol: "http", port: 8080, username: "admin", password: "admin", accessLevel: "admin", source: "Keycloak documentation", tags: ["auth", "iam", "web_app"] },
+  { vendor: "Authentik", product: "Authentik", protocol: "https", port: 443, username: "akadmin", password: "admin", accessLevel: "admin", source: "Authentik documentation", tags: ["auth", "iam", "web_app"] },
+  { vendor: "Nextcloud", product: "Nextcloud", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["cloud", "file_sharing", "web_app"] },
+  { vendor: "ownCloud", product: "ownCloud", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["cloud", "file_sharing", "web_app"] },
+  { vendor: "Seafile", product: "Seafile", protocol: "http", port: 8000, username: "admin@seafile.com", password: "asecret", accessLevel: "admin", source: "Common misconfiguration", tags: ["cloud", "file_sharing", "web_app"] },
+  { vendor: "Pi-hole", product: "Pi-hole", protocol: "http", port: 80, username: "", password: "admin", accessLevel: "admin", notes: "Web admin password only", source: "Common misconfiguration", tags: ["dns", "network", "iot"] },
+  { vendor: "AdGuard", product: "AdGuard Home", protocol: "http", port: 3000, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["dns", "network", "iot"] },
+  { vendor: "Home Assistant", product: "Home Assistant", protocol: "http", port: 8123, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["iot", "home_automation"] },
+  { vendor: "OpenHAB", product: "openHAB", protocol: "http", port: 8080, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["iot", "home_automation"] },
+
+  // ─── Cloud & Infrastructure Panels ───────────────────────────────
+  { vendor: "Cloudflare", product: "Argo Tunnel", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Self-hosted tunnel dashboard", source: "Common misconfiguration", tags: ["cloud", "cdn", "tunnel"] },
+  { vendor: "Traefik", product: "Traefik Dashboard", protocol: "http", port: 8080, username: "admin", password: "admin", accessLevel: "admin", notes: "Reverse proxy dashboard", source: "Common misconfiguration", tags: ["reverse_proxy", "devops"] },
+  { vendor: "Nginx", product: "Nginx Proxy Manager", protocol: "http", port: 81, username: "admin@example.com", password: "changeme", accessLevel: "admin", source: "NPM documentation", tags: ["reverse_proxy", "web_server"] },
+  { vendor: "Caddy", product: "Caddy", protocol: "http", port: 2019, username: "", password: "", accessLevel: "admin", notes: "Admin API — no auth by default", source: "Caddy documentation", tags: ["reverse_proxy", "web_server"] },
+  { vendor: "AWX", product: "AWX", protocol: "http", port: 80, username: "admin", password: "password", accessLevel: "admin", notes: "Ansible Tower open-source", source: "AWX documentation", tags: ["automation", "devops", "ansible"] },
+  { vendor: "Ansible", product: "Ansible Tower", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Red Hat documentation", tags: ["automation", "devops", "ansible"] },
+  { vendor: "Terraform", product: "Terraform Enterprise", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["iac", "devops", "cloud"] },
+  { vendor: "Puppet", product: "Puppet Enterprise", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Puppet documentation", tags: ["automation", "devops"] },
+  { vendor: "Chef", product: "Chef Server", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Chef documentation", tags: ["automation", "devops"] },
+  { vendor: "SaltStack", product: "Salt", protocol: "https", port: 8000, username: "salt", password: "salt", accessLevel: "admin", source: "Common misconfiguration", tags: ["automation", "devops"] },
+
+  // ─── Message Queues & Event Streaming ────────────────────────────
+  { vendor: "Apache", product: "Kafka UI", protocol: "http", port: 8080, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["message_queue", "streaming", "devops"] },
+  { vendor: "Apache", product: "ActiveMQ", protocol: "http", port: 8161, username: "admin", password: "admin", accessLevel: "admin", source: "Apache documentation", tags: ["message_queue", "web_app"] },
+  { vendor: "Apache", product: "Pulsar", protocol: "http", port: 8080, username: "", password: "", accessLevel: "admin", notes: "No auth by default", source: "Apache documentation", tags: ["message_queue", "streaming"] },
+  { vendor: "NATS", product: "NATS Server", protocol: "http", port: 8222, username: "", password: "", accessLevel: "admin", notes: "Monitoring endpoint — no auth", source: "NATS documentation", tags: ["message_queue", "devops"] },
+  { vendor: "EMQ", product: "EMQX", protocol: "http", port: 18083, username: "admin", password: "public", accessLevel: "admin", notes: "MQTT broker dashboard", source: "EMQX documentation", tags: ["mqtt", "iot", "message_queue"] },
+  { vendor: "Eclipse", product: "Mosquitto", protocol: "other", port: 1883, username: "", password: "", accessLevel: "admin", notes: "MQTT — no auth by default", source: "Common misconfiguration", tags: ["mqtt", "iot"] },
+
+  // ─── Security Tools (Exposed Dashboards) ─────────────────────────
+  { vendor: "OpenVAS", product: "Greenbone", protocol: "https", port: 9392, username: "admin", password: "admin", accessLevel: "admin", source: "Greenbone documentation", tags: ["security", "vuln_scanner"] },
+  { vendor: "Nessus", product: "Nessus", protocol: "https", port: 8834, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["security", "vuln_scanner"] },
+  { vendor: "Qualys", product: "Virtual Scanner", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["security", "vuln_scanner"] },
+  { vendor: "TheHive", product: "TheHive", protocol: "http", port: 9000, username: "admin@thehive.local", password: "secret", accessLevel: "admin", source: "TheHive documentation", tags: ["security", "incident_response", "soar"] },
+  { vendor: "Cortex", product: "Cortex", protocol: "http", port: 9001, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["security", "threat_intel", "soar"] },
+  { vendor: "MISP", product: "MISP", protocol: "https", port: 443, username: "admin@admin.test", password: "admin", accessLevel: "admin", source: "MISP documentation", tags: ["security", "threat_intel"] },
+  { vendor: "Shuffle", product: "Shuffle SOAR", protocol: "http", port: 3001, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["security", "soar", "automation"] },
+  { vendor: "Velociraptor", product: "Velociraptor", protocol: "https", port: 8889, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["security", "dfir", "edr"] },
+
+  // ─── Additional Network Equipment ────────────────────────────────
+  { vendor: "Cisco", product: "Meraki Dashboard", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Local dashboard when cloud unreachable", source: "Vendor documentation", tags: ["network", "wireless", "cloud"] },
+  { vendor: "Cisco", product: "Small Business", protocol: "web_admin", port: 80, username: "cisco", password: "cisco", accessLevel: "admin", notes: "SG/SF series switches", source: "Vendor documentation", tags: ["switch", "network"] },
+  { vendor: "Cisco", product: "WAP", protocol: "web_admin", port: 80, username: "cisco", password: "cisco", accessLevel: "admin", notes: "Wireless Access Point", source: "Vendor documentation", tags: ["wireless", "network"] },
+  { vendor: "HPE", product: "Aruba CX", protocol: "https", port: 443, username: "admin", password: "", accessLevel: "admin", notes: "Empty password on factory reset", source: "HPE documentation", tags: ["switch", "network"] },
+  { vendor: "HPE", product: "ProCurve", protocol: "ssh", port: 22, username: "manager", password: "", accessLevel: "admin", notes: "Legacy HP switches", source: "Vendor documentation", tags: ["switch", "network"] },
+  { vendor: "Brocade", product: "Fabric OS", protocol: "ssh", port: 22, username: "admin", password: "password", accessLevel: "admin", notes: "SAN switch", source: "Vendor documentation", tags: ["san", "storage", "network"] },
+  { vendor: "Brocade", product: "Fabric OS", protocol: "ssh", port: 22, username: "root", password: "fibranne", accessLevel: "root", source: "Vendor documentation", tags: ["san", "storage", "network"] },
+  { vendor: "Extreme", product: "EXOS", protocol: "ssh", port: 22, username: "admin", password: "", accessLevel: "admin", notes: "Empty password default", source: "Vendor documentation", tags: ["switch", "network"] },
+  { vendor: "Allied Telesis", product: "AlliedWare", protocol: "ssh", port: 22, username: "manager", password: "friend", accessLevel: "admin", source: "Vendor documentation", tags: ["switch", "network"] },
+  { vendor: "Huawei", product: "VRP", protocol: "ssh", port: 22, username: "admin", password: "Admin@huawei", accessLevel: "admin", source: "Vendor documentation", tags: ["router", "switch", "network"] },
+  { vendor: "Huawei", product: "VRP", protocol: "web_admin", port: 443, username: "admin", password: "Admin@huawei", accessLevel: "admin", source: "Vendor documentation", tags: ["router", "switch", "network"] },
+  { vendor: "ZTE", product: "Router", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["router", "network", "isp"] },
+  { vendor: "Cambium", product: "cnPilot", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["wireless", "isp", "network"] },
+  { vendor: "Mimosa", product: "Backhaul", protocol: "web_admin", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Vendor documentation", tags: ["wireless", "isp", "network"] },
+
+  // ─── VPN Appliances (Expanded) ───────────────────────────────────
+  { vendor: "Cisco", product: "AnyConnect", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "VPN concentrator admin", source: "Vendor documentation", tags: ["vpn", "remote_access"] },
+  { vendor: "Pulse Secure", product: "PCS", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Pulse Connect Secure", source: "Vendor documentation", tags: ["vpn", "remote_access"] },
+  { vendor: "Citrix", product: "Gateway", protocol: "https", port: 443, username: "nsroot", password: "nsroot", accessLevel: "admin", notes: "Citrix ADC/Gateway", source: "Vendor documentation", tags: ["vpn", "remote_access", "adc"] },
+  { vendor: "WireGuard", product: "WireGuard UI", protocol: "http", port: 5000, username: "admin", password: "admin", accessLevel: "admin", notes: "Third-party web UI", source: "Common misconfiguration", tags: ["vpn", "open_source"] },
+  { vendor: "Pritunl", product: "Pritunl", protocol: "https", port: 443, username: "pritunl", password: "pritunl", accessLevel: "admin", source: "Pritunl documentation", tags: ["vpn", "open_source"] },
+
+  // ─── E-Commerce Platforms ────────────────────────────────────────
+  { vendor: "Magento", product: "Magento", protocol: "http", port: 80, username: "admin", password: "admin123", accessLevel: "admin", source: "Common misconfiguration", tags: ["ecommerce", "web_app", "php"] },
+  { vendor: "PrestaShop", product: "PrestaShop", protocol: "http", port: 80, username: "demo@prestashop.com", password: "prestashop_demo", accessLevel: "admin", source: "Demo installation", tags: ["ecommerce", "web_app", "php"] },
+  { vendor: "WooCommerce", product: "WooCommerce", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "WordPress-based", source: "Common misconfiguration", tags: ["ecommerce", "web_app", "wordpress"] },
+  { vendor: "OpenCart", product: "OpenCart", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["ecommerce", "web_app", "php"] },
+  { vendor: "Shopware", product: "Shopware", protocol: "http", port: 80, username: "admin", password: "shopware", accessLevel: "admin", source: "Vendor documentation", tags: ["ecommerce", "web_app"] },
+
+  // ─── Additional Databases & Data Stores ──────────────────────────
+  { vendor: "MariaDB", product: "MariaDB", protocol: "mysql", port: 3306, username: "root", password: "", accessLevel: "root", notes: "Empty password on fresh install", source: "MariaDB documentation", tags: ["database", "mysql"] },
+  { vendor: "MariaDB", product: "MariaDB", protocol: "mysql", port: 3306, username: "root", password: "root", accessLevel: "root", source: "Common misconfiguration", tags: ["database", "mysql"] },
+  { vendor: "Percona", product: "Percona Server", protocol: "mysql", port: 3306, username: "root", password: "", accessLevel: "root", source: "Percona documentation", tags: ["database", "mysql"] },
+  { vendor: "TimescaleDB", product: "TimescaleDB", protocol: "postgres", port: 5432, username: "postgres", password: "password", accessLevel: "admin", source: "Common Docker default", tags: ["database", "timeseries", "postgres"] },
+  { vendor: "Supabase", product: "Supabase", protocol: "postgres", port: 5432, username: "postgres", password: "postgres", accessLevel: "admin", source: "Common self-hosted default", tags: ["database", "postgres", "baas"] },
+  { vendor: "PocketBase", product: "PocketBase", protocol: "http", port: 8090, username: "admin@admin.com", password: "admin12345", accessLevel: "admin", source: "Common misconfiguration", tags: ["database", "baas", "web_app"] },
+  { vendor: "ArangoDB", product: "ArangoDB", protocol: "http", port: 8529, username: "root", password: "", accessLevel: "root", notes: "Empty password on first install", source: "ArangoDB documentation", tags: ["database", "graph", "nosql"] },
+  { vendor: "RethinkDB", product: "RethinkDB", protocol: "http", port: 8080, username: "", password: "", accessLevel: "admin", notes: "Web UI — no auth by default", source: "RethinkDB documentation", tags: ["database", "nosql"] },
+  { vendor: "ScyllaDB", product: "ScyllaDB", protocol: "other", port: 9042, username: "cassandra", password: "cassandra", accessLevel: "admin", notes: "Cassandra-compatible", source: "ScyllaDB documentation", tags: ["database", "nosql"] },
+  { vendor: "Dgraph", product: "Dgraph", protocol: "http", port: 8080, username: "", password: "", accessLevel: "admin", notes: "No auth by default", source: "Dgraph documentation", tags: ["database", "graph"] },
+
+  // ─── Container Registries & Image Scanning ──────────────────────
+  { vendor: "Harbor", product: "Harbor", protocol: "https", port: 443, username: "admin", password: "Harbor12345", accessLevel: "admin", source: "Harbor documentation", tags: ["container", "registry", "devops"] },
+  { vendor: "Quay", product: "Quay", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["container", "registry", "devops"] },
+  { vendor: "Trivy", product: "Trivy Server", protocol: "http", port: 4954, username: "", password: "", accessLevel: "admin", notes: "No auth by default", source: "Aqua documentation", tags: ["container", "security", "devops"] },
+
+  // ─── Backup & Disaster Recovery ──────────────────────────────────
+  { vendor: "Veeam", product: "Backup & Replication", protocol: "https", port: 9443, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["backup", "disaster_recovery"] },
+  { vendor: "Acronis", product: "Cyber Protect", protocol: "https", port: 9877, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["backup", "disaster_recovery"] },
+  { vendor: "Bacula", product: "Bacula Web", protocol: "http", port: 9095, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["backup", "open_source"] },
+  { vendor: "Duplicati", product: "Duplicati", protocol: "http", port: 8200, username: "", password: "", accessLevel: "admin", notes: "No auth by default", source: "Common misconfiguration", tags: ["backup", "open_source"] },
+
+  // ─── Generic / Cross-Platform Defaults ───────────────────────────
+  { vendor: "Generic", product: "Linux SSH", protocol: "ssh", port: 22, username: "root", password: "root", accessLevel: "root", notes: "Common on dev/test systems", source: "Common misconfiguration", tags: ["linux", "generic"] },
+  { vendor: "Generic", product: "Linux SSH", protocol: "ssh", port: 22, username: "root", password: "toor", accessLevel: "root", notes: "Kali Linux default", source: "Offensive Security", tags: ["linux", "generic", "security"] },
+  { vendor: "Generic", product: "Linux SSH", protocol: "ssh", port: 22, username: "admin", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["linux", "generic"] },
+  { vendor: "Generic", product: "Linux SSH", protocol: "ssh", port: 22, username: "user", password: "user", accessLevel: "user", source: "Common misconfiguration", tags: ["linux", "generic"] },
+  { vendor: "Generic", product: "Linux SSH", protocol: "ssh", port: 22, username: "test", password: "test", accessLevel: "user", source: "Common misconfiguration", tags: ["linux", "generic"] },
+  { vendor: "Generic", product: "Windows RDP", protocol: "rdp", port: 3389, username: "Administrator", password: "admin", accessLevel: "admin", source: "Common misconfiguration", tags: ["windows", "generic"] },
+  { vendor: "Generic", product: "Windows RDP", protocol: "rdp", port: 3389, username: "Administrator", password: "password", accessLevel: "admin", source: "Common misconfiguration", tags: ["windows", "generic"] },
+  { vendor: "Generic", product: "Windows RDP", protocol: "rdp", port: 3389, username: "admin", password: "P@ssw0rd", accessLevel: "admin", source: "Common misconfiguration", tags: ["windows", "generic"] },
+  { vendor: "Generic", product: "Web Admin", protocol: "http", port: 80, username: "admin", password: "admin", accessLevel: "admin", notes: "Universal fallback", source: "Common misconfiguration", tags: ["web_app", "generic"] },
+  { vendor: "Generic", product: "Web Admin", protocol: "http", port: 80, username: "admin", password: "password", accessLevel: "admin", notes: "Universal fallback", source: "Common misconfiguration", tags: ["web_app", "generic"] },
+  { vendor: "Generic", product: "Web Admin", protocol: "http", port: 80, username: "admin", password: "123456", accessLevel: "admin", notes: "Universal fallback", source: "Common misconfiguration", tags: ["web_app", "generic"] },
+  { vendor: "Generic", product: "Web Admin", protocol: "http", port: 80, username: "root", password: "root", accessLevel: "root", notes: "Universal fallback", source: "Common misconfiguration", tags: ["web_app", "generic"] },
+  { vendor: "Generic", product: "Web Admin", protocol: "https", port: 443, username: "admin", password: "admin", accessLevel: "admin", notes: "Universal fallback (HTTPS)", source: "Common misconfiguration", tags: ["web_app", "generic"] },
+  { vendor: "Generic", product: "Web Admin", protocol: "https", port: 443, username: "admin", password: "password", accessLevel: "admin", notes: "Universal fallback (HTTPS)", source: "Common misconfiguration", tags: ["web_app", "generic"] },
 ];
 
 /**
@@ -287,26 +442,67 @@ export function matchCredentialsForTechnology(tech: {
   cpe?: string;
   port?: number;
   protocol?: string;
+  banner?: string;
+  pageTitle?: string;
+  tags?: string[];
 }): typeof BUILTIN_DEFAULT_CREDS {
   const matches: typeof BUILTIN_DEFAULT_CREDS = [];
   const techName = (tech.name || "").toLowerCase();
   const techVendor = (tech.vendor || "").toLowerCase();
   const techCpe = (tech.cpe || "").toLowerCase();
+  const techBanner = (tech.banner || "").toLowerCase();
+  const techTitle = (tech.pageTitle || "").toLowerCase();
+  const techTags = (tech.tags || []).map(t => t.toLowerCase());
+
+  // Build a combined search text from all available signals
+  const searchText = [techName, techVendor, techCpe, techBanner, techTitle].join(" ");
 
   for (const cred of BUILTIN_DEFAULT_CREDS) {
     const credVendor = cred.vendor.toLowerCase();
     const credProduct = cred.product.toLowerCase();
+    // Normalize product name for multi-word matching (e.g. "Juice Shop" -> "juice shop")
+    const credProductWords = credProduct.split(/\s+/);
     let matched = false;
 
-    // Match by vendor + product name in technology name or CPE
+    // 1. Direct vendor/product name match in technology name or CPE
     if (techName.includes(credVendor) || techName.includes(credProduct)) matched = true;
     if (techVendor.includes(credVendor)) matched = true;
     if (techCpe.includes(credVendor) || techCpe.includes(credProduct.replace(/\s+/g, "_"))) matched = true;
 
-    // Match by port if protocol matches
-    if (tech.port && cred.port === tech.port && tech.protocol && cred.protocol === tech.protocol.toLowerCase()) {
-      // Port+protocol match is a weaker signal, combine with partial name match
-      if (techName.includes(credVendor.split(" ")[0]) || techName.includes(credProduct.split(" ")[0])) matched = true;
+    // 2. Banner/title-based matching (catches DVWA title page, Tomcat welcome, etc.)
+    if (!matched && (techBanner || techTitle)) {
+      if (searchText.includes(credVendor) || searchText.includes(credProduct)) matched = true;
+      // Multi-word product: match if ALL words appear in search text
+      if (!matched && credProductWords.length > 1) {
+        if (credProductWords.every(w => searchText.includes(w))) matched = true;
+      }
+    }
+
+    // 3. Tag-based matching: if the technology has tags that overlap with credential tags
+    if (!matched && techTags.length > 0 && cred.tags.length > 0) {
+      // Require at least 2 tag overlaps for generic creds, 1 for specific vendors
+      const overlap = cred.tags.filter(t => techTags.includes(t));
+      if (cred.vendor !== "Generic") {
+        // For specific vendors, also check if any tech tag matches vendor/product name
+        if (techTags.some(t => t.includes(credVendor) || credVendor.includes(t))) matched = true;
+      }
+    }
+
+    // 4. Port+protocol match combined with partial name match
+    if (!matched && tech.port && cred.port === tech.port && tech.protocol && cred.protocol === tech.protocol.toLowerCase()) {
+      if (techName.includes(credVendor.split(" ")[0]) || techName.includes(credProductWords[0])) matched = true;
+    }
+
+    // 5. Port-based generic fallback: if we have a web port, include generic web creds
+    if (!matched && cred.vendor === "Generic" && tech.port) {
+      const webPorts = [80, 443, 8080, 8443, 8000, 3000, 5000];
+      if (cred.product === "Web Admin" && webPorts.includes(tech.port)) {
+        // Only include generic web creds as fallback when no specific match found
+        // (will be deduplicated later)
+        matched = true;
+      }
+      if (cred.product === "Linux SSH" && tech.port === 22) matched = true;
+      if (cred.product === "Windows RDP" && tech.port === 3389) matched = true;
     }
 
     if (matched) matches.push(cred);

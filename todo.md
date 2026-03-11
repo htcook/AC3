@@ -525,3 +525,21 @@
 - [x] Log credential handoff in ops feed (🔑 Credential Handoff + ✅ ZAP Authenticated Scan)
 - [x] Add 20 tests (Hydra parsing, credential selection, form detection, normalization, handoff integration)
 - [x] All 316 tests passing, build succeeds (8.8MB server, Vite 1m59s)
+
+## Feature: Technology-Specific Default Credential Dictionary Expansion
+- [x] Expanded BUILTIN_DEFAULT_CREDS from 152 to 329 entries
+- [x] Added: Security Training Apps (DVWA, bWAPP, Juice Shop, WebGoat, Metasploitable, HackTheBox)
+- [x] Added: CI/CD & DevOps (Jenkins, GitLab, Bamboo, TeamCity, Nexus, Harbor, ArgoCD)
+- [x] Added: Container & Orchestration (Portainer, Rancher, Kubernetes Dashboard)
+- [x] Added: Monitoring & Observability (Grafana, Prometheus, Nagios, Zabbix, Kibana, Splunk)
+- [x] Added: Databases (MySQL, PostgreSQL, MongoDB, Redis, CouchDB, Cassandra, InfluxDB, Neo4j, Elasticsearch)
+- [x] Added: Network Devices (Cisco, MikroTik, Ubiquiti, Fortinet, pfSense, OpenWrt, Netgear, TP-Link, D-Link)
+- [x] Added: IoT & SCADA (Siemens, ABB, Schneider, Honeywell, GE, Hikvision, Dahua, Axis)
+- [x] Added: Backup & Disaster Recovery (Veeam, Acronis, Bacula, Duplicati)
+- [x] Added: Generic cross-platform (SSH, RDP, Web Admin)
+- [x] Enhanced matchCredentialsForTechnology with banner/title-based matching
+- [x] Enhanced matchCredentialsForTechnology with port-based generic fallback
+- [x] Added generic fallback in getCredentialsForService when no specific match found
+- [x] Passed banner data through to matchCredentialsForTechnology calls
+- [x] 40 new tests for credential dictionary coverage, matching, and integration
+- [x] All 356 tests passing, build succeeds (8.8MB server, Vite 1m16s)

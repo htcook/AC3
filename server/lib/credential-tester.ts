@@ -458,13 +458,14 @@ export function getCredentialsForService(target: CredentialTestTarget): Credenti
   const candidates: CredentialCandidate[] = [];
   const seen = new Set<string>();
 
-  // Match from technologies discovered on the asset
+  // Match from technologies discovered on the asset (now passes banner/title for deeper matching)
   if (target.technologies) {
     for (const tech of target.technologies) {
       const matches = matchCredentialsForTechnology({
         ...tech,
         port: target.port,
         protocol: target.protocol,
+        banner: target.banner,
       });
       for (const m of matches) {
         const key = `${m.username}:${m.password}:${m.protocol}`;
@@ -476,12 +477,13 @@ export function getCredentialsForService(target: CredentialTestTarget): Credenti
     }
   }
 
-  // Match from product name in banner
+  // Match from product name in banner (passes banner text for title/banner-based matching)
   if (target.product) {
     const matches = matchCredentialsForTechnology({
       name: target.product,
       port: target.port,
       protocol: target.protocol,
+      banner: target.banner,
     });
     for (const m of matches) {
       const key = `${m.username}:${m.password}:${m.protocol}`;
@@ -492,7 +494,7 @@ export function getCredentialsForService(target: CredentialTestTarget): Credenti
     }
   }
 
-  // Match from banner keywords
+  // Match from banner keywords (direct scan for vendor/product names in banner text)
   if (target.banner) {
     const bannerLower = target.banner.toLowerCase();
     for (const cred of BUILTIN_DEFAULT_CREDS) {
@@ -504,6 +506,24 @@ export function getCredentialsForService(target: CredentialTestTarget): Credenti
         if (!seen.has(key)) {
           seen.add(key);
           candidates.push({ ...cred, source: cred.source || "Banner match" });
+        }
+      }
+    }
+  }
+
+  // Port-based generic fallback: if no specific matches found, try generic creds for the port
+  if (candidates.length === 0) {
+    const genericMatches = matchCredentialsForTechnology({
+      name: "generic",
+      port: target.port,
+      protocol: target.protocol,
+    });
+    for (const m of genericMatches) {
+      if (m.vendor === "Generic") {
+        const key = `${m.username}:${m.password}:${m.protocol}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          candidates.push({ ...m, source: "Generic fallback" });
         }
       }
     }
