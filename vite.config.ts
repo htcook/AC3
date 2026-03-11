@@ -54,8 +54,54 @@ export default defineConfig({
     sourcemap: false,
     cssCodeSplit: false,
     chunkSizeWarningLimit: 5000,
-    // No manualChunks — let Rollup handle splitting naturally via React.lazy.
-    // jspdf is now dynamically imported in export-utils.ts to reduce module count.
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Consolidate all lucide-react icons into a single chunk (~170 icons → 1 file)
+          if (id.includes("node_modules/lucide-react")) {
+            return "vendor-lucide";
+          }
+          // Group Radix UI primitives together (must stay with React)
+          if (id.includes("node_modules/@radix-ui")) {
+            return "vendor-radix";
+          }
+          // Group React + React-DOM together (prevents TDZ errors)
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/scheduler/")
+          ) {
+            return "vendor-react";
+          }
+          // Group charting libs
+          if (
+            id.includes("node_modules/recharts") ||
+            id.includes("node_modules/d3-") ||
+            id.includes("node_modules/victory")
+          ) {
+            return "vendor-charts";
+          }
+          // Group shiki/streamdown
+          if (
+            id.includes("node_modules/shiki") ||
+            id.includes("node_modules/streamdown") ||
+            id.includes("node_modules/@shikijs")
+          ) {
+            return "vendor-shiki";
+          }
+          // Group mermaid + cytoscape (large visualization libs)
+          if (
+            id.includes("node_modules/mermaid") ||
+            id.includes("node_modules/cytoscape") ||
+            id.includes("node_modules/dagre") ||
+            id.includes("node_modules/elkjs")
+          ) {
+            return "vendor-viz";
+          }
+          // Let page chunks split naturally via React.lazy
+        },
+      },
+    },
   },
   server: {
     host: true,
