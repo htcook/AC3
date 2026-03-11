@@ -3443,13 +3443,28 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           ? { type: 'form', loginUrl: `${targetUrl}/login`, credentials: { username: webCreds[0].username, password: webCreds[0].password } }
           : undefined;
 
-        const llmConfig = await generateLLMScanConfig({
+        let llmConfig = await generateLLMScanConfig({
           targetUrl,
           scanMode: "active",
           techStackHints: techHints,
           authHints,
           scopeConstraints: [`Only scan ${webApp.hostname}`],
         });
+
+        // Apply WAF evasion if WAF was detected for this target
+        if (wafVendor) {
+          try {
+            const { applyWafEvasionConfig } = await import("./zap-scanner");
+            llmConfig = applyWafEvasionConfig(llmConfig, wafVendor);
+            addLog(state, {
+              phase: "vuln_detection",
+              type: "info",
+              title: `WAF Evasion Applied: ${wafVendor}`,
+              detail: `ZAP scan config adjusted for ${wafVendor} — delay: ${llmConfig.activeScanConfig.delayInMs}ms, threads: ${llmConfig.activeScanConfig.threadPerHost}, ${llmConfig.customRules.filter(r => r.startsWith('WAF_EVASION') || !r.startsWith('Rule')).length} evasion techniques`,
+              data: { wafVendor, delayMs: llmConfig.activeScanConfig.delayInMs, threads: llmConfig.activeScanConfig.threadPerHost },
+            });
+          } catch { /* WAF evasion is best-effort */ }
+        }
 
         addLog(state, {
           phase: "vuln_detection",

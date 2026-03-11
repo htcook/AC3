@@ -341,7 +341,7 @@ describe("Retry integration in zap-scanner", () => {
 
   it("should still fall back to default config on total failure", () => {
     const source = zapSource();
-    expect(source).toContain("getDefaultScanConfig(params.scanMode)");
+    expect(source).toContain("getDefaultScanConfig(params.scanMode, params.techStackHints, undefined, params.targetUrl)");
   });
 });
 

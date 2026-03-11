@@ -41,6 +41,8 @@ import {
   getTechScanPolicyContext,
   getZAPAuthContext,
   getZAPAlertCatalogContext,
+  TECH_SCAN_POLICIES,
+  type TechScanPolicy,
 } from "./knowledge/zap-pentesting-knowledge";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
@@ -521,25 +523,88 @@ ${dynamicKnowledge ? '\n\n## ZAP Knowledge Base Reference\n' + dynamicKnowledge 
     throw new Error("LLM returned non-string content");
   } catch (err: any) {
     console.error(`[ZAP LLM Orchestrator] Failed to generate config after retries: ${err.message}`);
-    return getDefaultScanConfig(params.scanMode);
+    console.log(`[ZAP LLM Orchestrator] Using knowledge-driven fallback for tech hints: [${params.techStackHints?.join(', ') || 'none'}], target: ${params.targetUrl}`);
+    return getDefaultScanConfig(params.scanMode, params.techStackHints, undefined, params.targetUrl);
   }
 }
 
 /**
- * Fallback default scan configuration when LLM is unavailable.
+ * Smart knowledge-driven fallback when LLM is unavailable.
+ * Uses TECH_SCAN_POLICIES from the ZAP knowledge module to generate
+ * technology-specific scan configs instead of generic defaults.
  */
-function getDefaultScanConfig(mode: "passive" | "active"): LLMScanConfig {
-  return {
-    scanPolicy: mode === "passive" ? "Default Policy" : "Default Policy",
-    useAjaxSpider: false,
+function getDefaultScanConfig(
+  mode: "passive" | "active",
+  techStackHints?: string[],
+  wafVendor?: string,
+  targetUrl?: string,
+): LLMScanConfig {
+  // Try to match a tech-specific policy from the knowledge module
+  let matchedPolicy: TechScanPolicy | undefined;
+
+  // Build combined hints from tech stack + URL-based detection
+  const allHints = [...(techStackHints || [])];
+  if (targetUrl) {
+    // URL extension detection
+    if (targetUrl.includes('.php') || targetUrl.includes('php')) allHints.push('PHP');
+    if (targetUrl.includes('.asp') || targetUrl.includes('.aspx')) allHints.push('ASP.NET');
+    if (targetUrl.includes('.jsp') || targetUrl.includes('.do') || targetUrl.includes('.action')) allHints.push('Java');
+    if (targetUrl.includes('wp-') || targetUrl.includes('wordpress')) allHints.push('WordPress');
+    if (targetUrl.includes('/api/') || targetUrl.includes('/graphql')) allHints.push('API');
+  }
+
+  // Server header matching (nmap versions often contain server names)
+  const serverPatterns: Record<string, string> = {
+    'apache': 'PHP',       // Apache commonly serves PHP
+    'nginx': 'PHP',        // nginx commonly serves PHP
+    'iis': 'ASP.NET',
+    'tomcat': 'Java/Spring',
+    'jetty': 'Java/Spring',
+    'express': 'Node.js/Express',
+    'kestrel': 'ASP.NET',
+    'gunicorn': 'Python/Django/Flask',
+    'uwsgi': 'Python/Django/Flask',
+    'werkzeug': 'Python/Django/Flask',
+    'wordpress': 'WordPress',
+    'wp-': 'WordPress',
+    'php': 'PHP',
+  };
+
+  for (const hint of allHints) {
+    const lowerHint = hint.toLowerCase();
+    // Direct policy match
+    matchedPolicy = TECH_SCAN_POLICIES.find(p =>
+      p.technology.toLowerCase().includes(lowerHint) ||
+      p.fingerprints.some(f => f.toLowerCase().includes(lowerHint)) ||
+      lowerHint.includes(p.technology.split('/')[0].toLowerCase())
+    );
+    if (matchedPolicy) break;
+
+    // Server header pattern match
+    for (const [pattern, tech] of Object.entries(serverPatterns)) {
+      if (lowerHint.includes(pattern)) {
+        matchedPolicy = TECH_SCAN_POLICIES.find(p => p.technology === tech);
+        if (matchedPolicy) break;
+      }
+    }
+    if (matchedPolicy) break;
+  }
+
+  console.log(`[ZAP Smart Fallback] Hints: [${allHints.join(', ')}], Matched: ${matchedPolicy?.technology || 'none (using generic defaults)'}`);
+
+
+  // Base config — use matched policy or generic defaults
+  const baseConfig: LLMScanConfig = {
+    scanPolicy: matchedPolicy ? `Knowledge-${matchedPolicy.technology}` : "Default Policy",
+    useAjaxSpider: matchedPolicy?.useAjaxSpider ?? false,
     spiderConfig: {
       maxDepth: mode === "passive" ? 5 : 8,
       maxChildren: mode === "passive" ? 20 : 50,
       threadCount: 5,
-      parseComments: true,
-      parseGit: true,
+      parseComments: matchedPolicy?.spiderConfig?.parseComments ?? true,
+      parseGit: matchedPolicy?.spiderConfig?.parseGit ?? true,
       parseSitemapXml: true,
-      postForm: mode === "active",
+      postForm: matchedPolicy?.spiderConfig?.postForm ?? (mode === "active"),
     },
     ajaxSpiderConfig: {
       maxCrawlDepth: 5,
@@ -555,14 +620,220 @@ function getDefaultScanConfig(mode: "passive" | "active"): LLMScanConfig {
       scanHeadersAllRequests: true,
       maxRuleDurationInMins: 10,
     },
-    technologies: [],
+    technologies: matchedPolicy ? [matchedPolicy.technology] : [],
     authStrategy: "none",
     authConfig: {},
     contextIncludes: [],
-    contextExcludes: [".*\\.(js|css|png|jpg|gif|svg|ico|woff|woff2|ttf|eot)$"],
+    contextExcludes: matchedPolicy?.contextExcludes || [".*\\.(js|css|png|jpg|gif|svg|ico|woff|woff2|ttf|eot)$"],
     importSpec: null,
-    customRules: [],
-    rationale: "Default configuration — LLM orchestrator unavailable. Using balanced settings.",
+    customRules: matchedPolicy
+      ? matchedPolicy.criticalRules.map(r => `Rule ${r.id}: ${r.strength}/${r.threshold} — ${r.reason}`)
+      : [],
+    rationale: matchedPolicy
+      ? `Knowledge-driven fallback: ${matchedPolicy.technology} policy applied (${matchedPolicy.criticalRules.length} critical rules). LLM orchestrator was unavailable.`
+      : "Default configuration — LLM orchestrator unavailable. Using balanced settings.",
+  };
+
+  // Apply WAF evasion overrides if WAF detected
+  if (wafVendor) {
+    return applyWafEvasionConfig(baseConfig, wafVendor);
+  }
+
+  return baseConfig;
+}
+
+// ─── WAF Evasion Configuration ─────────────────────────────────────────────
+
+/**
+ * WAF-specific scan parameter overrides.
+ * Adjusts rate limiting, threading, spider behavior, and scan timing
+ * to maximize coverage while minimizing WAF block rate.
+ */
+interface WafEvasionProfile {
+  name: string;
+  /** Max requests per second (lower = less likely to trigger WAF) */
+  maxReqPerSec: number;
+  delayInMs: number;
+  threadPerHost: number;
+  spiderThreads: number;
+  maxRuleDurationInMins: number;
+  useAjaxSpider: boolean;
+  /** Additional User-Agent rotation headers */
+  rotateUserAgents: boolean;
+  /** Use encoded payloads to bypass signature detection */
+  encodePayloads: boolean;
+  /** Specific bypass techniques */
+  techniques: string[];
+}
+
+const WAF_EVASION_PROFILES: Record<string, WafEvasionProfile> = {
+  "Cloudflare": {
+    name: "Cloudflare Evasion",
+    maxReqPerSec: 2,
+    delayInMs: 500,
+    threadPerHost: 1,
+    spiderThreads: 2,
+    maxRuleDurationInMins: 20,
+    useAjaxSpider: false,
+    rotateUserAgents: true,
+    encodePayloads: true,
+    techniques: [
+      "Rate limit to 2 req/sec to avoid Cloudflare rate-based rules",
+      "Rotate User-Agent between Chrome, Firefox, Safari, Edge variants",
+      "Use double URL encoding for injection payloads",
+      "Avoid common scanner signatures in spider requests",
+      "Set Referer header to target domain on all requests",
+      "Add Accept-Language and Accept-Encoding headers for browser mimicry",
+    ],
+  },
+  "AWS WAF": {
+    name: "AWS WAF Evasion",
+    maxReqPerSec: 5,
+    delayInMs: 200,
+    threadPerHost: 2,
+    spiderThreads: 3,
+    maxRuleDurationInMins: 15,
+    useAjaxSpider: false,
+    rotateUserAgents: true,
+    encodePayloads: true,
+    techniques: [
+      "Vary HTTP methods (GET/POST/PUT) to avoid method-based rules",
+      "Use Unicode normalization for injection payloads",
+      "Test with different Content-Type headers (form, json, xml)",
+      "Fragment payloads across multiple parameters",
+    ],
+  },
+  "Akamai": {
+    name: "Akamai Evasion",
+    maxReqPerSec: 1,
+    delayInMs: 1000,
+    threadPerHost: 1,
+    spiderThreads: 1,
+    maxRuleDurationInMins: 25,
+    useAjaxSpider: false,
+    rotateUserAgents: true,
+    encodePayloads: true,
+    techniques: [
+      "Very slow scan rate (1 req/sec) — Akamai has aggressive behavioral detection",
+      "Use custom User-Agent strings (not common scanner signatures)",
+      "Fragment payloads across multiple parameters",
+      "Avoid automated scanner fingerprints in headers",
+    ],
+  },
+  "Imperva/Incapsula": {
+    name: "Imperva Evasion",
+    maxReqPerSec: 3,
+    delayInMs: 350,
+    threadPerHost: 1,
+    spiderThreads: 2,
+    maxRuleDurationInMins: 20,
+    useAjaxSpider: true,
+    rotateUserAgents: true,
+    encodePayloads: true,
+    techniques: [
+      "Handle Incapsula JavaScript challenges (use AJAX spider)",
+      "Implement cookie handling for challenge responses",
+      "Use browser-like request patterns with full header sets",
+      "Solve JavaScript challenges before active scanning",
+    ],
+  },
+  "ModSecurity": {
+    name: "ModSecurity Evasion",
+    maxReqPerSec: 5,
+    delayInMs: 200,
+    threadPerHost: 2,
+    spiderThreads: 3,
+    maxRuleDurationInMins: 15,
+    useAjaxSpider: false,
+    rotateUserAgents: false,
+    encodePayloads: true,
+    techniques: [
+      "Identify CRS paranoia level via incremental payload testing",
+      "Use Unicode normalization bypasses for SQL keywords",
+      "Test with different character encodings (UTF-8, UTF-16, ISO-8859-1)",
+      "Check for rule exclusion via specific paths or parameters",
+      "Use case variation in SQL/XSS keywords",
+    ],
+  },
+  "F5 BIG-IP ASM": {
+    name: "F5 BIG-IP Evasion",
+    maxReqPerSec: 3,
+    delayInMs: 350,
+    threadPerHost: 2,
+    spiderThreads: 2,
+    maxRuleDurationInMins: 15,
+    useAjaxSpider: false,
+    rotateUserAgents: true,
+    encodePayloads: true,
+    techniques: [
+      "Test HTTP parameter pollution techniques",
+      "Use HTTP method override headers (X-HTTP-Method-Override)",
+      "Try alternative encoding schemes (hex, octal, base64)",
+      "Check for bypass via HTTP/2 protocol",
+    ],
+  },
+};
+
+/**
+ * Get the WAF evasion profile for a detected WAF vendor.
+ * Falls back to a conservative generic profile for unknown WAFs.
+ */
+export function getWafEvasionProfile(wafVendor: string): WafEvasionProfile {
+  // Exact match first
+  if (WAF_EVASION_PROFILES[wafVendor]) return WAF_EVASION_PROFILES[wafVendor];
+  // Fuzzy match
+  const key = Object.keys(WAF_EVASION_PROFILES).find(k =>
+    k.toLowerCase().includes(wafVendor.toLowerCase()) ||
+    wafVendor.toLowerCase().includes(k.toLowerCase())
+  );
+  if (key) return WAF_EVASION_PROFILES[key];
+  // Generic conservative profile for unknown WAFs
+  return {
+    name: `Generic WAF Evasion (${wafVendor})`,
+    maxReqPerSec: 2,
+    delayInMs: 500,
+    threadPerHost: 1,
+    spiderThreads: 2,
+    maxRuleDurationInMins: 20,
+    useAjaxSpider: false,
+    rotateUserAgents: true,
+    encodePayloads: true,
+    techniques: [
+      "Use slower scan rate to avoid rate-based blocking",
+      "Rotate User-Agent headers between browser variants",
+      "Use encoded payloads for injection tests",
+      "Avoid common attack signatures in URLs",
+    ],
+  };
+}
+
+/**
+ * Apply WAF evasion overrides to a scan config.
+ * Reduces threading, increases delays, and adds evasion techniques.
+ */
+export function applyWafEvasionConfig(config: LLMScanConfig, wafVendor: string): LLMScanConfig {
+  const profile = getWafEvasionProfile(wafVendor);
+  console.log(`[ZAP WAF Evasion] Applying ${profile.name}: ${profile.delayInMs}ms delay, ${profile.threadPerHost} threads, ${profile.techniques.length} techniques`);
+
+  return {
+    ...config,
+    useAjaxSpider: profile.useAjaxSpider || config.useAjaxSpider,
+    spiderConfig: {
+      ...config.spiderConfig,
+      threadCount: Math.min(config.spiderConfig.threadCount, profile.spiderThreads),
+    },
+    activeScanConfig: {
+      ...config.activeScanConfig,
+      threadPerHost: profile.threadPerHost,
+      delayInMs: profile.delayInMs,
+      maxRuleDurationInMins: profile.maxRuleDurationInMins,
+    },
+    customRules: [
+      ...config.customRules,
+      `WAF_EVASION: ${profile.name}`,
+      ...profile.techniques,
+    ],
+    rationale: `${config.rationale} | WAF Evasion: ${profile.name} applied — ${profile.delayInMs}ms delay, ${profile.threadPerHost} thread(s), ${profile.techniques.length} bypass techniques.`,
   };
 }
 
