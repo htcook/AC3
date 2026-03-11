@@ -11,6 +11,7 @@
 
 import { ENV } from "../_core/env";
 import { invokeLLM } from "../_core/llm";
+import { getLOTLContext } from "./knowledge/offensive-techniques-knowledge";
 
 // MITRE technique to Caldera tactic mapping
 const TECHNIQUE_TACTIC_MAP: Record<string, string[]> = {
@@ -651,7 +652,11 @@ Return JSON:
   try {
     const response = await invokeLLM({ _priority: 'essential',
       messages: [
-        { role: "system", content: "You are an expert adversary emulation engineer. Return valid JSON only." },
+        { role: "system", content: `You are an expert adversary emulation engineer. Return valid JSON only.
+
+${getLOTLContext()}
+
+When selecting abilities, prefer those that leverage Living Off the Land techniques (native OS binaries, legitimate tools) for stealth. Prioritize LOLBAS/GTFOBins-based abilities for execution, persistence, and defense evasion phases.` },
         { role: "user", content: prompt },
       ],
       response_format: {

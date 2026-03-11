@@ -16,6 +16,7 @@
 import { getDb } from "../db";
 import { aiAttackPlans } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
+import { getLOTLContext, getFirewallEvasionContext } from "./knowledge/offensive-techniques-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -419,6 +420,20 @@ Your response MUST be valid JSON matching this schema:
   "detectionOpportunities": ["string array - where blue team can detect"],
   "recommendations": ["string array - defensive recommendations"]
 }
+
+## Living Off the Land Knowledge
+When enriching exploitation and post-exploitation steps, prefer Living Off The Land (LOTL) techniques:
+- **Windows:** Reference LOLBAS binaries (certutil, mshta, regsvr32, rundll32, wmic) for execution, persistence, and defense evasion
+- **Linux:** Reference GTFOBins (curl, wget, python, perl, awk, find) for privilege escalation and file exfiltration
+- **macOS:** Reference LOOBins for native binary abuse
+- **DLL Hijacking:** Reference HijackLibs for persistence via DLL search order hijacking
+- **Driver Abuse:** Reference LOLDrivers for kernel-level EDR/AV bypass
+- **Legitimate Domain Abuse:** Reference LOTS Project for C2 and exfiltration via trusted domains (GitHub, Slack, Discord, Cloudflare Workers)
+
+## Evasion Techniques
+- For firewall/WAF bypass: packet fragmentation, timing evasion, DNS/HTTP tunneling, encrypted payloads
+- For AV/EDR bypass: LOTL binaries, process injection via legitimate APIs (MalAPI.io), driver-level bypass
+- Always include detection opportunities for each evasion technique used
 
 IMPORTANT: Keep the same techniqueId, techniqueName, and order from the skeleton. Only enrich descriptions, objectives, outcomes, and add detection/recommendations.`;
 

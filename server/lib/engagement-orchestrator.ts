@@ -68,6 +68,14 @@ import {
   getBridgeStatus,
 } from "./job-queue-bridge";
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
+import {
+  buildOffensiveTechniquesContext,
+  getFirewallEvasionContext,
+  getFileUploadBypassContext,
+  getLOTLContext,
+  getShodanReconContext,
+  getSubdomainEnumContext,
+} from "./knowledge/offensive-techniques-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -883,6 +891,14 @@ Return valid JSON per the response_format schema.`;
     });
     const owaspCtx = getOwaspScanPlanContext(uniqueTech);
     const threatGroupCtx = getThreatGroupScanContext({ technologies: uniqueTech });
+    // Build offensive techniques context based on engagement phase
+    const offensiveTechCtx = buildOffensiveTechniquesContext({
+      phase: 'enumeration',
+      hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+      hasWAF: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+      hasFileUpload: uniqueTech.some(t => /upload|file|cms|wordpress|drupal|joomla/i.test(t)),
+      includeShodan: true,
+    });
     enrichmentCtx = [
       ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '',
       bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '',
@@ -891,6 +907,7 @@ Return valid JSON per the response_format schema.`;
       nmapCtx || '',
       owaspCtx || '',
       threatGroupCtx || '',
+      offensiveTechCtx || '',
     ].filter(Boolean).join('\n\n');
   } catch (e) {
     console.warn('[ScanPlan] Failed to build enrichment context:', e);
@@ -3745,7 +3762,14 @@ ${(() => {
   const nmapVulnCtx = getNmapVulnCorrelationContext();
   const owaspVulnCtx = getOwaspVulnCorrelationContext();
   const threatVulnCtx = getThreatGroupVulnContext();
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx;
+  // Add offensive techniques for vuln detection phase (file upload bypass, firewall evasion)
+  const offTechVulnCtx = buildOffensiveTechniquesContext({
+    phase: 'vuln_detection',
+    hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+    hasWAF: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+    hasFileUpload: detectedTech.some(t => /upload|file|cms|wordpress|drupal|joomla/i.test(t)),
+  });
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx + (offTechVulnCtx ? '\n\n' + offTechVulnCtx : '');
 })()}`,
     });
 
@@ -3956,7 +3980,15 @@ ${(() => {
   const nmapExploitCtx = getNmapVulnCorrelationContext();
   const owaspExploitCtx = getOwaspVulnCorrelationContext();
   const threatExploitCtx = getThreatGroupVulnContext();
-  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx;
+  // Add LOTL and file upload bypass knowledge for exploitation phase
+  const offTechExploitCtx = buildOffensiveTechniquesContext({
+    phase: 'exploitation',
+    platform: detectedTech.some(t => /windows|iis|asp\.net/i.test(t)) ? 'windows' : detectedTech.some(t => /linux|apache|nginx/i.test(t)) ? 'linux' : undefined,
+    hasFileUpload: detectedTech.some(t => /upload|file|cms|wordpress|drupal|joomla/i.test(t)),
+    hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+    hasWAF: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
+  });
+  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx + (offTechExploitCtx ? '\n\n' + offTechExploitCtx : '');
 })()}`,
   });
 

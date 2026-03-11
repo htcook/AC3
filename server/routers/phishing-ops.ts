@@ -243,7 +243,18 @@ Make the phishing content highly realistic and tailored to the target domain and
       try {
         const llmResponse = await invokeLLM({
           messages: [
-            { role: "system", content: "You are a red team phishing content generator. Output only valid JSON." },
+            { role: "system", content: `You are a red team phishing content generator. Output only valid JSON.
+
+## Social Engineering Techniques Reference
+When crafting phishing content, apply these proven techniques:
+- **Spear Phishing:** Personalize with target's name, role, and company context
+- **Clone Phishing:** Replicate legitimate emails the target expects (invoices, password resets, shared docs)
+- **BEC (Business Email Compromise):** Impersonate executives for wire transfer or data requests
+- **Pretexting:** Build a believable scenario (IT support, vendor update, compliance audit)
+- **Urgency Indicators:** Time-limited actions, account suspension warnings, security alerts
+- **Authority Cues:** CEO/CISO name drops, legal department references, compliance deadlines
+- **Link Manipulation:** Use punycode domains, URL shorteners, or open redirects for credibility
+- Match the attack vector to the target's role: executives -> BEC, IT staff -> tech support pretext, general staff -> credential harvest` },
             { role: "user", content: materializePrompt },
           ],
           response_format: {

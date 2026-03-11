@@ -557,3 +557,14 @@
 - [x] Fix 6: Added scan request deduplication — skip scans identical to previous iterations
 - [x] Fix 7: Added robust LLM response validation — handles malformed JSON, missing fields, graceful fallback to satisfied=true
 - [x] 41 new tests for retry, convergence, validation, and integration (all 397 tests passing)
+
+## Offensive Security Knowledge Integration (from cheat sheet images)
+- [x] Extracted structured data from 6 cheat sheet images into knowledge/extracted-cheatsheets.md
+- [x] Created offensive-techniques-knowledge.ts module with 6 knowledge domains (LOTL, file upload bypass, firewall testing, social engineering, Shodan filters, subdomain enumeration)
+- [x] Wired into engagement-orchestrator.ts (scan plan, vuln detection, exploitation phases)
+- [x] Wired into ai-attack-planner.ts (LOTL + evasion for attack enrichment)
+- [x] Wired into chain-builder.ts (LOTL for Caldera ability selection)
+- [x] Wired into llm-scan-feedback.ts (evasion for re-scan decisions)
+- [x] Wired into phishing-ops.ts (social engineering taxonomy for campaign generation)
+- [x] 44 new tests for all 6 knowledge domain context builders (all passing)
+- [x] All 441 tests passing across 21 test files

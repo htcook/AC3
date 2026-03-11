@@ -15,6 +15,7 @@
 import { invokeLLM } from "../_core/llm";
 import { executeTool, type ToolExecResult } from "./scan-server-executor";
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
+import { getFirewallEvasionContext, getFileUploadBypassContext } from "./knowledge/offensive-techniques-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -295,6 +296,13 @@ ${toolDescriptions}
 - If the scan budget is 3 or fewer, strongly prefer satisfied=true unless there is a critical gap
 - A "critical gap" means a HIGH/CRITICAL severity finding that needs confirmation, not minor enumeration
 - When in doubt, set satisfied=true — the engagement pipeline has other phases that will catch remaining issues
+
+## Evasion & Bypass Knowledge
+When requesting scans against targets with firewalls or WAFs, consider these techniques:
+- Use packet fragmentation (nmap -f) and timing evasion (nmap -T2) for firewall bypass
+- For file upload testing, use extension splitting payloads: null byte (%00), newline (%0a), semicolon (%3B), Unicode overlong encoding
+- For WAF bypass: identify vendor first (wafw00f), then use encoding tricks, chunked transfer, or parameter pollution
+- Prefer passive/stealthy tools when the target has active defenses
 
 ## Response Format
 You MUST respond with valid JSON matching this schema:
