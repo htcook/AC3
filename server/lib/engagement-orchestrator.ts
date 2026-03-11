@@ -157,6 +157,18 @@ export interface AssetStatus {
   status: "pending" | "scanning" | "enumerated" | "vulns_found" | "exploiting" | "compromised" | "no_vulns" | "discovered";
   wafDetected?: string;
   passiveRecon?: AssetPassiveRecon;
+  /** Confirmed working credentials from credential testing (Hydra, HTTP form, etc.) */
+  confirmedCredentials: Array<{
+    username: string;
+    password: string;
+    service: string;
+    port: number;
+    protocol: string;
+    accessLevel?: string;
+    source: string; // e.g. "hydra", "http_form", "oem_default"
+    responseSnippet?: string;
+    confirmedAt: number;
+  }>;
   /** Per-tool execution results stored on the asset for display and LLM context */
   toolResults: Array<{
     tool: string;
@@ -381,6 +393,9 @@ export function normalizeOpsState(state: any): EngagementOpsState {
     if (!Array.isArray(asset.vulns)) asset.vulns = [];
     if (!Array.isArray(asset.toolResults)) asset.toolResults = [];
     if (!Array.isArray(asset.ports)) asset.ports = [];
+    if (!Array.isArray(asset.zapFindings)) asset.zapFindings = [];
+    if (!Array.isArray(asset.exploitAttempts)) asset.exploitAttempts = [];
+    if (!Array.isArray(asset.confirmedCredentials)) asset.confirmedCredentials = [];
   }
 
   return state as EngagementOpsState;
@@ -1262,6 +1277,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
         vulns: [],
         zapFindings: [],
         exploitAttempts: [],
+        confirmedCredentials: [],
         toolResults: [],
         status: "pending",
       });
@@ -1277,6 +1293,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
         vulns: [],
         zapFindings: [],
         exploitAttempts: [],
+        confirmedCredentials: [],
         toolResults: [],
         status: "pending",
       });
@@ -1445,6 +1462,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
             vulns: passiveVulns,
             zapFindings: [],
             exploitAttempts: [],
+            confirmedCredentials: [],
             toolResults: [],
             status: "discovered",
             passiveRecon,
@@ -1730,13 +1748,34 @@ function parseToolOutput(
       break;
     }
     case "hydra": {
-      // Hydra: successful login
+      // Hydra: successful login — extract username/password and store on asset
+      // Hydra output format: [<port>][<service>] host: <host>   login: <user>   password: <pass>
       for (const line of stdout.split("\n")) {
         if (line.includes("login:") && line.includes("password:")) {
           findings.push({
             severity: "critical",
             title: `[Hydra] Valid credentials found: ${line.trim().slice(0, 100)}`,
           });
+
+          // Extract structured credential data for ZAP auth handoff
+          const loginMatch = line.match(/login:\s*(\S+)/);
+          const passMatch = line.match(/password:\s*(\S*)/);
+          const svcMatch = line.match(/\[\d+\]\[(\S+)\]/) || line.match(/\[(\S+)\]/);
+          const portMatch = line.match(/\[(\d+)\]/);
+
+          if (loginMatch && passMatch && asset.confirmedCredentials) {
+            asset.confirmedCredentials.push({
+              username: loginMatch[1],
+              password: passMatch[1],
+              service: svcMatch?.[1] || 'http',
+              port: portMatch ? parseInt(portMatch[1], 10) : (asset.ports[0]?.port || 80),
+              protocol: svcMatch?.[1]?.includes('http') ? 'http' : (svcMatch?.[1] || 'unknown'),
+              accessLevel: 'authenticated',
+              source: 'hydra',
+              responseSnippet: line.trim().slice(0, 200),
+              confirmedAt: Date.now(),
+            });
+          }
         }
       }
       break;
@@ -3351,13 +3390,26 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         } catch { /* WAF detection is best-effort */ }
 
         // Use LLM to generate optimal ZAP scan config
-        const { generateLLMScanConfig, startScan } = await import("./zap-scanner");
+        const { generateLLMScanConfig, startScan, configureZapAuthentication } = await import("./zap-scanner");
         const techHints = webApp.ports.map(p => p.version).filter(Boolean) as string[];
+
+        // Check if this asset has confirmed credentials from credential testing
+        const webCreds = (webApp.confirmedCredentials || []).filter(c =>
+          ['http', 'https', 'web_admin', 'http-form', 'http-get', 'http-post'].includes(c.service) ||
+          c.protocol === 'http' || c.protocol === 'https'
+        );
+        const hasConfirmedCreds = webCreds.length > 0;
+
+        // Pass confirmed credentials as auth hints to the LLM config generator
+        const authHints = hasConfirmedCreds
+          ? { type: 'form', loginUrl: `${targetUrl}/login`, credentials: { username: webCreds[0].username, password: webCreds[0].password } }
+          : undefined;
 
         const llmConfig = await generateLLMScanConfig({
           targetUrl,
           scanMode: "active",
           techStackHints: techHints,
+          authHints,
           scopeConstraints: [`Only scan ${webApp.hostname}`],
         });
 
@@ -3368,6 +3420,20 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           detail: llmConfig.rationale || "Optimized scan configuration based on target analysis",
           data: { technologies: llmConfig.technologies, authStrategy: llmConfig.authStrategy },
         });
+
+        // Log credential handoff if confirmed creds are available
+        if (hasConfirmedCreds) {
+          addLog(state, {
+            phase: "vuln_detection",
+            type: "info",
+            title: `🔑 Credential Handoff: ${webCreds.length} confirmed credential(s) → ZAP`,
+            detail: `Using ${webCreds[0].source} credentials (${webCreds[0].username}:***) for authenticated scanning of ${targetUrl}. Source: ${webCreds.map(c => c.source).join(', ')}`,
+            data: {
+              credentialCount: webCreds.length,
+              credentialSources: webCreds.map(c => ({ source: c.source, username: c.username, service: c.service, confirmedAt: c.confirmedAt })),
+            },
+          });
+        }
 
         // Start ZAP scan with WAF-aware settings
         let zapScanResult: any;
@@ -3385,6 +3451,41 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           // ZAP server may not be reachable — log and continue
           addLog(state, { phase: "vuln_detection", type: "error", title: `ZAP Start Error: ${targetUrl}`, detail: zapStartErr.message });
           continue;
+        }
+
+        // Configure ZAP authentication with confirmed credentials AFTER scan context is created
+        if (hasConfirmedCreds && zapScanResult?.scanId) {
+          try {
+            const authResult = await configureZapAuthentication(
+              `scan-${zapScanResult.scanId}`,
+              targetUrl,
+              webCreds,
+            );
+            if (authResult.configured) {
+              addLog(state, {
+                phase: "vuln_detection",
+                type: "info",
+                title: `✅ ZAP Authenticated Scan: ${authResult.method} auth configured`,
+                detail: `ZAP will scan as ${authResult.username} using ${authResult.method} authentication. Login form fields detected and CSRF tokens handled.`,
+                data: { method: authResult.method, username: authResult.username, contextId: authResult.contextId },
+              });
+            } else {
+              addLog(state, {
+                phase: "vuln_detection",
+                type: "warning",
+                title: `⚠️ ZAP Auth Config Partial`,
+                detail: `Auth configuration had issues: ${authResult.errors.join('; ')}. Scan will continue unauthenticated.`,
+                data: { errors: authResult.errors },
+              });
+            }
+          } catch (authErr: any) {
+            addLog(state, {
+              phase: "vuln_detection",
+              type: "warning",
+              title: `ZAP Auth Config Error`,
+              detail: `Could not configure authenticated scanning: ${authErr.message}. Continuing unauthenticated.`,
+            });
+          }
         }
 
         state.stats.zapScansRun++;

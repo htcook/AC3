@@ -507,3 +507,21 @@
 - [x] Root cause: page-purpose section used `eng?.name` but `eng` only exists inside .map() callback; correct variable is `engagement`
 - [x] Fixed: changed `eng?.name` to `engagement?.name` in page-purpose description
 - [x] All 296 tests passing
+
+## Feature: Pass Working Credentials to ZAP for Authenticated Scanning
+- [x] Read credential testing module — Hydra parses login:/password: from stdout
+- [x] Read ZAP scan module — startScan accepts llmConfig with authHints, context created per scan
+- [x] Add confirmedCredentials field to AssetStatus interface + normalizeOpsState support
+- [x] Enhanced Hydra parser to extract structured credentials (username, password, service, port, protocol)
+- [x] Create configureZapAuthentication() in zap-scanner.ts (270+ lines)
+- [x] Support form-based auth — auto-detect login URL, form fields, CSRF tokens (DVWA, WordPress, Django, Rails)
+- [x] Support HTTP Basic Auth — detect WWW-Authenticate header
+- [x] Support JSON-based auth — detect SPA/API login patterns
+- [x] Wire into orchestrator: check asset.confirmedCredentials before ZAP scan launch
+- [x] Pass authHints to LLM scan config generator for context-aware scanning
+- [x] Configure ZAP forced user with confirmed credentials for authenticated crawling
+- [x] Set logged-in/logged-out indicators for session detection
+- [x] Add authCredentialSource, authUsername, authMethod columns to webAppScans schema
+- [x] Log credential handoff in ops feed (🔑 Credential Handoff + ✅ ZAP Authenticated Scan)
+- [x] Add 20 tests (Hydra parsing, credential selection, form detection, normalization, handoff integration)
+- [x] All 316 tests passing, build succeeds (8.8MB server, Vite 1m59s)

@@ -1712,3 +1712,318 @@ export async function clearDemoData(): Promise<{ deletedScans: number; deletedFi
 
   return { deletedScans: demoScans.length, deletedFindings };
 }
+
+
+// ─── Credential-to-ZAP Authentication Handoff ────────────────────────────────
+
+/**
+ * Confirmed credential from engagement credential testing (Hydra, HTTP form, OEM defaults).
+ * Passed from the engagement orchestrator's asset.confirmedCredentials array.
+ */
+export interface ConfirmedCredential {
+  username: string;
+  password: string;
+  service: string;
+  port: number;
+  protocol: string;
+  accessLevel?: string;
+  source: string;
+  responseSnippet?: string;
+  confirmedAt: number;
+}
+
+/**
+ * Configure ZAP authentication context using confirmed credentials from credential testing.
+ *
+ * Supports:
+ * - Form-based login (DVWA, WordPress, custom forms)
+ * - HTTP Basic Auth
+ * - JSON-based login (REST APIs)
+ *
+ * When default credentials are confirmed working during the engagement's credential
+ * testing phase (e.g., Hydra finds admin/password on DVWA), this function configures
+ * ZAP to use those credentials for authenticated scanning — dramatically increasing
+ * vulnerability coverage behind login walls.
+ *
+ * @param contextName - ZAP context name (e.g., "scan-123")
+ * @param targetUrl - The target URL being scanned
+ * @param credentials - Array of confirmed working credentials
+ * @param config - ZAP connection config
+ * @returns Authentication configuration result
+ */
+export async function configureZapAuthentication(
+  contextName: string,
+  targetUrl: string,
+  credentials: ConfirmedCredential[],
+  config?: Partial<ZapConfig>,
+): Promise<{
+  configured: boolean;
+  method: string;
+  username: string;
+  contextId?: string;
+  userId?: string;
+  errors: string[];
+}> {
+  const cfg = { ...DEFAULT_ZAP_CONFIG, ...config };
+  const errors: string[] = [];
+  const parsedUrl = new URL(targetUrl);
+
+  // Pick the best credential — prefer HTTP/web credentials, then highest access level
+  const webCreds = credentials.filter(c =>
+    ['http', 'https', 'web_admin', 'http-form', 'http-get', 'http-post'].includes(c.service) ||
+    c.protocol === 'http' || c.protocol === 'https'
+  );
+  const bestCred = webCreds[0] || credentials[0];
+  if (!bestCred) {
+    return { configured: false, method: 'none', username: '', errors: ['No credentials provided'] };
+  }
+
+  console.log(`[ZAP Auth] Configuring authentication for ${targetUrl} using ${bestCred.source} credentials (${bestCred.username}:***)`);
+
+  try {
+    // Step 1: Get context ID
+    let contextId: string | undefined;
+    try {
+      const ctxResult = await zapRequest("/JSON/context/view/context/", {
+        contextName,
+      }, cfg);
+      contextId = ctxResult.context?.id || ctxResult.id;
+    } catch {
+      // Context might not exist yet — create it
+      try {
+        const newCtx = await zapRequest("/JSON/context/action/newContext/", {
+          contextName,
+        }, cfg);
+        contextId = newCtx.contextId;
+      } catch (e: any) {
+        errors.push(`Failed to create context: ${e.message}`);
+      }
+    }
+
+    if (!contextId) {
+      return { configured: false, method: 'none', username: bestCred.username, errors: ['Could not get or create ZAP context'] };
+    }
+
+    // Step 2: Detect login form to determine auth method
+    // Try common login paths to find form fields
+    const loginPaths = ['/login', '/admin/login', '/user/login', '/wp-login.php', '/login.php', '/'];
+    let detectedLoginUrl: string | undefined;
+    let detectedMethod: 'form' | 'basic' | 'json' = 'form';
+
+    for (const path of loginPaths) {
+      try {
+        const testUrl = `${parsedUrl.origin}${path}`;
+        const resp = await fetch(testUrl, {
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CalderaZapAuth/1.0)' },
+          signal: AbortSignal.timeout(5000),
+          redirect: 'follow',
+        });
+
+        if (resp.status === 401 && resp.headers.get('www-authenticate')?.toLowerCase().includes('basic')) {
+          detectedMethod = 'basic';
+          detectedLoginUrl = testUrl;
+          break;
+        }
+
+        if (resp.ok) {
+          const body = await resp.text();
+          // Check for login form indicators
+          if (/type=["']password["']/i.test(body) && /<form/i.test(body)) {
+            detectedLoginUrl = testUrl;
+            // Check if it's a JSON/API login (SPA with fetch-based auth)
+            if (/application\/json|fetch\s*\(|axios|XMLHttpRequest/i.test(body) && !/action=["'][^"']*["']/i.test(body)) {
+              detectedMethod = 'json';
+            } else {
+              detectedMethod = 'form';
+            }
+            break;
+          }
+        }
+      } catch { /* continue to next path */ }
+    }
+
+    // Step 3: Configure authentication based on detected method
+    if (detectedMethod === 'basic') {
+      // HTTP Basic Auth — simplest configuration
+      try {
+        await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
+          contextId,
+          authMethodName: "httpAuthentication",
+          authMethodConfigParams: `hostname=${parsedUrl.hostname}&realm=`,
+        }, cfg);
+
+        console.log(`[ZAP Auth] Configured HTTP Basic Auth for context ${contextName}`);
+      } catch (e: any) {
+        errors.push(`Failed to set HTTP Basic auth: ${e.message}`);
+      }
+    } else if (detectedMethod === 'form') {
+      // Form-based authentication — most common (DVWA, WordPress, etc.)
+      const loginUrl = detectedLoginUrl || `${parsedUrl.origin}/login`;
+
+      // Detect form field names by fetching the login page
+      let usernameField = 'username';
+      let passwordField = 'password';
+      let loginRequestData = '';
+
+      try {
+        const loginPage = await fetch(loginUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(5000),
+        });
+        const html = await loginPage.text();
+
+        // Extract username field name
+        const userFieldMatch = html.match(/name=["'](user(?:name)?|login|log|email|usr|uname|user_login)["']/i);
+        if (userFieldMatch) usernameField = userFieldMatch[1];
+
+        // Extract password field name
+        const passFieldMatch = html.match(/name=["'](pass(?:word)?|pwd|passwd|user_password|pass_login)["']/i);
+        if (passFieldMatch) passwordField = passFieldMatch[1];
+
+        // Extract form action URL
+        const formActionMatch = html.match(/<form[^>]*action=["']([^"']+)["']/i);
+        const formAction = formActionMatch
+          ? new URL(formActionMatch[1], loginUrl).toString()
+          : loginUrl;
+
+        // Build the login request data with ZAP placeholders
+        loginRequestData = `${usernameField}={%username%}&${passwordField}={%password%}`;
+
+        // Check for CSRF token
+        const csrfMatch = html.match(/name=["'](csrf[_-]?token|_?token|user_token|csrfmiddlewaretoken|_csrf|authenticity_token|__RequestVerificationToken)["'][^>]*value=["']([^"']+)["']/i);
+        if (csrfMatch) {
+          loginRequestData += `&${csrfMatch[1]}=${encodeURIComponent(csrfMatch[2])}`;
+          console.log(`[ZAP Auth] Detected CSRF token field: ${csrfMatch[1]}`);
+        }
+
+        // Configure ZAP form-based auth
+        await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
+          contextId,
+          authMethodName: "formBasedAuthentication",
+          authMethodConfigParams: `loginUrl=${encodeURIComponent(formAction)}&loginRequestData=${encodeURIComponent(loginRequestData)}`,
+        }, cfg);
+
+        console.log(`[ZAP Auth] Configured form-based auth: ${formAction} (fields: ${usernameField}/${passwordField})`);
+      } catch (e: any) {
+        errors.push(`Failed to configure form auth: ${e.message}`);
+        // Fallback: try with generic field names
+        try {
+          await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
+            contextId,
+            authMethodName: "formBasedAuthentication",
+            authMethodConfigParams: `loginUrl=${encodeURIComponent(loginUrl)}&loginRequestData=${encodeURIComponent(`username={%username%}&password={%password%}`)}`,
+          }, cfg);
+          console.log(`[ZAP Auth] Configured form-based auth with generic fields (fallback)`);
+        } catch (e2: any) {
+          errors.push(`Fallback form auth also failed: ${e2.message}`);
+        }
+      }
+    } else if (detectedMethod === 'json') {
+      // JSON-based authentication (SPA/API login)
+      const loginUrl = detectedLoginUrl || `${parsedUrl.origin}/api/login`;
+      try {
+        await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
+          contextId,
+          authMethodName: "jsonBasedAuthentication",
+          authMethodConfigParams: `loginUrl=${encodeURIComponent(loginUrl)}&loginRequestData=${encodeURIComponent(`{"username":"{%username%}","password":"{%password%}"}`)}`,
+        }, cfg);
+        console.log(`[ZAP Auth] Configured JSON-based auth: ${loginUrl}`);
+      } catch (e: any) {
+        errors.push(`Failed to set JSON auth: ${e.message}`);
+      }
+    }
+
+    // Step 4: Set logged-in / logged-out indicators for session detection
+    try {
+      // Common logged-in indicators
+      await zapRequest("/JSON/authentication/action/setLoggedInIndicator/", {
+        contextId,
+        loggedInIndicatorRegex: "\\Qlogout\\E|\\Qsign.out\\E|\\Qdashboard\\E|\\Qwelcome\\E|\\Qmy.account\\E|\\Qprofile\\E",
+      }, cfg).catch(() => {});
+
+      // Common logged-out indicators
+      await zapRequest("/JSON/authentication/action/setLoggedOutIndicator/", {
+        contextId,
+        loggedOutIndicatorRegex: "\\Qlogin\\E|\\Qsign.in\\E|\\Qauthentication.required\\E|\\Qaccess.denied\\E|\\Q401\\E",
+      }, cfg).catch(() => {});
+
+      console.log(`[ZAP Auth] Set logged-in/logged-out indicators`);
+    } catch (e: any) {
+      errors.push(`Failed to set session indicators: ${e.message}`);
+    }
+
+    // Step 5: Create ZAP user with the confirmed credentials
+    let userId: string | undefined;
+    try {
+      const userResult = await zapRequest("/JSON/users/action/newUser/", {
+        contextId,
+        name: `${bestCred.source}-${bestCred.username}`,
+      }, cfg);
+      userId = userResult.userId;
+
+      if (userId) {
+        // Set credentials on the user
+        await zapRequest("/JSON/users/action/setAuthenticationCredentials/", {
+          contextId,
+          userId,
+          authCredentialsConfigParams: `username=${encodeURIComponent(bestCred.username)}&password=${encodeURIComponent(bestCred.password)}`,
+        }, cfg);
+
+        // Enable the user
+        await zapRequest("/JSON/users/action/setUserEnabled/", {
+          contextId,
+          userId,
+          enabled: "true",
+        }, cfg);
+
+        // Set as forced user for all requests in this context
+        await zapRequest("/JSON/forcedUser/action/setForcedUser/", {
+          contextId,
+          userId,
+        }, cfg);
+
+        await zapRequest("/JSON/forcedUser/action/setForcedUserModeEnabled/", {
+          enabled: "true",
+        }, cfg);
+
+        console.log(`[ZAP Auth] Created and enabled forced user: ${bestCred.username} (source: ${bestCred.source})`);
+      }
+    } catch (e: any) {
+      errors.push(`Failed to create ZAP user: ${e.message}`);
+    }
+
+    // Step 6: Update the scan record to indicate auth was configured with source tracking
+    try {
+      const db = await getDb();
+      if (db) {
+        // Extract scan ID from context name (format: "scan-123")
+        const scanIdMatch = contextName.match(/scan-(\d+)/);
+        if (scanIdMatch) {
+          await db.update(webAppScans).set({
+            authConfigured: 1,
+            authCredentialSource: bestCred.source,
+            authUsername: bestCred.username,
+            authMethod: detectedMethod,
+          }).where(eq(webAppScans.id, parseInt(scanIdMatch[1], 10)));
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    return {
+      configured: errors.length === 0,
+      method: detectedMethod,
+      username: bestCred.username,
+      contextId,
+      userId,
+      errors,
+    };
+  } catch (e: any) {
+    return {
+      configured: false,
+      method: 'none',
+      username: bestCred.username,
+      errors: [`Unexpected error: ${e.message}`],
+    };
+  }
+}
