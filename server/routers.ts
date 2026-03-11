@@ -98,6 +98,7 @@ import { vendorIntegrationsRouter } from "./routers/vendor-integrations";
 import { agentManagerRouter } from "./routers/agent";
 import { ssilRouter } from "./routers/ssil";
 import { projectDiscoveryRouter } from "./routers/projectdiscovery";
+import { knowledgeBaseRouter } from "./routers/knowledge-base";
 import { abilityGraphRouter } from "./routers/ability-graph";
 import { aiSecurityValidationRouter } from "./routers/ai-security-validation";
 import { serviceFingerprintRouter } from "./routers/service-fingerprinter";
@@ -254,6 +255,7 @@ async function fetchCalderaAPI(url: string, apiKey: string, endpoint: string) {
 
 export const appRouter = router({
   system: systemRouter,
+  knowledgeBase: knowledgeBaseRouter,
   threatIntel: threatIntelRouter,
   darkwebBridge: darkwebBridgeRouter,
   campaignArchetypes: campaignArchetypeRouter,

@@ -568,3 +568,25 @@
 - [x] Wired into phishing-ops.ts (social engineering taxonomy for campaign generation)
 - [x] 44 new tests for all 6 knowledge domain context builders (all passing)
 - [x] All 441 tests passing across 21 test files
+
+## Acunetix-Style Engagement Validation Test
+- [x] Created vitest (27 tests) simulating engagement with WAF/firewall/file-upload targets
+- [x] Verified offensive knowledge injected into scan plan, vuln detection, exploitation LLM prompts
+- [x] Verified social engineering knowledge injected into phishing campaign generation
+- [x] Verified platform-specific LOTL filtering (windows vs linux vs macos)
+
+## Knowledge Base Admin Page
+- [x] Created tRPC router (knowledgeBase) with 5 procedures (listModules, getStats, getPhaseMapping, previewContext, previewPhaseContext)
+- [x] Built Knowledge Base page with 6 module cards showing name, item count, MITRE techniques, status
+- [x] Added context preview with char/token count and copy-to-clipboard
+- [x] Added engagement phase mapping visualization (interactive flow showing which modules inject into which phases)
+- [x] Registered route in App.tsx and added LLM KNOWLEDGE BASE to sidebar navigation
+- [x] 18 new tests for knowledge base router (all passing)
+
+## Expand Social Engineering Knowledge
+- [x] Added GoPhish email templates (BEC wire transfer, credential harvest, MFA fatigue, IT support, invoice lure, compliance audit)
+- [x] Added pretext scripts for all 5 categories (phishing, pretexting, baiting, quid pro quo, tailgating)
+- [x] Added landing page patterns (O365 login, MFA portal, document viewer, SSO portal)
+- [x] Added MITRE ATT&CK mapping for each template and script (T1566, T1598, T1091, etc.)
+- [x] Wired expanded templates into phishing-ops.ts campaign materialization
+- [x] All 486 tests passing across 23 test files

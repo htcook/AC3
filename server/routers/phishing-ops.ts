@@ -9,6 +9,7 @@ import * as db from "../db";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
+import { buildPhishingKnowledgeContext } from "../lib/knowledge/social-engineering-templates";
 import { getDb } from "../db";
 import {
   phishingDrafts, InsertPhishingDraft,
@@ -245,16 +246,9 @@ Make the phishing content highly realistic and tailored to the target domain and
           messages: [
             { role: "system", content: `You are a red team phishing content generator. Output only valid JSON.
 
-## Social Engineering Techniques Reference
-When crafting phishing content, apply these proven techniques:
-- **Spear Phishing:** Personalize with target's name, role, and company context
-- **Clone Phishing:** Replicate legitimate emails the target expects (invoices, password resets, shared docs)
-- **BEC (Business Email Compromise):** Impersonate executives for wire transfer or data requests
-- **Pretexting:** Build a believable scenario (IT support, vendor update, compliance audit)
-- **Urgency Indicators:** Time-limited actions, account suspension warnings, security alerts
-- **Authority Cues:** CEO/CISO name drops, legal department references, compliance deadlines
-- **Link Manipulation:** Use punycode domains, URL shorteners, or open redirects for credibility
-- Match the attack vector to the target's role: executives -> BEC, IT staff -> tech support pretext, general staff -> credential harvest` },
+${buildPhishingKnowledgeContext({ includeLandingPages: true })}
+
+When generating content, adapt the templates above to the specific target context. Use the pretext scripts as inspiration for realistic scenarios. Match landing page patterns to the campaign type.` },
             { role: "user", content: materializePrompt },
           ],
           response_format: {
