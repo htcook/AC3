@@ -708,10 +708,14 @@
 - [x] Set admin role on all accounts with role selection capability
 - [x] Generate secure passwords for each account
 - [x] Test each login to verify no errors (7/7 API + browser UI verified)
-- [ ] Deliver credentials list to user
+- [x] Deliver credentials list to user
 
 ## BitNet LLM Performance Research
-- [ ] Review Microsoft BitNet repository (architecture, inference, quantization approach)
-- [ ] Analyze applicability to Ace C3 platform LLM calls (invokeLLM, specialist modules)
-- [ ] Identify specific performance improvements (latency, cost, throughput)
-- [ ] Deliver recommendations report to user
+- [x] Review Microsoft BitNet repository (architecture, inference, quantization approach)
+- [x] Analyze applicability to Ace C3 platform LLM calls (invokeLLM, specialist modules)
+- [x] Identify specific performance improvements (latency, cost, throughput)
+- [x] Deliver recommendations report to user
+
+## Bug Fixes & Security
+- [x] Fix login redirect loop: email/password login says "success" but reloads login page (root cause: Drizzle schema property mismatch — accountRole/accountStatus vs role/status)
+- [x] Enforce HTTPS-only access for entire site including login page (HSTS max-age=1yr + HTTP→HTTPS 301 redirect middleware)

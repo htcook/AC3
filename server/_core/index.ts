@@ -67,6 +67,26 @@ async function startServer() {
   // correctly identifies HTTPS connections behind Manus/CNAME reverse proxies.
   // Without this, req.protocol returns 'http' and Secure cookies may not be set.
   app.set('trust proxy', 1);
+
+  // ─── HTTPS Enforcement ───────────────────────────────────────────────
+  // Redirect all HTTP requests to HTTPS in production.
+  // Behind a reverse proxy, X-Forwarded-Proto indicates the original protocol.
+  // Skip enforcement on localhost for local development.
+  app.use((req, res, next) => {
+    const host = req.hostname || req.headers.host || '';
+    const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+    const proto = req.protocol || (req.headers['x-forwarded-proto'] as string) || 'http';
+    if (!isLocalhost && proto !== 'https') {
+      const redirectUrl = `https://${req.headers.host}${req.originalUrl}`;
+      return res.redirect(301, redirectUrl);
+    }
+    // Set HSTS header for all HTTPS responses (1 year, include subdomains)
+    if (proto === 'https') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    }
+    next();
+  });
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
