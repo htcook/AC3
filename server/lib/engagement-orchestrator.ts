@@ -67,6 +67,7 @@ import {
   executeToolBatchViaQueue,
   getBridgeStatus,
 } from "./job-queue-bridge";
+import { retryWithBackoff, isRetryableError } from "./api-resilience";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1047,20 +1048,23 @@ Return valid JSON per the response_format schema.`;
     broadcastOpsUpdate(engagementId, { type: 'log_update' });
     usedPath = 'direct-llm';
     try {
-      response = await invokeLLM({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: tier1Content },
-        ],
-        _caller: 'engagement-orchestrator.generateScanPlan.fallback',
-        _engagementId: state.engagementId,
-        response_format: scanPlanResponseFormat,
-      });
+      response = await retryWithBackoff(
+        () => invokeLLM({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: tier1Content },
+          ],
+          _caller: 'engagement-orchestrator.generateScanPlan.fallback',
+          _engagementId: state.engagementId,
+          response_format: scanPlanResponseFormat,
+        }),
+        { maxRetries: 3, baseDelayMs: 2000, retryableCheck: isRetryableError }
+      );
     } catch (fallbackErr: any) {
       addLog(state, {
         phase: state.phase, type: 'error',
         title: 'LLM Scan Plan Failed',
-        detail: `Both specialist and direct LLM failed. Error: ${fallbackErr.message?.substring(0, 200)}`,
+        detail: `Both specialist and direct LLM failed after retries. Error: ${fallbackErr.message?.substring(0, 200)}`,
       });
       broadcastOpsUpdate(engagementId, { type: 'log_update' });
       throw fallbackErr;
@@ -1218,23 +1222,26 @@ Action params: nmap_scan={targets,profile:quick|standard|deep|stealth|service|vu
 Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.`;
 
   try {
-    const response = await invokeLLM({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: context.question },
-      ],
-      _caller: 'engagement-orchestrator.opsDecision',
-      _engagementId: context.engagementId,
-      response_format: {
-        type: "json_object" as const,
-      },
-    });
+    const response = await retryWithBackoff(
+      () => invokeLLM({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: context.question },
+        ],
+        _caller: 'engagement-orchestrator.opsDecision',
+        _engagementId: context.engagementId,
+        response_format: {
+          type: "json_object" as const,
+        },
+      }),
+      { maxRetries: 3, baseDelayMs: 2000, retryableCheck: isRetryableError }
+    );
 
     const content = response.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty LLM response");
     return JSON.parse(content);
   } catch (e: any) {
-    console.warn("[OpsLLM] Decision failed:", e.message);
+    console.warn("[OpsLLM] Decision failed after retries:", e.message);
     return {
       decision: "LLM decision failed, falling back to sequential scan",
       reasoning: e.message,
@@ -4725,9 +4732,9 @@ export async function executeEngagement(
           };
 
           const feedbackState = await runFeedbackLoop(allFindingsForLLM, scope, {
-            maxIterations: 3,
-            maxTotalScans: 8,
-            maxScansPerIteration: 3,
+            maxIterations: 5,
+            maxTotalScans: 12,
+            maxScansPerIteration: 4,
             engagementId: state.engagementId,
             onProgress: (fbState) => {
               state.currentAction = `LLM feedback loop: iteration ${fbState.iteration + 1}, ${fbState.totalScansExecuted} scans executed`;

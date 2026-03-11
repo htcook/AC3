@@ -435,6 +435,87 @@ export async function runStageWithFallback<T>(
 }
 
 
+// ─── Retry with Exponential Backoff ───────────────────────────────────
+
+export interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs?: number;
+  retryableCheck?: (err: any) => boolean;
+}
+
+/**
+ * Check if an error is retryable (rate limit, timeout, network, 5xx).
+ * Used as default retryableCheck for retryWithBackoff.
+ */
+export function isRetryableError(err: any): boolean {
+  const message = err?.message || String(err);
+  const statusCode = err?.status || err?.statusCode || err?.response?.status;
+
+  // Rate limit (429)
+  if (statusCode === 429 || message.includes("429") || message.includes("rate limit") || message.includes("Too Many Requests")) {
+    return true;
+  }
+  // Server errors (5xx)
+  if (statusCode && statusCode >= 500 && statusCode < 600) {
+    return true;
+  }
+  // Timeouts
+  if (message.includes("timeout") || message.includes("ETIMEDOUT") || message.includes("AbortError") || message.includes("timed out") || err?.name === "AbortError") {
+    return true;
+  }
+  // Network errors
+  if (message.includes("ECONNREFUSED") || message.includes("ENOTFOUND") || message.includes("ENETUNREACH") || message.includes("fetch failed")) {
+    return true;
+  }
+  // 403 can be transient (rate limit without proper 429 header)
+  if (statusCode === 403 || message.includes("403") || message.includes("Forbidden")) {
+    return true;
+  }
+  // Empty LLM response (transient)
+  if (message.includes("Empty LLM response")) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Retry an async function with exponential backoff + jitter.
+ * Throws the last error if all retries are exhausted.
+ */
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  config: RetryConfig
+): Promise<T> {
+  const { maxRetries, baseDelayMs, maxDelayMs = 30000, retryableCheck = isRetryableError } = config;
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+
+      if (attempt >= maxRetries || !retryableCheck(err)) {
+        throw err;
+      }
+
+      // Exponential backoff with jitter: delay = base * 2^attempt + random(0, base/2)
+      const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
+      const jitter = Math.random() * (baseDelayMs / 2);
+      const delay = Math.min(exponentialDelay + jitter, maxDelayMs);
+
+      console.log(
+        `[Retry] Attempt ${attempt + 1}/${maxRetries} failed (${err?.message?.slice(0, 100)}). Retrying in ${Math.round(delay)}ms...`
+      );
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+
 // ─── Reset (for testing) ────────────────────────────────────────────
 
 export function resetAllCircuits(): void {

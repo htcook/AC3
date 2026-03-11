@@ -543,3 +543,17 @@
 - [x] Passed banner data through to matchCredentialsForTechnology calls
 - [x] 40 new tests for credential dictionary coverage, matching, and integration
 - [x] All 356 tests passing, build succeeds (8.8MB server, Vite 1m16s)
+
+## Bug: LLM Feedback Loop Failure During Acunetix Scan
+- [x] Investigate LLM feedback loop failure from Acunetix engagement (ID: 1650001)
+- [x] Root cause 1: Feedback loop hit maxIterations=3 with satisfied=false (LLM too aggressive requesting re-scans)
+- [x] Root cause 2: LLM orchestrator unavailable during credential testing, fell back to defaults
+- [x] Root cause 3: 403 Forbidden on re-run with no retry logic in that code path
+- [x] Fix 1: Add convergence detection — stale iteration tracking (STALE_THRESHOLD=2), force satisfaction when no new findings
+- [x] Fix 2: Increase maxIterations to 5, maxTotalScans to 12, add early exit on diminishing returns
+- [x] Fix 3: Add retryWithBackoff utility (exponential backoff + jitter) for 403/429/5xx/timeout errors
+- [x] Fix 4: Wrap all LLM invokeLLM calls in retryWithBackoff (feedback loop, orchestrator scan plan, ops decision, ZAP config)
+- [x] Fix 5: Improved LLM prompt with Convergence Guidelines section, severity distribution, diminishing returns hints
+- [x] Fix 6: Added scan request deduplication — skip scans identical to previous iterations
+- [x] Fix 7: Added robust LLM response validation — handles malformed JSON, missing fields, graceful fallback to satisfied=true
+- [x] 41 new tests for retry, convergence, validation, and integration (all 397 tests passing)

@@ -409,17 +409,19 @@ ${params.scopeConstraints?.length ? `**Scope Constraints**: ${params.scopeConstr
 ${params.scanMode === "passive" ? "Configure for maximum URL discovery and passive vulnerability detection WITHOUT any active attacks. Focus on spider depth, technology fingerprinting, and passive scan rules." : "Configure for thorough active vulnerability testing. Enable all relevant attack categories. Optimize for the detected technology stack."}`;
 
   try {
-    const response = await invokeLLM({
-      messages: [
-        { role: "system", content: ZAP_ORCHESTRATOR_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "zap_scan_config",
-          strict: true,
-          schema: {
+    const { retryWithBackoff, isRetryableError } = await import("./api-resilience");
+    const response = await retryWithBackoff(
+      () => invokeLLM({
+        messages: [
+          { role: "system", content: ZAP_ORCHESTRATOR_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "zap_scan_config",
+            strict: true,
+            schema: {
             type: "object",
             properties: {
               scanPolicy: { type: "string" },
@@ -489,7 +491,9 @@ ${params.scanMode === "passive" ? "Configure for maximum URL discovery and passi
           },
         },
       },
-    });
+    }),
+      { maxRetries: 3, baseDelayMs: 2000, retryableCheck: isRetryableError }
+    );
 
     const content = response.choices?.[0]?.message?.content;
     if (typeof content === "string") {
@@ -497,7 +501,7 @@ ${params.scanMode === "passive" ? "Configure for maximum URL discovery and passi
     }
     throw new Error("LLM returned non-string content");
   } catch (err: any) {
-    console.error(`[ZAP LLM Orchestrator] Failed to generate config: ${err.message}`);
+    console.error(`[ZAP LLM Orchestrator] Failed to generate config after retries: ${err.message}`);
     return getDefaultScanConfig(params.scanMode);
   }
 }

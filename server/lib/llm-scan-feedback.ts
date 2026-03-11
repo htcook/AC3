@@ -14,6 +14,7 @@
 
 import { invokeLLM } from "../_core/llm";
 import { executeTool, type ToolExecResult } from "./scan-server-executor";
+import { retryWithBackoff, isRetryableError } from "./api-resilience";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -286,6 +287,15 @@ ${toolDescriptions}
 - NEVER scan targets outside the engagement scope
 - If you have enough data to form a complete attack plan, set satisfied=true
 
+## Convergence Guidelines (IMPORTANT)
+- You should set satisfied=true when you have SUFFICIENT data to plan attacks — you do NOT need PERFECT coverage
+- If you already have 5+ findings across multiple severity levels, that is usually sufficient
+- If previous re-scans returned similar data to what you already have, set satisfied=true (diminishing returns)
+- Do NOT request the same scan (same tool + same target + same args) that was already executed in previous iterations
+- If the scan budget is 3 or fewer, strongly prefer satisfied=true unless there is a critical gap
+- A "critical gap" means a HIGH/CRITICAL severity finding that needs confirmation, not minor enumeration
+- When in doubt, set satisfied=true — the engagement pipeline has other phases that will catch remaining issues
+
 ## Response Format
 You MUST respond with valid JSON matching this schema:
 {
@@ -339,15 +349,26 @@ export async function analyzeFindingsAndRequestScans(
     errorPreview: s.result.stderr.slice(0, 500),
   }));
 
+  // Build severity distribution for convergence hint
+  const severityCounts: Record<string, number> = {};
+  for (const f of findings) {
+    const sev = (f.severity || "info").toLowerCase();
+    severityCounts[sev] = (severityCounts[sev] || 0) + 1;
+  }
+  const severityLine = Object.entries(severityCounts)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(", ");
+
   const userMessage = `## Engagement Scope
 Targets: ${scope.targets.join(", ")}
 ${scope.engagementName ? `Engagement: ${scope.engagementName}` : ""}
 Scan budget remaining: ${budgetRemaining} scans
 
 ## Current Findings (${findings.length} total)
+Severity distribution: ${severityLine || "none"}
 ${JSON.stringify(findingsSummary, null, 2)}
 
-${previousScans.length > 0 ? `## Previous Re-Scans (${previousScans.length} executed)\n${JSON.stringify(previousScansSummary, null, 2)}` : "## No previous re-scans executed yet."}
+${previousScans.length > 0 ? `## Previous Re-Scans (${previousScans.length} executed)\n${JSON.stringify(previousScansSummary, null, 2)}\n\nNote: If previous re-scans did not reveal significant new attack surface, you should set satisfied=true.` : "## No previous re-scans executed yet."}
 
 Analyze these findings. Are there gaps that require additional scanning? If so, specify exactly which tools to run and why. If you have sufficient data to plan attacks, set satisfied=true.`;
 
@@ -393,7 +414,46 @@ Analyze these findings. Are there gaps that require additional scanning? If so, 
   const rawContent = response.choices?.[0]?.message?.content;
   if (!rawContent) throw new Error("Empty LLM response");
   const content = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
-  const parsed = JSON.parse(content);
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content);
+  } catch (jsonErr) {
+    // Try to extract JSON from markdown code blocks or other wrappers
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || content.match(/(\{[\s\S]*\})/);
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[1].trim());
+      } catch {
+        console.error(`[ScanFeedback] LLM returned unparseable response: ${content.slice(0, 500)}`);
+        // Graceful fallback: treat as satisfied to avoid infinite loop
+        return {
+          satisfied: true,
+          analysis: `LLM response could not be parsed. Treating as satisfied. Raw: ${content.slice(0, 200)}`,
+          scanRequests: [],
+        };
+      }
+    } else {
+      console.error(`[ScanFeedback] LLM returned non-JSON response: ${content.slice(0, 500)}`);
+      return {
+        satisfied: true,
+        analysis: `LLM response was not valid JSON. Treating as satisfied. Raw: ${content.slice(0, 200)}`,
+        scanRequests: [],
+      };
+    }
+  }
+
+  // Validate required fields
+  if (typeof parsed.satisfied !== "boolean") {
+    console.warn(`[ScanFeedback] LLM response missing 'satisfied' field, defaulting to true`);
+    parsed.satisfied = true;
+  }
+  if (typeof parsed.analysis !== "string") {
+    parsed.analysis = "No analysis provided by LLM.";
+  }
+  if (!Array.isArray(parsed.scanRequests)) {
+    parsed.scanRequests = [];
+  }
 
   // Validate scan requests against tool inventory and scope
   const validatedRequests: ScanRequest[] = [];
@@ -488,8 +548,8 @@ export async function runFeedbackLoop(
   config: FeedbackLoopConfig = {}
 ): Promise<FeedbackLoopState> {
   const {
-    maxIterations = 3,
-    maxTotalScans = 10,
+    maxIterations = 5,
+    maxTotalScans = 12,
     maxScansPerIteration = 4,
     engagementId,
     onProgress,
@@ -506,6 +566,11 @@ export async function runFeedbackLoop(
   // Combine initial findings with any new results from re-scans
   let allFindings = [...initialFindings];
 
+  // Track findings count per iteration for convergence detection
+  let previousFindingsCount = allFindings.length;
+  let staleIterations = 0;
+  const STALE_THRESHOLD = 2; // Force satisfaction after 2 iterations with no new findings
+
   for (let i = 0; i < maxIterations; i++) {
     state.iteration = i;
     state.budgetRemaining = maxTotalScans - state.totalScansExecuted;
@@ -514,13 +579,28 @@ export async function runFeedbackLoop(
       `\n[ScanFeedback] === Iteration ${i + 1}/${maxIterations} === Budget: ${state.budgetRemaining} scans remaining`
     );
 
-    // Step 1: Ask LLM to analyze and decide
-    const analysis = await analyzeFindingsAndRequestScans(
-      allFindings,
-      state.history,
-      scope,
-      state.budgetRemaining
-    );
+    // Convergence check: if findings have plateaued for STALE_THRESHOLD iterations, stop
+    if (staleIterations >= STALE_THRESHOLD) {
+      console.log(`[ScanFeedback] Convergence detected: no new findings for ${staleIterations} iterations, forcing satisfaction`);
+      state.satisfied = true;
+      state.finalAnalysis = `Feedback loop converged after ${i} iterations — no new findings discovered in last ${staleIterations} iterations. ${state.totalScansExecuted} total scans executed.`;
+      onProgress?.(state);
+      break;
+    }
+
+    // Step 1: Ask LLM to analyze and decide (with retry for transient errors)
+    let analysis: { satisfied: boolean; analysis: string; scanRequests: ScanRequest[] };
+    try {
+      analysis = await retryWithBackoff(
+        () => analyzeFindingsAndRequestScans(allFindings, state.history, scope, state.budgetRemaining),
+        { maxRetries: 3, baseDelayMs: 2000, retryableCheck: isRetryableError }
+      );
+    } catch (err: any) {
+      console.error(`[ScanFeedback] LLM analysis failed after retries: ${err.message}`);
+      state.finalAnalysis = `Feedback loop stopped: LLM analysis unavailable (${err.message}). Proceeding with ${allFindings.length} findings from ${state.totalScansExecuted} scans.`;
+      onProgress?.(state);
+      break;
+    }
 
     console.log(`[ScanFeedback] LLM satisfied: ${analysis.satisfied}`);
     console.log(`[ScanFeedback] Analysis: ${analysis.analysis.slice(0, 200)}...`);
@@ -546,12 +626,34 @@ export async function runFeedbackLoop(
       break;
     }
 
-    // Step 3: Execute the scans
-    const scanResults = await executeScanRequests(allowedScans, engagementId);
+    // Step 3: Deduplicate — skip scans that are identical to previous ones
+    const deduped = allowedScans.filter(scan => {
+      const isDuplicate = state.history.some(h =>
+        h.request.tool === scan.tool &&
+        h.request.target === scan.target &&
+        h.request.args === scan.args
+      );
+      if (isDuplicate) {
+        console.log(`[ScanFeedback] Skipping duplicate scan: ${scan.tool} ${scan.args} on ${scan.target}`);
+      }
+      return !isDuplicate;
+    });
+
+    if (deduped.length === 0) {
+      console.log("[ScanFeedback] All requested scans are duplicates, forcing satisfaction");
+      state.satisfied = true;
+      state.finalAnalysis = `LLM requested only previously-executed scans — treating as converged. ${analysis.analysis}`;
+      onProgress?.(state);
+      break;
+    }
+
+    // Step 4: Execute the scans
+    const scanResults = await executeScanRequests(deduped, engagementId);
     state.history.push(...scanResults);
     state.totalScansExecuted += scanResults.length;
 
-    // Step 4: Convert scan results into findings for the next iteration
+    // Step 5: Convert scan results into findings for the next iteration
+    let newFindingsThisIteration = 0;
     for (const sr of scanResults) {
       if (sr.result.exitCode === 0 && sr.result.stdout.length > 0) {
         allFindings.push({
@@ -564,8 +666,19 @@ export async function runFeedbackLoop(
           severity: "info",
           confidence: "high",
         });
+        newFindingsThisIteration++;
       }
     }
+
+    // Step 6: Track convergence — did this iteration produce new findings?
+    if (allFindings.length <= previousFindingsCount || newFindingsThisIteration === 0) {
+      staleIterations++;
+      console.log(`[ScanFeedback] Stale iteration ${staleIterations}/${STALE_THRESHOLD} — no new findings`);
+    } else {
+      staleIterations = 0; // Reset if we found something new
+      console.log(`[ScanFeedback] ${newFindingsThisIteration} new findings this iteration`);
+    }
+    previousFindingsCount = allFindings.length;
 
     onProgress?.(state);
   }
