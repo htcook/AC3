@@ -719,3 +719,18 @@
 ## Bug Fixes & Security
 - [x] Fix login redirect loop: email/password login says "success" but reloads login page (root cause: Drizzle schema property mismatch — accountRole/accountStatus vs role/status)
 - [x] Enforce HTTPS-only access for entire site including login page (HSTS max-age=1yr + HTTP→HTTPS 301 redirect middleware)
+
+## Production Login Verification
+- [x] Test all 7 team logins on production (dashboard.aceofcloud.io) — 7/7 passed
+- [x] Verify each account gets correct role and dashboard access — all admin, all authenticated
+
+## HTTPS Preload Submission
+- [x] Update HSTS header to include preload directive (already in code: max-age=31536000; includeSubDomains; preload)
+- [x] Verify all domains — checked hstspreload.org: needs publish to deploy HSTS+redirect middleware
+- [x] Check eligibility at hstspreload.org — 2 errors (no preload, no HTTP redirect) will be resolved after publish
+
+## Session Timeout Notifications
+- [x] Add session expiry tracking on frontend (monitor JWT/cookie TTL)
+- [x] Show toast/modal warning 5 minutes before 24-hour session expires
+- [x] Implement "Stay Logged In" button that refreshes the session
+- [x] Handle expired session redirect to login page with message

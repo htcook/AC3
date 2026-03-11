@@ -22,6 +22,17 @@ export default function Login() {
   const redirectTarget = params.get("redirect") || "";
   const redirectInfo = REDIRECT_MAP[redirectTarget];
   const returnTo = params.get("returnTo") || "";
+  const sessionExpired = params.get("expired") === "true";
+
+  // Show session expired toast once
+  useEffect(() => {
+    if (sessionExpired) {
+      toast.warning("Session Expired", {
+        description: "Your session has timed out. Please log in again to continue.",
+        duration: 8000,
+      });
+    }
+  }, [sessionExpired]);
 
   const [loginMode, setLoginMode] = useState<LoginMode>("email");
   const [loginStep, setLoginStep] = useState<LoginStep>("credentials");

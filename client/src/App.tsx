@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { lazy, Suspense, useEffect } from "react";
 const GlobalAiChat = lazy(() => import("./components/GlobalAiChat").then(m => ({ default: m.GlobalAiChat })));
+const SessionTimeoutMonitor = lazy(() => import("./components/SessionTimeoutMonitor").then(m => ({ default: m.SessionTimeoutMonitor })));
 import { useErrorCapture } from "./hooks/useErrorCapture";
 import { EngagementProvider } from "./contexts/EngagementContext";
 
@@ -916,6 +917,9 @@ function App() {
             <Router />
             <Suspense fallback={null}>
               <GlobalAiChat />
+            </Suspense>
+            <Suspense fallback={null}>
+              <SessionTimeoutMonitor />
             </Suspense>
           </TooltipProvider>
         </EngagementProvider>

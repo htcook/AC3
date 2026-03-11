@@ -112,7 +112,7 @@ export const calderaAuthRouter = router({
       const token = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
 
       if (!token) {
-        return { authenticated: false, user: null };
+        return { authenticated: false, user: null, expiresAt: null };
       }
       try {
         const decoded = jwt.verify(token, CALDERA_JWT_SECRET) as {
@@ -123,12 +123,17 @@ export const calderaAuthRouter = router({
           role: string;
           loginTime: number;
           authType?: string;
+          exp?: number;
+          rememberMe?: boolean;
         };
 
         // Unified session response for both auth types
         const username = decoded.username || decoded.displayName || decoded.email?.split('@')[0] || 'user';
+        // exp is in seconds since epoch
+        const expiresAt = decoded.exp ? decoded.exp * 1000 : null;
         return { 
           authenticated: true, 
+          expiresAt,
           user: { 
             username,
             email: decoded.email || null,
@@ -140,7 +145,42 @@ export const calderaAuthRouter = router({
           } 
         };
       } catch {
-        return { authenticated: false, user: null };
+        return { authenticated: false, user: null, expiresAt: null };
+      }
+    }),
+
+    // Refresh session — re-sign the JWT with a fresh expiry window
+    refreshSession: publicProcedure.mutation(async ({ ctx }) => {
+      const token = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+      if (!token) {
+        return { success: false, message: 'No active session' };
+      }
+      try {
+        // Verify and decode the current token (even if close to expiry)
+        const decoded = jwt.verify(token, CALDERA_JWT_SECRET) as Record<string, any>;
+        // Determine original expiry duration from the token
+        const wasRememberMe = decoded.rememberMe === true || 
+          (decoded.exp && decoded.iat && (decoded.exp - decoded.iat) > 2 * 24 * 60 * 60);
+        const jwtExpiry = wasRememberMe ? '7d' : '24h';
+        const cookieMaxAge = wasRememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
+        // Build fresh payload (strip JWT-internal fields)
+        const { iat, exp, nbf, ...payload } = decoded;
+        const newToken = jwt.sign(
+          { ...payload, loginTime: Date.now(), rememberMe: wasRememberMe },
+          CALDERA_JWT_SECRET,
+          { expiresIn: jwtExpiry }
+        );
+
+        const cookieOpts = getCalderaCookieOptions(ctx.req, wasRememberMe);
+        ctx.res.cookie(CALDERA_SESSION_COOKIE, newToken, { ...cookieOpts, maxAge: cookieMaxAge });
+
+        const newExp = Date.now() + cookieMaxAge;
+        console.log(`[Auth] Session refreshed for ${decoded.email || decoded.username || 'unknown'}, new expiry: ${new Date(newExp).toISOString()}`);
+        return { success: true, expiresAt: newExp };
+      } catch {
+        // Token is already expired or invalid
+        return { success: false, message: 'Session expired, please log in again' };
       }
     }),
     // Logout
