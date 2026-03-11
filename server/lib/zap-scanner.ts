@@ -2099,8 +2099,52 @@ export async function configureZapAuthentication(
     }
 
     // Step 2: Detect login form to determine auth method
-    // Try common login paths to find form fields
-    const loginPaths = ['/login', '/admin/login', '/user/login', '/wp-login.php', '/login.php', '/'];
+    // Build tech-specific login paths based on detected technologies
+    const basePaths = ['/login', '/admin/login', '/user/login', '/wp-login.php', '/login.php', '/'];
+    const techSpecificPaths: string[] = [];
+    
+    // Check if tech hints were passed via credential metadata or config
+    const techHints = (config as any)?.techHints || [];
+    const techStr = techHints.join(' ').toLowerCase();
+    
+    // WordPress
+    if (techStr.includes('wordpress') || techStr.includes('wp-')) {
+      techSpecificPaths.push('/wp-login.php', '/wp-admin/', '/xmlrpc.php');
+    }
+    // Django/Python
+    if (techStr.includes('django') || techStr.includes('python') || techStr.includes('csrftoken')) {
+      techSpecificPaths.push('/admin/login/', '/accounts/login/', '/auth/login/');
+    }
+    // Laravel/PHP
+    if (techStr.includes('laravel') || techStr.includes('laravel_session')) {
+      techSpecificPaths.push('/login', '/admin', '/auth/login', '/nova/login');
+    }
+    // PHP generic
+    if (techStr.includes('php') || techStr.includes('phpsessid')) {
+      techSpecificPaths.push('/login.php', '/admin.php', '/index.php?action=login', '/administrator/');
+    }
+    // Java/Spring
+    if (techStr.includes('java') || techStr.includes('jsessionid') || techStr.includes('spring') || techStr.includes('tomcat')) {
+      techSpecificPaths.push('/login', '/j_spring_security_check', '/admin/login', '/cas/login');
+    }
+    // ASP.NET
+    if (techStr.includes('asp.net') || techStr.includes('aspnet')) {
+      techSpecificPaths.push('/Account/Login', '/Login.aspx', '/admin/login', '/Identity/Account/Login');
+    }
+    // Node.js/Express
+    if (techStr.includes('node') || techStr.includes('express') || techStr.includes('connect.sid')) {
+      techSpecificPaths.push('/login', '/auth/login', '/api/auth/login', '/users/login');
+    }
+    // Ruby on Rails
+    if (techStr.includes('rails') || techStr.includes('ruby')) {
+      techSpecificPaths.push('/users/sign_in', '/login', '/admin/login', '/session/new');
+    }
+    
+    // Deduplicate: tech-specific paths first (higher priority), then generic
+    const loginPaths = [...new Set([...techSpecificPaths, ...basePaths])];
+    if (techSpecificPaths.length > 0) {
+      console.log(`[ZAP Auth] Tech-specific login paths added: ${techSpecificPaths.join(', ')} (from: ${techStr.substring(0, 100)})`);
+    }
     let detectedLoginUrl: string | undefined;
     let detectedMethod: 'form' | 'basic' | 'json' = 'form';
 
@@ -2230,16 +2274,22 @@ export async function configureZapAuthentication(
 
     // Step 4: Set logged-in / logged-out indicators for session detection
     try {
-      // Common logged-in indicators
+      // Use knowledge-driven indicators based on detected auth method
+      const { ZAP_AUTH_STRATEGIES } = await import("./knowledge/zap-pentesting-knowledge");
+      const matchedStrategy = ZAP_AUTH_STRATEGIES.find(s => s.type === detectedMethod);
+      const loggedInRegex = matchedStrategy?.loggedInIndicator || "\\Qlogout\\E|\\Qsign.out\\E|\\Qdashboard\\E|\\Qwelcome\\E|\\Qmy.account\\E|\\Qprofile\\E";
+      const loggedOutRegex = matchedStrategy?.loggedOutIndicator || "\\Qlogin\\E|\\Qsign.in\\E|\\Qauthentication.required\\E|\\Qaccess.denied\\E|\\Q401\\E";
+
+      // Set logged-in indicators from knowledge module
       await zapRequest("/JSON/authentication/action/setLoggedInIndicator/", {
         contextId,
-        loggedInIndicatorRegex: "\\Qlogout\\E|\\Qsign.out\\E|\\Qdashboard\\E|\\Qwelcome\\E|\\Qmy.account\\E|\\Qprofile\\E",
+        loggedInIndicatorRegex: loggedInRegex,
       }, cfg).catch(() => {});
 
-      // Common logged-out indicators
+      // Set logged-out indicators from knowledge module
       await zapRequest("/JSON/authentication/action/setLoggedOutIndicator/", {
         contextId,
-        loggedOutIndicatorRegex: "\\Qlogin\\E|\\Qsign.in\\E|\\Qauthentication.required\\E|\\Qaccess.denied\\E|\\Q401\\E",
+        loggedOutIndicatorRegex: loggedOutRegex,
       }, cfg).catch(() => {});
 
       console.log(`[ZAP Auth] Set logged-in/logged-out indicators`);

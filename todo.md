@@ -686,3 +686,25 @@
 - [x] Engagement COMPLETED: 100%, 16 vulns, 2 ZAP scans, exploit plan reviewed
 - [x] Smart fallback correctly returned generic defaults (AWS ELB hides tech stack)
 - [x] Auto-approved credential tests + exploit plan review via fixed auto-approve-v2.mjs
+
+## Httpx Response Header Extraction for Tech Stack Detection
+- [x] Found httpx output parsing at line ~2496 in engagement-orchestrator.ts
+- [x] Extract X-Powered-By, Server, Set-Cookie, X-AspNet-Version, X-Generator headers from httpx JSON output
+- [x] Cookie-based tech detection: PHPSESSID→PHP, JSESSIONID→Java, ASP.NET_SessionId→ASP.NET, connect.sid→Node.js, laravel_session→Laravel, csrftoken→Django, wp-settings→WordPress
+- [x] Store extracted headers on asset.httpxResponseHeaders for downstream use
+- [x] Pipe enriched techStackHints (nmap + httpx techs + response headers) to generateLLMScanConfig
+- [x] 40 tests for header extraction, tech path generation, pipeline enrichment, and auth strategy matching
+
+## Authenticated ZAP Scanning with Hydra Credentials
+- [x] configureZapAuthentication already comprehensive: form/basic/json auth, CSRF handling, forced user
+- [x] Enhanced with tech-specific login path discovery (8 frameworks: WordPress, Django, Laravel, PHP, Java/Spring, ASP.NET, Node.js, Rails)
+- [x] Knowledge-driven session indicators from ZAP_AUTH_STRATEGIES (form/json/basic each with specific logged-in/logged-out regex)
+- [x] techHints passed from orchestrator to auth config via config.techHints
+- [x] 40 tests covering header extraction, login paths, pipeline enrichment, and auth strategy matching (658 total passing)
+
+## Team Account Creation
+- [ ] Create 7 admin accounts for AceofCloud team members
+- [ ] Set admin role permissions for all accounts
+- [ ] Enable role selection so team can test all platform roles
+- [ ] Generate secure passwords for each account
+- [ ] Deliver account credentials list to user

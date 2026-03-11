@@ -2489,6 +2489,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             const httpxFindings: Array<{ severity: string; title: string }> = [];
             const techDetected: string[] = [];
             const cdnDetected: string[] = [];
+            const responseHeaders: Record<string, string> = {};
             let webServer = '';
             let tlsInfo = '';
 
@@ -2534,6 +2535,70 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
                   if (obj.content_length !== undefined) {
                     httpxFindings.push({ severity: 'info', title: `[httpx] Content-Length: ${obj.content_length}` });
                   }
+                  // ── Response Header Extraction for Tech Stack Detection ──
+                  // httpx -json includes response headers in the 'header' field (object of header arrays)
+                  // and also in 'a' (raw response), 'response_header' (string), etc.
+                  const headers = obj.header || obj.response_header || {};
+                  if (typeof headers === 'object' && !Array.isArray(headers)) {
+                    // httpx returns headers as { "header-name": ["value1", "value2"] }
+                    for (const [key, val] of Object.entries(headers)) {
+                      const lk = key.toLowerCase();
+                      const headerVal = Array.isArray(val) ? val[0] : String(val);
+                      if (lk === 'x-powered-by') {
+                        responseHeaders['x-powered-by'] = headerVal;
+                        httpxFindings.push({ severity: 'info', title: `[httpx] X-Powered-By: ${headerVal}` });
+                        // Extract tech from X-Powered-By (e.g., "PHP/8.1.2", "ASP.NET", "Express")
+                        if (!techDetected.includes(headerVal)) techDetected.push(headerVal);
+                      }
+                      if (lk === 'x-aspnet-version' || lk === 'x-aspnetmvc-version') {
+                        responseHeaders[lk] = headerVal;
+                        httpxFindings.push({ severity: 'info', title: `[httpx] ${key}: ${headerVal}` });
+                        if (!techDetected.includes(`ASP.NET ${headerVal}`)) techDetected.push(`ASP.NET ${headerVal}`);
+                      }
+                      if (lk === 'x-generator') {
+                        responseHeaders['x-generator'] = headerVal;
+                        httpxFindings.push({ severity: 'info', title: `[httpx] X-Generator: ${headerVal}` });
+                        if (!techDetected.includes(headerVal)) techDetected.push(headerVal);
+                      }
+                      if (lk === 'set-cookie') {
+                        responseHeaders['set-cookie'] = headerVal;
+                        // Detect tech from cookie names
+                        if (headerVal.includes('PHPSESSID') && !techDetected.includes('PHP')) techDetected.push('PHP');
+                        if (headerVal.includes('JSESSIONID') && !techDetected.includes('Java')) techDetected.push('Java');
+                        if (headerVal.includes('ASP.NET_SessionId') && !techDetected.includes('ASP.NET')) techDetected.push('ASP.NET');
+                        if (headerVal.includes('connect.sid') && !techDetected.includes('Node.js/Express')) techDetected.push('Node.js/Express');
+                        if (headerVal.includes('laravel_session') && !techDetected.includes('Laravel/PHP')) techDetected.push('Laravel/PHP');
+                        if (headerVal.includes('_rails') && !techDetected.includes('Ruby on Rails')) techDetected.push('Ruby on Rails');
+                        if (headerVal.includes('csrftoken') && !techDetected.includes('Django/Python')) techDetected.push('Django/Python');
+                        if (headerVal.includes('wp-settings') && !techDetected.includes('WordPress')) techDetected.push('WordPress');
+                      }
+                      if (lk === 'server' && !webServer) {
+                        responseHeaders['server'] = headerVal;
+                        // Already captured via obj.webserver above, but ensure it's in responseHeaders
+                      }
+                    }
+                  }
+                  // Also check raw response string for headers if 'header' field is a string
+                  if (typeof headers === 'string') {
+                    const headerLines = headers.split('\n');
+                    for (const hl of headerLines) {
+                      const colonIdx = hl.indexOf(':');
+                      if (colonIdx === -1) continue;
+                      const hName = hl.substring(0, colonIdx).trim().toLowerCase();
+                      const hVal = hl.substring(colonIdx + 1).trim();
+                      if (hName === 'x-powered-by') {
+                        responseHeaders['x-powered-by'] = hVal;
+                        if (!techDetected.includes(hVal)) techDetected.push(hVal);
+                        httpxFindings.push({ severity: 'info', title: `[httpx] X-Powered-By: ${hVal}` });
+                      }
+                      if (hName === 'set-cookie') {
+                        responseHeaders['set-cookie'] = hVal;
+                        if (hVal.includes('PHPSESSID') && !techDetected.includes('PHP')) techDetected.push('PHP');
+                        if (hVal.includes('JSESSIONID') && !techDetected.includes('Java')) techDetected.push('Java');
+                        if (hVal.includes('ASP.NET_SessionId') && !techDetected.includes('ASP.NET')) techDetected.push('ASP.NET');
+                      }
+                    }
+                  }
                 } catch { /* not JSON line — skip */ }
               }
             }
@@ -2548,6 +2613,10 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               }
               if (webServer) {
                 asset.passiveRecon.technologies = [...new Set([...(asset.passiveRecon.technologies || []), webServer])];
+              }
+              // Store extracted response headers for downstream ZAP config
+              if (Object.keys(responseHeaders).length > 0) {
+                (asset as any).httpxResponseHeaders = { ...(asset as any).httpxResponseHeaders, ...responseHeaders };
               }
             }
 
@@ -3429,7 +3498,22 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
         // Use LLM to generate optimal ZAP scan config
         const { generateLLMScanConfig, startScan, configureZapAuthentication } = await import("./zap-scanner");
-        const techHints = webApp.ports.map(p => p.version).filter(Boolean) as string[];
+        // Build comprehensive tech hints from ALL sources:
+        // 1. nmap service versions (e.g., "nginx 1.18.0", "Apache httpd 2.4.51")
+        // 2. httpx-detected technologies (e.g., "PHP", "WordPress", "jQuery")
+        // 3. httpx response headers (e.g., "X-Powered-By: PHP/8.1.2", "Set-Cookie: PHPSESSID")
+        // 4. Web server from httpx (e.g., "nginx", "Apache")
+        const nmapVersions = webApp.ports.map(p => p.version).filter(Boolean) as string[];
+        const httpxTechs = webApp.passiveRecon?.technologies || [];
+        const httpxHeaders = (webApp as any).httpxResponseHeaders || {};
+        const headerHints: string[] = [];
+        if (httpxHeaders['x-powered-by']) headerHints.push(`X-Powered-By: ${httpxHeaders['x-powered-by']}`);
+        if (httpxHeaders['x-aspnet-version']) headerHints.push(`X-AspNet-Version: ${httpxHeaders['x-aspnet-version']}`);
+        if (httpxHeaders['x-aspnetmvc-version']) headerHints.push(`X-AspNetMvc-Version: ${httpxHeaders['x-aspnetmvc-version']}`);
+        if (httpxHeaders['x-generator']) headerHints.push(`X-Generator: ${httpxHeaders['x-generator']}`);
+        if (httpxHeaders['set-cookie']) headerHints.push(`Set-Cookie: ${httpxHeaders['set-cookie'].substring(0, 100)}`);
+        if (httpxHeaders['server']) headerHints.push(`Server: ${httpxHeaders['server']}`);
+        const techHints = [...new Set([...nmapVersions, ...httpxTechs, ...headerHints])];
 
         // Check if this asset has confirmed credentials from credential testing
         const webCreds = (webApp.confirmedCredentials || []).filter(c =>
@@ -3513,6 +3597,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               `scan-${zapScanResult.scanId}`,
               targetUrl,
               webCreds,
+              { techHints } as any, // Pass tech hints for tech-specific login path discovery
             );
             if (authResult.configured) {
               addLog(state, {
