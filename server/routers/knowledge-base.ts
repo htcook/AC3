@@ -36,6 +36,7 @@ import {
   getZAPAuthContext,
   getZAPWorkflowContext,
   getVulnPayloadContext,
+  getFalsePositiveTriageContext,
   ZAP_KNOWLEDGE_METADATA,
 } from "../lib/knowledge/zap-pentesting-knowledge";
 
@@ -226,6 +227,18 @@ function getModuleRegistry(): KnowledgeModule[] {
       phases: ["exploitation"],
       status: "active",
     },
+    {
+      id: "zap-fp-triage",
+      name: "ZAP False Positive Triage Guide",
+      category: "web_app_testing",
+      description: `${ZAP_KNOWLEDGE_METADATA.falsePositivePatterns} false positive patterns covering high-FP-rate ZAP alerts with FP/TP indicators, verification steps, and triage guidance. Reduces noise in scan results.`,
+      version: ZAP_KNOWLEDGE_METADATA.version,
+      itemCount: ZAP_KNOWLEDGE_METADATA.falsePositivePatterns,
+      mitreTechniques: [],
+      injectedInto: ["engagement-orchestrator.ts", "llm-scan-feedback.ts"],
+      phases: ["vuln_detection", "exploitation", "reporting"],
+      status: "active",
+    },
   ];
 }
 
@@ -255,14 +268,14 @@ function getPhaseMapping(): PhaseMapping[] {
     {
       phase: "vuln_detection",
       description: "Vulnerability scanning and detection",
-      modules: ["firewall-evasion", "file-upload-bypass", "zap-wstg-methodology", "zap-alert-catalog", "zap-tech-scan-policies", "zap-auth-strategies"],
-      conditions: ["Firewall evasion when hasFirewall=true or hasWAF=true", "File upload bypass when hasFileUpload=true", "ZAP WSTG/alerts always injected for web app targets", "Tech scan policies based on detected technology", "Auth strategies when credentials available"],
+      modules: ["firewall-evasion", "file-upload-bypass", "zap-wstg-methodology", "zap-alert-catalog", "zap-tech-scan-policies", "zap-auth-strategies", "zap-fp-triage"],
+      conditions: ["Firewall evasion when hasFirewall=true or hasWAF=true", "File upload bypass when hasFileUpload=true", "ZAP WSTG/alerts always injected for web app targets", "Tech scan policies based on detected technology", "Auth strategies when credentials available", "FP triage always injected for scan result classification"],
     },
     {
       phase: "exploitation",
       description: "Vulnerability exploitation and initial access",
-      modules: ["lotl-resources", "file-upload-bypass", "gophish-templates", "pretext-scripts", "landing-page-patterns", "zap-alert-catalog", "zap-vuln-payloads"],
-      conditions: ["LOTL always injected (platform-filtered)", "File upload bypass when hasFileUpload=true", "Phishing templates when includePhishing=true", "ZAP alert catalog and payloads for web app exploitation"],
+      modules: ["lotl-resources", "file-upload-bypass", "gophish-templates", "pretext-scripts", "landing-page-patterns", "zap-alert-catalog", "zap-vuln-payloads", "zap-fp-triage"],
+      conditions: ["LOTL always injected (platform-filtered)", "File upload bypass when hasFileUpload=true", "Phishing templates when includePhishing=true", "ZAP alert catalog and payloads for web app exploitation", "FP triage for finding classification"],
     },
     {
       phase: "post_exploitation",
@@ -273,8 +286,8 @@ function getPhaseMapping(): PhaseMapping[] {
     {
       phase: "reporting",
       description: "Final reporting and documentation",
-      modules: [],
-      conditions: ["No offensive knowledge injected during reporting"],
+      modules: ["zap-fp-triage"],
+      conditions: ["FP triage injected for final finding classification and noise reduction"],
     },
   ];
 }
@@ -353,6 +366,9 @@ export const knowledgeBaseRouter = router({
           break;
         case "zap-vuln-payloads":
           context = getVulnPayloadContext();
+          break;
+        case "zap-fp-triage":
+          context = getFalsePositiveTriageContext();
           break;
         default:
           context = "Module not found";

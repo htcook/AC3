@@ -5,6 +5,9 @@
  * running at http://159.223.152.190. This eliminates SSH connection overhead,
  * prevents event loop blocking from SSH crypto, and provides better error handling.
  *
+ * v1.1 — Added retry with exponential backoff, HTTP keep-alive, and improved
+ *         timeout handling to prevent unnecessary SSH fallbacks during event loop pressure.
+ *
  * Architecture:
  *   Dashboard → HTTP POST → DO Scan Service (Express) → local exec → results
  *
@@ -15,6 +18,7 @@
  *   GET  /health          — Health check
  */
 
+import http from "http";
 import type { ToolExecConfig, ToolExecResult } from "./scan-server-executor";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
@@ -27,6 +31,21 @@ const SCAN_API_KEY = process.env.CALDERA_API_KEY || "ADMIN123";
 
 const LOG = "[DO-ScanAPI]";
 
+/** HTTP keep-alive agent — reuses TCP connections to reduce overhead */
+const keepAliveAgent = new http.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30_000,
+  maxSockets: 10,
+  timeout: 120_000,
+});
+
+/** Retry configuration */
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelayMs: 1500,  // 1.5s, 3s, 6s exponential backoff
+  backoffMultiplier: 2,
+};
+
 // ─── Metrics ────────────────────────────────────────────────────────────────
 
 interface DoApiMetrics {
@@ -35,6 +54,7 @@ interface DoApiMetrics {
   failedRequests: number;
   avgLatencyMs: number;
   httpFallbackToSSH: number;
+  retriesPerformed: number;
 }
 
 const metrics: DoApiMetrics = {
@@ -43,10 +63,62 @@ const metrics: DoApiMetrics = {
   failedRequests: 0,
   avgLatencyMs: 0,
   httpFallbackToSSH: 0,
+  retriesPerformed: 0,
 };
 
 export function getDoApiMetrics(): DoApiMetrics {
   return { ...metrics };
+}
+
+// ─── Retry Helper ───────────────────────────────────────────────────────────
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+  label: string
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delay = RETRY_CONFIG.baseDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1);
+      console.log(`${LOG} Retry ${attempt}/${RETRY_CONFIG.maxRetries} for ${label} after ${delay}ms`);
+      await sleep(delay);
+      metrics.retriesPerformed++;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      const isRetryable = err.name === "AbortError" ||
+        err.message?.includes("fetch failed") ||
+        err.message?.includes("ECONNRESET") ||
+        err.message?.includes("ECONNREFUSED") ||
+        err.message?.includes("UND_ERR_CONNECT_TIMEOUT") ||
+        err.message?.includes("This operation was aborted");
+
+      if (!isRetryable || attempt === RETRY_CONFIG.maxRetries) {
+        break;
+      }
+    }
+  }
+
+  throw lastError || new Error("All retries exhausted");
 }
 
 // ─── Core: HTTP-based tool execution ────────────────────────────────────────
@@ -54,6 +126,8 @@ export function getDoApiMetrics(): DoApiMetrics {
 /**
  * Execute a tool via the DO scan service HTTP API.
  * Drop-in replacement for executeTool() from scan-server-executor.ts.
+ *
+ * v1.1: Added retry with exponential backoff and +60s timeout buffer.
  */
 export async function executeToolViaHttp(
   config: ToolExecConfig
@@ -65,27 +139,28 @@ export async function executeToolViaHttp(
   try {
     console.log(`${LOG} Executing tool: ${tool} ${(args || "").slice(0, 80)}...`);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), (timeoutSeconds + 30) * 1000);
+    const timeoutMs = (timeoutSeconds + 60) * 1000; // +60s buffer (was +30s)
 
-    const response = await fetch(`${SCAN_SERVICE_URL}/api/scan/tool`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Scan-Key": SCAN_API_KEY,
+    const response = await fetchWithRetry(
+      `${SCAN_SERVICE_URL}/api/scan/tool`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Scan-Key": SCAN_API_KEY,
+        },
+        body: JSON.stringify({
+          tool,
+          args: args || "",
+          target: config.target,
+          timeoutSeconds,
+          engagementId: config.engagementId,
+          sudo,
+        }),
       },
-      body: JSON.stringify({
-        tool,
-        args: args || "",
-        target: config.target,
-        timeoutSeconds,
-        engagementId: config.engagementId,
-        sudo,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
+      timeoutMs,
+      `${tool} ${(args || "").slice(0, 40)}`
+    );
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
@@ -106,7 +181,7 @@ export async function executeToolViaHttp(
     metrics.successfulRequests++;
     updateAvgLatency(durationMs);
 
-    console.log(`${LOG} Tool ${tool} completed: exit=${data.result.exitCode} stdout=${data.result.stdout?.length || 0}b in ${durationMs}ms`);
+    console.log(`${LOG} Tool ${tool} completed via HTTP: exit=${data.result.exitCode} stdout=${data.result.stdout?.length || 0}b in ${durationMs}ms`);
 
     return {
       tool,
@@ -120,11 +195,10 @@ export async function executeToolViaHttp(
   } catch (err: any) {
     const durationMs = Date.now() - startTime;
     metrics.failedRequests++;
-    const timedOut = err.name === "AbortError" || err.message?.includes("timed out");
 
-    console.error(`${LOG} Tool ${tool} failed: ${err.message} (${durationMs}ms)`);
+    console.error(`${LOG} Tool ${tool} failed after retries: ${err.message} (${durationMs}ms)`);
 
-    // Fallback to SSH if HTTP fails
+    // Fallback to SSH if HTTP fails — use child process SSH (non-blocking)
     return fallbackToSSH(config, err, startTime);
   }
 }
@@ -133,6 +207,8 @@ export async function executeToolViaHttp(
  * Execute a raw command via the DO scan service HTTP API.
  * Drop-in replacement for executeRawCommand() / executeViaChildProcessSSH().
  * Used for piped commands like "echo URL | httpx ..." or "echo URL | nuclei ...".
+ *
+ * v1.1: Added retry with exponential backoff.
  */
 export async function executeRawCommandViaHttp(
   command: string,
@@ -144,20 +220,21 @@ export async function executeRawCommandViaHttp(
   try {
     console.log(`${LOG} Raw command: ${command.slice(0, 100)}...`);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), (timeoutSeconds + 30) * 1000);
+    const timeoutMs = (timeoutSeconds + 60) * 1000;
 
-    const response = await fetch(`${SCAN_SERVICE_URL}/api/scan/raw`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Scan-Key": SCAN_API_KEY,
+    const response = await fetchWithRetry(
+      `${SCAN_SERVICE_URL}/api/scan/raw`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Scan-Key": SCAN_API_KEY,
+        },
+        body: JSON.stringify({ command, timeoutSeconds }),
       },
-      body: JSON.stringify({ command, timeoutSeconds }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
+      timeoutMs,
+      `raw: ${command.slice(0, 40)}`
+    );
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
@@ -178,7 +255,7 @@ export async function executeRawCommandViaHttp(
     metrics.successfulRequests++;
     updateAvgLatency(durationMs);
 
-    console.log(`${LOG} Raw command completed: exit=${data.result.exitCode} stdout=${data.result.stdout?.length || 0}b in ${durationMs}ms`);
+    console.log(`${LOG} Raw command completed via HTTP: exit=${data.result.exitCode} stdout=${data.result.stdout?.length || 0}b in ${durationMs}ms`);
 
     return {
       tool: "raw",
@@ -193,9 +270,9 @@ export async function executeRawCommandViaHttp(
     const durationMs = Date.now() - startTime;
     metrics.failedRequests++;
 
-    console.error(`${LOG} Raw command failed: ${err.message} (${durationMs}ms), falling back to SSH`);
+    console.error(`${LOG} Raw command failed after retries: ${err.message} (${durationMs}ms), falling back to SSH`);
 
-    // Fallback to SSH
+    // Fallback to SSH — use child process SSH (non-blocking)
     return fallbackToSSHRaw(command, timeoutSeconds, startTime);
   }
 }
@@ -268,8 +345,21 @@ async function fallbackToSSH(
   console.log(`${LOG} Falling back to SSH for ${config.tool} (HTTP error: ${originalError.message})`);
 
   try {
-    const { executeTool } = await import("./scan-server-executor");
-    return await executeTool(config);
+    // Use child process SSH (non-blocking) instead of recursive executeTool
+    const { executeViaChildProcessSSH } = await import("./scan-server-executor");
+    const cmd = config.sudo
+      ? `sudo ${config.tool} ${config.args || ""}`
+      : `${config.tool} ${config.args || ""}`;
+    const result = await executeViaChildProcessSSH(cmd, config.timeoutSeconds || 300);
+    return {
+      tool: config.tool,
+      command: `${config.tool} ${config.args}`,
+      stdout: result.stdout.slice(0, 500_000),
+      stderr: result.stderr.slice(0, 50_000),
+      exitCode: result.exitCode,
+      durationMs: Date.now() - startTime,
+      timedOut: false,
+    };
   } catch (sshErr: any) {
     return {
       tool: config.tool,

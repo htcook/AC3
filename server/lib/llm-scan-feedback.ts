@@ -16,6 +16,7 @@ import { invokeLLM } from "../_core/llm";
 import { executeTool, type ToolExecResult } from "./scan-server-executor";
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
 import { getFirewallEvasionContext, getFileUploadBypassContext } from "./knowledge/offensive-techniques-knowledge";
+import { getFalsePositiveTriageContext } from "./knowledge/zap-pentesting-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -303,6 +304,15 @@ When requesting scans against targets with firewalls or WAFs, consider these tec
 - For file upload testing, use extension splitting payloads: null byte (%00), newline (%0a), semicolon (%3B), Unicode overlong encoding
 - For WAF bypass: identify vendor first (wafw00f), then use encoding tricks, chunked transfer, or parameter pollution
 - Prefer passive/stealthy tools when the target has active defenses
+
+## False Positive Triage
+When analyzing ZAP scan findings, use this knowledge to classify findings:
+${getFalsePositiveTriageContext()}
+
+**Apply FP triage before requesting re-scans:**
+- If a finding matches 2+ FP indicators, classify as likely FP and do NOT request re-scans for it
+- If a finding matches TP indicators, prioritize confirmation scans
+- For very_high/high FP rate alerts, require strong TP indicators before requesting follow-up
 
 ## Response Format
 You MUST respond with valid JSON matching this schema:
