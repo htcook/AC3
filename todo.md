@@ -703,8 +703,15 @@
 - [x] 40 tests covering header extraction, login paths, pipeline enrichment, and auth strategy matching (658 total passing)
 
 ## Team Account Creation
-- [ ] Create 7 admin accounts for AceofCloud team members
-- [ ] Set admin role permissions for all accounts
-- [ ] Enable role selection so team can test all platform roles
-- [ ] Generate secure passwords for each account
-- [ ] Deliver account credentials list to user
+- [x] Find account management code and understand password hashing
+- [x] Create accounts: Harrison.Cook, Ahmed, Anwar, Josh.Rector, Salman, Nathaniel.Cook, Rafael.Gutierrez @AceofCloud.com
+- [x] Set admin role on all accounts with role selection capability
+- [x] Generate secure passwords for each account
+- [x] Test each login to verify no errors (7/7 API + browser UI verified)
+- [ ] Deliver credentials list to user
+
+## BitNet LLM Performance Research
+- [ ] Review Microsoft BitNet repository (architecture, inference, quantization approach)
+- [ ] Analyze applicability to Ace C3 platform LLM calls (invokeLLM, specialist modules)
+- [ ] Identify specific performance improvements (latency, cost, throughput)
+- [ ] Deliver recommendations report to user
