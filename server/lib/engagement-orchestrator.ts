@@ -76,6 +76,14 @@ import {
   getShodanReconContext,
   getSubdomainEnumContext,
 } from "./knowledge/offensive-techniques-knowledge";
+import {
+  buildZAPKnowledgeContext,
+  getZAPAlertCatalogContext,
+  getTechScanPolicyContext,
+  getZAPAuthContext,
+  getZAPReasoningPrompt,
+  getVulnPayloadContext,
+} from "./knowledge/zap-pentesting-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -899,6 +907,11 @@ Return valid JSON per the response_format schema.`;
       hasFileUpload: uniqueTech.some(t => /upload|file|cms|wordpress|drupal|joomla/i.test(t)),
       includeShodan: true,
     });
+    // Build ZAP pentesting knowledge for enumeration (tech-specific scan policies)
+    const zapKnowledgeCtx = buildZAPKnowledgeContext({
+      phase: 'enumeration',
+      technology: uniqueTech[0],
+    });
     enrichmentCtx = [
       ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '',
       bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '',
@@ -908,6 +921,7 @@ Return valid JSON per the response_format schema.`;
       owaspCtx || '',
       threatGroupCtx || '',
       offensiveTechCtx || '',
+      zapKnowledgeCtx || '',
     ].filter(Boolean).join('\n\n');
   } catch (e) {
     console.warn('[ScanPlan] Failed to build enrichment context:', e);
@@ -3769,7 +3783,14 @@ ${(() => {
     hasWAF: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
     hasFileUpload: detectedTech.some(t => /upload|file|cms|wordpress|drupal|joomla/i.test(t)),
   });
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx + (offTechVulnCtx ? '\n\n' + offTechVulnCtx : '');
+  // Build ZAP pentesting knowledge for vuln detection (alert catalog, WSTG methodology, auth strategies)
+  const zapVulnCtx = buildZAPKnowledgeContext({
+    phase: 'vuln_detection',
+    technology: detectedTech[0],
+    authType: state.assets.some(a => (a.confirmedCredentials || []).length > 0) ? 'form' : undefined,
+    footholdMinimum: 'medium',
+  });
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx + (offTechVulnCtx ? '\n\n' + offTechVulnCtx : '') + (zapVulnCtx ? '\n\n' + zapVulnCtx : '');
 })()}`,
     });
 
@@ -3988,7 +4009,14 @@ ${(() => {
     hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
     hasWAF: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
   });
-  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx + (offTechExploitCtx ? '\n\n' + offTechExploitCtx : '');
+  // Build ZAP pentesting knowledge for exploitation (payloads, attack paths, alert catalog)
+  const zapExploitCtx = buildZAPKnowledgeContext({
+    phase: 'exploitation',
+    technology: detectedTech[0],
+    includePayloads: true,
+    footholdMinimum: 'high',
+  });
+  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx + (offTechExploitCtx ? '\n\n' + offTechExploitCtx : '') + (zapExploitCtx ? '\n\n' + zapExploitCtx : '');
 })()}`,
   });
 

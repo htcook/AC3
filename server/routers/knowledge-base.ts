@@ -28,13 +28,23 @@ import {
   LANDING_PAGE_PATTERNS,
   SOCIAL_ENGINEERING_TEMPLATES_METADATA,
 } from "../lib/knowledge/social-engineering-templates";
+import {
+  buildZAPKnowledgeContext,
+  getWSTGMethodologyContext,
+  getZAPAlertCatalogContext,
+  getTechScanPolicyContext,
+  getZAPAuthContext,
+  getZAPWorkflowContext,
+  getVulnPayloadContext,
+  ZAP_KNOWLEDGE_METADATA,
+} from "../lib/knowledge/zap-pentesting-knowledge";
 
 // ─── Module Registry ────────────────────────────────────────────────────────
 
 export interface KnowledgeModule {
   id: string;
   name: string;
-  category: "offensive" | "social_engineering" | "recon" | "evasion";
+  category: "offensive" | "social_engineering" | "recon" | "evasion" | "web_app_testing";
   description: string;
   version: string;
   itemCount: number;
@@ -156,6 +166,66 @@ function getModuleRegistry(): KnowledgeModule[] {
       phases: ["exploitation"],
       status: "active",
     },
+    {
+      id: "zap-wstg-methodology",
+      name: "OWASP WSTG v4.2 Methodology (ZAP-Mapped)",
+      category: "web_app_testing",
+      description: `${ZAP_KNOWLEDGE_METADATA.wstgCategories} WSTG testing categories with ${ZAP_KNOWLEDGE_METADATA.wstgTests} individual tests (${ZAP_KNOWLEDGE_METADATA.automatableTests} automatable). Each test mapped to specific ZAP scan rule IDs with approach guidance.`,
+      version: ZAP_KNOWLEDGE_METADATA.version,
+      itemCount: ZAP_KNOWLEDGE_METADATA.wstgTests,
+      mitreTechniques: ["T1190", "T1133", "T1059.007", "T1505.003", "T1071.001"],
+      injectedInto: ["engagement-orchestrator.ts", "zap-scanner.ts"],
+      phases: ["vuln_detection", "exploitation"],
+      status: "active",
+    },
+    {
+      id: "zap-alert-catalog",
+      name: "ZAP Alert Catalog (Foothold-Prioritized)",
+      category: "web_app_testing",
+      description: `${ZAP_KNOWLEDGE_METADATA.alertCatalogSize} ZAP alerts (${ZAP_KNOWLEDGE_METADATA.activeAlerts} active, ${ZAP_KNOWLEDGE_METADATA.passiveAlerts} passive) with severity, CWE, OWASP Top 10 mappings, and foothold potential ratings.`,
+      version: ZAP_KNOWLEDGE_METADATA.version,
+      itemCount: ZAP_KNOWLEDGE_METADATA.alertCatalogSize,
+      mitreTechniques: ["T1190", "T1059", "T1505.003", "T1552", "T1552.001"],
+      injectedInto: ["engagement-orchestrator.ts", "zap-scanner.ts"],
+      phases: ["vuln_detection", "exploitation"],
+      status: "active",
+    },
+    {
+      id: "zap-tech-scan-policies",
+      name: "Technology-Specific ZAP Scan Policies",
+      category: "web_app_testing",
+      description: `${ZAP_KNOWLEDGE_METADATA.techPolicies} technology-specific scan policies (PHP, Java/Spring, Python, Node.js, ASP.NET, WordPress, API) with critical rule configurations, fingerprints, and secrets discovery rules.`,
+      version: ZAP_KNOWLEDGE_METADATA.version,
+      itemCount: ZAP_KNOWLEDGE_METADATA.techPolicies,
+      mitreTechniques: ["T1190", "T1592.002"],
+      injectedInto: ["engagement-orchestrator.ts", "zap-scanner.ts"],
+      phases: ["enumeration", "vuln_detection"],
+      status: "active",
+    },
+    {
+      id: "zap-auth-strategies",
+      name: "ZAP Authentication Strategies",
+      category: "web_app_testing",
+      description: `${ZAP_KNOWLEDGE_METADATA.authStrategies} authentication strategies (form, JSON, HTTP Basic, script, browser) with ZAP API configuration, logged-in/out indicators, and setup steps.`,
+      version: ZAP_KNOWLEDGE_METADATA.version,
+      itemCount: ZAP_KNOWLEDGE_METADATA.authStrategies,
+      mitreTechniques: ["T1078", "T1110"],
+      injectedInto: ["engagement-orchestrator.ts", "zap-scanner.ts"],
+      phases: ["vuln_detection"],
+      status: "active",
+    },
+    {
+      id: "zap-vuln-payloads",
+      name: "Vulnerability Test Payloads",
+      category: "web_app_testing",
+      description: `${ZAP_KNOWLEDGE_METADATA.payloadSets} payload sets with ${ZAP_KNOWLEDGE_METADATA.totalPayloads} total payloads for SQLi, XSS, command injection, SSTI, path traversal, and XXE. Each with context and expected results.`,
+      version: ZAP_KNOWLEDGE_METADATA.version,
+      itemCount: ZAP_KNOWLEDGE_METADATA.totalPayloads,
+      mitreTechniques: ["T1190", "T1059", "T1505.003"],
+      injectedInto: ["engagement-orchestrator.ts"],
+      phases: ["exploitation"],
+      status: "active",
+    },
   ];
 }
 
@@ -185,14 +255,14 @@ function getPhaseMapping(): PhaseMapping[] {
     {
       phase: "vuln_detection",
       description: "Vulnerability scanning and detection",
-      modules: ["firewall-evasion", "file-upload-bypass"],
-      conditions: ["Firewall evasion when hasFirewall=true or hasWAF=true", "File upload bypass when hasFileUpload=true"],
+      modules: ["firewall-evasion", "file-upload-bypass", "zap-wstg-methodology", "zap-alert-catalog", "zap-tech-scan-policies", "zap-auth-strategies"],
+      conditions: ["Firewall evasion when hasFirewall=true or hasWAF=true", "File upload bypass when hasFileUpload=true", "ZAP WSTG/alerts always injected for web app targets", "Tech scan policies based on detected technology", "Auth strategies when credentials available"],
     },
     {
       phase: "exploitation",
       description: "Vulnerability exploitation and initial access",
-      modules: ["lotl-resources", "file-upload-bypass", "gophish-templates", "pretext-scripts", "landing-page-patterns"],
-      conditions: ["LOTL always injected (platform-filtered)", "File upload bypass when hasFileUpload=true", "Phishing templates when includePhishing=true"],
+      modules: ["lotl-resources", "file-upload-bypass", "gophish-templates", "pretext-scripts", "landing-page-patterns", "zap-alert-catalog", "zap-vuln-payloads"],
+      conditions: ["LOTL always injected (platform-filtered)", "File upload bypass when hasFileUpload=true", "Phishing templates when includePhishing=true", "ZAP alert catalog and payloads for web app exploitation"],
     },
     {
       phase: "post_exploitation",
@@ -269,6 +339,21 @@ export const knowledgeBaseRouter = router({
         case "landing-page-patterns":
           context = getLandingPagePatternsContext();
           break;
+        case "zap-wstg-methodology":
+          context = getWSTGMethodologyContext();
+          break;
+        case "zap-alert-catalog":
+          context = getZAPAlertCatalogContext("medium");
+          break;
+        case "zap-tech-scan-policies":
+          context = getTechScanPolicyContext(input.platform || undefined);
+          break;
+        case "zap-auth-strategies":
+          context = getZAPAuthContext();
+          break;
+        case "zap-vuln-payloads":
+          context = getVulnPayloadContext();
+          break;
         default:
           context = "Module not found";
       }
@@ -293,7 +378,12 @@ export const knowledgeBaseRouter = router({
     .query(({ input }) => {
       const offensiveCtx = buildOffensiveTechniquesContext(input);
       const phishingCtx = input.includePhishing ? buildPhishingKnowledgeContext() : "";
-      const combined = [offensiveCtx, phishingCtx].filter(Boolean).join("\n\n---\n\n");
+      const zapCtx = buildZAPKnowledgeContext({
+        phase: input.phase as any,
+        technology: input.platform || undefined,
+        footholdMinimum: 'medium',
+      });
+      const combined = [offensiveCtx, phishingCtx, zapCtx].filter(Boolean).join("\n\n---\n\n");
 
       return {
         context: combined,
@@ -325,6 +415,7 @@ export const knowledgeBaseRouter = router({
         social_engineering: modules.filter(m => m.category === "social_engineering").length,
         recon: modules.filter(m => m.category === "recon").length,
         evasion: modules.filter(m => m.category === "evasion").length,
+        web_app_testing: modules.filter(m => m.category === "web_app_testing").length,
       },
       statusCounts: {
         active: modules.filter(m => m.status === "active").length,

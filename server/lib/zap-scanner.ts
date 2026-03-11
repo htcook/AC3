@@ -37,6 +37,11 @@ import {
   type ZapPlaybookConfig,
   type ZapApiConfig,
 } from "./zap-attack-playbooks";
+import {
+  getTechScanPolicyContext,
+  getZAPAuthContext,
+  getZAPAlertCatalogContext,
+} from "./knowledge/zap-pentesting-knowledge";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -398,6 +403,19 @@ export async function generateLLMScanConfig(params: {
   authHints?: { type: string; loginUrl?: string; credentials?: Record<string, string> };
   scopeConstraints?: string[];
 }): Promise<LLMScanConfig> {
+  // Build dynamic ZAP knowledge context based on tech hints
+  const techKnowledge = params.techStackHints?.length
+    ? getTechScanPolicyContext(params.techStackHints[0])
+    : '';
+  const authKnowledge = params.authHints
+    ? getZAPAuthContext(params.authHints.type)
+    : '';
+  const alertKnowledge = params.scanMode === 'active'
+    ? getZAPAlertCatalogContext('high')
+    : '';
+
+  const dynamicKnowledge = [techKnowledge, authKnowledge, alertKnowledge].filter(Boolean).join('\n\n');
+
   const userPrompt = `Analyze this target and generate optimal ZAP scan configuration:
 
 **Target URL**: ${params.targetUrl}
@@ -406,7 +424,8 @@ ${params.techStackHints?.length ? `**Known Technologies**: ${params.techStackHin
 ${params.authHints ? `**Authentication**: Type=${params.authHints.type}, Login URL=${params.authHints.loginUrl || "unknown"}` : "**Authentication**: None configured"}
 ${params.scopeConstraints?.length ? `**Scope Constraints**: ${params.scopeConstraints.join(", ")}` : ""}
 
-${params.scanMode === "passive" ? "Configure for maximum URL discovery and passive vulnerability detection WITHOUT any active attacks. Focus on spider depth, technology fingerprinting, and passive scan rules." : "Configure for thorough active vulnerability testing. Enable all relevant attack categories. Optimize for the detected technology stack."}`;
+${params.scanMode === "passive" ? "Configure for maximum URL discovery and passive vulnerability detection WITHOUT any active attacks. Focus on spider depth, technology fingerprinting, and passive scan rules." : "Configure for thorough active vulnerability testing. Enable all relevant attack categories. Optimize for the detected technology stack."}
+${dynamicKnowledge ? '\n\n## ZAP Knowledge Base Reference\n' + dynamicKnowledge : ''}`;
 
   try {
     const { retryWithBackoff, isRetryableError } = await import("./api-resilience");

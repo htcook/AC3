@@ -590,3 +590,50 @@
 - [x] Added MITRE ATT&CK mapping for each template and script (T1566, T1598, T1091, etc.)
 - [x] Wired expanded templates into phishing-ops.ts campaign materialization
 - [x] All 486 tests passing across 23 test files
+
+## Live Engagement Validation — Acunetix + DVWA
+- [ ] Check existing engagements and identify Acunetix and DVWA targets
+- [ ] Create/configure Acunetix-style engagement with WAF/firewall/file-upload targets
+- [ ] Create/configure DVWA engagement for authenticated scanning
+- [ ] Trigger both engagements
+- [ ] Monitor scan execution and LLM feedback loop convergence
+- [ ] Verify offensive knowledge injection in scan decisions
+- [ ] Verify phishing campaign quality with expanded social engineering templates
+- [ ] Report results
+
+## ZAP Whitelist Fix
+- [x] Added zap, zap-cli, zap.sh, docker, zaproxy to ALLOWED_TOOLS whitelist
+- [x] ZAP connection test passing (v2.17.0, 940ms)
+- [ ] Monitor both engagements through completion
+
+## Start ZAP Daemon via DigitalOcean API
+- [x] Identified ZAP droplet (old: 147.182.250.156) via DO API
+- [x] Destroyed old droplet, created new one (209.38.70.13) with SSH keys
+- [x] Installed Docker + ZAP daemon + nginx reverse proxy on port 9090
+- [x] Updated ZAP_BASE_URL to http://209.38.70.13:9090
+- [x] ZAP API verified reachable from sandbox and scan server
+- [ ] Monitor both engagements through ZAP scan phase
+
+## OWASP ZAP Pentester Training Pack Ingestion
+- [x] Extract and analyze ZAP Pentester Training Pack contents (7 training files)
+- [x] Create structured ZAP pentesting knowledge module (zap-pentesting-knowledge.ts) with:
+  - 11 WSTG categories / 97 tests mapped to ZAP rule IDs
+  - 73 ZAP alerts (active + passive) with severity, CWE, foothold potential
+  - 7 technology-specific scan policies (PHP, Java, Python, Node.js, ASP.NET, WordPress, API)
+  - 5 authentication strategies with ZAP API configuration
+  - 6 LLM reasoning prompts for scan interpretation and attack planning
+  - 8-step ZAP pentest workflow with decision trees
+  - 6 vulnerability payload sets (SQLi, XSS, CMDi, SSTI, LFI, XXE)
+- [x] Wire ZAP knowledge into LLM specialists:
+  - engagement-orchestrator.ts (enumeration, vuln_detection, exploitation phases)
+  - zap-scanner.ts (dynamic tech/auth/alert knowledge in LLM config generator)
+  - knowledge-store.ts (source registry entries for WSTG + ZAP training pack)
+  - knowledge-base.ts router (5 new modules registered, phase mappings updated)
+- [x] Write 80 comprehensive tests for ZAP knowledge module (all passing)
+- [x] Verify all tests pass (80/80)
+
+## Re-trigger Engagements with ZAP Knowledge
+- [x] Re-trigger Acunetix Full Stack engagement (1650003) — started, phase: enumeration, 7 vulns found
+- [x] Re-trigger DVWA Authenticated Scan engagement (1650004) — started, phase: enumeration, 9 vulns found
+- [x] Monitor pipeline execution — both running with DO scan server fallback to SSH
+- [ ] Save checkpoint and deliver

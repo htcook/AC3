@@ -133,6 +133,26 @@ export const SOURCE_REGISTRY: SourceRegistryEntry[] = [
     attributionRequired: true,
     attributionText: "LOLBAS Project, licensed under GPL-3.0.",
   },
+  {
+    name: "OWASP ZAP Pentester Training Pack",
+    type: "manual",
+    uri: "https://www.zaproxy.org/docs/",
+    license: "Apache-2.0",
+    allowedUse: ["train", "rag"],
+    parser: "text",
+    attributionRequired: true,
+    attributionText: "OWASP ZAP, licensed under Apache-2.0. https://www.zaproxy.org/",
+  },
+  {
+    name: "OWASP Web Security Testing Guide (WSTG) v4.2",
+    type: "git",
+    uri: "https://github.com/OWASP/wstg.git",
+    license: "CC-BY-SA-4.0",
+    allowedUse: ["train", "rag"],
+    parser: "markdown",
+    attributionRequired: true,
+    attributionText: "OWASP WSTG v4.2, licensed under CC BY-SA 4.0. https://owasp.org/www-project-web-security-testing-guide/",
+  },
 ];
 
 // ─── Document & Chunk Types ─────────────────────────────────────────────────
