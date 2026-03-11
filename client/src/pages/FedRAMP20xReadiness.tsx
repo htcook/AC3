@@ -39,17 +39,19 @@ function CollapsibleSection({ title, defaultOpen = false, children }: {
 export default function FedRAMP20xReadiness() {
   // Live data queries
   const { data: coverageSummary } = trpc.ksiEvidenceChain.getCoverageSummary.useQuery();
-  const { data: validationDashboard } = trpc.ksiValidationScheduler.dashboard.useQuery();
-  const { data: chainIntegrity } = trpc.ksiEvidenceChain.getChainIntegrity.useQuery();
+  const { data: validationDashboard } = trpc.ksiValidationScheduler.getDashboard.useQuery();
+  const { data: dashboardStats } = trpc.ksiEvidenceChain.getDashboardStats.useQuery();
 
   // Compute live stats
-  const themes = coverageSummary?.themes || [];
-  const totalKsis = coverageSummary?.totalKsis || 75;
-  const coveredKsis = coverageSummary?.coveredKsis || 0;
-  const evidenceCount = coverageSummary?.totalEvidence || 0;
+  const themes = coverageSummary?.themeStats || [];
+  const totalKsis = coverageSummary?.totalKSIs || 75;
+  const coveredKsis = (coverageSummary?.directCount || 0) + (coverageSummary?.supportingCount || 0);
+  const evidenceCount = dashboardStats?.totalEvidence || 0;
   const passRate = validationDashboard?.passRate ?? 0;
-  const overdueCount = validationDashboard?.overdueCount ?? 0;
-  const integrityPct = chainIntegrity?.integrityPercentage ?? 100;
+  const overdueCount = validationDashboard?.overdueSchedules ?? 0;
+  const validChains = dashboardStats?.validChains ?? 0;
+  const brokenChains = dashboardStats?.brokenChains ?? 0;
+  const integrityPct = (validChains + brokenChains) > 0 ? Math.round((validChains / (validChains + brokenChains)) * 100) : 100;
   const coveragePct = totalKsis > 0 ? Math.round((coveredKsis / totalKsis) * 100) : 0;
 
   return (
@@ -117,7 +119,7 @@ export default function FedRAMP20xReadiness() {
           {themes.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
               {themes.map((t: any) => {
-                const pct = t.total > 0 ? Math.round((t.covered / t.total) * 100) : 0;
+                const pct = t.coveragePercent ?? (t.total > 0 ? Math.round(((t.direct + t.supporting) / t.total) * 100) : 0);
                 return (
                   <div key={t.themeCode} className="p-2 bg-background/30 rounded border border-border/50">
                     <div className="flex items-center justify-between mb-1">

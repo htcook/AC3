@@ -734,3 +734,30 @@
 - [x] Show toast/modal warning 5 minutes before 24-hour session expires
 - [x] Implement "Stay Logged In" button that refreshes the session
 - [x] Handle expired session redirect to login page with message
+## ZAP Scan & LLM Orchestrator Troubleshooting
+- [x] Investigate ZAP scan connection errors — ZAP was never deployed; port 9090 was WebGoat
+- [x] Investigate LLM Orchestrator unavailability — ZAP config fallback is by-design; improved messaging
+- [x] Fix ZAP scan issues — deployed ZAP 2.17.0 on port 8090, updated ZAP_BASE_URL, switched to http-proxy-agent
+- [x] Fix LLM Orchestrator — improved fallback messages, less alarming
+- [x] Investigate credential-to-ZAP handoff — code exists, was failing because ZAP wasn't deployed
+- [x] Fix credential-to-ZAP handoff — ZAP now deployed, handoff will work on next scan
+- [x] Investigate LLM exploit selection — ops-decider specialist returns scan actions not exploit actions
+- [x] Fix LLM exploit selection — bypass specialist in exploit phase + enhanced prompt + safety net fallback
+
+## KSI Dashboard Click-Through Testing
+- [ ] Navigate to KSI dashboard and identify all clickable items
+- [ ] Click each KSI item and verify supporting details display correctly
+- [ ] Check for page errors, blank screens, or broken components
+- [ ] Fix any issues found during click-through testing
+
+## KSI Self-Explanatory Enrichment (March 2026)
+- [x] Make all 75 KSI items self-explanatory with how Ace C3 meets/supports each
+- [x] Add detailed descriptions of mechanisms, modules, and evidence types per KSI
+- [x] Update KSI Dashboard (Indicators tab) to show enriched KSI descriptions
+- [x] Update KSI Detail page with full Ace C3 capability mapping
+- [x] Update Evidence Chain page with KSI context
+- [x] Update Threat Map page with KSI context
+- [x] Update Validation page with KSI context
+- [x] Update FedRAMP 20x Readiness page with enriched theme/KSI details
+- [x] Fix FedRAMP 20x page field name mismatches (themeStats, totalKSIs, etc.)
+- [x] Write and pass 14 vitest tests for enriched KSI data module

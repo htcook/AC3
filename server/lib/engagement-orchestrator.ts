@@ -1199,7 +1199,13 @@ async function llmDecide(context: {
   const recentActivity = context.recentLog.slice(-10).map(l => `[${l.type}] ${l.title}`).join('\n');
 
   // ─── Try Ops Decider specialist first ───
-  try {
+  // Skip ops-decider for exploitation/post-exploit phases — it only returns scan-type actions,
+  // not exploit_attempt actions. The direct LLM fallback handles exploitation properly.
+  const skipSpecialist = ['exploitation', 'post_exploit'].includes(context.phase);
+  if (skipSpecialist) {
+    console.log(`[OpsLLM] Skipping ops-decider specialist for ${context.phase} phase — using direct LLM for exploit action generation`);
+  }
+  if (!skipSpecialist) try {
     const { decideNextOp } = await import('./llm-specialists/ops-decider');
     const opsResult = await decideNextOp({
       currentPhase: context.phase,
@@ -1246,11 +1252,19 @@ async function llmDecide(context: {
   }
 
   // ─── Fallback: direct invokeLLM ───
+  // Build phase-specific instructions for the LLM
+  const exploitPhaseInstructions = ['exploitation', 'post_exploit'].includes(context.phase)
+    ? `\n\nIMPORTANT: You are in the ${context.phase} phase. You MUST return actions with type "exploit_attempt" for each vulnerability you want to exploit.
+Each exploit_attempt action MUST include params: {target: "hostname", port: number, cve: "CVE-XXXX-XXXXX", service: "service_name", module: "exploit_module_or_technique"}
+Prioritize critical and high severity vulnerabilities. Generate one exploit_attempt action per target/CVE combination.
+Do NOT return scan-type actions (nmap_scan, nuclei_scan) during exploitation — only exploit_attempt, c2_deploy, or complete.`
+    : '';
+
   const systemPrompt = `Pentest AI for ${context.engagementType} engagement. Phase: ${context.phase}.
 
 Assets:\n${assetSummary}\n\nRecent:\n${recentActivity}\n\nReturn JSON: {"decision":"str","reasoning":"str","actions":[{"type":"nmap_scan|nuclei_scan|zap_scan|exploit_attempt|c2_deploy|recon|skip|complete|wait","params":{...}}]}
 Action params: nmap_scan={targets,profile:quick|standard|deep|stealth|service|vuln} nuclei_scan={targets,severity,tags?} zap_scan={targetUrl,scanType:full|active|spider_only,wafAware} exploit_attempt={target,port,cve,service,module?} c2_deploy={target,platform,method} recon={domain} complete={reason}
-Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.`;
+Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.${exploitPhaseInstructions}`;
 
   try {
     const response = await retryWithBackoff(
@@ -4131,7 +4145,49 @@ ${(() => {
   // ── Pre-Exploitation Approval Gate ──
   // Pause and show the full exploit plan to the operator before firing any exploits.
   // This lets the operator review all selected targets, CVEs, and modules at once.
-  const exploitActions = decision.actions.filter((a: any) => a.type === "exploit_attempt");
+  let exploitActions = decision.actions.filter((a: any) => a.type === "exploit_attempt");
+
+  // Safety net: if LLM returned 0 exploit actions but we have critical/high vulns,
+  // auto-generate exploit actions from the vulnerability list
+  if (exploitActions.length === 0) {
+    const critHighVulns = state.assets.flatMap(a =>
+      a.vulns
+        .filter(v => v.severity === 'critical' || v.severity === 'high')
+        .map(v => ({ asset: a, vuln: v }))
+    );
+    if (critHighVulns.length > 0) {
+      console.log(`[OpsLLM] Safety net: LLM returned 0 exploit actions but found ${critHighVulns.length} critical/high vulns. Auto-generating exploit plan.`);
+      addLog(state, {
+        phase: "exploitation",
+        type: "info",
+        title: "⚠️ LLM Exploit Fallback",
+        detail: `LLM returned 0 exploit actions despite ${critHighVulns.length} critical/high vulnerabilities. Auto-generating exploit plan from vulnerability list.`,
+      });
+      // Deduplicate by CVE+target, prioritize critical over high, limit to top 15
+      const seen = new Set<string>();
+      const autoExploits = critHighVulns
+        .sort((a, b) => (a.vuln.severity === 'critical' ? 0 : 1) - (b.vuln.severity === 'critical' ? 0 : 1))
+        .filter(({ asset, vuln }) => {
+          const key = `${asset.hostname}:${vuln.cve || vuln.title}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, 15)
+        .map(({ asset, vuln }) => ({
+          type: 'exploit_attempt' as const,
+          params: {
+            target: asset.hostname,
+            port: asset.ports?.[0]?.port || 443,
+            cve: vuln.cve || undefined,
+            service: asset.ports?.[0]?.service || 'http',
+            module: vuln.cve ? `auto-${vuln.cve}` : `auto-${vuln.title?.slice(0, 50)}`,
+          },
+        }));
+      exploitActions = autoExploits;
+      decision.actions = [...decision.actions, ...autoExploits];
+    }
+  }
   const planSummary = exploitActions.map((a: any, i: number) => {
     const p = a.params || {};
     const matchedAsset = state.assets.find(ast => ast.hostname === p.target || ast.ip === p.target);

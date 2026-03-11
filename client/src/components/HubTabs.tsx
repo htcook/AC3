@@ -53,8 +53,15 @@ export default function HubTabs({ tabs, defaultTab, storageKey, className }: Hub
 
   if (tabs.length === 0) return null;
 
+  const handleTabChange = (val: string) => {
+    console.log('[HubTabs] onValueChange fired:', val, 'current:', activeTab);
+    setActiveTab(val);
+  };
+
+  console.log('[HubTabs] render, activeTab:', activeTab);
+
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className={className}>
+    <Tabs value={activeTab} onValueChange={handleTabChange} className={className}>
       <div className="border-b border-border/50 mb-6">
         <TabsList className="bg-transparent h-auto p-0 gap-0 flex-wrap">
           {tabs.map((tab) => {

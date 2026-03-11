@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Shield, Target, Crosshair, Users, Zap, AlertTriangle, ChevronRight, ExternalLink } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { getKsiLabel, getThemeLabel, formatKsiId } from "@/lib/ksi-labels";
+import { getKsiEnriched, getCoverageBadgeClass } from "@/lib/ksi-enriched-data";
 import AttackMatrixGrid from "@/components/AttackMatrixGrid";
 
 const TACTIC_COLORS: Record<string, string> = {
@@ -246,7 +247,7 @@ export default function KsiThreatMap() {
                 <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
               )}
               <Badge variant="outline" className="font-mono text-xs shrink-0" title={formatKsiId(item.ksiId)}>{item.ksiId}</Badge>
-              <span className="flex-1 text-sm truncate">{getKsiLabel(item.ksiId)} · {item.techniqueCount} techniques</span>
+              <span className="flex-1 text-sm truncate">{getKsiEnriched(item.ksiId)?.name || getKsiLabel(item.ksiId)} · {item.techniqueCount} techniques</span>
               <div className="flex items-center gap-4 shrink-0">
                 <div className="flex items-center gap-1">
                   <Crosshair className="h-3 w-3 text-red-500" />
@@ -310,9 +311,28 @@ export default function KsiThreatMap() {
                 )}
               </div>
 
-              {ksiReport.description && (
-                <p className="text-sm text-muted-foreground">{ksiReport.description}</p>
-              )}
+              {/* Enriched KSI context */}
+              {(() => {
+                const enriched = getKsiEnriched(ksiReport.ksiId);
+                return enriched ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">{enriched.requirement}</p>
+                    <div className="p-3 bg-accent/30 rounded-lg">
+                      <div className="text-xs font-semibold text-blue-400 mb-1">How Ace C3 {enriched.coverageLevel === 'direct' ? 'Meets' : 'Supports'} This KSI</div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{enriched.howAceC3Delivers}</p>
+                      {enriched.aceModules.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {enriched.aceModules.map((m, i) => (
+                            <Badge key={i} variant="outline" className="text-[10px] text-blue-400 border-blue-500/30">{m.name}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : ksiReport.description ? (
+                  <p className="text-sm text-muted-foreground">{ksiReport.description}</p>
+                ) : null;
+              })()}
 
               <div className="grid grid-cols-3 gap-3">
                 <Card>

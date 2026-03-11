@@ -15,6 +15,7 @@ import {
   AlertTriangle, Shield, Loader2, RefreshCw, Hash, Eye
 } from "lucide-react";
 import { formatKsiId, getKsiLabel, getThemeLabel, getThemeFromKsiId } from "@/lib/ksi-labels";
+import { getKsiEnriched, getCoverageBadgeClass } from "@/lib/ksi-enriched-data";
 import EvidenceTimeline from "@/components/EvidenceTimeline";
 
 const EVIDENCE_TYPES = [
@@ -291,7 +292,7 @@ export default function KsiEvidenceChain() {
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs" title={formatKsiId(ev.ksiId)}>{ev.ksiId}</Badge>
                           <span className="font-medium text-sm">{ev.title}</span>
-                          <span className="text-xs text-muted-foreground hidden md:inline">({getKsiLabel(ev.ksiId)})</span>
+                          <span className="text-xs text-muted-foreground hidden md:inline">({getKsiEnriched(ev.ksiId)?.name || getKsiLabel(ev.ksiId)})</span>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{ev.evidenceType?.replace(/_/g, " ")}</span>
@@ -398,33 +399,46 @@ export default function KsiEvidenceChain() {
         <TabsContent value="definitions" className="space-y-4">
           {defs.length > 0 ? (
             <div className="space-y-2">
-              {defs.map((def: any) => (
+              {defs.map((def: any) => {
+                const enriched = getKsiEnriched(def.ksiId);
+                return (
                 <Card key={def.ksiId}>
                   <CardContent className="py-3 px-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs font-mono" title={formatKsiId(def.ksiId)}>{def.ksiId}</Badge>
-                          <span className="text-sm font-medium">{def.title}</span>
+                          <span className="text-sm font-medium">{enriched?.name || def.title}</span>
                         </div>
+                        {enriched && (
+                          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">{enriched.requirement}</p>
+                        )}
                         <div className="text-xs text-muted-foreground mt-1">
-                          {getThemeLabel(getThemeFromKsiId(def.ksiId))} · {def.validationType} validation · {def.frequency}
+                          {getThemeLabel(getThemeFromKsiId(def.ksiId))} · {enriched?.validationMethod || def.validationType} validation · {enriched?.frequency || def.frequency}
                         </div>
-                        {def.aceC3Module && (
+                        {enriched && enriched.aceModules.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {enriched.aceModules.map((m, i) => (
+                              <Badge key={i} variant="outline" className="text-[10px] h-4 px-1 text-blue-400 border-blue-500/30">{m.name}</Badge>
+                            ))}
+                          </div>
+                        )}
+                        {!enriched && def.aceC3Module && (
                           <div className="text-xs text-blue-400 mt-0.5">Module: {def.aceC3Module}</div>
                         )}
                       </div>
-                      <Badge variant={
-                        def.coverageStatus === "direct" ? "default" :
+                      <Badge className={enriched ? getCoverageBadgeClass(enriched.coverageLevel) : undefined} variant={
+                        !enriched ? (def.coverageStatus === "direct" ? "default" :
                         def.coverageStatus === "supporting" ? "secondary" :
-                        "outline"
+                        "outline") : "outline"
                       }>
-                        {def.coverageStatus}
+                        {enriched?.coverageLevel || def.coverageStatus}
                       </Badge>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <Card>

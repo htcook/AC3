@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { formatKsiId, getKsiLabel } from "@/lib/ksi-labels";
+import { getKsiEnriched } from "@/lib/ksi-enriched-data";
 
 export default function KsiValidation() {
   
@@ -197,7 +198,7 @@ export default function KsiValidation() {
                 >
                   <Play className="h-3 w-3 mr-1" />
                   {s.ksiId}
-                  <span className="hidden sm:inline ml-1 opacity-70">{getKsiLabel(s.ksiId)}</span>
+                  <span className="hidden sm:inline ml-1 opacity-70">{getKsiEnriched(s.ksiId)?.name || getKsiLabel(s.ksiId)}</span>
                 </Button>
               ))}
               {overdue.length > 10 && (
@@ -239,7 +240,7 @@ export default function KsiValidation() {
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-xs font-mono" title={formatKsiId(schedule.ksiId)}>{schedule.ksiId}</Badge>
                             <span className="text-sm">
-                              {getKsiLabel(schedule.ksiId)} · Every {formatHours(schedule.frequencyHours)}
+                              {getKsiEnriched(schedule.ksiId)?.name || getKsiLabel(schedule.ksiId)} · Every {formatHours(schedule.frequencyHours)}
                             </span>
                             {isOverdue && <Badge variant="destructive" className="text-xs">OVERDUE</Badge>}
                             {schedule.consecutiveFailures > 0 && (
@@ -306,7 +307,7 @@ export default function KsiValidation() {
                           {run.status === "error" && <XCircle className="h-4 w-4 text-red-500" />}
                           {run.status === "skipped" && <SkipForward className="h-4 w-4 text-muted-foreground" />}
                           <Badge variant="outline" className="text-xs font-mono" title={formatKsiId(run.ksiId)}>{run.ksiId}</Badge>
-                          <span className="text-sm">{getKsiLabel(run.ksiId)}</span>
+                          <span className="text-sm">{getKsiEnriched(run.ksiId)?.name || getKsiLabel(run.ksiId)}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {run.runId} · {run.validationType} · {run.triggerType} · Started: {formatDate(run.startedAt)}

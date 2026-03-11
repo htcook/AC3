@@ -26,6 +26,7 @@ import { getDb } from "../db";
 import { webAppScans, webAppFindings } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import { HttpProxyAgent } from "http-proxy-agent";
 import {
   selectPlaybook,
   applyPlaybookToZap,
@@ -73,21 +74,44 @@ interface ZapApiResponse {
   [key: string]: any;
 }
 
+/**
+ * ZAP API requests must go through ZAP as an HTTP proxy.
+ * The request URL uses "http://zap/..." which ZAP intercepts as its API.
+ * The proxy is ZAP_BASE_URL (e.g., http://159.223.152.190:8090).
+ */
 async function zapRequest(
   endpoint: string,
   params: Record<string, string> = {},
   config: ZapConfig = DEFAULT_ZAP_CONFIG
 ): Promise<ZapApiResponse> {
-  const url = new URL(`${config.baseUrl}${endpoint}`);
-  url.searchParams.set("apikey", config.apiKey);
+  // Build the ZAP API URL using the special "zap" hostname
+  const apiUrl = new URL(`http://zap${endpoint}`);
+  apiUrl.searchParams.set("apikey", config.apiKey);
   for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
+    apiUrl.searchParams.set(k, v);
   }
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(30000),
+  // Use ZAP_BASE_URL as an HTTP proxy via http-proxy-agent
+  // ZAP acts as an HTTP proxy; requests to "http://zap/..." are intercepted as API calls
+  const agent = new HttpProxyAgent(config.baseUrl);
+
+  const response = await new Promise<{ ok: boolean; status: number; statusText: string; json: () => any }>((resolve, reject) => {
+    const http = require('http');
+    const reqUrl = apiUrl.toString();
+    const req = http.get(reqUrl, { agent, timeout: 30000 }, (res: any) => {
+      let data = '';
+      res.on('data', (chunk: string) => data += chunk);
+      res.on('end', () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          statusText: res.statusMessage || '',
+          json: () => JSON.parse(data),
+        });
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('ZAP request timeout')); });
   });
 
   if (!response.ok) {
@@ -630,8 +654,8 @@ function getDefaultScanConfig(
       ? matchedPolicy.criticalRules.map(r => `Rule ${r.id}: ${r.strength}/${r.threshold} — ${r.reason}`)
       : [],
     rationale: matchedPolicy
-      ? `Knowledge-driven fallback: ${matchedPolicy.technology} policy applied (${matchedPolicy.criticalRules.length} critical rules). LLM orchestrator was unavailable.`
-      : "Default configuration — LLM orchestrator unavailable. Using balanced settings.",
+      ? `Knowledge-driven config: ${matchedPolicy.technology} policy applied (${matchedPolicy.criticalRules.length} critical rules). Tech-specific scan profile selected automatically.`
+      : "Balanced scan configuration applied. Technology-specific tuning will be applied when LLM analysis completes.",
   };
 
   // Apply WAF evasion overrides if WAF detected

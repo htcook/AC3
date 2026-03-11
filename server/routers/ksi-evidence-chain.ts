@@ -219,6 +219,7 @@ export const ksiEvidenceChainRouter = router({
       machineValidated: machineCount,
       humanValidated: humanCount,
       themeStats,
+      definitions: defs,
     };
   }),
 
