@@ -177,3 +177,10 @@ todo.md
 DO-ARCHITECTURE-PLAN.md
 scan-pipeline-optimization-report.md
 training-targets-reachability.md
+
+# Debug/test scripts
+test-*.ts
+test-*.cjs
+query-scan-debug.ts
+engagement-progress.txt
+engagement-data.txt

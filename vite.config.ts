@@ -27,8 +27,34 @@ function shikiSubsetPlugin(): Plugin {
   };
 }
 
+/**
+ * Redirect katex CSS imports to a CDN version.
+ * This eliminates 59 KaTeX font files (woff/woff2/ttf) from the build output,
+ * saving ~1.2MB and 59 files from the deployment payload.
+ */
+function katexCdnPlugin(): Plugin {
+  return {
+    name: "katex-cdn-redirect",
+    enforce: "pre",
+    resolveId(source) {
+      if (source === "katex/dist/katex.css" || source === "katex/dist/katex.min.css") {
+        // Return a virtual module that imports nothing — the CDN link in index.html handles it
+        return "\0katex-cdn-stub";
+      }
+      return null;
+    },
+    load(id) {
+      if (id === "\0katex-cdn-stub") {
+        return "/* KaTeX CSS loaded via CDN in index.html */";
+      }
+      return null;
+    },
+  };
+}
+
 const plugins = [
   shikiSubsetPlugin(),
+  katexCdnPlugin(),
   react(),
   tailwindcss(),
   jsxLocPlugin(),
