@@ -17,6 +17,7 @@ import { executeTool, type ToolExecResult } from "./scan-server-executor";
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
 import { getFirewallEvasionContext, getFileUploadBypassContext } from "./knowledge/offensive-techniques-knowledge";
 import { getFalsePositiveTriageContext } from "./knowledge/zap-pentesting-knowledge";
+import { buildVulnTestingContext, buildPhaseToolContext } from "./knowledge/bugbounty-methodology-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -304,6 +305,13 @@ When requesting scans against targets with firewalls or WAFs, consider these tec
 - For file upload testing, use extension splitting payloads: null byte (%00), newline (%0a), semicolon (%3B), Unicode overlong encoding
 - For WAF bypass: identify vendor first (wafw00f), then use encoding tricks, chunked transfer, or parameter pollution
 - Prefer passive/stealthy tools when the target has active defenses
+
+## Bug Bounty Attack Methodology
+When analyzing findings, use this attack methodology knowledge to identify gaps:
+${buildVulnTestingContext('sql_injection')}
+
+## Phase-Specific Tool Recommendations
+${buildPhaseToolContext('exploitation')}
 
 ## False Positive Triage
 When analyzing ZAP scan findings, use this knowledge to classify findings:

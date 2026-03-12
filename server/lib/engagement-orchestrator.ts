@@ -84,6 +84,17 @@ import {
   getZAPReasoningPrompt,
   getVulnPayloadContext,
 } from "./knowledge/zap-pentesting-knowledge";
+import {
+  buildToolRecommendationContext,
+  buildAttackPlannerToolContext,
+} from "./knowledge/offensive-tools-knowledge";
+import {
+  buildMethodologyContext,
+  buildPhaseToolContext,
+  buildVulnTestingContext,
+  buildScanPlanningContext,
+  type BugBountyPhase,
+} from "./knowledge/bugbounty-methodology-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -912,6 +923,25 @@ Return valid JSON per the response_format schema.`;
       phase: 'enumeration',
       technology: uniqueTech[0],
     });
+    // Build offensive tools context for the current phase
+    const toolsCtx = buildToolRecommendationContext({
+      phase: 'enumeration',
+      hasWebApp: uniqueTech.some(t => /http|web|html|php|asp|jsp|node|react|angular|vue/i.test(t)),
+      hasAPI: uniqueTech.some(t => /api|rest|graphql|json|soap/i.test(t)),
+      detectedTech: uniqueTech,
+    });
+    // Bug bounty methodology context — provides attack methodology and workflow
+    const targetPreset = state.assets?.[0]?.hostname?.includes('bwapp') ? 'bwapp'
+      : state.assets?.[0]?.hostname?.includes('mutillidae') ? 'mutillidae'
+      : state.assets?.[0]?.hostname?.includes('crapi') ? 'crapi'
+      : state.assets?.[0]?.hostname?.includes('dvwa') ? 'dvwa'
+      : state.assets?.[0]?.hostname?.includes('juice') ? 'juice-shop'
+      : state.assets?.[0]?.hostname?.includes('webgoat') ? 'webgoat'
+      : state.assets?.[0]?.hostname?.includes('vampi') ? 'vampi'
+      : state.assets?.[0]?.hostname?.includes('dvga') ? 'dvga'
+      : undefined;
+    const methodologyCtx = buildMethodologyContext(targetPreset);
+    const phaseToolCtx = buildPhaseToolContext('enumeration');
     enrichmentCtx = [
       ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '',
       bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '',
@@ -922,6 +952,9 @@ Return valid JSON per the response_format schema.`;
       threatGroupCtx || '',
       offensiveTechCtx || '',
       zapKnowledgeCtx || '',
+      toolsCtx || '',
+      methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '',
+      phaseToolCtx ? '## Phase Tool Recommendations\n' + phaseToolCtx : '',
     ].filter(Boolean).join('\n\n');
   } catch (e) {
     console.warn('[ScanPlan] Failed to build enrichment context:', e);

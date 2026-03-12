@@ -17,6 +17,8 @@ import { getDb } from "../db";
 import { aiAttackPlans } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { getLOTLContext, getFirewallEvasionContext } from "./knowledge/offensive-techniques-knowledge";
+import { buildAttackPlannerToolContext } from "./knowledge/offensive-tools-knowledge";
+import { buildMethodologyContext, buildVulnTestingContext, buildScanPlanningContext } from "./knowledge/bugbounty-methodology-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -469,11 +471,22 @@ export async function generateAttackPlan(
 
   // Step 2: LLM enrichment
   try {
+    // Build offensive tools context for the attack planner
+    const toolsContext = buildAttackPlannerToolContext();
+    // Build bug bounty methodology context for comprehensive attack planning
+    const methodologyCtx = buildMethodologyContext();
+    const scanPlanCtx = buildScanPlanningContext(undefined, 'exploitation');
+
     const userPrompt = `Enrich this attack plan skeleton for the following target:
 
 **Target:** ${request.targetDescription}
 ${request.threatActorProfile ? `**Threat Actor:** ${request.threatActorProfile}` : ""}
 ${request.environmentContext ? `**Environment:** ${JSON.stringify(request.environmentContext, null, 2)}` : ""}
+
+${toolsContext}
+
+${methodologyCtx ? `=== ATTACK METHODOLOGY KNOWLEDGE ===\n${methodologyCtx.slice(0, 3000)}\n` : ''}
+${scanPlanCtx ? `=== SCAN PLANNING CONTEXT ===\n${scanPlanCtx.slice(0, 2000)}\n` : ''}
 
 **Plan Skeleton:**
 ${JSON.stringify(skeleton, null, 2)}`;

@@ -52,6 +52,27 @@ import {
   buildMultiCategoryContext,
   getPayloadsMetadata,
 } from "../lib/knowledge/payloads-knowledge";
+import {
+  OFFENSIVE_TOOLS,
+  getToolsForLab,
+  getToolsByCategory,
+  searchTools,
+  getToolStats,
+  buildToolRecommendationContext,
+  buildAttackPlannerToolContext,
+} from "../lib/knowledge/offensive-tools-knowledge";
+import {
+  getAllBugBountyTools,
+  getAllMethodologies,
+  getWorkflow,
+  buildMethodologyContext,
+  buildPhaseToolContext,
+  buildVulnTestingContext,
+  buildScanPlanningContext,
+  getToolsByPhase,
+  getMethodologiesByCategory,
+  getBugBountyStats,
+} from "../lib/knowledge/bugbounty-methodology-knowledge";
 
 // ─── Module Registry ────────────────────────────────────────────────────────
 
@@ -264,6 +285,30 @@ function getModuleRegistry(): KnowledgeModule[] {
       phases: ["enumeration", "vuln_detection", "exploitation"],
       status: "active",
     },
+    {
+      id: "offensive-tools-taxonomy",
+      name: "Offensive Security Tools",
+      category: "offensive",
+      description: `${getToolStats().totalTools} offensive security tools across ${Object.keys(getToolStats().categories).length} categories (Reconnaissance, Exploitation, Post-Exploitation, WebApp Pentesting, API Testing, Cloud Security, etc.). Includes CLI patterns, lab applicability, and MITRE ATT&CK tactic mappings.`,
+      version: "1.0.0",
+      itemCount: getToolStats().totalTools,
+      mitreTechniques: ["T1595", "T1190", "T1059", "T1046", "T1110", "T1071"],
+      injectedInto: ["engagement-orchestrator.ts", "ai-attack-planner.ts"],
+      phases: ["recon", "enumeration", "vuln_detection", "exploitation", "post_exploit"],
+      status: "active",
+    },
+    {
+      id: "bugbounty-methodology",
+      name: "Bug Bounty Methodology & Tools",
+      category: "offensive",
+      description: `${getBugBountyStats().totalTools} bug bounty tools, ${getBugBountyStats().totalMethodologies} attack methodologies, and ${getBugBountyStats().workflowSteps}-step workflow covering the full bug bounty lifecycle. Includes vulnerability testing patterns (SQLi, XSS, SSRF, IDOR, etc.), phase-specific tool recommendations, and scan planning context.`,
+      version: "1.0.0",
+      itemCount: getBugBountyStats().totalTools + getBugBountyStats().totalMethodologies,
+      mitreTechniques: ["T1190", "T1059", "T1046", "T1595", "T1071", "T1110", "T1557"],
+      injectedInto: ["engagement-orchestrator.ts", "ai-attack-planner.ts", "llm-scan-feedback.ts", "engagement-ops-core.ts"],
+      phases: ["recon", "enumeration", "vuln_detection", "exploitation", "post_exploit"],
+      status: "active",
+    },
   ];
 }
 
@@ -281,25 +326,25 @@ function getPhaseMapping(): PhaseMapping[] {
     {
       phase: "recon",
       description: "Initial reconnaissance and target discovery",
-      modules: ["subdomain-enumeration", "shodan-recon", "social-engineering-taxonomy"],
-      conditions: ["Always injected for recon", "Shodan injected by default", "Social engineering when includePhishing=true"],
+      modules: ["subdomain-enumeration", "shodan-recon", "social-engineering-taxonomy", "bugbounty-methodology"],
+      conditions: ["Always injected for recon", "Shodan injected by default", "Social engineering when includePhishing=true", "Bug bounty methodology always injected"],
     },
     {
       phase: "enumeration",
       description: "Active enumeration and service discovery",
-      modules: ["subdomain-enumeration", "shodan-recon", "firewall-evasion", "file-upload-bypass"],
-      conditions: ["Always injected for enumeration", "Firewall evasion when hasFirewall=true or hasWAF=true", "File upload bypass when hasFileUpload=true"],
+      modules: ["subdomain-enumeration", "shodan-recon", "firewall-evasion", "file-upload-bypass", "bugbounty-methodology"],
+      conditions: ["Always injected for enumeration", "Firewall evasion when hasFirewall=true or hasWAF=true", "File upload bypass when hasFileUpload=true", "Bug bounty methodology always injected"],
     },
     {
       phase: "vuln_detection",
       description: "Vulnerability scanning and detection",
-      modules: ["firewall-evasion", "file-upload-bypass", "zap-wstg-methodology", "zap-alert-catalog", "zap-tech-scan-policies", "zap-auth-strategies", "zap-fp-triage"],
+      modules: ["firewall-evasion", "file-upload-bypass", "zap-wstg-methodology", "zap-alert-catalog", "zap-tech-scan-policies", "zap-auth-strategies", "zap-fp-triage", "bugbounty-methodology"],
       conditions: ["Firewall evasion when hasFirewall=true or hasWAF=true", "File upload bypass when hasFileUpload=true", "ZAP WSTG/alerts always injected for web app targets", "Tech scan policies based on detected technology", "Auth strategies when credentials available", "FP triage always injected for scan result classification"],
     },
     {
       phase: "exploitation",
       description: "Vulnerability exploitation and initial access",
-      modules: ["lotl-resources", "file-upload-bypass", "gophish-templates", "pretext-scripts", "landing-page-patterns", "zap-alert-catalog", "zap-vuln-payloads", "zap-fp-triage"],
+      modules: ["lotl-resources", "file-upload-bypass", "gophish-templates", "pretext-scripts", "landing-page-patterns", "zap-alert-catalog", "zap-vuln-payloads", "zap-fp-triage", "bugbounty-methodology"],
       conditions: ["LOTL always injected (platform-filtered)", "File upload bypass when hasFileUpload=true", "Phishing templates when includePhishing=true", "ZAP alert catalog and payloads for web app exploitation", "FP triage for finding classification"],
     },
     {
@@ -398,6 +443,16 @@ export const knowledgeBaseRouter = router({
         case "payloads-all-the-things":
           context = buildPayloadContext(input.category || "SQL Injection");
           break;
+        case "offensive-tools-taxonomy":
+          context = buildAttackPlannerToolContext(input.category || undefined);
+          break;
+        case "bugbounty-methodology":
+          context = [
+            buildMethodologyContext(),
+            buildVulnTestingContext('sql_injection'),
+            buildPhaseToolContext(input.category as any || 'recon'),
+          ].filter(Boolean).join('\n\n');
+          break;
         default:
           context = "Module not found";
       }
@@ -427,7 +482,14 @@ export const knowledgeBaseRouter = router({
         technology: input.platform || undefined,
         footholdMinimum: 'medium',
       });
-      const combined = [offensiveCtx, phishingCtx, zapCtx].filter(Boolean).join("\n\n---\n\n");
+      const toolsCtx = buildToolRecommendationContext({
+        phase: input.phase,
+        hasWebApp: true,
+        hasAPI: false,
+      });
+      const methodologyCtx = buildMethodologyContext();
+      const phaseToolCtx = buildPhaseToolContext(input.phase as any);
+      const combined = [offensiveCtx, phishingCtx, zapCtx, toolsCtx, methodologyCtx, phaseToolCtx].filter(Boolean).join("\n\n---\n\n");
 
       return {
         context: combined,

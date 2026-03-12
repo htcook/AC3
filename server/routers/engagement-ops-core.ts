@@ -1931,6 +1931,7 @@ export const engagementOpsRouter = router({
                 const { buildAuthKnowledgeContext } = await import('../lib/auth-testing-knowledge');
                 const { getNmapVulnCorrelationContext } = await import('../lib/nmap-knowledge');
                 const { getThreatGroupVulnContext } = await import('../lib/threat-group-knowledge');
+                const { buildMethodologyContext, buildVulnTestingContext } = await import('../lib/knowledge/bugbounty-methodology-knowledge');
                 const { buildLearningContext, GROUND_TRUTH_LIBRARY } = await import('../lib/llm-self-learning');
                 const { TRAINING_TARGETS } = await import('./training-lab');
 
@@ -2028,6 +2029,9 @@ IMPORTANT CONTEXT:
 - rest.vulnweb.com is known for: BOLA, Broken Authentication, Excessive Data Exposure, Injection, Missing Rate Limiting
 - pentest-ground.com is known for: SQL Injection, XSS, Command Injection, File Upload, Authentication Bypass
 - zero.webappsecurity.com is known for: Broken Authentication, IDOR, XSS, CSRF
+- bWAPP is known for: SQL Injection (GET/POST/Blind Boolean/Blind Time-based), OS Command Injection (visible & blind), PHP Code Injection, XML/XPath Injection, XSS (Reflected/Stored/DOM), CSRF, SSRF, XXE, LFI/RFI, Unrestricted File Upload, Shellshock (CVE-2014-6271), Heartbleed, Insecure WebDAV, Session Management flaws, Broken Authentication, A1-A10 OWASP Top 10 coverage
+- Mutillidae II (OWASP) is known for: SQL Injection (UNION/Error/Blind/REST/SOAP), OS Command Injection, XXE via SOAP, XSS (Reflected/Stored/DOM), Authentication Bypass via SQLi, Privilege Escalation, Brute Force Login, LFI/RFI, CSRF, SSRF, Clickjacking, WSDL Information Disclosure, JavaScript Injection, HTML Injection, LDAP Injection, Log Injection, HTTP Parameter Pollution
+- crAPI (OWASP) is known for: BOLA (Vehicle Details/Mechanic Reports), Broken Authentication (OTP Brute Force), Excessive Data Exposure (PII in Posts/Video Internal Properties), BFLA (Admin Video Deletion), Mass Assignment (Free Item/Balance Manipulation), SSRF (Mechanic API/Video Conversion), NoSQL Injection (Coupon Code), JWT Token Forgery, LLM Prompt Injection, LLM Credential Extraction, Rate Limiting Bypass, Broken Object Property Level Authorization
 
 Identify the TOP 10 most likely vulnerabilities with MAXIMUM CATEGORY DIVERSITY.
 
@@ -2050,6 +2054,8 @@ ${nmapVulnCtx.slice(0, 800)}
 
 ${threatCtx.slice(0, 800)}
 ${learningCtx ? `\n=== SELF-LEARNING CORRECTIONS (from previous scans) ===\n${learningCtx.slice(0, 2000)}\n` : ''}
+=== ATTACK METHODOLOGY ===
+${(() => { const mCtx = buildMethodologyContext(resolvedPreset || undefined); return mCtx ? mCtx.slice(0, 2000) : ''; })()}
 Return ONLY a JSON object with vulnerabilities array. No markdown, no explanation.`;
 
                   const synthSchema = { type: 'json_schema' as const, json_schema: {
