@@ -149,22 +149,23 @@ export default defineConfig({
           if (id.includes("node_modules/@radix-ui")) {
             return "vendor-radix";
           }
-          // Group React + React-DOM together (prevents TDZ errors)
+          // Group React + React-DOM + react-is together (prevents TDZ circular dep errors)
+          // react-is MUST be in this chunk because recharts depends on it,
+          // and if it lands in vendor-charts, Rollup's CJS interop helper creates
+          // a circular import between vendor-react ↔ vendor-charts → black screen.
           if (
             id.includes("node_modules/react/") ||
             id.includes("node_modules/react-dom/") ||
-            id.includes("node_modules/scheduler/")
+            id.includes("node_modules/scheduler/") ||
+            id.includes("node_modules/react-is/")
           ) {
             return "vendor-react";
           }
-          // Group charting libs
-          if (
-            id.includes("node_modules/recharts") ||
-            id.includes("node_modules/d3-") ||
-            id.includes("node_modules/victory")
-          ) {
-            return "vendor-charts";
-          }
+          // NOTE: recharts/d3/victory are NOT manually chunked.
+          // Putting them in a separate "vendor-charts" chunk causes a circular
+          // TDZ error: vendor-charts needs React from vendor-react, but
+          // vendor-react needs Rollup's CJS interop helper from vendor-charts.
+          // Letting Rollup split them naturally avoids the circular dependency.
           // Group shiki/streamdown
           if (
             id.includes("node_modules/shiki") ||
