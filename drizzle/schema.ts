@@ -5129,3 +5129,77 @@ export type InsertPentestReport = typeof pentestReports.$inferInsert;
 export type SelectPentestReport = typeof pentestReports.$inferSelect;
 export type InsertScanResult = typeof scanResults.$inferInsert;
 export type ScanResult = typeof scanResults.$inferSelect;
+
+
+// ─── Accuracy Feedback Loop ─────────────────────────────────────────────
+
+/**
+ * Stores accuracy comparison results from the learning engine.
+ * Each row represents one scan session scored against ground truth.
+ */
+export const accuracyComparisons = mysqlTable("accuracy_comparisons", {
+	id: int().autoincrement().notNull().primaryKey(),
+	sessionId: varchar("session_id", { length: 128 }).notNull(),
+	engagementId: varchar("engagement_id", { length: 128 }),
+	targetPreset: varchar("target_preset", { length: 128 }).notNull(),
+	targetUrl: varchar("target_url", { length: 512 }),
+	scanType: varchar("scan_type", { length: 64 }),
+	precision: double().default(0),
+	recall: double().default(0),
+	f1Score: double("f1_score").default(0),
+	truePositives: int("true_positives").default(0),
+	falsePositives: int("false_positives").default(0),
+	falseNegatives: int("false_negatives").default(0),
+	totalFindings: int("total_findings").default(0),
+	totalGroundTruth: int("total_ground_truth").default(0),
+	/** JSON array of matched finding names */
+	matchedFindings: json("matched_findings"),
+	/** JSON array of missed ground truth vulns */
+	missedVulns: json("missed_vulns"),
+	/** JSON array of false positive finding names */
+	falsePositiveFindings: json("false_positive_findings"),
+	/** Delta from previous comparison for same target */
+	f1Delta: double("f1_delta"),
+	precisionDelta: double("precision_delta"),
+	recallDelta: double("recall_delta"),
+	/** Knowledge modules active during this scan */
+	knowledgeModulesUsed: json("knowledge_modules_used"),
+	/** Scan duration in ms */
+	scanDurationMs: int("scan_duration_ms"),
+	scoredAt: timestamp("scored_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("acc_comp_session_idx").on(table.sessionId),
+	index("acc_comp_target_idx").on(table.targetPreset),
+	index("acc_comp_engagement_idx").on(table.engagementId),
+	index("acc_comp_scored_idx").on(table.scoredAt),
+]);
+
+export type InsertAccuracyComparison = typeof accuracyComparisons.$inferInsert;
+export type SelectAccuracyComparison = typeof accuracyComparisons.$inferSelect;
+
+/**
+ * Stores per-vulnerability-type accuracy metrics over time.
+ * Allows tracking which vuln categories the LLM is improving at.
+ */
+export const vulnTypeAccuracy = mysqlTable("vuln_type_accuracy", {
+	id: int().autoincrement().notNull().primaryKey(),
+	comparisonId: int("comparison_id").notNull(),
+	vulnType: varchar("vuln_type", { length: 128 }).notNull(),
+	detectionRate: double("detection_rate").default(0),
+	falsePositiveRate: double("false_positive_rate").default(0),
+	timesFound: int("times_found").default(0),
+	timesMissed: int("times_missed").default(0),
+	timesFalsePositive: int("times_false_positive").default(0),
+	targetPreset: varchar("target_preset", { length: 128 }).notNull(),
+	scoredAt: timestamp("scored_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+},
+(table) => [
+	index("vta_comparison_idx").on(table.comparisonId),
+	index("vta_vuln_type_idx").on(table.vulnType),
+	index("vta_target_idx").on(table.targetPreset),
+]);
+
+export type InsertVulnTypeAccuracy = typeof vulnTypeAccuracy.$inferInsert;
+export type SelectVulnTypeAccuracy = typeof vulnTypeAccuracy.$inferSelect;

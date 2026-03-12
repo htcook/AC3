@@ -163,6 +163,7 @@ import { huntEngineRouter } from "./routers/hunt-engine";
 import { reviewQueueRouter } from "./routers/review-queue";
 import { jobQueueRouter } from "./routers/job-queue";
 import { learningEngineRouter } from "./routers/learning-engine";
+import { accuracyFeedbackRouter } from "./routers/accuracy-feedback";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -283,6 +284,7 @@ export const appRouter = router({
   scoring: scoringRouter,
   accuracyEngine: accuracyEngineRouter,
   learningEngine: learningEngineRouter,
+  accuracyFeedback: accuracyFeedbackRouter,
   evasionEngine: evasionEngineRouter,
   siemConnectors: siemConnectorsRouter,
   darkwebIntel: darkwebIntelRouter,

@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   Library,
   Brain,
@@ -25,25 +27,36 @@ import {
   Network,
   Copy,
   Check,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  BarChart3,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Category Colors ────────────────────────────────────────────────────────
 
-const CATEGORY_CONFIG: Record<string, { color: string; bg: string; icon: React.ElementType }> = {
-  offensive: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", icon: Target },
-  social_engineering: { color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", icon: Brain },
-  recon: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", icon: Search },
-  evasion: { color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", icon: ShieldAlert },
+const CATEGORY_CONFIG: Record<string, { color: string; bg: string; icon: React.ElementType; label: string }> = {
+  offensive: { color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", icon: Target, label: "Offensive" },
+  social_engineering: { color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", icon: Brain, label: "Social Engineering" },
+  recon: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", icon: Search, label: "Recon" },
+  evasion: { color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", icon: ShieldAlert, label: "Evasion" },
+  web_app_testing: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: Globe2, label: "Web App Testing" },
+  payloads: { color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", icon: Zap, label: "Payloads" },
 };
 
-const PHASE_CONFIG: Record<string, { color: string; icon: React.ElementType }> = {
-  recon: { color: "text-blue-400", icon: Search },
-  enumeration: { color: "text-cyan-400", icon: Globe2 },
-  vuln_detection: { color: "text-yellow-400", icon: Eye },
-  exploitation: { color: "text-red-400", icon: Zap },
-  post_exploitation: { color: "text-purple-400", icon: Network },
-  reporting: { color: "text-gray-400", icon: FileText },
+const PHASE_CONFIG: Record<string, { color: string; icon: React.ElementType; label: string }> = {
+  recon: { color: "text-blue-400", icon: Search, label: "Recon" },
+  enumeration: { color: "text-cyan-400", icon: Globe2, label: "Enumeration" },
+  vuln_detection: { color: "text-yellow-400", icon: Eye, label: "Vuln Detection" },
+  exploitation: { color: "text-red-400", icon: Zap, label: "Exploitation" },
+  post_exploitation: { color: "text-purple-400", icon: Network, label: "Post-Exploit" },
+  post_exploit: { color: "text-purple-400", icon: Network, label: "Post-Exploit" },
+  reporting: { color: "text-gray-400", icon: FileText, label: "Reporting" },
 };
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
@@ -54,7 +67,9 @@ export default function KnowledgeBase() {
   const [previewPlatform, setPreviewPlatform] = useState<"windows" | "linux" | "macos">("linux");
   const [previewPhase, setPreviewPhase] = useState<"recon" | "enumeration" | "vuln_detection" | "exploitation" | "post_exploitation" | "reporting">("exploitation");
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [phaseFilter, setPhaseFilter] = useState<string>("all");
 
   const { data: modules, isLoading: modulesLoading } = trpc.knowledgeBase.listModules.useQuery();
   const { data: stats, isLoading: statsLoading } = trpc.knowledgeBase.getStats.useQuery();
@@ -77,6 +92,34 @@ export default function KnowledgeBase() {
     { enabled: activeTab === "phases" }
   );
 
+  // Accuracy feedback data
+  const { data: accuracySummary } = trpc.accuracyFeedback.summary.useQuery(undefined, {
+    enabled: activeTab === "accuracy",
+  });
+  const { data: accuracyHistory } = trpc.accuracyFeedback.history.useQuery({ limit: 20 }, {
+    enabled: activeTab === "accuracy",
+  });
+  const { data: latestPerTarget } = trpc.accuracyFeedback.latestPerTarget.useQuery(undefined, {
+    enabled: activeTab === "accuracy",
+  });
+  const { data: aggregateVulnAccuracy } = trpc.accuracyFeedback.aggregateVulnAccuracy.useQuery({}, {
+    enabled: activeTab === "accuracy",
+  });
+
+  // Filtered modules
+  const filteredModules = useMemo(() => {
+    if (!modules) return [];
+    return modules.filter(mod => {
+      const matchesSearch = !searchQuery ||
+        mod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        mod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        mod.mitreTechniques.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesCategory = categoryFilter === "all" || mod.category === categoryFilter;
+      const matchesPhase = phaseFilter === "all" || mod.phases.includes(phaseFilter);
+      return matchesSearch && matchesCategory && matchesPhase;
+    });
+  }, [modules, searchQuery, categoryFilter, phaseFilter]);
+
   const handleCopyContext = async (text: string, id: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -94,9 +137,9 @@ export default function KnowledgeBase() {
               <Library className="h-6 w-6 text-violet-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">LLM Knowledge Base</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Knowledge Base Explorer</h1>
               <p className="text-muted-foreground text-sm">
-                View and manage offensive security knowledge modules injected into LLM specialist prompts
+                Browse, search, and analyze the offensive security knowledge modules that power the LLM engagement pipeline. Each module injects specialized context into LLM prompts during scan phases.
               </p>
             </div>
           </div>
@@ -104,34 +147,21 @@ export default function KnowledgeBase() {
 
         {/* Stats Cards */}
         {statsLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
           </div>
         ) : stats ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <StatCard label="Knowledge Modules" value={stats.totalModules} icon={Layers} color="text-violet-400" />
+            <StatCard label="Total Items" value={stats.totalItems.toLocaleString()} icon={FileText} color="text-blue-400" />
+            <StatCard label="MITRE Techniques" value={stats.totalMitreTechniques} icon={Shield} color="text-red-400" />
+            <StatCard label="Injection Points" value={stats.totalInjectionPoints} icon={Cpu} color="text-emerald-400" />
             <StatCard
-              label="Knowledge Modules"
-              value={stats.totalModules}
-              icon={Layers}
-              color="text-violet-400"
-            />
-            <StatCard
-              label="Total Items"
-              value={stats.totalItems}
-              icon={FileText}
-              color="text-blue-400"
-            />
-            <StatCard
-              label="MITRE Techniques"
-              value={stats.totalMitreTechniques}
-              icon={Shield}
-              color="text-red-400"
-            />
-            <StatCard
-              label="Injection Points"
-              value={stats.totalInjectionPoints}
-              icon={Cpu}
-              color="text-emerald-400"
+              label="Accuracy (F1)"
+              value={accuracySummary ? `${(accuracySummary.avgF1 * 100).toFixed(1)}%` : "—"}
+              icon={BarChart3}
+              color="text-amber-400"
+              trend={accuracySummary?.f1Trend}
             />
           </div>
         ) : null}
@@ -142,17 +172,61 @@ export default function KnowledgeBase() {
             <TabsTrigger value="modules">Modules</TabsTrigger>
             <TabsTrigger value="phases">Phase Mapping</TabsTrigger>
             <TabsTrigger value="preview">Context Preview</TabsTrigger>
+            <TabsTrigger value="accuracy">Accuracy Feedback</TabsTrigger>
           </TabsList>
 
           {/* ── Modules Tab ── */}
           <TabsContent value="modules" className="mt-6 space-y-4">
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search modules, MITRE techniques, descriptions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-48">
+                  <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={phaseFilter} onValueChange={setPhaseFilter}>
+                <SelectTrigger className="w-48">
+                  <Layers className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Phase" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Phases</SelectItem>
+                  {Object.entries(PHASE_CONFIG).map(([key, cfg]) => (
+                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Results count */}
+            <div className="text-xs text-muted-foreground">
+              {filteredModules.length} of {modules?.length || 0} modules
+              {searchQuery && ` matching "${searchQuery}"`}
+            </div>
+
             {modulesLoading ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-48 rounded-xl" />)}
               </div>
-            ) : modules ? (
+            ) : filteredModules.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {modules.map(mod => (
+                {filteredModules.map(mod => (
                   <ModuleCard
                     key={mod.id}
                     module={mod}
@@ -161,10 +235,21 @@ export default function KnowledgeBase() {
                       setSelectedModuleId(mod.id);
                       setActiveTab("preview");
                     }}
+                    searchQuery={searchQuery}
                   />
                 ))}
               </div>
-            ) : null}
+            ) : (
+              <Card className="border-dashed border-2 border-muted-foreground/20">
+                <CardContent className="py-16 text-center">
+                  <Search className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No modules match your search criteria</p>
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setSearchQuery(""); setCategoryFilter("all"); setPhaseFilter("all"); }}>
+                    Clear filters
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* ── Phase Mapping Tab ── */}
@@ -185,7 +270,7 @@ export default function KnowledgeBase() {
             {/* Phase Flow Visualization */}
             <div className="space-y-3">
               {phaseMapping?.map((pm, idx) => {
-                const config = PHASE_CONFIG[pm.phase] || { color: "text-gray-400", icon: FileText };
+                const config = PHASE_CONFIG[pm.phase] || { color: "text-gray-400", icon: FileText, label: pm.phase };
                 const PhaseIcon = config.icon;
                 const isActive = previewPhase === pm.phase;
 
@@ -219,15 +304,17 @@ export default function KnowledgeBase() {
                                   <Badge
                                     key={modId}
                                     variant="outline"
-                                    className={`text-[10px] ${catConfig.bg} ${catConfig.color} border`}
+                                    className={`text-[10px] ${catConfig.bg} ${catConfig.color} border cursor-pointer hover:opacity-80`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedModuleId(modId);
+                                      setActiveTab("preview");
+                                    }}
                                   >
                                     {modId.replace(/-/g, " ")}
                                   </Badge>
                                 );
                               })}
-                              {pm.modules.length === 0 && (
-                                <span className="text-xs text-muted-foreground italic">No modules injected</span>
-                              )}
                             </div>
                           </div>
                           <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
@@ -373,6 +460,185 @@ export default function KnowledgeBase() {
               </Card>
             )}
           </TabsContent>
+
+          {/* ── Accuracy Feedback Tab ── */}
+          <TabsContent value="accuracy" className="mt-6 space-y-6">
+            <p className="text-sm text-muted-foreground">
+              The accuracy feedback loop auto-compares scan findings against ground truth after each training lab scan. It tracks precision, recall, and F1 score over time to measure how effectively the knowledge modules improve vulnerability detection.
+            </p>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="border-border">
+                <CardContent className="py-4 px-5">
+                  <p className="text-xs text-muted-foreground font-medium">Total Comparisons</p>
+                  <p className="text-2xl font-bold mt-1">{accuracySummary?.totalComparisons ?? 0}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="py-4 px-5">
+                  <p className="text-xs text-muted-foreground font-medium">Avg F1 Score</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-2xl font-bold">{accuracySummary ? `${(accuracySummary.avgF1 * 100).toFixed(1)}%` : "—"}</p>
+                    {accuracySummary?.f1Trend && <TrendIndicator trend={accuracySummary.f1Trend} />}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="py-4 px-5">
+                  <p className="text-xs text-muted-foreground font-medium">Avg Precision</p>
+                  <p className="text-2xl font-bold mt-1">{accuracySummary ? `${(accuracySummary.avgPrecision * 100).toFixed(1)}%` : "—"}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="py-4 px-5">
+                  <p className="text-xs text-muted-foreground font-medium">Avg Recall</p>
+                  <p className="text-2xl font-bold mt-1">{accuracySummary ? `${(accuracySummary.avgRecall * 100).toFixed(1)}%` : "—"}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Per-Target Latest Accuracy */}
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Per-Target Accuracy (Latest)</CardTitle>
+                <CardDescription className="text-xs">Most recent accuracy comparison for each training lab target</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {latestPerTarget && latestPerTarget.length > 0 ? (
+                  <div className="space-y-3">
+                    {latestPerTarget.map((row: any, i: number) => (
+                      <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-muted/30 border border-border">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm">{row.target_preset || row.targetPreset}</span>
+                            {(row.f1_delta ?? row.f1Delta) != null && (
+                              <DeltaBadge value={row.f1_delta ?? row.f1Delta} />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            TP: {row.true_positives ?? row.truePositives} | FP: {row.false_positives ?? row.falsePositives} | FN: {row.false_negatives ?? row.falseNegatives}
+                          </p>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-muted-foreground">P</span>
+                            <Progress value={((row.precision ?? 0) * 100)} className="w-20 h-1.5" />
+                            <span className="w-12 text-right font-mono">{((row.precision ?? 0) * 100).toFixed(1)}%</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-muted-foreground">R</span>
+                            <Progress value={((row.recall ?? 0) * 100)} className="w-20 h-1.5" />
+                            <span className="w-12 text-right font-mono">{((row.recall ?? 0) * 100).toFixed(1)}%</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-muted-foreground">F1</span>
+                            <Progress value={((row.f1_score ?? row.f1Score ?? 0) * 100)} className="w-20 h-1.5" />
+                            <span className="w-12 text-right font-mono font-semibold">{((row.f1_score ?? row.f1Score ?? 0) * 100).toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState message="No accuracy comparisons yet. Run a training lab scan to generate the first comparison." />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Vuln Type Accuracy Breakdown */}
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Vulnerability Type Accuracy</CardTitle>
+                <CardDescription className="text-xs">Aggregate detection rates by vulnerability category across all comparisons</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {aggregateVulnAccuracy && aggregateVulnAccuracy.length > 0 ? (
+                  <div className="space-y-2">
+                    {aggregateVulnAccuracy.map((row: any, i: number) => {
+                      const detRate = Number(row.avg_detection_rate ?? row.avgDetectionRate ?? 0);
+                      const fpRate = Number(row.avg_false_positive_rate ?? row.avgFalsePositiveRate ?? 0);
+                      const found = Number(row.total_found ?? row.totalFound ?? 0);
+                      const missed = Number(row.total_missed ?? row.totalMissed ?? 0);
+                      return (
+                        <div key={i} className="flex items-center gap-4 p-2.5 rounded-lg hover:bg-muted/20 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium">{row.vuln_type || row.vulnType}</span>
+                            <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted-foreground">
+                              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-400" /> {found} found</span>
+                              <span className="flex items-center gap-1"><XCircle className="h-3 w-3 text-red-400" /> {missed} missed</span>
+                              <span>{row.sample_count ?? row.sampleCount} samples</span>
+                            </div>
+                          </div>
+                          <div className="text-right flex items-center gap-4">
+                            <div className="text-xs">
+                              <span className="text-muted-foreground">Det:</span>{" "}
+                              <span className={`font-mono font-semibold ${detRate >= 0.7 ? "text-green-400" : detRate >= 0.4 ? "text-yellow-400" : "text-red-400"}`}>
+                                {(detRate * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-muted-foreground">FP:</span>{" "}
+                              <span className={`font-mono ${fpRate <= 0.1 ? "text-green-400" : fpRate <= 0.3 ? "text-yellow-400" : "text-red-400"}`}>
+                                {(fpRate * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <EmptyState message="No vuln type accuracy data yet. Data populates after accuracy comparisons run." />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent Comparisons */}
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Recent Comparisons</CardTitle>
+                <CardDescription className="text-xs">Last 20 accuracy comparisons across all targets</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {accuracyHistory && accuracyHistory.length > 0 ? (
+                  <ScrollArea className="h-[400px]">
+                    <div className="space-y-2">
+                      {accuracyHistory.map((row: any, i: number) => (
+                        <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-muted/20 border border-border/50">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{row.target_preset || row.targetPreset}</span>
+                              <Badge variant="outline" className="text-[10px]">{row.scan_type || row.scanType || "scan"}</Badge>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {new Date(row.scored_at || row.scoredAt).toLocaleString()} | {row.total_findings ?? row.totalFindings} findings vs {row.total_ground_truth ?? row.totalGroundTruth} ground truth
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs font-mono">
+                            <div className="text-center">
+                              <span className="text-muted-foreground block text-[10px]">F1</span>
+                              <span className="font-semibold">{(((row.f1_score ?? row.f1Score) || 0) * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="text-center">
+                              <span className="text-muted-foreground block text-[10px]">P</span>
+                              <span>{(((row.precision) || 0) * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="text-center">
+                              <span className="text-muted-foreground block text-[10px]">R</span>
+                              <span>{(((row.recall) || 0) * 100).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <EmptyState message="No comparison history yet. Accuracy data will appear here after training lab scans complete." />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
@@ -381,14 +647,23 @@ export default function KnowledgeBase() {
 
 // ─── Sub-Components ─────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: number; icon: React.ElementType; color: string }) {
+function StatCard({ label, value, icon: Icon, color, trend }: {
+  label: string;
+  value: number | string;
+  icon: React.ElementType;
+  color: string;
+  trend?: string;
+}) {
   return (
     <Card className="border-border">
       <CardContent className="py-4 px-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground font-medium">{label}</p>
-            <p className="text-2xl font-bold mt-1">{value}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-2xl font-bold">{value}</p>
+              {trend && <TrendIndicator trend={trend} />}
+            </div>
           </div>
           <div className={`p-2.5 rounded-xl bg-muted/50 ${color}`}>
             <Icon className="h-5 w-5" />
@@ -399,13 +674,55 @@ function StatCard({ label, value, icon: Icon, color }: { label: string; value: n
   );
 }
 
-function ModuleCard({ module, isSelected, onSelect }: {
+function TrendIndicator({ trend }: { trend: string }) {
+  if (trend === "improving") return <TrendingUp className="h-4 w-4 text-green-400" />;
+  if (trend === "declining") return <TrendingDown className="h-4 w-4 text-red-400" />;
+  if (trend === "stable") return <Minus className="h-4 w-4 text-yellow-400" />;
+  return null;
+}
+
+function DeltaBadge({ value }: { value: number }) {
+  const pct = (value * 100).toFixed(1);
+  if (value > 0.005) {
+    return <Badge className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px]">+{pct}%</Badge>;
+  }
+  if (value < -0.005) {
+    return <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px]">{pct}%</Badge>;
+  }
+  return <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30 text-[10px]">0%</Badge>;
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="py-12 text-center">
+      <AlertTriangle className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+function ModuleCard({ module, isSelected, onSelect, searchQuery }: {
   module: any;
   isSelected: boolean;
   onSelect: () => void;
+  searchQuery: string;
 }) {
   const catConfig = CATEGORY_CONFIG[module.category] || CATEGORY_CONFIG.offensive;
   const CatIcon = catConfig.icon;
+
+  // Highlight matching text
+  const highlightMatch = (text: string) => {
+    if (!searchQuery) return text;
+    const idx = text.toLowerCase().indexOf(searchQuery.toLowerCase());
+    if (idx === -1) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="bg-yellow-400/30 text-inherit rounded px-0.5">{text.slice(idx, idx + searchQuery.length)}</mark>
+        {text.slice(idx + searchQuery.length)}
+      </>
+    );
+  };
 
   return (
     <Card
@@ -428,7 +745,7 @@ function ModuleCard({ module, isSelected, onSelect }: {
         </div>
 
         <div>
-          <h3 className="font-semibold text-sm leading-tight">{module.name}</h3>
+          <h3 className="font-semibold text-sm leading-tight">{highlightMatch(module.name)}</h3>
           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{module.description}</p>
         </div>
 

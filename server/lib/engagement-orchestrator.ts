@@ -95,6 +95,12 @@ import {
   buildScanPlanningContext,
   type BugBountyPhase,
 } from "./knowledge/bugbounty-methodology-knowledge";
+import {
+  buildThreatActorLearningContext,
+  buildThreatActorVulnContext,
+  scoreEngagementThreatAttribution,
+  clearThreatLearningCache,
+} from "./threat-actor-learning-context";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -942,6 +948,13 @@ Return valid JSON per the response_format schema.`;
       : undefined;
     const methodologyCtx = buildMethodologyContext(targetPreset);
     const phaseToolCtx = buildPhaseToolContext('enumeration');
+    // Fetch live threat actor learning data from DO learning engine
+    let threatActorLearningCtx = '';
+    try {
+      threatActorLearningCtx = await buildThreatActorLearningContext();
+    } catch (e) {
+      console.warn('[ScanPlan] Failed to build threat actor learning context:', e);
+    }
     enrichmentCtx = [
       ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '',
       bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '',
@@ -950,6 +963,7 @@ Return valid JSON per the response_format schema.`;
       nmapCtx || '',
       owaspCtx || '',
       threatGroupCtx || '',
+      threatActorLearningCtx || '',
       offensiveTechCtx || '',
       zapKnowledgeCtx || '',
       toolsCtx || '',
@@ -4095,6 +4109,45 @@ ${(() => {
           ).join('\n\n') + `\n\nSector risk: ${threatResult.sector_risk_assessment}`,
           data: { threatMapping: threatResult },
         });
+
+        // ── Score threat attribution against the DO learning engine ──
+        try {
+          const ttps = threatResult.threat_actors.flatMap((ta: any) =>
+            (ta.associated_ttps || []).map((ttpStr: string) => {
+              const match = ttpStr.match(/^(T\d+(?:\.\d+)?)\s*[:\-]?\s*(.*)/);
+              return {
+                techniqueId: match ? match[1] : undefined,
+                techniqueName: match ? match[2].trim() : ttpStr,
+                tactic: ta.primary_tactic || undefined,
+              };
+            })
+          );
+          const cves = state.assets.flatMap(a =>
+            a.vulns.filter(v => v.cve).map(v => v.cve!)
+          );
+          const uniqueCves = [...new Set(cves)];
+
+          if (ttps.length > 0 || uniqueCves.length > 0) {
+            const attrResult = await scoreEngagementThreatAttribution({
+              sessionId: `eng-${state.engagementId}-${Date.now()}`,
+              engagementId: state.engagementId,
+              targetUrl: state.assets[0]?.hostname,
+              ttps,
+              cves: uniqueCves,
+            });
+            if (attrResult) {
+              addLog(state, {
+                phase: 'vuln_detection', type: 'info',
+                title: '📊 Threat Attribution Scored (Learning Engine)',
+                detail: `Scored ${ttps.length} TTPs and ${uniqueCves.length} CVEs against threat catalog. ` +
+                  `Top match: ${attrResult.summary?.topGroup || 'N/A'} (${attrResult.summary?.confidence || 'N/A'}% confidence)`,
+                data: { threatAttribution: attrResult },
+              });
+            }
+          }
+        } catch (attrErr: any) {
+          console.warn('[ThreatActorLearning] Attribution scoring failed:', attrErr.message);
+        }
       }
       broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
     } catch (e: any) {
@@ -5159,6 +5212,73 @@ export async function executeEngagement(
       title: "🏁 Engagement Execution Complete",
       detail: `${state.stats.hostsScanned} hosts, ${state.stats.vulnsFound} vulns, ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits, ${state.stats.zapScansRun} ZAP scans`,
     });
+
+    // ── Accuracy Feedback Loop: auto-compare findings against ground truth ──
+    try {
+      const { runAccuracyComparison } = await import('./accuracy-feedback-loop');
+      // Detect if this is a training lab target
+      const firstHost = state.assets[0]?.hostname || '';
+      const targetPreset = firstHost.includes('juice') ? 'juice-shop'
+        : firstHost.includes('dvwa') ? 'dvwa'
+        : firstHost.includes('webgoat') ? 'webgoat'
+        : firstHost.includes('vampi') ? 'vampi'
+        : firstHost.includes('dvga') ? 'dvga'
+        : firstHost.includes('hackazon') ? 'hackazon'
+        : firstHost.includes('nodegoat') ? 'nodegoat'
+        : firstHost.includes('crapi') ? 'crapi'
+        : null;
+
+      if (targetPreset) {
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: '📊 Accuracy Feedback Loop',
+          detail: `Auto-comparing ${state.stats.vulnsFound} findings against ground truth for ${targetPreset}...`,
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+        const allFindings = state.assets.flatMap(a => [
+          ...a.vulns.map(v => ({
+            name: v.title,
+            severity: v.severity,
+            cwe: v.cwe || undefined,
+            owasp: v.owasp || undefined,
+            endpoint: v.endpoint || undefined,
+          })),
+          ...a.zapFindings.map(z => ({
+            name: z.alert,
+            severity: z.risk,
+            cwe: z.cweid ? `CWE-${z.cweid}` : undefined,
+          })),
+        ]);
+
+        const compResult = await runAccuracyComparison({
+          sessionId: `eng-${engagementId}-${Date.now()}`,
+          engagementId: String(engagementId),
+          targetPreset,
+          targetUrl: firstHost,
+          scanType: state.engagementType,
+          findings: allFindings,
+          knowledgeModulesUsed: ['nuclei', 'zap', 'nmap', 'threat-groups', 'owasp', 'offensive-tools'],
+          scanDurationMs: state.completedAt ? state.completedAt - (state.startedAt || state.completedAt) : undefined,
+        });
+
+        if (compResult) {
+          const deltaStr = compResult.f1Delta != null
+            ? ` (Δ${compResult.f1Delta >= 0 ? '+' : ''}${(compResult.f1Delta * 100).toFixed(1)}%)`
+            : '';
+          addLog(state, {
+            phase: 'completed', type: 'info',
+            title: `✅ Accuracy: F1=${(compResult.f1Score * 100).toFixed(1)}%${deltaStr}`,
+            detail: `P=${(compResult.precision * 100).toFixed(1)}% R=${(compResult.recall * 100).toFixed(1)}% | ` +
+              `TP=${compResult.truePositives} FP=${compResult.falsePositives} FN=${compResult.falseNegatives} | ` +
+              `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}`,
+            data: { accuracyComparison: compResult },
+          });
+        }
+      }
+    } catch (accErr: any) {
+      console.warn('[AccuracyFeedback] Auto-comparison failed:', accErr.message);
+    }
 
     // Final checkpoint
     await phaseCheckpoint('completed');

@@ -301,9 +301,9 @@ function getModuleRegistry(): KnowledgeModule[] {
       id: "bugbounty-methodology",
       name: "Bug Bounty Methodology & Tools",
       category: "offensive",
-      description: `${getBugBountyStats().totalTools} bug bounty tools, ${getBugBountyStats().totalMethodologies} attack methodologies, and ${getBugBountyStats().workflowSteps}-step workflow covering the full bug bounty lifecycle. Includes vulnerability testing patterns (SQLi, XSS, SSRF, IDOR, etc.), phase-specific tool recommendations, and scan planning context.`,
+      description: `${getBugBountyStats().total_tools} bug bounty tools, ${getBugBountyStats().total_methodologies} attack methodologies, and ${getBugBountyStats().total_workflow_steps}-step workflow covering the full bug bounty lifecycle. Includes vulnerability testing patterns (SQLi, XSS, SSRF, IDOR, etc.), phase-specific tool recommendations, and scan planning context.`,
       version: "1.0.0",
-      itemCount: getBugBountyStats().totalTools + getBugBountyStats().totalMethodologies,
+      itemCount: getBugBountyStats().total_tools + getBugBountyStats().total_methodologies,
       mitreTechniques: ["T1190", "T1059", "T1046", "T1595", "T1071", "T1110", "T1557"],
       injectedInto: ["engagement-orchestrator.ts", "ai-attack-planner.ts", "llm-scan-feedback.ts", "engagement-ops-core.ts"],
       phases: ["recon", "enumeration", "vuln_detection", "exploitation", "post_exploit"],
@@ -507,7 +507,7 @@ export const knowledgeBaseRouter = router({
   /** Get summary statistics */
   getStats: protectedProcedure.query(() => {
     const modules = getModuleRegistry();
-    const totalItems = modules.reduce((sum, m) => sum + m.itemCount, 0);
+    const totalItems = modules.reduce((sum, m) => sum + (Number.isFinite(m.itemCount) ? m.itemCount : 0), 0);
     const totalMitre = new Set(modules.flatMap(m => m.mitreTechniques)).size;
     const totalInjectionPoints = new Set(modules.flatMap(m => m.injectedInto)).size;
 
