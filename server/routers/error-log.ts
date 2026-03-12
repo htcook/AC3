@@ -9,7 +9,7 @@ import * as db from "../db";
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { logPlatformError, getRecentErrors, resolveError, getErrorStats, purgeOldErrors, getEngagementList } from "../lib/error-logger";
-import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredentials, BUILTIN_DEFAULT_CREDS } from "../lib/oem-default-creds";
+import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredentials, BUILTIN_DEFAULT_CREDS, getBuiltinCreds } from "../lib/oem-default-creds";
 import { invokeLLM } from "../_core/llm";
 import { getRoleChatConfig } from "../lib/role-chat-prompts";
 import { getRoleContext } from "../lib/role-chat-context";
@@ -104,7 +104,8 @@ export const oemCredsRouter = router({
       if (dbResults.length > 0) return dbResults;
       // Fall back to in-memory search
       const q = input.query.toLowerCase();
-      return BUILTIN_DEFAULT_CREDS.filter(c =>
+      const creds = getBuiltinCreds();
+      return creds.filter(c =>
         c.vendor.toLowerCase().includes(q) ||
         c.product.toLowerCase().includes(q) ||
         c.protocol.toLowerCase().includes(q) ||
@@ -122,8 +123,8 @@ export const oemCredsRouter = router({
       port: z.number().optional(),
       protocol: z.string().optional(),
     }))
-    .query(({ input }) => {
-      return matchCredentialsForTechnology(input);
+    .query(async ({ input }) => {
+      return await matchCredentialsForTechnology(input);
     }),
 
   /** Get all credentials (paginated) */
@@ -134,8 +135,9 @@ export const oemCredsRouter = router({
       protocol: z.string().optional(),
       tag: z.string().optional(),
     }).optional())
-    .query(({ input }) => {
-      let filtered = [...BUILTIN_DEFAULT_CREDS];
+    .query(async ({ input }) => {
+      const creds = getBuiltinCreds();
+      let filtered = [...creds];
       if (input?.protocol) filtered = filtered.filter(c => c.protocol === input.protocol);
       if (input?.tag) filtered = filtered.filter(c => c.tags.includes(input.tag));
       const total = filtered.length;
@@ -210,17 +212,17 @@ export const oemCredsRouter = router({
         cpe: z.string().optional(),
       })).optional(),
     }))
-    .query(({ input }) => {
-      const { getCredentialsForService } = require("../lib/credential-tester");
-      return getCredentialsForService(input);
+    .query(async ({ input }) => {
+      const { getCredentialsForService } = await import("../lib/credential-tester");
+      return await getCredentialsForService(input);
     }),
 
   /** Get credentials formatted for ZAP auth playbooks */
   getForZap: protectedProcedure
     .input(z.object({ technologies: z.array(z.string()) }))
-    .query(({ input }) => {
-      const { getCredentialsForZapPlaybook } = require("../lib/credential-tester");
-      return getCredentialsForZapPlaybook(input.technologies);
+    .query(async ({ input }) => {
+      const { getCredentialsForZapPlaybook } = await import("../lib/credential-tester");
+      return await getCredentialsForZapPlaybook(input.technologies);
     }),
 });
 
@@ -442,9 +444,10 @@ export const aiChatRouter = router({
         const techKeywords = input.message.match(/\b(cisco|juniper|fortinet|apache|tomcat|mysql|postgres|ssh|ftp|rdp|snmp|mikrotik|ubiquiti|palo alto|sonicwall|vmware|esxi|jenkins|grafana|wordpress|nginx|redis|mongodb|elasticsearch|splunk|siemens|schneider|hikvision|dell|idrac|ilo|supermicro)\b/gi);
         if (techKeywords && techKeywords.length > 0) {
           const uniqueKeywords = [...new Set(techKeywords.map(k => k.toLowerCase()))];
-          const allMatches: typeof BUILTIN_DEFAULT_CREDS = [];
+          const allCreds = getBuiltinCreds();
+          const allMatches: typeof allCreds = [];
           for (const kw of uniqueKeywords) {
-            const matches = BUILTIN_DEFAULT_CREDS.filter(c =>
+            const matches = allCreds.filter(c =>
               c.vendor.toLowerCase().includes(kw) || c.product.toLowerCase().includes(kw)
             );
             allMatches.push(...matches);

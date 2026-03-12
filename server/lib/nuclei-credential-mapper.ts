@@ -584,7 +584,7 @@ export async function getCredentialInjectionForTargets(
     if (!parsed) continue;
 
     // Get credentials for this service
-    const creds = getCredentialsForService({
+    const creds = await getCredentialsForService({
       host: parsed.host,
       port: parsed.port,
       protocol: parsed.protocol,

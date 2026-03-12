@@ -599,13 +599,13 @@ export async function getScanServerConfigForNmap() {
  * looked up and injected as high-priority credential tests BEFORE the
  * generic wordlist fallback.
  */
-export function suggestToolCommands(asset: {
+export async function suggestToolCommands(asset: {
   hostname?: string;
   ip?: string;
   type?: string;
   ports: Array<{ port: number; service: string; version?: string }>;
   technologies?: Array<{ name?: string; vendor?: string; version?: string; cpe?: string; port?: number; protocol?: string }>;
-}): Array<{ tool: string; args: string; purpose: string; priority: number }> {
+}): Promise<Array<{ tool: string; args: string; purpose: string; priority: number }>> {
   const target = asset.ip || asset.hostname || "";
   const commands: Array<{ tool: string; args: string; purpose: string; priority: number }> = [];
 
@@ -659,7 +659,7 @@ export function suggestToolCommands(asset: {
   // Look up known default credentials based on detected technologies
   if (asset.technologies && asset.technologies.length > 0) {
     try {
-      const oemMatches = matchCredentialsForAsset(asset.technologies);
+      const oemMatches = await matchCredentialsForAsset(asset.technologies);
       for (const svc of oemMatches) {
         // Build per-service hydra commands with vendor-specific user:pass pairs
         const credPairs = svc.credentials;

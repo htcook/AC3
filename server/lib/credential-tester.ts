@@ -15,7 +15,7 @@
  */
 import * as net from "net";
 import * as crypto from "crypto";
-import { matchCredentialsForTechnology, BUILTIN_DEFAULT_CREDS } from "./oem-default-creds";
+import { matchCredentialsForTechnology, BUILTIN_DEFAULT_CREDS, getBuiltinCreds } from "./oem-default-creds";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -454,14 +454,14 @@ const PROTOCOL_TESTERS: Record<string, (
  * Get matching OEM default credentials for a fingerprinted service.
  * Uses the service product/banner to find relevant credentials.
  */
-export function getCredentialsForService(target: CredentialTestTarget): CredentialCandidate[] {
+export async function getCredentialsForService(target: CredentialTestTarget): Promise<CredentialCandidate[]> {
   const candidates: CredentialCandidate[] = [];
   const seen = new Set<string>();
 
   // Match from technologies discovered on the asset (now passes banner/title for deeper matching)
   if (target.technologies) {
     for (const tech of target.technologies) {
-      const matches = matchCredentialsForTechnology({
+      const matches = await matchCredentialsForTechnology({
         ...tech,
         port: target.port,
         protocol: target.protocol,
@@ -479,7 +479,7 @@ export function getCredentialsForService(target: CredentialTestTarget): Credenti
 
   // Match from product name in banner (passes banner text for title/banner-based matching)
   if (target.product) {
-    const matches = matchCredentialsForTechnology({
+    const matches = await matchCredentialsForTechnology({
       name: target.product,
       port: target.port,
       protocol: target.protocol,
@@ -497,7 +497,8 @@ export function getCredentialsForService(target: CredentialTestTarget): Credenti
   // Match from banner keywords (direct scan for vendor/product names in banner text)
   if (target.banner) {
     const bannerLower = target.banner.toLowerCase();
-    for (const cred of BUILTIN_DEFAULT_CREDS) {
+    const creds = getBuiltinCreds();
+    for (const cred of creds) {
       if (
         bannerLower.includes(cred.vendor.toLowerCase()) ||
         bannerLower.includes(cred.product.toLowerCase())
@@ -513,7 +514,7 @@ export function getCredentialsForService(target: CredentialTestTarget): Credenti
 
   // Port-based generic fallback: if no specific matches found, try generic creds for the port
   if (candidates.length === 0) {
-    const genericMatches = matchCredentialsForTechnology({
+    const genericMatches = await matchCredentialsForTechnology({
       name: "generic",
       port: target.port,
       protocol: target.protocol,
@@ -777,14 +778,14 @@ export async function enrichFingerprintsWithCredentialTests(
  * Generate credential test configuration for ZAP auth playbooks.
  * Returns credential pairs formatted for ZAP's forced browse / auth testing.
  */
-export function getCredentialsForZapPlaybook(
+export async function getCredentialsForZapPlaybook(
   technologies: string[],
-): Array<{ username: string; password: string; vendor: string; product: string }> {
+): Promise<Array<{ username: string; password: string; vendor: string; product: string }>> {
   const results: Array<{ username: string; password: string; vendor: string; product: string }> = [];
   const seen = new Set<string>();
 
   for (const tech of technologies) {
-    const matches = matchCredentialsForTechnology({ name: tech });
+    const matches = await matchCredentialsForTechnology({ name: tech });
     for (const m of matches) {
       // Only include web-accessible credentials
       if (["https", "http", "web_admin"].includes(m.protocol)) {

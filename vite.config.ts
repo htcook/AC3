@@ -115,15 +115,10 @@ export default defineConfig({
           ) {
             return "vendor-shiki";
           }
-          // Group mermaid + cytoscape (large visualization libs)
-          if (
-            id.includes("node_modules/mermaid") ||
-            id.includes("node_modules/cytoscape") ||
-            id.includes("node_modules/dagre") ||
-            id.includes("node_modules/elkjs")
-          ) {
-            return "vendor-viz";
-          }
+          // NOTE: mermaid/cytoscape/dagre/elkjs are NOT in manualChunks.
+          // Streamdown dynamically imports mermaid (`await import("mermaid")`),
+          // so Vite naturally code-splits them into lazy-loaded chunks.
+          // Forcing them into a single vendor-viz chunk would eagerly load 2.2MB.
           // Let page chunks split naturally via React.lazy
         },
       },

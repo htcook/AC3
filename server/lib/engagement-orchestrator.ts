@@ -3000,7 +3000,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         },
       });
     } else {
-      const suggestedCmds = suggestToolCommands({
+      const suggestedCmds = await suggestToolCommands({
         hostname: asset.hostname, ip: asset.ip, type: asset.type, ports: asset.ports,
       });
       cmdsToRun = suggestedCmds.map(c => ({
@@ -3738,13 +3738,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         }
       }
 
-      const credCmds = suggestCred({
+      const credCmds = (await suggestCred({
         hostname: asset.hostname,
         ip: asset.ip,
         type: asset.type,
         ports: asset.ports,
         technologies: techList.length > 0 ? techList : undefined,
-      }).filter(c => c.priority === 3); // Priority 3 = credential testing
+      })).filter(c => c.priority === 3); // Priority 3 = credential testing
 
       for (const cmd of credCmds) {
         // Request approval for credential testing (orange risk)
