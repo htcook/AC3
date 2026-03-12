@@ -27,6 +27,7 @@ import { webAppScans, webAppFindings } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { HttpProxyAgent } from "http-proxy-agent";
+import http from 'http';
 import {
   selectPlaybook,
   applyPlaybookToZap,
@@ -96,7 +97,7 @@ async function zapRequest(
   const agent = new HttpProxyAgent(config.baseUrl);
 
   const response = await new Promise<{ ok: boolean; status: number; statusText: string; json: () => any }>((resolve, reject) => {
-    const http = require('http');
+    // http imported at top of file (ESM compatible)
     const reqUrl = apiUrl.toString();
     const req = http.get(reqUrl, { agent, timeout: 30000 }, (res: any) => {
       let data = '';
@@ -2069,6 +2070,148 @@ export interface ConfirmedCredential {
  * @param config - ZAP connection config
  * @returns Authentication configuration result
  */
+/**
+ * Pre-authenticate to a target by manually submitting the login form,
+ * then inject the authenticated session cookie into ZAP via the Replacer addon.
+ * This bypasses ZAP's unreliable {%username%}/{%password%} placeholder substitution
+ * which fails on CSRF-protected forms.
+ */
+async function preAuthenticateAndInjectSession(
+  targetUrl: string,
+  loginUrl: string,
+  credentials: { username: string; password: string },
+  formFields: { usernameField: string; passwordField: string; csrfField?: string; extraFields?: Record<string, string> },
+  contextId: string,
+  cfg: ZapConfig,
+): Promise<{ success: boolean; sessionCookie?: string; error?: string }> {
+  try {
+    // Step 1: Fetch the login page to get a fresh CSRF token
+    const loginPage = await fetch(loginUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(10000),
+      redirect: 'follow',
+    });
+    const html = await loginPage.text();
+
+    // Extract cookies from the login page response
+    const setCookies = loginPage.headers.getSetCookie?.() || [];
+    const cookieJar: Record<string, string> = {};
+    for (const sc of setCookies) {
+      const match = sc.match(/^([^=]+)=([^;]+)/);
+      if (match) cookieJar[match[1]] = match[2];
+    }
+
+    // Extract CSRF token if present
+    let csrfValue = '';
+    if (formFields.csrfField) {
+      const csrfRegex = new RegExp(`name=["']${formFields.csrfField}["'][^>]*value=["']([^"']+)["']`, 'i');
+      const csrfMatch = html.match(csrfRegex);
+      if (!csrfMatch) {
+        // Try reverse order: value before name
+        const csrfRegex2 = new RegExp(`value=["']([^"']+)["'][^>]*name=["']${formFields.csrfField}["']`, 'i');
+        const csrfMatch2 = html.match(csrfRegex2);
+        csrfValue = csrfMatch2?.[1] || '';
+      } else {
+        csrfValue = csrfMatch[1];
+      }
+      if (!csrfValue) {
+        console.log(`[ZAP Pre-Auth] Warning: Could not extract CSRF token for field '${formFields.csrfField}'`);
+      }
+    }
+
+    // Step 2: Submit the login form with real credentials
+    const formData = new URLSearchParams();
+    formData.set(formFields.usernameField, credentials.username);
+    formData.set(formFields.passwordField, credentials.password);
+    if (formFields.csrfField && csrfValue) {
+      formData.set(formFields.csrfField, csrfValue);
+    }
+    // Add any extra fields (e.g., "Login=Login")
+    if (formFields.extraFields) {
+      for (const [k, v] of Object.entries(formFields.extraFields)) {
+        formData.set(k, v);
+      }
+    }
+
+    const cookieHeader = Object.entries(cookieJar).map(([k, v]) => `${k}=${v}`).join('; ');
+    const loginResp = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Cookie': cookieHeader,
+      },
+      body: formData.toString(),
+      signal: AbortSignal.timeout(10000),
+      redirect: 'manual', // Don't follow redirect, capture the Set-Cookie
+    });
+
+    // Merge new cookies from login response
+    const loginSetCookies = loginResp.headers.getSetCookie?.() || [];
+    for (const sc of loginSetCookies) {
+      const match = sc.match(/^([^=]+)=([^;]+)/);
+      if (match) cookieJar[match[1]] = match[2];
+    }
+
+    // Step 3: Verify the session is authenticated by following the redirect
+    const allCookies = Object.entries(cookieJar).map(([k, v]) => `${k}=${v}`).join('; ');
+    const parsedTarget = new URL(targetUrl);
+    const verifyUrl = loginResp.headers.get('location')
+      ? new URL(loginResp.headers.get('location')!, loginUrl).toString()
+      : `${parsedTarget.origin}${parsedTarget.pathname}`;
+
+    const verifyResp = await fetch(verifyUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Cookie': allCookies,
+      },
+      signal: AbortSignal.timeout(10000),
+      redirect: 'follow',
+    });
+    const verifyHtml = await verifyResp.text();
+    const isAuthenticated = /logout|sign.out|dashboard|welcome|my.account|profile/i.test(verifyHtml)
+      && !/login\.php|sign.in/i.test(verifyHtml.substring(0, 500));
+
+    if (!isAuthenticated) {
+      console.log(`[ZAP Pre-Auth] Login may have failed - no logout indicator found in response`);
+      // Still proceed — the session might work for some pages
+    } else {
+      console.log(`[ZAP Pre-Auth] Successfully authenticated as ${credentials.username}`);
+    }
+
+    // Step 4: Inject the session cookie into ZAP via the Replacer addon
+    const scopeRegex = `${parsedTarget.origin}${parsedTarget.pathname}.*`;
+    try {
+      await zapRequest("/JSON/replacer/action/addRule/", {
+        description: `Auth-Cookie-${contextId}`,
+        enabled: "true",
+        matchType: "REQ_HEADER",
+        matchRegex: "false",
+        matchString: "Cookie",
+        replacement: allCookies,
+        initiators: "",
+        url: scopeRegex,
+      }, cfg);
+      console.log(`[ZAP Pre-Auth] Injected session cookie via Replacer for scope: ${scopeRegex}`);
+    } catch (e: any) {
+      return { success: false, error: `Failed to add Replacer rule: ${e.message}` };
+    }
+
+    // Step 5: Set manual authentication mode (no form auth needed)
+    try {
+      await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
+        contextId,
+        authMethodName: "manualAuthentication",
+        authMethodConfigParams: "",
+      }, cfg);
+    } catch { /* non-fatal */ }
+
+    return { success: true, sessionCookie: allCookies };
+  } catch (e: any) {
+    return { success: false, error: `Pre-auth failed: ${e.message}` };
+  }
+}
+
 export async function configureZapAuthentication(
   contextName: string,
   targetUrl: string,
@@ -2226,7 +2369,8 @@ export async function configureZapAuthentication(
       // Detect form field names by fetching the login page
       let usernameField = 'username';
       let passwordField = 'password';
-      let loginRequestData = '';
+      let csrfField: string | undefined;
+      let extraFields: Record<string, string> = {};
 
       try {
         const loginPage = await fetch(loginUrl, {
@@ -2243,23 +2387,77 @@ export async function configureZapAuthentication(
         const passFieldMatch = html.match(/name=["'](pass(?:word)?|pwd|passwd|user_password|pass_login)["']/i);
         if (passFieldMatch) passwordField = passFieldMatch[1];
 
-        // Extract form action URL
+        // Check for CSRF token
+        const csrfMatch = html.match(/name=["'](csrf[_-]?token|_?token|user_token|csrfmiddlewaretoken|_csrf|authenticity_token|__RequestVerificationToken)["']/i);
+        if (csrfMatch) {
+          csrfField = csrfMatch[1];
+          console.log(`[ZAP Auth] Detected CSRF token field: ${csrfField}`);
+        }
+
+        // Extract submit button name/value
+        const submitMatch = html.match(/type=["']submit["'][^>]*name=["']([^"']+)["'][^>]*value=["']([^"']+)["']/i);
+        if (submitMatch) {
+          extraFields[submitMatch[1]] = submitMatch[2];
+        }
+
+        // Use pre-authentication + replacer approach for CSRF-protected forms
+        // ZAP's {%username%}/{%password%} substitution is unreliable with CSRF tokens
+        if (csrfField) {
+          console.log(`[ZAP Auth] CSRF detected — using pre-auth + replacer approach for reliable authentication`);
+          const preAuthResult = await preAuthenticateAndInjectSession(
+            targetUrl,
+            loginUrl,
+            { username: bestCred.username, password: bestCred.password },
+            { usernameField, passwordField, csrfField, extraFields },
+            contextId!,
+            cfg,
+          );
+
+          if (preAuthResult.success) {
+            console.log(`[ZAP Auth] Pre-auth succeeded — session cookie injected via Replacer`);
+            // Skip the normal ZAP user creation since we're using manual auth + replacer
+            // Update scan record and return early
+            try {
+              const db = await getDb();
+              if (db) {
+                const scanIdMatch = contextName.match(/scan-(\d+)/);
+                if (scanIdMatch) {
+                  await db.update(webAppScans).set({
+                    authConfigured: 1,
+                    authCredentialSource: bestCred.source,
+                    authUsername: bestCred.username,
+                    authMethod: 'form-preauth',
+                  }).where(eq(webAppScans.id, parseInt(scanIdMatch[1], 10)));
+                }
+              }
+            } catch { /* non-fatal */ }
+
+            return {
+              configured: true,
+              method: 'form-preauth',
+              username: bestCred.username,
+              contextId,
+              userId: undefined,
+              errors: [],
+            };
+          } else {
+            console.log(`[ZAP Auth] Pre-auth failed: ${preAuthResult.error} — falling back to ZAP form-based auth`);
+            errors.push(`Pre-auth failed: ${preAuthResult.error}`);
+          }
+        }
+
+        // Fallback: standard ZAP form-based auth (works for non-CSRF forms)
         const formActionMatch = html.match(/<form[^>]*action=["']([^"']+)["']/i);
         const formAction = formActionMatch
           ? new URL(formActionMatch[1], loginUrl).toString()
           : loginUrl;
 
-        // Build the login request data with ZAP placeholders
-        loginRequestData = `${usernameField}={%username%}&${passwordField}={%password%}`;
-
-        // Check for CSRF token
-        const csrfMatch = html.match(/name=["'](csrf[_-]?token|_?token|user_token|csrfmiddlewaretoken|_csrf|authenticity_token|__RequestVerificationToken)["'][^>]*value=["']([^"']+)["']/i);
-        if (csrfMatch) {
-          loginRequestData += `&${csrfMatch[1]}=${encodeURIComponent(csrfMatch[2])}`;
-          console.log(`[ZAP Auth] Detected CSRF token field: ${csrfMatch[1]}`);
+        let loginRequestData = `${usernameField}={%username%}&${passwordField}={%password%}`;
+        if (csrfField) {
+          // Include CSRF field with empty value — ZAP may or may not handle it
+          loginRequestData += `&${csrfField}=`;
         }
 
-        // Configure ZAP form-based auth
         await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
           contextId,
           authMethodName: "formBasedAuthentication",
