@@ -77,7 +77,7 @@ interface ZapApiResponse {
 /**
  * ZAP API requests must go through ZAP as an HTTP proxy.
  * The request URL uses "http://zap/..." which ZAP intercepts as its API.
- * The proxy is ZAP_BASE_URL (e.g., http://159.223.152.190:8090).
+ * The proxy is ZAP_BASE_URL (e.g., https://scan.aceofcloud.io/lab/zap/).
  */
 async function zapRequest(
   endpoint: string,

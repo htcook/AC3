@@ -55,7 +55,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "juice-shop",
     name: "OWASP Juice Shop",
     url: "https://demo.owasp-juice.shop",
-    liveInstanceUrl: `http://${process.env.SCAN_SERVER_HOST || '159.223.152.190'}:3001`,
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/juice-shop/`,
     description: "Intentionally insecure web application for security training. Contains 100+ challenges covering the OWASP Top 10 and beyond.",
     difficulty: "beginner",
     category: "Web Application",
@@ -557,7 +557,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "dvwa",
     name: "Damn Vulnerable Web Application (DVWA)",
     url: "https://github.com/digininja/DVWA",
-    liveInstanceUrl: `http://${process.env.SCAN_SERVER_HOST || '159.223.152.190'}:3002`,
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/dvwa/`,
     description: "PHP/MySQL web application that is intentionally vulnerable. Covers SQL injection, XSS, CSRF, file inclusion, command injection, brute force, and more. Multiple security levels (low/medium/high/impossible).",
     difficulty: "beginner",
     category: "Web Application",
@@ -583,7 +583,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "vampi",
     name: "VAmPI (Vulnerable REST API)",
     url: "https://github.com/NeuraLegion/VAmPI",
-    liveInstanceUrl: `http://${process.env.SCAN_SERVER_HOST || '159.223.152.190'}:5000`,
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/vampi/`,
     description: "Intentionally vulnerable REST API built with Flask. Based on OWASP API Top 10 vulnerabilities. Features token-based auth, Swagger UI, and a global switch to toggle vulnerable/secure mode. Ideal for testing API-specific security issues.",
     difficulty: "intermediate",
     category: "API",
@@ -609,7 +609,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "dvga",
     name: "Damn Vulnerable GraphQL Application (DVGA)",
     url: "https://github.com/NeuraLegion/Damn-Vulnerable-GraphQL-Application",
-    liveInstanceUrl: `http://${process.env.SCAN_SERVER_HOST || '159.223.152.190'}:5013`,
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/dvga/`,
     description: "Intentionally vulnerable GraphQL implementation for learning and practicing GraphQL security. Supports queries, mutations, and subscriptions with 20+ vulnerability scenarios including injections, code execution, DoS, and authorization bypass.",
     difficulty: "advanced",
     category: "API",
@@ -635,7 +635,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "webgoat",
     name: "OWASP WebGoat",
     url: "https://github.com/WebGoat/WebGoat",
-    liveInstanceUrl: `http://${process.env.SCAN_SERVER_HOST || '159.223.152.190'}:8080/WebGoat`,
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/webgoat/`,
     description: "OWASP's flagship deliberately insecure web application for teaching web application security. Includes guided lessons covering the full OWASP Top 10, with hands-on exercises for SQL injection, XSS, CSRF, XXE, insecure deserialization, and more. WebWolf companion app on port 9090.",
     difficulty: "beginner",
     category: "Web Application",
@@ -795,7 +795,7 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
     // When the scan server scans its own IP, Docker-published ports appear "filtered".
     // Detect self-hosted targets and rewrite to 127.0.0.1 for all tools.
     const scanServerHost = process.env.SCAN_SERVER_HOST || '';
-    const isSelfHosted = (hostname === scanServerHost || hostname === '159.223.152.190');
+    const isSelfHosted = (hostname === scanServerHost || hostname === '159.223.152.190' || hostname === 'scan.aceofcloud.io');
     const scanUrl = isSelfHosted ? fullTargetUrl.replace(hostname, '127.0.0.1') : fullTargetUrl;
     const scanHostname = isSelfHosted ? '127.0.0.1' : hostname;
 

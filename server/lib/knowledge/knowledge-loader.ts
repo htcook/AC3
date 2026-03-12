@@ -17,8 +17,8 @@ import { fileURLToPath } from "url";
 
 const __esm_dirname = dirname(fileURLToPath(import.meta.url));
 const SCAN_SERVICE_URL = process.env.SCAN_SERVER_HOST
-  ? `http://${process.env.SCAN_SERVER_HOST}`
-  : "http://159.223.152.190";
+  ? `https://${process.env.SCAN_SERVER_HOST}`
+  : "https://scan.aceofcloud.io";
 const SCAN_API_KEY = process.env.CALDERA_API_KEY || "ADMIN123";
 
 /** Cache TTL: 6 hours in milliseconds */

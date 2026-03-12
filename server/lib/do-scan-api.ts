@@ -2,7 +2,7 @@
  * DO Scan API Client — HTTP-based scan execution via the DigitalOcean scan service
  *
  * Replaces SSH-based tool execution with HTTP API calls to the DO scan service
- * running at http://159.223.152.190. This eliminates SSH connection overhead,
+ * running at https://scan.aceofcloud.io. This eliminates SSH connection overhead,
  * prevents event loop blocking from SSH crypto, and provides better error handling.
  *
  * v1.1 — Added retry with exponential backoff, HTTP keep-alive, and improved
@@ -18,26 +18,17 @@
  *   GET  /health          — Health check
  */
 
-import http from "http";
 import type { ToolExecConfig, ToolExecResult } from "./scan-server-executor";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
 const SCAN_SERVICE_URL = process.env.SCAN_SERVER_HOST
-  ? `http://${process.env.SCAN_SERVER_HOST}`
-  : "http://159.223.152.190";
+  ? `https://${process.env.SCAN_SERVER_HOST}`
+  : "https://scan.aceofcloud.io";
 
 const SCAN_API_KEY = process.env.CALDERA_API_KEY || "ADMIN123";
 
 const LOG = "[DO-ScanAPI]";
-
-/** HTTP keep-alive agent — reuses TCP connections to reduce overhead */
-const keepAliveAgent = new http.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30_000,
-  maxSockets: 10,
-  timeout: 120_000,
-});
 
 /** Retry configuration */
 const RETRY_CONFIG = {
