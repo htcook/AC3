@@ -1374,7 +1374,7 @@ export async function getActiveFPHashes(): Promise<{ hash: string; title: string
     count: sql<number>`COUNT(*)`,
   })
     .from(falsePositiveFindings)
-    .where(eq(falsePositiveFindings.status, "false_positive"))
+    .where(eq(falsePositiveFindings.fpStatus, "false_positive"))
     .groupBy(falsePositiveFindings.findingHash, falsePositiveFindings.findingTitle, falsePositiveFindings.reason);
   return results.map(r => ({ hash: r.hash, title: r.title, reason: r.reason, count: Number(r.count) }));
 }
@@ -1400,7 +1400,7 @@ export async function getFPContextForLLM(): Promise<{
     occurrences: sql<number>`COUNT(*)`,
   })
     .from(falsePositiveFindings)
-    .where(eq(falsePositiveFindings.status, "false_positive"))
+    .where(eq(falsePositiveFindings.fpStatus, "false_positive"))
     .groupBy(
       falsePositiveFindings.findingTitle,
       falsePositiveFindings.findingType,
@@ -1416,13 +1416,13 @@ export async function getFPContextForLLM(): Promise<{
     count: sql<number>`COUNT(*)`,
   })
     .from(falsePositiveFindings)
-    .where(eq(falsePositiveFindings.status, "false_positive"))
+    .where(eq(falsePositiveFindings.fpStatus, "false_positive"))
     .groupBy(falsePositiveFindings.findingType)
     .orderBy(sql`COUNT(*) DESC`);
 
   const [totalRow] = await db.select({ count: sql<number>`COUNT(*)` })
     .from(falsePositiveFindings)
-    .where(eq(falsePositiveFindings.status, "false_positive"));
+    .where(eq(falsePositiveFindings.fpStatus, "false_positive"));
 
   return {
     totalFPs: Number(totalRow.count),
@@ -1452,7 +1452,7 @@ export async function isFindingFalsePositive(findingHash: string): Promise<boole
     .from(falsePositiveFindings)
     .where(and(
       eq(falsePositiveFindings.findingHash, findingHash),
-      eq(falsePositiveFindings.status, "false_positive")
+      eq(falsePositiveFindings.fpStatus, "false_positive")
     ));
   return Number(result.count) > 0;
 }
@@ -1469,7 +1469,7 @@ export async function batchCheckFalsePositives(hashes: string[]): Promise<Set<st
     .from(falsePositiveFindings)
     .where(and(
       inArray(falsePositiveFindings.findingHash, hashes),
-      eq(falsePositiveFindings.status, "false_positive")
+      eq(falsePositiveFindings.fpStatus, "false_positive")
     ));
   return new Set(results.map(r => r.hash));
 }
@@ -2119,8 +2119,10 @@ export async function insertScanResult(data: InsertScanResult): Promise<ScanResu
     return result;
   }
 
-  const [row] = await db.insert(scanResults).values(data).$returningId();
-  const [result] = await db.select().from(scanResults).where(eq(scanResults.id, row.id));
+  const insertResult = await db.insert(scanResults).values(data);
+  const insertedId = Number(insertResult[0].insertId);
+  if (!insertedId) return null;
+  const [result] = await db.select().from(scanResults).where(eq(scanResults.id, insertedId));
   return result;
 }
 
@@ -2594,8 +2596,9 @@ export async function getEngagementLlmCostTimeSeries(engagementId: number) {
 export async function insertExploitPlanHistory(data: InsertExploitPlanHistory) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(exploitPlanHistory).values(data).$returningId();
-  return result;
+  const insertResult = await db.insert(exploitPlanHistory).values(data);
+  const insertedId = Number(insertResult[0].insertId);
+  return { id: insertedId };
 }
 
 /**

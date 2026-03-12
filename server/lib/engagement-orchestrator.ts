@@ -1698,8 +1698,8 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
             riskSignals: a.passiveRecon?.riskSignals?.map(r => ({ severity: r.severity, rationale: r.rationale })),
           }));
           const analysis = await analyzeScan({
-            scanType: 'passive',
-            rawFindings: JSON.stringify(scanData, null, 2),
+            hostname: domain,
+            scanData: JSON.stringify(scanData, null, 2),
             engagement: {
               engagementType: state.engagementType,
               clientName: domain,
@@ -1710,7 +1710,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
           addLog(state, {
             phase: 'recon', type: 'llm_decision',
             title: `📊 Scan Analysis: ${domain}`,
-            detail: `Risk: ${analysis.risk_rating} (${analysis.confidence})\n${analysis.executive_summary}\n\nKey findings:\n${analysis.findings.slice(0, 5).map(f => `• [${f.severity}] ${f.title} — ${f.evidence_tag}`).join('\n')}\n\nRecommendations:\n${analysis.recommendations.slice(0, 3).map(r => `• [${r.priority}] ${r.action}`).join('\n')}`,
+            detail: `Risk: ${analysis.risk_rating || 'unknown'} (${analysis.confidence || 'low'})\n${analysis.executive_summary || 'No summary'}\n\nKey findings:\n${(analysis.findings || []).slice(0, 5).map((f: any) => `• [${f.severity}] ${f.title} — ${f.evidence_tag || ''}`).join('\n')}\n\nRecommendations:\n${(analysis.recommendations || []).slice(0, 3).map((r: any) => `• [${r.priority}] ${r.action}`).join('\n')}`,
             data: { scanAnalysis: analysis },
           });
           broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
@@ -4808,19 +4808,35 @@ export async function executeEngagement(
         }
       }
       const liveCoverage = phaseTracker.getEngagementCoverage(String(engagementId));
+      const grade = liveCoverage.overallScore >= 90 ? 'A' : liveCoverage.overallScore >= 80 ? 'B' : liveCoverage.overallScore >= 70 ? 'C' : liveCoverage.overallScore >= 60 ? 'D' : 'F';
+      // Flatten per-asset categories into a single list (deduplicate by category ID, pick worst status)
+      const categoryMap = new Map<string, { id: string; name: string; status: string; score: number; findingsCount: number }>();
+      for (const asset of liveCoverage.assets || []) {
+        for (const cat of asset.categories || []) {
+          const existing = categoryMap.get(cat.categoryId);
+          const catScore = cat.status === 'tested' ? 100 : cat.status === 'partial' ? 50 : cat.status === 'not_applicable' ? -1 : 0;
+          if (!existing || catScore < existing.score) {
+            categoryMap.set(cat.categoryId, {
+              id: cat.categoryId,
+              name: cat.categoryName || cat.categoryId,
+              status: cat.status,
+              score: catScore,
+              findingsCount: cat.findingsCount || 0,
+            });
+          }
+        }
+      }
       broadcastOpsUpdate(engagementId, {
         type: 'owasp_coverage_update',
         phase: completedPhase,
         owaspCoverage: {
           overallScore: liveCoverage.overallScore,
-          grade: liveCoverage.grade,
+          grade,
           totalTested: liveCoverage.totalTested,
           totalPartial: liveCoverage.totalPartial,
           totalGaps: liveCoverage.totalGaps,
           criticalGaps: liveCoverage.criticalGaps.length,
-          categories: liveCoverage.categories.map(c => ({
-            id: c.id, name: c.name, status: c.status, score: c.score, findingsCount: c.findingsCount,
-          })),
+          categories: [...categoryMap.values()],
         },
       });
     } catch (e: any) {
