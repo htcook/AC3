@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Server, Wifi, WifiOff, RefreshCw, Activity, HardDrive,
   MemoryStick, Clock, Wrench, CheckCircle2, XCircle, Zap,
-  Terminal, Shield
+  Terminal, Shield, Database, Trash2, AlertTriangle
 } from "lucide-react";
+import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
 
 function parseDiskInfo(raw: string | null) {
@@ -25,6 +26,133 @@ function parseMemInfo(raw: string | null) {
   if (!memLine) return null;
   const parts = memLine.split(/\s+/);
   return { total: parts[1], used: parts[2], free: parts[3], shared: parts[4], buffCache: parts[5], available: parts[6] };
+}
+
+/** Knowledge Cache Diagnostics Card */
+function KnowledgeCacheCard() {
+  const statsQ = trpc.knowledgeCache.stats.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+  const invalidateMut = trpc.knowledgeCache.invalidate.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      statsQ.refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  const stats = statsQ.data;
+
+  return (
+    <Card className="border-zinc-800 bg-zinc-900/50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+          <Database className="h-4 w-4 text-cyan-400" />
+          Knowledge Cache
+          {stats && (
+            <Badge variant="outline" className="ml-2 text-xs border-zinc-700 text-zinc-400">
+              {stats.totalCached} entries
+            </Badge>
+          )}
+          <div className="ml-auto flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => statsQ.refetch()}
+              disabled={statsQ.isRefetching}
+              className="h-7 px-2 text-zinc-400 hover:text-zinc-200"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${statsQ.isRefetching ? "animate-spin" : ""}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => invalidateMut.mutate({})}
+              disabled={invalidateMut.isPending}
+              className="h-7 px-2 text-zinc-400 hover:text-red-400"
+              title="Invalidate all cache entries"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {statsQ.isLoading ? (
+          <div className="flex items-center gap-2 text-zinc-400 text-sm">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Loading cache stats...
+          </div>
+        ) : statsQ.error ? (
+          <div className="text-sm text-zinc-500">
+            Admin access required to view cache diagnostics.
+          </div>
+        ) : stats && stats.entries.length === 0 ? (
+          <div className="text-sm text-zinc-500 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            No cached knowledge data — entries will populate after first access.
+          </div>
+        ) : stats ? (
+          <div className="space-y-2">
+            {/* Summary row */}
+            <div className="flex items-center gap-4 text-xs text-zinc-500 mb-3">
+              <span>TTL: {stats.ttlMinutes}min ({stats.ttlMinutes / 60}h)</span>
+              {stats.staleCount > 0 && (
+                <span className="text-yellow-400">{stats.staleCount} stale</span>
+              )}
+              {stats.refreshingCount > 0 && (
+                <span className="text-cyan-400">{stats.refreshingCount} refreshing</span>
+              )}
+            </div>
+            {/* Entry rows */}
+            {stats.entries.map((entry) => (
+              <div
+                key={entry.filename}
+                className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
+                  entry.stale
+                    ? "border-yellow-500/20 bg-yellow-500/5"
+                    : "border-zinc-700/50 bg-zinc-800/30"
+                }`}
+              >
+                {entry.stale ? (
+                  <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-zinc-200 font-mono truncate">
+                    {entry.filename}
+                  </div>
+                  <div className="text-xs text-zinc-500">
+                    Age: {entry.ageMinutes}min
+                    {!entry.stale && ` · Expires in ${entry.expiresInMinutes}min`}
+                    {entry.refreshing && (
+                      <span className="text-cyan-400 ml-2">
+                        <RefreshCw className="h-3 w-3 inline animate-spin mr-1" />
+                        Refreshing...
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => invalidateMut.mutate({ filename: entry.filename })}
+                  disabled={invalidateMut.isPending}
+                  className="h-7 px-2 text-zinc-500 hover:text-red-400 shrink-0"
+                  title={`Invalidate ${entry.filename}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function ScanServerHealth() {
@@ -130,6 +258,9 @@ export default function ScanServerHealth() {
               <strong>Error:</strong> {health.error}
             </div>
           )}
+
+          {/* Knowledge Cache Diagnostics */}
+          <KnowledgeCacheCard />
 
           {/* Resource Usage */}
           {health.status === "online" && (
