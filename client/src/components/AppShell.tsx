@@ -375,6 +375,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/guide/gophish", icon: BookOpen, label: "GUIDES" },
           { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },
           { href: "/knowledge-base", icon: Library, label: "LLM KNOWLEDGE BASE" },
+          { href: "/llm-learning", icon: Sparkles, label: "LLM LEARNING ENGINE" },
           { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING" },
           { href: "/report-templates", icon: FileStack, label: "REPORT TEMPLATES" },
           { href: "/evidence", icon: Archive, label: "EVIDENCE VAULT" },

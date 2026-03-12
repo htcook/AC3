@@ -22,11 +22,7 @@ import type { ToolExecConfig, ToolExecResult } from "./scan-server-executor";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-const SCAN_SERVICE_URL = process.env.SCAN_SERVER_HOST
-  ? `https://${process.env.SCAN_SERVER_HOST}`
-  : "https://scan.aceofcloud.io";
-
-const SCAN_API_KEY = process.env.CALDERA_API_KEY || "ADMIN123";
+import { SCAN_SERVICE_URL, SCAN_API_KEY } from "./scan-service-url";
 
 const LOG = "[DO-ScanAPI]";
 

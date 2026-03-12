@@ -225,6 +225,7 @@ const AgentInstallerGenerator = lazy(() => import("./pages/AgentInstallerGenerat
 const MsspAnalyticsDashboard = lazy(() => import("./pages/MsspAnalyticsDashboard"));
 const DataExfilSimulation = lazy(() => import("./pages/DataExfilSimulation"));
 const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
+const LlmLearning = lazy(() => import("./pages/LlmLearning"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -449,6 +450,9 @@ function Router() {
         </Route>
         <Route path="/knowledge-base">
           <ProtectedRoute component={KnowledgeBase} />
+        </Route>
+        <Route path="/llm-learning">
+          <ProtectedRoute component={LlmLearning} />
         </Route>
         <Route path="/campaign-execution">
           <ProtectedRoute component={CampaignExecution} />

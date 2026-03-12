@@ -18,6 +18,7 @@ import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import crypto from "crypto";
+import { SCAN_SERVICE_URL } from "../lib/scan-service-url";
 
 // ─── Training Target Catalog ───────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "juice-shop",
     name: "OWASP Juice Shop",
     url: "https://demo.owasp-juice.shop",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/juice-shop/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/juice-shop/`,
     description: "Intentionally insecure web application for security training. Contains 100+ challenges covering the OWASP Top 10 and beyond.",
     difficulty: "beginner",
     category: "Web Application",
@@ -557,7 +558,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "dvwa",
     name: "Damn Vulnerable Web Application (DVWA)",
     url: "https://github.com/digininja/DVWA",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/dvwa/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/dvwa/`,
     description: "PHP/MySQL web application that is intentionally vulnerable. Covers SQL injection, XSS, CSRF, file inclusion, command injection, brute force, and more. Multiple security levels (low/medium/high/impossible).",
     difficulty: "beginner",
     category: "Web Application",
@@ -583,7 +584,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "vampi",
     name: "VAmPI (Vulnerable REST API)",
     url: "https://github.com/NeuraLegion/VAmPI",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/vampi/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/vampi/`,
     description: "Intentionally vulnerable REST API built with Flask. Based on OWASP API Top 10 vulnerabilities. Features token-based auth, Swagger UI, and a global switch to toggle vulnerable/secure mode. Ideal for testing API-specific security issues.",
     difficulty: "intermediate",
     category: "API",
@@ -609,7 +610,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "dvga",
     name: "Damn Vulnerable GraphQL Application (DVGA)",
     url: "https://github.com/NeuraLegion/Damn-Vulnerable-GraphQL-Application",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/dvga/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/dvga/`,
     description: "Intentionally vulnerable GraphQL implementation for learning and practicing GraphQL security. Supports queries, mutations, and subscriptions with 20+ vulnerability scenarios including injections, code execution, DoS, and authorization bypass.",
     difficulty: "advanced",
     category: "API",
@@ -635,7 +636,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "webgoat",
     name: "OWASP WebGoat",
     url: "https://github.com/WebGoat/WebGoat",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/webgoat/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/webgoat/`,
     description: "OWASP's flagship deliberately insecure web application for teaching web application security. Includes guided lessons covering the full OWASP Top 10, with hands-on exercises for SQL injection, XSS, CSRF, XXE, insecure deserialization, and more. WebWolf companion app on port 9090.",
     difficulty: "beginner",
     category: "Web Application",
@@ -661,7 +662,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "bwapp",
     name: "bWAPP (buggy Web Application)",
     url: "https://github.com/raesene/bWAPP",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/bwapp/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/bwapp/`,
     description: "Extremely buggy PHP web application with 100+ vulnerabilities covering all OWASP Top 10 categories. Includes SQL injection, XSS, CSRF, SSRF, XXE, command injection, LDAP injection, file upload, and more. Uses MySQL backend.",
     difficulty: "beginner",
     category: "Web Application",
@@ -687,7 +688,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "mutillidae",
     name: "OWASP Mutillidae II",
     url: "https://github.com/webpwnized/mutillidae",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/mutillidae/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/mutillidae/`,
     description: "OWASP Mutillidae II is a free, open-source, deliberately vulnerable web application providing a target for web-security training. Contains 40+ vulnerabilities with hints and guided exploitation. Covers OWASP Top 10 and SANS Top 25.",
     difficulty: "beginner",
     category: "Web Application",
@@ -713,7 +714,7 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     id: "crapi",
     name: "OWASP crAPI (Completely Ridiculous API)",
     url: "https://github.com/OWASP/crAPI",
-    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/crapi/`,
+    liveInstanceUrl: `${SCAN_SERVICE_URL}/lab/crapi/`,
     description: "OWASP crAPI is a deliberately vulnerable API application designed to demonstrate the OWASP API Security Top 10 risks. Features a modern microservices architecture with Java, Python, and Go backends. Includes vehicle service, community forum, and shop modules.",
     difficulty: "intermediate",
     category: "API",
