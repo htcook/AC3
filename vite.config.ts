@@ -52,9 +52,57 @@ function katexCdnPlugin(): Plugin {
   };
 }
 
+/**
+ * CDN externalization for heavy libraries that are only used via dynamic import.
+ *
+ * These libraries are already lazy-loaded (dynamic `import("mermaid")` in streamdown,
+ * dynamic `import("jspdf")` in export-utils). This plugin rewrites those dynamic imports
+ * to load from esm.sh CDN at runtime, completely removing them from the build output.
+ *
+ * Savings: ~1.3MB (mermaid 393K + cytoscape 433K + jspdf 382K + jspdf-autotable 31K + dagre 12K)
+ *
+ * How it works:
+ *   - In PRODUCTION BUILD only (not dev), intercepts `import("mermaid")` etc.
+ *   - Resolves them to a tiny virtual module that re-exports from the CDN URL.
+ *   - The browser fetches the library from esm.sh on first use (cached by browser).
+ *   - In DEV mode, the plugin is inactive — local node_modules are used as normal.
+ */
+const CDN_MAP: Record<string, string> = {
+  mermaid: "https://esm.sh/mermaid@11.12.0",
+  jspdf: "https://esm.sh/jspdf@4.2.0",
+  "jspdf-autotable": "https://esm.sh/jspdf-autotable@5.0.7?external=jspdf",
+};
+
+function cdnExternalPlugin(): Plugin {
+  const virtualPrefix = "\0cdn-external:";
+  return {
+    name: "cdn-external",
+    enforce: "pre",
+    // Only active during production build
+    apply: "build",
+    resolveId(source) {
+      if (source in CDN_MAP) {
+        return virtualPrefix + source;
+      }
+      return null;
+    },
+    load(id) {
+      if (id.startsWith(virtualPrefix)) {
+        const pkg = id.slice(virtualPrefix.length);
+        const cdnUrl = CDN_MAP[pkg];
+        // Re-export everything from the CDN URL.
+        // Rollup treats the URL as an external dependency and emits it as-is.
+        return `export * from "${cdnUrl}";\nexport { default } from "${cdnUrl}";`;
+      }
+      return null;
+    },
+  };
+}
+
 const plugins = [
   shikiSubsetPlugin(),
   katexCdnPlugin(),
+  cdnExternalPlugin(),
   react(),
   tailwindcss(),
   jsxLocPlugin(),
@@ -81,7 +129,17 @@ export default defineConfig({
     cssCodeSplit: false,
     chunkSizeWarningLimit: 5000,
     rollupOptions: {
+      // Mark CDN URLs as external so Rollup doesn't try to bundle them
+      external: (id) => {
+        if (id.startsWith("https://esm.sh/")) return true;
+        return false;
+      },
       output: {
+        // Preserve dynamic imports to CDN URLs in the output
+        paths: (id) => {
+          if (id.startsWith("https://esm.sh/")) return id;
+          return id;
+        },
         manualChunks(id) {
           // Consolidate all lucide-react icons into a single chunk (~170 icons → 1 file)
           if (id.includes("node_modules/lucide-react")) {
@@ -115,11 +173,8 @@ export default defineConfig({
           ) {
             return "vendor-shiki";
           }
-          // NOTE: mermaid/cytoscape/dagre/elkjs are NOT in manualChunks.
-          // Streamdown dynamically imports mermaid (`await import("mermaid")`),
-          // so Vite naturally code-splits them into lazy-loaded chunks.
-          // Forcing them into a single vendor-viz chunk would eagerly load 2.2MB.
-          // Let page chunks split naturally via React.lazy
+          // NOTE: mermaid/cytoscape/dagre are now loaded from CDN via cdnExternalPlugin.
+          // They are completely excluded from the build output.
         },
       },
     },
