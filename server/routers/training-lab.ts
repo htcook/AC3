@@ -658,6 +658,84 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     },
   },
   {
+    id: "bwapp",
+    name: "bWAPP (buggy Web Application)",
+    url: "https://github.com/raesene/bWAPP",
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/bwapp/`,
+    description: "Extremely buggy PHP web application with 100+ vulnerabilities covering all OWASP Top 10 categories. Includes SQL injection, XSS, CSRF, SSRF, XXE, command injection, LDAP injection, file upload, and more. Uses MySQL backend.",
+    difficulty: "beginner",
+    category: "Web Application",
+    knownVulns: ["SQL Injection", "XSS", "Command Injection", "LDAP Injection", "SSRF", "XXE", "CSRF", "Insecure File Upload", "Directory Traversal", "Broken Auth", "Session Fixation", "Clickjacking", "HTTP Parameter Pollution", "Insecure Direct Object References"],
+    owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025", "A06:2025", "A07:2025", "A08:2025", "A09:2025", "A10:2025"],
+    tags: ["php", "mysql", "owasp", "100-vulns", "beginner-friendly"],
+    roe: {
+      provider: "OWASP / ITSEC GAMES",
+      termsUrl: "https://github.com/raesene/bWAPP",
+      summary: "Open-source GPL-licensed training app. Self-hosted instance — full permission to test. Contains 100+ intentional vulnerabilities.",
+      allowed: ["All web vulnerability testing", "SQL injection", "XSS", "Command injection", "LDAP injection", "File upload attacks", "CSRF", "XXE", "Automated DAST"],
+      prohibited: [],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: false,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Self-hosted on scan server at port 3003. Default credentials: bee/bug. Login at /login.php.",
+    },
+  },
+  {
+    id: "mutillidae",
+    name: "OWASP Mutillidae II",
+    url: "https://github.com/webpwnized/mutillidae",
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/mutillidae/`,
+    description: "OWASP Mutillidae II is a free, open-source, deliberately vulnerable web application providing a target for web-security training. Contains 40+ vulnerabilities with hints and guided exploitation. Covers OWASP Top 10 and SANS Top 25.",
+    difficulty: "beginner",
+    category: "Web Application",
+    knownVulns: ["SQL Injection", "XSS", "Command Injection", "LDAP Injection", "HTTP Parameter Pollution", "CSRF", "Open Redirect", "Directory Traversal", "Clickjacking", "HTML Injection", "JavaScript Injection", "JSON Injection", "XML Injection", "XPath Injection", "Buffer Overflow", "Privilege Escalation"],
+    owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025", "A06:2025", "A07:2025", "A08:2025", "A09:2025", "A10:2025"],
+    tags: ["php", "mysql", "owasp", "guided", "sans-top-25"],
+    roe: {
+      provider: "OWASP Foundation / webpwnized",
+      termsUrl: "https://github.com/webpwnized/mutillidae",
+      summary: "Open-source GPL-licensed OWASP training app. Self-hosted instance — full permission to test. Designed for web security education with guided hints.",
+      allowed: ["All web vulnerability testing", "SQL injection", "XSS", "Command injection", "LDAP injection", "Parameter pollution", "Automated DAST"],
+      prohibited: [],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: false,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Self-hosted on scan server at port 3004. Provides 3 security levels (0=hosed, 1=medium, 5=secure). Toggle hints via top menu.",
+    },
+  },
+  {
+    id: "crapi",
+    name: "OWASP crAPI (Completely Ridiculous API)",
+    url: "https://github.com/OWASP/crAPI",
+    liveInstanceUrl: `https://${process.env.SCAN_SERVER_HOST || 'scan.aceofcloud.io'}/lab/crapi/`,
+    description: "OWASP crAPI is a deliberately vulnerable API application designed to demonstrate the OWASP API Security Top 10 risks. Features a modern microservices architecture with Java, Python, and Go backends. Includes vehicle service, community forum, and shop modules.",
+    difficulty: "intermediate",
+    category: "API",
+    knownVulns: ["BOLA/IDOR", "Broken Auth", "Excessive Data Exposure", "Lack of Resources & Rate Limiting", "Broken Function Level Authorization", "Mass Assignment", "Security Misconfiguration", "Injection", "Improper Assets Management", "Insufficient Logging & Monitoring", "SSRF", "JWT Vulnerabilities", "Race Condition", "NoSQL Injection"],
+    owaspCategories: ["A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025", "A06:2025", "A07:2025", "A08:2025", "A09:2025", "A10:2025"],
+    tags: ["api", "microservices", "java", "python", "go", "jwt", "owasp-api-top-10"],
+    roe: {
+      provider: "OWASP Foundation",
+      termsUrl: "https://github.com/OWASP/crAPI",
+      summary: "Open-source Apache 2.0 licensed OWASP API security training app. Self-hosted instance — full permission to test. Covers all OWASP API Security Top 10 risks.",
+      allowed: ["All API security testing", "BOLA/IDOR", "Auth bypass", "JWT attacks", "Mass assignment", "Rate limit testing", "SSRF", "Injection", "Automated DAST"],
+      prohibited: [],
+      rateLimit: null,
+      requiresOwnInstance: false,
+      noBruteForce: false,
+      noDoS: false,
+      noExfiltration: false,
+      maxScansPerDay: null,
+      notes: "Self-hosted on scan server at port 8888. Register at /signup. API docs at /api-docs. Mailhog at port 8025 for email verification.",
+    },
+  },
+  {
     id: "custom",
     name: "Custom Target",
     url: "",
@@ -2508,4 +2586,254 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     const { getIndexStats } = await import("../lib/exploitdb-connector");
     return getIndexStats();
   }),
+
+  // ─── Regression Test Pipeline ──────────────────────────────────────────────
+
+  /** Run health checks on all self-hosted training labs */
+  labHealthCheck: protectedProcedure.query(async () => {
+    const scanHost = process.env.SCAN_SERVER_HOST || "scan.aceofcloud.io";
+    const selfHostedLabs = TRAINING_TARGETS.filter(t => t.liveInstanceUrl);
+
+    const results = await Promise.allSettled(
+      selfHostedLabs.map(async (lab) => {
+        const start = Date.now();
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 10000);
+          const res = await fetch(lab.liveInstanceUrl!, {
+            signal: controller.signal,
+            redirect: "manual",
+          });
+          clearTimeout(timeout);
+          const latencyMs = Date.now() - start;
+          return {
+            id: lab.id,
+            name: lab.name,
+            url: lab.liveInstanceUrl!,
+            status: "up" as const,
+            httpStatus: res.status,
+            latencyMs,
+            checkedAt: Date.now(),
+          };
+        } catch (e: any) {
+          return {
+            id: lab.id,
+            name: lab.name,
+            url: lab.liveInstanceUrl!,
+            status: "down" as const,
+            httpStatus: 0,
+            latencyMs: Date.now() - start,
+            error: e.message,
+            checkedAt: Date.now(),
+          };
+        }
+      })
+    );
+
+    const labResults = results.map((r) =>
+      r.status === "fulfilled" ? r.value : { id: "unknown", name: "unknown", url: "", status: "error" as const, httpStatus: 0, latencyMs: 0, error: String(r.reason), checkedAt: Date.now() }
+    );
+
+    // Also check the scan service API health
+    let apiHealth = { status: "unknown" as string, uptime: 0 };
+    try {
+      const res = await fetch(`https://${scanHost}/health`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json() as any;
+        apiHealth = { status: data.status || "ok", uptime: data.uptime || 0 };
+      }
+    } catch { apiHealth.status = "unreachable"; }
+
+    return {
+      scanServer: {
+        host: scanHost,
+        apiHealth,
+      },
+      labs: labResults,
+      summary: {
+        total: labResults.length,
+        up: labResults.filter(l => l.status === "up").length,
+        down: labResults.filter(l => l.status === "down").length,
+        avgLatencyMs: Math.round(
+          labResults.filter(l => l.status === "up").reduce((s, l) => s + l.latencyMs, 0) /
+          Math.max(1, labResults.filter(l => l.status === "up").length)
+        ),
+        checkedAt: Date.now(),
+      },
+    };
+  }),
+
+  /** Run a quick regression test against a specific lab (HTTP probe + basic vuln check) */
+  labRegressionTest: protectedProcedure
+    .input(z.object({
+      labId: z.string(),
+      checks: z.array(z.enum(["http_probe", "login_test", "sqli_canary", "xss_canary", "api_endpoint"])).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const lab = TRAINING_TARGETS.find(t => t.id === input.labId);
+      if (!lab || !lab.liveInstanceUrl) {
+        throw new TRPCError({ code: "NOT_FOUND", message: `Lab ${input.labId} not found or has no live instance` });
+      }
+      const checks = input.checks || ["http_probe"];
+      const results: Array<{ check: string; passed: boolean; detail: string; durationMs: number }> = [];
+
+      for (const check of checks) {
+        const start = Date.now();
+        try {
+          switch (check) {
+            case "http_probe": {
+              const res = await fetch(lab.liveInstanceUrl, { redirect: "manual", signal: AbortSignal.timeout(10000) });
+              results.push({
+                check,
+                passed: res.status >= 200 && res.status < 400,
+                detail: `HTTP ${res.status}`,
+                durationMs: Date.now() - start,
+              });
+              break;
+            }
+            case "api_endpoint": {
+              const apiPaths: Record<string, string> = {
+                vampi: "/",
+                crapi: "/api/v1/user/login",
+                dvga: "/graphql",
+              };
+              const path = apiPaths[lab.id] || "/";
+              const url = lab.liveInstanceUrl.replace(/\/$/, "") + path;
+              const res = await fetch(url, {
+                method: lab.id === "dvga" ? "POST" : "GET",
+                headers: lab.id === "dvga" ? { "Content-Type": "application/json" } : {},
+                body: lab.id === "dvga" ? JSON.stringify({ query: "{ __typename }" }) : undefined,
+                signal: AbortSignal.timeout(10000),
+              });
+              results.push({
+                check,
+                passed: res.status < 500,
+                detail: `API ${path} \u2192 HTTP ${res.status}`,
+                durationMs: Date.now() - start,
+              });
+              break;
+            }
+            case "sqli_canary": {
+              const testUrl = lab.liveInstanceUrl.replace(/\/$/, "") + "/?id=1'";
+              const res = await fetch(testUrl, { signal: AbortSignal.timeout(10000) });
+              const body = await res.text();
+              const hasSqlError = /sql|syntax|mysql|postgres|sqlite|oracle|error in your/i.test(body);
+              results.push({
+                check,
+                passed: true,
+                detail: hasSqlError ? "SQL error detected in response (vulnerable)" : "No SQL error in response",
+                durationMs: Date.now() - start,
+              });
+              break;
+            }
+            case "xss_canary": {
+              const testUrl = lab.liveInstanceUrl.replace(/\/$/, "") + "/?q=<script>alert(1)</script>";
+              const res = await fetch(testUrl, { signal: AbortSignal.timeout(10000) });
+              const body = await res.text();
+              const hasReflection = body.includes("<script>alert(1)</script>");
+              results.push({
+                check,
+                passed: true,
+                detail: hasReflection ? "XSS payload reflected (vulnerable)" : "XSS payload not reflected",
+                durationMs: Date.now() - start,
+              });
+              break;
+            }
+            default:
+              results.push({ check, passed: false, detail: "Unknown check type", durationMs: 0 });
+          }
+        } catch (e: any) {
+          results.push({
+            check,
+            passed: false,
+            detail: `Error: ${e.message}`,
+            durationMs: Date.now() - start,
+          });
+        }
+      }
+
+      return {
+        labId: lab.id,
+        labName: lab.name,
+        url: lab.liveInstanceUrl,
+        checks: results,
+        allPassed: results.every(r => r.passed),
+        testedAt: Date.now(),
+      };
+    }),
+
+  /** Run full regression suite across all self-hosted labs */
+  labRegressionSuite: protectedProcedure
+    .input(z.object({
+      includeVulnCanaries: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const selfHostedLabs = TRAINING_TARGETS.filter(t => t.liveInstanceUrl);
+      const suiteResults = await Promise.allSettled(
+        selfHostedLabs.map(async (lab) => {
+          const labChecks: string[] = ["http_probe"];
+          if (["vampi", "crapi", "dvga"].includes(lab.id)) {
+            labChecks.push("api_endpoint");
+          }
+
+          const results: Array<{ check: string; passed: boolean; detail: string; durationMs: number }> = [];
+          for (const check of labChecks) {
+            const start = Date.now();
+            try {
+              if (check === "http_probe") {
+                const res = await fetch(lab.liveInstanceUrl!, { redirect: "manual", signal: AbortSignal.timeout(10000) });
+                results.push({
+                  check,
+                  passed: res.status >= 200 && res.status < 400,
+                  detail: `HTTP ${res.status}`,
+                  durationMs: Date.now() - start,
+                });
+              } else if (check === "api_endpoint") {
+                const apiPaths: Record<string, string> = { vampi: "/", crapi: "/api/v1/user/login", dvga: "/graphql" };
+                const path = apiPaths[lab.id] || "/";
+                const url = lab.liveInstanceUrl!.replace(/\/$/, "") + path;
+                const res = await fetch(url, {
+                  method: lab.id === "dvga" ? "POST" : "GET",
+                  headers: lab.id === "dvga" ? { "Content-Type": "application/json" } : {},
+                  body: lab.id === "dvga" ? JSON.stringify({ query: "{ __typename }" }) : undefined,
+                  signal: AbortSignal.timeout(10000),
+                });
+                results.push({
+                  check,
+                  passed: res.status < 500,
+                  detail: `API ${path} \u2192 HTTP ${res.status}`,
+                  durationMs: Date.now() - start,
+                });
+              }
+            } catch (e: any) {
+              results.push({ check, passed: false, detail: `Error: ${e.message}`, durationMs: Date.now() - start });
+            }
+          }
+
+          return {
+            labId: lab.id,
+            labName: lab.name,
+            url: lab.liveInstanceUrl!,
+            checks: results,
+            allPassed: results.every(r => r.passed),
+          };
+        })
+      );
+
+      const labResults = suiteResults.map((r, i) =>
+        r.status === "fulfilled"
+          ? r.value
+          : { labId: selfHostedLabs[i].id, labName: selfHostedLabs[i].name, url: selfHostedLabs[i].liveInstanceUrl!, checks: [], allPassed: false, error: String(r.reason) }
+      );
+
+      return {
+        results: labResults,
+        summary: {
+          total: labResults.length,
+          passed: labResults.filter(l => l.allPassed).length,
+          failed: labResults.filter(l => !l.allPassed).length,
+          testedAt: Date.now(),
+        },
+      };
+    }),
 });

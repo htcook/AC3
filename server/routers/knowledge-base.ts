@@ -39,13 +39,26 @@ import {
   getFalsePositiveTriageContext,
   ZAP_KNOWLEDGE_METADATA,
 } from "../lib/knowledge/zap-pentesting-knowledge";
+import {
+  getPayloadCategories,
+  getPayloadsByCategory,
+  searchPayloads,
+  getWafBypasses,
+  getTechniques,
+  getTools as getPayloadTools,
+  getTrainingLabMapping,
+  getPayloadsForLab,
+  buildPayloadContext,
+  buildMultiCategoryContext,
+  getPayloadsMetadata,
+} from "../lib/knowledge/payloads-knowledge";
 
 // ─── Module Registry ────────────────────────────────────────────────────────
 
 export interface KnowledgeModule {
   id: string;
   name: string;
-  category: "offensive" | "social_engineering" | "recon" | "evasion" | "web_app_testing";
+  category: "offensive" | "social_engineering" | "recon" | "evasion" | "web_app_testing" | "payloads";
   description: string;
   version: string;
   itemCount: number;
@@ -239,6 +252,18 @@ function getModuleRegistry(): KnowledgeModule[] {
       phases: ["vuln_detection", "exploitation", "reporting"],
       status: "active",
     },
+    {
+      id: "payloads-all-the-things",
+      name: "PayloadsAllTheThings",
+      category: "payloads",
+      description: `${getPayloadsMetadata().total_payloads} payloads across ${getPayloadsMetadata().total_categories} vulnerability categories from swisskyrepo/PayloadsAllTheThings. Includes WAF bypass techniques, detection patterns, MITRE ATT&CK mappings, and training lab correlations.`,
+      version: getPayloadsMetadata().version,
+      itemCount: getPayloadsMetadata().total_payloads,
+      mitreTechniques: ["T1190", "T1059", "T1505.003", "T1027", "T1036"],
+      injectedInto: ["engagement-orchestrator.ts", "llm-scan-feedback.ts", "training-lab.ts"],
+      phases: ["enumeration", "vuln_detection", "exploitation"],
+      status: "active",
+    },
   ];
 }
 
@@ -370,6 +395,9 @@ export const knowledgeBaseRouter = router({
         case "zap-fp-triage":
           context = getFalsePositiveTriageContext();
           break;
+        case "payloads-all-the-things":
+          context = buildPayloadContext(input.category || "SQL Injection");
+          break;
         default:
           context = "Module not found";
       }
@@ -432,6 +460,7 @@ export const knowledgeBaseRouter = router({
         recon: modules.filter(m => m.category === "recon").length,
         evasion: modules.filter(m => m.category === "evasion").length,
         web_app_testing: modules.filter(m => m.category === "web_app_testing").length,
+        payloads: modules.filter(m => m.category === "payloads").length,
       },
       statusCounts: {
         active: modules.filter(m => m.status === "active").length,
