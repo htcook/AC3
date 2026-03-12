@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
+import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Scan Analyst
@@ -155,7 +156,7 @@ export async function analyzeScan(input: ScanAnalystInput): Promise<ScanAnalystO
 
   const userMessage = `Analyze the following scan data for: ${input.hostname}\n\n${input.scanData}`;
 
-  const result = await invokeLLM({ _priority: 'essential',
+  const result = await throttledLLMCall({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

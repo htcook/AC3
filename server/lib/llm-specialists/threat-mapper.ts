@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
+import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Threat Actor Correlation Engine
@@ -134,7 +135,7 @@ export async function mapThreats(input: ThreatMapperInput): Promise<ThreatMapper
 
   const userMessage = `Based on the following scan findings and asset data, identify relevant threat actors and attack behaviors:\n\n${input.findingsSummary}`;
 
-  const result = await invokeLLM({ _priority: 'essential',
+  const result = await throttledLLMCall({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

@@ -698,6 +698,86 @@ export async function suggestToolCommands(asset: {
     }
   }
 
+  // ── HTTP Form-Based Credential Testing for Web Applications ──
+  // Training labs (DVWA, Juice Shop, WebGoat, bWAPP, etc.) use HTTP form login
+  // Generate hydra http-form-post commands for common web app login patterns
+  if (webPorts.length > 0) {
+    // Known training lab credential patterns (deterministic, no LLM needed)
+    const KNOWN_WEB_APP_CREDS: Array<{
+      pattern: RegExp; // Match against hostname, URL, or technology name
+      loginPath: string;
+      formData: string; // Hydra http-form-post format: path:POST_DATA:FAIL_STRING
+      username: string;
+      password: string;
+      appName: string;
+    }> = [
+      {
+        pattern: /dvwa/i,
+        loginPath: '/login.php',
+        formData: '/login.php:username=^USER^&password=^PASS^&Login=Login:Login failed',
+        username: 'admin', password: 'password', appName: 'DVWA',
+      },
+      {
+        pattern: /juice.?shop/i,
+        loginPath: '/rest/user/login',
+        formData: '/rest/user/login:{"email"\:"^USER^","password"\:"^PASS^"}:Invalid',
+        username: 'admin@juice-sh.op', password: 'admin123', appName: 'Juice Shop',
+      },
+      {
+        pattern: /webgoat/i,
+        loginPath: '/WebGoat/login',
+        formData: '/WebGoat/login:username=^USER^&password=^PASS^:Invalid',
+        username: 'guest', password: 'guest', appName: 'WebGoat',
+      },
+      {
+        pattern: /bwapp/i,
+        loginPath: '/login.php',
+        formData: '/login.php:login=^USER^&password=^PASS^&security_level=0&form=submit:Invalid',
+        username: 'bee', password: 'bug', appName: 'bWAPP',
+      },
+      {
+        pattern: /mutillidae/i,
+        loginPath: '/index.php?page=login.php',
+        formData: '/index.php?page=login.php:username=^USER^&password=^PASS^&login-php-submit-button=Login:Authentication Error',
+        username: 'admin', password: 'admin', appName: 'Mutillidae',
+      },
+      {
+        pattern: /crapi/i,
+        loginPath: '/identity/api/auth/login',
+        formData: '/identity/api/auth/login:{"email"\:"^USER^","password"\:"^PASS^"}:Invalid',
+        username: 'victim@example.com', password: 'Cr4p1!', appName: 'crAPI',
+      },
+    ];
+
+    const hostLower = (asset.hostname || '').toLowerCase();
+    const techNames = (asset.technologies || []).map(t => (t.name || '').toLowerCase()).join(' ');
+    const matchStr = `${hostLower} ${techNames}`;
+
+    for (const wp of webPorts) {
+      const scheme = wp.port === 443 || wp.port === 8443 ? 'https' : 'http';
+
+      for (const app of KNOWN_WEB_APP_CREDS) {
+        if (app.pattern.test(matchStr)) {
+          const hydraModule = scheme === 'https' ? 'https-form-post' : 'http-form-post';
+          commands.push({
+            tool: 'hydra',
+            args: `-l '${app.username}' -p '${app.password}' -s ${wp.port} -t 4 -f ${target} ${hydraModule} '${app.formData}'`,
+            purpose: `[Known App] ${app.appName} HTTP form login — ${app.username}:${app.password} on port ${wp.port}`,
+            priority: 3,
+          });
+        }
+      }
+
+      // Generic HTTP form credential testing with common defaults
+      commands.push({
+        tool: 'hydra',
+        args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/top-20-common-SSH-passwords.txt -s ${wp.port} -t 4 -f ${target} ${scheme === 'https' ? 'https-form-post' : 'http-form-post'} '/login:username=^USER^&password=^PASS^:incorrect'`,
+        purpose: `HTTP form credential testing (common passwords) on port ${wp.port}`,
+        priority: 3,
+      });
+    }
+  }
+
   // SSH (generic wordlist fallback)
   const sshPorts = asset.ports.filter(p => p.service === "ssh" || p.port === 22);
   if (sshPorts.length > 0) {

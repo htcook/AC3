@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
+import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Operations Decision Engine
@@ -133,7 +134,7 @@ export async function decideNextOp(input: OpsDeciderInput): Promise<OpsDeciderOu
     `What should be the next action?`,
   ].join('\n');
 
-  const result = await invokeLLM({ _priority: 'essential',
+  const result = await throttledLLMCall({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

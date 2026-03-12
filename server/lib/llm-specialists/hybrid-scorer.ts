@@ -13,6 +13,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
+import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext, buildAssetContext } from "./core-policy";
 import {
   inferSector,
@@ -243,7 +244,7 @@ ${input.osintFindings?.length ? `## Additional OSINT\n${input.osintFindings.map(
 Provide your CARVER+SHOCK adjustments and risk narrative in the specified JSON format.`;
 
   try {
-    const response = await invokeLLM({ _priority: 'essential',
+    const response = await throttledLLMCall({ _priority: 'essential',
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },

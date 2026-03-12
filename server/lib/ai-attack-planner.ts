@@ -19,6 +19,7 @@ import { eq, desc } from "drizzle-orm";
 import { getLOTLContext, getFirewallEvasionContext } from "./knowledge/offensive-techniques-knowledge";
 import { buildAttackPlannerToolContext } from "./knowledge/offensive-tools-knowledge";
 import { buildMethodologyContext, buildVulnTestingContext, buildScanPlanningContext } from "./knowledge/bugbounty-methodology-knowledge";
+import { throttledLLMCall } from "./llm-throttle";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -491,7 +492,7 @@ ${scanPlanCtx ? `=== SCAN PLANNING CONTEXT ===\n${scanPlanCtx.slice(0, 2000)}\n`
 **Plan Skeleton:**
 ${JSON.stringify(skeleton, null, 2)}`;
 
-    const response = await invokeLLM({ _priority: 'essential',
+    const response = await throttledLLMCall({ _priority: 'essential',
       messages: [
         { role: "system", content: ATTACK_PLANNING_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },

@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
+import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Vulnerability Verification Analyst
@@ -160,7 +161,7 @@ export async function verifyVulnerability(input: VulnVerifierInput): Promise<Vul
     f.evidence,
   ].filter(Boolean).join('\n');
 
-  const result = await invokeLLM({ _priority: 'essential',
+  const result = await throttledLLMCall({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

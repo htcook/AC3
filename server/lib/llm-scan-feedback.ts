@@ -13,6 +13,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
+import { throttledLLMCall } from "./llm-throttle";
 import { executeTool, type ToolExecResult } from "./scan-server-executor";
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
 import { getFirewallEvasionContext, getFileUploadBypassContext } from "./knowledge/offensive-techniques-knowledge";
@@ -398,7 +399,7 @@ ${previousScans.length > 0 ? `## Previous Re-Scans (${previousScans.length} exec
 
 Analyze these findings. Are there gaps that require additional scanning? If so, specify exactly which tools to run and why. If you have sufficient data to plan attacks, set satisfied=true.`;
 
-  const response = await invokeLLM({ _priority: 'bulk',
+  const response = await throttledLLMCall({ _priority: 'bulk',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

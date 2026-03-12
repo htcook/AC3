@@ -26,6 +26,7 @@ import { getDb } from "../db";
 import { webAppScans, webAppFindings } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import { throttledLLMCall } from "./llm-throttle";
 import { HttpProxyAgent } from "http-proxy-agent";
 import http from 'http';
 import {
@@ -455,13 +456,12 @@ ${params.scanMode === "passive" ? "Configure for maximum URL discovery and passi
 ${dynamicKnowledge ? '\n\n## ZAP Knowledge Base Reference\n' + dynamicKnowledge : ''}`;
 
   try {
-    const { retryWithBackoff, isRetryableError } = await import("./api-resilience");
-    const response = await retryWithBackoff(
-      () => invokeLLM({
+    const response = await throttledLLMCall({
         messages: [
           { role: "system", content: ZAP_ORCHESTRATOR_SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
+        _caller: 'zap-scanner.generateLLMScanConfig',
         response_format: {
           type: "json_schema",
           json_schema: {
@@ -537,9 +537,7 @@ ${dynamicKnowledge ? '\n\n## ZAP Knowledge Base Reference\n' + dynamicKnowledge 
           },
         },
       },
-    }),
-      { maxRetries: 3, baseDelayMs: 2000, retryableCheck: isRetryableError }
-    );
+    });
 
     const content = response.choices?.[0]?.message?.content;
     if (typeof content === "string") {
@@ -884,7 +882,7 @@ export async function triageFinding(finding: {
   targetTechStack?: string[];
 }): Promise<TriageResult> {
   try {
-    const response = await invokeLLM({
+    const response = await throttledLLMCall({
       messages: [
         {
           role: "system",

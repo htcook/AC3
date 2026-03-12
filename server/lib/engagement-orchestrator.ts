@@ -16,6 +16,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
+import { throttledLLMCall } from "./llm-throttle";
 import { getNmapScanPlanContext, getNmapVulnCorrelationContext, getNmapHuntContext } from "./nmap-knowledge";
 import {
   emitExploitFired, emitExploitResult, emitAgentDeployed,
@@ -612,10 +613,61 @@ async function persistScanResult(opts: {
 
 // ─── Approval Gate System ───────────────────────────────────────────────────
 
+/**
+ * Auto-approval policy for signed RoE engagements.
+ * When RoE is signed, yellow and orange risk actions are auto-approved
+ * to prevent the pipeline from blocking indefinitely on each credential test.
+ * Red risk actions (destructive exploits, C2 deployment) always require manual approval.
+ */
+function shouldAutoApprove(state: EngagementOpsState, riskTier: string): boolean {
+  // Only auto-approve if RoE is signed
+  const roeStatus = state.roeScopeGuard?.roeStatus;
+  if (roeStatus !== 'signed') return false;
+
+  // Red tier always requires manual approval (destructive actions)
+  if (riskTier === 'red') return false;
+
+  // Yellow and orange tiers are auto-approved for signed RoE
+  // This covers: credential testing, enumeration, vulnerability scanning
+  return true;
+}
+
 async function requestApproval(
   state: EngagementOpsState,
   gate: Omit<ApprovalGate, "id" | "status" | "createdAt">
 ): Promise<boolean> {
+  // ── Auto-Approval for Signed RoE ──
+  // Skip the blocking approval gate for low/medium risk actions when RoE is signed
+  if (shouldAutoApprove(state, gate.riskTier)) {
+    const approval: ApprovalGate = {
+      id: genId(),
+      status: "approved",
+      createdAt: Date.now(),
+      resolvedAt: Date.now(),
+      resolvedBy: 'auto-approval:signed-roe',
+      ...gate,
+    };
+    state.approvalGates.push(approval);
+
+    addLog(state, {
+      phase: gate.phase,
+      type: "approval_response",
+      title: `✅ Auto-Approved (Signed RoE): ${gate.title}`,
+      detail: `${gate.description} — Auto-approved because RoE is signed and risk tier is ${gate.riskTier}.`,
+      data: gate.detail,
+      riskTier: gate.riskTier,
+    });
+
+    broadcastOpsUpdate(state.engagementId, {
+      type: "approval_resolved",
+      gateId: approval.id,
+      approved: true,
+    });
+
+    return true;
+  }
+
+  // ── Manual Approval Gate ──
   const approval: ApprovalGate = {
     id: genId(),
     status: "pending",
@@ -640,9 +692,36 @@ async function requestApproval(
     gate: approval,
   });
 
-  // Wait for operator response
+  // Wait for operator response (with 5-minute timeout to prevent indefinite blocking)
   return new Promise<boolean>((resolve) => {
+    const timeoutId = setTimeout(() => {
+      // If no response after 5 minutes, auto-approve yellow/orange, deny red
+      const autoDecision = gate.riskTier !== 'red';
+      approval.status = autoDecision ? "approved" : "denied";
+      approval.resolvedAt = Date.now();
+      approval.resolvedBy = `auto-timeout:${autoDecision ? 'approved' : 'denied'}`;
+      state.isPaused = false;
+      approvalResolvers.delete(approval.id);
+
+      addLog(state, {
+        phase: gate.phase,
+        type: "approval_response",
+        title: autoDecision ? `✅ Auto-Approved (Timeout): ${gate.title}` : `❌ Auto-Denied (Timeout): ${gate.title}`,
+        detail: `No operator response after 5 minutes. ${autoDecision ? 'Auto-approved' : 'Auto-denied'} based on risk tier (${gate.riskTier}).`,
+        riskTier: gate.riskTier,
+      });
+
+      broadcastOpsUpdate(state.engagementId, {
+        type: "approval_resolved",
+        gateId: approval.id,
+        approved: autoDecision,
+      });
+
+      resolve(autoDecision);
+    }, 5 * 60 * 1000); // 5 minute timeout
+
     approvalResolvers.set(approval.id, (approved) => {
+      clearTimeout(timeoutId);
       approval.status = approved ? "approved" : "denied";
       approval.resolvedAt = Date.now();
       state.isPaused = false;
@@ -1126,8 +1205,7 @@ Return valid JSON per the response_format schema.`;
     broadcastOpsUpdate(engagementId, { type: 'log_update' });
     usedPath = 'direct-llm';
     try {
-      response = await retryWithBackoff(
-        () => invokeLLM({
+      response = await throttledLLMCall({
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: tier1Content },
@@ -1135,9 +1213,7 @@ Return valid JSON per the response_format schema.`;
           _caller: 'engagement-orchestrator.generateScanPlan.fallback',
           _engagementId: state.engagementId,
           response_format: scanPlanResponseFormat,
-        }),
-        { maxRetries: 3, baseDelayMs: 2000, retryableCheck: isRetryableError }
-      );
+        });
     } catch (fallbackErr: any) {
       addLog(state, {
         phase: state.phase, type: 'error',
@@ -1314,8 +1390,7 @@ Action params: nmap_scan={targets,profile:quick|standard|deep|stealth|service|vu
 Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.${exploitPhaseInstructions}`;
 
   try {
-    const response = await retryWithBackoff(
-      () => invokeLLM({
+    const response = await throttledLLMCall({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: context.question },
@@ -1325,9 +1400,7 @@ Rules: pentest=test each asset systematically; red_team=find weakest entry,explo
         response_format: {
           type: "json_object" as const,
         },
-      }),
-      { maxRetries: 3, baseDelayMs: 2000, retryableCheck: isRetryableError }
-    );
+      });
 
     const content = response.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty LLM response");

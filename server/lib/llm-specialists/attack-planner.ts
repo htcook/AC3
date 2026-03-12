@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
+import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Attack Path Planner
@@ -192,7 +193,7 @@ export async function planAttack(input: AttackPlannerInput): Promise<AttackPlann
 
   const userMessage = `Based on the following passive reconnaissance results, design an attack path and active scanning strategy:\n\n${input.passiveReconSummary}`;
 
-  const result = await invokeLLM({ _priority: 'essential',
+  const result = await throttledLLMCall({ _priority: 'essential',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },

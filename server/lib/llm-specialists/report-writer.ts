@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
+import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Penetration Test Report Writer
@@ -146,7 +147,7 @@ export async function writeReportFinding(input: ReportWriterInput): Promise<Repo
     f.rawEvidence,
   ].filter(Boolean).join('\n');
 
-  const result = await invokeLLM({ _priority: 'bulk',
+  const result = await throttledLLMCall({ _priority: 'bulk',
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
