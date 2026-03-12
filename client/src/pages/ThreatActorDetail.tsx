@@ -37,7 +37,11 @@ import {
   XCircle,
   AlertCircle,
   Sparkles,
+  Brain,
+  TrendingUp,
+  Eye,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 // MITRE ATT&CK Tactic colors
 const TACTIC_COLORS: Record<string, string> = {
@@ -361,6 +365,9 @@ export default function ThreatActorDetail() {
             </TabsTrigger>
             <TabsTrigger value="detection-rules">
               <ShieldCheck className="w-4 h-4 mr-1" /> Detection Rules
+            </TabsTrigger>
+            <TabsTrigger value="learning-profile">
+              <Brain className="w-4 h-4 mr-1" /> Learning Profile
             </TabsTrigger>
           </TabsList>
 
@@ -711,6 +718,11 @@ export default function ThreatActorDetail() {
           {/* Detection Rules Tab */}
           <TabsContent value="detection-rules" className="space-y-4">
             <DetectionRulesPanel actorId={actorId} actorName={actor.name} techniques={techniques} />
+          </TabsContent>
+
+          {/* Learning Profile Tab */}
+          <TabsContent value="learning-profile" className="space-y-4">
+            <LearningProfilePanel actorId={actorId} actorName={actor.name} techniques={techniques} />
           </TabsContent>
         </Tabs>
       </div>
@@ -1105,6 +1117,292 @@ function DetectionRulesPanel({ actorId, actorName, techniques }: {
             <ShieldCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p className="text-sm">Click "Generate & Validate" to auto-generate detection rules from {actorName}'s {techniques.length} known techniques.</p>
             <p className="text-xs mt-1">Rules will be generated as Sigma, YARA, and Suricata formats where applicable.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Learning Profile Panel Component ──────────────────────────────────────
+
+function LearningProfilePanel({ actorId, actorName, techniques }: {
+  actorId: string;
+  actorName: string;
+  techniques: any[];
+}) {
+  const { data: profile, isLoading: profileLoading } = trpc.learningEngine.threatGroupProfile.useQuery(
+    { groupId: actorId },
+    { enabled: !!actorId }
+  );
+
+  const { data: threatStats } = trpc.learningEngine.threatStats.useQuery();
+
+  // Find this actor's stats from the overall threat stats
+  const actorStats = threatStats?.topGroups?.find(
+    (g: any) => g.groupId === actorId || g.groupName?.toLowerCase() === actorName?.toLowerCase()
+  );
+
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Loading learning profile...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Learning Engine Attribution */}
+      <Card className="bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Brain className="w-4 h-4 text-purple-400" />
+            Learning Engine Attribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {actorStats ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-lg bg-muted/30 border border-border/50 text-center">
+                <p className="text-2xl font-bold text-purple-400">{actorStats.matchCount}</p>
+                <p className="text-xs text-muted-foreground mt-1">TTP Detections</p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted/30 border border-border/50 text-center">
+                <p className="text-2xl font-bold text-cyan-400">
+                  {((actorStats.avgConfidence || 0) * 100).toFixed(1)}%
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Avg Confidence</p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted/30 border border-border/50 text-center">
+                <p className="text-2xl font-bold text-green-400">{techniques.length}</p>
+                <p className="text-xs text-muted-foreground mt-1">Known Techniques</p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Eye className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No attribution data from the learning engine yet.</p>
+              <p className="text-xs mt-1">Run scans with TTP detection enabled to build attribution data for {actorName}.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* TTP Coverage from Learning Engine */}
+      {profile && profile.ttps && profile.ttps.length > 0 && (
+        <Card className="bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="w-4 h-4 text-red-400" />
+              TTP Coverage (Learning Engine)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              Techniques observed in scan findings attributed to {actorName}, scored by the learning engine.
+            </p>
+            <div className="space-y-2">
+              {profile.ttps.slice(0, 20).map((ttp: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-2 rounded bg-muted/20 border border-border/30">
+                  <Badge variant="outline" className="text-[10px] min-w-[80px] justify-center font-mono">
+                    {ttp.techniqueId}
+                  </Badge>
+                  <span className="text-sm flex-1 truncate">{ttp.techniqueName}</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${
+                      ttp.tactic === "initial-access" ? "text-red-400 border-red-400/30" :
+                      ttp.tactic === "execution" ? "text-orange-400 border-orange-400/30" :
+                      ttp.tactic === "persistence" ? "text-yellow-400 border-yellow-400/30" :
+                      ttp.tactic === "defense-evasion" ? "text-blue-400 border-blue-400/30" :
+                      ttp.tactic === "credential-access" ? "text-purple-400 border-purple-400/30" :
+                      "text-muted-foreground"
+                    }`}
+                  >
+                    {ttp.tactic}
+                  </Badge>
+                  {ttp.frequency && (
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${
+                        ttp.frequency === "primary" ? "text-red-400 border-red-400/30" :
+                        ttp.frequency === "common" ? "text-yellow-400 border-yellow-400/30" :
+                        "text-muted-foreground"
+                      }`}
+                    >
+                      {ttp.frequency}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+              {profile.ttps.length > 20 && (
+                <p className="text-xs text-muted-foreground text-center pt-2">
+                  + {profile.ttps.length - 20} more techniques
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* CVE Overlap */}
+      {profile && profile.exploitedCVEs && profile.exploitedCVEs.length > 0 && (
+        <Card className="bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Bug className="w-4 h-4 text-orange-400" />
+              Exploited CVEs ({profile.exploitedCVEs.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              Known CVEs exploited by {actorName}. Cross-reference with your scan findings to identify overlap.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {profile.exploitedCVEs.map((cve: string, i: number) => (
+                <Badge key={i} variant="outline" className="text-xs font-mono text-orange-400 border-orange-400/30">
+                  {cve}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tools Used */}
+      {profile && profile.tools && profile.tools.length > 0 && (
+        <Card className="bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-cyan-400" />
+              Tools & Malware (Learning Engine)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {profile.tools.map((tool: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-semibold">{tool.name}</span>
+                    {tool.category && (
+                      <Badge variant="outline" className="text-[10px]">{tool.category}</Badge>
+                    )}
+                  </div>
+                  {tool.description && (
+                    <p className="text-xs text-muted-foreground">{tool.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Defense Recommendations */}
+      {profile && profile.defenseRecommendations && profile.defenseRecommendations.length > 0 && (
+        <Card className="bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-green-400" />
+              Defense Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {profile.defenseRecommendations.map((rec: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${
+                        rec.priority === "critical" ? "text-red-400 border-red-400/30" :
+                        rec.priority === "high" ? "text-orange-400 border-orange-400/30" :
+                        rec.priority === "medium" ? "text-yellow-400 border-yellow-400/30" :
+                        "text-muted-foreground"
+                      }`}
+                    >
+                      {rec.priority}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">{rec.category}</Badge>
+                  </div>
+                  <p className="text-sm">{rec.recommendation}</p>
+                  {rec.siemQuery && (
+                    <div className="mt-2">
+                      <p className="text-[10px] text-muted-foreground mb-1">SIEM Query:</p>
+                      <pre className="text-xs bg-background/50 p-2 rounded border border-border/30 overflow-x-auto font-mono">
+                        {rec.siemQuery}
+                      </pre>
+                    </div>
+                  )}
+                  {rec.mitreTechniques && rec.mitreTechniques.length > 0 && (
+                    <div className="flex gap-1 mt-2">
+                      {rec.mitreTechniques.map((t: string, j: number) => (
+                        <Badge key={j} variant="outline" className="text-[9px] font-mono">{t}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Detection Hints */}
+      {profile && profile.detectionHints && profile.detectionHints.length > 0 && (
+        <Card className="bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Eye className="w-4 h-4 text-yellow-400" />
+              Detection Hints
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {profile.detectionHints.map((hint: string, i: number) => (
+                <div key={i} className="p-2 rounded bg-muted/20 border border-border/30">
+                  <pre className="text-xs font-mono whitespace-pre-wrap break-all">{hint}</pre>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Initial Access Methods */}
+      {profile && profile.initialAccessMethods && profile.initialAccessMethods.length > 0 && (
+        <Card className="bg-card/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-red-400" />
+              Initial Access Methods
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {profile.initialAccessMethods.map((method: string, i: number) => (
+                <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/20 border border-border/30">
+                  <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                  <span className="text-sm">{method}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty state when no profile data */}
+      {!profile && (
+        <Card className="bg-card/50">
+          <CardContent className="p-8 text-center text-muted-foreground">
+            <Brain className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No learning engine profile available for {actorName}.</p>
+            <p className="text-xs mt-1">
+              The learning engine builds profiles from scan data and threat intelligence feeds.
+              Run engagements with TTP detection to populate this profile.
+            </p>
           </CardContent>
         </Card>
       )}

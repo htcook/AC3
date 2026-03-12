@@ -1,5 +1,9 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, ResponsiveContainer, BarChart, Bar, Cell,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,7 +100,7 @@ export default function KnowledgeBase() {
   const { data: accuracySummary } = trpc.accuracyFeedback.summary.useQuery(undefined, {
     enabled: activeTab === "accuracy",
   });
-  const { data: accuracyHistory } = trpc.accuracyFeedback.history.useQuery({ limit: 20 }, {
+  const { data: accuracyHistory } = trpc.accuracyFeedback.history.useQuery({ limit: 50 }, {
     enabled: activeTab === "accuracy",
   });
   const { data: latestPerTarget } = trpc.accuracyFeedback.latestPerTarget.useQuery(undefined, {
@@ -105,6 +109,65 @@ export default function KnowledgeBase() {
   const { data: aggregateVulnAccuracy } = trpc.accuracyFeedback.aggregateVulnAccuracy.useQuery({}, {
     enabled: activeTab === "accuracy",
   });
+
+  // ─── Chart Data Computation ──────────────────────────────────────────────
+  const TARGET_COLORS: Record<string, string> = {
+    dvwa: "#f87171",
+    "juice-shop": "#60a5fa",
+    bwapp: "#34d399",
+    crapi: "#fbbf24",
+    mutillidae: "#a78bfa",
+    "broken-crystals": "#f472b6",
+  };
+
+  const trendChartData = useMemo(() => {
+    if (!accuracyHistory || accuracyHistory.length === 0) return [];
+    // Group by target, sort by time, and create a unified timeline
+    const byTarget: Record<string, any[]> = {};
+    for (const row of [...accuracyHistory].reverse()) {
+      const target = row.target_preset || row.targetPreset;
+      if (!byTarget[target]) byTarget[target] = [];
+      byTarget[target].push(row);
+    }
+    // Build per-target series with wave labels
+    const targets = Object.keys(byTarget);
+    const maxWaves = Math.max(...targets.map(t => byTarget[t].length));
+    const data: any[] = [];
+    for (let i = 0; i < maxWaves; i++) {
+      const point: any = { wave: `Wave ${i + 1}` };
+      for (const target of targets) {
+        const row = byTarget[target]?.[i];
+        if (row) {
+          point[`${target}_f1`] = Number(((row.f1_score ?? row.f1Score ?? 0) * 100).toFixed(1));
+          point[`${target}_p`] = Number(((row.precision ?? 0) * 100).toFixed(1));
+          point[`${target}_r`] = Number(((row.recall ?? 0) * 100).toFixed(1));
+        }
+      }
+      data.push(point);
+    }
+    return data;
+  }, [accuracyHistory]);
+
+  const trendTargets = useMemo(() => {
+    if (!accuracyHistory) return [];
+    const seen = new Set<string>();
+    for (const row of accuracyHistory) {
+      seen.add(row.target_preset || row.targetPreset);
+    }
+    return Array.from(seen);
+  }, [accuracyHistory]);
+
+  const vulnBarData = useMemo(() => {
+    if (!aggregateVulnAccuracy || aggregateVulnAccuracy.length === 0) return [];
+    return aggregateVulnAccuracy.map((row: any) => ({
+      name: (row.vuln_type || row.vulnType || "").replace(/ /g, "\n").slice(0, 25),
+      fullName: row.vuln_type || row.vulnType,
+      detection: Number(((row.avg_detection_rate ?? row.avgDetectionRate ?? 0) * 100).toFixed(1)),
+      fp: Number(((row.avg_false_positive_rate ?? row.avgFalsePositiveRate ?? 0) * 100).toFixed(1)),
+      found: Number(row.total_found ?? row.totalFound ?? 0),
+      missed: Number(row.total_missed ?? row.totalMissed ?? 0),
+    }));
+  }, [aggregateVulnAccuracy]);
 
   // Filtered modules
   const filteredModules = useMemo(() => {
@@ -468,7 +531,7 @@ export default function KnowledgeBase() {
             </p>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Card className="border-border">
                 <CardContent className="py-4 px-5">
                   <p className="text-xs text-muted-foreground font-medium">Total Comparisons</p>
@@ -496,7 +559,120 @@ export default function KnowledgeBase() {
                   <p className="text-2xl font-bold mt-1">{accuracySummary ? `${(accuracySummary.avgRecall * 100).toFixed(1)}%` : "—"}</p>
                 </CardContent>
               </Card>
+              <Card className="border-border">
+                <CardContent className="py-4 px-5">
+                  <p className="text-xs text-muted-foreground font-medium">Targets Tested</p>
+                  <p className="text-2xl font-bold mt-1">{accuracySummary?.targetCount ?? 0}</p>
+                </CardContent>
+              </Card>
             </div>
+
+            {/* ── Accuracy Trend Line Charts ── */}
+            {trendChartData.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* F1 Score Trend */}
+                <Card className="border-border">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">F1 Score Trend</CardTitle>
+                    <CardDescription className="text-xs">F1 score progression across scan waves per target</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <LineChart data={trendChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                        <XAxis dataKey="wave" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                          formatter={(value: number, name: string) => [`${value}%`, name.replace(/_f1$/, "")]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => v.replace(/_f1$/, "")} />
+                        {trendTargets.map((target) => (
+                          <Line
+                            key={target}
+                            type="monotone"
+                            dataKey={`${target}_f1`}
+                            stroke={TARGET_COLORS[target] || "#94a3b8"}
+                            strokeWidth={2}
+                            dot={{ r: 4, fill: TARGET_COLORS[target] || "#94a3b8" }}
+                            activeDot={{ r: 6 }}
+                            connectNulls
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                {/* Precision vs Recall Trend (combined) */}
+                <Card className="border-border">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Precision vs Recall</CardTitle>
+                    <CardDescription className="text-xs">Average precision and recall across all targets per wave</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <LineChart
+                        data={trendChartData.map((point: any) => {
+                          const pVals: number[] = [];
+                          const rVals: number[] = [];
+                          for (const key of Object.keys(point)) {
+                            if (key.endsWith("_p") && typeof point[key] === "number") pVals.push(point[key]);
+                            if (key.endsWith("_r") && typeof point[key] === "number") rVals.push(point[key]);
+                          }
+                          return {
+                            wave: point.wave,
+                            precision: pVals.length ? Number((pVals.reduce((a, b) => a + b, 0) / pVals.length).toFixed(1)) : 0,
+                            recall: rVals.length ? Number((rVals.reduce((a, b) => a + b, 0) / rVals.length).toFixed(1)) : 0,
+                          };
+                        })}
+                        margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                        <XAxis dataKey="wave" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                          formatter={(value: number) => [`${value}%`]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Line type="monotone" dataKey="precision" stroke="#60a5fa" strokeWidth={2.5} dot={{ r: 5, fill: "#60a5fa" }} />
+                        <Line type="monotone" dataKey="recall" stroke="#f87171" strokeWidth={2.5} dot={{ r: 5, fill: "#f87171" }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ── Vuln Type Detection Rate Bar Chart ── */}
+            {vulnBarData.length > 0 && (
+              <Card className="border-border">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Vulnerability Detection Rates</CardTitle>
+                  <CardDescription className="text-xs">Average detection rate by vulnerability type across all comparisons</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={Math.max(300, vulnBarData.length * 32)}>
+                    <BarChart data={vulnBarData} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                      <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}%`} />
+                      <YAxis type="category" dataKey="fullName" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={115} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                        formatter={(value: number, name: string) => [`${value}%`, name === "detection" ? "Detection Rate" : "False Positive Rate"]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => v === "detection" ? "Detection Rate" : "False Positive Rate"} />
+                      <Bar dataKey="detection" fill="#34d399" radius={[0, 4, 4, 0]} barSize={14}>
+                        {vulnBarData.map((_: any, i: number) => (
+                          <Cell key={i} fill={vulnBarData[i].detection >= 70 ? "#34d399" : vulnBarData[i].detection >= 40 ? "#fbbf24" : "#f87171"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Per-Target Latest Accuracy */}
             <Card className="border-border">

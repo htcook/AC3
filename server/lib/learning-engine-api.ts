@@ -323,3 +323,52 @@ export async function getThreatStats() {
 export async function getThreatGroupLearning(groupId: string) {
   return learningFetch(`/api/learning/threat-group/${encodeURIComponent(groupId)}`);
 }
+
+/** Get detailed threat group profile with full TTP/CVE/tool data */
+export async function getThreatGroupProfile(groupId: string) {
+  const raw = await learningFetch(`/api/learning/threat-group/${encodeURIComponent(groupId)}`);
+  if (!raw?.group) return null;
+  const g = raw.group;
+  return {
+    id: g.id,
+    name: g.name,
+    aliases: g.aliases || [],
+    type: g.type,
+    origin: g.origin,
+    threatLevel: g.threatLevel,
+    active: g.active,
+    description: g.description,
+    motivation: g.motivation,
+    targetSectors: g.targetSectors || [],
+    targetRegions: g.targetRegions || [],
+    mitreGroupId: g.mitreGroupId,
+    ttps: (g.ttps || []).map((t: any) => ({
+      techniqueId: t.techniqueId,
+      techniqueName: t.techniqueName,
+      tactic: t.tactic,
+      description: t.description,
+      frequency: t.frequency,
+    })),
+    tools: (g.tools || []).map((t: any) => ({
+      name: t.name,
+      category: t.category,
+      description: t.description,
+    })),
+    exploitedCVEs: g.exploitedCVEs || [],
+    initialAccessMethods: g.initialAccessMethods || [],
+    defenseRecommendations: (g.defenseRecommendations || []).map((d: any) => ({
+      priority: d.priority,
+      category: d.category,
+      recommendation: d.recommendation,
+      siemQuery: d.siemQuery,
+      mitreTechniques: d.mitreTechniques || [],
+    })),
+    detectionHints: g.detectionHints || [],
+  };
+}
+
+/** List all threat groups with basic info */
+export async function listThreatGroups() {
+  const stats = await getThreatStats();
+  return stats.topGroups;
+}

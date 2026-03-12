@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -409,18 +410,20 @@ export default function LlmLearning() {
               {threatStats?.topGroups && threatStats.topGroups.length > 0 ? (
                 <div className="space-y-3">
                   {threatStats.topGroups.map((group: any, i: number) => (
-                    <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-muted/30 border border-border/50">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold">{group.groupName || group.groupId}</span>
-                          <Badge variant="outline" className="text-[10px]">{group.matchCount} matches</Badge>
+                    <Link key={i} href={`/threat-actors/${group.groupId}`}>
+                      <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/30 border border-border/50 hover:bg-muted/50 transition-colors cursor-pointer">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold hover:text-primary transition-colors">{group.groupName || group.groupId}</span>
+                            <Badge variant="outline" className="text-[10px]">{group.matchCount} matches</Badge>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-red-400">{pct(group.avgConfidence)}%</p>
+                          <p className="text-[10px] text-muted-foreground">avg confidence</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-red-400">{pct(group.avgConfidence)}%</p>
-                        <p className="text-[10px] text-muted-foreground">avg confidence</p>
-                      </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (

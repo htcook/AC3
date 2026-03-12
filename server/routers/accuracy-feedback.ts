@@ -19,6 +19,7 @@ import {
   getAggregateVulnTypeAccuracy,
   getAccuracySummary,
 } from "../lib/accuracy-feedback-loop";
+import { seedAccuracyData } from "../lib/accuracy-seed";
 
 export const accuracyFeedbackRouter = router({
   /** Run an accuracy comparison for a completed lab scan */
@@ -76,5 +77,10 @@ export const accuracyFeedbackRouter = router({
   /** Get overall accuracy summary statistics */
   summary: protectedProcedure.query(async () => {
     return getAccuracySummary();
+  }),
+
+  /** Seed accuracy data by running comparisons against the DO learning engine */
+  seed: protectedProcedure.mutation(async () => {
+    return seedAccuracyData();
   }),
 });

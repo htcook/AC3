@@ -102,15 +102,17 @@ export async function runAccuracyComparison(opts: {
     }
 
     // 2. Extract metrics from the score result
-    const precision = scoreResult.precision ?? scoreResult.precision_score ?? 0;
-    const recall = scoreResult.recall ?? scoreResult.recall_score ?? 0;
-    const f1Score = scoreResult.f1 ?? scoreResult.f1_score ?? 0;
-    const truePositives = scoreResult.true_positives ?? scoreResult.truePositives ?? 0;
-    const falsePositives = scoreResult.false_positives ?? scoreResult.falsePositives ?? 0;
-    const falseNegatives = scoreResult.false_negatives ?? scoreResult.falseNegatives ?? 0;
-    const matchedFindings = scoreResult.matched_findings ?? scoreResult.matchedFindings ?? [];
-    const missedVulns = scoreResult.missed_vulns ?? scoreResult.missedVulns ?? [];
-    const falsePositiveFindings = scoreResult.false_positive_findings ?? scoreResult.falsePositiveFindings ?? [];
+    // The DO endpoint wraps metrics in an `accuracy` object: { success, hasGroundTruth, accuracy: { ... } }
+    const acc = scoreResult.accuracy ?? scoreResult;
+    const precision = acc.precision ?? acc.precision_score ?? 0;
+    const recall = acc.recall ?? acc.recall_score ?? 0;
+    const f1Score = acc.f1Score ?? acc.f1 ?? acc.f1_score ?? 0;
+    const truePositives = acc.truePositives ?? acc.true_positives ?? 0;
+    const falsePositives = acc.falsePositives ?? acc.false_positives ?? 0;
+    const falseNegatives = acc.falseNegatives ?? acc.false_negatives ?? 0;
+    const matchedFindings = acc.matchedVulns ?? acc.matched_findings ?? acc.matchedFindings ?? [];
+    const missedVulns = acc.missedVulns ?? acc.missed_vulns ?? [];
+    const falsePositiveFindings = acc.falsePositiveFindings ?? acc.false_positive_findings ?? [];
 
     // 3. Get the previous comparison for delta calculation
     const deltas = await computeDeltas(opts.targetPreset, precision, recall, f1Score);
@@ -145,7 +147,7 @@ export async function runAccuracyComparison(opts: {
     const comparisonId = inserted.id;
 
     // 5. Store per-vuln-type breakdown
-    const vulnBreakdown = scoreResult.per_vuln_type ?? scoreResult.perVulnType ?? [];
+    const vulnBreakdown = acc.per_vuln_type ?? acc.perVulnType ?? scoreResult.per_vuln_type ?? scoreResult.perVulnType ?? [];
     const vulnTypeRows: InsertVulnTypeAccuracy[] = vulnBreakdown.map((v: any) => ({
       comparisonId,
       vulnType: v.vuln_type ?? v.vulnType ?? v.name ?? "unknown",

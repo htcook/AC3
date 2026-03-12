@@ -25,6 +25,8 @@ import {
   getThreatTrend,
   getThreatStats,
   getThreatGroupLearning,
+  getThreatGroupProfile,
+  listThreatGroups,
 } from "../lib/learning-engine-api";
 
 // ═══ Training Lab Stream ═════════════════════════════════════════════════════
@@ -171,6 +173,18 @@ const threatActorRouter = router({
     .query(async ({ input }) => {
       return getThreatGroupLearning(input.groupId);
     }),
+
+  /** Get detailed threat group profile */
+  groupProfile: protectedProcedure
+    .input(z.object({ groupId: z.string() }))
+    .query(async ({ input }) => {
+      return getThreatGroupProfile(input.groupId);
+    }),
+
+  /** List all threat groups */
+  listGroups: protectedProcedure.query(async () => {
+    return listThreatGroups();
+  }),
 });
 
 // ═══ Combined ════════════════════════════════════════════════════════════════
